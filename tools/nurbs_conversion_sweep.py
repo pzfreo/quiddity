@@ -231,6 +231,15 @@ def _surface_report(native, converted, correspondence: tuple[int, ...]) -> dict[
     }
 
 
+def _reported_distance(value: float) -> float:
+    """Nine significant display digits; never used by a recognition or acceptance predicate.
+
+    Recovery and probe distances inherit B-spline area/perimeter quadrature noise. Pinning
+    their final binary digits makes equivalent geometry fail this reporting-only comparison.
+    """
+    return float(f"{value:.9g}")
+
+
 def _certificate(use) -> dict[str, Any]:
     surface = use.surface
     recovery = surface.certificate
@@ -244,7 +253,7 @@ def _certificate(use) -> dict[str, Any]:
         if recovery is None
         else {
             "authority": recovery.authority,
-            "maximum_distance_bound": recovery.maximum_distance_bound,
+            "maximum_distance_bound": _reported_distance(recovery.maximum_distance_bound),
             "occt_version": recovery.occt_version,
         },
         "material_side": None
@@ -253,7 +262,7 @@ def _certificate(use) -> dict[str, Any]:
             "authority": material.authority,
             "classifier_tolerance": material.classifier_tolerance,
             "outward": list(material.outward),
-            "probe_distance": material.probe_distance,
+            "probe_distance": _reported_distance(material.probe_distance),
             "samples": len(material.sample_points),
         },
     }
@@ -398,6 +407,11 @@ def markdown(report: dict[str, Any]) -> str:
         f"- relative face area: `{report['reviewed_delta_bounds']['relative_face_area']}`",
         f"- effective primitive parameter: "
         f"`{report['reviewed_delta_bounds']['effective_primitive_parameter']}`",
+        "",
+        "Recovery maximum-distance bounds and material-side probe distances are displayed",
+        "to nine significant digits in the JSON provenance. This suppresses insignificant",
+        "quadrature drift; full-precision certificates and recognition checks are unchanged.",
+        "Counts, identities, decisions and the reviewed delta thresholds remain exact.",
         "",
         "## Performance gate",
         "",
