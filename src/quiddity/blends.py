@@ -146,7 +146,10 @@ def _native_torus(graph: FaceGraph, node: FaceNode) -> _NativeTorus | None:
     )
     if not all(map(math.isfinite, values)) or values[6] <= 0.0 or values[7] <= 0.0:
         return None
-    return _NativeTorus(values[:3], _canonical_direction(values[3:6]), values[6], values[7])
+    # gp_Dir already supplies a unit axis. Keep its full precision for geometric proofs;
+    # public direction canonicalization rounds components and can break tight alignment tests.
+    # CircularBlendPath applies that output convention only after acceptance.
+    return _NativeTorus(values[:3], values[3:6], values[6], values[7])
 
 
 def _same_torus(left: _NativeTorus, right: _NativeTorus, *, local: float) -> bool:

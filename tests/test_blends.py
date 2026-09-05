@@ -33,7 +33,10 @@ from OCP.GeomAbs import GeomAbs_Torus
 from quiddity import (
     Blend,
     CircularBlendPath,
+    FramedRecognitionResult,
     StraightBlendPath,
+    build_framed_recognition_result,
+    build_raw_recognition_result,
     feature_census,
     import_step_geometry,
     recognise_blends,
@@ -372,6 +375,44 @@ def test_circular_paths_are_free_axis_and_translation_covariant() -> None:
         (before.path.center[0] + 13, before.path.center[1] - 7, before.path.center[2] + 5),
         abs=1e-3,
     )
+
+
+@pytest.mark.parametrize(
+    "angles", [(0, 0, 0), (90, 0, 0), (0, 90, 0), (17, 31, 43), (71, 19, -113)]
+)
+def test_circular_blend_raw_and_framed_paths_agree_under_rigid_motion(angles) -> None:
+    part = Pos(13, -7, 5) * Rot(*angles) * _internal_toroidal_bottom()
+    (standalone,) = recognise_blends(part)
+    (raw,) = build_raw_recognition_result(part).blends
+    framed = build_framed_recognition_result(part)
+    assert isinstance(framed, FramedRecognitionResult)
+    (local,) = framed.result.blends
+    assert standalone == raw
+    assert raw.side == local.side == "concave"
+    assert raw.radius == local.radius == 1.0
+    assert isinstance(raw.path, CircularBlendPath)
+    assert isinstance(local.path, CircularBlendPath)
+    assert raw.path.radius == local.path.radius == 4.0
+    assert raw.path.center == pytest.approx(framed.frame.to_world(local.path.center), abs=2e-3)
+    axes = (framed.frame.x, framed.frame.y, framed.frame.z)
+    world_normal = tuple(
+        sum(local.path.normal[j] * axes[j][i] for j in range(3)) for i in range(3)
+    )
+    # A circular plane normal is unoriented; public canonicalization may reverse its sign.
+    dot = sum(a * b for a, b in zip(raw.path.normal, world_normal, strict=True))
+    assert abs(dot) == pytest.approx(1.0, abs=2e-6)
+    view = build_recognition_evidence(part)
+    feature, = [item for item in view.features if view.family(item) == "blends"]
+    assert view.record(feature) == raw
+    assert len(view.defining_faces(feature)) == 1
+    assert view.constituent_faces(feature) == view.defining_faces(feature)
+    face = view.face(next(iter(view.defining_faces(feature))))
+    assert BRepAdaptor_Surface(face.wrapped).GetType() == GeomAbs_Torus
+
+
+def test_rotated_partial_circular_edge_path_remains_unsupported() -> None:
+    half = _internal_toroidal_bottom() & Pos(15, 0, 0) * Box(30, 60, 20)
+    assert recognise_blends(Rot(17, 31, 43) * half) == []
 
 
 def test_mirror_preserves_circular_path_side_and_dimensions() -> None:

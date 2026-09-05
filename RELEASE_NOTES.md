@@ -2,6 +2,10 @@
 
 ## Next release
 
+- Preserve native torus-axis precision during circular Blend proofs so arbitrary rigid
+  rotations no longer discard complete supported paths. Public rounding and partial-path
+  refusal contracts are unchanged (#491).
+
 - Raw, framed and prepared evidence views now expose `report`: bounded explanations from
   the same recognition run, sharing the exact `result`. No extra inventory is needed (#494).
 
