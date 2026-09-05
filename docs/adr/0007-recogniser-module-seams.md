@@ -519,3 +519,13 @@ support into the ADR-0019 public record.
 geometry and explicit refusal roster. It performs no recognition or geometry inference. The
 private detector result remains available only to internal inventory/scoring tools; the public
 result and evidence view do not publish retired detector records.
+
+## Amendment (same-run evidence report, issue #494)
+
+`evidence` may import `RecognitionReport` and the completed-inventory `_project_report` function
+from `explanations`. This is a projection-to-projection dependency, not recognition authority:
+the exact same frozen inventory supplies both views, and evidence retains only the immutable
+public report. It must not invoke a report builder that runs another inventory. `explanations`
+does not import `evidence`; no cycle, recogniser dependency or private-product export is added.
+ADR 0012 defines the bounded semantics and result-identity contract. The explicit module-edge
+allowlist and same-run call-count tests enforce this boundary.

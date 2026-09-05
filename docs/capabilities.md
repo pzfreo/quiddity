@@ -89,6 +89,7 @@ recognition consumer:
 from quiddity.evidence import build_recognition_evidence
 
 view = build_recognition_evidence(part)
+report = view.report  # bounded explanations from this same run; report.result is view.result
 coverage = view.association
 remaining = [view.face(reference) for reference in coverage.unassociated_faces]
 for feature in view.features:
@@ -103,6 +104,14 @@ issuer-created, non-serializable, and valid only with their originating `Recogni
 view while the caller leaves the part unchanged. Forged, copied, stale and cross-view references
 fail closed. The view runs the aggregate once, exposes its existing `RecognitionResult`, and does
 not discover or reconcile anything itself.
+
+`view.report` provides the existing immutable `RecognitionReport` from that exact inventory,
+including family evaluation, proposal/acceptance/rejection counts, disposition reasons and
+bounded diagnostics. This is also available on framed and prepared evidence views, where
+diagnostic coordinates are local to the view's working part. Reading it never reruns recognition.
+These are detector-family counts, not necessarily counts of unified public SectionRecess records.
+An empty diagnostic list does not prove that no geometry was missed. No JSON report schema is
+introduced by this Python API addition.
 
 Every constituent set contains its defining set. Defining faces retain their exact ownership and
 reconciliation meaning; the equal or wider constituent set reports physical membership only, may

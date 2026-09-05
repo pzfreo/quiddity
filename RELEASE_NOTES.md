@@ -2,6 +2,9 @@
 
 ## Next release
 
+- Raw, framed and prepared evidence views now expose `report`: bounded explanations from
+  the same recognition run, sharing the exact `result`. No extra inventory is needed (#494).
+
 - Framed evidence mapping refusals now retain an optional completed framed `result` when
   inventory already ran. Early refusals carry `None`; callers can reuse late results without
   rerunning recognition. No unproved face mapping or partial evidence is exposed (#493).

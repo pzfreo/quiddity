@@ -4,6 +4,9 @@
 
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError, replace
+
+import pytest
 from build123d import (
     Box,
     BuildPart,
@@ -21,9 +24,11 @@ from build123d import (
 )
 
 import quiddity as r
+import quiddity.evidence as evidence_module
 import quiddity.explanations as explanation_module
+import quiddity.frames as frame_module
 from quiddity._candidates import FamilyId
-from quiddity._diagnostics import DiagnosticCode, DiagnosticStatus
+from quiddity._diagnostics import DiagnosticCode, DiagnosticStatus, ResidualDiagnostic
 from quiddity._dispositions import Outcome, ReasonCode
 from quiddity._registry import PHYSICAL_DEFINITIONS
 
@@ -221,3 +226,69 @@ def test_family_lookup_uses_stable_public_family_ids() -> None:
     assert {item.family for item in report.families} == {
         family.value for family in FamilyId if family is not FamilyId.LEGACY
     }
+
+
+@pytest.mark.parametrize("route", ["raw", "framed", "prepared"])
+@pytest.mark.parametrize("case", ["reconciliation", "gating", "injected_diagnostic"])
+def test_evidence_and_report_share_one_inventory(monkeypatch, route, case) -> None:
+    part = {
+        "reconciliation": _u_passage,
+        "gating": lambda: Box(10, 20, 30),
+        "injected_diagnostic": lambda: Box(10, 20, 30),
+    }[case]()
+    rotational = case == "gating"
+    prepared = r.prepare_framed_part(part)
+    assert isinstance(prepared, r.PreparedFramedPart)
+    expected = (
+        r.build_raw_recognition_report(part, rotational=rotational)
+        if route == "raw"
+        else prepared.recognise_report(rotational=rotational).report
+    )
+    # Inject a bounded diagnostic at the inventory boundary to test publication independently
+    # of whether a particular authored shape still triggers this residual as detectors improve.
+    diagnostic = ResidualDiagnostic(
+        DiagnosticCode.UNSUPPORTED_SUBDIVIDED_ANGLED_STEP_TERMINAL,
+        DiagnosticStatus.UNSUPPORTED, "angled_steps", "x", (1.0, 2.0, 3.0), 4, 3,
+    )
+    if case == "injected_diagnostic":
+        expected = replace(expected, diagnostics=(r.RecognitionDiagnostic(
+            r.RecognitionDiagnosticCode.UNSUPPORTED_SUBDIVIDED_ANGLED_STEP_TERMINAL,
+            r.RecognitionDiagnosticStatus.UNSUPPORTED, "angled_steps", "x",
+            (1.0, 2.0, 3.0), 4, 3,
+        ),))
+    original_inventory = evidence_module._take_inventory
+    products = []
+
+    def counted(*args, **kwargs):
+        product = original_inventory(*args, **kwargs)
+        if case == "injected_diagnostic":
+            product = replace(product, diagnostics=(diagnostic,))
+        products.append(product)
+        return product
+
+    for module in (evidence_module, frame_module, explanation_module):
+        monkeypatch.setattr(module, "_take_inventory", counted)
+    if route == "raw":
+        view = evidence_module.build_recognition_evidence(part, rotational=rotational)
+    elif route == "framed":
+        view = r.build_framed_recognition_evidence(part, rotational=rotational)
+    else:
+        view = prepared.recognise_evidence(rotational=rotational)
+
+    assert isinstance(view, (evidence_module.RecognitionEvidence, r.FramedRecognitionEvidence))
+    assert len(products) == 1
+    assert view.report is view.report
+    assert view.report.result is view.result is products[0].result
+    assert view.report == expected
+    assert view.report.coverage is r.ExplanationCoverage.BOUNDED
+    if case == "reconciliation":
+        assert _family(view.report, "slots").rejected == 2
+    elif case == "gating":
+        assert _family(view.report, "angled_steps").evaluation is r.FamilyEvaluation.NOT_APPLICABLE
+    else:
+        assert view.report.diagnostics
+    with pytest.raises(AttributeError):
+        view.report = expected
+    with pytest.raises(FrozenInstanceError):
+        view.report.result = None
+    assert len(products) == 1

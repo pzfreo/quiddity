@@ -91,7 +91,34 @@ local classification decision. A `RefusedPartFrame` remains the complete refusal
 no automatic raw fallback. `build_raw_recognition_report` names intentional caller-coordinate
 reporting, while `build_recognition_report` remains its 0.4.x compatibility alias.
 
-## Rejected alternatives
+## Amendment (evidence and explanations from one run, issue #494)
+
+`RecognitionEvidence.report` now retains the existing immutable `RecognitionReport`, projected
+from the same completed private inventory as the accepted face evidence. Its `report.result`
+is the identical object as `view.result`. `FramedRecognitionEvidence.report` delegates to that
+same report, with local coordinates paired to the view's exact working part and frame.
+Preparation and classification remain unchanged; no second inventory or cylinder scan occurs.
+
+The report is projected eagerly while the inventory is available. Evidence views retain only
+the public report, never the private product, rejected candidates or mutable execution context.
+Result-only and report-only builders remain unchanged. Evidence consumers pay the bounded report
+projection cost; simply accessing `report` does no work and returns the same immutable value.
+
+Explanations describe detector-family proposals and dispositions. Unified SectionRecess public
+occurrences may combine those detectors, so report counts need not equal the public feature
+roster. `BOUNDED` remains mandatory: neither empty diagnostics nor unassociated faces prove
+absence of missed features. This addition does not introduce a JSON report format, new manifest
+symbols, or a result schema change.
+
+### Rejected alternatives for the shared lifecycle
+
+- Reconstruct explanations from an accepted-only result: rejected candidates and observations
+  are no longer available there.
+- Retain the private inventory lazily: unnecessarily extends private execution-state lifetime.
+- Add another recognition builder or an `explain=True` mode: existing evidence consumers can
+  obtain the report directly without another lifecycle or union of return types.
+
+## Previously rejected alternatives
 
 - **Add diagnostics to `RecognitionResult`:** changes its central construction/equality contract
   and makes every existing result look causally complete.

@@ -98,6 +98,7 @@ def consume(part: Solid, face: Face, bounds: BoundBox) -> None:
     assert_type(raw_report, RecognitionReport)
     assert_type(evidence, RecognitionEvidence)
     assert_type(evidence.result, RecognitionResult)
+    assert_type(evidence.report, RecognitionReport)
     assert_type(evidence.features, tuple[FeatureRef, ...])
     assert_type(evidence.faces, frozenset[FaceRef])
     assert_type(evidence.association, GeometryAssociation)
@@ -114,6 +115,7 @@ def consume(part: Solid, face: Face, bounds: BoundBox) -> None:
     for reference in evidence.faces:
         assert_type(evidence.face(reference), Face)
     if isinstance(framed_evidence, FramedRecognitionEvidence):
+        assert_type(framed_evidence.report, RecognitionReport)
         assert_type(framed_evidence.frame, PartFrame)
         assert_type(framed_evidence.part, Shape[TopoDS_Shape])
         assert_type(framed_evidence.caller_part, Solid | Compound)

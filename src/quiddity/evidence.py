@@ -23,6 +23,7 @@ from quiddity._adjacency import FaceNode
 from quiddity._candidates import FamilyId
 from quiddity._registry import PHYSICAL_DEFINITIONS, RECESS_SOURCE_FAMILIES
 from quiddity._typing import CylinderInventory, FaceLike, Part
+from quiddity.explanations import RecognitionReport, _project_report
 from quiddity.result import InventoryProduct, RecognitionResult, _take_inventory
 
 EVIDENCE_API_FORMAT = "quiddity-evidence-api"
@@ -139,6 +140,7 @@ class RecognitionEvidence:
     __slots__ = (
         "__authority",
         "__result",
+        "__report",
         "__features",
         "__feature_records",
         "__feature_defining",
@@ -152,6 +154,7 @@ class RecognitionEvidence:
     )
     __authority: object
     __result: RecognitionResult
+    __report: RecognitionReport
     __features: tuple[FeatureRef, ...]
     __feature_records: tuple[RecognitionRecord, ...]
     __feature_defining: tuple[frozenset[FaceNode], ...]
@@ -171,6 +174,16 @@ class RecognitionEvidence:
         """The existing immutable result projected from this view's one recognition run."""
 
         return self.__result
+
+    @property
+    def report(self) -> RecognitionReport:
+        """Bounded explanations from the same inventory, sharing this exact result.
+
+        Detector-family dispositions are not an exhaustive explanation of unassociated
+        faces, nor necessarily a one-to-one census of unified public occurrences.
+        """
+
+        return self.__report
 
     @property
     def features(self) -> tuple[FeatureRef, ...]:
@@ -293,6 +306,12 @@ class FramedRecognitionEvidence(Generic[FrameValue]):
         """The existing local-coordinate result from this view's one recognition run."""
 
         return self.__evidence.result
+
+    @property
+    def report(self) -> RecognitionReport:
+        """Same-run bounded explanations in the exact local working coordinates."""
+
+        return self.__evidence.report
 
     @property
     def features(self) -> tuple[FeatureRef, ...]:
@@ -420,6 +439,7 @@ def _project_recognition_evidence(product: InventoryProduct) -> RecognitionEvide
         )
     object.__setattr__(result, "_RecognitionEvidence__authority", authority)
     object.__setattr__(result, "_RecognitionEvidence__result", product.result)
+    object.__setattr__(result, "_RecognitionEvidence__report", _project_report(product))
     object.__setattr__(result, "_RecognitionEvidence__features", tuple(feature_refs))
     object.__setattr__(result, "_RecognitionEvidence__feature_records", tuple(records))
     object.__setattr__(result, "_RecognitionEvidence__feature_defining", tuple(defining_sets))
