@@ -222,7 +222,7 @@ from quiddity.turned import (
 try:
     __version__ = version("quiddity")
 except PackageNotFoundError:  # pragma: no cover - only a bare, uninstalled source tree
-    __version__ = "0.2.0.dev0"
+    __version__ = "0.2.1"
 
 # Imported after the recognition surface because census consumes that public orchestration.
 from quiddity.capabilities import (  # noqa: E402

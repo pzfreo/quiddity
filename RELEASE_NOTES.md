@@ -2,6 +2,11 @@
 
 ## Next release
 
+## 0.2.1 — Quiddity
+
+- Expand provider-owned grid-lattice and corner-notch regression coverage, and stabilize
+  quadrature-derived NURBS report distances without changing recognition calculations.
+
 - Preserve native torus-axis precision during circular Blend proofs so arbitrary rigid
   rotations no longer discard complete supported paths. Public rounding and partial-path
   refusal contracts are unchanged (#491).

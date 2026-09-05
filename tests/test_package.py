@@ -82,6 +82,9 @@ def test_stable_release_notes_record_the_proven_downstream_cutover() -> None:
     # carries an unreleased version, so this would have demanded speculative notes and failed
     # every post-release bump. The publish workflow asks it against the tag instead.
     assert notes.startswith("# Release notes\n")
+    # Quiddity reset its version history; distinguish its release from the old package's
+    # historical 0.2.1 entry, which must remain intact below.
+    assert notes.count("\n## 0.2.1 — Quiddity\n") == 1
     assert notes.count("\n## 0.2.5\n") == 1
     assert notes.count("\n## 0.2.4\n") == 1
     assert notes.count("\n## 0.2.3\n") == 1
