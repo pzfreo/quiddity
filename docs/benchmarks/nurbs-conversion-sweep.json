@@ -371,7 +371,7 @@
               "orientation_capability": "recovered-unoriented",
               "recovery": {
                 "authority": "OCCT ShapeAnalysis_CanonicalRecognition face maximum-distance contract",
-                "maximum_distance_bound": 9.470588235294117e-06,
+                "maximum_distance_bound": 9.47058824e-06,
                 "occt_version": "7.9.3.1"
               },
               "surface_provenance": "recovered"
@@ -395,7 +395,7 @@
               "orientation_capability": "recovered-unoriented",
               "recovery": {
                 "authority": "OCCT ShapeAnalysis_CanonicalRecognition face maximum-distance contract",
-                "maximum_distance_bound": 9.470588235294117e-06,
+                "maximum_distance_bound": 9.47058824e-06,
                 "occt_version": "7.9.3.1"
               },
               "surface_provenance": "recovered"
@@ -411,13 +411,13 @@
                   0.0,
                   1.0
                 ],
-                "probe_distance": 0.0010285714285714286,
+                "probe_distance": 0.00102857143,
                 "samples": 2
               },
               "orientation_capability": "recovered-unoriented",
               "recovery": {
                 "authority": "OCCT ShapeAnalysis_CanonicalRecognition face maximum-distance contract",
-                "maximum_distance_bound": 1.1285714285714287e-05,
+                "maximum_distance_bound": 1.12857143e-05,
                 "occt_version": "7.9.3.1"
               },
               "surface_provenance": "recovered"

@@ -22,6 +22,11 @@ Reviewed representation-delta bounds enforced across every face:
 - relative face area: `0.004`
 - effective primitive parameter: `1e-08`
 
+Recovery maximum-distance bounds and material-side probe distances are displayed
+to nine significant digits in the JSON provenance. This suppresses insignificant
+quadrature drift; full-precision certificates and recognition checks are unchanged.
+Counts, identities, decisions and the reviewed delta thresholds remain exact.
+
 ## Performance gate
 
 Recorded on 2026-08-28 under Python 3.14.7, macOS/darwin, local development host: median `2.133` seconds over 3 repeats.

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 
 import pytest
 
@@ -14,6 +15,7 @@ from tools.nurbs_conversion_sweep import (
     PERFORMANCE_BUDGET_SECONDS,
     REVIEWED_DELTA_BOUNDS,
     _parameter_delta,
+    _reported_distance,
     markdown,
     sweep,
 )
@@ -77,6 +79,18 @@ def test_parameter_delta_ignores_equivalent_plane_direction_gauge() -> None:
     converted = (0.7071067811865476, -0.7071067811865475, 0.0, -72.12489168102785)
 
     assert _parameter_delta(SurfaceKind.PLANE, native, converted) < 1e-12
+
+
+@pytest.mark.parametrize("value, expected", [
+    (9.470588235294117e-06, 9.47058824e-06),
+    (1.1285714285714287e-05, 1.12857143e-05),
+    (0.0010285714285714286, 0.00102857143),
+])
+def test_report_distance_ignores_quadrature_ulps_but_preserves_meaningful_changes(value, expected):
+    assert _reported_distance(value) == expected
+    assert _reported_distance(math.nextafter(value, math.inf)) == expected
+    assert _reported_distance(math.nextafter(value, -math.inf)) == expected
+    assert _reported_distance(value * 1.001) != expected
 
 
 def test_converted_pad_retains_every_surface_and_material_side_certificate(report) -> None:
