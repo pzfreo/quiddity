@@ -53,9 +53,9 @@ def test_rigid_motion_baseline_separates_absence_from_reclassification(report) -
         },
         "X30": {
             "baseline_records": 100,
-            "retained_same_family": 46,
+            "retained_same_family": 49,
             "reclassified": 11,
-            "absent": 43,
+            "absent": 40,
             "introduced": 0,
         },
         "X90": {
@@ -67,6 +67,11 @@ def test_rigid_motion_baseline_separates_absence_from_reclassification(report) -
         },
     }
     fixtures = report["fixtures"]
+    # Native torus-axis precision preserves these three Blends under X30 (#491).
+    for name, count in (("toroidal_blend_compound", 2), ("toroidal_blend_internal", 1)):
+        rotated = fixtures[name]["rotations"]["X30"]
+        assert rotated["same_family"]["blend"] == count
+        assert rotated["absent"] == rotated["introduced"] == rotated["reclassified"] == 0
     assert fixtures["blind_pockets_and_pocket_patterns"]["rotations"]["Z30"]["transitions"] == {
         "pocket->prismatic_pocket": 6
     }
