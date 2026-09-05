@@ -130,8 +130,9 @@ def test_round_bottom_blind_slot_has_truthful_dimensions_and_evidence():
     assert len(ledger.claims[0].defining) == 4
 
     evidence = build_recognition_evidence(part)
-    (feature,) = tuple(ref for ref in evidence.features
-                      if evidence.family(ref) == "section_recesses")
+    (feature,) = tuple(
+        ref for ref in evidence.features if evidence.family(ref) == "section_recesses"
+    )
     assert evidence.constituent_faces(feature) == evidence.defining_faces(feature)
     assert len(evidence.defining_faces(feature)) == 4
 
@@ -187,6 +188,31 @@ def test_local_cylinder_equality_accepts_and_rejects_both_sides_of_the_tolerance
     assert not _same_cylinder(
         translated,
         (radius, 2, (1e9 + 2 * tolerance, 1e9, 1.0)),
+    )
+
+
+@pytest.mark.parametrize("start", range(5))
+def test_boundary_runs_join_split_straight_side_across_every_wire_seam(start):
+    # Control enumeration, not geometry: OCCT may choose any edge as the wire seam.
+    points = [(0, 0), (1, 0), (2, 0), (2, 2), (0, 2), (0, 0)]
+    edges = [Line(first, second) for first, second in zip(points[:-1], points[1:], strict=True)]
+    ordered = edges[start:] + edges[:start]
+
+    class OrderedBoundary:
+        @staticmethod
+        def edges():
+            return ordered
+
+    groups = _boundary_runs(OrderedBoundary())
+    assert groups is not None
+    assert len(groups) == 4
+    assert all(kind == GeomType.LINE for kind, _members in groups)
+    assert sorted(len(members) for _kind, members in groups) == [1, 1, 1, 2]
+    (split_side,) = [members for _kind, members in groups if len(members) == 2]
+    assert split_side[0] is edges[0]
+    assert split_side[1] is edges[1]
+    assert sorted(id(edge) for _kind, members in groups for edge in members) == sorted(
+        id(edge) for edge in edges
     )
 
 
@@ -394,9 +420,7 @@ def test_compound_members_and_equal_occurrences_remain_distinct():
     assert records[0].at != records[1].at
 
     evidence = build_recognition_evidence(Compound(children=[_slot(), _slot()]))
-    refs = tuple(
-        ref for ref in evidence.features if evidence.family(ref) == "section_recesses"
-    )
+    refs = tuple(ref for ref in evidence.features if evidence.family(ref) == "section_recesses")
     assert len(refs) == 2
     assert refs[0] is not refs[1]
 
