@@ -119,6 +119,10 @@ in local working coordinates; `caller_face(ref)` resolves the exact topology-par
 caller part. Applying the exact retained rigid placement to each caller face must produce a complete
 `IsSame` topology bijection and otherwise
 returns `RefusedFramedEvidence`; coordinate proximity and face ordering are never fallbacks.
+Its optional `result` is `None` when mapping refuses before inventory. If pairing or the final
+face census refuses after inventory, `result` is the exact completed `FramedRecognitionResult`
+(frame, working part and aggregate), so a caller can reuse it without another recognition run.
+The refusal never exposes a partial evidence view or face references.
 
 Consumers whose rotational/prismatic classification depends on the normalized shape use
 `PreparedFramedPart.recognise_evidence(rotational=...)`. Preparation still derives cylinders once,

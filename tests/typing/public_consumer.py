@@ -124,6 +124,7 @@ def consume(part: Solid, face: Face, bounds: BoundBox) -> None:
             assert_type(framed_evidence.caller_face(reference), Face)
     if isinstance(framed_evidence, RefusedFramedEvidence):
         assert_type(framed_evidence.reason, FramedEvidenceRefusalReason)
+        assert_type(framed_evidence.result, FramedRecognitionResult | None)
     assert_type(result.holes, tuple[HoleRecord, ...])
     assert_type(result.bosses, tuple[BossRecord, ...])
     assert_type(result.paired_ramp_steps, tuple[PairedRampStep, ...])

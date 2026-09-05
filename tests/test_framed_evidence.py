@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+from dataclasses import FrozenInstanceError, fields
 from typing import cast
 
 import pytest
@@ -18,6 +19,7 @@ from quiddity.evidence import (
     RefusedFramedEvidence,
 )
 from quiddity.frames import (
+    FramedRecognitionResult,
     FrameGauge,
     PreparedFramedPart,
     RefusedPartFrame,
@@ -204,6 +206,54 @@ def test_non_bijective_partner_mapping_refuses_without_order_or_coordinate_fallb
     assert prepared.recognise_evidence() == RefusedFramedEvidence(
         FramedEvidenceRefusalReason.CALLER_FACE_MAPPING_UNAVAILABLE
     )
+
+
+@pytest.mark.parametrize("failure", ["foreign_face", "duplicate_face", "incomplete_census"])
+def test_late_mapping_refusal_retains_exact_completed_result(monkeypatch, failure) -> None:
+    prepared = prepare_framed_part(_full_gauge_part())
+    assert isinstance(prepared, PreparedFramedPart)
+    products = []
+    original_inventory = frames._take_inventory
+
+    def counted(*args, **kwargs):
+        product = original_inventory(*args, **kwargs)
+        products.append(product)
+        return product
+
+    monkeypatch.setattr(frames, "_take_inventory", counted)
+    if failure == "incomplete_census":
+        monkeypatch.setattr(
+            evidence_module.RecognitionEvidence, "faces", property(lambda self: frozenset())
+        )
+    else:
+        face = (
+            Box(1, 2, 3).faces()[0]
+            if failure == "foreign_face"
+            else prepared.part.faces()[0]
+        )
+        monkeypatch.setattr(evidence_module.RecognitionEvidence, "face", lambda self, ref: face)
+
+    refused = prepared.recognise_evidence(rotational=True)
+
+    assert isinstance(refused, RefusedFramedEvidence)
+    assert refused.reason is FramedEvidenceRefusalReason.CALLER_FACE_MAPPING_UNAVAILABLE
+    assert isinstance(refused.result, FramedRecognitionResult)
+    assert len(products) == 1
+    assert refused.result.frame is prepared.frame
+    assert refused.result.part is prepared.part
+    assert refused.result.result is products[0].result
+    assert refused.result.result.rotational is True
+    for actual, original in zip(refused.result.result.cylinders, prepared.cylinders, strict=True):
+        assert len(actual) == len(original)
+        assert all(a is b for a, b in zip(actual, original, strict=True))
+    # The public carrier cannot leak the private product or a partial evidence authority.
+    assert {field.name for field in fields(refused)} == {"reason", "result"}
+    with pytest.raises(FrozenInstanceError):
+        refused.result = None
+    # A caller's ordinary fallback consumes the retained aggregate, without recognizing again.
+    fallback = refused.result if refused.result is not None else prepared.recognise()
+    assert fallback is refused.result
+    assert len(products) == 1
 
 
 def test_framed_face_references_retain_exact_view_authority() -> None:

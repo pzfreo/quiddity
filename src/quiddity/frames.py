@@ -184,7 +184,7 @@ class PreparedFramedPart:
 
     def recognise_evidence(
         self, *, rotational: bool = False
-    ) -> FramedRecognitionEvidence[PartFrame] | RefusedFramedEvidence:
+    ) -> FramedRecognitionEvidence[PartFrame] | RefusedFramedEvidence[FramedRecognitionResult]:
         """Run the aggregate once and pair accepted evidence to local and caller faces."""
 
         return _build_prepared_framed_recognition_evidence(self, rotational=rotational)
@@ -194,7 +194,11 @@ FrameInference = PartFrame | RefusedPartFrame
 FramedPreparation = PreparedFramedPart | RefusedPartFrame
 FramedRecognition = FramedRecognitionResult | RefusedPartFrame
 FramedReport = FramedRecognitionReport | RefusedPartFrame
-FramedEvidence = FramedRecognitionEvidence[PartFrame] | RefusedFramedEvidence | RefusedPartFrame
+FramedEvidence = (
+    FramedRecognitionEvidence[PartFrame]
+    | RefusedFramedEvidence[FramedRecognitionResult]
+    | RefusedPartFrame
+)
 
 
 @dataclass(slots=True)
@@ -441,7 +445,7 @@ def _build_prepared_framed_recognition_evidence(
     prepared: PreparedFramedPart,
     *,
     rotational: bool = False,
-) -> FramedRecognitionEvidence[PartFrame] | RefusedFramedEvidence:
+) -> FramedRecognitionEvidence[PartFrame] | RefusedFramedEvidence[FramedRecognitionResult]:
     caller_part = prepared._caller_part
     placement = prepared._placement
     if caller_part is None or placement is None:
@@ -450,9 +454,9 @@ def _build_prepared_framed_recognition_evidence(
     if bijection is None:
         return RefusedFramedEvidence(FramedEvidenceRefusalReason.CALLER_FACE_MAPPING_UNAVAILABLE)
     cylinders = (list(prepared.cylinders[0]), list(prepared.cylinders[1]))
-    evidence = _project_recognition_evidence(
-        _take_inventory(cast(Part, prepared.part), cylinders=cylinders, rotational=rotational)
-    )
+    product = _take_inventory(cast(Part, prepared.part), cylinders=cylinders, rotational=rotational)
+    evidence = _project_recognition_evidence(product)
+    completed = FramedRecognitionResult(prepared.frame, prepared.part, product.result)
     pairs: list[tuple[FaceRef, FaceLike]] = []
     matched: set[int] = set()
     for reference in evidence.faces:
@@ -464,12 +468,14 @@ def _build_prepared_framed_recognition_evidence(
         )
         if len(exact) != 1 or exact[0][0] in matched:
             return RefusedFramedEvidence(
-                FramedEvidenceRefusalReason.CALLER_FACE_MAPPING_UNAVAILABLE
+                FramedEvidenceRefusalReason.CALLER_FACE_MAPPING_UNAVAILABLE, completed
             )
         matched.add(exact[0][0])
         pairs.append((reference, exact[0][1]))
     if len(matched) != len(bijection):
-        return RefusedFramedEvidence(FramedEvidenceRefusalReason.CALLER_FACE_MAPPING_UNAVAILABLE)
+        return RefusedFramedEvidence(
+            FramedEvidenceRefusalReason.CALLER_FACE_MAPPING_UNAVAILABLE, completed
+        )
     return _issue_framed_recognition_evidence(
         prepared.frame,
         prepared.part,

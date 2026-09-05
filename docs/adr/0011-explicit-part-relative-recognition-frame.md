@@ -169,11 +169,27 @@ under OCCT `IsSame` identity. This retains topology-partner provenance while dis
 separate located occurrences of one shared TShape.
 
 Frame inference refusal remains `RefusedPartFrame`. A missing or non-bijective caller-face relation
-returns a separate typed evidence-mapping refusal before aggregate recognition; it never falls
+returns a separate typed evidence-mapping refusal; it never falls
 back to raw recognition or approximate matching. Preparation still scans cylinders once, and the
 consumer still selects `rotational` from the prepared local substrate before the one aggregate
 call. Existing result/report operations, raw evidence, frame gauges and recognition outcomes are
 unchanged.
+
+### Amendment (completed result on late mapping refusal, issue #493)
+
+Mapping checks occur both before inventory and against the completed evidence face census.
+`RefusedFramedEvidence[FramedRecognitionResult].result` is `None` for a pre-inventory refusal.
+If the post-inventory pairing or final census fails, it instead retains the exact completed
+`FramedRecognitionResult`: the prepared frame and working part, and the same aggregate and
+cylinder objects from that run. No partial evidence view, face references or private inventory
+product is exposed. A caller may reuse that result without another inventory; the provider never
+silently falls back to raw recognition. Successful evidence results are unchanged.
+
+The optional field is additive and defaults to `None`, preserving the one-argument refusal
+constructor. The existing evidence manifest enumerates public symbols, not dataclass fields;
+its symbol inventory and format stay unchanged. Consumer typing and runtime contract tests
+cover the new field. A generic result carrier avoids an evidence-to-frames import cycle while
+the framed entry points specialize it to `FramedRecognitionResult`.
 
 ## Amendment (principal-axis rectangular recesses, issue #320)
 

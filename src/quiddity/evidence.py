@@ -41,6 +41,7 @@ class RecognitionRecord(Protocol):
 
 MeasureValue = TypeVar("MeasureValue", int, float)
 FrameValue = TypeVar("FrameValue")
+_ResultValue = TypeVar("_ResultValue")
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,10 +94,15 @@ class FramedEvidenceRefusalReason(Enum):
 
 
 @dataclass(frozen=True, slots=True)
-class RefusedFramedEvidence:
-    """Typed refusal produced before framed evidence can escape."""
+class RefusedFramedEvidence(Generic[_ResultValue]):
+    """Mapping refusal, retaining a completed result when recognition already ran.
+
+    Provider-issued values carry ``None`` only when refused before inventory.
+    No partially authorized evidence or references are exposed.
+    """
 
     reason: FramedEvidenceRefusalReason
+    result: _ResultValue | None = None
 
 
 class FaceRef:
