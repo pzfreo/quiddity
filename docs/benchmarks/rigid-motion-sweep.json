@@ -1087,16 +1087,15 @@
       "baseline_records": 4,
       "rotations": {
         "X30": {
-          "absent": 2,
-          "absent_by_family": {
-            "blend": 2
-          },
+          "absent": 0,
+          "absent_by_family": {},
           "baseline_records": 4,
           "introduced": 0,
           "introduced_by_family": {},
           "reclassified": 0,
-          "retained_same_family": 2,
+          "retained_same_family": 4,
           "same_family": {
+            "blend": 2,
             "hole": 2
           },
           "transitions": {}
@@ -1135,16 +1134,15 @@
       "baseline_records": 2,
       "rotations": {
         "X30": {
-          "absent": 1,
-          "absent_by_family": {
-            "blend": 1
-          },
+          "absent": 0,
+          "absent_by_family": {},
           "baseline_records": 2,
           "introduced": 0,
           "introduced_by_family": {},
           "reclassified": 0,
-          "retained_same_family": 1,
+          "retained_same_family": 2,
           "same_family": {
+            "blend": 1,
             "hole": 1
           },
           "transitions": {}
@@ -1379,11 +1377,11 @@
   "schema": 1,
   "totals": {
     "X30": {
-      "absent": 43,
+      "absent": 40,
       "baseline_records": 100,
       "introduced": 0,
       "reclassified": 11,
-      "retained_same_family": 46
+      "retained_same_family": 49
     },
     "X90": {
       "absent": 0,
