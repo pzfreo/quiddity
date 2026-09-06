@@ -13,6 +13,7 @@ from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.GeomAbs import GeomAbs_Cylinder
 
 from quiddity._adjacency import FaceGraph, FaceNode, frame_points_outward
+from quiddity._cylindrical_channels import CylindricalChannelProof
 from quiddity._cylindrical_end_surface import CylindricalEndSurface
 from quiddity._cylindrical_pockets import CylindricalPocketProof, cylindrical_pocket_proofs
 from quiddity._effective_surfaces import EffectiveSurfaceQuery
@@ -21,6 +22,7 @@ from quiddity._recess_obround import _END_RADIUS_FRAC
 from quiddity._section_passages import _end_slab, _line_section, _probe_prism
 from quiddity._section_recess import (
     ClosedSectionProfile,
+    OpenSectionProfile,
     SectionEnd,
     SectionRecessEnds,
     SectionRecessGeometry,
@@ -709,6 +711,67 @@ def _cylindrical_candidate(graph: FaceGraph, proof: CylindricalPocketProof) -> _
     frame = LocalFrame.canonical(base.run, centre)
     floor_at = _dot(tuple(graph.face(proof.floor).center()), frame.run)
     sign = 1 if _dot(proof.run, frame.run) > 0 else -1
+    geometry = _cylindrical_geometry(proof, frame, section, floor_at, sign, int(sign > 0))
+    defining = tuple(sorted(n.index for n in proof.walls))
+    return _Candidate(
+        defining,
+        tuple(sorted((*defining, proof.floor.index))),
+        proof.stock.index,
+        proof.owner.ordinal,
+        geometry,
+        _polygonal_shape(tuple(vertex.point for vertex in section.boundary)),
+    )
+
+
+def cylindrical_channel_geometry(proof: CylindricalChannelProof) -> SectionRecessGeometry:
+    """Project a proved U-channel without publishing its temporary probe closure."""
+    r, w = "xyz".index(proof.run_axis), "xyz".index(proof.width_axis)
+    d = next(i for i in range(3) if i not in (r, w))
+    centre = cast(Vector3, tuple((lo + hi) / 2 for lo, hi in proof.bounds))
+    frame = LocalFrame.principal(proof.run_axis, centre)
+    # Construct only the private rectangular domain, using exact original bounds.
+    corners = []
+    for di, wi in ((0, 0), (0, 1), (1, 1), (1, 0)):
+        point = list(centre)
+        point[d], point[w] = proof.bounds[d][di], proof.bounds[w][wi]
+        relative = _subtract(cast(Vector3, tuple(point)), frame.origin)
+        corners.append(SectionVertex((_dot(relative, frame.u), _dot(relative, frame.v))))
+    section = PlanarSection(tuple(corners))
+    mouth = proof.bounds[d][1 if proof.open_sign == 1 else 0]
+    points = tuple(vertex.point for vertex in section.boundary)
+    mouth_vertices = tuple(
+        abs(frame.origin[d] + p[0] * frame.u[d] + p[1] * frame.v[d] - mouth) <= 1e-6 for p in points
+    )
+    openings = [
+        i for i in range(len(points)) if mouth_vertices[i] and mouth_vertices[(i + 1) % len(points)]
+    ]
+    if len(openings) != 1:
+        raise ValueError("cylindrical channel must preserve one absent lateral support")
+    return _cylindrical_geometry(
+        proof,
+        frame,
+        section,
+        proof.run_interval[1 - proof.cylindrical_end],
+        -1 if proof.cylindrical_end == 1 else 1,
+        proof.cylindrical_end,
+        openings[0],
+    )
+
+
+def _cylindrical_geometry(
+    proof: CylindricalPocketProof | CylindricalChannelProof,
+    frame: LocalFrame,
+    section: PlanarSection,
+    floor_at: float,
+    sign: int,
+    end_index: int,
+    opening_edge: int | None = None,
+) -> SectionRecessGeometry:
+    """One whole-occurrence error bound for observed cylindrical terminations.
+
+    The closed section is the private probe domain. For a channel its explicitly
+    identified absent edge is removed before publishing the physical profile.
+    """
     relative = _subtract(proof.axis_point, frame.origin)
     axis = (_dot(proof.axis_direction, frame.u), _dot(proof.axis_direction, frame.v))
     norm = math.hypot(*axis)
@@ -818,28 +881,29 @@ def _cylindrical_candidate(graph: FaceGraph, proof: CylindricalPocketProof) -> _
         raise ValueError(
             "serialized cylindrical pocket exceeds whole-occurrence displacement limit"
         )
-    curved_end, flat_end = SectionEnd("open", surface), SectionEnd("capped")
+    profile = projected.profile
+    if opening_edge is not None:
+        boundary = projected.profile.boundary
+        start = opening_edge + 1
+        chain = boundary[start:] + boundary[:start]
+        chain = min(chain, tuple(reversed(chain)))
+        profile = OpenSectionProfile("open", chain, (chain[-1].point, chain[0].point))
+    curved_end = SectionEnd("open", surface)
+    flat_end = SectionEnd("capped" if opening_edge is None else "open")
     centroid_end = round(surface.height((0.0, 0.0)), 3)
     interval = (
-        (round(floor_at, 3), centroid_end) if sign > 0 else (centroid_end, round(floor_at, 3))
+        (round(floor_at, 3), centroid_end) if end_index == 1 else (centroid_end, round(floor_at, 3))
     )
     geometry = replace(
         projected,
+        profile=profile,
         run_interval=interval,
         ends=SectionRecessEnds(
-            flat_end if sign > 0 else curved_end,
-            curved_end if sign > 0 else flat_end,
+            flat_end if end_index == 1 else curved_end,
+            curved_end if end_index == 1 else flat_end,
         ),
     )
-    defining = tuple(sorted(n.index for n in proof.walls))
-    return _Candidate(
-        defining,
-        tuple(sorted((*defining, proof.floor.index))),
-        proof.stock.index,
-        proof.owner.ordinal,
-        geometry,
-        _polygonal_shape(raw_points),
-    )
+    return geometry
 
 
 def _candidates(graph: FaceGraph, surfaces: EffectiveSurfaceQuery) -> tuple[_Candidate, ...]:

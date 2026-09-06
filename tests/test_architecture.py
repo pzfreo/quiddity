@@ -254,6 +254,12 @@ MODULE_SEAM_EDGES = {
         "_wire_seed",
     },
     "_cylindrical_end_surface": {"_record"},
+    "_cylindrical_channels": {
+        "_adjacency",
+        "_effective_surfaces",
+        "_support_patches",
+        "_volume_probe",
+    },
     "_cylindrical_pockets": {
         "_adjacency",
         "_effective_surfaces",
@@ -263,6 +269,7 @@ MODULE_SEAM_EDGES = {
     "_section_recess": {"_cylindrical_end_surface", "_record", "_sections", "passages"},
     "_section_recess_geometry": {
         "_adjacency",
+        "_cylindrical_channels",
         "_cylindrical_end_surface",
         "_cylindrical_pockets",
         "_effective_surfaces",
@@ -515,6 +522,8 @@ ARC_READER_SITES = {
     "src/quiddity/_entry_treatments:prove_entry_treatments:arc:3": ("exact-nonsmooth"),
     "src/quiddity/_cylindrical_pockets:_proofs:arc:1": ("exact-nonsmooth"),
     "src/quiddity/_cylindrical_pockets:_proofs:arc:2": ("exact-nonsmooth"),
+    "src/quiddity/_cylindrical_channels:_prove:arc:1": "exact-nonsmooth",
+    "src/quiddity/_cylindrical_channels:_prove:arc:2": "exact-nonsmooth",
     "tools/audit_mfcadpp_floor_interrupted_pockets:_raw_regions:arc:1": "legacy-contract",
     "tools/audit_mfcadpp_floor_interrupted_pockets:_probe_region:arc:1": "exact-nonsmooth",
     "tools/audit_mfcadpp_floor_interrupted_pockets:_probe_region:arc:2": "exact-nonsmooth",

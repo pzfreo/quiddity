@@ -188,36 +188,58 @@ class SectionRecessGeometry(Record):
         object.__setattr__(self, "run_interval", interval)
 
     def _validate_cylindrical_end(self, interval: tuple[float, float]) -> None:
-        if not isinstance(self.profile, ClosedSectionProfile) or any(
-            vertex.bulge != 0 for vertex in self.profile.boundary
-        ):
-            raise ValueError("cylindrical end currently requires a closed polygonal profile")
+        if any(vertex.bulge != 0 for vertex in self.profile.boundary):
+            raise ValueError("cylindrical end requires a line-only profile")
+        closed = isinstance(self.profile, ClosedSectionProfile)
+        if not closed:
+            self._validate_cylindrical_channel_profile()
         ends = (self.ends.low, self.ends.high)
         curved_indices = [
             i for i, end in enumerate(ends) if isinstance(end.surface, CylindricalEndSurface)
         ]
         if len(curved_indices) != 1:
-            raise ValueError("cylindrical pocket requires exactly one cylindrical end")
+            raise ValueError("cylindrical section requires exactly one cylindrical end")
         index = curved_indices[0]
         curved = cast(CylindricalEndSurface, ends[index].surface)
-        floor = ends[1 - index]
+        planar = ends[1 - index]
+        branch = (
+            ("positive" if index == 1 else "negative")
+            if closed
+            else ("negative" if index == 1 else "positive")
+        )
         if (
             ends[index].condition != "open"
-            or floor.condition != "capped"
-            or not isinstance(floor.surface, PlanarEndSurface)
-            or floor.surface.gradient != (0.0, 0.0)
-            or curved.branch != ("positive" if index == 1 else "negative")
+            or planar.condition != ("capped" if closed else "open")
+            or not isinstance(planar.surface, PlanarEndSurface)
+            or planar.surface.gradient != (0.0, 0.0)
+            or curved.branch != branch
         ):
             raise ValueError(
-                "cylindrical pocket needs an outward open branch and flat capped floor"
+                "cylindrical section requires the proved pocket or open-channel end configuration"
             )
         points = tuple(vertex.point for vertex in self.profile.boundary)
         low, high = curved.polygon_height_bounds(points)
         separation = low - interval[0] if index == 1 else interval[1] - high
         if separation <= 1e-9:
-            raise ValueError("cylindrical pocket ends must remain strictly separated")
+            raise ValueError("cylindrical section ends must remain strictly separated")
         if round(curved.height((0.0, 0.0)), 3) != interval[index]:
             raise ValueError("run interval must agree with the cylindrical centroid intersection")
+
+    def _validate_cylindrical_channel_profile(self) -> None:
+        """Only an origin-centred rectangular U admits the private probe closure."""
+        points = tuple(vertex.point for vertex in self.profile.boundary)
+        if len(points) != 4:
+            raise ValueError("cylindrical channel requires a rectangular three-line U-profile")
+        first, middle, last = (
+            tuple(b[i] - a[i] for i in range(2)) for a, b in zip(points, points[1:], strict=False)
+        )
+        if (
+            max(abs(first[i] + last[i]) for i in range(2)) > 1e-9
+            or abs(sum(first[i] * middle[i] for i in range(2)))
+            > 1e-8 * math.hypot(*first) * math.hypot(*middle)
+            or max(abs(sum(p[i] for p in points) / 4) for i in range(2)) > 1e-9
+        ):
+            raise ValueError("cylindrical channel probe domain must be an origin-centred rectangle")
 
 
 @dataclass(frozen=True, order=True, slots=True)

@@ -206,6 +206,10 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "native analytic cylinder with exact original planar supports and private clipped probes",
     ),
+    "_cylindrical_channels": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "observed native bore termination and exact original three-support channel anatomy",
+    ),
     "_support_apertures": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "original circular aperture/rim topology and finite native cylinder support proof",
@@ -296,6 +300,26 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
     "_cylindrical_pockets:_proofs:is_planar:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "original planar floor authority",
+    ),
+    "_cylindrical_channels:_prove:is_planar:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "require original opposed planar wall supports",
+    ),
+    "_cylindrical_channels:_prove:is_planar:2": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "select the original concavely adjacent planar backing support",
+    ),
+    "_cylindrical_channels:_prove:is_planar:3": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "require original far-end planar stock context",
+    ),
+    "_cylindrical_channels:_prove:geom_type:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "classify generated planar patches for exact original support equality",
+    ),
+    "_cylindrical_channels:_prove:geom_type:2": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "classify generated cylindrical end patches for full-domain height bounds",
     ),
     "_cylindrical_pockets:_proofs:is_planar:2": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
