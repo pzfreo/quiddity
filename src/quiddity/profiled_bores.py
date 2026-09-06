@@ -17,6 +17,8 @@ from math import asin, isfinite, sqrt
 
 from build123d import Face, GeomType, Solid, Vector
 from OCP.BRepAdaptor import BRepAdaptor_Surface
+from OCP.Standard import Standard_ConstructionError, Standard_DomainError, Standard_Failure
+from OCP.StdFail import StdFail_NotDone
 
 from quiddity._adjacency import FaceEdges, edge_face_map
 from quiddity._candidates import FamilyId
@@ -24,6 +26,7 @@ from quiddity._claims import EvidenceWriter
 from quiddity._geometry import part_scale
 from quiddity._record import Record
 from quiddity._typing import FaceLike, Part, Vector3
+from quiddity._volume_probe import intersection_volume
 
 
 @dataclass(frozen=True)
@@ -557,12 +560,13 @@ def double_d_bores_from_openings(
                 )
                 overlap = part & prism
                 volume_tol = max(tol**3, float(prism.volume) * 1e-6)
-                # build123d returns ``None`` for a disjoint Solid/Solid boolean and an empty
-                # Compound for the equivalent Compound/Solid operation. Both prove no material.
-                overlap_volume = 0.0 if overlap is None else float(overlap.volume)
+                overlap_volume = intersection_volume(overlap)
                 if overlap_volume > volume_tol:
                     continue
-            except Exception:  # noqa: BLE001 - a failed topology proof is not recognition
+            except (
+                Standard_Failure, Standard_ConstructionError, Standard_DomainError,
+                StdFail_NotDone, RuntimeError, ValueError,
+            ):
                 continue
             location = list(high_profile.centre)
             location["xyz".index(axis)] = hi
@@ -750,14 +754,17 @@ def read_double_d_tool(
             try:
                 prism = Solid.extrude(Face(low_wire), Vector(*axis_vector))
                 overlap = obj & prism
-                overlap_volume = 0.0 if overlap is None else float(overlap.volume)
+                overlap_volume = intersection_volume(overlap)
                 volume_tol = max(scan_tol**3, float(prism.volume) * 1e-6)
                 if (
                     abs(overlap_volume - float(prism.volume)) > volume_tol
                     or abs(float(obj.volume) - float(prism.volume)) > volume_tol
                 ):
                     continue
-            except Exception:  # noqa: BLE001 - a failed topology proof is not a declaration
+            except (
+                Standard_Failure, Standard_ConstructionError, Standard_DomainError,
+                StdFail_NotDone, RuntimeError, ValueError,
+            ):
                 continue
             centre = list(low_profile.centre)
             centre[i] = (lo + hi) / 2.0
