@@ -202,20 +202,32 @@ class SectionRecessGeometry(Record):
         index = curved_indices[0]
         curved = cast(CylindricalEndSurface, ends[index].surface)
         planar = ends[1 - index]
+        passage = closed and planar.condition == "open"
+        if passage:
+            points = tuple(vertex.point for vertex in self.profile.boundary)
+            turns = []
+            for at, point in enumerate(points):
+                previous, following = points[at - 1], points[(at + 1) % len(points)]
+                left = (point[0] - previous[0], point[1] - previous[1])
+                right = (following[0] - point[0], following[1] - point[1])
+                turns.append(left[0] * right[1] - left[1] * right[0])
+            if min(turns) < 0 < max(turns):
+                raise ValueError("cylindrical passage requires a convex polygon")
         branch = (
             ("positive" if index == 1 else "negative")
-            if closed
+            if closed and not passage
             else ("negative" if index == 1 else "positive")
         )
         if (
             ends[index].condition != "open"
-            or planar.condition != ("capped" if closed else "open")
+            or planar.condition != ("capped" if closed and not passage else "open")
             or not isinstance(planar.surface, PlanarEndSurface)
             or planar.surface.gradient != (0.0, 0.0)
             or curved.branch != branch
         ):
             raise ValueError(
-                "cylindrical section requires the proved pocket or open-channel end configuration"
+                "cylindrical section requires the proved pocket, passage "
+                "or open-channel end configuration"
             )
         points = tuple(vertex.point for vertex in self.profile.boundary)
         low, high = curved.polygon_height_bounds(points)
