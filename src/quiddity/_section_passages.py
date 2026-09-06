@@ -12,6 +12,7 @@ from typing import cast
 from build123d import Face, Solid, Vector, Wire
 
 from quiddity._adjacency import FaceGraph, FaceNode, SolidRef, connected_components
+from quiddity._entry_treatments import prove_entry_treatments
 from quiddity._sections import (
     BodyRef,
     BodyRefIssuer,
@@ -377,6 +378,71 @@ def _void_and_planar_open(
         return False
 
 
+def _treated_entry_proposals(
+    graph: FaceGraph, bodies: _BodyAdapter
+) -> tuple[SectionRingProposal, ...]:
+    proposals = []
+    for _, mouths in _mouth_regions(graph):
+        for opening, wire, seed in mouths:
+            normal = graph.normal(opening)
+            if normal is None:
+                continue
+            base = LocalFrame.canonical(normal, (0.0, 0.0, 0.0))
+            if any(
+                (wall_normal := graph.normal(node)) is None
+                or abs(_dot(wall_normal, base.run)) > _DIRECTION_TOL
+                for node in seed
+            ):
+                continue
+            reading = _line_section(wire, base)
+            if reading is None:
+                continue
+            section, centre = reading
+            frame = LocalFrame.canonical(base.run, centre)
+            at = _dot(_point(wire.vertices()[0]), frame.run)
+            spans = tuple(_face_interval(graph, node, frame.run) for node in seed)
+            if any(span is None for span in spans):
+                continue
+            ends = []
+            for low, high in cast(tuple[tuple[float, float], ...], spans):
+                if abs(low - at) <= _INTERVAL_TOL:
+                    ends.append(high)
+                elif abs(high - at) <= _INTERVAL_TOL:
+                    ends.append(low)
+                else:
+                    break
+            else:
+                if not ends or not (
+                    all(end > at + _INTERVAL_TOL for end in ends)
+                    or all(end < at - _INTERVAL_TOL for end in ends)
+                ):
+                    continue
+                far = max(ends) if ends[0] > at else min(ends)
+                proof = prove_entry_treatments(graph, seed, wire, frame.run, at, far)
+                if proof is None:
+                    continue
+                solid = graph.common_valid_solid(seed | proof.treatments | proof.stock | {opening})
+                interval = (min(at, far), max(at, far))
+                if solid is None or not _void_and_open(
+                    graph.solid_shape(solid), frame, interval, section
+                ):
+                    continue
+                occurrence = SectionOccurrence(
+                    bodies.body(solid), frame, interval, section, SectionEnds(False, False)
+                )
+                bodies.validate(solid, occurrence)
+                proposals.append(
+                    SectionRingProposal(
+                        occurrence,
+                        tuple(sorted(seed, key=lambda n: n.index)),
+                        solid,
+                        bodies,
+                        constituent=seed | proof.treatments,
+                    )
+                )
+    return tuple(proposals)
+
+
 def _enclosure_proposals(graph: FaceGraph, bodies: _BodyAdapter) -> tuple[SectionRingProposal, ...]:
     proposals = []
     for region, mouths in _mouth_regions(graph):
@@ -706,7 +772,10 @@ def section_ring_proposals(part: Part, graph: FaceGraph) -> tuple[SectionRingPro
                     bodies,
                 )
             )
-    for proposal in _enclosure_proposals(graph, bodies):
+    for proposal in (
+        *_enclosure_proposals(graph, bodies),
+        *_treated_entry_proposals(graph, bodies),
+    ):
         identity = frozenset(proposal.nodes)
         if identity in seen:
             continue

@@ -2,6 +2,9 @@
 
 ## Next release
 
+- Recognise polygonal passages interrupted by a separately proved finite planar entry
+  chamfer, retaining exact base support and original treatment-face evidence (#540).
+
 - Recognise intact general line/arc pockets from exact swept source support, including
   rounded rectangles with short straight end segments. Preserve physical dimensions
   instead of forcing an obround classification (#536). Tighten the analytic arc-rounding

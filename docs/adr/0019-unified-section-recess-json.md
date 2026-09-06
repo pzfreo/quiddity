@@ -151,6 +151,20 @@ must not publish two authoritative values for the same measurement. Wall draft o
 that prevents proof of a constant base support causes refusal; a future lofted or station-based
 geometry requires its own decision.
 
+An entry bevel may separately explain missing planar passage support without a new public
+termination schema (#540). One intact polygonal mouth supplies the base section. Observed
+opposite stock, wall and bevel planes bound a finite removed cell; its predicted bevel footprint
+must equal the complete observed face, and the owning solid must contain no material in that
+cell. Original walls plus those proved treatment supports must cover every base-wall patch.
+The existing full-section void and open-end proofs remain mandatory. An unrelated outlet step,
+wall hole or obstruction is not explained merely because some bevel exists nearby.
+
+Only original base walls are defining evidence; original proved bevels join them as constituent
+evidence. Stock faces are consulted context. Reconstructed cell faces are private verification
+geometry and never enter the face roster as observed support. The base passage profile and
+planar run ends retain their existing meaning, with the explicitly proved treatment exception.
+This does not admit arbitrary nonplanar ends, varying sections or a general relationship API.
+
 Islands are excluded from schema version 1 because no current family proves them. A later version
 may add a canonical list of closed inner profiles after recognition and consumer evidence exists.
 
