@@ -2,6 +2,10 @@
 
 ## Next release
 
+- Recognise polygonal pockets whose planar stock mouth is split into coplanar faces,
+  retaining whole-wall termination checks and the existing SectionRecess geometry and
+  evidence contracts (#369).
+
 ## 0.2.2 — Quiddity
 
 - Reject incomplete STEP root transfers before returning partial geometry, while preserving

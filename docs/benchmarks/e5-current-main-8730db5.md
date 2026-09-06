@@ -40,6 +40,52 @@ highest-value production increment. Separate small passage experiments test uniq
 mouth pairing and exact mixed line/circle mouths; their limited first-500 reach
 does not establish a solution to the six-sided residual.
 
+### Partial-outlet hypothesis boundary
+
+A one-complete-mouth passage experiment initially used the largest wall extent as
+the far end. Independent ADR review rejected it: subtracting a half-width stock
+step from a rectangular through-hole leaves one wall ending before the others.
+An empty prism and two empty end slabs still pass, but the resulting closed
+section fabricates support above that short wall. ADR 0016 rejects this envelope;
+ADR 0019 does not permit silently varying physical support.
+
+Two stricter first-500 diagnostics each add **zero** all-family covered faces:
+requiring complete original wall-face support over the whole proposed prism, and
+requiring the entire far polygon boundary on actual coplanar exterior stock
+patches. The latter accepts an authored split-outlet positive and rejects the
+stepped-stock negative. These are ceilings for the tested hypotheses, not proof
+that every remaining passage is unsupported. No passage envelope change is
+promoted. A broader interrupted or nonplanar termination needs its own geometric
+diagnosis and an explicit truthful contract, not looser extent tolerances.
+
+### Selected bounded increment: split coplanar pocket mouths
+
+The geometry-first prototype completed the full 2,500 selection. It adds seven
+native candidates, comprising 39 constituent faces; all 39 have the corresponding
+polygonal-pocket labels. Of these, 14 faces were absent from all accepted baseline
+evidence: seven triangular and seven six-sided pocket faces. This measures the
+candidate opportunity, not yet a full after-change aggregate score: final ledger
+arbitration and regression checks remain necessary.
+
+| Model | Added candidate constituents | Previously uncovered constituents |
+| --- | --- | --- |
+| 10046 | 6, 7, 24, 25 | 7, 24, 25 |
+| 13326 | 8, 9, 12, 25, 26 | — |
+| 14240 | 35, 37, 39, 43 | 35, 37, 39, 43 |
+| 14368 | 19, 20, 21, 31, 32 | — |
+| 15902 | 10, 11, 12, 15, 19, 21, 22 | — |
+| 22569 | 57, 58, 59, 60, 61, 62, 64 | 57, 58, 59, 60, 61, 62, 64 |
+| 22898 | 10, 11, 12, 13, 14, 21, 22 | — |
+
+These are MFCAD++ development-input indices, not persistent public face IDs. Labels
+were read only after geometric candidate construction. The production change
+retains the exact existing floor/section/volume proofs, requires mouth context for
+every wall and one owner for all consulted faces, and excludes stock patches from
+feature evidence. Authored tests cover split/unsplit equivalence, rigid placement,
+scale, missing context, stepped-stock refusal and public evidence publication.
+The modest gain does not close #369 or establish a solution for its larger passage
+residual.
+
 ## Reproduction
 
 ```console
