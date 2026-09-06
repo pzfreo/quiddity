@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "quiddity"
-version = "0.2.2.dev0"
+version = "0.2.3.dev0"
 description = "Deterministic, geometry-only feature recognition for build123d solids"
 readme = "README.md"
 license = "Apache-2.0"
