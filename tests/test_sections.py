@@ -345,6 +345,37 @@ def test_major_arc_projection_uses_a_whole_curve_displacement_bound() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    "bulge", [-5.2, -1.0, -0.414213562373095, 0.1, 0.414213562373095, 1.0, 5.2]
+)
+@pytest.mark.parametrize("angle", [0.0, 0.37, 2.4])
+def test_analytic_arc_projection_bound_dominates_whole_sweep_samples(bulge, angle):
+    def point(x, y):
+        return (
+            0.00043 + x * math.cos(angle) - y * math.sin(angle),
+            0.00027 + x * math.sin(angle) + y * math.cos(angle),
+        )
+
+    vertices = (SectionVertex(point(-3, 0), bulge), SectionVertex(point(3, 0)))
+    rounded = tuple(section_module._serialized(v) for v in vertices)
+    projected = tuple(SectionVertex((x, y), b) for x, y, b in rounded)
+    original_arc = section_module._arc(*vertices)
+    projected_arc = section_module._arc(*projected)
+    assert original_arc is not None and projected_arc is not None
+    bound = section_module._projection_bound(vertices)
+    for index in range(1001):
+        fraction = index / 1000
+
+        def position(arc, fraction=fraction):
+            at = arc.start + fraction * arc.sweep
+            return (
+                arc.centre[0] + arc.radius * math.cos(at),
+                arc.centre[1] + arc.radius * math.sin(at),
+            )
+
+        assert math.dist(position(original_arc), position(projected_arc)) <= bound + 1e-11
+
+
 def test_tiny_arc_that_serializes_as_zero_fails_closed() -> None:
     with pytest.raises(ValueError, match="collapse a nonzero arc"):
         PlanarSection(

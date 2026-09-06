@@ -4,6 +4,9 @@
 - **Date:** 2026-09-04
 - **Issues:** #290, #495
 - **Prototype:** #496
+- **Extension:** [ADR 0020](0020-native-cylindrical-section-ends.md) proposes explicit
+  planar/cylindrical end surfaces in document schema 3; the schema-2 example below
+  records this ADR's original contract.
 - **Consumer review:**
   [`docs/draftwright-section-recess-schema-review.md`](../draftwright-section-recess-schema-review.md)
 
@@ -122,12 +125,59 @@ second serialized facts.
 interval, apart from separately proved end or edge treatments. A drafted, tapered, twisted or
 otherwise varying wall set does not become a `SectionRecess` by recording a nominal section.
 
+A polygonal pocket's planar mouth may be partitioned into multiple coplanar stock faces.
+These patches collectively provide termination context only when every wall has observed
+convex or smooth adjacency to a qualifying patch on the same mouth plane and all consulted
+faces belong to the same valid solid. This does not relax the floor, constant-section,
+empty-run, open-mouth or floor-backing proofs. Stock patches remain consulted context,
+not defining or constituent evidence; their partition does not change the public geometry.
+
+An intact mixed line/circular-arc floor may likewise establish a `general` pocket when
+its exact extrusion has complete observed wall support, an empty interior, an open planar
+mouth and backed floor, all within one owning solid. The proof reads the physical wire:
+short straight segments and distinct cylinder axes are not merged into a nominal obround.
+Unsupported floor islands, missing wall patches and obstructed runs or mouths remain refused.
+This admits, for example, rounded rectangles without adding a shape-specific schema.
+Existing more specific proved classifications take precedence for the same floor.
+
+Publication keeps the existing displacement limit. Arc-rounding displacement is bounded
+over the whole sweep analytically: for equal sweeps the pointwise difference is a constant
+vector plus a rotating vector, whose maximum lies at an endpoint or vector alignment.
+A radius-times-sweep-change term bounds the serialized bulge perturbation. This avoids
+rejecting accurately representable transformed sections solely through an unnecessarily
+loose sum of centre, radius and angular errors; it does not relax the geometric limit.
+
 Chamfers, blends, wall draft and bottom radii do not add optional shape-specific fields to this
 record. Independently proved chamfer and blend occurrences remain separate and may be related to a
 recess occurrence in a future result relationship table. The base recess and related treatment
 must not publish two authoritative values for the same measurement. Wall draft or another variation
 that prevents proof of a constant base support causes refusal; a future lofted or station-based
 geometry requires its own decision.
+
+An entry bevel may separately explain missing planar passage support without a new public
+termination schema (#540). One intact polygonal mouth supplies the base section. Observed
+opposite stock, wall and bevel planes bound a finite removed cell; its predicted bevel footprint
+must equal the complete observed face, and the owning solid must contain no material in that
+cell. Original walls plus those proved treatment supports must cover every base-wall patch.
+The existing full-section void and open-end proofs remain mandatory. An unrelated outlet step,
+wall hole or obstruction is not explained merely because some bevel exists nearby.
+
+Only original base walls are defining evidence; original proved bevels join them as constituent
+evidence. Stock faces are consulted context. Reconstructed cell faces are private verification
+geometry and never enter the face roster as observed support. The base passage profile and
+planar run ends retain their existing meaning, with the explicitly proved treatment exception.
+This does not admit arbitrary nonplanar ends, varying sections or a general relationship API.
+
+ADR 0021 separately permits proved circular apertures strictly inside channel wall
+or floor supports. Each original inner wire must match a native inward cylinder
+with two observed finite limits, complete original side support and an empty cell
+on the same body. Original supports plus these exact aperture explanations must
+cover each complete proposed patch; touching ends, outer-contour breaks and
+unexplained gaps remain refused. Opposite-wall bore segments stay separate. The
+public profile describes base channel support with these proved interruptions,
+not an unperforated final boundary. Original cylinders join constituent evidence;
+independent hole occurrences remain separate. This does not admit pierced capped
+ends or imply full treated-boundary reconstruction from the base record alone.
 
 Islands are excluded from schema version 1 because no current family proves them. A later version
 may add a canonical list of closed inner profiles after recognition and consumer evidence exists.
@@ -366,6 +416,23 @@ The developer may use MFCAD++ repeatedly. A person outside the implementation lo
 once after the branch and test command are frozen and returns only the aggregate JSON. A favourable
 result permits production integration; an unfavourable result rejects or narrows the recognition
 hypothesis but does not authorize inspecting holdout models or tuning against them.
+
+### Still-used oriented-slot source contract (#533)
+
+`OrientedSlot` remains a public output and still embeds `SectionPassage` as its
+source geometry. The cutover must not leave this live reference unpublished:
+`SectionPassage` and its `PassageEnds` are root-exported, versioned nested records
+under the `oriented-slots` capability. This repairs the manifest/export omission;
+it does not change the existing slot geometry, serialized fields or schema versions.
+Shared `PassageFrame` and `PassageSection` retain their primary declaration under
+`section-recesses`.
+
+This does not restore standalone passage entrypoints, result fields or census
+families. Unified recess consumers continue to use `SectionRecess`. A future
+replacement of `OrientedSlot.source` would require an explicit migration and
+occurrence correspondence, not a silent type substitution in this repair.
+ADR 0005's manifest validator checks every record reference, including nested
+containers and unions, against the complete published record inventory.
 
 ## Consequences
 

@@ -86,6 +86,20 @@ goldens, determinism tests, benchmarks, and installed-archive audits protect beh
 
 ## Consequences
 
+Issue #541 adds `_cylindrical_pockets` below section publication. It consumes the
+original graph and internal analytic-surface query, returns original source/owner
+proofs, and imports no public inspection facade or aggregate. The kernel-free
+`_cylindrical_end_surface` value depends only on the record leaf. Section geometry
+owns projection and its whole-occurrence error bound; discovery and publication
+retain their existing ownership. No generated clipping face becomes evidence.
+
+Issue #540 adds private `_entry_treatments` below `_section_passages`. It reads the existing
+graph and exact kernel geometry, but no records, candidates, evidence, registry or result.
+It returns original treatment/context nodes after a bounded finite-cell proof; Passage remains
+the sole public issuer. `_support_patches` is a graph-free exact area-union leaf shared with
+mixed-profile pocket proofs, avoiding a reverse dependency on pocket recognition. Generated
+support faces stay internal to the proof. Neither module starts another graph or recogniser.
+
 Issue #519 extracts identical opening-wire incidence into private `_wire_seed` and consolidates
 empty/single/fragmented boolean-volume normalization in `_volume_probe`. Recogniser-local traversal,
 probe construction, material thresholds and exception/refusal boundaries stay in their callers.
@@ -519,6 +533,14 @@ leaf directly. This keeps cross-family ownership correlation below feature polic
 recess values, neutral section primitives and material probes, but not the registry, candidates,
 evidence index, reconciliation or results. `result` owns its invocation and projects the proved
 support into the ADR-0019 public record.
+
+ADR 0021 adds `_support_apertures` beneath that proof. It consumes the same-run
+internal effective-surface query, original graph topology, exact support-patch
+comparisons and volume probes. It returns original cylinder references plus private
+aperture disks. `_open_channel_section` checks the complete support remainder and
+passes only original cylinder references to `result` for constituent publication.
+It does not import recognisers, public inspection, candidate/evidence ownership or
+orchestration, and does not construct another analytic index.
 
 `evidence` may import immutable `_section_recess` record types to expose the completed public
 geometry and explicit refusal roster. It performs no recognition or geometry inference. The

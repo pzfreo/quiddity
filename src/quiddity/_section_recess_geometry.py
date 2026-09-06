@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import cast
 
 from build123d import Edge, Face, Solid, Vector, Wire
@@ -13,9 +13,12 @@ from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.GeomAbs import GeomAbs_Cylinder
 
 from quiddity._adjacency import FaceGraph, FaceNode, frame_points_outward
+from quiddity._cylindrical_end_surface import CylindricalEndSurface
+from quiddity._cylindrical_pockets import CylindricalPocketProof, cylindrical_pocket_proofs
+from quiddity._effective_surfaces import EffectiveSurfaceQuery
 from quiddity._geometry import length_tol
 from quiddity._recess_obround import _END_RADIUS_FRAC
-from quiddity._section_passages import _end_slab, _probe_prism
+from quiddity._section_passages import _end_slab, _line_section, _probe_prism
 from quiddity._section_recess import (
     ClosedSectionProfile,
     SectionEnd,
@@ -33,6 +36,7 @@ from quiddity._sections import (
     SectionVertex,
     occurrence_geometry_dict,
 )
+from quiddity._support_patches import covered_patch as _covered_patch
 from quiddity._volume_probe import material_fraction as _material_fraction
 from quiddity.passages import PassageFrame, PassageSectionVertex
 
@@ -475,7 +479,7 @@ def _one_polygonal_candidate(graph: FaceGraph, floor: FaceNode) -> _Candidate | 
     mouth_at = high if abs(floor_at - low) <= tolerance else low
     context = set(graph.neighbours(walls[0]))
     for wall in walls[1:]:
-        context &= set(graph.neighbours(wall))
+        context |= set(graph.neighbours(wall))
     mouths = []
     for node in context - {floor}:
         mouth_normal = graph.normal(node) if graph.is_planar(node) else None
@@ -485,11 +489,21 @@ def _one_polygonal_candidate(graph: FaceGraph, floor: FaceNode) -> _Candidate | 
             and _parallel(_canonical(mouth_normal), depth)
             and interval is not None
             and abs(sum(interval) / 2.0 - mouth_at) <= tolerance
-            and all(graph.arc(node, wall) in ("convex", "smooth") for wall in walls)
+            and any(graph.arc(node, wall) in ("convex", "smooth") for wall in walls)
         ):
             mouths.append(node)
-    owner = graph.common_valid_solid((*walls, floor))
-    if len(mouths) != 1 or owner is None:
+    # A physical mouth may be partitioned into several coplanar stock faces. Every
+    # wall still needs observed termination context on that same plane; none of
+    # these consulted patches becomes defining or constituent pocket evidence.
+    owner = graph.common_valid_solid((*walls, floor, *mouths))
+    if (
+        not mouths
+        or owner is None
+        or any(
+            not any(graph.arc(node, wall) in ("convex", "smooth") for node in mouths)
+            for wall in walls
+        )
+    ):
         return None
     centre = graph.face(floor).center()
     frame = LocalFrame.canonical(depth, (float(centre.X), float(centre.Y), float(centre.Z)))
@@ -533,21 +547,320 @@ def _one_polygonal_candidate(graph: FaceGraph, floor: FaceNode) -> _Candidate | 
     return _Candidate(
         defining,
         tuple(sorted((floor.index, *defining))),
-        mouths[0].index,
+        min(node.index for node in mouths),
         owner.ordinal,
         geometry,
         shape,
     )
 
 
-def _candidates(graph: FaceGraph) -> tuple[_Candidate, ...]:
-    found = {
-        candidate
-        for node in graph.nodes
-        if graph.is_planar(node)
-        for recogniser in (_one_obround_candidate, _one_polygonal_candidate)
-        if (candidate := recogniser(graph, node)) is not None
-    }
+def _mixed_floor_section(face: Face, depth: Vector3) -> tuple[LocalFrame, PlanarSection] | None:
+    """Read the observed line/arc wire without replacing short edges or offset axes."""
+    wires = tuple(face.wires())
+    if len(wires) != 1:
+        return None
+    edges = tuple(wires[0].edges())
+    kinds = {edge.geom_type.name for edge in edges}
+    if kinds != {"LINE", "CIRCLE"}:
+        return None
+    centre = face.center()
+    frame = LocalFrame.canonical(depth, (centre.X, centre.Y, centre.Z))
+    corners = []
+    for index, edge in enumerate(edges):
+        shared = [a for a in edges[index - 1].vertices() for b in edge.vertices() if a == b]
+        if len(shared) != 1:
+            return None
+        point = shared[0]
+        corners.append(_project((point.X, point.Y, point.Z), frame))
+    vertices = []
+    for index, edge in enumerate(edges):
+        start, end = corners[index], corners[(index + 1) % len(corners)]
+        bulge = 0.0
+        if edge.geom_type.name == "CIRCLE":
+            midpoint = edge.position_at(0.5)
+            mid = _project((midpoint.X, midpoint.Y, midpoint.Z), frame)
+            cross = (mid[0] - start[0]) * (end[1] - mid[1]) - (mid[1] - start[1]) * (
+                end[0] - mid[0]
+            )
+            if abs(cross) <= 1e-12:
+                return None
+            bulge = math.copysign(math.tan(edge.length / edge.radius / 4), cross)
+        vertices.append(SectionVertex(start, bulge))
+    raw = PlanarSection(tuple(vertices))
+    offset = raw.centroid
+    frame = LocalFrame.canonical(
+        depth,
+        cast(
+            Vector3,
+            tuple(
+                frame.origin[i] + frame.u[i] * offset[0] + frame.v[i] * offset[1] for i in range(3)
+            ),
+        ),
+    )
+    section = PlanarSection(
+        tuple(
+            SectionVertex((vertex.point[0] - offset[0], vertex.point[1] - offset[1]), vertex.bulge)
+            for vertex in raw.boundary
+        )
+    )
+    return frame, section
+
+
+def _one_mixed_candidate(graph: FaceGraph, floor: FaceNode) -> _Candidate | None:
+    """Prove an intact native mixed line/arc pocket from its exact swept floor."""
+    normal = graph.normal(floor)
+    if normal is None:
+        return None
+    depth = _canonical(normal)
+    try:
+        source = graph.face(floor)
+        profile = _mixed_floor_section(source, depth)
+        if profile is None:
+            return None
+        frame, section = profile
+        walls = tuple(
+            node for node in graph.neighbours(floor) if graph.arc(floor, node) == "concave"
+        )
+        spans = tuple(_node_interval(graph, wall, depth) for wall in walls)
+        if not walls or any(span is None for span in spans):
+            return None
+        low = min(span[0] for span in spans if span is not None)
+        high = max(span[1] for span in spans if span is not None)
+        floor_at = _dot((source.center().X, source.center().Y, source.center().Z), depth)
+        tolerance = 1e-6
+        if high - low <= 2 * tolerance:
+            return None
+        if abs(floor_at - low) <= tolerance:
+            mouth_at, sign = high, 1.0
+        elif abs(floor_at - high) <= tolerance:
+            mouth_at, sign = low, -1.0
+        else:
+            return None
+        context = {node for wall in walls for node in graph.neighbours(wall)} - {floor}
+        mouths = tuple(
+            node
+            for node in context
+            if graph.is_planar(node)
+            and (n := graph.normal(node)) is not None
+            and _parallel(n, depth)
+            and (span := _node_interval(graph, node, depth)) is not None
+            and max(abs(value - mouth_at) for value in span) <= tolerance
+        )
+        if not mouths or any(
+            not any(graph.arc(wall, mouth) in ("convex", "smooth") for mouth in mouths)
+            for wall in walls
+        ):
+            return None
+        owner = graph.common_valid_solid((floor, *walls, *mouths))
+        if owner is None:
+            return None
+
+        def probe(start: float, end: float) -> Solid:
+            base = source.translate(Vector(*_scale(depth, start - floor_at)))
+            return Solid.extrude(base, Vector(*_scale(depth, end - start)))
+
+        swept = probe(floor_at, mouth_at)
+        supports = tuple(graph.face(wall) for wall in walls)
+        # Include caps in the subtraction proof too: this avoids relying on generated
+        # face ordering or guessing which extrusion faces are the lateral supports.
+        cap = source.translate(Vector(*_scale(depth, mouth_at - floor_at)))
+        if any(not _covered_patch(patch, (*supports, source, cap)) for patch in swept.faces()):
+            return None
+        solid = graph.solid_shape(owner)
+        thickness = max(2e-5, max(1.0, high - low, math.sqrt(source.area)) * 1e-4)
+        if (
+            _material_fraction(solid, probe(low + tolerance, high - tolerance)) > 1e-9
+            or _material_fraction(
+                solid, probe(mouth_at + sign * tolerance, mouth_at + sign * thickness)
+            )
+            > 1e-9
+            or _material_fraction(
+                solid, probe(floor_at - sign * tolerance, floor_at - sign * thickness)
+            )
+            < 1 - 1e-9
+        ):
+            return None
+        issuer = BodyRefIssuer()
+        geometry = project_section_recess_geometry(
+            SectionOccurrence(
+                issuer.issue(), frame, (low, high), section, SectionEnds(sign > 0, sign < 0)
+            ),
+            body_refs=issuer,
+        )
+        defining = tuple(sorted(node.index for node in walls))
+        return _Candidate(
+            defining,
+            tuple(sorted((floor.index, *defining))),
+            min(node.index for node in mouths),
+            owner.ordinal,
+            geometry,
+            "general",
+        )
+    except (AttributeError, RuntimeError, TypeError, ValueError, ZeroDivisionError):
+        return None
+
+
+def _cylindrical_candidate(graph: FaceGraph, proof: CylindricalPocketProof) -> _Candidate:
+    base = LocalFrame.canonical(proof.run, (0.0, 0.0, 0.0))
+    reading = _line_section(graph.face(proof.floor).wires()[0], base)
+    if reading is None:
+        raise ValueError("cylindrical pocket floor must preserve one polygon")
+    section, centre = reading
+    frame = LocalFrame.canonical(base.run, centre)
+    floor_at = _dot(tuple(graph.face(proof.floor).center()), frame.run)
+    sign = 1 if _dot(proof.run, frame.run) > 0 else -1
+    relative = _subtract(proof.axis_point, frame.origin)
+    axis = (_dot(proof.axis_direction, frame.u), _dot(proof.axis_direction, frame.v))
+    norm = math.hypot(*axis)
+    axis = (axis[0] / norm, axis[1] / norm)
+    dominant = max(range(2), key=lambda i: (abs(axis[i]), i))
+    if axis[dominant] < 0:
+        axis = (-axis[0], -axis[1])
+    cx, cy, cz = _dot(relative, frame.u), _dot(relative, frame.v), _dot(relative, frame.run)
+    native_cx, native_cy = cx, cy
+    along = cx * axis[0] + cy * axis[1]
+    cx, cy = cx - along * axis[0], cy - along * axis[1]
+    raw_points = tuple(vertex.point for vertex in section.boundary)
+    # Exact tilted-cylinder roots add an axial linear term and divide the
+    # radial root by the in-plane axis norm. Bound that source-model change.
+    source_tilt_error = (
+        abs(_dot(proof.axis_direction, frame.run))
+        / norm
+        * max(abs(axis[0] * (p[0] - native_cx) + axis[1] * (p[1] - native_cy)) for p in raw_points)
+        + abs(1 / norm - 1) * proof.radius
+    )
+    raw_q = tuple(-axis[1] * (p[0] - cx) + axis[0] * (p[1] - cy) for p in raw_points)
+    qmax = max(abs(q) for q in raw_q)
+    qmin = 0.0 if min(raw_q) <= 0 <= max(raw_q) else min(abs(q) for q in raw_q)
+    raw_roots = tuple(math.sqrt((proof.radius - q) * (proof.radius + q)) for q in (qmax, qmin))
+    roof_bounds = tuple(cz + sign * root for root in raw_roots)
+    envelope = (min(floor_at, *roof_bounds), max(floor_at, *roof_bounds))
+    issuer = BodyRefIssuer()
+    projected = project_section_recess_geometry(
+        SectionOccurrence(
+            issuer.issue(), frame, envelope, section, SectionEnds(sign > 0, sign < 0)
+        ),
+        body_refs=issuer,
+    )
+    serialized_axis = (round(axis[0], 6), round(axis[1], 6))
+    unit_norm = math.hypot(*serialized_axis)
+    unit = (serialized_axis[0] / unit_norm, serialized_axis[1] / unit_norm)
+    along = cx * unit[0] + cy * unit[1]
+    surface = CylindricalEndSurface(
+        "cylinder",
+        (round(cx - along * unit[0], 6), round(cy - along * unit[1], 6), round(cz, 6)),
+        serialized_axis,
+        round(proof.radius, 6),
+        "positive" if sign > 0 else "negative",
+    )
+    # Curvature can amplify profile rounding into end-height error. Use the
+    # existing public profile's four-decimal allowance, retaining the same
+    # whole-occurrence displacement limit rather than widening it.
+    projected = replace(
+        projected,
+        profile=ClosedSectionProfile(
+            "closed",
+            tuple(PassageSectionVertex((round(p[0], 4), round(p[1], 4)), 0.0) for p in raw_points),
+        ),
+    )
+    public_points = tuple(vertex.point for vertex in projected.profile.boundary)
+    surface.polygon_height_bounds(public_points)
+    # Bound the whole cylindrical patch, not just its vertices. The square-root
+    # difference is bounded by the discriminant difference divided by the sum
+    # of the minimum roots on the complete original/serialized domains.
+    dx = max(abs(a[0] - b[0]) for a, b in zip(raw_points, public_points, strict=True))
+    dy = max(abs(a[1] - b[1]) for a, b in zip(raw_points, public_points, strict=True))
+    public_q = tuple(surface._offset(p) for p in public_points)
+
+    # Both transverse coordinates are affine on each corresponding polygon
+    # edge/triangle. Preserve the paired error instead of separately summing
+    # axis, centre and profile perturbations which can cancel one another.
+    def convex(points: tuple[Vector2, ...]) -> bool:
+        return all(
+            (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]) >= 0
+            for a, b, c in zip(
+                points, points[1:] + points[:1], points[2:] + points[:2], strict=True
+            )
+        )
+
+    if convex(raw_points) and convex(public_points):
+        qerror = max(abs(a - b) for a, b in zip(raw_q, public_q, strict=True))
+    else:
+        qerror = math.dist(axis, unit) * max(math.hypot(p[0] - cx, p[1] - cy) for p in raw_points)
+        qerror += math.hypot(dx, dy) + math.dist((cx, cy), surface.axis_point[:2])
+    public_qmax = max(abs(q) for q in public_q)
+    public_root_min = math.sqrt((surface.radius - public_qmax) * (surface.radius + public_qmax))
+    height_error = abs(cz - surface.axis_point[2]) + (
+        abs(proof.radius - surface.radius) * (proof.radius + surface.radius)
+        + qerror * (qmax + public_qmax)
+    ) / (min(raw_roots) + public_root_min)
+    height_error += source_tilt_error
+    floor_error = abs(floor_at - round(floor_at, 3))
+    displacement = math.dist(frame.origin, projected.frame.origin)
+    uu, vv, uv = (
+        _dot(projected.frame.u, projected.frame.u),
+        _dot(projected.frame.v, projected.frame.v),
+        _dot(projected.frame.u, projected.frame.v),
+    )
+    # Largest singular value of the two serialized basis columns. This preserves
+    # their near-orthogonality instead of adding perpendicular errors linearly.
+    in_plane_stretch = math.sqrt((uu + vv + math.sqrt((uu - vv) ** 2 + 4 * uv**2)) / 2)
+    displacement += in_plane_stretch * math.hypot(dx, dy)
+    displacement += math.dist(frame.u, projected.frame.u) * max(abs(p[0]) for p in raw_points)
+    displacement += math.dist(frame.v, projected.frame.v) * max(abs(p[1]) for p in raw_points)
+    displacement += math.dist(frame.run, projected.frame.run) * (
+        max(abs(t) for t in envelope) + source_tilt_error
+    )
+    displacement += math.sqrt(_dot(projected.frame.run, projected.frame.run)) * max(
+        height_error, floor_error
+    )
+    if displacement > 0.002:
+        raise ValueError(
+            "serialized cylindrical pocket exceeds whole-occurrence displacement limit"
+        )
+    curved_end, flat_end = SectionEnd("open", surface), SectionEnd("capped")
+    centroid_end = round(surface.height((0.0, 0.0)), 3)
+    interval = (
+        (round(floor_at, 3), centroid_end) if sign > 0 else (centroid_end, round(floor_at, 3))
+    )
+    geometry = replace(
+        projected,
+        run_interval=interval,
+        ends=SectionRecessEnds(
+            flat_end if sign > 0 else curved_end,
+            curved_end if sign > 0 else flat_end,
+        ),
+    )
+    defining = tuple(sorted(n.index for n in proof.walls))
+    return _Candidate(
+        defining,
+        tuple(sorted((*defining, proof.floor.index))),
+        proof.stock.index,
+        proof.owner.ordinal,
+        geometry,
+        _polygonal_shape(raw_points),
+    )
+
+
+def _candidates(graph: FaceGraph, surfaces: EffectiveSurfaceQuery) -> tuple[_Candidate, ...]:
+    found = set()
+    for node in graph.nodes:
+        if not graph.is_planar(node):
+            continue
+        # Prefer the existing proved specific classification. The general reader
+        # is a fallback for this floor, not a second occurrence of the same pocket.
+        candidate = (
+            _one_obround_candidate(graph, node)
+            or _one_polygonal_candidate(graph, node)
+            or _one_mixed_candidate(graph, node)
+        )
+        if candidate is not None:
+            found.add(candidate)
+    for proof in cylindrical_pocket_proofs(graph, surfaces):
+        try:
+            found.add(_cylindrical_candidate(graph, proof))
+        except (RuntimeError, TypeError, ValueError, ZeroDivisionError):
+            continue
     return tuple(
         sorted(found, key=lambda item: (item.constituent_faces, item.section_shape, item.mouth))
     )

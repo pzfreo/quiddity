@@ -18,7 +18,6 @@ RETIRED = {
     "PrismaticPocket",
     "Channel",
     "Passage",
-    "SectionPassage",
     "RectangularBlindSlot",
     "RoundBottomBlindSlot",
     "EdgeOpenCircularPocket",
@@ -61,7 +60,7 @@ def test_retired_public_records_functions_and_result_fields_are_gone():
 def test_both_authored_partial_support_channels_have_truthful_open_topology(rotation):
     part = Pos(123, -57, 91) * rotation * channels()
     document = public.build_section_recess_document(part)
-    assert document.schema_version == 2
+    assert document.schema_version == 3
     assert document.refusals == ()
     assert len(document.occurrences) == 2
     for occurrence in document.occurrences:
@@ -205,7 +204,7 @@ def test_pattern_and_refusal_contracts_validate_without_geometry_kernel():
         with pytest.raises(ValueError):
             dataclasses.replace(refusal, **changes)
     document = public.SectionRecessDocument(
-        2,
+        3,
         "result",
         (public.SectionRecessBodyRef(0),),
         (public.SectionRecessFaceRef(0),),
@@ -214,7 +213,8 @@ def test_pattern_and_refusal_contracts_validate_without_geometry_kernel():
     )
     for changes in (
         {"schema_version": 1},
-        {"schema_version": 2.0},
+        {"schema_version": 2},
+        {"schema_version": 3.0},
         {"reference_scope": "global"},
         {"bodies": ()},
         {"faces": ()},

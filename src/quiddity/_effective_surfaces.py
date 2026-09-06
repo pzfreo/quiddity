@@ -198,6 +198,18 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "section-recess recognition intentionally requires audited original-face anatomy",
     ),
+    "_entry_treatments": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "finite treatment cells require original planar bevel and stock footprints",
+    ),
+    "_cylindrical_pockets": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "native analytic cylinder with exact original planar supports and private clipped probes",
+    ),
+    "_support_apertures": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "original circular aperture/rim topology and finite native cylinder support proof",
+    ),
     "_corner_section": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "corner projection requires original rectangular faces and an original exterior mouth",
@@ -272,6 +284,66 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
     "_section_recess_geometry:_polygonal_section:geom_type:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "recogniser requires the observed polygonal floor boundary to be straight",
+    ),
+    "_section_recess_geometry:_mixed_floor_section:geom_type:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "require an observed native mixed line/circle floor boundary",
+    ),
+    "_entry_treatments:prove_entry_treatments:is_planar:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "prove native planar stock termination of a finite entry treatment",
+    ),
+    "_cylindrical_pockets:_proofs:is_planar:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "original planar floor authority",
+    ),
+    "_cylindrical_pockets:_proofs:is_planar:2": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "original constant planar wall supports",
+    ),
+    "_cylindrical_pockets:_proofs:geom_type:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "require complete original straight floor edges",
+    ),
+    "_cylindrical_pockets:_proofs:geom_type:2": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "classify private generated floor support patches",
+    ),
+    "_cylindrical_pockets:_proofs:geom_type:3": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "classify private generated wall support patches",
+    ),
+    "_support_apertures:_aperture:geom_type:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "require the complete original inner circular aperture edge",
+    ),
+    "_support_apertures:_aperture:geom_type:2": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "require original circular rim edges as finite axial boundary authority",
+    ),
+    "_support_apertures:_aperture:geom_type:3": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "classify private generated cylinder sides for exact source-support comparison",
+    ),
+    "_support_apertures:_aperture:is_planar:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "require original planar finite-rim termination context",
+    ),
+    "_support_apertures:proved_support_apertures:is_planar:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "require an original planar support face containing the observed aperture",
+    ),
+    "_entry_treatments:prove_entry_treatments:is_planar:2": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "require an observed native planar bevel before finite cell reconstruction",
+    ),
+    "_section_recess_geometry:_mixed_floor_section:geom_type:2": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "encode the original circular edge sweep rather than a chord",
+    ),
+    "_section_recess_geometry:_one_mixed_candidate:is_planar:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "require observed planar stock termination for exact swept supports",
     ),
     "_section_recess_geometry:_one_polygonal_candidate:is_planar:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,

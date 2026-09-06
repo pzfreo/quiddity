@@ -1,7 +1,7 @@
 # Consuming unified recess geometry
 
 The 0.4.15 cutover replaces specialised pocket, recess, channel and passage outputs with
-`SectionRecess`. Use `build_section_recess_document(part).to_dict()` for JSON schema 2, or
+`SectionRecess`. Use `build_section_recess_document(part).to_dict()` for JSON schema 3, or
 `RecognitionResult.section_recesses` when already running the aggregate. The builder runs
 raw/caller-coordinate recognition once; it does not automatically frame the input.
 
@@ -20,7 +20,25 @@ fourth side is explicitly absent. No bounding box is promoted to a closed pocket
 
 A section point `(u, v)` at run coordinate `s` reconstructs as
 `frame.origin + u * frame.u + v * frame.v + s * frame.run`.
-End gradients give the additional run displacement as a function of section coordinates.
+Each end separates `condition` from its explicitly tagged `surface`.
+For `surface.type == "plane"`, `surface.gradient` gives additional run displacement
+relative to the corresponding centroid `run_interval` value.
+
+For `surface.type == "cylinder"`, normalize its in-plane `axis_direction = (a,b)`.
+With `axis_point = (cx,cy,cz)`, let `q = -b*(u-cx) + a*(v-cy)`.
+The end coordinate is `cz ± sqrt(radius²-q²)`, using the explicit `positive` or
+`negative` branch. The existing closed polygon supplies the domain. Radius and
+axis point are in millimetres; the direction is dimensionless. The corresponding
+run-interval value is the rounded intersection at `(u,v)=(0,0)`, not an envelope.
+The producer proves valid branch and positive separation over the complete profile.
+
+Schema 3 is an explicit breaking change: schema-2 `end.gradient` moves to
+`end.surface.gradient`, and consumers must dispatch on the surface type. Do not
+silently flatten an unfamiliar cylinder to the centroid plane. A pocket in
+cylindrical stock may have a 6 × 24 footprint with 8–12 mm physical depth; label
+depth as local, maximum or centroid depth, never as uniform. This requires no
+build123d-specific value or consumer-side recognition. See ADR 0020.
+
 A bulge belongs to the segment starting at that vertex. The last open-chain vertex has zero
 bulge. The `opening` joins loose endpoints only to describe missing boundary.
 
@@ -32,11 +50,19 @@ islands are not admitted by this contract.
 ## Complete public cutover
 
 The root exports and aggregate fields for `Pocket`, `PrismaticPocket`, `Channel`,
-`SectionPassage`, `Passage`, both edge-open families, both blind-slot families and old pocket
+`Passage`, both edge-open families, both blind-slot families and old pocket
 patterns are removed. Their `recognise_*` entrypoints are replaced by
 `recognise_section_recesses`. Shared `PassageFrame`, `PassageSection` and
 `PassageSectionVertex` geometry primitives remain. Unrelated `Slot` and `OrientedSlot`
 families are unchanged.
+
+`SectionPassage` and `PassageEnds` remain public **nested** contracts because
+`OrientedSlot.source` still returns them. Both are available from the package root
+and declared under `oriented-slots` in the manifest (schema version 2). Consumers
+can validate their exact types without importing implementation modules. This
+repairs the missing exports in Quiddity 0.2.0–0.2.2; it does not restore
+`recognise_section_passages`, `RecognitionResult.section_passages` or a passage
+census family, nor change the existing oriented-slot JSON.
 
 `section_recess_patterns` contains `SectionRecessArray` or `SectionRecessGrid`, whose
 `members` are occurrence indices, not embedded old Pocket values. Array direction is in result
@@ -45,9 +71,11 @@ coordinates, plus center and pitches; no implicit world-XY angle is required. On
 one unambiguous geometric occurrence per member are published; this
 does not introduce a new free-axis pattern detector.
 
-This ships in 0.4.15 at the maintainer's request. Despite the patch version, it is a breaking,
-coordinated consumer change and an explicit exception to the earlier 0.4.x compatibility promise.
-Consumers must migrate; pin 0.4.14 until ready. It does not change Draftwright automatically.
+The original unified cutover shipped in 0.4.15 at the maintainer's request. Despite
+the patch version, that was a breaking, coordinated consumer change and an explicit
+exception to the earlier 0.4.x compatibility promise. Schema 3 is a subsequent
+Quiddity change, not part of 0.4.15. Consumers must migrate before adopting it;
+neither change updates Draftwright automatically.
 
 ## Explicit refusals, not fabricated geometry
 
@@ -55,6 +83,15 @@ The two former summaries in `plates_pads_levels_and_slanted_steps` now have prov
 geometry: the pad-overhang region has an 18-unit run, and the wall/step region a 50-unit run.
 The proof intersects opposed source-wall extents and verifies the entire three support patches
 against actual same-body faces. Holes and incomplete trims cannot masquerade as full support.
+An independently proved circular aperture strictly inside a channel wall or floor
+may now explain its exact missing support patch (ADR 0021). Each finite native
+cylinder segment must have complete observed side support and an empty same-body
+cell. Its original face joins constituent evidence; the generated disk does not.
+The unchanged U-profile is **base support geometry with proved apertures**, not an
+unperforated final boundary. Independent holes remain separate occurrences. A
+consumer must not reconstruct the fully treated channel from the base record alone.
+Unexplained gaps, outer-contour/run-end breakouts and pierced capped ends remain
+outside this exception.
 Material probes require the full section, both run-end openings and lateral opening to be empty.
 The shorter support bounds the run; it need not span the stock envelope.
 

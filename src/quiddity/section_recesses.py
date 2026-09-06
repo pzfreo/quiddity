@@ -13,7 +13,9 @@ from dataclasses import replace
 
 from quiddity._section_recess import (
     ClosedSectionProfile,
+    CylindricalEndSurface,
     OpenSectionProfile,
+    PlanarEndSurface,
     SectionEnd,
     SectionRecess,
     SectionRecessArray,
@@ -57,7 +59,7 @@ def build_section_recess_document(part: Part) -> SectionRecessDocument:
         replace(record, index=index) for index, record in enumerate(result.section_recesses)
     )
     return SectionRecessDocument(
-        2,
+        3,
         "result",
         tuple(SectionRecessBodyRef(index) for index, _ in enumerate(part.solids())),
         tuple(SectionRecessFaceRef(index) for index, _ in enumerate(part.faces())),
@@ -69,7 +71,9 @@ def build_section_recess_document(part: Part) -> SectionRecessDocument:
 
 __all__ = [
     "ClosedSectionProfile",
+    "CylindricalEndSurface",
     "OpenSectionProfile",
+    "PlanarEndSurface",
     "SectionEnd",
     "SectionRecess",
     "SectionRecessBodyRef",

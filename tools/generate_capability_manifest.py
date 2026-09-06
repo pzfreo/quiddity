@@ -37,6 +37,8 @@ FAMILIES = {
         "recognisers": [("recognise_section_recesses", "part")],
         "records": [
             ("ClosedSectionProfile", "nested", []),
+            ("CylindricalEndSurface", "nested", []),
+            ("PlanarEndSurface", "nested", []),
             ("OpenSectionProfile", "nested", []),
             ("SectionEnd", "nested", []),
             ("SectionRecess", "output", ["RecognitionResult.section_recesses"]),
@@ -256,6 +258,8 @@ FAMILIES = {
         "recognisers": [("recognise_oriented_slots", "part")],
         "records": [
             ("OrientedSlot", "output", ["RecognitionResult.oriented_slots"]),
+            ("PassageEnds", "nested", []),
+            ("SectionPassage", "nested", []),
         ],
         "census": "oriented_slot",
         "goldens": [],
@@ -302,6 +306,11 @@ FAMILIES = {
 }
 
 RECORD_SCHEMA_VERSIONS = {
+    "SectionEnd": 2,
+    "SectionRecessEnds": 2,
+    "SectionRecessGeometry": 2,
+    "SectionRecess": 2,
+    "SectionRecessDocument": 3,
     "Channel": 2,
     "Blend": 3,
     "Chamfer": 2,
@@ -324,6 +333,8 @@ NO_MEMBERSHIP_RATIONALE = {
     "ClosedSectionProfile": "Nested only in SectionRecessGeometry.",
     "OpenSectionProfile": "Nested only in SectionRecessGeometry.",
     "SectionEnd": "Nested only in SectionRecessEnds.",
+    "CylindricalEndSurface": "Native cylindrical branch nested only in SectionEnd.",
+    "PlanarEndSurface": "Planar boundary nested only in SectionEnd.",
     "SectionRecessBodyRef": "Nested only in SectionRecessDocument.",
     "SectionRecessClassification": "Nested only in SectionRecess.",
     "SectionRecessDocument": "Public JSON envelope built outside RecognitionResult.",
@@ -341,8 +352,11 @@ NO_MEMBERSHIP_RATIONALE = {
         "Nested physical-profile membership retained by Groove, TurnedStep and TurnedProfile."
     ),
     "PassageEnds": "Nested only in SectionPassage; retained to preserve explicit end topology.",
-    "PassageFrame": "Nested only in SectionPassage.",
-    "PassageSection": "Nested only in SectionPassage.",
+    "SectionPassage": "Nested source geometry of OrientedSlot; no standalone aggregate family.",
+    "PassageFrame": "Shared placement of SectionRecessGeometry and OrientedSlot source geometry.",
+    "PassageSection": (
+        "Shared closed boundary of ClosedSectionProfile and OrientedSlot source geometry."
+    ),
     "PassageSectionVertex": "Nested only in PassageSection.",
     "OpenPolygonalSection": "Nested only in EdgeOpenPrismaticRecess.",
     "OpenSectionOpening": "Nested only in OpenPolygonalSection.",

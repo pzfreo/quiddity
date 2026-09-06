@@ -11,94 +11,100 @@
         "ends": {
           "high": {
             "condition": "open",
-            "gradient": [
-              0.0,
-              0.0
-            ]
+            "surface": {
+              "type": "plane",
+              "gradient": [
+                0,
+                0
+              ]
+            }
           },
           "low": {
             "condition": "capped",
-            "gradient": [
-              0.0,
-              0.0
-            ]
+            "surface": {
+              "type": "plane",
+              "gradient": [
+                0,
+                0
+              ]
+            }
           }
         },
         "frame": {
           "origin": [
-            18.0,
-            10.0,
-            0.0
+            18,
+            10,
+            0
           ],
           "run": [
-            0.0,
-            0.0,
-            1.0
+            0,
+            0,
+            1
           ],
           "u": [
-            1.0,
-            0.0,
-            0.0
+            1,
+            0,
+            0
           ],
           "v": [
-            0.0,
-            1.0,
-            0.0
+            0,
+            1,
+            0
           ]
         },
         "profile": {
           "boundary": [
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
-                7.0,
-                5.0
+                7,
+                5
               ]
             },
             {
               "bulge": 1.000000023205,
               "point": [
-                -12.0,
-                5.0
+                -12,
+                5
               ]
             },
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
-                -12.0,
-                -5.0
+                -12,
+                -5
               ]
             },
             {
               "bulge": 0.236067972749,
               "point": [
-                8.0,
-                -5.0
+                8,
+                -5
               ]
             },
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
-                12.0,
-                -3.0
+                12,
+                -3
               ]
             }
           ],
           "closure": "open",
           "opening": [
             [
-              12.0,
-              -3.0
+              12,
+              -3
             ],
             [
-              7.0,
-              5.0
+              7,
+              5
             ]
           ]
         },
         "run_interval": [
-          4.0,
-          12.0
+          4,
+          12
         ],
         "type": "section_recess"
       }
@@ -116,87 +122,93 @@
         "ends": {
           "high": {
             "condition": "open",
-            "gradient": [
-              0.0,
-              0.0
-            ]
+            "surface": {
+              "type": "plane",
+              "gradient": [
+                0,
+                0
+              ]
+            }
           },
           "low": {
             "condition": "capped",
-            "gradient": [
-              0.0,
-              0.0
-            ]
+            "surface": {
+              "type": "plane",
+              "gradient": [
+                0,
+                0
+              ]
+            }
           }
         },
         "frame": {
           "origin": [
             0.396,
             13.1,
-            0.0
+            0
           ],
           "run": [
-            0.0,
-            0.0,
-            1.0
+            0,
+            0,
+            1
           ],
           "u": [
-            1.0,
-            0.0,
-            0.0
+            1,
+            0,
+            0
           ],
           "v": [
-            0.0,
-            1.0,
-            0.0
+            0,
+            1,
+            0
           ]
         },
         "profile": {
           "boundary": [
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
                 -4.4327,
                 6.8997
               ]
             },
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
                 -7.6039,
                 4.3708
               ]
             },
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
                 -7.6039,
                 -2.5714
               ]
             },
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
                 -2.1763,
                 -6.8997
               ]
             },
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
                 4.5918,
                 -5.355
               ]
             },
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
                 7.6039,
                 0.8997
               ]
             },
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
                 4.7145,
                 6.8997
@@ -216,8 +228,8 @@
           ]
         },
         "run_interval": [
-          10.0,
-          20.0
+          10,
+          20
         ],
         "type": "section_recess"
       }
@@ -235,66 +247,72 @@
         "ends": {
           "high": {
             "condition": "open",
-            "gradient": [
-              0.0,
-              0.0
-            ]
+            "surface": {
+              "type": "plane",
+              "gradient": [
+                0,
+                0
+              ]
+            }
           },
           "low": {
             "condition": "capped",
-            "gradient": [
-              0.0,
-              0.0
-            ]
+            "surface": {
+              "type": "plane",
+              "gradient": [
+                0,
+                0
+              ]
+            }
           }
         },
         "frame": {
           "origin": [
-            0.0,
-            0.0,
-            0.0
+            0,
+            0,
+            0
           ],
           "run": [
-            0.0,
-            0.0,
-            1.0
+            0,
+            0,
+            1
           ],
           "u": [
-            1.0,
-            0.0,
-            0.0
+            1,
+            0,
+            0
           ],
           "v": [
-            0.0,
-            1.0,
-            0.0
+            0,
+            1,
+            0
           ]
         },
         "profile": {
           "boundary": [
             {
-              "bulge": 1.0,
+              "bulge": 1,
               "point": [
                 -6.696,
                 -0.402
               ]
             },
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
                 -3.696,
                 -5.598
               ]
             },
             {
-              "bulge": 1.0,
+              "bulge": 1,
               "point": [
                 6.696,
                 0.402
               ]
             },
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
                 3.696,
                 5.598
@@ -304,8 +322,8 @@
           "closure": "closed"
         },
         "run_interval": [
-          0.0,
-          6.0
+          0,
+          6
         ],
         "type": "section_recess"
       }
@@ -323,61 +341,67 @@
         "ends": {
           "high": {
             "condition": "open",
-            "gradient": [
-              0.0,
-              0.0
-            ]
+            "surface": {
+              "type": "plane",
+              "gradient": [
+                0,
+                0
+              ]
+            }
           },
           "low": {
             "condition": "open",
-            "gradient": [
-              0.0,
-              0.0
-            ]
+            "surface": {
+              "type": "plane",
+              "gradient": [
+                0,
+                0
+              ]
+            }
           }
         },
         "frame": {
           "origin": [
-            0.0,
+            0,
             -0.333,
-            0.0
+            0
           ],
           "run": [
-            0.0,
-            0.0,
-            1.0
+            0,
+            0,
+            1
           ],
           "u": [
-            1.0,
-            0.0,
-            0.0
+            1,
+            0,
+            0
           ],
           "v": [
-            0.0,
-            1.0,
-            0.0
+            0,
+            1,
+            0
           ]
         },
         "profile": {
           "boundary": [
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
-                -4.0,
+                -4,
                 -2.6667
               ]
             },
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
-                4.0,
+                4,
                 -2.6667
               ]
             },
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
-                0.0,
+                0,
                 5.3333
               ]
             }
@@ -385,8 +409,8 @@
           "closure": "closed"
         },
         "run_interval": [
-          -6.0,
-          6.0
+          -6,
+          6
         ],
         "type": "section_recess"
       }
@@ -404,17 +428,23 @@
         "ends": {
           "high": {
             "condition": "open",
-            "gradient": [
-              0.0,
-              0.0
-            ]
+            "surface": {
+              "type": "plane",
+              "gradient": [
+                0,
+                0
+              ]
+            }
           },
           "low": {
             "condition": "capped",
-            "gradient": [
-              0.0,
-              0.0
-            ]
+            "surface": {
+              "type": "plane",
+              "gradient": [
+                0,
+                0
+              ]
+            }
           }
         },
         "frame": {
@@ -434,7 +464,7 @@
             -0.492533
           ],
           "v": [
-            0.0,
+            0,
             0.956305,
             0.292372
           ]
@@ -442,21 +472,21 @@
         "profile": {
           "boundary": [
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
                 -3.637,
                 3.901
               ]
             },
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
                 -1.107,
                 -4.678
               ]
             },
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
                 4.744,
                 0.778
@@ -466,8 +496,8 @@
           "closure": "closed"
         },
         "run_interval": [
-          4.0,
-          6.0
+          4,
+          6
         ],
         "type": "section_recess"
       }
@@ -485,68 +515,74 @@
         "ends": {
           "high": {
             "condition": "capped",
-            "gradient": [
-              0.0,
-              0.0
-            ]
+            "surface": {
+              "type": "plane",
+              "gradient": [
+                0,
+                0
+              ]
+            }
           },
           "low": {
             "condition": "open",
-            "gradient": [
-              0.0,
-              0.0
-            ]
+            "surface": {
+              "type": "plane",
+              "gradient": [
+                0,
+                0
+              ]
+            }
           }
         },
         "frame": {
           "origin": [
-            0.0,
+            0,
             7.5,
-            0.0
+            0
           ],
           "run": [
-            0.0,
-            0.0,
-            1.0
+            0,
+            0,
+            1
           ],
           "u": [
-            1.0,
-            0.0,
-            0.0
+            1,
+            0,
+            0
           ],
           "v": [
-            0.0,
-            1.0,
-            0.0
+            0,
+            1,
+            0
           ]
         },
         "profile": {
           "boundary": [
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
-                -5.0,
+                -5,
                 2.5
               ]
             },
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
-                -5.0,
+                -5,
                 -2.5
               ]
             },
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
-                5.0,
+                5,
                 -2.5
               ]
             },
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
-                5.0,
+                5,
                 2.5
               ]
             }
@@ -554,18 +590,18 @@
           "closure": "open",
           "opening": [
             [
-              5.0,
+              5,
               2.5
             ],
             [
-              -5.0,
+              -5,
               2.5
             ]
           ]
         },
         "run_interval": [
-          0.0,
-          20.0
+          0,
+          20
         ],
         "type": "section_recess"
       }
@@ -583,39 +619,45 @@
         "ends": {
           "high": {
             "condition": "open",
-            "gradient": [
-              0.0,
-              0.0
-            ]
+            "surface": {
+              "type": "plane",
+              "gradient": [
+                0,
+                0
+              ]
+            }
           },
           "low": {
             "condition": "capped",
-            "gradient": [
-              0.0,
-              0.0
-            ]
+            "surface": {
+              "type": "plane",
+              "gradient": [
+                0,
+                0
+              ]
+            }
           }
         },
         "frame": {
           "origin": [
-            0.0,
+            0,
             -1.5,
-            0.0
+            0
           ],
           "run": [
-            0.0,
-            0.0,
-            1.0
+            0,
+            0,
+            1
           ],
           "u": [
-            1.0,
-            0.0,
-            0.0
+            1,
+            0,
+            0
           ],
           "v": [
-            0.0,
-            1.0,
-            0.0
+            0,
+            1,
+            0
           ]
         },
         "profile": {
@@ -623,28 +665,28 @@
             {
               "bulge": 0.414213562373,
               "point": [
-                -5.0,
+                -5,
                 1.5
               ]
             },
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
-                -2.0,
+                -2,
                 -1.5
               ]
             },
             {
               "bulge": 0.414213562373,
               "point": [
-                2.0,
+                2,
                 -1.5
               ]
             },
             {
-              "bulge": 0.0,
+              "bulge": 0,
               "point": [
-                5.0,
+                5,
                 1.5
               ]
             }
@@ -652,18 +694,18 @@
           "closure": "open",
           "opening": [
             [
-              5.0,
+              5,
               1.5
             ],
             [
-              -5.0,
+              -5,
               1.5
             ]
           ]
         },
         "run_interval": [
-          0.0,
-          20.0
+          0,
+          20
         ],
         "type": "section_recess"
       }

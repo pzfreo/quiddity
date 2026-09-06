@@ -254,17 +254,29 @@ def _projection_bound(vertices: tuple[SectionVertex, ...]) -> float:
             original_arc = _arc(vertex, vertices[(index + 1) % len(vertices)])
             projected_arc = _arc(projected[index], projected[(index + 1) % len(vertices)])
             assert original_arc is not None and projected_arc is not None
-            start_delta = math.atan2(
-                math.sin(original_arc.start - projected_arc.start),
-                math.cos(original_arc.start - projected_arc.start),
+            # At equal normalized sweep, the difference of two equal-sweep arcs
+            # is C + R(t)D. Its maximum norm is at an endpoint or where R(t)D
+            # aligns with C. Treat the tiny serialized sweep change separately
+            # with the chord <= arc-length bound; no sampling or tolerance widening.
+            centre_delta = complex(*original_arc.centre) - complex(*projected_arc.centre)
+            radial_delta = original_arc.radius * complex(
+                math.cos(original_arc.start), math.sin(original_arc.start)
+            ) - projected_arc.radius * complex(
+                math.cos(projected_arc.start), math.sin(projected_arc.start)
             )
-            end_delta = start_delta + original_arc.sweep - projected_arc.sweep
-            angular_bound = max(abs(start_delta), abs(end_delta))
-            displacement_bound = (
-                math.dist(original_arc.centre, projected_arc.centre)
-                + abs(original_arc.radius - projected_arc.radius)
-                + min(original_arc.radius, projected_arc.radius) * angular_bound
-            )
+            angles = [0.0, original_arc.sweep]
+            if abs(centre_delta) > 0 and abs(radial_delta) > 0:
+                aligned = math.atan2(centre_delta.imag, centre_delta.real) - math.atan2(
+                    radial_delta.imag, radial_delta.real
+                )
+                for turn in (-2 * math.pi, 0.0, 2 * math.pi):
+                    angle = aligned + turn
+                    if min(0.0, original_arc.sweep) <= angle <= max(0.0, original_arc.sweep):
+                        angles.append(angle)
+            displacement_bound = max(
+                abs(centre_delta + radial_delta * complex(math.cos(angle), math.sin(angle)))
+                for angle in angles
+            ) + projected_arc.radius * abs(original_arc.sweep - projected_arc.sweep)
             bound = max(bound, displacement_bound)
     return bound
 

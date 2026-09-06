@@ -164,9 +164,11 @@ from quiddity.oriented_slots import (
 from quiddity.pads import RaisedPad, recognise_rectangular_pads
 from quiddity.paired_ramp_steps import PairedRampStep, recognise_paired_ramp_steps
 from quiddity.passages import (
+    PassageEnds,
     PassageFrame,
     PassageSection,
     PassageSectionVertex,
+    SectionPassage,
 )
 from quiddity.plates import Plate, has_multi_axis_plates, recognise_plates
 from quiddity.polygonal_bosses import (
@@ -187,7 +189,9 @@ from quiddity.result import (
 )
 from quiddity.section_recesses import (
     ClosedSectionProfile,
+    CylindricalEndSurface,
     OpenSectionProfile,
+    PlanarEndSurface,
     SectionEnd,
     SectionRecess,
     SectionRecessArray,
@@ -242,7 +246,9 @@ __all__ = [
     "CapabilityManifestError",
     "STEP_LADDER_BOUNDARY_MARGIN",
     "AngledStep",
+    "PassageEnds",
     "PassageFrame",
+    "SectionPassage",
     "PassageSection",
     "PassageSectionVertex",
     "PairedRampStep",
@@ -256,6 +262,8 @@ __all__ = [
     "SectionRecessGrid",
     "SectionEnd",
     "ClosedSectionProfile",
+    "CylindricalEndSurface",
+    "PlanarEndSurface",
     "OrientedSlot",
     "OrientedSlotArray",
     "OrientedSlotGrid",

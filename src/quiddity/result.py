@@ -68,6 +68,7 @@ from quiddity._section_adapters import legacy_section_geometry
 from quiddity._section_recess import (
     ClosedSectionProfile,
     OpenSectionProfile,
+    PlanarEndSurface,
     SectionEnd,
     SectionRecess,
     SectionRecessArray,
@@ -737,8 +738,8 @@ def _section_passage_recess(
         record.run_interval,
         ClosedSectionProfile("closed", record.section.boundary),
         SectionRecessEnds(
-            SectionEnd("open", record.ends.low_gradient),
-            SectionEnd("open", record.ends.high_gradient),
+            SectionEnd("open", PlanarEndSurface(gradient=record.ends.low_gradient)),
+            SectionEnd("open", PlanarEndSurface(gradient=record.ends.high_gradient)),
         ),
     )
     return SectionRecess(
@@ -898,7 +899,11 @@ def _corner_pocket_recess(
 ) -> SectionRecess | None:
     if isinstance(record, Channel) or not record.edge_anchored:
         channel = prove_open_channel(
-            context.graph, evidence.defining_of(record), evidence.constituent_of(record), record
+            context.graph,
+            evidence.defining_of(record),
+            evidence.constituent_of(record),
+            record,
+            surfaces=context.surfaces,
         )
         if channel is None:
             return None
@@ -912,7 +917,7 @@ def _corner_pocket_recess(
             ),
         )
         geometry = replace(geometry, ends=SectionRecessEnds(SectionEnd("open"), SectionEnd("open")))
-        return _legacy_section_recess(
+        projected = _legacy_section_recess(
             record,
             context=context,
             evidence=evidence,
@@ -920,6 +925,18 @@ def _corner_pocket_recess(
             geometry=geometry,
             feature_kind="channel",
             section_shape="rectangular",
+        )
+        return replace(
+            projected,
+            evidence=SectionRecessEvidence(
+                projected.evidence.defining_faces,
+                tuple(
+                    sorted(
+                        set(projected.evidence.constituent_faces)
+                        | {node.index for node in channel.aperture_faces}
+                    )
+                ),
+            ),
         )
     proof = prove_corner_section(context.graph, evidence.defining_of(record), record.depth_axis)
     if proof is None:

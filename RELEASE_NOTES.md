@@ -2,6 +2,25 @@
 
 ## Next release
 
+- Recognise polygonal passages interrupted by a separately proved finite planar entry
+  chamfer, retaining exact base support and original treatment-face evidence (#540).
+
+- Recognise intact general line/arc pockets from exact swept source support, including
+  rounded rectangles with short straight end segments. Preserve physical dimensions
+  instead of forcing an obround classification (#536). Tighten the analytic arc-rounding
+  error bound without changing the existing publication displacement limit.
+
+- Recognise straight polygonal passages through parallel stock faces oblique to their
+  wall-proved run, preserving actual planar terminations in the existing schema (#369).
+
+- Recognise polygonal pockets whose planar stock mouth is split into coplanar faces,
+  retaining whole-wall termination checks and the existing SectionRecess geometry and
+  evidence contracts (#369).
+- Publish the still-used `OrientedSlot.source` contracts `SectionPassage` and
+  `PassageEnds` at the package root and in the capability manifest. Validate all
+  nested manifest record references. Existing geometry and JSON schemas are unchanged;
+  retired standalone passage APIs remain removed (#533).
+
 ## 0.2.2 — Quiddity
 
 - Reject incomplete STEP root transfers before returning partial geometry, while preserving
