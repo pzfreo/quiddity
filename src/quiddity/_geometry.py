@@ -11,6 +11,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 
+from quiddity._body_identity import body_signature as body_signature
 from quiddity._typing import Bounds, Span2, Vector3
 
 _PLANE_AXES = {
@@ -68,29 +69,6 @@ INTERIOR_PROBE_FRAC = 0.05
 #:
 #: Dimensionless, so it never scales with the part (ADR 0008).
 SMOOTH_ARC_GAP = 1e-9
-
-
-def body_signature(solid: object) -> tuple[float, ...]:
-    """Return the existing serializable correspondence key for one physical solid.
-
-    The key is geometry-derived and traversal-independent.  Duplicate signatures are not body
-    identity: callers must replace them with ``None`` before permitting cross-record grouping.
-    """
-
-    bounds = solid.bounding_box()  # type: ignore[attr-defined]
-    return tuple(
-        round(value, 8)
-        for value in (
-            float(bounds.min.X),
-            float(bounds.min.Y),
-            float(bounds.min.Z),
-            float(bounds.max.X),
-            float(bounds.max.Y),
-            float(bounds.max.Z),
-            float(solid.volume),  # type: ignore[attr-defined]
-            float(solid.area),  # type: ignore[attr-defined]
-        )
-    )
 
 
 def _unit(v: Sequence[float]) -> tuple[float, float, float]:

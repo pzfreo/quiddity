@@ -474,6 +474,14 @@ the claims, under ADR 0003, and by evidence about the geometry rather than about
 
 ## Public record contract audit
 
+Records exposing `body_key` use one shared geometric signature policy: six-decimal bounding
+coordinates and twelve-significant-digit volume/area. Compare keys only within the same source
+geometry and coordinate convention; a key is neither a persistent ID nor an occurrence handle.
+Duplicate signatures are ambiguous and publish `null`, never a traversal-selected owner. Raw and
+framed coordinates may produce different keys. The rounding policy absorbs kernel noise but does
+not promise identity across edits, arbitrary transforms, or every STEP translation. Source-face
+and feature identity remain authoritative through the same-run evidence API.
+
 The record audit below distinguishes recogniser output from helper/projection
 records. Fields describe evidence already proved by current code; they are not an
 invitation to construct values outside that evidence and call them recognized.

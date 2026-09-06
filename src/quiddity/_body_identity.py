@@ -18,10 +18,15 @@ BodyKey = tuple[float, ...]
 
 
 def body_signature(solid: Part) -> BodyKey:
-    """Return the legacy exact geometric signature of one physical solid."""
+    """Return the shared public geometric correlation signature.
+
+    Bounds use six decimals; area and volume use twelve significant figures. All families
+    use this policy, independent of whether their source-validity check is required here.
+    The signature is not occurrence identity: duplicate signatures must still be refused.
+    """
 
     bb = solid.bounding_box()
-    return (
+    values = (
         float(bb.min.X),
         float(bb.min.Y),
         float(bb.min.Z),
@@ -31,17 +36,6 @@ def body_signature(solid: Part) -> BodyKey:
         float(solid.volume),
         float(solid.area),
     )
-
-
-def _stable_body_signature(solid: Part) -> BodyKey:
-    """Return a public ownership key stable across neutral-format round trips.
-
-    Coordinates use the package's 1e-6 kernel-noise grid. Volume and area use twelve significant
-    figures: they scale with different powers of the model units, so decimal-place rounding is
-    unsuitable for them, while that precision still absorbs harmless last-bit STEP changes.
-    """
-
-    values = body_signature(solid)
     coordinates = tuple(round(value, 6) or 0.0 for value in values[:6])
     mass_properties = tuple(float(f"{value:.12g}") for value in values[6:])
     return (*coordinates, *mass_properties)
@@ -59,7 +53,7 @@ def unambiguous_body_keys(
 
     signatures = tuple(
         (
-            (_stable_body_signature(source) if require_valid_solid else body_signature(source))
+            body_signature(source)
             if not require_valid_solid or (source.solids() and source.is_valid)
             else None
         )
