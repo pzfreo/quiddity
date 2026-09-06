@@ -1,0 +1,190 @@
+"""Source-only, bounded joint-cell feasibility. No public record or production gate.
+
+Seeds and all dimensions come from the final B-rep, without labels/history.
+Additional proof/ADR/consumer work is required before production use.
+"""
+import json
+import math
+from collections import Counter
+from itertools import combinations
+
+from build123d import Box, Compound, Face, GeomType, Keep, Plane, Pos, RegularPolygon, Rot, ShapeList, Solid, Vector, Wire, extrude
+
+from quiddity._adjacency import FaceGraph, connected_components
+from quiddity._effective_surfaces import EffectiveSurfaceIndex, AnalyticSurfaceFact, SurfaceKind, SurfaceProvenance
+from quiddity._section_passages import _ordered_cycle, _pair_line
+from quiddity._sections import LocalFrame, PlanarSection, SectionVertex
+from quiddity._support_patches import covered_patch
+from quiddity._volume_probe import material_fraction
+
+
+def shape(value):
+    return Compound(value) if isinstance(value, (list, ShapeList)) else value
+
+
+def require(condition, stage):
+    if not condition:
+        raise ValueError(stage)
+
+
+def prove(graph, surfaces, mouth, seeds, base):
+    require(len(seeds) >= 3, "seed_count")
+    run = Vector(*base.run)
+    sign = 1 if Vector(*graph.normal(mouth)).dot(run) < 0 else -1
+    owner = graph.common_valid_solid((*seeds, mouth))
+    require(owner is not None, "owner")
+    neighbours = {a: {b for b in seeds if b != a and graph.arc(a, b) == "concave"} for a in seeds}
+    require(all(len(n) == 2 for n in neighbours.values()), "seed_cycle")
+    lines = {frozenset((a, b)): _pair_line(graph, a, b, base)
+             for a, b in combinations(seeds, 2) if b in neighbours[a]}
+    require(all(line is not None for line in lines.values()), "seed_junction")
+    order = _ordered_cycle(seeds, neighbours, lines)
+    require(len(set(order)) == len(seeds), "connected_cycle")
+    section = PlanarSection(tuple(SectionVertex(lines[frozenset((a, order[(i+1)%len(order)]))][:2])
+                                  for i, a in enumerate(order)))
+    points = tuple(v.point for v in section.boundary)
+    require(all((p[0]-points[i-1][0])*(points[(i+1)%len(points)][1]-p[1])
+                -(p[1]-points[i-1][1])*(points[(i+1)%len(points)][0]-p[0]) >= 0
+                for i,p in enumerate(points)), "convex_profile")
+    walls = set(seeds)
+    for node in graph.nodes:
+        if not graph.is_planar(node) or graph.common_valid_solid((*seeds, node)) != owner:
+            continue
+        n = Vector(*graph.normal(node))
+        if any(n.dot(Vector(*graph.normal(seed))) > 1-1e-8
+               and abs((graph.face(node).center()-graph.face(seed).center()).dot(n)) < 1e-6
+               for seed in seeds):
+            walls.add(node)
+    # Plane coincidence alone does not associate an unrelated recess. Retain
+    # only the original concave-connected wall component containing the seed.
+    associated=set(seeds)
+    pending=list(seeds)
+    while pending:
+        node=pending.pop()
+        for neighbour in graph.neighbours(node):
+            if neighbour in walls and neighbour not in associated and graph.arc(node,neighbour)=="concave":
+                associated.add(neighbour)
+                pending.append(neighbour)
+    walls=associated
+    contexts = set().union(*(set(graph.neighbours(w)) for w in walls))-walls-{mouth}
+    cylinders = [n for n in contexts if graph.face(n).geom_type == GeomType.CYLINDER]
+    roofs = tuple(n for n in contexts if graph.is_planar(n))
+    require(len(cylinders)==1 and len(roofs)==2 and len(contexts)==3, "terminal_context")
+    cylinder = cylinders[0]
+    require(graph.arc(*roofs)=="convex" and bool(graph.shared_edges(*roofs)), "roof_ridge")
+    require(all(Vector(*graph.normal(r)).dot(run)*sign > 1e-8 for r in roofs), "roof_outward")
+    require(all(any(
+        Vector(*graph.normal(w)).dot(Vector(*graph.normal(seed))) > 1-1e-8
+        and abs((graph.face(w).center()-graph.face(seed).center()).dot(Vector(*graph.normal(seed)))) < 1e-6
+        and any(graph.arc(w,r)=="convex" for r in roofs)
+        for w in walls) for seed in seeds), "roof_contacts")
+    fact = surfaces.fact(cylinder)
+    require(isinstance(fact,AnalyticSurfaceFact) and fact.kind==SurfaceKind.CYLINDER
+            and fact.provenance==SurfaceProvenance.NATIVE, "native_bore")
+    centre, axis, radius = Vector(*fact.parameters[:3]), Vector(*fact.parameters[3:6]), fact.parameters[6]
+    require(abs(axis.dot(run))<1e-8, "transverse_bore")
+    source = graph.face(cylinder)
+    point = source.position_at(.37,.41)
+    radial = point-centre-axis*(point-centre).dot(axis)
+    require(source.normal_at(point).dot(radial.normalized()) < -1+1e-6, "inward_bore")
+    rings = [edge for edge in source.edges() if edge.geom_type==GeomType.CIRCLE
+             and abs(edge.length-2*math.pi*radius)<1e-6]
+    require(len(rings)==2, "two_complete_bore_rims")
+    rim_contexts=[]
+    for ring in rings:
+        touching=[n for n in graph.neighbours(cylinder) if graph.is_planar(n)
+                  and any(ring.is_same(e) for e in graph.shared_edges(cylinder,n))]
+        require(len(touching)==1, "rim_context")
+        rim_contexts.extend(touching)
+    require(graph.common_valid_solid((*walls,mouth,*roofs,cylinder,*rim_contexts))==owner, "all_owner")
+    bore_ends=sorted((ring.arc_center-centre).dot(axis) for ring in rings)
+    bore=Solid.make_cylinder(radius,bore_ends[1]-bore_ends[0],Plane(origin=centre+axis*bore_ends[0],z_dir=axis))
+    far=graph.face(mouth).center().dot(run)
+    heights=[Vector(*v).dot(run) for w in walls for v in graph.face(w).vertices()]
+    limit=(max(heights) if sign>0 else min(heights))+sign
+    def world(p,h):
+        return Vector(*base.u)*p[0]+Vector(*base.v)*p[1]+run*h
+    cap=Face(Wire.make_polygon([world(p,far) for p in points],close=True))
+    cell=Solid.extrude(cap,run*(limit-far))
+    for roof in roofs:
+        cell=shape(cell.split(Plane(origin=graph.face(roof).center(),z_dir=graph.normal(roof)),Keep.BOTTOM))
+    require(cell.is_valid and len(cell.solids())==1, "passage_cell")
+    passage_caps=tuple(f for f in cell.faces() if abs(f.normal_at().dot(run))>1e-8)
+    require(all(bore.distance_to(cap)>1e-6 for cap in passage_caps), "bore_touches_passage_end")
+    # Every cap is on an observed terminal surface; no artificial prism cap survives.
+    terminal_nodes=(mouth,*roofs,*rim_contexts)
+    def terminal_matches(face):
+        return tuple(n for n in terminal_nodes if face.geom_type==GeomType.PLANE and
+            face.normal_at().dot(Vector(*graph.normal(n))) > 1-1e-8
+            and all(abs((Vector(*v)-graph.face(n).center()).dot(Vector(*graph.normal(n))))<1e-6
+                    for v in face.vertices()))
+    joint=shape(cell.fuse(bore))
+    require(joint.is_valid and len(joint.solids())==1, "joint_cell")
+    original=tuple(graph.face(n) for n in (*walls,cylinder))
+    interior=tuple(f for f in joint.faces() if not terminal_matches(f))
+    require(all(covered_patch(f,original) for f in interior), "joint_to_original")
+    require(all(covered_patch(f,interior) for f in original), "original_to_joint")
+    caps={n:[] for n in terminal_nodes}
+    solid=graph.solid_shape(owner)
+    require(material_fraction(solid,joint)<1e-9, "material")
+    for face in joint.faces():
+        matches=terminal_matches(face)
+        if not matches:
+            continue
+        require(len(matches)==1, "ambiguous_cap_surface")
+        caps[matches[0]].append(face)
+        require(face.area>1e-10, "positive_cap")
+        probe=Solid.extrude(face,face.normal_at()*max(2e-5,radius*1e-4))
+        require(probe.volume>1e-12 and material_fraction(solid,probe)<1e-9, "opening_material")
+    require(all(caps.values()), "every_terminal_active")
+    mouth_patches=tuple(caps[mouth])
+    require(any(covered_patch(Face(wire),mouth_patches)
+                and all(covered_patch(face,(Face(wire),)) for face in mouth_patches)
+                for wire in graph.face(mouth).inner_wires()), "exact_mouth_wire")
+    for ring,context in zip(rings,rim_contexts):
+        disk=Face(Wire([ring]))
+        patches=tuple(caps[context])
+        require(covered_patch(disk,patches) and all(covered_patch(face,(disk,)) for face in patches),
+                "exact_bore_rim")
+    return {"walls":sorted(n.index for n in walls),"bore":cylinder.index,"volume":joint.volume}
+
+
+def discover(part):
+    graph=FaceGraph(part)
+    surfaces=EffectiveSurfaceIndex(graph)
+    results=[]
+    refusals=Counter()
+    for mouth in graph.nodes:
+        if not graph.is_planar(mouth):
+            continue
+        base=LocalFrame.canonical(graph.normal(mouth),(0,0,0))
+        run=Vector(*base.run)
+        seeds=[n for n in graph.neighbours(mouth) if graph.is_planar(n)
+               and abs(Vector(*graph.normal(n)).dot(run))<1e-8 and graph.arc(mouth,n)=="convex"]
+        for group in connected_components(seeds,lambda a,b:graph.arc(a,b)=="concave"):
+            try:
+                results.append(prove(graph,surfaces,mouth,group,base))
+            except ValueError as error:
+                refusals[str(error)]+=1
+    return results,dict(refusals)
+
+
+if __name__=="__main__":
+    for sides in (3,4,6):
+        for rotated in (False,True):
+            stock=Box(40,40,40).split(Plane(origin=(0,0,20),z_dir=(.2,0,1)),Keep.BOTTOM)
+            tool=Pos(0,0,-25)*extrude(RegularPolygon(3,sides),50)
+            bore=Solid.make_cylinder(2,40,Plane(origin=(-20,2,0),z_dir=(1,0,0)))
+            part=stock-tool-bore
+            placement=Pos(13.2,-7.4,4.1)*(Rot(17,31,43) if rotated else Rot())
+            result,refusals=discover(placement*part)
+            require(len(result)==1, "authored_occurrence_count")
+            expected=stock.volume-part.volume
+            require(abs(result[0]["volume"]-expected)<expected*1e-6, "authored_volume")
+            obstructed=part+Box(8,1,1)
+            require(len(obstructed.solids())==1, "attached_bridge")
+            negative,_=discover(placement*obstructed)
+            require(not negative, "bridge_was_accepted")
+            print(json.dumps({"sides":sides,"rotated":rotated,"results":result,
+                              "volume_checked":True,"bridge_rejected":True,
+                              "refusals":refusals}),flush=True)

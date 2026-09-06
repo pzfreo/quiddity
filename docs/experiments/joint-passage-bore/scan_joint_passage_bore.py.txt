@@ -1,0 +1,70 @@
+"""Bounded open-development opportunity audit; never an aggregate scorer."""
+import hashlib
+import json
+import argparse
+from collections import Counter
+from concurrent.futures import ProcessPoolExecutor
+from pathlib import Path
+
+from quiddity import import_step_geometry
+from quiddity.result import _take_inventory
+from tools.audit_mfcadpp_one_ended_pockets import _accepted_constituent
+from tools.effectiveness_report import load_mfcadpp_truth
+from probe_source_joint_passage_bore import discover
+
+SCRATCH=Path(__file__).resolve().parent
+DATA=Path('/app/workspaces-codex/datasets/mfcadpp/MFCAD++_dataset/step/test')
+
+
+def one(item):
+    path,baseline_status=item
+    if baseline_status!='evaluated':
+        return {'model':path.stem,'candidates':0,'baseline_invalid':True}
+    part=import_step_geometry(path)
+    proofs,_=discover(part)
+    if not proofs:
+        return {'model':path.stem,'candidates':0}
+    # Labels and baseline recognition enter only after geometry-only discovery.
+    truth=load_mfcadpp_truth(path)
+    inventory=_take_inventory(part)
+    covered={node.index for node in _accepted_constituent(inventory)}
+    walls=set().union(*(set(p['walls']) for p in proofs))
+    return {'model':path.stem,'candidates':len(proofs),
+            'wall_labels':dict(Counter(truth.semantic[index] for index in walls)),
+            'new_wall_labels':dict(Counter(truth.semantic[index] for index in walls-covered)),
+            'walls':sorted(walls),'already_covered':sorted(walls&covered)}
+
+
+if __name__=='__main__':
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--limit',type=int,default=500)
+    parser.add_argument('--baseline',type=Path,required=True)
+    parser.add_argument('--dataset',type=Path,default=DATA)
+    args=parser.parse_args()
+    limit=args.limit
+    report=json.loads(args.baseline.read_text())
+    selected_rows=report['models'][:limit]
+    selected=[row['model_id'] for row in selected_rows]
+    paths={p.stem:p for p in args.dataset.glob('*.st*p')}
+    results=[]
+    with ProcessPoolExecutor(max_workers=2) as pool:
+        for index,result in enumerate(pool.map(one,[(paths[row['model_id']],row['status']) for row in selected_rows]),1):
+            if result['candidates']:
+                results.append(result)
+                print(json.dumps(result),flush=True)
+            if index%50==0:
+                print(f'progress {index}/{len(selected)}',flush=True)
+    wall_labels=Counter()
+    new_labels=Counter()
+    for result in results:
+        wall_labels.update(result['wall_labels'])
+        new_labels.update(result['new_wall_labels'])
+    output={'scope':f'first {len(selected)} rows of pinned #553 MFCAD++ report; opportunity only',
+            'baseline_invalid_skipped':sum(row['status']!='evaluated' for row in selected_rows),
+            'prototype_sha256':hashlib.sha256((SCRATCH/'probe_source_joint_passage_bore.py').read_bytes()).hexdigest(),
+            'selected_models':selected,'candidate_models':len(results),
+            'candidates':sum(row['candidates'] for row in results),
+            'wall_labels':dict(wall_labels),'new_wall_labels':dict(new_labels),'rows':results}
+    target=SCRATCH/f'joint-passage-bore-opportunities-{len(selected)}.json'
+    target.write_text(json.dumps(output,indent=2)+'\n')
+    print(json.dumps({k:v for k,v in output.items() if k not in ('selected_models','rows')}),flush=True)

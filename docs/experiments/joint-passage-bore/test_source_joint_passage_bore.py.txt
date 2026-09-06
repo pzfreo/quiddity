@@ -1,0 +1,89 @@
+"""Authored adversaries for the source-only scratch proof; not production tests."""
+import pytest
+from build123d import Box, Compound, Keep, Plane, Pos, RegularPolygon, Rot, Solid, export_step, extrude, import_step
+from probe_source_joint_passage_bore import discover
+
+
+def fixture(sides=6, scale=1, kind="plain", bore_height=0):
+    stock=Box(40*scale,40*scale,40*scale).split(
+        Plane(origin=(0,0,20*scale),z_dir=(.2,0,1)),Keep.BOTTOM)
+    if kind=="three_roofs":
+        stock=stock.split(Plane(origin=(0,0,20*scale),z_dir=(0,.3,1)),Keep.BOTTOM)
+    tool=Pos(0,0,-25*scale)*extrude(RegularPolygon(3*scale,sides),50*scale)
+    bore=Solid.make_cylinder(2*scale,(20 if kind=="blind_bore" else 40)*scale,
+        Plane(origin=(-20*scale,2*scale,bore_height*scale),z_dir=(1,0,0)))
+    part=stock-tool-bore
+    if kind=="bridge":
+        part=part+Box(8*scale,scale,scale)
+    elif kind=="breakout":
+        part=part-Pos(0,10*scale,0)*Box(scale,20*scale,scale)
+    elif kind=="missing_rim":
+        part=part-Pos(-20*scale,3.5*scale,0)*Box(6*scale,scale,8*scale)
+    return part,stock.volume-part.volume
+
+
+@pytest.mark.parametrize("sides",[3,4,6])
+@pytest.mark.parametrize("scale",[.1,1])
+@pytest.mark.parametrize("rotation",[Rot(),Rot(17,31,43)])
+def test_scaled_source_only_volume(sides,scale,rotation):
+    part,expected=fixture(sides,scale)
+    result,_=discover(Pos(13.2,-7.4,4.1)*rotation*part)
+    assert len(result)==1
+    assert result[0]["volume"]==pytest.approx(expected,rel=1e-6)
+
+
+@pytest.mark.parametrize("kind",["bridge","breakout","blind_bore","missing_rim","three_roofs"])
+def test_unsupported_source_geometry_refuses(kind):
+    part,_=fixture(kind=kind)
+    assert part.is_valid and len(part.solids())==1
+    result,_=discover(part)
+    assert result==[]
+
+
+def test_separate_owners_and_local_obstruction():
+    first,_=fixture()
+    second,_=fixture(kind="bridge")
+    result,_=discover(Compound([first,Pos(70,0,0)*first]))
+    assert len(result)==2
+    assert set(result[0]["walls"]).isdisjoint(result[1]["walls"])
+    result,_=discover(Compound([first,Pos(70,0,0)*second]))
+    assert len(result)==1
+
+
+def test_step_round_trip(tmp_path):
+    part,expected=fixture()
+    path=tmp_path/"joint.step"
+    export_step(Pos(13.2,-7.4,4.1)*Rot(17,31,43)*part,path)
+    result,_=discover(import_step(path))
+    assert len(result)==1
+    assert result[0]["volume"]==pytest.approx(expected,rel=1e-6)
+
+
+def test_unrelated_same_owner_coplanar_walls_do_not_poison_candidate():
+    part,expected=fixture(sides=4)
+    # Translation parallel to two diamond walls preserves their plane equations.
+    other=Pos(10,10,-25)*extrude(RegularPolygon(3,4),50)
+    modified=part-other
+    assert modified.is_valid and len(modified.solids())==1
+    result,_=discover(modified)
+    assert len(result)==1
+    assert result[0]["volume"]==pytest.approx(expected,rel=1e-6)
+
+
+@pytest.mark.parametrize("height,accepted",[(-19,False),(-17.9999,True)])
+def test_bore_crossing_mouth_is_not_an_internal_interruption(height,accepted):
+    part,_=fixture(bore_height=height)
+    assert part.is_valid and len(part.solids())==1
+    result,_=discover(part)
+    assert bool(result) is accepted
+
+
+def test_disconnected_coaxial_bores_are_not_joined_across_unproved_support():
+    stock=Box(40,40,40).split(Plane(origin=(0,0,20),z_dir=(.2,0,1)),Keep.BOTTOM)
+    tool=Pos(0,0,-25)*extrude(RegularPolygon(3,6),50)
+    left=Solid.make_cylinder(2,19,Plane(origin=(-20,2,0),z_dir=(1,0,0)))
+    right=Solid.make_cylinder(2,19,Plane(origin=(1,2,0),z_dir=(1,0,0)))
+    part=stock-tool-left-right
+    assert part.is_valid and len(part.solids())==1
+    result,_=discover(part)
+    assert result==[]
