@@ -7,6 +7,36 @@ import pytest
 from quiddity._sections import SectionVertex, _validate_adjacent
 
 
+def test_circle_intersection_behind_long_line_is_not_a_shared_junction_crossing():
+    _validate_adjacent(
+        SectionVertex((100.00000001, 100)),
+        SectionVertex((100, 0), -1),
+        SectionVertex((-100, 0)),
+    )
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("crosses", [False, True])
+def test_near_endpoint_arc_membership_uses_spatial_not_fixed_angular_slack(reverse, crosses):
+    vertices = (
+        SectionVertex((-100, 0), 1),
+        SectionVertex((100, 0)),
+        SectionVertex((99.99999999, -100 if crosses else 100)),
+    )
+    if reverse:
+        a, b, c = vertices
+        vertices = (
+            SectionVertex(c.point, -b.bulge),
+            SectionVertex(b.point, -a.bulge),
+            SectionVertex(a.point),
+        )
+    if crosses:
+        with pytest.raises(ValueError, match="away from their shared endpoint"):
+            _validate_adjacent(*vertices)
+    else:
+        _validate_adjacent(*vertices)
+
+
 @pytest.mark.parametrize("radius", [0.001, 0.1, 1, 10, 100, 1000])
 @pytest.mark.parametrize("degrees", range(0, 180, 2))
 @pytest.mark.parametrize("reverse", [False, True])

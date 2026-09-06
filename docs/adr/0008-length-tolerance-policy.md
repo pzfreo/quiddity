@@ -26,6 +26,10 @@ increase the recognition or publication allowance. The adjacency-specific calcul
 the remaining root against the finite line, signed arc and existing positional tolerance;
 nonadjacent-edge intersection checks are unchanged. Independently authored tangent, inward
 crossing and outward noncrossing cases cover scale, rotation and reversed traversal.
+The adjacency-specific finite-line and finite-arc membership checks convert the existing
+spatial endpoint allowance to parameter units (`epsilon / line_length`) and angular units
+(`epsilon / radius`). Fixed dimensionless or radian margins would otherwise admit increasingly
+large endpoint overruns as a feature grows. Generic nonadjacent membership behavior is unchanged.
 
 ## Context
 

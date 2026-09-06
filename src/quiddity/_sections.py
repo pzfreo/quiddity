@@ -308,20 +308,26 @@ def _line_intersection(a: Vector2, b: Vector2, c: Vector2, d: Vector2) -> bool:
     return (o1 > 0) != (o2 > 0) and (o3 > 0) != (o4 > 0)
 
 
-def _angle_on_arc(angle: float, arc: _Arc, *, interior: bool = False) -> bool:
+def _angle_on_arc(
+    angle: float, arc: _Arc, *, interior: bool = False, angular_tolerance: float = _EPS
+) -> bool:
     delta = (angle - arc.start) % (2 * math.pi)
     sweep = arc.sweep
     if sweep < 0:
         delta = (arc.start - angle) % (2 * math.pi)
         sweep = -sweep
-    tolerance = _EPS if not interior else -_EPS
+    tolerance = angular_tolerance if not interior else -angular_tolerance
     return -tolerance <= delta <= sweep + tolerance
 
 
-def _point_on_arc(point: Vector2, arc: _Arc) -> bool:
+def _point_on_arc(point: Vector2, arc: _Arc, *, angular_tolerance: float = _EPS) -> bool:
     if abs(math.hypot(point[0] - arc.centre[0], point[1] - arc.centre[1]) - arc.radius) > _EPS:
         return False
-    return _angle_on_arc(math.atan2(point[1] - arc.centre[1], point[0] - arc.centre[0]), arc)
+    return _angle_on_arc(
+        math.atan2(point[1] - arc.centre[1], point[0] - arc.centre[0]),
+        arc,
+        angular_tolerance=angular_tolerance,
+    )
 
 
 def _line_arc_points(a: Vector2, b: Vector2, arc: _Arc) -> tuple[Vector2, ...]:
@@ -407,10 +413,15 @@ def _adjacent_line_arc_crosses(shared: Vector2, end: Vector2, arc: _Arc) -> bool
     dx, dy = end[0] - shared[0], end[1] - shared[1]
     fx, fy = shared[0] - arc.centre[0], shared[1] - arc.centre[1]
     fraction = -2 * (fx * dx + fy * dy) / (dx * dx + dy * dy)
-    if not -_EPS <= fraction <= 1 + _EPS:
+    parameter_tolerance = _EPS / math.hypot(dx, dy)
+    if not -parameter_tolerance <= fraction <= 1 + parameter_tolerance:
         return False
     point = (shared[0] + fraction * dx, shared[1] + fraction * dy)
-    return math.dist(point, shared) > _EPS and _point_on_arc(point, arc)
+    # Membership must use the same spatial endpoint allowance as adjacency.
+    # A fixed radian slack would extend large arcs beyond their actual endpoint.
+    return math.dist(point, shared) > _EPS and _point_on_arc(
+        point, arc, angular_tolerance=_EPS / arc.radius
+    )
 
 
 def _validate_adjacent(
