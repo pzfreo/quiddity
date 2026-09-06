@@ -1,6 +1,6 @@
 # ADR 0024 — Observed convex two-plane passage ends
 
-- **Status:** Proposed; independent architecture review clear, production proof pending
+- **Status:** Accepted; source proof, public contract and projection implemented and independently reviewed in #553; delivery validation pending
 - **Date:** 2026-09-06
 - **Issues:** #540, #369, #290
 
@@ -21,12 +21,14 @@ An independent construction clips a 40 mm cube below the plane through
 other side. A radius-3 regular triangular, rectangular or hexagonal Z-through
 cut crosses the roof ridge. The exact clipped-cell experiment passes for
 all three profiles at scales 0.1 and 1, translated and arbitrarily rotated:
-twelve constructions. Unit-scale removed-cell volumes are 466.614487559,
+eighteen constructions, including run reversal. Unit-scale removed-cell volumes are 466.614487559,
 718.2 and 932.579456065 mm³. Original wall equality, both roof terms, the
-opposite mouth and empty cell/opening probes pass. Current recognition misses
-all three authored profiles.
+opposite mouth and empty cell/opening probes pass. Before this implementation,
+recognition missed all three authored profiles. Additional authored
+off-centre ridges cover shallow, steep and oppositely signed slopes; their
+published JSON reconstructs the independently calculated removed volume.
 
-## Proposed public geometry
+## Public geometry
 
 Add a kernel-free `PlanarEnvelopeEndSurface` with JSON discriminator
 `type="plane_envelope"`, `operator="min" | "max"`, and exactly two plane terms.

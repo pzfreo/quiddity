@@ -56,6 +56,35 @@ def test_material_bridge_refuses():
     assert plane_envelope_passage_proofs(FaceGraph(part)) == ()
 
 
+@pytest.mark.parametrize(
+    "sides,slope,ridge,rotation",
+    [
+        (3, 0.08, -0.6, Rot()),
+        (4, 0.65, 0.7, Rot(17, 31, 43)),
+        (6, -0.35, 1.2, Rot(180, 0, 0)),
+        (6, 1.2, -1.1, Rot(17, 31, 43)),
+    ],
+)
+def test_off_centre_ridges_and_different_slopes(sides, slope, ridge, rotation):
+    stock = Box(40, 40, 40).split(
+        Plane(origin=(ridge, 0, 20), z_dir=(slope, 0, 1)), Keep.BOTTOM
+    )
+    tool = Pos(0, 0, -25) * extrude(RegularPolygon(3, sides), 50)
+    cut_stock = stock - tool
+    expected_volume = stock.volume - cut_stock.volume
+    part = Pos(13.2, -7.4, 4.1) * rotation * cut_stock
+    (proof,) = plane_envelope_passage_proofs(FaceGraph(part))
+    assert len(proof.walls) == sides
+    assert proof.volume == pytest.approx(expected_volume, rel=1e-7)
+    document = build_section_recess_document(part)
+    (record,) = document.occurrences
+    assert record.classification.feature_kind == "passage"
+    cell = reconstruct_json(json.loads(json.dumps(record.geometry.to_dict())))
+    assert cell.is_valid and len(cell.solids()) == 1
+    assert cell.volume == pytest.approx(expected_volume, rel=1e-4)
+    assert not document.refusals
+
+
 @pytest.mark.parametrize("kind", ["valley", "step", "breakout"])
 def test_unsupported_terminal_and_side_topologies_refuse(kind):
     cut = Pos(0, 0, -25) * extrude(RegularPolygon(3, 6), 60)
