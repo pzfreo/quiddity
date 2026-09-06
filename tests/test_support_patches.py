@@ -1,4 +1,5 @@
 """Regression checks for exact support union and supported kernel return shapes."""
+
 import pytest
 from build123d import Face, Pos, Rectangle, ShapeList
 
