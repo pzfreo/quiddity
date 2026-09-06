@@ -17,7 +17,8 @@ from math import asin, isfinite, sqrt
 
 from build123d import Face, GeomType, Solid, Vector
 from OCP.BRepAdaptor import BRepAdaptor_Surface
-from OCP.Standard import Standard_Failure
+from OCP.Standard import Standard_ConstructionError, Standard_DomainError, Standard_Failure
+from OCP.StdFail import StdFail_NotDone
 
 from quiddity._adjacency import FaceEdges, edge_face_map
 from quiddity._candidates import FamilyId
@@ -562,7 +563,10 @@ def double_d_bores_from_openings(
                 overlap_volume = intersection_volume(overlap)
                 if overlap_volume > volume_tol:
                     continue
-            except (Standard_Failure, RuntimeError, ValueError):
+            except (
+                Standard_Failure, Standard_ConstructionError, Standard_DomainError,
+                StdFail_NotDone, RuntimeError, ValueError,
+            ):
                 continue
             location = list(high_profile.centre)
             location["xyz".index(axis)] = hi
@@ -757,7 +761,10 @@ def read_double_d_tool(
                     or abs(float(obj.volume) - float(prism.volume)) > volume_tol
                 ):
                     continue
-            except (Standard_Failure, RuntimeError, ValueError):
+            except (
+                Standard_Failure, Standard_ConstructionError, Standard_DomainError,
+                StdFail_NotDone, RuntimeError, ValueError,
+            ):
                 continue
             centre = list(low_profile.centre)
             centre[i] = (lo + hi) / 2.0

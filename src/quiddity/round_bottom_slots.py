@@ -15,7 +15,8 @@ from math import pi
 from build123d import Face, GeomType, Solid, Vector, Wire
 from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.GeomAbs import GeomAbs_Cylinder
-from OCP.Standard import Standard_Failure
+from OCP.Standard import Standard_ConstructionError, Standard_DomainError, Standard_Failure
+from OCP.StdFail import StdFail_NotDone
 
 from quiddity._adjacency import FaceGraph, FaceNode, axis_aligned_axis, is_any_smooth
 from quiddity._candidates import EvidenceSink, FamilyId
@@ -157,7 +158,10 @@ def _region_boundary_wire(
     boundary = [edge for edge, count in uses.items() if count == 1]
     try:
         wires = list(Wire.combine(boundary, tol=COORD_FLOOR))
-    except (Standard_Failure, RuntimeError, ValueError):
+    except (
+        Standard_Failure, Standard_ConstructionError, Standard_DomainError,
+        StdFail_NotDone, RuntimeError, ValueError,
+    ):
         return None
     if len(wires) != 1 or not wires[0].is_closed:
         return None
@@ -178,7 +182,10 @@ def _validated_planar_face(wire: Wire) -> Face | None:
     try:
         face = Face(wire)
         return face if face.is_valid else None
-    except (Standard_Failure, RuntimeError, ValueError):
+    except (
+        Standard_Failure, Standard_ConstructionError, Standard_DomainError,
+        StdFail_NotDone, RuntimeError, ValueError,
+    ):
         return None
 
 

@@ -12,8 +12,10 @@ not a claim that every kernel operation has been standardized.
 | Section-passage `_void_and_open` | Explicit construction/arithmetic exceptions already delimit an existing geometric proof. | Retained; no evidence here justifies changing its full acceptance policy. |
 | Adjacency ownership and differential queries | Broad catches wrap source validity, normal evaluation or analytic continuation, with explicit unproved ownership/side outcomes. | Retained in this increment. Their kernel/input domain differs from constructing a proved planar region; replacing every catch mechanically would not establish better semantics. |
 
-OCCT's installed `Standard_Failure` derives directly from `Exception`, not `RuntimeError`; it
-must be named explicitly when narrowing kernel catches. Python `ValueError` is also used by
+OCP flattens OCCT's exception hierarchy: `Standard_Failure`, `Standard_ConstructionError`,
+`Standard_DomainError` and `StdFail_NotDone` each derive directly from Python `Exception`.
+All four are explicitly caught and injected in regression tests; catching `Standard_Failure`
+alone does not catch the other three. Python `ValueError` is also used by
 build123d for non-closed face wires and failed construction. These classes are caught at bounded
 proof operations, not installed as a package-wide error suppressor.
 

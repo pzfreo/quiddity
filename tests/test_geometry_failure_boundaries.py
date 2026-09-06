@@ -4,13 +4,23 @@ from types import SimpleNamespace
 
 import pytest
 from build123d import Box, Circle, Rectangle, extrude
-from OCP.Standard import Standard_Failure
+from OCP.Standard import Standard_ConstructionError, Standard_DomainError, Standard_Failure
+from OCP.StdFail import StdFail_NotDone
 
 import quiddity.profiled_bores as bores
 import quiddity.round_bottom_slots as slots
 
+CONSTRUCTION_ERRORS = [
+    RuntimeError,
+    ValueError,
+    Standard_Failure,
+    Standard_ConstructionError,
+    Standard_DomainError,
+    StdFail_NotDone,
+]
 
-@pytest.mark.parametrize("error", [RuntimeError, ValueError, Standard_Failure])
+
+@pytest.mark.parametrize("error", CONSTRUCTION_ERRORS)
 def test_planar_face_kernel_failure_refuses(monkeypatch, error):
     def fail(_):
         raise error("construction failed")
@@ -29,7 +39,7 @@ def test_planar_face_programming_errors_propagate(monkeypatch, error):
         slots._validated_planar_face(object())
 
 
-@pytest.mark.parametrize("error", [RuntimeError, ValueError, Standard_Failure, AssertionError])
+@pytest.mark.parametrize("error", [*CONSTRUCTION_ERRORS, AssertionError])
 def test_wire_combine_boundary(monkeypatch, error):
     graph = SimpleNamespace(
         face=lambda _: SimpleNamespace(is_valid=True), edges=lambda _: [object()]
@@ -46,7 +56,7 @@ def test_wire_combine_boundary(monkeypatch, error):
         assert slots._region_boundary_wire(graph, frozenset({1})) is None
 
 
-@pytest.mark.parametrize("error", [RuntimeError, ValueError, Standard_Failure, AssertionError])
+@pytest.mark.parametrize("error", [*CONSTRUCTION_ERRORS, AssertionError])
 def test_double_d_prism_failure_boundary(monkeypatch, error):
     tool = extrude(Circle(5) & Rectangle(7.2, 20), amount=20, both=True)
     part = Box(40, 40, 10) - tool
@@ -75,7 +85,7 @@ def test_double_d_boolean_fragments_are_measured_not_hidden_as_attribute_errors(
     assert bool(bores.recognise_double_d_bores(part)) is accepted
 
 
-@pytest.mark.parametrize("error", [RuntimeError, ValueError, Standard_Failure, AssertionError])
+@pytest.mark.parametrize("error", [*CONSTRUCTION_ERRORS, AssertionError])
 def test_declared_double_d_tool_failure_boundary(monkeypatch, error):
     tool = extrude(Circle(5) & Rectangle(7.2, 20), amount=20, both=True)
     assert bores.read_double_d_tool(tool)
