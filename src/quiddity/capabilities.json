@@ -1989,6 +1989,51 @@
         },
         {
           "aggregate_membership": [],
+          "aggregate_membership_rationale": "Absolute local-run plane term nested only in PlanarEnvelopeEndSurface.",
+          "fields": {
+            "gradient": {
+              "required": true,
+              "type": "tuple[float,2]",
+              "units": "none"
+            },
+            "height": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            }
+          },
+          "name": "PlanarEndTerm",
+          "qualified_name": "quiddity.PlanarEndTerm",
+          "role": "nested",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [],
+          "aggregate_membership_rationale": "Observed two-plane min/max boundary nested only in SectionEnd.",
+          "fields": {
+            "operator": {
+              "required": true,
+              "type": "str",
+              "units": "none"
+            },
+            "terms": {
+              "required": true,
+              "type": "tuple[record:PlanarEndTerm,2]",
+              "units": "mm"
+            },
+            "type": {
+              "required": true,
+              "type": "str",
+              "units": "none"
+            }
+          },
+          "name": "PlanarEnvelopeEndSurface",
+          "qualified_name": "quiddity.PlanarEnvelopeEndSurface",
+          "role": "nested",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [],
           "aggregate_membership_rationale": "Nested only in SectionRecessEnds.",
           "fields": {
             "condition": {
@@ -1998,7 +2043,7 @@
             },
             "surface": {
               "required": false,
-              "type": "record:CylindricalEndSurface|record:PlanarEndSurface",
+              "type": "record:CylindricalEndSurface|record:PlanarEndSurface|record:PlanarEnvelopeEndSurface",
               "units": "none"
             }
           },
