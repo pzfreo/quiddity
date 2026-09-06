@@ -198,6 +198,10 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "section-recess recognition intentionally requires audited original-face anatomy",
     ),
+    "_entry_treatments": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "finite treatment cells require original planar bevel and stock footprints",
+    ),
     "_corner_section": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "corner projection requires original rectangular faces and an original exterior mouth",
@@ -276,6 +280,14 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
     "_section_recess_geometry:_mixed_floor_section:geom_type:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "require an observed native mixed line/circle floor boundary",
+    ),
+    "_entry_treatments:prove_entry_treatments:is_planar:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "prove native planar stock termination of a finite entry treatment",
+    ),
+    "_entry_treatments:prove_entry_treatments:is_planar:2": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "require an observed native planar bevel before finite cell reconstruction",
     ),
     "_section_recess_geometry:_mixed_floor_section:geom_type:2": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,

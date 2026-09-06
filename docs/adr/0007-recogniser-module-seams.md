@@ -86,6 +86,13 @@ goldens, determinism tests, benchmarks, and installed-archive audits protect beh
 
 ## Consequences
 
+Issue #540 adds private `_entry_treatments` below `_section_passages`. It reads the existing
+graph and exact kernel geometry, but no records, candidates, evidence, registry or result.
+It returns original treatment/context nodes after a bounded finite-cell proof; Passage remains
+the sole public issuer. `_support_patches` is a graph-free exact area-union leaf shared with
+mixed-profile pocket proofs, avoiding a reverse dependency on pocket recognition. Generated
+support faces stay internal to the proof. Neither module starts another graph or recogniser.
+
 Issue #519 extracts identical opening-wire incidence into private `_wire_seed` and consolidates
 empty/single/fragmented boolean-volume normalization in `_volume_probe`. Recogniser-local traversal,
 probe construction, material thresholds and exception/refusal boundaries stay in their callers.

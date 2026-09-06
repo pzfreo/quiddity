@@ -8,7 +8,7 @@ import math
 from dataclasses import dataclass
 from typing import cast
 
-from build123d import Edge, Face, Shape, ShapeList, Solid, Vector, Wire
+from build123d import Edge, Face, Solid, Vector, Wire
 from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.GeomAbs import GeomAbs_Cylinder
 
@@ -33,6 +33,7 @@ from quiddity._sections import (
     SectionVertex,
     occurrence_geometry_dict,
 )
+from quiddity._support_patches import covered_patch as _covered_patch
 from quiddity._volume_probe import material_fraction as _material_fraction
 from quiddity.passages import PassageFrame, PassageSectionVertex
 
@@ -600,23 +601,6 @@ def _mixed_floor_section(face: Face, depth: Vector3) -> tuple[LocalFrame, Planar
         )
     )
     return frame, section
-
-
-def _covered_patch(patch: Face, supports: tuple[Face, ...]) -> bool:
-    """Prove full physical support, counting split faces by union rather than summed area."""
-    remaining: list[Shape] = [patch]
-    for support in supports:
-        fragments: list[Shape] = []
-        for fragment in remaining:
-            difference = fragment.cut(support)
-            if isinstance(difference, ShapeList):
-                fragments.extend(difference)
-            elif difference is not None:
-                fragments.append(difference)
-        remaining = fragments
-        if sum(fragment.area for fragment in remaining) <= patch.area * 1e-9:
-            return True
-    return False
 
 
 def _one_mixed_candidate(graph: FaceGraph, floor: FaceNode) -> _Candidate | None:
