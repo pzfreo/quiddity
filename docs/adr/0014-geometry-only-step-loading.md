@@ -40,6 +40,8 @@ use it; this decision does not redefine that third-party API.
   signatures;
 - a two-solid compound retains both body-local solids;
 - read, empty-transfer, null and unknown-topology failures are tested;
+- root-transfer completeness is checked against OCCT's candidate roots, not solid count;
+  a partially successful transfer is rejected before accessing the combined shape (#515);
 - an architecture/source guard keeps corpus tools off the metadata-aware importer.
 
 This adds a public operation without changing a recognition record, family, aggregate result, or

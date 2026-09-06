@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from build123d import Box, Compound, Pos, export_step, import_step
 from OCP.IFSelect import IFSelect_ReturnStatus
+from OCP.STEPControl import STEPControl_AsIs, STEPControl_Reader, STEPControl_Writer
 
 import quiddity.step_io as step_io
 from quiddity import import_step_geometry
@@ -60,16 +61,32 @@ def test_geometry_loader_does_not_call_the_xcaf_importer(monkeypatch) -> None:
     assert import_step_geometry(MFCADPP_FIXTURE).faces()
 
 
+def test_geometry_loader_preserves_independent_transfer_roots(tmp_path) -> None:
+    target = tmp_path / "independent-roots.step"
+    writer = STEPControl_Writer()
+    for solid in (Box(2, 3, 4), Pos(10, 0, 0) * Box(5, 6, 7)):
+        status = writer.Transfer(solid.wrapped, STEPControl_AsIs)
+        assert status == IFSelect_ReturnStatus.IFSelect_RetDone
+    assert writer.Write(str(target)) == IFSelect_ReturnStatus.IFSelect_RetDone
+    reader = STEPControl_Reader()
+    assert reader.ReadFile(str(target)) == IFSelect_ReturnStatus.IFSelect_RetDone
+    assert reader.NbRootsForTransfer() == 2
+    result = import_step_geometry(target)
+    assert sorted(round(solid.volume, 8) for solid in result.solids()) == [24.0, 210.0]
+
+
 class _Reader:
     def __init__(
         self,
         *,
         status=IFSelect_ReturnStatus.IFSelect_RetDone,
         roots: int = 1,
+        expected_roots: int | None = None,
         shape=None,
     ) -> None:
         self.status = status
         self.roots = roots
+        self.expected_roots = roots if expected_roots is None else expected_roots
         self.shape = shape
 
     def ReadFile(self, _path):
@@ -77,6 +94,9 @@ class _Reader:
 
     def TransferRoots(self):
         return self.roots
+
+    def NbRootsForTransfer(self):
+        return self.expected_roots
 
     def OneShape(self):
         return self.shape
@@ -94,6 +114,18 @@ def test_geometry_loader_reports_read_and_empty_transfer_failures(monkeypatch) -
     monkeypatch.setattr(step_io, "STEPControl_Reader", lambda: _Reader(roots=0))
     with pytest.raises(ValueError, match="contains no transferable roots"):
         import_step_geometry("empty.step")
+
+
+def test_geometry_loader_rejects_partial_transfer_before_accessing_shape(monkeypatch) -> None:
+    class PartialReader(_Reader):
+        def OneShape(self):
+            pytest.fail("partial geometry must not be published")
+
+    monkeypatch.setattr(
+        step_io, "STEPControl_Reader", lambda: PartialReader(roots=1, expected_roots=2)
+    )
+    with pytest.raises(ValueError, match="transferred 1 of 2 roots; refusing incomplete geometry"):
+        import_step_geometry("partial.step")
 
 
 class _Topology:
