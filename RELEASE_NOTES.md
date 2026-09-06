@@ -2,6 +2,11 @@
 
 ## Next release
 
+- Publish the still-used `OrientedSlot.source` contracts `SectionPassage` and
+  `PassageEnds` at the package root and in the capability manifest. Validate all
+  nested manifest record references. Existing geometry and JSON schemas are unchanged;
+  retired standalone passage APIs remain removed (#533).
+
 ## 0.2.2 — Quiddity
 
 - Reject incomplete STEP root transfers before returning partial geometry, while preserving

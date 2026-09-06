@@ -1182,6 +1182,66 @@
           "qualified_name": "quiddity.OrientedSlot",
           "role": "output",
           "schema_version": 1
+        },
+        {
+          "aggregate_membership": [],
+          "aggregate_membership_rationale": "Nested only in SectionPassage; retained to preserve explicit end topology.",
+          "fields": {
+            "high_capped": {
+              "required": true,
+              "type": "bool",
+              "units": "none"
+            },
+            "high_gradient": {
+              "required": false,
+              "type": "tuple[float,2]",
+              "units": "none"
+            },
+            "low_capped": {
+              "required": true,
+              "type": "bool",
+              "units": "none"
+            },
+            "low_gradient": {
+              "required": false,
+              "type": "tuple[float,2]",
+              "units": "none"
+            }
+          },
+          "name": "PassageEnds",
+          "qualified_name": "quiddity.PassageEnds",
+          "role": "nested",
+          "schema_version": 2
+        },
+        {
+          "aggregate_membership": [],
+          "aggregate_membership_rationale": "Nested source geometry of OrientedSlot; no standalone aggregate family.",
+          "fields": {
+            "ends": {
+              "required": true,
+              "type": "record:PassageEnds",
+              "units": "none"
+            },
+            "frame": {
+              "required": true,
+              "type": "record:PassageFrame",
+              "units": "none"
+            },
+            "run_interval": {
+              "required": true,
+              "type": "tuple[float,2]",
+              "units": "mm"
+            },
+            "section": {
+              "required": true,
+              "type": "record:PassageSection",
+              "units": "none"
+            }
+          },
+          "name": "SectionPassage",
+          "qualified_name": "quiddity.SectionPassage",
+          "role": "nested",
+          "schema_version": 2
         }
       ],
       "status": "supported",
@@ -1809,7 +1869,7 @@
         },
         {
           "aggregate_membership": [],
-          "aggregate_membership_rationale": "Nested only in SectionPassage.",
+          "aggregate_membership_rationale": "Shared placement of SectionRecessGeometry and OrientedSlot source geometry.",
           "fields": {
             "origin": {
               "required": true,
@@ -1839,7 +1899,7 @@
         },
         {
           "aggregate_membership": [],
-          "aggregate_membership_rationale": "Nested only in SectionPassage.",
+          "aggregate_membership_rationale": "Shared closed boundary of ClosedSectionProfile and OrientedSlot source geometry.",
           "fields": {
             "boundary": {
               "required": true,
