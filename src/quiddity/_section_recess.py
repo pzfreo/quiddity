@@ -29,7 +29,9 @@ from quiddity._sections import (
     SectionEnds,
     SectionOccurrence,
     SectionVertex,
+    _validate_simple,
     occurrence_geometry_dict,
+    validate_section_end_separation,
 )
 from quiddity.passages import PassageFrame, PassageSection, PassageSectionVertex
 
@@ -98,6 +100,10 @@ class OpenSectionProfile(Record):
             raise ValueError("the final open-profile vertex cannot imply a closing segment")
         if len({vertex.point for vertex in self.boundary}) != len(self.boundary):
             raise ValueError("open section profile vertices must be distinct")
+        _validate_simple(
+            tuple(SectionVertex(vertex.point, vertex.bulge) for vertex in self.boundary),
+            closed=False,
+        )
         opening = cast(
             tuple[Vector2, Vector2],
             tuple(
@@ -166,6 +172,15 @@ class SectionRecessGeometry(Record):
             raise ValueError("a section recess requires a closed or open section profile")
         if not isinstance(self.ends, SectionRecessEnds):
             raise ValueError("section recess requires explicit ends")
+        validate_section_end_separation(
+            tuple(SectionVertex(vertex.point, vertex.bulge) for vertex in self.profile.boundary),
+            interval[1] - interval[0],
+            (
+                self.ends.high.gradient[0] - self.ends.low.gradient[0],
+                self.ends.high.gradient[1] - self.ends.low.gradient[1],
+            ),
+            closed=isinstance(self.profile, ClosedSectionProfile),
+        )
         object.__setattr__(self, "run_interval", interval)
 
 

@@ -430,15 +430,16 @@ def _validate_adjacent(
         raise ValueError("adjacent section edges meet away from their shared endpoint")
 
 
-def _validate_simple(vertices: tuple[SectionVertex, ...]) -> None:
+def _validate_simple(vertices: tuple[SectionVertex, ...], *, closed: bool = True) -> None:
     size = len(vertices)
     if size > 2:
-        for index in range(size):
+        for index in range(size) if closed else range(1, size - 1):
             _validate_adjacent(vertices[index - 1], vertices[index], vertices[(index + 1) % size])
-    for left in range(size):
+    edge_count = size if closed else size - 1
+    for left in range(edge_count):
         a, b = vertices[left], vertices[(left + 1) % size]
-        for right in range(left + 1, size):
-            if right in {left, (left + 1) % size} or left == (right + 1) % size:
+        for right in range(left + 1, edge_count):
+            if right == left + 1 or (closed and left == 0 and right == size - 1):
                 continue
             c, d = vertices[right], vertices[(right + 1) % size]
             first, second = _arc(a, b), _arc(c, d)
@@ -453,6 +454,35 @@ def _validate_simple(vertices: tuple[SectionVertex, ...]) -> None:
             )
             if intersects:
                 raise ValueError("section boundary must be simple")
+
+
+def validate_section_end_separation(
+    vertices: tuple[SectionVertex, ...],
+    span: float,
+    gradient: Vector2,
+    *,
+    closed: bool,
+) -> None:
+    """Prove positive high-minus-low span on each physical line/arc segment.
+
+    A linear function attains its extrema at vertices or where its gradient is
+    parallel to an arc radius. No synthetic closing edge is needed for open chains.
+    """
+    points = [vertex.point for vertex in vertices]
+    angle = math.atan2(gradient[1], gradient[0])
+    for index in range(len(vertices) if closed else len(vertices) - 1):
+        arc = _arc(vertices[index], vertices[(index + 1) % len(vertices)])
+        if arc is not None and gradient != (0.0, 0.0):
+            for extremum in (angle, angle + math.pi):
+                if _angle_on_arc(extremum, arc):
+                    points.append(
+                        (
+                            arc.centre[0] + arc.radius * math.cos(extremum),
+                            arc.centre[1] + arc.radius * math.sin(extremum),
+                        )
+                    )
+    if any(span + gradient[0] * x + gradient[1] * y <= _EPS for x, y in points):
+        raise ValueError("section termination planes must not cross or touch the profile")
 
 
 @dataclass(frozen=True, slots=True)
