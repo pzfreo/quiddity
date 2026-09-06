@@ -224,7 +224,7 @@ Add the record tuple to `RecognitionResult` and map it in `_project_result` usin
 example_features: tuple[ExampleFeature, ...]
 
 # In _project_result:
-example_features = (tuple(_records(accepted, FamilyId.EXAMPLE_FEATURES, ExampleFeature)),)
+example_features = tuple(_records(accepted, FamilyId.EXAMPLE_FEATURES, ExampleFeature))
 ```
 
 Then update the independent public surfaces:
