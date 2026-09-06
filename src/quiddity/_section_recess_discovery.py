@@ -27,7 +27,7 @@ def discover_section_recesses(
             index,
             candidate.body,
             candidate.geometry,
-            SectionRecessClassification("pocket", candidate.section_shape),
+            SectionRecessClassification(candidate.feature_kind, candidate.section_shape),
             SectionRecessEvidence(candidate.defining_faces, candidate.constituent_faces),
         )
         for index, candidate in enumerate(found)
