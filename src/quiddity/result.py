@@ -18,10 +18,11 @@ from enum import Enum
 from types import MappingProxyType
 from typing import TypeVar, cast
 
-from quiddity._candidates import CandidateSet, EvidenceIndex, FamilyId
+from quiddity._candidates import Candidate, CandidateSet, EvidenceIndex, FamilyId
 from quiddity._claims import ClaimLedger
 from quiddity._corner_section import prove_corner_section
 from quiddity._correspondence import _CorrespondenceSnapshotAuthority
+from quiddity._cylindrical_channels import prove_cylindrical_channel
 from quiddity._diagnostics import ResidualDiagnostic, diagnose_residuals
 from quiddity._dispositions import (
     Outcome,
@@ -79,7 +80,7 @@ from quiddity._section_recess import (
     SectionRecessGrid,
     SectionRecessRefusal,
 )
-from quiddity._section_recess_geometry import _polygonal_shape
+from quiddity._section_recess_geometry import _polygonal_shape, cylindrical_channel_geometry
 from quiddity._sections import LocalFrame
 from quiddity._typing import Bounds, CylinderInventory, FrozenCylinderInventory, Part
 from quiddity.angled_steps import AngledStep
@@ -906,7 +907,33 @@ def _corner_pocket_recess(
             surfaces=context.surfaces,
         )
         if channel is None:
-            return None
+            curved = prove_cylindrical_channel(
+                context.graph,
+                context.surfaces,
+                evidence.defining_of(record),
+                evidence.constituent_of(record),
+                run_axis=record.long_axis,
+                width_axis=record.width_axis,
+                open_sign=record.open_sign,
+            )
+            if curved is None:
+                return None
+            try:
+                curved_geometry = cylindrical_channel_geometry(curved)
+            except ValueError:
+                # Source anatomy can be valid while its serialized geometry
+                # exceeds the public error budget. Refuse this candidate only.
+                return None
+            return SectionRecess(
+                index,
+                curved.owner.ordinal,
+                curved_geometry,
+                SectionRecessClassification("channel", "rectangular"),
+                SectionRecessEvidence(
+                    tuple(sorted(node.index for node in evidence.defining_of(record))),
+                    tuple(sorted(node.index for node in curved.supports)),
+                ),
+            )
         geometry = _principal_open_geometry(
             axis=channel.axis,
             run_interval=channel.run_interval,
@@ -1155,12 +1182,24 @@ def _accepted_region_key(
     )
 
 
-def _matching_recesses(record, recesses, context, evidence):
+def _matching_recesses(record, recesses, context, evidence, projected_regions=None):
     defining = evidence.defining_of(record)
     constituent = evidence.constituent_of(record)
     owner = context.graph.common_valid_solid(defining)
     if owner is None:
         return ()
+    source = record.record if isinstance(record, Candidate) else record
+    projected_region = (projected_regions or {}).get(id(source))
+    if projected_region is not None:
+        # Exact same-run issuer provenance survives corrected legacy evidence.
+        # Do not weaken general region matching to defining-face overlap.
+        return tuple(
+            item
+            for item in recesses
+            if (item.body, item.evidence.constituent_faces) == projected_region
+            and item.body == owner.ordinal
+            and {node.index for node in defining} <= set(item.evidence.defining_faces)
+        )
     indices = {node.index for node in (*defining, *constituent)}
     return tuple(
         item
@@ -1171,13 +1210,13 @@ def _matching_recesses(record, recesses, context, evidence):
     )
 
 
-def _recess_refusals(accepted, recesses, *, context, evidence):
+def _recess_refusals(accepted, recesses, *, context, evidence, projected_regions=None):
     refusals = []
     for definition in PHYSICAL_DEFINITIONS:
         if definition.family not in RECESS_SOURCE_FAMILIES:
             continue
         for candidate in accepted.candidate_set(definition.family).candidates:
-            if _matching_recesses(candidate, recesses, context, evidence):
+            if _matching_recesses(candidate, recesses, context, evidence, projected_regions):
                 continue
             defining = evidence.defining_of(candidate)
             owner = context.graph.common_valid_solid(defining)
@@ -1196,11 +1235,12 @@ def _recess_refusals(accepted, recesses, *, context, evidence):
     return tuple(refusals)
 
 
-def _section_patterns(patterns, recesses, context, evidence):
+def _section_patterns(patterns, recesses, context, evidence, projected_regions=None):
     result: list[SectionRecessArray | SectionRecessGrid] = []
     for pattern in patterns:
         matches = [
-            _matching_recesses(record, recesses, context, evidence) for record in pattern.pockets
+            _matching_recesses(record, recesses, context, evidence, projected_regions)
+            for record in pattern.pockets
         ]
         if any(len(match) != 1 for match in matches):
             continue  # a pattern cannot refer to unproved or ambiguously projected geometry
@@ -1323,16 +1363,13 @@ def _project_result(
         *_records(accepted, FamilyId.POCKETS, Pocket),
         *_records(accepted, FamilyId.CHANNELS, Channel),
     )
-    corner_recesses = tuple(
-        projected
-        for index, record in enumerate(legacy_candidates)
-        if (
-            projected := _corner_pocket_recess(
-                record, context=context, evidence=evidence, index=index
-            )
-        )
-        is not None
-    )
+    corner_recesses = []
+    projected_regions = {}
+    for index, record in enumerate(legacy_candidates):
+        projected = _corner_pocket_recess(record, context=context, evidence=evidence, index=index)
+        if projected is not None:
+            corner_recesses.append(projected)
+            projected_regions[id(record)] = (projected.body, projected.evidence.constituent_faces)
     section_recesses = _unique_section_recesses(
         (
             *native_section_recesses,
@@ -1345,8 +1382,16 @@ def _project_result(
             *corner_recesses,
         )
     )
-    refusals = _recess_refusals(accepted, section_recesses, context=context, evidence=evidence)
-    patterns = _section_patterns(derived.pocket_patterns, section_recesses, context, evidence)
+    refusals = _recess_refusals(
+        accepted,
+        section_recesses,
+        context=context,
+        evidence=evidence,
+        projected_regions=projected_regions,
+    )
+    patterns = _section_patterns(
+        derived.pocket_patterns, section_recesses, context, evidence, projected_regions
+    )
     return _LegacyRecognitionResult(
         cylinders=(tuple(z_cyls), tuple(cross_cyls)),
         countersinks=tuple(_records(accepted, FamilyId.COUNTERSINKS, CounterSink)),

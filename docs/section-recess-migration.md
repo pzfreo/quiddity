@@ -27,7 +27,9 @@ relative to the corresponding centroid `run_interval` value.
 For `surface.type == "cylinder"`, normalize its in-plane `axis_direction = (a,b)`.
 With `axis_point = (cx,cy,cz)`, let `q = -b*(u-cx) + a*(v-cy)`.
 The end coordinate is `cz ± sqrt(radius²-q²)`, using the explicit `positive` or
-`negative` branch. The existing closed polygon supplies the domain. Radius and
+`negative` branch. The closed polygon supplies the domain for pockets. A proved
+three-line U-channel uses its rectangular domain including the explicitly absent
+opening; that temporary closure is not a fourth physical wall. Radius and
 axis point are in millimetres; the direction is dimensionless. The corresponding
 run-interval value is the rounded intersection at `(u,v)=(0,0)`, not an envelope.
 The producer proves valid branch and positive separation over the complete profile.
@@ -38,6 +40,16 @@ silently flatten an unfamiliar cylinder to the centroid plane. A pocket in
 cylindrical stock may have a 6 × 24 footprint with 8–12 mm physical depth; label
 depth as local, maximum or centroid depth, never as uniform. This requires no
 build123d-specific value or consumer-side recognition. See ADR 0020.
+
+ADR 0022 also permits an observed bore-ended channel: one open planar end and one
+open cylindrical end, with a high negative branch or reversed low positive branch.
+End order, branch sign and open/capped condition are independent concepts. For
+example, the authored 0.94 × 2 channel has a Z=62 centroid end and Z=62.12701665
+wall tips on `z=66-sqrt(16-y²)`, not a flat Z=62.13 cap. Its three original supports
+are constituent evidence; the bore is termination context and remains a separate
+recognized occurrence. A consumer can reconstruct the channel region by taking
+the rectangular half-prism from the planar end to the cylinder axis plane and
+subtracting the bore cylinder, without treating the lateral opening as support.
 
 A bulge belongs to the segment starting at that vertex. The last open-chain vertex has zero
 bulge. The `opening` joins loose endpoints only to describe missing boundary.

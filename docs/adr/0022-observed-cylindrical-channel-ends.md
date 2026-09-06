@@ -60,7 +60,8 @@ remnants; that case fails support, empty-volume and common-cylinder termination
 proofs and must not be forced into a single cylindrical end.
 
 The bounded public validator and private original-source proof are implemented
-and independently reviewed, but are not yet connected to public discovery.
+and independently reviewed. Public discovery integration and shared bounded
+cylinder projection are implemented; their independent review is in progress.
 Eighteen authored proof checks cover scaled/principal-transformed geometry, STEP
 round-trip, partial cap refusal, each material/opening probe and an oblique bore
 at, inside and outside corner tangency. The latter exposed an area-only proof
@@ -70,8 +71,14 @@ Legacy constituent hints can contain exterior stock at small scales because of
 rounded bounds. The proof selects the actual concavely adjacent backing face
 and requires complete support equality; only its proved supports may be published.
 
-Before production: integrate discovery and bounded publication, consumer JSON
-reconstruction, additional transformed/tolerance/ownership fixtures,
+Consumer tests reconstruct the region from JSON alone at three scales and four
+principal rotations with non-grid translations. Equal channels on separate bodies
+retain distinct support ownership. Projection failure refuses the candidate without
+discarding the independent bore. Same-run issuer provenance links corrected source
+evidence to its published region; generic matching still requires complete evidence
+containment and is not weakened to defining-face overlap.
+
+Before production: complete review and additional adversarial fixtures,
 and negatives for touching ends, split terminal authority, partial cap remnants,
 material/lateral obstructions and unmatched wall extents. Then independent review,
 open-development comparison and required green CI. No MFInstSeg input is needed.

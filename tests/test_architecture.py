@@ -269,6 +269,7 @@ MODULE_SEAM_EDGES = {
     "_section_recess": {"_cylindrical_end_surface", "_record", "_sections", "passages"},
     "_section_recess_geometry": {
         "_adjacency",
+        "_cylindrical_channels",
         "_cylindrical_end_surface",
         "_cylindrical_pockets",
         "_effective_surfaces",
