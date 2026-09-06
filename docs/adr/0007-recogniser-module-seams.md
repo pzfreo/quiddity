@@ -86,6 +86,14 @@ goldens, determinism tests, benchmarks, and installed-archive audits protect beh
 
 ## Consequences
 
+ADR 0022 adds private `_cylindrical_channels` alongside the cylindrical-pocket
+proof. It takes the existing graph, same-run native-surface query and candidate
+evidence hints, but no legacy or public records. Original adjacency and exact
+clipped support equality determine its three support faces; rounded legacy
+constituent hints cannot authorize extra stock faces. Bore and far-end stock
+remain context, not constituents. Public projection retains responsibility for
+the whole-occurrence publication error bound.
+
 Issue #541 adds `_cylindrical_pockets` below section publication. It consumes the
 original graph and internal analytic-surface query, returns original source/owner
 proofs, and imports no public inspection facade or aggregate. The kernel-free
