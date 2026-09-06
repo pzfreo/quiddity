@@ -125,16 +125,67 @@ class PlanarEndSurface(Record):
 
 
 @dataclass(frozen=True, order=True, slots=True)
+class PlanarEndTerm(Record):
+    """One absolute local-run affine term of an observed plane envelope."""
+
+    height: float
+    gradient: Vector2
+
+    def __post_init__(self) -> None:
+        (height,) = _numbers((self.height,), 1, name="plane height")
+        gradient = cast(Vector2, _numbers(self.gradient, 2, name="plane gradient"))
+        if any(round(value, 6) != value for value in (height, *gradient)):
+            raise ValueError("plane term must serialize at six decimals")
+        object.__setattr__(self, "height", height)
+        object.__setattr__(self, "gradient", gradient)
+
+    def at(self, point: Vector2) -> float:
+        u, v = _numbers(point, 2, name="section point")
+        return self.height + self.gradient[0] * u + self.gradient[1] * v
+
+
+@dataclass(frozen=True, order=True, slots=True)
+class PlanarEnvelopeEndSurface(Record):
+    """The minimum or maximum of two canonically ordered observed planes."""
+
+    type: str
+    operator: str
+    terms: tuple[PlanarEndTerm, PlanarEndTerm]
+
+    def __post_init__(self) -> None:
+        if self.type != "plane_envelope" or self.operator not in {"min", "max"}:
+            raise ValueError("plane envelope requires an explicit min/max discriminator")
+        if (
+            not isinstance(self.terms, tuple)
+            or len(self.terms) != 2
+            or not all(isinstance(term, PlanarEndTerm) for term in self.terms)
+        ):
+            raise ValueError("plane envelope requires exactly two immutable plane terms")
+        if self.terms[0] >= self.terms[1]:
+            raise ValueError("plane envelope terms must be distinct and canonically ordered")
+        if self.terms[0].gradient == self.terms[1].gradient:
+            raise ValueError("plane envelope terms must not be parallel")
+
+    def height(self, point: Vector2) -> float:
+        values = tuple(term.at(point) for term in self.terms)
+        return min(values) if self.operator == "min" else max(values)
+
+
+@dataclass(frozen=True, order=True, slots=True)
 class SectionEnd(Record):
     """Physical end condition and explicitly discriminated analytic surface."""
 
     condition: str
-    surface: PlanarEndSurface | CylindricalEndSurface = PlanarEndSurface()
+    surface: PlanarEndSurface | CylindricalEndSurface | PlanarEnvelopeEndSurface = (
+        PlanarEndSurface()
+    )
 
     def __post_init__(self) -> None:
         if self.condition not in {"open", "capped"}:
             raise ValueError("section end condition must be 'open' or 'capped'")
-        if not isinstance(self.surface, PlanarEndSurface | CylindricalEndSurface):
+        if not isinstance(
+            self.surface, PlanarEndSurface | CylindricalEndSurface | PlanarEnvelopeEndSurface
+        ):
             raise ValueError("section end requires an explicit analytic surface")
 
 
@@ -183,9 +234,56 @@ class SectionRecessGeometry(Record):
                 ),
                 closed=isinstance(self.profile, ClosedSectionProfile),
             )
+        elif isinstance(low_surface, PlanarEnvelopeEndSurface) or isinstance(
+            high_surface, PlanarEnvelopeEndSurface
+        ):
+            self._validate_plane_envelope_end(interval)
         else:
             self._validate_cylindrical_end(interval)
         object.__setattr__(self, "run_interval", interval)
+
+    def _validate_plane_envelope_end(self, interval: tuple[float, float]) -> None:
+        if not isinstance(self.profile, ClosedSectionProfile) or any(
+            vertex.bulge != 0 for vertex in self.profile.boundary
+        ):
+            raise ValueError("plane envelope requires a closed line-only polygon")
+        ends = (self.ends.low, self.ends.high)
+        indices = [
+            i for i, end in enumerate(ends) if isinstance(end.surface, PlanarEnvelopeEndSurface)
+        ]
+        if len(indices) != 1:
+            raise ValueError("section requires exactly one plane envelope end")
+        index = indices[0]
+        envelope = cast(PlanarEnvelopeEndSurface, ends[index].surface)
+        planar = ends[1 - index]
+        if (
+            any(end.condition != "open" for end in ends)
+            or not isinstance(planar.surface, PlanarEndSurface)
+            or planar.surface.gradient != (0.0, 0.0)
+            or envelope.operator != ("min" if index == 1 else "max")
+        ):
+            raise ValueError("plane envelope requires a convex roof and opposite planar mouth")
+        points = tuple(vertex.point for vertex in self.profile.boundary)
+        turns = []
+        for at, point in enumerate(points):
+            previous, following = points[at - 1], points[(at + 1) % len(points)]
+            turns.append(
+                (point[0] - previous[0]) * (following[1] - point[1])
+                - (point[1] - previous[1]) * (following[0] - point[0])
+            )
+        if min(turns) < 0 < max(turns):
+            raise ValueError("plane envelope requires a convex polygon")
+        differences = [envelope.terms[0].at(p) - envelope.terms[1].at(p) for p in points]
+        if not (min(differences) < -1e-9 and max(differences) > 1e-9):
+            raise ValueError("both plane terms must contribute positive-area end patches")
+        gaps = [
+            envelope.height(p) - interval[0] if index == 1 else interval[1] - envelope.height(p)
+            for p in points
+        ]
+        if min(gaps) <= 1e-9:
+            raise ValueError("plane envelope ends must remain strictly separated")
+        if round(envelope.height((0.0, 0.0)), 3) != interval[index]:
+            raise ValueError("run interval must agree with the plane envelope centroid")
 
     def _validate_cylindrical_end(self, interval: tuple[float, float]) -> None:
         if any(vertex.bulge != 0 for vertex in self.profile.boundary):
@@ -202,20 +300,32 @@ class SectionRecessGeometry(Record):
         index = curved_indices[0]
         curved = cast(CylindricalEndSurface, ends[index].surface)
         planar = ends[1 - index]
+        passage = closed and planar.condition == "open"
+        if passage:
+            points = tuple(vertex.point for vertex in self.profile.boundary)
+            turns = []
+            for at, point in enumerate(points):
+                previous, following = points[at - 1], points[(at + 1) % len(points)]
+                left = (point[0] - previous[0], point[1] - previous[1])
+                right = (following[0] - point[0], following[1] - point[1])
+                turns.append(left[0] * right[1] - left[1] * right[0])
+            if min(turns) < 0 < max(turns):
+                raise ValueError("cylindrical passage requires a convex polygon")
         branch = (
             ("positive" if index == 1 else "negative")
-            if closed
+            if closed and not passage
             else ("negative" if index == 1 else "positive")
         )
         if (
             ends[index].condition != "open"
-            or planar.condition != ("capped" if closed else "open")
+            or planar.condition != ("capped" if closed and not passage else "open")
             or not isinstance(planar.surface, PlanarEndSurface)
             or planar.surface.gradient != (0.0, 0.0)
             or curved.branch != branch
         ):
             raise ValueError(
-                "cylindrical section requires the proved pocket or open-channel end configuration"
+                "cylindrical section requires the proved pocket, passage "
+                "or open-channel end configuration"
             )
         points = tuple(vertex.point for vertex in self.profile.boundary)
         low, high = curved.polygon_height_bounds(points)

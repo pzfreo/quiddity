@@ -51,6 +51,16 @@ recognized occurrence. A consumer can reconstruct the channel region by taking
 the rectangular half-prism from the planar end to the cylinder axis plane and
 subtracting the bore cylinder, without treating the lateral opening as support.
 
+ADR 0023 admits the corresponding **closed polygonal passage** with two open
+ends: a zero-gradient planar mouth and a high-negative or low-positive cylinder
+branch. It uses the same JSON surface fields and reconstruction, but every
+closed-profile segment has original wall support. The two regions on opposite
+sides of a cross-bore remain separate passages with separate wall evidence;
+the bore stays independent. Do not join their run intervals through the bore
+or interpret either centroid interval as a uniform-depth extrusion. This initial
+extension requires a convex line-only profile and does not cover stepped or
+ambiguous terminations.
+
 A bulge belongs to the segment starting at that vertex. The last open-chain vertex has zero
 bulge. The `opening` joins loose endpoints only to describe missing boundary.
 

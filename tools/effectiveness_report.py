@@ -216,6 +216,8 @@ def _scoring_family(candidate: object) -> str:
     family = _public_family_id(candidate.family.value)  # type: ignore[attr-defined]
     if family != "section-recesses":
         return family
+    if candidate.record.classification.feature_kind == "passage":  # type: ignore[attr-defined]
+        return "passages"
     shape = candidate.record.classification.section_shape  # type: ignore[attr-defined]
     return "pockets" if shape in {"obround", "circular"} else "prismatic-pockets"
 

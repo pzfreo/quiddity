@@ -15,14 +15,21 @@ from OCP.GeomAbs import GeomAbs_Cylinder
 from quiddity._adjacency import FaceGraph, FaceNode, frame_points_outward
 from quiddity._cylindrical_channels import CylindricalChannelProof
 from quiddity._cylindrical_end_surface import CylindricalEndSurface
+from quiddity._cylindrical_passages import CylindricalPassageProof, cylindrical_passage_proofs
 from quiddity._cylindrical_pockets import CylindricalPocketProof, cylindrical_pocket_proofs
 from quiddity._effective_surfaces import EffectiveSurfaceQuery
 from quiddity._geometry import length_tol
+from quiddity._plane_envelope_passages import (
+    PlaneEnvelopePassageProof,
+    plane_envelope_passage_proofs,
+)
 from quiddity._recess_obround import _END_RADIUS_FRAC
 from quiddity._section_passages import _end_slab, _line_section, _probe_prism
 from quiddity._section_recess import (
     ClosedSectionProfile,
     OpenSectionProfile,
+    PlanarEndTerm,
+    PlanarEnvelopeEndSurface,
     SectionEnd,
     SectionRecessEnds,
     SectionRecessGeometry,
@@ -54,6 +61,7 @@ class _Candidate:
     body: int
     geometry: SectionRecessGeometry
     section_shape: str
+    feature_kind: str = "pocket"
 
 
 def _dot(left: Vector3, right: Vector3) -> float:
@@ -758,14 +766,74 @@ def cylindrical_channel_geometry(proof: CylindricalChannelProof) -> SectionReces
     )
 
 
+def _plane_envelope_geometry(proof: PlaneEnvelopePassageProof) -> SectionRecessGeometry:
+    """Publish both observed planes under one complete 0.002 mm displacement bound."""
+    frame = proof.frame
+    public_frame = PassageFrame(
+        cast(Vector3, tuple(round(v, 3) for v in frame.origin)),
+        cast(Vector3, tuple(round(v, 6) for v in frame.run)),
+        cast(Vector3, tuple(round(v, 6) for v in frame.u)),
+        cast(Vector3, tuple(round(v, 6) for v in frame.v)),
+    )
+    raw_points = tuple(v.point for v in proof.section.boundary)
+    public_points = tuple((round(p[0], 4), round(p[1], 4)) for p in raw_points)
+    terms = tuple(
+        PlanarEndTerm(round(h, 6), (round(g[0], 6), round(g[1], 6))) for h, g in proof.terms
+    )
+    surface = PlanarEnvelopeEndSurface(
+        "plane_envelope",
+        "min" if proof.envelope_end == 1 else "max",
+        cast(tuple[PlanarEndTerm, PlanarEndTerm], tuple(sorted(terms))),
+    )
+    interval = list(proof.run_interval)
+    interval[proof.envelope_end] = surface.height((0, 0))
+    ends = [SectionEnd("open"), SectionEnd("open")]
+    ends[proof.envelope_end] = SectionEnd("open", surface)
+    geometry = SectionRecessGeometry(
+        "section_recess",
+        public_frame,
+        cast(tuple[float, float], tuple(round(h, 3) for h in interval)),
+        ClosedSectionProfile("closed", tuple(PassageSectionVertex(p, 0) for p in public_points)),
+        SectionRecessEnds(*ends),
+    )
+    # Corresponding vertices induce an affine map on a common triangulation of
+    # the convex profiles. Each term's error is affine there; min/max is
+    # 1-Lipschitz in those values, including at a moving crease.
+    height_error = max(
+        abs(h + g[0] * raw[0] + g[1] * raw[1] - term.at(public))
+        for (h, g), term in zip(proof.terms, terms, strict=True)
+        for raw, public in zip(raw_points, public_points, strict=True)
+    )
+    floor = proof.run_interval[1 - proof.envelope_end]
+    height_error = max(height_error, abs(floor - round(floor, 3)))
+    height_bound = max(
+        abs(floor),
+        *(abs(h + g[0] * p[0] + g[1] * p[1]) for h, g in proof.terms for p in raw_points),
+    )
+    dx = max(abs(a[0] - b[0]) for a, b in zip(raw_points, public_points, strict=True))
+    dy = max(abs(a[1] - b[1]) for a, b in zip(raw_points, public_points, strict=True))
+    displacement = math.dist(frame.origin, public_frame.origin)
+    displacement += max(abs(p[0]) for p in raw_points) * math.dist(frame.u, public_frame.u)
+    displacement += max(abs(p[1]) for p in raw_points) * math.dist(frame.v, public_frame.v)
+    displacement += height_bound * math.dist(frame.run, public_frame.run)
+    displacement += dx * math.sqrt(_dot(public_frame.u, public_frame.u))
+    displacement += dy * math.sqrt(_dot(public_frame.v, public_frame.v))
+    displacement += height_error * math.sqrt(_dot(public_frame.run, public_frame.run))
+    if displacement > 0.002:
+        raise ValueError("plane envelope projection exceeds whole-occurrence displacement bound")
+    return geometry
+
+
 def _cylindrical_geometry(
-    proof: CylindricalPocketProof | CylindricalChannelProof,
+    proof: CylindricalPocketProof | CylindricalChannelProof | CylindricalPassageProof,
     frame: LocalFrame,
     section: PlanarSection,
     floor_at: float,
     sign: int,
     end_index: int,
     opening_edge: int | None = None,
+    *,
+    planar_open: bool = False,
 ) -> SectionRecessGeometry:
     """One whole-occurrence error bound for observed cylindrical terminations.
 
@@ -889,7 +957,7 @@ def _cylindrical_geometry(
         chain = min(chain, tuple(reversed(chain)))
         profile = OpenSectionProfile("open", chain, (chain[-1].point, chain[0].point))
     curved_end = SectionEnd("open", surface)
-    flat_end = SectionEnd("capped" if opening_edge is None else "open")
+    flat_end = SectionEnd("open" if planar_open or opening_edge is not None else "capped")
     centroid_end = round(surface.height((0.0, 0.0)), 3)
     interval = (
         (round(floor_at, 3), centroid_end) if end_index == 1 else (centroid_end, round(floor_at, 3))
@@ -923,6 +991,48 @@ def _candidates(graph: FaceGraph, surfaces: EffectiveSurfaceQuery) -> tuple[_Can
     for proof in cylindrical_pocket_proofs(graph, surfaces):
         try:
             found.add(_cylindrical_candidate(graph, proof))
+        except (RuntimeError, TypeError, ValueError, ZeroDivisionError):
+            continue
+    for passage in cylindrical_passage_proofs(graph, surfaces):
+        try:
+            geometry = _cylindrical_geometry(
+                passage,
+                passage.frame,
+                passage.section,
+                passage.run_interval[1 - passage.cylindrical_end],
+                -1 if passage.cylindrical_end == 1 else 1,
+                passage.cylindrical_end,
+                planar_open=True,
+            )
+            walls = tuple(sorted(n.index for n in passage.walls))
+            found.add(
+                _Candidate(
+                    walls,
+                    walls,
+                    passage.planar_context.index,
+                    passage.owner.ordinal,
+                    geometry,
+                    _polygonal_shape(tuple(v.point for v in passage.section.boundary)),
+                    "passage",
+                )
+            )
+        except (RuntimeError, TypeError, ValueError, ZeroDivisionError):
+            continue
+    for envelope_passage in plane_envelope_passage_proofs(graph):
+        try:
+            geometry = _plane_envelope_geometry(envelope_passage)
+            walls = tuple(sorted(n.index for n in envelope_passage.walls))
+            found.add(
+                _Candidate(
+                    walls,
+                    walls,
+                    envelope_passage.planar_context.index,
+                    envelope_passage.owner.ordinal,
+                    geometry,
+                    _polygonal_shape(tuple(v.point for v in envelope_passage.section.boundary)),
+                    "passage",
+                )
+            )
         except (RuntimeError, TypeError, ValueError, ZeroDivisionError):
             continue
     return tuple(
