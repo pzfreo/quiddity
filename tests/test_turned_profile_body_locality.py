@@ -48,8 +48,7 @@ def test_parallel_equal_shafts_retain_two_physical_profile_groups() -> None:
         (0.0, 30.0, 0.0),
     ]
     dimensions = [
-        [(step.lo, step.hi, step.diameter) for step in profile.steps]
-        for profile in profiles
+        [(step.lo, step.hi, step.diameter) for step in profile.steps] for profile in profiles
     ]
     assert dimensions == [
         [(0.0, 40.0, 30.0), (40.0, 70.0, 16.0)],
@@ -131,9 +130,7 @@ def test_equal_value_records_with_distinct_keys_are_not_merged() -> None:
 
 def test_refused_and_legacy_profile_keys_remain_sortable_and_groupable() -> None:
     legacy = TurnedProfileKey("x", (0.0, 0.0, 0.0), (0.0, 20.0, -10.0, 10.0, -10.0, 10.0))
-    refused = TurnedProfileKey(
-        "x", (0.0, 0.0, 0.0), (0.0, 20.0, -10.0, 10.0, -10.0, 10.0), None
-    )
+    refused = TurnedProfileKey("x", (0.0, 0.0, 0.0), (0.0, 20.0, -10.0, 10.0, -10.0, 10.0), None)
     steps = [
         TurnedStep("x", 0, 10, 20, legacy),
         TurnedStep("x", 10, 20, 10, refused),
@@ -173,17 +170,13 @@ def test_framed_rigid_motion_preserves_profile_inventory() -> None:
     # This is an AXIAL frame: roll about X is an explicitly non-semantic gauge, so transverse
     # descriptor coordinates may rotate while physical grouping and axial dimensions must hold.
     assert len(moved.result.turned_profiles) == len(baseline.result.turned_profiles) == 2
-    assert [
-        (step.axis, step.lo, step.hi, step.diameter) for step in moved.result.turned_steps
-    ] == [
+    assert [(step.axis, step.lo, step.hi, step.diameter) for step in moved.result.turned_steps] == [
         (step.axis, step.lo, step.hi, step.diameter) for step in baseline.result.turned_steps
     ]
 
 
 def test_turned_profile_suppresses_plate_only_on_its_own_solid() -> None:
-    bracket = (Pos(0, 120, 5) * Box(80, 60, 10)) + (
-        Pos(0, 120, 35) * Box(80, 10, 50)
-    )
+    bracket = (Pos(0, 120, 5) * Box(80, 60, 10)) + (Pos(0, 120, 35) * Box(80, 10, 50))
     part = Compound(children=[_shaft(), bracket])
 
     product = _take_inventory(part, rotational=True)

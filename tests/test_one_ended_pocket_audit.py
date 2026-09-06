@@ -31,9 +31,7 @@ def test_full_geometric_probe_roster_precedes_normal_path_label_read() -> None:
         target.id: node.lineno
         for node in ast.walk(tree)
         if isinstance(node, (ast.Assign, ast.AnnAssign))
-        for target in (
-            node.targets if isinstance(node, ast.Assign) else (node.target,)
-        )
+        for target in (node.targets if isinstance(node, ast.Assign) else (node.target,))
         if isinstance(target, ast.Name)
     }
     label_reads = [
@@ -116,9 +114,7 @@ def test_candidate_is_covariant_and_body_local() -> None:
 
     assert len(_candidates(moved)) == 1
     graph = FaceGraph(compound)
-    candidates = tuple(
-        candidate for _probe, candidate in _one_ended_regions(graph) if candidate
-    )
+    candidates = tuple(candidate for _probe, candidate in _one_ended_regions(graph) if candidate)
     assert len(candidates) == 2
     assert graph.common_valid_solid(candidates[0].region | candidates[1].region) is None
 

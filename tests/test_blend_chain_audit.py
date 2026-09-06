@@ -16,10 +16,7 @@ ROOT = Path(__file__).parents[1]
 def _report(limit: int) -> dict:
     return json.loads(
         (
-            ROOT
-            / "docs"
-            / "benchmarks"
-            / f"mfcadpp-blend-chain-audit-{limit}-ee5f4ae.json"
+            ROOT / "docs" / "benchmarks" / f"mfcadpp-blend-chain-audit-{limit}-ee5f4ae.json"
         ).read_text(encoding="utf-8")
     )
 
@@ -52,9 +49,10 @@ def test_canonical_reports_cover_every_selected_model_and_reconcile() -> None:
         assert report["selection"]["limit"] == limit
         assert len(rows) == summary["models"] == limit
         assert ids == sorted(ids)
-        assert report["selection"]["selected_ids_sha256"] == hashlib.sha256(
-            ("\n".join(ids) + "\n").encode()
-        ).hexdigest()
+        assert (
+            report["selection"]["selected_ids_sha256"]
+            == hashlib.sha256(("\n".join(ids) + "\n").encode()).hexdigest()
+        )
         for field in summary:
             if field == "models":
                 continue

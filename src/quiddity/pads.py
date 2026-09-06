@@ -163,9 +163,7 @@ def _resolve_axis_ambiguity(
         frontier = list(component)
         while frontier:
             current = frontier.pop()
-            neighbours = {
-                index for index in remaining if evidence[current] & evidence[index]
-            }
+            neighbours = {index for index in remaining if evidence[current] & evidence[index]}
             remaining.difference_update(neighbours)
             component.update(neighbours)
             frontier.extend(neighbours)
@@ -184,9 +182,7 @@ def _resolve_axis_ambiguity(
             <= tol
         }
         if len(winner_axes) == 1:
-            selected.extend(
-                proposals[index] for index in sorted(by_axis[next(iter(winner_axes))])
-            )
+            selected.extend(proposals[index] for index in sorted(by_axis[next(iter(winner_axes))]))
     return selected
 
 
@@ -528,10 +524,7 @@ def _recognise_blended_rectangular_pads_one(
         face = planar.face
         ref = geometry.ref(face)
         normal = geometry.normal(ref)
-        if (
-            normal is not None
-            and abs(normal[axis_index]) <= AXIS_ZERO_COS
-        ):
+        if normal is not None and abs(normal[axis_index]) <= AXIS_ZERO_COS:
             vertical[ref] = (face, planar.bounds, normal)
 
     eligible_chains: list[BlendFact] | None = None
@@ -786,9 +779,7 @@ def _discover_rectangular_pads(
                         part_bounds=part_bounds,
                     )
                 )
-        proposals = _resolve_axis_ambiguity(
-            proposals, geometry, tol=_TOL if tol is None else tol
-        )
+        proposals = _resolve_axis_ambiguity(proposals, geometry, tol=_TOL if tol is None else tol)
         for proposal in proposals:
             by_record.setdefault(proposal.record, []).append(proposal)
         occurrences.extend((record, tuple(group)) for record, group in by_record.items())

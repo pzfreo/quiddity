@@ -245,9 +245,7 @@ def _probe_region(
     frame = LocalFrame.canonical(base.run, centre)
     mouth_at = _plane_at(graph, opening, frame.run)
     if mouth_at is None:
-        return RegionProbe(
-            "opening_run", 1, expected_sides, len(raw_section.boundary)
-        ), None
+        return RegionProbe("opening_run", 1, expected_sides, len(raw_section.boundary)), None
     floors = _floor_clusters(graph, region, frame.run, mouth_at)
     if len(floors) != 1:
         return RegionProbe(
@@ -272,9 +270,7 @@ def _probe_region(
             1,
             len(floor),
         ), None
-    if not _void_and_closed(
-        graph.solid_shape(solid), frame, mouth_at, floor_at, section
-    ):
+    if not _void_and_closed(graph.solid_shape(solid), frame, mouth_at, floor_at, section):
         return RegionProbe(
             "not_bounded_prismatic_void",
             1,
@@ -284,9 +280,7 @@ def _probe_region(
             len(floor),
         ), None
     return (
-        RegionProbe(
-            "candidate", 1, expected_sides, len(raw_section.boundary), 1, len(floor)
-        ),
+        RegionProbe("candidate", 1, expected_sides, len(raw_section.boundary), 1, len(floor)),
         OneEndedRegion(region, opening, floor, section, frame.run, mouth_at, floor_at),
     )
 
@@ -323,10 +317,7 @@ def _audit_model(
         product = _take_inventory(part)
     except (RuntimeError, ValueError) as error:
         truth = load_mfcadpp_truth(path)
-        if (
-            truth.model_id not in _KNOWN_MFCADPP_2500_INVALID
-            or str(error) != _KNOWN_INVALID_REASON
-        ):
+        if truth.model_id not in _KNOWN_MFCADPP_2500_INVALID or str(error) != _KNOWN_INVALID_REASON:
             raise
         return (
             f"{truth.model_id}:{truth.source_sha256}",
@@ -364,9 +355,7 @@ def _audit_model(
         gates[probe.first_failed_gate] += 1
         labels = Counter(truth.semantic[node.index] for node in region)
         overlaps = [len(region & component) for component in components]
-        target_nodes = frozenset(
-            node for node in region if truth.semantic[node.index] == class_id
-        )
+        target_nodes = frozenset(node for node in region if truth.semantic[node.index] == class_id)
         rows.append(
             {
                 "model_id": truth.model_id,
@@ -424,9 +413,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.class_id not in _TARGET_SIDES:
-        parser.error(
-            "--class-id must identify a polygonal Pocket class: 13, 14, or 15"
-        )
+        parser.error("--class-id must identify a polygonal Pocket class: 13, 14, or 15")
 
     paths = sorted(args.root.glob("*.st*p"))[: args.limit]
     if not paths:
@@ -437,8 +424,7 @@ def main() -> int:
     sources: list[str] = []
     selected_ids = [path.stem for path in paths]
     full_known_selection = (
-        len(selected_ids) == 2500
-        and set(selected_ids) >= _KNOWN_MFCADPP_2500_INVALID
+        len(selected_ids) == 2500 and set(selected_ids) >= _KNOWN_MFCADPP_2500_INVALID
     )
     if full_known_selection and not args.allow_invalid:
         parser.error(
@@ -449,9 +435,7 @@ def main() -> int:
     if args.workers < 1:
         parser.error("--workers must be positive")
     work = ((path, args.class_id) for path in paths)
-    results: Iterable[
-        tuple[str, list[dict[str, Any]], Counter[str], dict[str, str] | None]
-    ]
+    results: Iterable[tuple[str, list[dict[str, Any]], Counter[str], dict[str, str] | None]]
     if args.workers == 1:
         results = map(lambda item: _audit_model(*item), work)
     else:
@@ -471,13 +455,12 @@ def main() -> int:
             executor.shutdown()
     if invalid and not args.allow_invalid:
         parser.error("audit encountered invalid models without --allow-invalid")
-    if full_known_selection and {
-        item["model_id"] for item in invalid
-    } != _KNOWN_MFCADPP_2500_INVALID:
+    if (
+        full_known_selection
+        and {item["model_id"] for item in invalid} != _KNOWN_MFCADPP_2500_INVALID
+    ):
         parser.error("the full-corpus invalid-model set differs from the documented policy")
-    evidence_rows = [
-        row for row in rows if row["target_faces"] > 0 or row["accepted_as_candidate"]
-    ]
+    evidence_rows = [row for row in rows if row["target_faces"] > 0 or row["accepted_as_candidate"]]
     report = {
         "format": "b123d-recognisers-mfcadpp-one-ended-pocket-audit",
         "format_version": 1,
@@ -529,9 +512,7 @@ def main() -> int:
         "target_first_failed_gates": dict(
             sorted(
                 Counter(
-                    row["probe"]["first_failed_gate"]
-                    for row in rows
-                    if row["target_faces"] > 0
+                    row["probe"]["first_failed_gate"] for row in rows if row["target_faces"] > 0
                 ).items()
             )
         ),

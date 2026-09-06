@@ -201,7 +201,7 @@ from quiddity import build_framed_recognition_evidence
 framed = build_framed_recognition_evidence(part)
 if isinstance(framed, FramedRecognitionEvidence):
     for ref in framed.association.unassociated_faces:
-        local_face = framed.face(ref)          # exact face of framed.part
+        local_face = framed.face(ref)  # exact face of framed.part
         original_face = framed.caller_face(ref)  # exact topology partner in part
 ```
 

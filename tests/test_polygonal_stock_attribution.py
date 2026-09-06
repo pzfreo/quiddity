@@ -69,9 +69,7 @@ def _fresh_oracle(part, graph: FaceGraph):
     ]
     gaps = [(angles[(i + 1) % 6] - angles[i]) % (2 * math.pi) for i in range(6)]
     assert all(gap == pytest.approx(math.pi / 3, abs=math.radians(2)) for gap in gaps)
-    assert all(
-        len(set(graph.neighbours(side)) & set(ordered)) == 2 for side in ordered
-    )
+    assert all(len(set(graph.neighbours(side)) & set(ordered)) == 2 for side in ordered)
     lower, upper = sorted(caps, key=lambda node: sum(graph.bounds(node)[2]) / 2)
     assert graph.normal(lower)[2] <= -0.999
     assert graph.normal(upper)[2] >= 0.999
@@ -263,44 +261,56 @@ def test_cap_and_side_threshold_equalities_are_frozen() -> None:
     assert module._cap_z(
         cap, node, module._TOL, positive=True, lower_than=4.0, higher_than=4.0
     ) == pytest.approx(4.0)
-    assert module._cap_z(
-        _ThresholdGraph(
-            normal_z=module.AXIS_ALIGNED_COS - 1e-8,
-            z_bounds=(4.0, 4.0 + module._TOL),
-        ),
-        node,
-        module._TOL,
-        positive=True,
-        lower_than=None,
-        higher_than=None,
-    ) is None
-    assert module._cap_z(
-        _ThresholdGraph(normal_z=1.0, z_bounds=(4.0, 4.0)),
-        node,
-        module._TOL,
-        positive=True,
-        lower_than=4.0 - module._TOL - 1e-8,
-        higher_than=None,
-    ) is None
-    assert module._cap_z(
-        _ThresholdGraph(normal_z=1.0, z_bounds=(4.0, 4.0)),
-        node,
-        module._TOL,
-        positive=True,
-        lower_than=None,
-        higher_than=4.0 + module._TOL + 1e-8,
-    ) is None
-    assert module._cap_z(
-        _ThresholdGraph(
-            normal_z=module.AXIS_ALIGNED_COS,
-            z_bounds=(4.0, 4.0 + module._TOL + 1e-8),
-        ),
-        node,
-        module._TOL,
-        positive=True,
-        lower_than=None,
-        higher_than=None,
-    ) is None
+    assert (
+        module._cap_z(
+            _ThresholdGraph(
+                normal_z=module.AXIS_ALIGNED_COS - 1e-8,
+                z_bounds=(4.0, 4.0 + module._TOL),
+            ),
+            node,
+            module._TOL,
+            positive=True,
+            lower_than=None,
+            higher_than=None,
+        )
+        is None
+    )
+    assert (
+        module._cap_z(
+            _ThresholdGraph(normal_z=1.0, z_bounds=(4.0, 4.0)),
+            node,
+            module._TOL,
+            positive=True,
+            lower_than=4.0 - module._TOL - 1e-8,
+            higher_than=None,
+        )
+        is None
+    )
+    assert (
+        module._cap_z(
+            _ThresholdGraph(normal_z=1.0, z_bounds=(4.0, 4.0)),
+            node,
+            module._TOL,
+            positive=True,
+            lower_than=None,
+            higher_than=4.0 + module._TOL + 1e-8,
+        )
+        is None
+    )
+    assert (
+        module._cap_z(
+            _ThresholdGraph(
+                normal_z=module.AXIS_ALIGNED_COS,
+                z_bounds=(4.0, 4.0 + module._TOL + 1e-8),
+            ),
+            node,
+            module._TOL,
+            positive=True,
+            lower_than=None,
+            higher_than=None,
+        )
+        is None
+    )
 
     at_vertical_limit = _ThresholdGraph(
         normal_z=module._SIDE_VERTICAL_COS, z_bounds=(0.0, module._TOL + 1e-8)
@@ -328,17 +338,20 @@ def test_cap_and_side_threshold_equalities_are_frozen() -> None:
         lower_than=0.0,
         higher_than=0.0,
     ) == pytest.approx(0.0)
-    assert module._cap_z(
-        _ThresholdGraph(
-            normal_z=-module.AXIS_ALIGNED_COS + 1e-8,
-            z_bounds=(-module._TOL / 2, module._TOL / 2),
-        ),
-        node,
-        module._TOL,
-        positive=False,
-        lower_than=None,
-        higher_than=None,
-    ) is None
+    assert (
+        module._cap_z(
+            _ThresholdGraph(
+                normal_z=-module.AXIS_ALIGNED_COS + 1e-8,
+                z_bounds=(-module._TOL / 2, module._TOL / 2),
+            ),
+            node,
+            module._TOL,
+            positive=False,
+            lower_than=None,
+            higher_than=None,
+        )
+        is None
+    )
 
 
 def test_same_span_and_connectivity_boundaries_are_frozen() -> None:
@@ -363,9 +376,7 @@ def test_same_span_and_connectivity_boundaries_are_frozen() -> None:
 
 
 def test_direct_common_and_ambiguous_cap_paths_are_frozen() -> None:
-    side_a, side_b, boundary_a, boundary_b, cap, rival = (
-        FaceNode(index) for index in range(6)
-    )
+    side_a, side_b, boundary_a, boundary_b, cap, rival = (FaceNode(index) for index in range(6))
     graph = _CommonCapGraph(
         {
             side_a: (0.0, 10.0),
@@ -411,16 +422,19 @@ def test_direct_common_and_ambiguous_cap_paths_are_frozen() -> None:
     assert selected is not None and selected.node is cap
 
     ambiguous = {side_a: {cap, rival}, side_b: {cap, rival}}
-    assert module._common_cap(
-        component,
-        graph,
-        lambda node: set(ambiguous.get(node, set())),
-        module._TOL,
-        upper=True,
-        positive=True,
-        wall_lo=0.0,
-        wall_hi=10.0,
-    ) is None
+    assert (
+        module._common_cap(
+            component,
+            graph,
+            lambda node: set(ambiguous.get(node, set())),
+            module._TOL,
+            upper=True,
+            positive=True,
+            wall_lo=0.0,
+            wall_hi=10.0,
+        )
+        is None
+    )
 
 
 def test_ring_degree_two_guard_rejects_an_extra_side_neighbour(monkeypatch) -> None:
@@ -439,9 +453,12 @@ def test_ring_degree_two_guard_rejects_an_extra_side_neighbour(monkeypatch) -> N
         return tuple(found)
 
     monkeypatch.setattr(GeometryGraph, "neighbours", neighbours)
-    assert module._recognise_one(
-        part, tol=None, angle_tol=math.radians(2), whole_stock=True, graph=geometry
-    ) == []
+    assert (
+        module._recognise_one(
+            part, tol=None, angle_tol=math.radians(2), whole_stock=True, graph=geometry
+        )
+        == []
+    )
 
 
 def test_actual_proposal_retains_distinct_ordered_cap_roles_and_projection() -> None:
@@ -645,6 +662,7 @@ def test_late_second_inventory_identity_failure_does_not_publish_first(monkeypat
         )
     assert ledger.candidate_set(FamilyId.POLYGONAL_STOCK).candidates == ()
 
+
 def test_terminal_status_identity_and_not_counted_census_are_truthful() -> None:
     product = _take_inventory(build_fixture())
     candidates = product.physical.candidate_set(FamilyId.POLYGONAL_STOCK).candidates
@@ -692,9 +710,7 @@ def test_private_core_constructor_and_cap_identity_paths_are_closed() -> None:
                 name = node.func.attr
             else:
                 name = ""
-            calls_core = (
-                isinstance(node.func, ast.Name) and node.func.id in direct_aliases
-            ) or (
+            calls_core = (isinstance(node.func, ast.Name) and node.func.id in direct_aliases) or (
                 isinstance(node.func, ast.Attribute)
                 and node.func.attr == "_discover_polygonal_stock"
                 and isinstance(node.func.value, ast.Name)

@@ -106,7 +106,11 @@ def rings(part: Part, graph: FaceGraph) -> Iterator[Ring]:
             if not _is_void(part, section, axis, low, high):
                 continue
             yield Ring(
-                ring, section, axis, low, high,
+                ring,
+                section,
+                axis,
+                low,
+                high,
                 _capped_ends(graph, ring, members, axis, low, high),
             )
 
@@ -145,8 +149,7 @@ def _cross_section(
         # is *not* guaranteed is that the corners then form a polygon, and `_canonical` is
         # where that is decided.
         boxes = [
-            edge.bounding_box()
-            for edge in graph.shared_edges(node, order[(at + 1) % len(order)])
+            edge.bounding_box() for edge in graph.shared_edges(node, order[(at + 1) % len(order)])
         ]
         across, along = (
             0.5
@@ -321,9 +324,7 @@ def _capped_ends(
             # There is nothing to reject on that count, only on where within the span it sits.
             end = graph.bounds(other)
             near_low = abs(end[axis][0] - low) <= SPAN_EPS or abs(end[axis][1] - low) <= SPAN_EPS
-            near_high = (
-                abs(end[axis][0] - high) <= SPAN_EPS or abs(end[axis][1] - high) <= SPAN_EPS
-            )
+            near_high = abs(end[axis][0] - high) <= SPAN_EPS or abs(end[axis][1] - high) <= SPAN_EPS
             if not (near_low or near_high):
                 continue
             if all(

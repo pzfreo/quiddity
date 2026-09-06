@@ -94,9 +94,7 @@ def _split_coplanar_fillet_support():
     faces = list(part.faces())
     edge_faces = edge_face_map(faces)
     curved = next(
-        face
-        for face in faces
-        if BRepAdaptor_Surface(face.wrapped).GetType() == GeomAbs_Cylinder
+        face for face in faces if BRepAdaptor_Surface(face.wrapped).GetType() == GeomAbs_Cylinder
     )
     support = next(
         face
@@ -621,9 +619,7 @@ def test_distinct_equidistant_support_refuses_only_the_ambiguous_fillet(part) ->
             (bounds.min.Z, bounds.max.Z),
         )
         centre = {axis: 0.5 * sum(spans[axis]) for axis in range(3)}
-        compatibility = nearest_axis_aligned_planes(
-            face, edge_faces, centre, exclude_axis=run_axis
-        )
+        compatibility = nearest_axis_aligned_planes(face, edge_faces, centre, exclude_axis=run_axis)
         unambiguous = nearest_axis_aligned_planes(
             face,
             edge_faces,
@@ -702,8 +698,7 @@ def test_split_coplanar_support_preserves_fillet_and_exact_defining_faces() -> N
     assert all(len(defining) == 1 for defining in defining_sets)
     defining_faces = {ledger.graph.face(next(iter(defining))) for defining in defining_sets}
     assert all(
-        BRepAdaptor_Surface(face.wrapped).GetType() == GeomAbs_Cylinder
-        for face in defining_faces
+        BRepAdaptor_Surface(face.wrapped).GetType() == GeomAbs_Cylinder for face in defining_faces
     )
     assert len(defining_faces) == 4
     assert split_supported <= defining_faces

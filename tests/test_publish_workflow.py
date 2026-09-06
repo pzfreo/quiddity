@@ -50,7 +50,6 @@ def _triggers(workflow: dict) -> set[str]:
     return set(on)
 
 
-
 def _job(workflow: str, name: str) -> str:
     """The body of one job, so an assertion cannot be satisfied by a different job.
 
@@ -91,12 +90,8 @@ def test_publish_workflow_uses_oidc_environments_and_one_promoted_artifact() -> 
     # digests with bare counts, which would have let `actions/upload-artifact@v6` through.
     assert workflow.count("actions/upload-artifact@") == 1
     assert workflow.count("actions/download-artifact@") == 1
-    assert workflow.count(
-        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
-    ) == 1
-    assert workflow.count(
-        "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
-    ) == 1
+    assert workflow.count("actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a") == 1
+    assert workflow.count("actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c") == 1
 
     # The generated post-release branch gets its CI status explicitly: a GITHUB_TOKEN
     # push raises no event.
@@ -111,9 +106,9 @@ def test_publish_workflow_uses_oidc_environments_and_one_promoted_artifact() -> 
     assert "workflow_dispatch:" in target
     # Two publish steps: the main-push snapshot to TestPyPI, and the release to PyPI.
     assert workflow.count("pypa/gh-action-pypi-publish@") == 2
-    assert workflow.count(
-        "pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33"
-    ) == 2, "the action holding id-token against PyPI must be pinned by digest"
+    assert (
+        workflow.count("pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33") == 2
+    ), "the action holding id-token against PyPI must be pinned by digest"
     assert workflow.count("id-token: write") == 2
 
 
@@ -166,12 +161,8 @@ def test_ci_has_one_coverage_authority_and_a_separate_exhaustive_matrix() -> Non
     exhaustive = FULL_MATRIX_WORKFLOW.read_text(encoding="utf-8")
     assert _triggers(full) == {"schedule", "workflow_dispatch"}
     assert "pre-release" not in CI_WORKFLOW.read_text(encoding="utf-8")
-    assert exhaustive.count(
-        "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803"
-    ) == 1
-    assert exhaustive.count(
-        "astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39"
-    ) == 1
+    assert exhaustive.count("actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803") == 1
+    assert exhaustive.count("astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39") == 1
     assert "actions/checkout@v" not in exhaustive
     assert "astral-sh/setup-uv@v" not in exhaustive
 
@@ -199,8 +190,11 @@ def test_the_release_pipeline_is_the_ported_shape() -> None:
     assert jobs["publish-pypi"]["needs"] == "build-release"
     assert jobs["bump-version"]["needs"] == "publish-pypi"
     # One build feeds the release; the snapshot builds and publishes on a single runner.
-    uploads = [name for name, spec in jobs.items()
-               if any("upload-artifact" in str(step) for step in spec["steps"])]
+    uploads = [
+        name
+        for name, spec in jobs.items()
+        if any("upload-artifact" in str(step) for step in spec["steps"])
+    ]
     assert uploads == ["build-release"]
 
 
@@ -213,8 +207,12 @@ def test_the_release_artifact_is_built_here_and_published_unmodified() -> None:
     """
 
     jobs = _parsed(WORKFLOW)["jobs"]
-    build = [line.strip() for run in _steps(jobs["build-release"]) for line in run.splitlines()
-             if line.strip() and not line.strip().startswith("#")]
+    build = [
+        line.strip()
+        for run in _steps(jobs["build-release"])
+        for line in run.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
 
     assert "uv build" in build
     assert any("scripts/update-recogniser-version" in line for line in build)
@@ -272,7 +270,9 @@ def test_the_version_arithmetic_each_leg_performs(tmp_path) -> None:
         (stub / "update-recogniser-version").chmod(0o755)
         result = subprocess.run(
             ["bash", "-euo", "pipefail", "-c", step],
-            capture_output=True, text=True, cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            cwd=tmp_path,
             env={"PATH": os.environ["PATH"], **env},
         )
         assert result.returncode == 0, result.stderr
@@ -283,9 +283,10 @@ def test_the_version_arithmetic_each_leg_performs(tmp_path) -> None:
     assert version_after("build-release", strip, "0.2.6.dev0") == "0.2.6"
     assert version_after("build-release", strip, "0.2.6") == "0.2.6"
     # The snapshot never publishes a release version: it always carries a `.devN`.
-    assert version_after(
-        "publish-testpypi", "Set TestPyPI dev version", "0.2.6.dev0", RUN_NUMBER="57"
-    ) == "0.2.6.dev57"
+    assert (
+        version_after("publish-testpypi", "Set TestPyPI dev version", "0.2.6.dev0", RUN_NUMBER="57")
+        == "0.2.6.dev57"
+    )
     # The bump moves the patch, from `main`'s version rather than from any tag.
     bump = "Bump patch version with .dev0 suffix"
     assert version_after("bump-version", bump, "0.2.6.dev0") == "0.2.7.dev0"

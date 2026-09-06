@@ -156,8 +156,10 @@ def test_repository_corpus_tools_do_not_import_metadata_step_loader() -> None:
     for path in sorted((ROOT / "tools").glob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module == "build123d" and any(
-                alias.name == "import_step" for alias in node.names
+            if (
+                isinstance(node, ast.ImportFrom)
+                and node.module == "build123d"
+                and any(alias.name == "import_step" for alias in node.names)
             ):
                 offenders.append(path.name)
             if (

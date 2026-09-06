@@ -97,10 +97,7 @@ def test_projected_value_schemas_do_not_leak_private_runtime_types() -> None:
         FaceInspection,
     )
 
-    assert all(
-        "quiddity._" not in repr(typing.get_type_hints(value))
-        for value in projected
-    )
+    assert all("quiddity._" not in repr(typing.get_type_hints(value)) for value in projected)
 
 
 def test_face_handles_are_run_local_and_copying_does_not_confer_authority() -> None:

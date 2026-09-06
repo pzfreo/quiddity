@@ -49,9 +49,7 @@ def _read_ramp(
     if normal is None:
         return None
     run_axes = tuple(
-        axis
-        for axis, component in enumerate(normal)
-        if abs(component) <= SMOOTH_ARC_GAP
+        axis for axis, component in enumerate(normal) if abs(component) <= SMOOTH_ARC_GAP
     )
     if len(run_axes) != 1:
         return None
@@ -119,8 +117,7 @@ def _candidate(
     # The first supported domain is a mirror pair.  This is an angular equality tolerance, not
     # a dataset-fitted feature-size threshold (ADR 0008).
     if any(
-        abs(abs(left_normal[index]) - abs(right_normal[index])) > SMOOTH_ARC_GAP
-        for index in cross
+        abs(abs(left_normal[index]) - abs(right_normal[index])) > SMOOTH_ARC_GAP for index in cross
     ):
         return None
 
@@ -163,9 +160,10 @@ def _candidate(
     # triangular pocket, not a side step.  Using the solid extents (rather than world Z) keeps
     # this boundary invariant under principal-axis permutations while preserving the explicit
     # exclusion in the family contract.
-    if solid_extents[axis] < min(
-        solid_extents[index] for index in (0, 1, 2) if index != axis
-    ) - tolerance:
+    if (
+        solid_extents[axis]
+        < min(solid_extents[index] for index in (0, 1, 2) if index != axis) - tolerance
+    ):
         return None
     exterior = [
         node
@@ -179,15 +177,9 @@ def _candidate(
     internal = [node for node in terminals if node not in exterior]
     if len(exterior) != 1 or len(internal) != 1:
         return None
-    if not (
-        _is_convex(graph, left, exterior[0])
-        and _is_convex(graph, right, exterior[0])
-    ):
+    if not (_is_convex(graph, left, exterior[0]) and _is_convex(graph, right, exterior[0])):
         return None
-    if not (
-        _is_concave(graph, left, internal[0])
-        and _is_concave(graph, right, internal[0])
-    ):
+    if not (_is_concave(graph, left, internal[0]) and _is_concave(graph, right, internal[0])):
         return None
     # One original planar terminal with exact concave arcs to both ramps is the authority. Its
     # remaining boundary may be subdivided or independently interrupted; edge count is a B-Rep

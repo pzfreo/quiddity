@@ -131,17 +131,13 @@ def _axis_direction_components(
     return raw, norm, index
 
 
-def _normalised_axis_direction(
-    axis: str, direction: Sequence[float] | None = None
-) -> Vector3:
+def _normalised_axis_direction(axis: str, direction: Sequence[float] | None = None) -> Vector3:
     raw, norm, index = _axis_direction_components(axis, direction)
     sign = -1.0 if raw[index] < 0 else 1.0
     return (sign * raw[0] / norm, sign * raw[1] / norm, sign * raw[2] / norm)
 
 
-def _canonical_axis_direction(
-    axis: str, direction: Sequence[float] | None = None
-) -> Vector3:
+def _canonical_axis_direction(axis: str, direction: Sequence[float] | None = None) -> Vector3:
     raw, norm, index = _axis_direction_components(axis, direction)
     sign = -1.0 if raw[index] < 0 else 1.0
     unit = (
@@ -149,9 +145,7 @@ def _canonical_axis_direction(
         if abs(norm - 1.0) <= 2e-6
         else _normalised_axis_direction(axis, raw)
     )
-    rounded = tuple(
-        0.0 if abs(component) < 0.5e-6 else round(component, 6) for component in unit
-    )
+    rounded = tuple(0.0 if abs(component) < 0.5e-6 else round(component, 6) for component in unit)
     return (rounded[0], rounded[1], rounded[2])
 
 

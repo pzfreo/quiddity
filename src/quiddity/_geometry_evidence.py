@@ -42,9 +42,7 @@ class GeometryEvidenceBridge:
         ordered = tuple(refs)
         nodes = tuple(self.geometry._node(ref) for ref in ordered)
         members = (
-            None
-            if constituent is None
-            else tuple(self.geometry._node(ref) for ref in constituent)
+            None if constituent is None else tuple(self.geometry._node(ref) for ref in constituent)
         )
         self._writer.add_defining(claimant, nodes, family=family, constituent=members)
 

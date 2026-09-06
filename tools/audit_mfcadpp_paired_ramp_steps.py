@@ -193,9 +193,7 @@ def _probe_pair(
     same = tuple(index for index in cross if left_normal[index] * right_normal[index] > 0)
     if len(opposed) != 1 or len(same) != 1:
         return _failed(2, axis=axis)
-    mirror_delta = max(
-        abs(abs(left_normal[index]) - abs(right_normal[index])) for index in cross
-    )
+    mirror_delta = max(abs(abs(left_normal[index]) - abs(right_normal[index])) for index in cross)
     if mirror_delta > SMOOTH_ARC_GAP:
         return _failed(3, axis=axis, mirror_delta=mirror_delta)
     shared = graph.shared_edges(left, right)
@@ -264,9 +262,7 @@ def _probe_pair(
         return _failed(11, axis=axis, ramp_edges=ramp_edges, shared_edges=1, terminals=2)
     exterior_edges = len(graph.edges(exterior[0]))
     internal_edges = len(graph.edges(internal[0]))
-    if not _is_convex(graph, left, exterior[0]) or not _is_convex(
-        graph, right, exterior[0]
-    ):
+    if not _is_convex(graph, left, exterior[0]) or not _is_convex(graph, right, exterior[0]):
         return _failed(
             12,
             axis=axis,
@@ -276,9 +272,7 @@ def _probe_pair(
             internal_edges=internal_edges,
             exterior_edges=exterior_edges,
         )
-    if not _is_concave(graph, left, internal[0]) or not _is_concave(
-        graph, right, internal[0]
-    ):
+    if not _is_concave(graph, left, internal[0]) or not _is_concave(graph, right, internal[0]):
         return _failed(
             13,
             axis=axis,
@@ -481,8 +475,7 @@ def _reconciliation(rows: list[dict[str, Any]], labelled_faces: int) -> dict[str
         raise RuntimeError("face reconciliation failed")
     recalled = sum(bool(row["matched_face_indices"]) for row in rows)
     partial = sum(
-        bool(row["matched_face_indices"]) and bool(row["unmatched_face_indices"])
-        for row in rows
+        bool(row["matched_face_indices"]) and bool(row["unmatched_face_indices"]) for row in rows
     )
     return {
         "labelled_faces": labelled_faces,
@@ -539,9 +532,7 @@ def main() -> int:
         labelled_faces += len(labelled)
         for component in components:
             matched = (
-                set(component).intersection(set().union(*paired_claims))
-                if paired_claims
-                else set()
+                set(component).intersection(set().union(*paired_claims)) if paired_claims else set()
             )
             anatomy = _describe_component(
                 graph,
@@ -572,9 +563,7 @@ def main() -> int:
             )
     unrecalled = [item for item in items if not item["matched_face_indices"]]
     partial = [
-        item
-        for item in items
-        if item["matched_face_indices"] and item["unmatched_face_indices"]
+        item for item in items if item["matched_face_indices"] and item["unmatched_face_indices"]
     ]
     reconciliation = _reconciliation(items, labelled_faces)
     boundary_components = [item for item in items if item["ramp_boundary_bypass_pairs"]]
@@ -615,16 +604,14 @@ def main() -> int:
         "gate_counts": dict(
             sorted(
                 Counter(
-                    item["anatomy"]["best_pair"]["first_failed_gate"]
-                    for item in unrecalled
+                    item["anatomy"]["best_pair"]["first_failed_gate"] for item in unrecalled
                 ).items()
             )
         ),
         "partial_component_gate_counts": dict(
             sorted(
                 Counter(
-                    item["anatomy"]["best_pair"]["first_failed_gate"]
-                    for item in partial
+                    item["anatomy"]["best_pair"]["first_failed_gate"] for item in partial
                 ).items()
             )
         ),
@@ -638,15 +625,11 @@ def main() -> int:
                 for item in boundary_components
             ),
             "candidate_pairs": sum(
-                len(item["ramp_boundary_bypass_pairs"])
-                for item in boundary_components
+                len(item["ramp_boundary_bypass_pairs"]) for item in boundary_components
             ),
             "projected_recognisable_pairs": len(projected_pairs),
             "projected_components": len(
-                {
-                    (item["model_id"], tuple(item["face_indices"]))
-                    for item, _pair in projected_pairs
-                }
+                {(item["model_id"], tuple(item["face_indices"])) for item, _pair in projected_pairs}
             ),
             "projected_distinct_defining_faces": len(projected_faces),
         },

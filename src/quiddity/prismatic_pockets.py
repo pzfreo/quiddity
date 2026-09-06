@@ -152,8 +152,6 @@ def _section_slab(
     return _section_prism(section, axis, low - SPAN_EPS, high + SPAN_EPS)
 
 
-
-
 def _void_open_and_floored(
     part: Part,
     section: tuple[tuple[float, float], ...],
@@ -177,8 +175,6 @@ def _void_open_and_floored(
         )
     except (RuntimeError, TypeError, ValueError, ZeroDivisionError):
         return False
-
-
 
 
 def _inner_region(
@@ -312,7 +308,7 @@ def _floor_seeded_regions(part: Part, graph: FaceGraph) -> tuple[_RecoveredPocke
                 or caps[mouth_index]
                 or owner is None
                 or not _void_open_and_floored(
-                graph.solid_shape(owner), section, axis, mouth_at, floor_at
+                    graph.solid_shape(owner), section, axis, mouth_at, floor_at
                 )
             ):
                 continue
@@ -334,9 +330,9 @@ def _floor_seeded_regions(part: Part, graph: FaceGraph) -> tuple[_RecoveredPocke
 def _one_ended_regions(part: Part, graph: FaceGraph) -> tuple[_RecoveredPocket, ...]:
     """Recover unique principal-axis polygonal cavities whose wall spans are interrupted."""
 
-    raw: dict[
-        frozenset[FaceNode], list[tuple[FaceNode, frozenset[FaceNode], int]]
-    ] = defaultdict(list)
+    raw: dict[frozenset[FaceNode], list[tuple[FaceNode, frozenset[FaceNode], int]]] = defaultdict(
+        list
+    )
     for opening in graph.nodes:
         axis = _axis_for_opening(graph, opening) if graph.is_planar(opening) else None
         if axis is None:
@@ -357,9 +353,7 @@ def _one_ended_regions(part: Part, graph: FaceGraph) -> tuple[_RecoveredPocket, 
             raw[_inner_region(graph, opening, seed)].append((opening, seed, axis))
 
     intersecting = {
-        region
-        for region in raw
-        if any(region != other and region & other for other in raw)
+        region for region in raw if any(region != other and region & other for other in raw)
     }
     recovered = []
     for region, mouths in raw.items():
@@ -503,9 +497,7 @@ def recognise_prismatic_pockets(
                     depth=round(recovered.high - recovered.low, 3),
                     open_sign=recovered.open_sign,
                     at=(round(at[0], 3), round(at[1], 3), round(at[2], 3)),
-                    section=tuple(
-                        (round(u, 3), round(v, 3)) for u, v in recovered.section
-                    ),
+                    section=tuple((round(u, 3), round(v, 3)) for u, v in recovered.section),
                 ),
                 recovered.walls,
                 recovered.constituent,

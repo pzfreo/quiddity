@@ -156,8 +156,6 @@ def _face_interval(graph: FaceGraph, node: FaceNode, run: Vector3) -> tuple[floa
     return (min(values), max(values)) if values else None
 
 
-
-
 def _bounded_inner_region(
     graph: FaceGraph, opening: FaceNode, seed: frozenset[FaceNode]
 ) -> frozenset[FaceNode]:
@@ -518,8 +516,6 @@ def _end_slab(
         Face(wire),
         Vector(*(component * (high - low) for component in frame.run)),
     )
-
-
 
 
 def _void_and_open(

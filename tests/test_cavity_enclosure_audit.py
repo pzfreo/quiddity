@@ -53,10 +53,7 @@ def test_multiple_and_separate_body_cavities_remain_distinct() -> None:
     graph = FaceGraph(compound)
     regions = _candidate_regions(graph)
     assert len(regions) == 2
-    assert all(
-        graph.common_valid_solid(region | owners) is not None
-        for region, owners in regions
-    )
+    assert all(graph.common_valid_solid(region | owners) is not None for region, owners in regions)
     assert graph.common_valid_solid(regions[0][0] | regions[1][0]) is None
 
 
@@ -67,8 +64,7 @@ def test_two_ended_regions_preserve_compound_ownership() -> None:
     regions = _two_ended_regions(graph)
     assert len(regions) == 2
     assert all(
-        graph.common_valid_solid(region | set(mouths)) is not None
-        for region, mouths in regions
+        graph.common_valid_solid(region | set(mouths)) is not None for region, mouths in regions
     )
     assert graph.common_valid_solid(regions[0][0] | regions[1][0]) is None
 
@@ -86,12 +82,8 @@ def test_rigid_transform_preserves_region_structure() -> None:
 
     base = _candidate_regions(FaceGraph(part))
     moved = _candidate_regions(FaceGraph(transformed))
-    assert [len(region) for region, _owners in base] == [
-        len(region) for region, _owners in moved
-    ]
-    assert [len(owners) for _region, owners in base] == [
-        len(owners) for _region, owners in moved
-    ]
+    assert [len(region) for region, _owners in base] == [len(region) for region, _owners in moved]
+    assert [len(owners) for _region, owners in base] == [len(owners) for _region, owners in moved]
 
 
 def test_report_association_and_class_order_are_explicit() -> None:

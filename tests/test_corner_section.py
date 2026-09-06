@@ -22,12 +22,16 @@ def corner(scale=1):
 def assert_truthful_corner(part):
     product = _take_inventory(part)
     (source,) = [
-        candidate for candidate in product.accepted.candidate_set(FamilyId.POCKETS).candidates
+        candidate
+        for candidate in product.accepted.candidate_set(FamilyId.POCKETS).candidates
         if candidate.record.edge_anchored
     ]
     defining = product.evidence.defining_of(source)
-    matches = [record for record in product.result.section_recesses
-               if set(record.evidence.defining_faces) == {node.index for node in defining}]
+    matches = [
+        record
+        for record in product.result.section_recesses
+        if set(record.evidence.defining_faces) == {node.index for node in defining}
+    ]
     (record,) = matches
     assert record.classification.feature_kind == "edge_open_recess"
     assert record.classification.section_shape == "polygonal"
@@ -35,17 +39,24 @@ def assert_truthful_corner(part):
     assert len(record.evidence.constituent_faces) == 3
     frame = record.geometry.frame
     mid = sum(record.geometry.run_interval) / 2
-    chain = [tuple(frame.origin[i] + frame.run[i] * mid
-                   + frame.u[i] * vertex.point[0] + frame.v[i] * vertex.point[1]
-                   for i in range(3)) for vertex in record.geometry.profile.boundary]
+    chain = [
+        tuple(
+            frame.origin[i]
+            + frame.run[i] * mid
+            + frame.u[i] * vertex.point[0]
+            + frame.v[i] * vertex.point[1]
+            for i in range(3)
+        )
+        for vertex in record.geometry.profile.boundary
+    ]
     for start, end in zip(chain, chain[1:], strict=False):
         midpoint = Vertex(*((a + b) / 2 for a, b in zip(start, end, strict=True)))
-        assert min(product.context.graph.face(node).distance_to(midpoint)
-                   for node in defining) < 0.002
+        assert (
+            min(product.context.graph.face(node).distance_to(midpoint) for node in defining) < 0.002
+        )
     # Closing the chain would create a fictitious diagonal wall through empty space.
     gap_middle = Vertex(*((a + b) / 2 for a, b in zip(chain[0], chain[-1], strict=True)))
-    assert min(product.context.graph.face(node).distance_to(gap_middle)
-               for node in defining) > 0.02
+    assert min(product.context.graph.face(node).distance_to(gap_middle) for node in defining) > 0.02
     ends = record.geometry.ends
     assert ends.low.condition == ("capped" if source.record.open_sign == 1 else "open")
     assert ends.high.condition == ("open" if source.record.open_sign == 1 else "capped")
@@ -82,9 +93,11 @@ def test_hole_in_corner_floor_is_not_replaced_by_a_full_rectangle():
     part = corner() - Pos(22, 12, -3) * Cylinder(1, 20)
     graph = FaceGraph(part)
     # The two notch walls and their perforated floor still meet at the inner trihedral corner.
-    nodes = frozenset(node for node in graph.nodes
-                      if any(tuple(vertex) == pytest.approx((15, 5, 0))
-                             for vertex in graph.face(node).vertices()))
+    nodes = frozenset(
+        node
+        for node in graph.nodes
+        if any(tuple(vertex) == pytest.approx((15, 5, 0)) for vertex in graph.face(node).vertices())
+    )
     assert len(nodes) == 3
     assert prove_corner_section(graph, nodes, "z") is None
 
@@ -100,9 +113,11 @@ def test_non_owned_or_incomplete_face_sets_are_refused():
 def test_a_second_cap_is_not_called_an_open_run_end():
     part = corner() + Pos(0, 0, 7) * Box(60, 40, 2)
     graph = FaceGraph(part)
-    nodes = frozenset(node for node in graph.nodes
-                      if any(tuple(vertex) == pytest.approx((15, 5, 0))
-                             for vertex in graph.face(node).vertices()))
+    nodes = frozenset(
+        node
+        for node in graph.nodes
+        if any(tuple(vertex) == pytest.approx((15, 5, 0)) for vertex in graph.face(node).vertices())
+    )
     assert len(nodes) == 3
     assert prove_corner_section(graph, nodes, "z") is None
 
@@ -116,9 +131,11 @@ def test_remaining_step_summaries_are_laterally_open_not_closed_pockets():
     assert len(summaries) == 2
     assert not any(record.edge_anchored for record in summaries)
     assert len(product.result.section_recesses) == 2
-    assert all(item.classification.feature_kind == "channel"
-               and item.geometry.ends.low.condition == item.geometry.ends.high.condition == "open"
-               for item in product.result.section_recesses)
+    assert all(
+        item.classification.feature_kind == "channel"
+        and item.geometry.ends.low.condition == item.geometry.ends.high.condition == "open"
+        for item in product.result.section_recesses
+    )
     # Under the overhang and between the wall and step: void persists beyond both lateral
     # ends of the opposed-wall overlap. No third/fourth closing walls exist at those ends.
     for x, z, lateral in ((37, 8, 10), (-25, 8, 26)):
@@ -126,9 +143,9 @@ def test_remaining_step_summaries_are_laterally_open_not_closed_pockets():
         assert not part.is_inside(Vector(x, -lateral, z))
         assert not part.is_inside(Vector(x, lateral, z))
     assert part.is_inside(Vector(37, 0, 14))  # pad above the overhang region
-    assert part.is_inside(Vector(37, 0, 2))   # base below
+    assert part.is_inside(Vector(37, 0, 2))  # base below
     assert part.is_inside(Vector(-50, 0, 8))  # tall wall beside the second region
-    assert part.is_inside(Vector(0, 0, 8))    # lower step on its other side
+    assert part.is_inside(Vector(0, 0, 8))  # lower step on its other side
 
 
 @pytest.mark.parametrize("xy", [(20, 10), (27, 17)])
@@ -148,8 +165,10 @@ def test_suspended_material_in_run_or_mouth_refuses_corner_projection(xy, post_z
     # Discovery is unchanged: the accepted legacy summary must not become an unsupported
     # constant-section JSON occurrence merely because its three defining faces still exist.
     assert any(record.edge_anchored for record in product._legacy_result.pockets)
-    assert not any(record.classification.feature_kind == "edge_open_recess"
-                   for record in product.result.section_recesses)
+    assert not any(
+        record.classification.feature_kind == "edge_open_recess"
+        for record in product.result.section_recesses
+    )
 
 
 def test_material_probe_failure_refuses_projection_without_dropping_legacy_record(monkeypatch):

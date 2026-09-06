@@ -68,9 +68,7 @@ from quiddity.chamfers import BevelReject, classify_bevel, convex_bevel
 #: A 45° wedge whose in-plane legs are both 4 mm: rotating a square 45° puts its half-diagonal
 #: on each axis, so a side of 4·√2 cuts 4 mm into each of the two faces meeting at the edge.
 _WEDGE = 5.657
-_SUBDIVIDED_TERMINAL = (
-    Path(__file__).parent / "corpus" / "mfcadpp_regressions" / "11512.step"
-)
+_SUBDIVIDED_TERMINAL = Path(__file__).parent / "corpus" / "mfcadpp_regressions" / "11512.step"
 _SUBDIVIDED_TERMINAL_MANIFEST = _SUBDIVIDED_TERMINAL.with_name("MANIFEST.json")
 
 
@@ -97,12 +95,8 @@ def _linear_face(points: list[tuple[float, float, float]]) -> Face:
 
 def test_split_triangle_predicate_is_not_a_four_sided_relaxation() -> None:
     split_triangle = _linear_face([(0, 0, 0), (2, 0, 0), (4, 0, 0), (0, 4, 0)])
-    split_rectangle = _linear_face(
-        [(0, 0, 0), (2, 0, 0), (4, 0, 0), (4, 4, 0), (0, 4, 0)]
-    )
-    near_collinear_quad = _linear_face(
-        [(0, 0, 0), (2, 1e-4, 0), (4, 0, 0), (0, 4, 0)]
-    )
+    split_rectangle = _linear_face([(0, 0, 0), (2, 0, 0), (4, 0, 0), (4, 4, 0), (0, 4, 0)])
+    near_collinear_quad = _linear_face([(0, 0, 0), (2, 1e-4, 0), (4, 0, 0), (0, 4, 0)])
 
     assert _effective_linear_sides(split_triangle) == 3
     assert _effective_linear_sides(split_rectangle) == 4
@@ -125,9 +119,7 @@ def test_split_triangle_predicate_is_not_a_four_sided_relaxation() -> None:
     ("offset", "expected"),
     [(1e-5, 3), (1e-4, 4)],
 )
-def test_split_triangle_direction_boundary_is_fail_closed(
-    offset: float, expected: int
-) -> None:
+def test_split_triangle_direction_boundary_is_fail_closed(offset: float, expected: int) -> None:
     boundary = _linear_face([(0, 0, 0), (2, offset, 0), (4, 0, 0), (0, 4, 0)])
 
     assert _effective_linear_sides(boundary) == expected
@@ -199,12 +191,8 @@ def test_compatibility_terminal_boolean_reads_the_bounded_terminal_result() -> N
     through_faces = list(_through().faces())
     through_edges = edge_face_map(through_faces)
 
-    assert any(
-        _closed_by_a_triangular_flat(face, blind_edges) for face in blind_faces
-    )
-    assert not any(
-        _closed_by_a_triangular_flat(face, through_edges) for face in through_faces
-    )
+    assert any(_closed_by_a_triangular_flat(face, blind_edges) for face in blind_faces)
+    assert not any(_closed_by_a_triangular_flat(face, through_edges) for face in through_faces)
 
 
 def test_a_wedge_stopped_inside_the_part_is_an_angled_step():
@@ -352,9 +340,7 @@ def test_the_chamfer_family_proposes_a_slant_and_the_reconciler_takes_it_back():
         chamfers = recognise_chamfers(part, ledger=ledger)
         steps = recognise_angled_steps(part, ledger=ledger)
         assert (
-            chamfers_that_are_not_angled_steps(
-                chamfers, steps, ledger.snapshot_index()
-            )
+            chamfers_that_are_not_angled_steps(chamfers, steps, ledger.snapshot_index())
             == chamfers[:kept]
         )
         assert len(steps) == 1 - kept
@@ -477,9 +463,7 @@ def test_a_gusset_filling_a_concave_corner_is_not_an_angled_step():
         oi = [j for j in (0, 1, 2) if j != edge_i]
         centre = {i: 0.5 * (span[i][0] + span[i][1]) for i in (0, 1, 2)}
         neigh = nearest_axis_aligned_planes(face, edge_faces, centre, exclude_axis=edge_i)
-        if oi[0] in neigh and oi[1] in neigh and not convex_bevel(
-            gusseted, centre, edge_i, neigh
-        ):
+        if oi[0] in neigh and oi[1] in neigh and not convex_bevel(gusseted, centre, edge_i, neigh):
             reached += 1
     assert reached == 1, "this fixture must reject exactly at the convex probe"
 
@@ -519,9 +503,7 @@ def test_a_bolt_hole_through_the_blind_end_does_not_hide_the_step():
     assert len(ends[0].edges()) == 4, "the fixture must actually add an edge to the flat"
     assert len(ends[0].outer_wire().edges()) == 3
 
-    ledger, drilled = attributed_run(
-        drilled_part, FamilyId.ANGLED_STEPS, recognise_angled_steps
-    )
+    ledger, drilled = attributed_run(drilled_part, FamilyId.ANGLED_STEPS, recognise_angled_steps)
     assert drilled == plain
     (candidate,) = ledger.candidate_set(FamilyId.ANGLED_STEPS).candidates
     assert len(ledger.defining_of(candidate)) == 1

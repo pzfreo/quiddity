@@ -62,7 +62,8 @@ def _measure(parts: list[tuple[str, Any]]) -> dict[str, Any]:
             {
                 "id": model_id,
                 "pre_existing_outputs_equal": detector_outputs_equal(
-                    enabled._legacy_result, disabled._legacy_result,
+                    enabled._legacy_result,
+                    disabled._legacy_result,
                     excluding=("round_bottom_blind_slots",),
                 ),
                 "raw_round_bottom_blind_slots": len(raw),

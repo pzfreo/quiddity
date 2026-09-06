@@ -74,9 +74,7 @@ def _measure(parts: list[tuple[str, Any]]) -> dict[str, Any]:
     disabled_times = [row["disabled_seconds"] for row in rows]
     enabled_times = [row["enabled_seconds"] for row in rows]
     return {
-        "all_pre_existing_outputs_equal": all(
-            row["pre_existing_outputs_equal"] for row in rows
-        ),
+        "all_pre_existing_outputs_equal": all(row["pre_existing_outputs_equal"] for row in rows),
         "legacy_z_stock": sum(row["legacy_z_stock"] for row in rows),
         "principal_axis_stock": sum(row["principal_axis_stock"] for row in rows),
         "disabled": _summary(disabled_times),

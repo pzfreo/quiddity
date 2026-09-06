@@ -147,9 +147,7 @@ def _fillet_plane_read(part, face) -> dict[str, Any]:
                 "distinct_equidistant": max(tied) - min(tied) > plane_tol,
             }
         )
-    legacy = nearest_axis_aligned_planes(
-        face, face_edges, centre, exclude_axis=edge_axis
-    )
+    legacy = nearest_axis_aligned_planes(face, face_edges, centre, exclude_axis=edge_axis)
     unambiguous = nearest_axis_aligned_planes(
         face,
         face_edges,
@@ -163,13 +161,10 @@ def _fillet_plane_read(part, face) -> dict[str, Any]:
         "axes": axes,
         "legacy_lower_coordinate_choice": {
             "coordinates": {"xyz"[axis]: round(value, 12) for axis, value in legacy.items()},
-            "convex": required <= legacy.keys()
-            and convex_bevel(part, centre, edge_axis, legacy),
+            "convex": required <= legacy.keys() and convex_bevel(part, centre, edge_axis, legacy),
         },
         "unambiguous_choice": {
-            "coordinates": {
-                "xyz"[axis]: round(value, 12) for axis, value in unambiguous.items()
-            },
+            "coordinates": {"xyz"[axis]: round(value, 12) for axis, value in unambiguous.items()},
             "has_both_required_planes": required <= unambiguous.keys(),
         },
     }
@@ -278,9 +273,7 @@ def _plate_model(dataset_root: Path) -> dict[str, Any]:
         "file": path.name,
         "step_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
         "frame": _frame(frame),
-        "raw_aggregate_plates": len(
-            raw_product.accepted.candidate_set(FamilyId.PLATES).candidates
-        ),
+        "raw_aggregate_plates": len(raw_product.accepted.candidate_set(FamilyId.PLATES).candidates),
         "local_aggregate_plates": len(
             local_product.accepted.candidate_set(FamilyId.PLATES).candidates
         ),
@@ -291,11 +284,7 @@ def _plate_model(dataset_root: Path) -> dict[str, Any]:
 
 def audit(dataset_root: Path) -> dict[str, Any]:
     models = _fillet_models(dataset_root)
-    if any(
-        model[side]["accepted_target_fillet"]
-        for model in models
-        for side in ("raw", "local")
-    ):
+    if any(model[side]["accepted_target_fillet"] for model in models for side in ("raw", "local")):
         raise RuntimeError("a target false Fillet remains accepted")
     plate = _plate_model(dataset_root)
     if plate["raw_aggregate_plates"] != 1 or plate["local_aggregate_plates"] != 0:

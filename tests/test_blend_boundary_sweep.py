@@ -31,11 +31,13 @@ def test_checked_in_blend_boundary_evidence_is_current(report) -> None:
 
 def test_sweep_separates_survival_loss_and_reclassification(report) -> None:
     assert report["schema"] == 1
-    assert report["baseline_commit"] == BASELINE_COMMIT == (
-        "5569f1405c87be8156e20726152d481623fee6c0"
+    assert (
+        report["baseline_commit"] == BASELINE_COMMIT == ("5569f1405c87be8156e20726152d481623fee6c0")
     )
-    assert report["implementation_commit"] == IMPLEMENTATION_COMMIT == (
-        "50262610a82114276f736baec64278f5fc12b567"
+    assert (
+        report["implementation_commit"]
+        == IMPLEMENTATION_COMMIT
+        == ("50262610a82114276f736baec64278f5fc12b567")
     )
     assert report["radii_role"] == "authored input geometry, not recognition thresholds"
     assert report["performance_budget_seconds"] == PERFORMANCE_BUDGET_SECONDS == 30.0
@@ -55,8 +57,7 @@ def test_sweep_proves_pad_as_the_second_selected_consumer(report) -> None:
     pad = report["cases"]["rectangular-pad-side-boundary"]
     assert {variant["outcome"] for variant in pad["variants"]} == {"same-family"}
     assert all(
-        variant["expected_records"] == pad["plain_records"]["pads"]
-        for variant in pad["variants"]
+        variant["expected_records"] == pad["plain_records"]["pads"] for variant in pad["variants"]
     )
 
     boss = report["cases"]["polygonal-boss-side-boundary"]
@@ -72,8 +73,7 @@ def test_pocket_reclassification_is_not_reported_as_simple_loss(report) -> None:
 
     assert {variant["outcome"] for variant in pocket["variants"]} == {"reclassified"}
     assert all(
-        variant["introduced_families"] == ["prismatic_pockets"]
-        for variant in pocket["variants"]
+        variant["introduced_families"] == ["prismatic_pockets"] for variant in pocket["variants"]
     )
 
 

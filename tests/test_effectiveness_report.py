@@ -78,6 +78,8 @@ def test_section_recess_keeps_one_physical_identity_while_scoring_taxonomy(shape
     )
 
     assert _scoring_family(candidate) == expected
+
+
 TAXONOMY_V9 = ROOT / "docs" / "benchmarks" / "effectiveness-taxonomy-v9.json"
 TAXONOMY_V10 = ROOT / "docs" / "benchmarks" / "effectiveness-taxonomy-v10.json"
 TAXONOMY_V11 = ROOT / "docs" / "benchmarks" / "effectiveness-taxonomy-v11.json"

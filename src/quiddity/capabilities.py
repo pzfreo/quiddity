@@ -195,9 +195,7 @@ def _validate_record(record: object, family_id: str, index: int) -> str:
     ):
         raise CapabilityManifestError(f"{context}.aggregate_membership is invalid")
     if membership != sorted(set(membership)):
-        raise CapabilityManifestError(
-            f"{context}.aggregate_membership must be unique and sorted"
-        )
+        raise CapabilityManifestError(f"{context}.aggregate_membership must be unique and sorted")
     rationale = record.get("aggregate_membership_rationale")
     if not membership and (not isinstance(rationale, str) or not rationale):
         raise CapabilityManifestError(f"{context} needs an empty-membership rationale")
@@ -346,9 +344,7 @@ def validate_capability_manifest(manifest: object) -> None:
                 _version(recogniser["remove_in"], f"family {family_id!r} remove_in")
                 if not (
                     isinstance(recogniser["replacement"], str)
-                    and recogniser["replacement"].startswith(
-                        "quiddity.recognise_"
-                    )
+                    and recogniser["replacement"].startswith("quiddity.recognise_")
                 ):
                     raise CapabilityManifestError(
                         f"family {family_id!r} compatibility replacement is invalid"
@@ -376,9 +372,9 @@ def validate_capability_manifest(manifest: object) -> None:
                 raise CapabilityManifestError(f"family {family_id!r} has census output without key")
         elif not isinstance(family["census_name"], str) or not family["census_name"]:
             raise CapabilityManifestError(f"family {family_id!r}.census_name is invalid")
-        elif not isinstance(family["census_output"], str) or not family[
-            "census_output"
-        ].startswith("RecognitionResult."):
+        elif not isinstance(family["census_output"], str) or not family["census_output"].startswith(
+            "RecognitionResult."
+        ):
             raise CapabilityManifestError(f"family {family_id!r}.census_output is invalid")
         for key in ("documentation", "golden_evidence", "test_evidence"):
             _paths(family[key], f"family {family_id!r}.{key}", allow_empty=status != "supported")
@@ -421,9 +417,10 @@ def capability_manifest(*, format_version: int = CAPABILITY_FORMAT_VERSION) -> C
 
 def capability_manifest_json(*, format_version: int = CAPABILITY_FORMAT_VERSION) -> str:
     """Return the installed manifest as deterministic, newline-terminated JSON."""
-    return json.dumps(
-        capability_manifest(format_version=format_version), indent=2, sort_keys=True
-    ) + "\n"
+    return (
+        json.dumps(capability_manifest(format_version=format_version), indent=2, sort_keys=True)
+        + "\n"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

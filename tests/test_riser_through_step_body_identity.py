@@ -20,9 +20,7 @@ _MINIMUM_Z = (Align.CENTER, Align.CENTER, Align.MIN)
 def _stair():
     """A Y-through open step whose two X walls are also structural risers."""
 
-    return Box(20, 30, 10, align=_MINIMUM_Z) + Pos(0, 0, 10) * Box(
-        10, 30, 10, align=_MINIMUM_Z
-    )
+    return Box(20, 30, 10, align=_MINIMUM_Z) + Pos(0, 0, 10) * Box(10, 30, 10, align=_MINIMUM_Z)
 
 
 def _remote_through_step(*, gap: float):

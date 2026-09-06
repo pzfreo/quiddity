@@ -144,13 +144,14 @@ def _oriented_cross_area(
         plane_projection = sum(
             value * direction for value, direction in zip(plane, normal, strict=True)
         )
-        if vertices and max(
-            sum(
-                value * direction
-                for value, direction in zip(vertex, normal, strict=True)
+        if (
+            vertices
+            and max(
+                sum(value * direction for value, direction in zip(vertex, normal, strict=True))
+                for vertex in vertices
             )
-            for vertex in vertices
-        ) > plane_projection + support_eps:
+            > plane_projection + support_eps
+        ):
             # A concave/internal planar wall does not establish a body-envelope direction.
             continue
         angle = math.degrees(math.atan2(normal[other[1]], normal[other[0]])) % 90.0
@@ -266,8 +267,7 @@ def _plate_proposals(
         # correctly ordered, geometrically thin opposed span. Avoid constructing oriented
         # envelopes for axes that are incapable of publishing a Plate under any area threshold.
         if not any(
-            tol < high - low
-            and clears_threshold(maximum_thickness, high - low)
+            tol < high - low and clears_threshold(maximum_thickness, high - low)
             for low in negative
             for high in positive
         ):

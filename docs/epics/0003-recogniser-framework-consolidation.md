@@ -66,20 +66,24 @@ review.
 ```python
 RecordT = TypeVar("RecordT")  # invariant
 
+
 @dataclass(frozen=True, slots=True, eq=False, init=False)
 class Candidate(Generic[RecordT]):  # constructed only by this module's sink
     family: FamilyId
     record: RecordT
     evidence: Evidence
 
+
 @dataclass(frozen=True, slots=True)
 class Evidence:
     defining: frozenset[FaceNode]
+
 
 @dataclass(frozen=True, slots=True)
 class CandidateSet(Generic[RecordT]):
     family: FamilyId
     candidates: tuple[Candidate[RecordT], ...]
+
 
 class EvidenceSink(Protocol):
     def propose(
@@ -100,15 +104,15 @@ class EvidenceSink(Protocol):
         fact: PredicateFact,
     ) -> Observation: ...
 
+
 class CandidateIndex(Protocol):
     def by_family(self, family: FamilyId) -> tuple[Candidate[Any], ...]: ...
+
 
 class EvidenceIndex(Protocol):
     def defining_of(self, candidate: Candidate[Any]) -> frozenset[FaceNode]: ...
     def claims_of(self, node: FaceNode) -> tuple[Candidate[Any], ...]: ...
-    def observations(
-        self, family: FamilyId, predicate: PredicateId
-    ) -> tuple[Observation, ...]: ...
+    def observations(self, family: FamilyId, predicate: PredicateId) -> tuple[Observation, ...]: ...
 ```
 
 `EvidenceSink.propose` is the atomic identity boundary: it validates graph provenance and creates
@@ -129,12 +133,14 @@ The disposition layer is private:
 ```python
 Outcome = Literal["accepted", "rejected"]
 
+
 @dataclass(frozen=True, slots=True, eq=False)
 class Disposition:
     candidate: Candidate[Any]
     outcome: Outcome
     reason: ReasonCode
     related: tuple[Candidate[Any], ...] = ()
+
 
 @dataclass(frozen=True, slots=True)
 class ReconciliationResult:

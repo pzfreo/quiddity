@@ -511,9 +511,7 @@ class BlendCollapseIndex:
             supports=(supports[0], supports[1]),
             spring_arcs=_ordered_arcs(arc for group in spring_groups for arc in group),
             internal_arcs=_ordered_arcs(internal),
-            terminal_arcs=_ordered_arcs(
-                arc for group in terminal_groups_arcs for arc in group
-            ),
+            terminal_arcs=_ordered_arcs(arc for group in terminal_groups_arcs for arc in group),
             side=side,
             radius=radius,
             solid=solid,
@@ -668,9 +666,7 @@ class CollapsedGraphView:
             arcs.append(arc)
             arc_provenance[arc] = FrozenProvenance(
                 frozenset((*chain.blend_nodes, *chain.supports[0], *chain.supports[1])),
-                _ordered_arcs(
-                    (*chain.spring_arcs, *chain.internal_arcs, *chain.terminal_arcs)
-                ),
+                _ordered_arcs((*chain.spring_arcs, *chain.internal_arcs, *chain.terminal_arcs)),
             )
         self._arcs = tuple(arcs)
         self._issued_arcs = {

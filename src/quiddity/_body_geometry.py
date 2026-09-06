@@ -207,12 +207,14 @@ def validate_matching_boundary_graph(
         or type(value.symmetric) is not bool
     ):
         raise UnsupportedBodyGeometry("matching boundary schema is malformed")
+
     def valid_point(point: object) -> bool:
         return (
             type(point) is tuple
             and len(point) == 3
             and all(type(item) is float and math.isfinite(item) for item in point)
         )
+
     if any(
         type(vertex) is not tuple
         or len(vertex) != 3
@@ -247,12 +249,9 @@ def validate_matching_boundary_graph(
                 raise UnsupportedBodyGeometry("matching line value is malformed")
             line_left, line_right = curve.vertices
             if abs(
-                math.dist(value.vertices[line_left], value.vertices[line_right])
-                - curve.length
+                math.dist(value.vertices[line_left], value.vertices[line_right]) - curve.length
             ) > (6.0 * quantum):
-                raise UnsupportedBodyGeometry(
-                    "matching line no longer reconstructs its vertices"
-                )
+                raise UnsupportedBodyGeometry("matching line no longer reconstructs its vertices")
         elif (
             not valid_point(curve.centre)
             or not valid_point(curve.axis)
@@ -261,10 +260,7 @@ def validate_matching_boundary_graph(
             or curve.radius <= 0.0
             or type(curve.sweep) is not float
             or not math.isfinite(curve.sweep)
-            or (
-                curve.full
-                and (curve.vertices is not None or curve.sweep != 2.0 * math.pi)
-            )
+            or (curve.full and (curve.vertices is not None or curve.sweep != 2.0 * math.pi))
             or (
                 not curve.full
                 and (
@@ -287,9 +283,7 @@ def validate_matching_boundary_graph(
             if _qaxis(curve.axis) != curve.axis or curve.radius <= quantum:
                 raise UnsupportedBodyGeometry("matching circle gauge changed")
             if abs(curve.length - curve.radius * abs(curve.sweep)) > 8.0 * quantum:
-                raise UnsupportedBodyGeometry(
-                    "matching circle no longer reconstructs its length"
-                )
+                raise UnsupportedBodyGeometry("matching circle no longer reconstructs its length")
             if not curve.full:
                 for circle_vertex_index in cast(tuple[int, int], curve.vertices):
                     delta = tuple(
@@ -300,15 +294,9 @@ def validate_matching_boundary_graph(
                     )
                     radial = math.sqrt(sum(item * item for item in delta))
                     axial = abs(
-                        sum(
-                            item * axis
-                            for item, axis in zip(delta, curve.axis, strict=True)
-                        )
+                        sum(item * axis for item, axis in zip(delta, curve.axis, strict=True))
                     )
-                    if (
-                        abs(radial - curve.radius) > 6.0 * quantum
-                        or axial > 6.0 * quantum
-                    ):
+                    if abs(radial - curve.radius) > 6.0 * quantum or axial > 6.0 * quantum:
                         raise UnsupportedBodyGeometry(
                             "matching circle no longer reconstructs its vertices"
                         )
@@ -348,8 +336,7 @@ def validate_matching_boundary_graph(
             ):
                 raise UnsupportedBodyGeometry("matching boundary wire schema is malformed")
             if wire.cycle != min(
-                wire.cycle[index:] + wire.cycle[:index]
-                for index in range(len(wire.cycle))
+                wire.cycle[index:] + wire.cycle[:index] for index in range(len(wire.cycle))
             ):
                 raise UnsupportedBodyGeometry("matching wire canonical start changed")
             for occurrence_index, half_edge in enumerate(wire.cycle):
@@ -386,9 +373,7 @@ def validate_matching_boundary_graph(
                         )
                         for vertex in (half_edge.start, half_edge.end)
                     ):
-                        raise UnsupportedBodyGeometry(
-                            "matching half-edge parameter schema changed"
-                        )
+                        raise UnsupportedBodyGeometry("matching half-edge parameter schema changed")
                     expected_vertices = (
                         cast(tuple[int, int], curve.vertices)
                         if half_edge.direction == 1
@@ -398,9 +383,7 @@ def validate_matching_boundary_graph(
                         raise UnsupportedBodyGeometry(
                             "matching half-edge traversal disagrees with its curve"
                         )
-                occurrences.append(
-                    (half_edge.curve, (face_index, wire_index, occurrence_index))
-                )
+                occurrences.append((half_edge.curve, (face_index, wire_index, occurrence_index)))
             for left_half_edge, right_half_edge in zip(
                 wire.cycle, wire.cycle[1:] + wire.cycle[:1], strict=True
             ):
@@ -421,17 +404,12 @@ def validate_matching_boundary_graph(
                         )
                 else:
                     theta_residual = (
-                        left_half_edge.end.parameter[0]
-                        - right_half_edge.start.parameter[0]
+                        left_half_edge.end.parameter[0] - right_half_edge.start.parameter[0]
                     )
                     turns = round(theta_residual / (2.0 * math.pi))
                     if (
-                        abs(theta_residual - turns * 2.0 * math.pi)
-                        > 4.0 * ANGLE_TOL
-                        or abs(
-                            left_half_edge.end.parameter[1]
-                            - right_half_edge.start.parameter[1]
-                        )
+                        abs(theta_residual - turns * 2.0 * math.pi) > 4.0 * ANGLE_TOL
+                        or abs(left_half_edge.end.parameter[1] - right_half_edge.start.parameter[1])
                         > 4.0 * quantum
                     ):
                         raise UnsupportedBodyGeometry(
@@ -447,10 +425,7 @@ def validate_matching_boundary_graph(
                             cast(FaceGeometry, face),
                             quantum,
                         )
-                        if (
-                            math.dist(expected_parameter, wire_vertex.parameter)
-                            > 4.0 * quantum
-                        ):
+                        if math.dist(expected_parameter, wire_vertex.parameter) > 4.0 * quantum:
                             raise UnsupportedBodyGeometry(
                                 "matching planar pcurve parameter changed"
                             )
@@ -464,12 +439,8 @@ def validate_matching_boundary_graph(
                     for item in wire.cycle
                 )
                 expected_positive = (wire.role == "outer") == (face.material_side > 0)
-                if abs(signed_area) <= quantum**2 or (
-                    (signed_area > 0.0) != expected_positive
-                ):
-                    raise UnsupportedBodyGeometry(
-                        "matching planar material orientation changed"
-                    )
+                if abs(signed_area) <= quantum**2 or ((signed_area > 0.0) != expected_positive):
+                    raise UnsupportedBodyGeometry("matching planar material orientation changed")
             else:
                 cylinder_axis = axis
                 cylinder_point = cast(QPoint, face.parameters[3:6])
@@ -480,11 +451,7 @@ def validate_matching_boundary_graph(
                 for half_edge in wire.cycle:
                     if half_edge.start is None or half_edge.end is None:
                         curve = value.curves[half_edge.curve]
-                        if (
-                            not curve.full
-                            or curve.centre is None
-                            or curve.kind != "CIRCLE"
-                        ):
+                        if not curve.full or curve.centre is None or curve.kind != "CIRCLE":
                             raise UnsupportedBodyGeometry(
                                 "matching endpoint-free cylinder curve changed"
                             )
@@ -503,9 +470,7 @@ def validate_matching_boundary_graph(
                         continue
                     start = half_edge.start.parameter
                     end = half_edge.end.parameter
-                    lifted_area += 0.5 * (
-                        start[0] * end[1] - end[0] * start[1]
-                    )
+                    lifted_area += 0.5 * (start[0] * end[1] - end[0] * start[1])
                     theta_delta += end[0] - start[0]
                     for wire_vertex in (half_edge.start, half_edge.end):
                         theta, z = wire_vertex.parameter
@@ -513,16 +478,16 @@ def validate_matching_boundary_graph(
                             cylinder_point[index]
                             + z * cylinder_axis[index]
                             + cylinder_radius
-                            * (
-                                math.cos(theta) * u_axis[index]
-                                + math.sin(theta) * v_axis[index]
-                            )
+                            * (math.cos(theta) * u_axis[index] + math.sin(theta) * v_axis[index])
                             for index in range(3)
                         )
-                        if math.dist(
-                            reconstructed,
-                            value.vertices[cast(int, wire_vertex.vertex)],
-                        ) > 8.0 * quantum:
+                        if (
+                            math.dist(
+                                reconstructed,
+                                value.vertices[cast(int, wire_vertex.vertex)],
+                            )
+                            > 8.0 * quantum
+                        ):
                             raise UnsupportedBodyGeometry(
                                 "matching cylinder pcurve parameter changed"
                             )
@@ -530,18 +495,13 @@ def validate_matching_boundary_graph(
                 if abs(lifted_area) <= ANGLE_TOL * quantum or (
                     (lifted_area > 0.0) != expected_positive
                 ):
-                    raise UnsupportedBodyGeometry(
-                        "matching cylinder material orientation changed"
-                    )
+                    raise UnsupportedBodyGeometry("matching cylinder material orientation changed")
                 winding = int(round(theta_delta / (2.0 * math.pi)))
                 if (
                     winding != wire.theta_winding
-                    or abs(theta_delta - winding * 2.0 * math.pi)
-                    > 4.0 * ANGLE_TOL
+                    or abs(theta_delta - winding * 2.0 * math.pi) > 4.0 * ANGLE_TOL
                 ):
-                    raise UnsupportedBodyGeometry(
-                        "matching cylinder theta winding changed"
-                    )
+                    raise UnsupportedBodyGeometry("matching cylinder theta winding changed")
     expected = tuple(
         (curve, tuple(item for key, item in occurrences if key == curve))
         for curve in range(len(value.curves))
@@ -706,10 +666,9 @@ def _qaxis(raw: tuple[float, float, float]) -> QPoint:
     norm = math.sqrt(sum(component * component for component in snapped))
     if abs(norm - 1.0) > DIRECTION_TOL:
         raise UnsupportedBodyGeometry("quantized analytic direction is not unit length")
-    if (
-        sum((after - before) ** 2 for before, after in zip(canonical, snapped, strict=True))
-        > math.nextafter((2.0 * DIRECTION_TOL) ** 2, math.inf)
-    ):
+    if sum(
+        (after - before) ** 2 for before, after in zip(canonical, snapped, strict=True)
+    ) > math.nextafter((2.0 * DIRECTION_TOL) ** 2, math.inf):
         raise UnsupportedBodyGeometry("analytic direction exceeds the reconstruction bound")
     return snapped  # type: ignore[return-value]
 
@@ -1271,8 +1230,7 @@ def _planar_cycle(
         full_oriented = tuple(
             item
             for item in alternatives
-            if (_half_edge_integral(item, curves, face, quantum) > 0.0)
-            == expected_positive
+            if (_half_edge_integral(item, curves, face, quantum) > 0.0) == expected_positive
         )
         if len(full_oriented) != 1:
             raise UnsupportedBodyGeometry("full matching circle orientation is ambiguous")
@@ -1286,8 +1244,7 @@ def _planar_cycle(
     parameters = {}
     for vertex in adjacency:
         delta = tuple(
-            value - origin
-            for value, origin in zip(vertices[vertex], plane_origin, strict=True)
+            value - origin for value, origin in zip(vertices[vertex], plane_origin, strict=True)
         )
         parameters[vertex] = (
             _snap_checked(
@@ -1348,9 +1305,7 @@ def _planar_cycle(
     expected_positive = (role == "outer") == (face.material_side > 0)
     for candidate in candidates:
         budget.charge()
-        area = sum(
-            _half_edge_integral(item, curves, face, quantum) for item in candidate
-        )
+        area = sum(_half_edge_integral(item, curves, face, quantum) for item in candidate)
         if abs(area) <= quantum**2:
             raise UnsupportedBodyGeometry("matching wire signed area is degenerate")
         if (area > 0.0) == expected_positive:
@@ -1391,9 +1346,7 @@ def _cylinder_gauge(
     axis_point = cast(QPoint, face.parameters[3:6])
     u_axis, v_axis = _plane_basis(axis)
     raw_axis = _vector(surface.Cylinder().Axis().Direction())
-    axis_sign = (
-        1.0 if sum(a * b for a, b in zip(raw_axis, axis, strict=True)) > 0 else -1.0
-    )
+    axis_sign = 1.0 if sum(a * b for a, b in zip(raw_axis, axis, strict=True)) > 0 else -1.0
     origin = surface.Value(0.0, 0.0)
     origin_relative = (
         origin.X() - centre[0] - axis_point[0],
@@ -1402,8 +1355,7 @@ def _cylinder_gauge(
     )
     along = sum(x * n for x, n in zip(origin_relative, axis, strict=True))
     radial = tuple(
-        value - along * normal
-        for value, normal in zip(origin_relative, axis, strict=True)
+        value - along * normal for value, normal in zip(origin_relative, axis, strict=True)
     )
     phase = math.atan2(
         sum(value * basis for value, basis in zip(radial, v_axis, strict=True)),
@@ -1467,9 +1419,9 @@ def _validate_matching_pcurve(
         reconstructed_norm = math.sqrt(sum(value * value for value in reconstructed))
         if source_norm <= 0.0 or reconstructed_norm <= 0.0:
             raise UnsupportedBodyGeometry("matching pcurve tangent is degenerate")
-        cosine = sum(
-            left * right for left, right in zip(source, reconstructed, strict=True)
-        ) / (source_norm * reconstructed_norm)
+        cosine = sum(left * right for left, right in zip(source, reconstructed, strict=True)) / (
+            source_norm * reconstructed_norm
+        )
         if 1.0 - max(-1.0, min(1.0, cosine)) > 2.0 * ANGLE_TOL:
             raise UnsupportedBodyGeometry("matching pcurve tangent exceeds its angular bound")
 
@@ -1536,9 +1488,7 @@ def _cylinder_pcurve_variants(
         raise UnsupportedBodyGeometry("matching cylinder pcurve roster is empty")
     expected = 2 if BRep_Tool.IsClosed_s(edge.wrapped, face.wrapped) else 1
     if len(variants) != expected:
-        raise UnsupportedBodyGeometry(
-            "matching cylinder pcurve closure roster is incomplete"
-        )
+        raise UnsupportedBodyGeometry("matching cylinder pcurve closure roster is incomplete")
     return tuple(sorted(variants))
 
 
@@ -1559,9 +1509,7 @@ def _cylinder_cycle_assignment(
         curve = curves[occurrence.curve]
         start_index = occurrence.end_vertex if reverse else occurrence.start_vertex
         end_index = occurrence.start_vertex if reverse else occurrence.end_vertex
-        start_parameter = (
-            occurrence.end_parameter if reverse else occurrence.start_parameter
-        )
+        start_parameter = occurrence.end_parameter if reverse else occurrence.start_parameter
         end_parameter = occurrence.start_parameter if reverse else occurrence.end_parameter
         if curve.full:
             if start_index is not None or end_index is not None:
@@ -1610,10 +1558,9 @@ def _cylinder_cycle_assignment(
     joined_items: set[
         tuple[tuple[MatchingHalfEdge, tuple[float, float], tuple[float, float]], ...]
     ] = set()
+
     def retain(
-        shifted: list[
-            tuple[MatchingHalfEdge, tuple[float, float], tuple[float, float]]
-        ],
+        shifted: list[tuple[MatchingHalfEdge, tuple[float, float], tuple[float, float]]],
     ) -> None:
         budget.charge()
         closure = lifted_join(shifted[-1], shifted[0])
@@ -1621,9 +1568,7 @@ def _cylinder_cycle_assignment(
             return
         # A common lift is presentation only.  Normalize it once for the complete
         # continuous cycle instead of preserving a kernel pcurve seam choice.
-        minimum_theta = min(
-            value for _edge, start, end in shifted for value in (start[0], end[0])
-        )
+        minimum_theta = min(value for _edge, start, end in shifted for value in (start[0], end[0]))
         common = -math.floor(minimum_theta / (2.0 * math.pi)) * 2.0 * math.pi
         normalized = []
         for half_edge, start, end in shifted:
@@ -1642,9 +1587,7 @@ def _cylinder_cycle_assignment(
                         half_edge.direction,
                         None
                         if half_edge.start is None
-                        else MatchingWireVertex(
-                            half_edge.start.vertex, start_parameter
-                        ),
+                        else MatchingWireVertex(half_edge.start.vertex, start_parameter),
                         None
                         if half_edge.end is None
                         else MatchingWireVertex(half_edge.end.vertex, end_parameter),
@@ -1656,9 +1599,7 @@ def _cylinder_cycle_assignment(
         joined_items.add(tuple(normalized))
 
     def extend(
-        shifted: list[
-            tuple[MatchingHalfEdge, tuple[float, float], tuple[float, float]]
-        ],
+        shifted: list[tuple[MatchingHalfEdge, tuple[float, float], tuple[float, float]]],
         remaining: tuple[_CylinderPcurveOccurrence, ...],
     ) -> None:
         if not remaining:
@@ -1721,9 +1662,9 @@ def _cylinder_cycle_assignment(
             middle: tuple[float, float],
             right: tuple[float, float],
         ) -> float:
-            return (middle[0] - left[0]) * (right[1] - left[1]) - (
-                middle[1] - left[1]
-            ) * (right[0] - left[0])
+            return (middle[0] - left[0]) * (right[1] - left[1]) - (middle[1] - left[1]) * (
+                right[0] - left[0]
+            )
 
         def intersects(
             left_start: tuple[float, float],
@@ -1743,14 +1684,10 @@ def _cylinder_cycle_assignment(
                     (values[2] > 0.0) != (values[3] > 0.0)
                 )
             return not (
-                max(left_start[0], left_end[0])
-                < min(right_start[0], right_end[0]) - _tolerance
-                or max(right_start[0], right_end[0])
-                < min(left_start[0], left_end[0]) - _tolerance
-                or max(left_start[1], left_end[1])
-                < min(right_start[1], right_end[1]) - _tolerance
-                or max(right_start[1], right_end[1])
-                < min(left_start[1], left_end[1]) - _tolerance
+                max(left_start[0], left_end[0]) < min(right_start[0], right_end[0]) - _tolerance
+                or max(right_start[0], right_end[0]) < min(left_start[0], left_end[0]) - _tolerance
+                or max(left_start[1], left_end[1]) < min(right_start[1], right_end[1]) - _tolerance
+                or max(right_start[1], right_end[1]) < min(left_start[1], left_end[1]) - _tolerance
             )
 
         simple = True
@@ -1775,8 +1712,7 @@ def _cylinder_cycle_assignment(
         if not simple:
             continue
         area = 0.5 * sum(
-            left[0] * right[1] - right[0] * left[1]
-            for _, left, right in occurrence_cycle
+            left[0] * right[1] - right[0] * left[1] for _, left, right in occurrence_cycle
         )
         if abs(area) <= ANGLE_TOL * quantum:
             continue
@@ -1810,11 +1746,7 @@ def _cylinder_cycle(
     accepted: set[MatchingWire] = set()
     for assignment in assignments:
         budget.charge()
-        accepted.update(
-            _cylinder_cycle_assignment(
-                assignment, curves, role, face, quantum, budget
-            )
-        )
+        accepted.update(_cylinder_cycle_assignment(assignment, curves, role, face, quantum, budget))
     if len(accepted) != 1:
         raise UnsupportedBodyGeometry(
             "matching cylinder wire has no unique material-oriented cycle"
@@ -1868,9 +1800,7 @@ def _matching_graph_canonical(
             )
             for curve in curves
         )
-        for curve_order in _matching_label_orders(
-            remapped_curves, budget
-        ):
+        for curve_order in _matching_label_orders(remapped_curves, budget):
             curve_map = {old: new for new, old in enumerate(curve_order)}
             ordered_curves = tuple(remapped_curves[index] for index in curve_order)
             remapped_faces = []
@@ -1895,9 +1825,7 @@ def _matching_graph_canonical(
                         )
                         for item in wire.cycle
                     )
-                    rotations = tuple(
-                        cycle[index:] + cycle[:index] for index in range(len(cycle))
-                    )
+                    rotations = tuple(cycle[index:] + cycle[:index] for index in range(len(cycle)))
                     remapped_wires.append(
                         MatchingWire(wire.role, wire.theta_winding, min(rotations))
                     )
@@ -1912,9 +1840,7 @@ def _matching_graph_canonical(
                     )
                 )
             remapped_faces_tuple = tuple(remapped_faces)
-            for face_order in _matching_label_orders(
-                remapped_faces_tuple, budget
-            ):
+            for face_order in _matching_label_orders(remapped_faces_tuple, budget):
                 budget.charge()
                 ordered_faces = tuple(remapped_faces_tuple[index] for index in face_order)
                 incidence: dict[int, list[tuple[int, int, int]]] = {}
@@ -1941,16 +1867,13 @@ def _matching_graph_canonical(
                         ),
                         len(ordered_faces),
                         sum(len(face.wires) for face in ordered_faces),
-                        sum(
-                            len(wire.cycle)
-                            for face in ordered_faces
-                            for wire in face.wires
-                        ),
+                        sum(len(wire.cycle) for face in ordered_faces for wire in face.wires),
                         False,
                     )
                 )
     if not candidates:
         raise UnsupportedBodyGeometry("matching graph has no canonical serialization")
+
     def key(value: MatchingBoundaryGraph) -> tuple[object, ...]:
         return (
             value.vertices,
@@ -1961,6 +1884,7 @@ def _matching_graph_canonical(
             value.wire_count,
             value.edge_occurrence_count,
         )
+
     selected = min(candidates, key=key)
     minimum = key(selected)
     return MatchingBoundaryGraph(
@@ -2012,15 +1936,11 @@ def matching_boundary_for_solid(
                 ):
                     previous = cached_edge_labels.get(token)
                     if previous is not None and previous != geometry:
-                        raise UnsupportedBodyGeometry(
-                            "matching cached curve authority disagrees"
-                        )
+                        raise UnsupportedBodyGeometry("matching cached curve authority disagrees")
                     cached_edge_labels[cast(Any, token)] = geometry
     face_curve_indices: list[list[tuple[str, tuple[object, ...]]]] = []
     face_adaptors = tuple(BRepAdaptor_Surface(face.wrapped) for face in faces)
-    for face, face_adaptor, face_build in zip(
-        faces, face_adaptors, face_builds, strict=True
-    ):
+    for face, face_adaptor, face_build in zip(faces, face_adaptors, face_builds, strict=True):
         wires: list[tuple[str, tuple[object, ...]]] = []
 
         def vertex_index(vertex: Any) -> int:
@@ -2049,9 +1969,7 @@ def matching_boundary_for_solid(
         ) -> int:
             cached_label = cached_edge_labels.get(edge)
             if cached_label is None:
-                raise UnsupportedBodyGeometry(
-                    "matching cached curve authority is incomplete"
-                )
+                raise UnsupportedBodyGeometry("matching cached curve authority is incomplete")
             curve_adaptor = curve_adaptors.get(edge)
             if curve_adaptor is None:
                 curve_adaptor = BRepAdaptor_Curve(edge.wrapped)
@@ -2113,12 +2031,9 @@ def matching_boundary_for_solid(
                     for alignment in wire_build.occurrences
                 )
                 if any(tokens != token_sets[0] for tokens in token_sets[1:]):
-                    raise UnsupportedBodyGeometry(
-                        "matching cached wire token roster disagrees"
-                    )
+                    raise UnsupportedBodyGeometry("matching cached wire token roster disagrees")
                 indices = tuple(
-                    register(cast(Any, token))
-                    for token, _direction in wire_build.occurrences[0]
+                    register(cast(Any, token)) for token, _direction in wire_build.occurrences[0]
                 )
                 wires.append((wire_build.geometry.role, indices))
             face_curve_indices.append(wires)
@@ -2148,9 +2063,7 @@ def matching_boundary_for_solid(
                 curve_index = register(edge, validate_pcurve=False)
                 curve_label = cached_edge_labels.get(edge)
                 if curve_label is None:
-                    raise UnsupportedBodyGeometry(
-                        "matching cylinder curve authority is incomplete"
-                    )
+                    raise UnsupportedBodyGeometry("matching cylinder curve authority is incomplete")
                 variants = _cylinder_pcurve_variants(
                     edge,
                     face,
@@ -2169,9 +2082,7 @@ def matching_boundary_for_solid(
                 if curve_label.full:
                     start_vertex = end_vertex = None
                 else:
-                    start_vertex = vertex_index(
-                        TopExp.FirstVertex_s(edge.wrapped, False)
-                    )
+                    start_vertex = vertex_index(TopExp.FirstVertex_s(edge.wrapped, False))
                     end_vertex = vertex_index(TopExp.LastVertex_s(edge.wrapped, False))
                 choices = []
                 for assignment in permutations(variants):
@@ -2244,9 +2155,7 @@ def matching_boundary_for_solid(
                 vertex_labels[ordered[0]] != edge_geometry.start
                 or vertex_labels[ordered[1]] != edge_geometry.end
             ):
-                raise UnsupportedBodyGeometry(
-                    "matching curve endpoints disagree with its geometry"
-                )
+                raise UnsupportedBodyGeometry("matching curve endpoints disagree with its geometry")
         matching_curves.append(
             MatchingCurve(
                 edge_geometry.kind,

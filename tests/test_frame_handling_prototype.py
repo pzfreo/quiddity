@@ -20,8 +20,7 @@ def test_frame_inference_tracks_a_rigidly_rotated_prism() -> None:
     assert isinstance(frame, PartFrame)
     axes = (frame.x, frame.y, frame.z)
     assert all(
-        abs(sum(left * right for left, right in zip(axes[i], axes[j], strict=True)))
-        < 1e-12
+        abs(sum(left * right for left, right in zip(axes[i], axes[j], strict=True))) < 1e-12
         for i, j in ((0, 1), (0, 2), (1, 2))
     )
 

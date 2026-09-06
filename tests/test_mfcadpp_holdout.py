@@ -134,9 +134,7 @@ def test_holdout_plate_stock_overlap_is_exact_boundary_evidence() -> None:
         for candidate in product.accepted.candidate_set(FamilyId.PLATES).candidates:
             defining = product.evidence.defining_of(candidate)
             labelled = [
-                (node, labels[index])
-                for index, node in enumerate(face_nodes)
-                if node in defining
+                (node, labels[index]) for index, node in enumerate(face_nodes) if node in defining
             ]
             stock_nodes = [node for node, label in labelled if LABELS[label] == STOCK]
             if not stock_nodes:
@@ -150,20 +148,14 @@ def test_holdout_plate_stock_overlap_is_exact_boundary_evidence() -> None:
                 assert normal is not None and abs(normal[axis]) >= 0.99
                 signed_labels.append((normal[axis] > 0, label))
             assert {sign for sign, _label in signed_labels} == {False, True}
-            stock_signs = {
-                sign for sign, label in signed_labels if LABELS[label] == STOCK
-            }
+            stock_signs = {sign for sign, label in signed_labels if LABELS[label] == STOCK}
             assert len(stock_signs) == 1
             stock_sign = next(iter(stock_signs))
             assert all(
-                LABELS[label] != STOCK
-                for sign, label in signed_labels
-                if sign != stock_sign
+                LABELS[label] != STOCK for sign, label in signed_labels if sign != stock_sign
             )
             assert any(
-                LABELS[label] != STOCK
-                for sign, label in signed_labels
-                if sign != stock_sign
+                LABELS[label] != STOCK for sign, label in signed_labels if sign != stock_sign
             )
         if count:
             observed[path.name] = count

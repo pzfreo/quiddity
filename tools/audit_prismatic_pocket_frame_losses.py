@@ -113,14 +113,11 @@ def _ring_boundary(graph: FaceGraph, face_indices: tuple[int, ...]) -> dict[str,
             None if normal is None else round(abs(normal[axis]), 12) for normal in normals
         ]
         all_walls_parallel = all(
-            component is not None and component <= AXIS_ZERO_COS
-            for component in normal_components
+            component is not None and component <= AXIS_ZERO_COS for component in normal_components
         )
         spans = [graph.bounds(node)[axis] for node in nodes]
         low_spread = max(low for low, _high in spans) - min(low for low, _high in spans)
-        high_spread = max(high for _low, high in spans) - min(
-            high for _low, high in spans
-        )
+        high_spread = max(high for _low, high in spans) - min(high for _low, high in spans)
         equal_span = low_spread <= SPAN_EPS and high_spread <= SPAN_EPS
         if all_walls_parallel and equal_span:
             passing_axes.append("xyz"[axis])
@@ -161,9 +158,7 @@ def audit(dataset_root: Path) -> dict[str, Any]:
         local = _normalize_part(raw, frame)
         raw_product = _take_inventory(raw)
         local_product = _take_inventory(local)
-        raw_candidates = raw_product.accepted.candidate_set(
-            FamilyId.PRISMATIC_POCKETS
-        ).candidates
+        raw_candidates = raw_product.accepted.candidate_set(FamilyId.PRISMATIC_POCKETS).candidates
         local_candidates = local_product.accepted.candidate_set(
             FamilyId.PRISMATIC_POCKETS
         ).candidates
@@ -176,10 +171,7 @@ def audit(dataset_root: Path) -> dict[str, Any]:
             if face_indices in local_face_sets:
                 continue
             raw_axis = cast(PrismaticPocket, candidate.record).axis
-            world_run = tuple(
-                1.0 if index == "xyz".index(raw_axis) else 0.0
-                for index in range(3)
-            )
+            world_run = tuple(1.0 if index == "xyz".index(raw_axis) else 0.0 for index in range(3))
             local_run = _local_direction(frame, world_run)
             absent.append(
                 {
@@ -217,9 +209,7 @@ def audit(dataset_root: Path) -> dict[str, Any]:
                 },
                 "raw_direct_prismatic_pockets": len(recognise_prismatic_pockets(raw)),
                 "raw_aggregate_prismatic_pockets": len(raw_candidates),
-                "local_direct_prismatic_pockets": len(
-                    recognise_prismatic_pockets(local)
-                ),
+                "local_direct_prismatic_pockets": len(recognise_prismatic_pockets(local)),
                 "local_aggregate_prismatic_pockets": len(local_candidates),
                 "absent_occurrences": absent,
             }

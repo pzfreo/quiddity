@@ -81,10 +81,9 @@ def _recognise_one(
         cap_region = _coplanar_region(graph, cap) & solid_nodes
         seen_caps.update(cap_region)
         run, cap_station = cap_plane
-        if (
-            any(axis_aligned_axis(graph.face(node).wrapped) != cap_plane for node in cap_region)
-            or not _principal_rectangle(graph, cap_region, run)
-        ):
+        if any(
+            axis_aligned_axis(graph.face(node).wrapped) != cap_plane for node in cap_region
+        ) or not _principal_rectangle(graph, cap_region, run):
             continue
         neighbours = {
             node
@@ -92,10 +91,7 @@ def _recognise_one(
             for node in graph.neighbours(source)
             if node not in cap_region and graph.is_planar(node)
         }
-        regions = {
-            _coplanar_region(graph, node) & solid_nodes
-            for node in neighbours
-        }
+        regions = {_coplanar_region(graph, node) & solid_nodes for node in neighbours}
         concave = tuple(
             region for region in regions if _relation(graph, cap_region, region) == "concave"
         )
@@ -105,8 +101,12 @@ def _recognise_one(
         for region in concave:
             seed = min(region, key=lambda node: node.index)
             plane = axis_aligned_axis(graph.face(seed).wrapped)
-            if plane is None or plane[0] == run or any(  # pragma: no branch
-                axis_aligned_axis(graph.face(node).wrapped) != plane for node in region
+            if (
+                plane is None
+                or plane[0] == run
+                or any(  # pragma: no branch
+                    axis_aligned_axis(graph.face(node).wrapped) != plane for node in region
+                )
             ):
                 break  # pragma: no cover - coplanar principal-plane regions establish one plane
             planes.append((region, plane))
@@ -171,9 +171,7 @@ def _recognise_one(
                 ):
                     continue
                 side_regions = (sides[0], floor, sides[1])
-                if not _common_convex_context(
-                    graph, side_regions, run, open_station, length
-                ):
+                if not _common_convex_context(graph, side_regions, run, open_station, length):
                     continue
                 cap_face = _region_face(graph, cap_region)
                 if cap_face is None:  # pragma: no cover - rectangle gate proved a sewable region
@@ -207,11 +205,7 @@ def _recognise_one(
     by_nodes: dict[frozenset[FaceNode], dict[RectangularBlindSlot, occurrence]] = {}
     for record, nodes in found:
         by_nodes.setdefault(nodes, {})[record] = (record, nodes)
-    return [
-        next(iter(records.values()))
-        for records in by_nodes.values()
-        if len(records) == 1
-    ]
+    return [next(iter(records.values())) for records in by_nodes.values() if len(records) == 1]
 
 
 def recognise_rectangular_blind_slots(

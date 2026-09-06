@@ -36,26 +36,34 @@ def test_conversion_sweep_proves_face_and_raised_pad_precision(report) -> None:
     assert report["face_correspondence"].startswith(
         "OCCT BRepBuilderAPI_NurbsConvert.ModifiedShape one-to-one"
     )
-    assert report["reviewed_delta_bounds"] == REVIEWED_DELTA_BOUNDS == {
-        "face_centre_model_units": 0.1,
-        "absolute_face_area_square_units": 25.0,
-        "relative_face_area": 0.004,
-        "effective_primitive_parameter": 1e-8,
-    }
-    assert report["excluded_fixtures"] == EXCLUDED_FIXTURES == {
-        "circular_blind_step": (
-            "whole-solid conversion changes the quarter-cylinder edge signature"
-        ),
-        "toroidal_blend_compound": (
-            "effective-surface recovery deliberately excludes native tori"
-        ),
-        "toroidal_blend_internal": (
-            "effective-surface recovery deliberately excludes native tori"
-        ),
-        "toroidal_blends_turned": (
-            "effective-surface recovery deliberately excludes native tori"
-        ),
-    }
+    assert (
+        report["reviewed_delta_bounds"]
+        == REVIEWED_DELTA_BOUNDS
+        == {
+            "face_centre_model_units": 0.1,
+            "absolute_face_area_square_units": 25.0,
+            "relative_face_area": 0.004,
+            "effective_primitive_parameter": 1e-8,
+        }
+    )
+    assert (
+        report["excluded_fixtures"]
+        == EXCLUDED_FIXTURES
+        == {
+            "circular_blind_step": (
+                "whole-solid conversion changes the quarter-cylinder edge signature"
+            ),
+            "toroidal_blend_compound": (
+                "effective-surface recovery deliberately excludes native tori"
+            ),
+            "toroidal_blend_internal": (
+                "effective-surface recovery deliberately excludes native tori"
+            ),
+            "toroidal_blends_turned": (
+                "effective-surface recovery deliberately excludes native tori"
+            ),
+        }
+    )
     assert report["totals"] == {
         "fixtures": 26,
         "faces": 384,
@@ -69,9 +77,7 @@ def test_conversion_sweep_proves_face_and_raised_pad_precision(report) -> None:
         "recovered_by_primitive": {"cone": 1, "cylinder": 40, "plane": 343},
         "refused_by_reason": {},
     }
-    assert all(
-        all(fixture["topology"].values()) for fixture in report["fixtures"].values()
-    )
+    assert all(all(fixture["topology"].values()) for fixture in report["fixtures"].values())
 
 
 def test_parameter_delta_ignores_equivalent_plane_direction_gauge() -> None:
@@ -81,11 +87,14 @@ def test_parameter_delta_ignores_equivalent_plane_direction_gauge() -> None:
     assert _parameter_delta(SurfaceKind.PLANE, native, converted) < 1e-12
 
 
-@pytest.mark.parametrize("value, expected", [
-    (9.470588235294117e-06, 9.47058824e-06),
-    (1.1285714285714287e-05, 1.12857143e-05),
-    (0.0010285714285714286, 0.00102857143),
-])
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        (9.470588235294117e-06, 9.47058824e-06),
+        (1.1285714285714287e-05, 1.12857143e-05),
+        (0.0010285714285714286, 0.00102857143),
+    ],
+)
 def test_report_distance_ignores_quadrature_ulps_but_preserves_meaningful_changes(value, expected):
     assert _reported_distance(value) == expected
     assert _reported_distance(math.nextafter(value, math.inf)) == expected

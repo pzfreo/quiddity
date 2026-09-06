@@ -28,7 +28,9 @@ class CornerSectionProof:
 
 
 def prove_corner_section(
-    graph: FaceGraph, nodes: frozenset[FaceNode], axis: str,
+    graph: FaceGraph,
+    nodes: frozenset[FaceNode],
+    axis: str,
 ) -> CornerSectionProof | None:
     """Prove complete orthogonal rectangular walls and floor from exact same-body topology."""
 
@@ -54,8 +56,10 @@ def prove_corner_section(
         face = graph.face(node)
         edges = graph.edges(node)
         points = [tuple(vertex) for vertex in face.vertices()]
-        if len(edges) != 4 or len(points) != 4 or any(
-            BRepAdaptor_Curve(edge.wrapped).GetType() != GeomAbs_Line for edge in edges
+        if (
+            len(edges) != 4
+            or len(points) != 4
+            or any(BRepAdaptor_Curve(edge.wrapped).GetType() != GeomAbs_Line for edge in edges)
         ):
             return None
         bounds = tuple((min(p[i] for p in points), max(p[i] for p in points)) for i in range(3))
@@ -67,8 +71,10 @@ def prove_corner_section(
             return None
         # Four lines alone can bound a trapezoid. Require each actual corner of the rectangle.
         if any(
-            not any(all(abs(point[i] - target[j]) <= tolerance
-                        for j, i in enumerate(varying)) for point in points)
+            not any(
+                all(abs(point[i] - target[j]) <= tolerance for j, i in enumerate(varying))
+                for point in points
+            )
             for target in product(*(bounds[i] for i in varying))
         ):
             return None
@@ -84,14 +90,18 @@ def prove_corner_section(
     run = "xyz".index(axis)
     u, v = [i for i in range(3) if i != run]
     floor, first, second = rectangles[run], rectangles[u], rectangles[v]
-    tolerance = max(1e-7, max(hi - lo for bounds in rectangles.values()
-                            for lo, hi in bounds) * 1e-7)
+    tolerance = max(
+        1e-7, max(hi - lo for bounds in rectangles.values() for lo, hi in bounds) * 1e-7
+    )
 
     def same_span(left, right):
         return all(abs(a - b) <= tolerance for a, b in zip(left, right, strict=True))
 
-    if not (same_span(first[run], second[run])
-            and same_span(first[v], floor[v]) and same_span(second[u], floor[u])):
+    if not (
+        same_span(first[run], second[run])
+        and same_span(first[v], floor[v])
+        and same_span(second[u], floor[u])
+    ):
         return None
     low, high = first[run]
     sign = 1 if normals[run] > 0 else -1
@@ -103,8 +113,10 @@ def prove_corner_section(
             graph.is_planar(neighbour)
             and (normal := graph.normal(neighbour)) is not None
             and normal[run] * sign > 1 - 1e-8
-            and all(abs(tuple(vertex)[run] - mouth) <= tolerance
-                    for vertex in graph.face(neighbour).vertices())
+            and all(
+                abs(tuple(vertex)[run] - mouth) <= tolerance
+                for vertex in graph.face(neighbour).vertices()
+            )
             for neighbour in graph.neighbours(by_axis[wall_axis])
         ):
             return None  # no planar exterior mouth: a cap or treatment is not proved open
@@ -125,22 +137,28 @@ def prove_corner_section(
         frame = LocalFrame.principal(axis, (centre[0], centre[1], centre[2]))
         local_axes = (v, u) if axis == "y" else (u, v)
         half_u, half_v = ((floor[i][1] - floor[i][0]) / 2 for i in local_axes)
-        section = PlanarSection(tuple(SectionVertex(point) for point in (
-            (-half_u, -half_v), (half_u, -half_v),
-            (half_u, half_v), (-half_u, half_v),
-        )))
+        section = PlanarSection(
+            tuple(
+                SectionVertex(point)
+                for point in (
+                    (-half_u, -half_v),
+                    (half_u, -half_v),
+                    (half_u, half_v),
+                    (-half_u, half_v),
+                )
+            )
+        )
         solid = graph.solid_shape(owner)
-        thickness = max(2e-5, max(1.0, high - low) * 1e-4,
-                        (half_u ** 2 + half_v ** 2) ** 0.5 * 1e-4)
+        thickness = max(2e-5, max(1.0, high - low) * 1e-4, (half_u**2 + half_v**2) ** 0.5 * 1e-4)
         if (
             _material_fraction(solid, _probe_prism(frame, (low, high), section)) > 1e-9
-            or _material_fraction(solid, _end_slab(frame, mouth, sign, thickness, section))
-            > 1e-9
+            or _material_fraction(solid, _end_slab(frame, mouth, sign, thickness, section)) > 1e-9
         ):
             return None
     except (RuntimeError, TypeError, ValueError, ZeroDivisionError):
         return None
     return CornerSectionProof(
-        (round(low, 3), round(high, 3)), sign,
+        (round(low, 3), round(high, 3)),
+        sign,
         ((first_at, far_v), (first_at, second_at), (far_u, second_at)),
     )

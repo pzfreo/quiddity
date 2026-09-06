@@ -63,18 +63,12 @@ EXPECTED_ALIASES = {
         "quiddity.chamfers.BevelReject",
     ],
     "FaceInspection": ["quiddity.experimental_geometry.FaceInspection"],
-    "OrientationCapability": [
-        "quiddity.experimental_geometry.OrientationCapability"
-    ],
+    "OrientationCapability": ["quiddity.experimental_geometry.OrientationCapability"],
     "RefusedSurface": ["quiddity.experimental_geometry.RefusedSurface"],
     "SurfaceFact": ["quiddity.experimental_geometry.SurfaceFact"],
     "SurfaceKind": ["quiddity.experimental_geometry.SurfaceKind"],
-    "SurfaceProvenance": [
-        "quiddity.experimental_geometry.SurfaceProvenance"
-    ],
-    "SurfaceRefusalReason": [
-        "quiddity.experimental_geometry.SurfaceRefusalReason"
-    ],
+    "SurfaceProvenance": ["quiddity.experimental_geometry.SurfaceProvenance"],
+    "SurfaceRefusalReason": ["quiddity.experimental_geometry.SurfaceRefusalReason"],
     "classify_bevel": [
         "quiddity.chamfers.classify_bevel",
         "quiddity.classify_bevel",
@@ -166,9 +160,7 @@ def _resolve(qualified_name: str) -> object:
     return getattr(importlib.import_module(module_name), name)
 
 
-def _manifest_contract(
-    manifest: dict[str, object], name: str
-) -> dict[str, object]:
+def _manifest_contract(manifest: dict[str, object], name: str) -> dict[str, object]:
     api = typing.cast(dict[str, object], manifest["api"])
     symbols = typing.cast(list[dict[str, object]], api["symbols"])
     symbol = next(item for item in symbols if item["name"] == name)
@@ -201,9 +193,9 @@ def _type_name(annotation: object) -> str:
             sorted({_type_name(arg) for arg in args}, key=lambda item: (item == "null", item))
         )
     if origin is tuple:
-        return "tuple[" + ",".join(
-            "..." if arg is Ellipsis else _type_name(arg) for arg in args
-        ) + "]"
+        return (
+            "tuple[" + ",".join("..." if arg is Ellipsis else _type_name(arg) for arg in args) + "]"
+        )
     raise TypeError(annotation)
 
 
@@ -252,9 +244,7 @@ def test_manifest_roster_and_runtime_contracts_are_derived_independently() -> No
         elif kind == "enum":
             assert inspect.isclass(value) and issubclass(value, Enum)
             assert contract == {
-                "members": [
-                    {"name": member.name, "value": member.value} for member in value
-                ]
+                "members": [{"name": member.name, "value": member.value} for member in value]
             }
         elif kind == "exception":
             assert inspect.isclass(value) and issubclass(value, ValueError)
@@ -271,9 +261,7 @@ def test_manifest_roster_and_runtime_contracts_are_derived_independently() -> No
                 "base": "ValueError",
             }
         elif kind == "function":
-            expected: dict[str, object] = {
-                "signature": str(inspect.signature(value))
-            }
+            expected: dict[str, object] = {"signature": str(inspect.signature(value))}
             if name == "read_double_d_tool":
                 expected["returns"] = {
                     "kind": "tuple",
@@ -365,9 +353,7 @@ def test_double_d_manifest_member_order_reconstructs_runtime_read(
     rotation, expected_axis: str
 ) -> None:
     centre = (Align.CENTER, Align.CENTER, Align.CENTER)
-    tool = rotation * (
-        Cylinder(5, 20, align=centre) & Box(7.2, 20, 40, align=centre)
-    )
+    tool = rotation * (Cylinder(5, 20, align=centre) & Box(7.2, 20, 40, align=centre))
     values = inspection.read_double_d_tool(tool)
     named = dict(
         zip(
@@ -444,9 +430,7 @@ def test_surface_parameter_layouts_reconstruct_the_native_primitives() -> None:
     )
 
     sphere = facts[inspection.SurfaceKind.SPHERE]
-    assert tuple(sphere[f"centre_{axis}"] for axis in "xyz") == pytest.approx(
-        (2.0, 3.0, 4.0)
-    )
+    assert tuple(sphere[f"centre_{axis}"] for axis in "xyz") == pytest.approx((2.0, 3.0, 4.0))
     assert sphere["radius"] == pytest.approx(5.0)
 
 
@@ -615,9 +599,7 @@ def test_committed_manifest_is_the_deterministic_generator_output() -> None:
             "must be an object",
         ),
         (
-            lambda value: value["api"]["surface_parameters"]["plane"][0].update(
-                {"unit": "pixels"}
-            ),
+            lambda value: value["api"]["surface_parameters"]["plane"][0].update({"unit": "pixels"}),
             "unit",
         ),
         (
@@ -657,9 +639,7 @@ def test_committed_manifest_is_the_deterministic_generator_output() -> None:
         ),
         (lambda value: value["api"]["symbols"][0].update({"aliases": {}}), "aliases"),
         (
-            lambda value: value["api"]["symbols"][0].update(
-                {"aliases": ["quiddity.bad"] * 2}
-            ),
+            lambda value: value["api"]["symbols"][0].update({"aliases": ["quiddity.bad"] * 2}),
             "aliases",
         ),
         (
@@ -684,27 +664,19 @@ def test_committed_manifest_is_the_deterministic_generator_output() -> None:
             "incomplete",
         ),
         (
-            lambda value: value["api"]["symbols"][0]["contract"]["fields"].__setitem__(
-                0, None
-            ),
+            lambda value: value["api"]["symbols"][0]["contract"]["fields"].__setitem__(0, None),
             "must be an object",
         ),
         (
-            lambda value: value["api"]["symbols"][0]["contract"].update(
-                {"frozen": "yes"}
-            ),
+            lambda value: value["api"]["symbols"][0]["contract"].update({"frozen": "yes"}),
             "contract is invalid",
         ),
         (
-            lambda value: value["api"]["symbols"][0]["contract"]["fields"][0].pop(
-                "type"
-            ),
+            lambda value: value["api"]["symbols"][0]["contract"]["fields"][0].pop("type"),
             "missing required",
         ),
         (
-            lambda value: value["api"]["symbols"][0]["contract"]["fields"][0].update(
-                {"type": ""}
-            ),
+            lambda value: value["api"]["symbols"][0]["contract"]["fields"][0].update({"type": ""}),
             "is invalid",
         ),
         (
@@ -714,39 +686,37 @@ def test_committed_manifest_is_the_deterministic_generator_output() -> None:
             "field names must be unique",
         ),
         (
-            lambda value: next(
-                item for item in value["api"]["symbols"] if item["kind"] == "enum"
-            )["contract"].update({"members": []}),
+            lambda value: next(item for item in value["api"]["symbols"] if item["kind"] == "enum")[
+                "contract"
+            ].update({"members": []}),
             "non-empty array",
         ),
         (
-            lambda value: next(
-                item for item in value["api"]["symbols"] if item["kind"] == "enum"
-            )["contract"]["members"].__setitem__(0, None),
+            lambda value: next(item for item in value["api"]["symbols"] if item["kind"] == "enum")[
+                "contract"
+            ]["members"].__setitem__(0, None),
             "must be an object",
         ),
         (
-            lambda value: next(
-                item for item in value["api"]["symbols"] if item["kind"] == "enum"
-            )["contract"]["members"][0].pop("value"),
+            lambda value: next(item for item in value["api"]["symbols"] if item["kind"] == "enum")[
+                "contract"
+            ]["members"][0].pop("value"),
             "missing required",
         ),
         (
-            lambda value: next(
-                item for item in value["api"]["symbols"] if item["kind"] == "enum"
-            )["contract"]["members"][0].update({"name": "not valid"}),
+            lambda value: next(item for item in value["api"]["symbols"] if item["kind"] == "enum")[
+                "contract"
+            ]["members"][0].update({"name": "not valid"}),
             "is invalid",
         ),
         (
-            lambda value: next(
-                item for item in value["api"]["symbols"] if item["kind"] == "enum"
-            )["contract"]["members"].append(
+            lambda value: next(item for item in value["api"]["symbols"] if item["kind"] == "enum")[
+                "contract"
+            ]["members"].append(
                 copy.deepcopy(
-                    next(
-                        item
-                        for item in value["api"]["symbols"]
-                        if item["kind"] == "enum"
-                    )["contract"]["members"][0]
+                    next(item for item in value["api"]["symbols"] if item["kind"] == "enum")[
+                        "contract"
+                    ]["members"][0]
                 )
             ),
             "enum names and values must be unique",
@@ -796,32 +766,24 @@ def test_validator_rejects_non_objects_and_invalid_scalar_contracts() -> None:
             "attributes must be a non-empty array",
         ),
         (
-            lambda contract: typing.cast(list[object], contract["attributes"]).__setitem__(
-                0, None
-            ),
+            lambda contract: typing.cast(list[object], contract["attributes"]).__setitem__(0, None),
             "must be an object",
         ),
         (
-            lambda contract: typing.cast(
-                list[dict[str, object]], contract["attributes"]
-            )[0].pop("type"),
+            lambda contract: typing.cast(list[dict[str, object]], contract["attributes"])[0].pop(
+                "type"
+            ),
             "missing required fields",
         ),
         (
-            lambda contract: typing.cast(
-                list[dict[str, object]], contract["attributes"]
-            )[0].update({"values": ["aligned", "aligned"]}),
+            lambda contract: typing.cast(list[dict[str, object]], contract["attributes"])[0].update(
+                {"values": ["aligned", "aligned"]}
+            ),
             "is invalid",
         ),
         (
-            lambda contract: typing.cast(
-                list[dict[str, object]], contract["attributes"]
-            ).append(
-                copy.deepcopy(
-                    typing.cast(
-                        list[dict[str, object]], contract["attributes"]
-                    )[0]
-                )
+            lambda contract: typing.cast(list[dict[str, object]], contract["attributes"]).append(
+                copy.deepcopy(typing.cast(list[dict[str, object]], contract["attributes"])[0])
             ),
             "attribute names must be unique",
         ),
@@ -890,9 +852,7 @@ def test_validator_rejects_malformed_exception_attributes(mutate, message: str) 
                 copy.deepcopy(
                     typing.cast(
                         list[dict[str, object]],
-                        typing.cast(dict[str, object], contract["returns"])[
-                            "members"
-                        ],
+                        typing.cast(dict[str, object], contract["returns"])["members"],
                     )[0]
                 )
             ),
@@ -900,9 +860,7 @@ def test_validator_rejects_malformed_exception_attributes(mutate, message: str) 
         ),
     ],
 )
-def test_validator_rejects_malformed_function_return_contracts(
-    mutate, message: str
-) -> None:
+def test_validator_rejects_malformed_function_return_contracts(mutate, message: str) -> None:
     manifest = inspection.inspection_api_manifest()
     mutate(_manifest_contract(manifest, "read_double_d_tool"))
     with pytest.raises(inspection.InspectionApiManifestError, match=message):

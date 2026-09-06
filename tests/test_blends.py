@@ -395,14 +395,12 @@ def test_circular_blend_raw_and_framed_paths_agree_under_rigid_motion(angles) ->
     assert raw.path.radius == local.path.radius == 4.0
     assert raw.path.center == pytest.approx(framed.frame.to_world(local.path.center), abs=2e-3)
     axes = (framed.frame.x, framed.frame.y, framed.frame.z)
-    world_normal = tuple(
-        sum(local.path.normal[j] * axes[j][i] for j in range(3)) for i in range(3)
-    )
+    world_normal = tuple(sum(local.path.normal[j] * axes[j][i] for j in range(3)) for i in range(3))
     # A circular plane normal is unoriented; public canonicalization may reverse its sign.
     dot = sum(a * b for a, b in zip(raw.path.normal, world_normal, strict=True))
     assert abs(dot) == pytest.approx(1.0, abs=2e-6)
     view = build_recognition_evidence(part)
-    feature, = [item for item in view.features if view.family(item) == "blends"]
+    (feature,) = [item for item in view.features if view.family(item) == "blends"]
     assert view.record(feature) == raw
     assert len(view.defining_faces(feature)) == 1
     assert view.constituent_faces(feature) == view.defining_faces(feature)

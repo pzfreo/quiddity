@@ -233,9 +233,10 @@ def main() -> int:
 
     if invalid and not args.allow_invalid:
         parser.error("audit encountered invalid models without --allow-invalid")
-    if full_known_selection and {
-        item["model_id"] for item in invalid
-    } != _KNOWN_MFCADPP_2500_INVALID:
+    if (
+        full_known_selection
+        and {item["model_id"] for item in invalid} != _KNOWN_MFCADPP_2500_INVALID
+    ):
         parser.error("the full-corpus invalid-model set differs from the documented policy")
     report = {
         "format": "b123d-recognisers-mfcadpp-polygonal-pocket-residual-audit",

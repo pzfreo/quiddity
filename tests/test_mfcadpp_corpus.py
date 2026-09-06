@@ -81,9 +81,7 @@ def _bevels(part):
     steps = recognise_angled_steps(part, ledger=ledger)
     return (
         proposed,
-        chamfers_that_are_not_angled_steps(
-            proposed, steps, ledger.snapshot_index()
-        ),
+        chamfers_that_are_not_angled_steps(proposed, steps, ledger.snapshot_index()),
         steps,
     )
 
@@ -187,9 +185,9 @@ def test_the_selection_manifest_describes_what_is_actually_vendored():
         "13": "Triangular pocket",
         "20": "Triangular blind step",
     }
-    assert manifest["doi"] == (
-        "https://doi.org/10.17034/d1fec5a0-8c10-4630-b02e-b92dc81df823"
-    ), "the DOI is what locates this dataset upstream; a prefix match pins nothing"
+    assert manifest["doi"] == ("https://doi.org/10.17034/d1fec5a0-8c10-4630-b02e-b92dc81df823"), (
+        "the DOI is what locates this dataset upstream; a prefix match pins nothing"
+    )
 
     # An earlier version stopped at the filename list, which meant the recorded rule could say
     # anything at all -- `per_label: 999`, an empty `by_label`, even `split: train` reworded --
@@ -377,72 +375,28 @@ def test_the_rule_takes_back_every_slant_the_chamfer_family_proposes(corpus):
 #: change on two of forty models. The NIST sibling was already per model; this was not, which
 #: is the same asymmetry as the volume blindness it replaced.
 _OBSERVED_RECORDS = {
-    "10000.step": {
-        "angled_steps": 1
-    },
-    "10007.step": {
-        "angled_steps": 1
-    },
-    "10020.step": {
-        "chamfers": 1
-    },
-    "10033.step": {
-        "chamfers": 2
-    },
-    "10049.step": {
-        "angled_steps": 1
-    },
-    "10063.step": {
-        "angled_steps": 1
-    },
-    "10077.step": {
-        "chamfers": 3
-    },
-    "1008.step": {
-        "chamfers": 1
-    },
-    "10092.step": {
-        "chamfers": 1
-    },
-    "10101.step": {
-        "angled_steps": 1
-    },
-    "10103.step": {
-        "chamfers": 1
-    },
-    "10119.step": {
-        "angled_steps": 1
-    },
-    "1013.step": {
-        "chamfers": 1
-    },
-    "10131.step": {
-        "chamfers": 1
-    },
-    "10138.step": {
-        "angled_steps": 2
-    },
-    "10146.step": {
-        "chamfers": 2
-    },
-    "10163.step": {
-        "chamfers": 1
-    },
-    "1017.step": {
-        "chamfers": 2
-    },
-    "10170.step": {
-        "chamfers": 1
-    },
-    "10224.step": {
-        "angled_steps": 1
-    },
-    "10245.step": {
-        "angled_steps": 1
-    },
-    "10247.step": {
-        "angled_steps": 1
-    }
+    "10000.step": {"angled_steps": 1},
+    "10007.step": {"angled_steps": 1},
+    "10020.step": {"chamfers": 1},
+    "10033.step": {"chamfers": 2},
+    "10049.step": {"angled_steps": 1},
+    "10063.step": {"angled_steps": 1},
+    "10077.step": {"chamfers": 3},
+    "1008.step": {"chamfers": 1},
+    "10092.step": {"chamfers": 1},
+    "10101.step": {"angled_steps": 1},
+    "10103.step": {"chamfers": 1},
+    "10119.step": {"angled_steps": 1},
+    "1013.step": {"chamfers": 1},
+    "10131.step": {"chamfers": 1},
+    "10138.step": {"angled_steps": 2},
+    "10146.step": {"chamfers": 2},
+    "10163.step": {"chamfers": 1},
+    "1017.step": {"chamfers": 2},
+    "10170.step": {"chamfers": 1},
+    "10224.step": {"angled_steps": 1},
+    "10245.step": {"angled_steps": 1},
+    "10247.step": {"angled_steps": 1},
 }
 
 
@@ -527,9 +481,7 @@ def test_only_plate_and_pad_boundary_roles_land_on_stock_faces(corpus):
     """
 
     claimed = _per_face(corpus)
-    on_stock = {
-        family: counts[STOCK] for family, counts in claimed.items() if counts.get(STOCK)
-    }
+    on_stock = {family: counts[STOCK] for family, counts in claimed.items() if counts.get(STOCK)}
     assert on_stock == {"Plate": 13, "RaisedPad": 9}, (
         f"unexpected claims on stock-labelled faces: {on_stock}"
     )
@@ -571,8 +523,7 @@ def test_10060_legacy_false_positive_is_omitted_with_only_the_named_census_narro
     # precedence disposition.
     assert product.reconciliation.for_family(FamilyId.SLOTS) == ()
     assert [
-        (item.outcome, item.reason)
-        for item in product.reconciliation.for_family(FamilyId.POCKETS)
+        (item.outcome, item.reason) for item in product.reconciliation.for_family(FamilyId.POCKETS)
     ] == [
         (Outcome.ACCEPTED, ReasonCode.DEFAULT_ACCEPTED),
         (Outcome.ACCEPTED, ReasonCode.DEFAULT_ACCEPTED),
@@ -607,10 +558,10 @@ def test_10060_legacy_false_positive_is_omitted_with_only_the_named_census_narro
         "step": 0,
         "groove": 0,
         "flat": 0,
-            "slot": 0,
-            "oriented_slot": 0,
-            "rectangular_blind_slot": 0,
-            "round_bottom_blind_slot": 0,
+        "slot": 0,
+        "oriented_slot": 0,
+        "rectangular_blind_slot": 0,
+        "round_bottom_blind_slot": 0,
         "channel": 0,
         "pocket": 2,
         "prismatic_pocket": 0,
@@ -654,9 +605,7 @@ def test_plate_stock_overlap_is_exact_low_high_boundary_evidence(corpus):
         for candidate in product.accepted.candidate_set(FamilyId.PLATES).candidates:
             defining = product.evidence.defining_of(candidate)
             labelled = [
-                (node, labels[index])
-                for index, node in enumerate(face_nodes)
-                if node in defining
+                (node, labels[index]) for index, node in enumerate(face_nodes) if node in defining
             ]
             stock_nodes = [node for node, label in labelled if label == STOCK]
             if not stock_nodes:
@@ -672,21 +621,11 @@ def test_plate_stock_overlap_is_exact_low_high_boundary_evidence(corpus):
                 assert abs(component) >= 0.99
                 signed_labels.append((component > 0, label))
             assert {sign for sign, _label in signed_labels} == {False, True}
-            stock_signs = {
-                sign for sign, label in signed_labels if label == STOCK
-            }
+            stock_signs = {sign for sign, label in signed_labels if label == STOCK}
             assert len(stock_signs) == 1
             stock_sign = next(iter(stock_signs))
-            assert all(
-                label != STOCK
-                for sign, label in signed_labels
-                if sign != stock_sign
-            )
-            assert any(
-                label != STOCK
-                for sign, label in signed_labels
-                if sign != stock_sign
-            )
+            assert all(label != STOCK for sign, label in signed_labels if sign != stock_sign)
+            assert any(label != STOCK for sign, label in signed_labels if sign != stock_sign)
         if count:
             observed[name] = count
     assert observed == expected

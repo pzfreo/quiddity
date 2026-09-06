@@ -201,12 +201,8 @@ def main() -> int:
     started = time.perf_counter()
     totals: Counter[str] = Counter()
     confusion: Counter[tuple[int, int]] = Counter()
-    class_totals: dict[int, Counter[str]] = {
-        class_id: Counter() for class_id in TARGET_CLASSES
-    }
-    family_totals: dict[str, Counter[str]] = {
-        family.value: Counter() for family in TARGET_FAMILIES
-    }
+    class_totals: dict[int, Counter[str]] = {class_id: Counter() for class_id in TARGET_CLASSES}
+    family_totals: dict[str, Counter[str]] = {family.value: Counter() for family in TARGET_FAMILIES}
     rows = []
     for path in paths:
         truth = load_mfcadpp_truth(path)
@@ -360,12 +356,9 @@ def main() -> int:
             family_summary["touched_once_occurrences"] += hit_count == 1
             family_summary["multiply_touched_occurrences"] += hit_count > 1
         for region in regions:
-            occurrence_ids = {
-                item["accepted"] for item in region["accepted_associations"]
-            }
+            occurrence_ids = {item["accepted"] for item in region["accepted_associations"]}
             region["unique_bidirectional_accepted_occurrence"] = (
-                len(occurrence_ids) == 1
-                and accepted_region_hits[next(iter(occurrence_ids))] == 1
+                len(occurrence_ids) == 1 and accepted_region_hits[next(iter(occurrence_ids))] == 1
             )
             totals["unique_bidirectional_accepted_regions"] += region[
                 "unique_bidirectional_accepted_occurrence"

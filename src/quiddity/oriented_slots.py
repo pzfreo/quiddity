@@ -50,8 +50,7 @@ def _canonical_direction(vector: Vector3) -> Vector3:
 def _world_direction(source: SectionPassage, vector: tuple[float, float]) -> Vector3:
     return _canonical_direction(
         tuple(
-            vector[0] * source.frame.u[axis] + vector[1] * source.frame.v[axis]
-            for axis in range(3)
+            vector[0] * source.frame.u[axis] + vector[1] * source.frame.v[axis] for axis in range(3)
         )  # type: ignore[arg-type]
     )
 
@@ -123,8 +122,7 @@ def _rectangle(source: SectionPassage) -> tuple[Vector3, Vector3, float, float] 
     if any(abs(lengths[at] - lengths[at + 2]) > _VECTOR_ERROR for at in (0, 1)):
         return None
     if any(
-        _length(tuple(edges[at][axis] + edges[at + 2][axis] for axis in range(2)))
-        > _VECTOR_ERROR
+        _length(tuple(edges[at][axis] + edges[at + 2][axis] for axis in range(2))) > _VECTOR_ERROR
         for at in (0, 1)
     ):
         return None
@@ -135,12 +133,8 @@ def _rectangle(source: SectionPassage) -> tuple[Vector3, Vector3, float, float] 
         return None
     long_at = 0 if lengths[0] > lengths[1] else 1
     width_at = 1 - long_at
-    long_direction = _world_direction(
-        source, (edges[long_at][0], edges[long_at][1])
-    )
-    width_direction = _world_direction(
-        source, (edges[width_at][0], edges[width_at][1])
-    )
+    long_direction = _world_direction(source, (edges[long_at][0], edges[long_at][1]))
+    width_direction = _world_direction(source, (edges[width_at][0], edges[width_at][1]))
     return width_direction, long_direction, lengths[width_at], lengths[long_at]
 
 

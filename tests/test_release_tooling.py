@@ -41,8 +41,12 @@ def _project(root: Path, version: str = "0.2.5") -> None:
     (root / "pyproject.toml").write_text(f'[project]\nversion = "{version}"\n', encoding="utf-8")
     (root / "uv.lock").write_text(f'version = "{version}"\n', encoding="utf-8")
     (root / "src/quiddity/capabilities.json").write_text(
-        json.dumps({"families": [], "package": {"name": "quiddity", "version": version}},
-                   indent=2, sort_keys=True) + "\n",
+        json.dumps(
+            {"families": [], "package": {"name": "quiddity", "version": version}},
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
         encoding="utf-8",
     )
     (root / "src/quiddity/inspection_api.json").write_text(
@@ -64,9 +68,9 @@ def _project(root: Path, version: str = "0.2.5") -> None:
         encoding="utf-8",
     )
     (root / "src/quiddity/__init__.py").write_text(
-        'try:\n'
+        "try:\n"
         '    __version__ = version("quiddity")\n'
-        'except PackageNotFoundError:\n'
+        "except PackageNotFoundError:\n"
         f'    __version__ = "{version}"\n',
         encoding="utf-8",
     )
@@ -195,7 +199,5 @@ def test_a_source_tree_missing_the_fallback_is_refused_before_writing(tmp_path) 
 
     manifest = json.loads((tmp_path / "src/quiddity/capabilities.json").read_text())
     assert manifest["package"]["version"] == "0.2.5"
-    inspection = json.loads(
-        (tmp_path / "src/quiddity/inspection_api.json").read_text()
-    )
+    inspection = json.loads((tmp_path / "src/quiddity/inspection_api.json").read_text())
     assert inspection["package"]["version"] == "0.2.5"

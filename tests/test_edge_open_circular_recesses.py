@@ -1,4 +1,3 @@
-
 import json
 from pathlib import Path
 
@@ -106,9 +105,7 @@ def test_public_section_refuses_contradictory_arc_geometry() -> None:
     segments = list(_section().segments)
     arc = segments[0]
     with pytest.raises(ValueError, match="arc sweep must connect"):
-        OpenCircularSectionSegment(
-            "arc", arc.start, arc.end, arc.center, arc.radius, -arc.sweep
-        )
+        OpenCircularSectionSegment("arc", arc.start, arc.end, arc.center, arc.radius, -arc.sweep)
 
 
 def test_public_section_refuses_unequal_radii_and_missing_intact_end() -> None:
@@ -230,9 +227,7 @@ def test_equal_occurrences_on_separate_solids_keep_separate_ownership() -> None:
 def test_complete_open_circular_contract_supersedes_its_partial_pocket_fragment() -> None:
     product = _take_inventory(_open_circular_pocket())
 
-    (open_pocket,) = product.reconciliation.for_family(
-        FamilyId.EDGE_OPEN_CIRCULAR_POCKETS
-    )
+    (open_pocket,) = product.reconciliation.for_family(FamilyId.EDGE_OPEN_CIRCULAR_POCKETS)
     (fragment,) = product.reconciliation.for_family(FamilyId.POCKETS)
     assert open_pocket.outcome is Outcome.ACCEPTED
     assert fragment.outcome is Outcome.REJECTED

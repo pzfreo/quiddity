@@ -106,9 +106,7 @@ class GeometryGraph:
         self.__authority = object()
         self.__refs = tuple(FaceRef(self.__authority, node) for node in self.__graph.nodes)
         self.__by_node = dict(zip(self.__graph.nodes, self.__refs, strict=True))
-        self.__surfaces = (
-            EffectiveSurfaceIndex(self.__graph) if _surfaces is None else _surfaces
-        )
+        self.__surfaces = EffectiveSurfaceIndex(self.__graph) if _surfaces is None else _surfaces
         if self.__surfaces.run_token is not self.__graph.run_token:
             raise ValueError("surface index and geometry graph belong to different runs")
         self.__blends: BlendCollapseIndex | None = None

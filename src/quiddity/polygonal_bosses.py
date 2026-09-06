@@ -797,9 +797,7 @@ def _discover_polygonal_bosses(
         return records
     bridge = GeometryEvidenceBridge(writer, shared)
 
-    pending: list[
-        tuple[PolygonalBoss, tuple[FaceRef, ...], tuple[FaceRef, ...]]
-    ] = []
+    pending: list[tuple[PolygonalBoss, tuple[FaceRef, ...], tuple[FaceRef, ...]]] = []
     used: set[FaceRef] = set()
     for proposal, record in zip(proposals, records, strict=True):
         refs = bridge.refs(proposal.side_faces)

@@ -257,11 +257,7 @@ def test_real_face_adapter_retains_three_consecutive_wall_patches_and_refuses_is
 
     class ControlledPart:
         def faces(self):
-            ordinary = [
-                face
-                for face in part.faces()
-                if not face.wrapped.IsSame(original.wrapped)
-            ]
+            ordinary = [face for face in part.faces() if not face.wrapped.IsSame(original.wrapped)]
             return [*ordinary, *patches]
 
     monkeypatch.setattr(module, "edge_face_map", lambda *_args, **_kwargs: controlled)
@@ -284,19 +280,16 @@ def test_real_face_adapter_retains_three_consecutive_wall_patches_and_refuses_is
     ]
     assert len(expected_walls) == 6
     assert all(
-        any(face.wrapped.IsSame(expected.wrapped) for face in walls)
-        for expected in expected_walls
+        any(face.wrapped.IsSame(expected.wrapped) for face in walls) for expected in expected_walls
     )
     assert all(
-        any(face.wrapped.IsSame(expected.wrapped) for expected in expected_walls)
-        for face in walls
+        any(face.wrapped.IsSame(expected.wrapped) for expected in expected_walls) for face in walls
     )
 
     outward = Face(patches[1].wrapped.Reversed())
     outward_incidence = {
         edge: tuple(
-            outward if owner.wrapped.IsSame(patches[1].wrapped) else owner
-            for owner in owners
+            outward if owner.wrapped.IsSame(patches[1].wrapped) else owner for owner in owners
         )
         for edge, owners in controlled.items()
     }
@@ -321,19 +314,22 @@ def test_real_face_adapter_retains_three_consecutive_wall_patches_and_refuses_is
             ]
 
     monkeypatch.setattr(module, "edge_face_map", lambda *_args, **_kwargs: outward_incidence)
-    assert module._complete_wall_component(
-        OutwardPart(),
-        low_wire,
-        high_wire,
-        low_face,
-        high_face,
-        "z",
-        profile,
-        bbox.min.Z,
-        bbox.max.Z,
-        1e-5,
-        face_edges=cast(FaceEdges, OutwardEdges()),
-    ) == ()
+    assert (
+        module._complete_wall_component(
+            OutwardPart(),
+            low_wire,
+            high_wire,
+            low_face,
+            high_face,
+            "z",
+            profile,
+            bbox.min.Z,
+            bbox.max.Z,
+            1e-5,
+            face_edges=cast(FaceEdges, OutwardEdges()),
+        )
+        == ()
+    )
 
     ambiguous_incidence = dict(controlled)
     ambiguous_incidence[low_edges[0]] = (
@@ -342,25 +338,27 @@ def test_real_face_adapter_retains_three_consecutive_wall_patches_and_refuses_is
         low_owners[1],
     )
     monkeypatch.setattr(module, "edge_face_map", lambda *_args, **_kwargs: ambiguous_incidence)
-    assert module._complete_wall_component(
-        ControlledPart(),
-        low_wire,
-        high_wire,
-        low_face,
-        high_face,
-        "z",
-        profile,
-        bbox.min.Z,
-        bbox.max.Z,
-        1e-5,
-        face_edges=cast(FaceEdges, ControlledEdges()),
-    ) == ()
+    assert (
+        module._complete_wall_component(
+            ControlledPart(),
+            low_wire,
+            high_wire,
+            low_face,
+            high_face,
+            "z",
+            profile,
+            bbox.min.Z,
+            bbox.max.Z,
+            1e-5,
+            face_edges=cast(FaceEdges, ControlledEdges()),
+        )
+        == ()
+    )
 
     def substituted(seed):
         changed = {
             edge: tuple(
-                seed if owner.wrapped.IsSame(low_owners[0].wrapped) else owner
-                for owner in owners
+                seed if owner.wrapped.IsSame(low_owners[0].wrapped) else owner for owner in owners
             )
             for edge, owners in controlled.items()
         }
@@ -436,9 +434,7 @@ def _qualified_calls(tree: ast.AST) -> list[tuple[str, ast.Call]]:
 
 
 def _tool(height: float = 20, *, across: float = 7.2):
-    return Cylinder(5, height, align=_CENTRE) & Box(
-        across, 20, 2 * height, align=_CENTRE
-    )
+    return Cylinder(5, height, align=_CENTRE) & Box(across, 20, 2 * height, align=_CENTRE)
 
 
 def _plate():
@@ -461,8 +457,7 @@ def _claimed(part):
     assert [record.to_dict() for record in records] == [record.to_dict() for record in public]
     assert len(candidates) == len(records)
     assert all(
-        candidate.record is record
-        for candidate, record in zip(candidates, records, strict=True)
+        candidate.record is record for candidate, record in zip(candidates, records, strict=True)
     )
     return ledger, records, candidates
 
@@ -504,10 +499,7 @@ def _assert_wall_role(part, ledger, records, occurrence: int, candidate) -> None
             vertices = line.vertices()
             if len(vertices) != 2:
                 return None
-            ends = [
-                (float(vertex.X), float(vertex.Y), float(vertex.Z))
-                for vertex in vertices
-            ]
+            ends = [(float(vertex.X), float(vertex.Y), float(vertex.Z)) for vertex in vertices]
             delta = tuple(ends[1][i] - ends[0][i] for i in range(3))
             length = sqrt(sum(value * value for value in delta))
             directions.append(tuple(value / length for value in delta))
@@ -529,8 +521,7 @@ def _assert_wall_role(part, ledger, records, occurrence: int, candidate) -> None
         if first < 0:
             flat = [-value for value in flat]
         offsets = sorted(
-            sum((point[i] - centre_xyz[i]) * flat[i] for i in range(3))
-            for point in midpoints
+            sum((point[i] - centre_xyz[i]) * flat[i] for i in range(3)) for point in midpoints
         )
         if offsets[0] >= -metric_tol or offsets[1] <= metric_tol:
             return None
@@ -544,8 +535,11 @@ def _assert_wall_role(part, ledger, records, occurrence: int, candidate) -> None
         expected_arc = 2 * radius * asin((across / 2) / radius)
         if any(abs(float(arc.length) - expected_arc) > metric_tol for arc in arcs):
             return None
-        return centre_xyz, round(2 * radius, 4), round(across, 4), tuple(
-            0.0 if abs(value) < 1e-12 else round(value, 12) for value in flat
+        return (
+            centre_xyz,
+            round(2 * radius, 4),
+            round(across, 4),
+            tuple(0.0 if abs(value) < 1e-12 else round(value, 12) for value in flat),
         )
 
     def opening_sets(owner, at: float):
@@ -566,9 +560,7 @@ def _assert_wall_role(part, ledger, records, occurrence: int, candidate) -> None
                 center = wire.bounding_box().center()
                 point = (float(center.X), float(center.Y), float(center.Z))
                 if any(
-                    abs(point[i] - record.location[i]) > metric_tol
-                    for i in range(3)
-                    if i != axis
+                    abs(point[i] - record.location[i]) > metric_tol for i in range(3) if i != axis
                 ):
                     continue
                 partners = []
@@ -635,8 +627,7 @@ def _assert_wall_role(part, ledger, records, occurrence: int, candidate) -> None
             values = [normal.X(), normal.Y(), normal.Z()]
             location = plane.Location()
             offset = sum(
-                (location.X(), location.Y(), location.Z())[i] * values[i]
-                for i in range(3)
+                (location.X(), location.Y(), location.Z())[i] * values[i] for i in range(3)
             )
             if next(value for value in values if abs(value) > 1e-9) < 0:
                 values = [-value for value in values]
@@ -651,11 +642,7 @@ def _assert_wall_role(part, ledger, records, occurrence: int, candidate) -> None
         return (
             "cylinder",
             *values,
-            *(
-                (location.X(), location.Y(), location.Z())[i]
-                for i in range(3)
-                if i != axis
-            ),
+            *((location.X(), location.Y(), location.Z())[i] for i in range(3) if i != axis),
             cylinder.Radius(),
         )
 
@@ -664,10 +651,7 @@ def _assert_wall_role(part, ledger, records, occurrence: int, candidate) -> None
             left[0] == right[0]
             and len(left) == len(right)
             and all(abs(left[i] - right[i]) <= 1e-4 for i in range(1, 4))
-            and all(
-                abs(left[i] - right[i]) <= metric_tol
-                for i in range(4, len(left))
-            )
+            and all(abs(left[i] - right[i]) <= metric_tol for i in range(4, len(left)))
         )
 
     memo = FaceEdges()
@@ -683,8 +667,7 @@ def _assert_wall_role(part, ledger, records, occurrence: int, candidate) -> None
         point = Vector(native.X(), native.Y(), native.Z())
         normal = face.normal_at(point)
         radial = [
-            void_centre[i] - (float(point.X), float(point.Y), float(point.Z))[i]
-            for i in range(3)
+            void_centre[i] - (float(point.X), float(point.Y), float(point.Z))[i] for i in range(3)
         ]
         radial[axis] = 0.0
         normal_values = (float(normal.X), float(normal.Y), float(normal.Z))
@@ -713,8 +696,7 @@ def _assert_wall_role(part, ledger, records, occurrence: int, candidate) -> None
     assert len(chains) == 4 and all(chain for chain in chains)
     assert sum(len(chain) for chain in chains) == len(set().union(*chains))
     assignments = [
-        next(at for at, seed in enumerate(high_opening[0]) if seed in chain)
-        for chain in chains
+        next(at for at, seed in enumerate(high_opening[0]) if seed in chain) for chain in chains
     ]
     assert sorted(assignments) == [0, 1, 2, 3]
     for chain in chains:
@@ -789,8 +771,7 @@ def test_equal_full_records_from_distinct_solids_remain_identity_distinct() -> N
         _assert_wall_role(part, ledger, records, at, candidate)
     assert ledger.defining_of(candidates[0]).isdisjoint(ledger.defining_of(candidates[1]))
     owners = [
-        ledger.graph.common_valid_solid(ledger.defining_of(candidate))
-        for candidate in candidates
+        ledger.graph.common_valid_solid(ledger.defining_of(candidate)) for candidate in candidates
     ]
     assert owners[0] is not owners[1]
 
@@ -880,9 +861,7 @@ def test_aggregate_rejects_partial_circular_reading_of_same_double_d_boundary() 
         family for family in build_recognition_report(part).families if family.family == "holes"
     )
     assert (hole_report.proposed, hole_report.accepted, hole_report.rejected) == (1, 0, 1)
-    assert hole_report.dispositions[0].reason.value == (
-        "bore.hole_superseded_by_double_d_bore"
-    )
+    assert hole_report.dispositions[0].reason.value == ("bore.hole_superseded_by_double_d_bore")
     assert hole_report.dispositions[0].related_occurrences == 1
 
 
@@ -909,9 +888,7 @@ def test_double_d_precedence_keeps_a_disjoint_ordinary_hole_on_the_same_solid() 
 
 def test_double_d_precedence_keeps_equal_diameter_hole_on_another_solid() -> None:
     circular = Box(30, 30, 12, align=_CENTRE) - Cylinder(4, 20, align=_CENTRE)
-    part = Compound(
-        [Pos(-25, 0, 0) * _duplicate_hole_plate(), Pos(25, 0, 0) * circular]
-    )
+    part = Compound([Pos(-25, 0, 0) * _duplicate_hole_plate(), Pos(25, 0, 0) * circular])
     product = _take_inventory(part)
     proposed_holes = product.physical.candidate_set(FamilyId.HOLES).candidates
     accepted_holes = product.accepted.candidate_set(FamilyId.HOLES).candidates
@@ -922,10 +899,13 @@ def test_double_d_precedence_keeps_equal_diameter_hole_on_another_solid() -> Non
     assert product.evidence.defining_of(accepted_holes[0]).isdisjoint(
         product.evidence.defining_of(double_d)
     )
-    assert sum(
-        item.reason is ReasonCode.HOLE_SUPERSEDED_BY_DOUBLE_D_BORE
-        for item in product.reconciliation.dispositions
-    ) == 1
+    assert (
+        sum(
+            item.reason is ReasonCode.HOLE_SUPERSEDED_BY_DOUBLE_D_BORE
+            for item in product.reconciliation.dispositions
+        )
+        == 1
+    )
 
 
 @pytest.mark.parametrize(
@@ -943,11 +923,7 @@ def test_rejected_geometry_issues_no_candidate(part) -> None:
 
 def test_profile_throughness_and_constant_wall_negatives_issue_no_candidate() -> None:
     plate = Box(30, 30, 10, align=_CENTRE)
-    opposed_blind = (
-        plate
-        - Pos(0, 0, 3) * _tool(4)
-        - Pos(0, 0, -3) * _tool(4)
-    )
+    opposed_blind = plate - Pos(0, 0, 3) * _tool(4) - Pos(0, 0, -3) * _tool(4)
     straight = 8.0
     obround = (
         Box(straight, 6, 20, align=_CENTRE)
@@ -955,9 +931,7 @@ def test_profile_throughness_and_constant_wall_negatives_issue_no_candidate() ->
         + Pos(-straight / 2, 0, 0) * Cylinder(3, 20, align=_CENTRE)
     )
     low = Circle(5) & Rectangle(7.2, 20, align=(Align.CENTER, Align.CENTER))
-    high = Pos(0, 0, 20) * (
-        Circle(6) & Rectangle(8, 20, align=(Align.CENTER, Align.CENTER))
-    )
+    high = Pos(0, 0, 20) * (Circle(6) & Rectangle(8, 20, align=(Align.CENTER, Align.CENTER)))
     tapered = Pos(0, 0, -10) * loft([low, high])
 
     for part in (opposed_blind, plate - obround, plate - tapered):

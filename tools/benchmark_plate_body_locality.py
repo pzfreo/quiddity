@@ -122,8 +122,7 @@ def _measure(parts: list[tuple[str, Any]]) -> dict[str, Any]:
     ratio = sum(body_local_times) / sum(legacy_times) if legacy_times else None
     return {
         "all_transitions_valid": all(
-            row["other_outputs_equal"] is not None
-            or row["expected_error_transition_resolved"]
+            row["other_outputs_equal"] is not None or row["expected_error_transition_resolved"]
             for row in rows
         ),
         "resolved_legacy_attribution_errors": sum(

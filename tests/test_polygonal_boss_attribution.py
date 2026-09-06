@@ -500,10 +500,7 @@ def test_missing_or_side_aliased_terminal_cap_refuses_atomically(
 
     def corrupted(*args, **kwargs):
         proposals = original_recognise(*args, **kwargs)
-        return [
-            replace(proposal, terminal_cap=terminal(proposal))
-            for proposal in proposals
-        ]
+        return [replace(proposal, terminal_cap=terminal(proposal)) for proposal in proposals]
 
     ledger = ClaimLedger(FaceGraph(part))
     monkeypatch.setattr(polygonal_module, "_recognise_one", corrupted)

@@ -124,12 +124,18 @@ from quiddity.turned import TurnedStep, recognise_turned_steps
 
 # Internal detector identities survive the public SectionRecess schema replacement so that
 # discovery, reconciliation and effectiveness scoring remain comparable across the cutover.
-RECESS_SOURCE_FAMILIES = frozenset({
-    FamilyId.POCKETS, FamilyId.CHANNELS, FamilyId.PRISMATIC_POCKETS,
-    FamilyId.PASSAGES, FamilyId.EDGE_OPEN_PRISMATIC_RECESSES,
-    FamilyId.EDGE_OPEN_CIRCULAR_POCKETS, FamilyId.RECTANGULAR_BLIND_SLOTS,
-    FamilyId.ROUND_BOTTOM_BLIND_SLOTS,
-})
+RECESS_SOURCE_FAMILIES = frozenset(
+    {
+        FamilyId.POCKETS,
+        FamilyId.CHANNELS,
+        FamilyId.PRISMATIC_POCKETS,
+        FamilyId.PASSAGES,
+        FamilyId.EDGE_OPEN_PRISMATIC_RECESSES,
+        FamilyId.EDGE_OPEN_CIRCULAR_POCKETS,
+        FamilyId.RECTANGULAR_BLIND_SLOTS,
+        FamilyId.ROUND_BOTTOM_BLIND_SLOTS,
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)

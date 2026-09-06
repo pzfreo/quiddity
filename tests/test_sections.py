@@ -815,9 +815,7 @@ def test_legacy_centroid_accepts_published_serialization_displacement() -> None:
     )
     issuer = BodyRefIssuer()
 
-    occurrence = prismatic_pocket_to_occurrence(
-        record, body_ref=issuer.issue(), body_refs=issuer
-    )
+    occurrence = prismatic_pocket_to_occurrence(record, body_ref=issuer.issue(), body_refs=issuer)
 
     assert occurrence.section.centroid == pytest.approx((0.0, 0.0), abs=1e-12)
 

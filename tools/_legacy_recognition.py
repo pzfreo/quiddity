@@ -86,10 +86,17 @@ def detector_outputs_equal(left, right, *, excluding=()):
     """Compare detector fields, not their derived unified API projections."""
     from dataclasses import fields
 
-    excluded = {"section_recesses", "section_recess_refusals", "section_recess_patterns",
-                *excluding}
-    return all(getattr(left, field.name) == getattr(right, field.name)
-               for field in fields(left) if field.name not in excluded)
+    excluded = {
+        "section_recesses",
+        "section_recess_refusals",
+        "section_recess_patterns",
+        *excluding,
+    }
+    return all(
+        getattr(left, field.name) == getattr(right, field.name)
+        for field in fields(left)
+        if field.name not in excluded
+    )
 
 
 def feature_census(part):
