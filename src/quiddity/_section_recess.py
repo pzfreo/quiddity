@@ -12,7 +12,7 @@ import math
 from dataclasses import dataclass
 from typing import cast
 
-from quiddity._cylindrical_end_surface import CylindricalEndSurface
+from quiddity._cylindrical_end_surface import CylindricalEndSurface as CylindricalEndSurface
 from quiddity._record import Record
 from quiddity._sections import (
     SectionVertex,
