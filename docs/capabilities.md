@@ -109,7 +109,13 @@ not discover or reconcile anything itself.
 including family evaluation, proposal/acceptance/rejection counts, disposition reasons and
 bounded diagnostics. This is also available on framed and prepared evidence views, where
 diagnostic coordinates are local to the view's working part. Reading it never reruns recognition.
-These are detector-family counts, not necessarily counts of unified public SectionRecess records.
+Use `report.detector_families` for these detector-family counts (`report.families` is the original
+field for that same tuple). Count published recess records with
+`len(report.result.section_recesses)`. One accepted `pockets` candidate and one accepted
+`section_recesses` candidate can publish just one recess: do not sum detector acceptances as a
+feature total. Disposition `occurrences` counts candidate outcomes; `related_occurrences` counts
+related-candidate links, which are not necessarily unique physical features. Refusals and derived
+patterns have separate result collections and do not add physical recess occurrences.
 An empty diagnostic list does not prove that no geometry was missed. No JSON report schema is
 introduced by this Python API addition.
 

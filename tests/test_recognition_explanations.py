@@ -11,6 +11,7 @@ from build123d import (
     Box,
     BuildPart,
     BuildSketch,
+    Cylinder,
     Edge,
     Face,
     Plane,
@@ -51,7 +52,29 @@ def _u_passage():
 
 
 def _family(report: r.RecognitionReport, family: str) -> r.FamilyExplanation:
-    return next(item for item in report.families if item.family == family)
+    return next(item for item in report.detector_families if item.family == family)
+
+
+def test_detector_counts_are_not_deduplicated_public_occurrences(monkeypatch) -> None:
+    part = Box(100, 60, 20) - Pos(22, -11, 7) * Box(30, 12, 6)
+    view = evidence_module.build_recognition_evidence(part)
+
+    def no_second_inventory(*args, **kwargs):
+        pytest.fail("reading detector counts must not rerun recognition")
+
+    monkeypatch.setattr(explanation_module, "_take_inventory", no_second_inventory)
+    report = view.report
+    assert report.result is view.result
+    assert report.detector_families is report.families
+    assert _family(report, "pockets").accepted == 1
+    assert _family(report, "section_recesses").accepted == 1
+    assert len(report.result.section_recesses) == 1
+    assert sum(view.family(feature) == "section_recesses" for feature in view.features) == 1
+
+
+def test_non_recess_family_can_have_equal_detector_and_public_counts() -> None:
+    report = r.build_raw_recognition_report(Box(40, 40, 10) - Cylinder(3, 20))
+    assert _family(report, "holes").accepted == len(report.result.holes) == 1
 
 
 def _side_subdivided_blind_step() -> Solid:
