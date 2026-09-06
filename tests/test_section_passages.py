@@ -33,6 +33,7 @@ from quiddity import (
     PassageFrame,
     PassageSection,
     PassageSectionVertex,
+    build_section_recess_document,
 )
 from quiddity._adjacency import FaceEdges, FaceGraph
 from quiddity._candidates import FamilyId
@@ -194,6 +195,86 @@ def test_six_sided_passage_uses_wall_run_and_exact_sloped_termination_planes() -
     assert record.ends.low_gradient == pytest.approx((0.0, -0.2), abs=1e-6)
     assert record.ends.high_gradient == pytest.approx((0.0, -0.3), abs=1e-6)
     assert recognise_passages(part) == []
+
+
+@pytest.mark.parametrize("sides", (3, 4, 6))
+@pytest.mark.parametrize("angle", (1.0, 20.0, 35.0))
+def test_parallel_stock_ends_do_not_choose_oblique_passage_run(sides, angle):
+    part = Box(60, 50, 20) - Rot(0, angle, 0) * _polygonal_tool(sides)
+    (record,) = recognise_section_passages(part)
+
+    radians = math.radians(angle)
+    assert record.frame.run == pytest.approx((math.sin(radians), 0, math.cos(radians)), abs=1e-6)
+    assert record.run_interval == pytest.approx(
+        (-10 / math.cos(radians), 10 / math.cos(radians)), abs=0.002
+    )
+    assert record.ends.low_gradient == record.ends.high_gradient
+    assert math.hypot(*record.ends.low_gradient) == pytest.approx(math.tan(radians), abs=1e-6)
+    # Every reconstructed termination vertex lies on actual stock, not a wall envelope.
+    for at, gradient, expected_z in (
+        (record.run_interval[0], record.ends.low_gradient, -10),
+        (record.run_interval[1], record.ends.high_gradient, 10),
+    ):
+        for vertex in record.section.boundary:
+            u, v = vertex.point
+            t = at + gradient[0] * u + gradient[1] * v
+            z = (
+                record.frame.origin[2]
+                + t * record.frame.run[2]
+                + u * record.frame.u[2]
+                + v * record.frame.v[2]
+            )
+            assert z == pytest.approx(expected_z, abs=0.002)
+
+
+@pytest.mark.parametrize("scale", (0.1, 1.0, 10.0))
+def test_parallel_oblique_ends_survive_placement_and_scale(scale):
+    part = Box(60, 50, 20) - Rot(0, 20, 0) * _polygonal_tool(6)
+    moved = Pos(17, -11, 9) * Rot(31, 17, 23) * part.scale(scale)
+    (record,) = recognise_section_passages(moved)
+    assert len(record.section.boundary) == 6
+    assert record.ends.low_gradient == record.ends.high_gradient
+    assert math.hypot(*record.ends.low_gradient) == pytest.approx(
+        math.tan(math.radians(20)), abs=1e-6
+    )
+    assert record.run_interval[1] - record.run_interval[0] == pytest.approx(
+        scale * 20 / math.cos(math.radians(20)), abs=0.002
+    )
+
+
+def test_oblique_parallel_end_proof_does_not_accept_blind_void():
+    with BuildSketch() as sketch:
+        RegularPolygon(7, 6)
+    part = Box(60, 50, 20) - Rot(0, 20, 0) * extrude(sketch.sketch, amount=30)
+    assert recognise_section_passages(part) == []
+
+
+def test_oblique_parallel_ends_survive_step_round_trip(tmp_path):
+    part = Box(60, 50, 20) - Rot(0, 20, 0) * _polygonal_tool(6)
+    path = tmp_path / "oblique-parallel-ends.step"
+    export_step(part, path)
+    assert recognise_section_passages(import_step(path)) == recognise_section_passages(part)
+
+
+def test_oblique_parallel_ends_publish_owned_wall_evidence_in_public_document():
+    part = Box(60, 50, 20) - Rot(0, 20, 0) * _polygonal_tool(6)
+    compound = Compound([part, Pos(100, 0, 0) * part])
+    document = build_section_recess_document(compound)
+    records = [
+        record for record in document.occurrences if record.classification.feature_kind == "passage"
+    ]
+    assert len(records) == 2
+    assert records[0].body != records[1].body
+    for record in records:
+        assert record.classification.section_shape == "hexagonal"
+        assert len(record.evidence.defining_faces) == len(record.evidence.constituent_faces) == 6
+        assert record.geometry.ends.low.gradient == record.geometry.ends.high.gradient
+        assert math.hypot(*record.geometry.ends.low.gradient) == pytest.approx(
+            math.tan(math.radians(20)), abs=1e-6
+        )
+    assert set(records[0].evidence.constituent_faces).isdisjoint(
+        records[1].evidence.constituent_faces
+    )
 
 
 @pytest.mark.parametrize("sides", (3, 4, 6))

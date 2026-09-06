@@ -86,6 +86,50 @@ scale, missing context, stepped-stock refusal and public evidence publication.
 The modest gain does not close #369 or establish a solution for its larger passage
 residual.
 
+### Full aggregate result for split mouths
+
+The canonical [after report](effectiveness-mfcadpp-2500-split-mouths-8d0d3fb.json)
+at `8d0d3fb603adf81ece4f80dddf7a9dde6a8b829e` confirms the candidate opportunity.
+The same 2,493 models evaluate and the same seven invalid inputs/reasons remain.
+Exactly the seven models listed above change; no model/class loses covered or
+matched defining faces. Native SectionRecess records rise from 2,949 to 2,956.
+
+| Family | Covered / labelled before → after | Matched defining before → after |
+| --- | --- | --- |
+| Triangular pocket | 3,589 → 3,596 / 3,892 | 2,660 → 2,666 |
+| Rectangular pocket | 4,618 → 4,618 / 4,895 | 3,495 → 3,499 |
+| Six-sided pocket | 5,368 → 5,375 / 5,707 | 4,563 → 4,569 |
+
+All other family score counts, reconciliation drops and the taxonomy-mismatch
+count are unchanged. The many-to-many mapping denominator matters: six-sided
+per-class precision is 4,563/10,784 → 4,569/10,804, a small numerical decrease
+because correct triangular/rectangular claims also enter that mapped-family
+denominator. It is not a new six-sided misclaim; all added constituents have the
+corresponding pocket labels. No native-instance recall is inferred.
+
+After-report SHA256:
+`d259bbc8c262ce62e6b2a2975880a2a0d3a5831ec6c3b01f27128af8985cb236`.
+Median runtime is 1.403 s, p95 3.238 s and summed model runtime 3,932.99 s on the
+shared host. These timings are not a controlled performance comparison. The report
+was published through matching checkpoints without repeating recognition and is
+byte-identical to the completed output.
+
+### Next bounded correctness finding: oblique parallel ends
+
+The refreshed first-500 six-sided passage audit finds 200 same-label components
+(1,336 faces); 40 components / 241 faces are untouched. All 40 fail the legacy
+ring's cycle or complete-pair-span gates. Those counterfactual gates do not prove
+that every residual is geometrically unsupported.
+
+Code inspection and an independent authored example expose a distinct bug:
+parallel stock planes were assumed perpendicular to the passage run. A box cut
+by a rotated straight polygonal tool has two parallel stock ends and an oblique
+wall-proved run. Reusing the existing ADR0016 planar-end proof represents it with
+equal nonzero end gradients, without a new schema or fabricated envelope.
+The first-500 prototype adds zero coverage, so this is a confirmed correctness
+fix, not a claim of solving the dominant corpus residual. Full regression
+measurement remains required before merging its follow-up.
+
 ## Reproduction
 
 ```console

@@ -2,6 +2,9 @@
 
 ## Next release
 
+- Recognise straight polygonal passages through parallel stock faces oblique to their
+  wall-proved run, preserving actual planar terminations in the existing schema (#369).
+
 - Recognise polygonal pockets whose planar stock mouth is split into coplanar faces,
   retaining whole-wall termination checks and the existing SectionRecess geometry and
   evidence contracts (#369).
