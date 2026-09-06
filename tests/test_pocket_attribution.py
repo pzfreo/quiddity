@@ -84,8 +84,13 @@ AXIS = {"x": 0, "y": 1, "z": 2}
 
 
 def _body_key(solid):
+    # Independent oracle for the documented public key policy, not the implementation helper.
     box = solid.bounding_box()
-    return (*tuple(box.min), *tuple(box.max), float(solid.volume), float(solid.area))
+    return (
+        *(round(float(value), 6) or 0.0 for value in (*tuple(box.min), *tuple(box.max))),
+        float(f"{solid.volume:.12g}"),
+        float(f"{solid.area:.12g}"),
+    )
 
 
 def _fresh_occurrences(part):

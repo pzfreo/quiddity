@@ -36,16 +36,12 @@ def _obround(length: float, width: float, depth: float):
 
 
 def _body_key(solid) -> tuple[float, ...]:
+    # Independently project the documented #517 key policy, not raw kernel last bits.
     box = solid.bounding_box()
     return (
-        float(box.min.X),
-        float(box.min.Y),
-        float(box.min.Z),
-        float(box.max.X),
-        float(box.max.Y),
-        float(box.max.Z),
-        float(solid.volume),
-        float(solid.area),
+        *(round(float(value), 6) or 0.0 for value in (*tuple(box.min), *tuple(box.max))),
+        float(f"{solid.volume:.12g}"),
+        float(f"{solid.area:.12g}"),
     )
 
 
