@@ -125,7 +125,21 @@ def test_ci_workflow_pins_node24_actions() -> None:
     assert "codecov/codecov-action@v" not in workflow
     assert "id-token: write" in workflow
     assert "use_oidc: true" in workflow
-    assert "fail_ci_if_error: true" in workflow
+    assert "fail_ci_if_error: false" in workflow
+
+
+def test_codecov_is_advisory_but_test_coverage_remains_required() -> None:
+    job = _parsed(CI_WORKFLOW)["jobs"]["test"]
+    upload = next(step for step in job["steps"] if step.get("uses", "").startswith("codecov/"))
+    assert upload["continue-on-error"] is True
+    assert upload["with"]["fail_ci_if_error"] is False
+    coverage = next(step for step in job["steps"] if "--cov-fail-under" in step.get("run", ""))
+    assert "--cov-fail-under=91" in coverage["run"]
+    assert not coverage.get("continue-on-error", False)
+    assert not job.get("continue-on-error", False)
+    statuses = _parsed(ROOT / "codecov.yml")["coverage"]["status"]
+    for kind in ("project", "patch"):
+        assert statuses[kind]["default"]["informational"] is True
 
 
 def test_ci_has_one_coverage_authority_and_a_separate_exhaustive_matrix() -> None:
