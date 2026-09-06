@@ -1,0 +1,303 @@
+{
+ "dataset": {
+  "layout": "steps/ + labels/",
+  "models": 62495,
+  "name": "mfinstseg",
+  "selection": "every model, lexical order"
+ },
+ "environment": {
+  "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "python": "3.14.7",
+  "wall_seconds": 1002.0,
+  "workers": 16
+ },
+ "failures": [
+  {
+   "error": "LegacySectionProjectionError",
+   "id": "20221123_142528_16768",
+   "message": "legacy section projection refused: centre disagrees with published loop"
+  },
+  {
+   "error": "Standard_TypeMismatch",
+   "id": "20221121_154647_858",
+   "message": "TopoDS::Face"
+  },
+  {
+   "error": "Standard_TypeMismatch",
+   "id": "20221121_154648_11595",
+   "message": "TopoDS::Face"
+  },
+  {
+   "error": "Standard_TypeMismatch",
+   "id": "20221121_154648_6987",
+   "message": "TopoDS::Face"
+  },
+  {
+   "error": "Standard_TypeMismatch",
+   "id": "20221121_154648_9493",
+   "message": "TopoDS::Face"
+  },
+  {
+   "error": "Standard_TypeMismatch",
+   "id": "20221123_142528_16805",
+   "message": "TopoDS::Face"
+  },
+  {
+   "error": "ValueError",
+   "id": "20221121_154648_10490",
+   "message": "adjacent section edges meet away from their shared endpoint"
+  },
+  {
+   "error": "ValueError",
+   "id": "20221121_154648_10674",
+   "message": "adjacent section edges meet away from their shared endpoint"
+  },
+  {
+   "error": "ValueError",
+   "id": "20221121_154648_15541",
+   "message": "adjacent section edges meet away from their shared endpoint"
+  },
+  {
+   "error": "ValueError",
+   "id": "20221121_154648_20634",
+   "message": "adjacent section edges meet away from their shared endpoint"
+  },
+  {
+   "error": "ValueError",
+   "id": "20221121_154648_21808",
+   "message": "adjacent section edges meet away from their shared endpoint"
+  },
+  {
+   "error": "ValueError",
+   "id": "20221121_154648_22954",
+   "message": "adjacent section edges meet away from their shared endpoint"
+  },
+  {
+   "error": "ValueError",
+   "id": "20221121_154648_4175",
+   "message": "adjacent section edges meet away from their shared endpoint"
+  },
+  {
+   "error": "ValueError",
+   "id": "20221123_142528_11595",
+   "message": "section boundary must be canonical and origin-centred"
+  },
+  {
+   "error": "ValueError",
+   "id": "20221123_142528_12575",
+   "message": "adjacent section edges meet away from their shared endpoint"
+  },
+  {
+   "error": "ValueError",
+   "id": "20221123_142528_1394",
+   "message": "adjacent section edges meet away from their shared endpoint"
+  },
+  {
+   "error": "ValueError",
+   "id": "20221123_142528_3962",
+   "message": "adjacent section edges meet away from their shared endpoint"
+  },
+  {
+   "error": "ValueError",
+   "id": "20221123_142528_5223",
+   "message": "adjacent section edges meet away from their shared endpoint"
+  },
+  {
+   "error": "ValueError",
+   "id": "20221124_154714_5499",
+   "message": "rich passage cannot reproduce its historical legacy value"
+  }
+ ],
+ "families": {
+  "angled_step": 15584,
+  "blend": 11884,
+  "boss": 19709,
+  "chamfer": 12062,
+  "circular_blind_step": 15074,
+  "countersink": 563,
+  "fillet": 10773,
+  "flat": 170,
+  "hole": 60343,
+  "oriented_slot": 1117,
+  "paired_ramp_step": 11126,
+  "plate": 26475,
+  "section_recess": 139522,
+  "slot": 4030,
+  "step": 3,
+  "through_step": 8703
+ },
+ "format": "quiddity-coverage-sweep",
+ "format_version": 1,
+ "kind": "coverage-sweep",
+ "mapping": {
+  "path": "docs/benchmarks/effectiveness-taxonomy-v13.json"
+ },
+ "not_an_effectiveness_baseline": true,
+ "package": {
+  "commit": "f1b02ab",
+  "name": "quiddity"
+ },
+ "per_class": {
+  "0": {
+   "models": 17412,
+   "name": "Chamfer",
+   "silent": 41,
+   "status": "supported"
+  },
+  "1": {
+   "models": 17535,
+   "name": "Through hole",
+   "silent": 1,
+   "status": "supported"
+  },
+  "10": {
+   "models": 17565,
+   "name": "Slanted through step",
+   "silent": 82,
+   "status": "unsupported"
+  },
+  "11": {
+   "models": 17326,
+   "name": "O-ring",
+   "silent": 0,
+   "status": "supported"
+  },
+  "12": {
+   "models": 17334,
+   "name": "Blind hole",
+   "silent": 1,
+   "status": "supported"
+  },
+  "13": {
+   "models": 17152,
+   "name": "Triangular pocket",
+   "silent": 8,
+   "status": "supported"
+  },
+  "14": {
+   "models": 17652,
+   "name": "Rectangular pocket",
+   "silent": 5,
+   "status": "supported"
+  },
+  "15": {
+   "models": 17456,
+   "name": "6-sided pocket",
+   "silent": 4,
+   "status": "supported"
+  },
+  "16": {
+   "models": 17468,
+   "name": "Circular end pocket",
+   "silent": 7,
+   "status": "supported"
+  },
+  "17": {
+   "models": 4190,
+   "name": "Rectangular blind slot",
+   "silent": 4,
+   "status": "supported"
+  },
+  "18": {
+   "models": 4119,
+   "name": "Vertical circular end blind slot",
+   "silent": 11,
+   "status": "supported"
+  },
+  "19": {
+   "models": 4087,
+   "name": "Horizontal circular end blind slot",
+   "silent": 7,
+   "status": "supported"
+  },
+  "2": {
+   "models": 17700,
+   "name": "Triangular passage",
+   "silent": 10,
+   "status": "supported"
+  },
+  "20": {
+   "models": 17799,
+   "name": "Triangular blind step",
+   "silent": 19,
+   "status": "supported"
+  },
+  "21": {
+   "models": 17954,
+   "name": "Circular blind step",
+   "silent": 11,
+   "status": "supported"
+  },
+  "22": {
+   "models": 17643,
+   "name": "Rectangular blind step",
+   "silent": 20,
+   "status": "supported"
+  },
+  "23": {
+   "models": 16741,
+   "name": "Round",
+   "silent": 6,
+   "status": "supported"
+  },
+  "24": {
+   "models": 62475,
+   "name": "Stock",
+   "silent": 149,
+   "status": "incomparable"
+  },
+  "3": {
+   "models": 17727,
+   "name": "Rectangular passage",
+   "silent": 11,
+   "status": "supported"
+  },
+  "4": {
+   "models": 17515,
+   "name": "6-sided passage",
+   "silent": 18,
+   "status": "supported"
+  },
+  "5": {
+   "models": 3751,
+   "name": "Triangular through slot",
+   "silent": 6,
+   "status": "unsupported"
+  },
+  "6": {
+   "models": 3634,
+   "name": "Rectangular through slot",
+   "silent": 0,
+   "status": "partial"
+  },
+  "7": {
+   "models": 3601,
+   "name": "Circular through slot",
+   "silent": 8,
+   "status": "unsupported"
+  },
+  "8": {
+   "models": 17705,
+   "name": "Rectangular through step",
+   "silent": 35,
+   "status": "supported"
+  },
+  "9": {
+   "models": 17793,
+   "name": "2-sided through step",
+   "silent": 39,
+   "status": "supported"
+  }
+ },
+ "summary": {
+  "failed": 19,
+  "models": 62495,
+  "models_below_one": 51597,
+  "ok": 62476,
+  "ratio_denominator": 62476,
+  "records_per_instance_median": 0.7273,
+  "silent": 149,
+  "total_records": 337138,
+  "with_features": 62476
+ }
+}
