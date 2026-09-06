@@ -60,9 +60,7 @@ def test_grouping_does_not_depend_on_where_the_part_sits_relative_to_a_grid(offs
         # Faces at -1.0, 1.0, 1.3 and 2.2. The 1.0/1.3 pair is closer than tol, so whether it
         # groups is exactly what a grid key decides by phase and a distance test does not.
         part = (
-            Box(40, 40, 2)
-            + Pos(0, 0, 1.15) * Box(20, 20, 0.3)
-            + Pos(0, 0, 1.75) * Box(8, 8, 0.9)
+            Box(40, 40, 2) + Pos(0, 0, 1.15) * Box(20, 20, 0.3) + Pos(0, 0, 1.75) * Box(8, 8, 0.9)
         )
         return len(recognise_face_levels(Pos(0, 0, shift) * part, tol=TOL))
 

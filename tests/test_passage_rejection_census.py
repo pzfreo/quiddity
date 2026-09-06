@@ -57,11 +57,7 @@ def _gates(part) -> list[str]:
     existing_regions = frozenset(
         frozenset(proposal.nodes) for proposal in final if not proposal.constituent
     )
-    final_regions = frozenset(
-        proposal.constituent
-        for proposal in final
-        if proposal.constituent
-    )
+    final_regions = frozenset(proposal.constituent for proposal in final if proposal.constituent)
     return [
         _classify_region(
             graph,
@@ -98,9 +94,7 @@ def test_line_section_uses_edge_incidence_not_unique_vertex_enumeration(sides: i
         for index in range(sides)
     )
     wire = Wire(edges)
-    assert tuple(wire.vertices()) != tuple(
-        edge.vertices()[0] for edge in wire.edges()
-    )
+    assert tuple(wire.vertices()) != tuple(edge.vertices()[0] for edge in wire.edges())
 
     result = _line_section(wire, LocalFrame.canonical((0.0, 0.0, 1.0), (0.0, 0.0, 0.0)))
 
@@ -130,6 +124,9 @@ def test_line_section_uses_edge_incidence_not_unique_vertex_enumeration(sides: i
 def test_line_section_refuses_unsupported_or_malformed_boundaries(edges) -> None:
     wire = SimpleNamespace(edges=lambda: edges)
 
-    assert _line_section(  # type: ignore[arg-type]
-        wire, LocalFrame.canonical((0.0, 0.0, 1.0), (0.0, 0.0, 0.0))
-    ) is None
+    assert (
+        _line_section(  # type: ignore[arg-type]
+            wire, LocalFrame.canonical((0.0, 0.0, 1.0), (0.0, 0.0, 0.0))
+        )
+        is None
+    )

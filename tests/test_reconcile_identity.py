@@ -90,14 +90,10 @@ def test_permuting_recogniser_output_does_not_change_what_survives():
     ledger, found = _claimed(part)
     evidence = ledger.snapshot_index()
     baseline_bevels = set(
-        chamfers_that_are_not_angled_steps(
-            found["chamfers"], found["steps"], evidence
-        )
+        chamfers_that_are_not_angled_steps(found["chamfers"], found["steps"], evidence)
     )
     baseline_pockets = set(
-        prismatic_pockets_that_are_not_pockets(
-            found["prismatic"], found["pockets"], evidence
-        )
+        prismatic_pockets_that_are_not_pockets(found["prismatic"], found["pockets"], evidence)
     )
 
     shuffler = random.Random(20260820)
@@ -112,11 +108,7 @@ def test_permuting_recogniser_output_does_not_change_what_survives():
             == baseline_bevels
         )
         assert (
-            set(
-                prismatic_pockets_that_are_not_pockets(
-                    pockets, found["pockets"], evidence
-                )
-            )
+            set(prismatic_pockets_that_are_not_pockets(pockets, found["pockets"], evidence))
             == baseline_pockets
         )
 
@@ -129,9 +121,7 @@ def test_two_records_of_equal_value_keep_separate_evidence():
     why `Claim` compares by identity, and `defining_of` has to preserve it.
     """
 
-    part = Box(120, 60, 20) - Pos(-30, 0, 8) * Box(16, 12, 14) - Pos(30, 0, 8) * Box(
-        16, 12, 14
-    )
+    part = Box(120, 60, 20) - Pos(-30, 0, 8) * Box(16, 12, 14) - Pos(30, 0, 8) * Box(16, 12, 14)
     ledger, found = _claimed(part)
     pockets = found["prismatic"]
 

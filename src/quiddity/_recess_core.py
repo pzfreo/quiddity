@@ -646,8 +646,6 @@ def _pocket_proposals_one(
     return _attach_complete_pocket_regions(proposals, owner)
 
 
-
-
 def _bounded_inner_region(
     graph: FaceGraph, opening: FaceNode, seed: frozenset[FaceNode]
 ) -> frozenset[FaceNode]:
@@ -692,9 +690,7 @@ def _attach_complete_pocket_regions(
         solid = graph.common_valid_solid(region | openings)
         if solid is None:
             continue
-        solid_nodes = {
-            node for node in graph.nodes if graph.common_valid_solid((node,)) is solid
-        }
+        solid_nodes = {node for node in graph.nodes if graph.common_valid_solid((node,)) is solid}
         if region >= solid_nodes - openings:
             continue
         regions.append((region, openings))
@@ -711,9 +707,7 @@ def _attach_complete_pocket_regions(
 
     matches: list[list[int]] = []
     for proposal in proposals:
-        defining = proposal.planar | frozenset(
-            node for group in proposal.caps for node in group
-        )
+        defining = proposal.planar | frozenset(node for group in proposal.caps for node in group)
         anchors = defining | proposal.floors
         matches.append(
             [

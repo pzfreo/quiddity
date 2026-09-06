@@ -50,9 +50,9 @@ def test_canonicalizer_rejects_nonportable_values(value):
 
 
 def test_traversal_ids_and_cylinder_face_handles_are_omitted():
-    assert canonicalize(
-        {"diameter": 4.0, "solid_idx": 7, "face": Box(1, 1, 1).faces()[0]}
-    ) == {"diameter": 4.0}
+    assert canonicalize({"diameter": 4.0, "solid_idx": 7, "face": Box(1, 1, 1).faces()[0]}) == {
+        "diameter": 4.0
+    }
 
 
 def test_other_unknown_objects_are_not_silently_omitted():

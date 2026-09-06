@@ -230,35 +230,23 @@ def test_plate_groups_survive_axes_mirror_and_scale(part) -> None:
     [
         Box(40, 10, 30) + Pos(-15, 10, 0) * Box(10, 30, 30),
         Box(40, 10, 30) + Pos(0, 10, 0) * Box(10, 30, 30),
-        Box(40, 10, 30)
-        + Pos(-15, 10, 0) * Box(10, 30, 30)
-        + Pos(15, 10, 0) * Box(10, 30, 30),
+        Box(40, 10, 30) + Pos(-15, 10, 0) * Box(10, 30, 30) + Pos(15, 10, 0) * Box(10, 30, 30),
         Pos(123, -87, 41) * build_fixture(),
     ],
 )
 def test_l_t_u_multiple_occurrence_and_translation_lifecycle(part) -> None:
-    records, candidates, _ledger = _claimed(
-        part, min_area_frac=0.2, max_thick_frac=0.8
-    )
+    records, candidates, _ledger = _claimed(part, min_area_frac=0.2, max_thick_frac=0.8)
     assert records and len(records) == len(candidates)
 
 
 def test_u_structure_retains_two_unequal_location_occurrences() -> None:
-    part = (
-        Box(40, 10, 30)
-        + Pos(-15, 10, 0) * Box(10, 30, 30)
-        + Pos(15, 10, 0) * Box(10, 30, 30)
-    )
-    records, candidates, ledger = _claimed(
-        part, min_area_frac=0.2, max_thick_frac=0.8
-    )
+    part = Box(40, 10, 30) + Pos(-15, 10, 0) * Box(10, 30, 30) + Pos(15, 10, 0) * Box(10, 30, 30)
+    records, candidates, ledger = _claimed(part, min_area_frac=0.2, max_thick_frac=0.8)
     x_records = [record for record in records if record.axis == "x"]
     assert [(record.lo, record.hi) for record in x_records] == [(-20, -10), (10, 20)]
     x_candidates = [candidate for candidate in candidates if candidate.record.axis == "x"]
     assert len(x_candidates) == 2
-    assert ledger.defining_of(x_candidates[0]).isdisjoint(
-        ledger.defining_of(x_candidates[1])
-    )
+    assert ledger.defining_of(x_candidates[0]).isdisjoint(ledger.defining_of(x_candidates[1]))
 
 
 def test_separated_valid_bodies_retain_distinct_occurrence_identity() -> None:
@@ -266,8 +254,7 @@ def test_separated_valid_bodies_retain_distinct_occurrence_identity() -> None:
     records, candidates, ledger = _claimed(part, min_area_frac=0.01)
     assert len(records) == len(candidates) == 8
     solids = [
-        ledger.graph.common_valid_solid(ledger.defining_of(candidate))
-        for candidate in candidates
+        ledger.graph.common_valid_solid(ledger.defining_of(candidate)) for candidate in candidates
     ]
     assert len(set(solids)) == 2 and None not in solids
     for left, right in zip(candidates, candidates[1:], strict=False):
@@ -333,11 +320,7 @@ def test_compound_plate_order_is_geometry_deterministic() -> None:
 
 
 def test_coincident_planes_from_other_solids_do_not_contaminate_plate_roles() -> None:
-    part = (
-        Box(80, 60, 10)
-        + Pos(0, -25, 30) * Box(80, 10, 40)
-        + Pos(0, 25, 30) * Box(80, 10, 40)
-    )
+    part = Box(80, 60, 10) + Pos(0, -25, 30) * Box(80, 10, 40) + Pos(0, 25, 30) * Box(80, 10, 40)
 
     ledger = ClaimLedger(FaceGraph(part))
     public = recognise_plates(part)
@@ -379,8 +362,10 @@ def test_bound_identity_collapses_wrappers_duplicates_and_reversed_order(monkeyp
     monkeypatch.setattr(
         kind,
         "faces",
-        lambda _self: list(reversed([copy.copy(face) for face in original]))
-        + [copy.copy(face) for face in original],
+        lambda _self: (
+            list(reversed([copy.copy(face) for face in original]))
+            + [copy.copy(face) for face in original]
+        ),
     )
     records = _discover_plates(part, writer=ledger.writer)
     candidates = ledger.candidate_set(FamilyId.PLATES).candidates
@@ -492,9 +477,7 @@ def test_rolled_plate_area_authority_survives_step_and_arbitrary_framing(tmp_pat
 
 def test_framed_plate_maximum_thickness_tie_is_rigid_motion_covariant() -> None:
     aligned = (Align.CENTER, Align.CENTER, Align.MIN)
-    part = Box(60, 40, 10, align=aligned) + Pos(-15, 0, 10) * Box(
-        30, 40, 15, align=aligned
-    )
+    part = Box(60, 40, 10, align=aligned) + Pos(-15, 0, 10) * Box(30, 40, 15, align=aligned)
     moved = Pos(91, -37, 48) * Rot(31, 47, 13) * part
 
     baseline = build_framed_recognition_result(part, rotational=False)
@@ -504,11 +487,15 @@ def test_framed_plate_maximum_thickness_tie_is_rigid_motion_covariant() -> None:
 
     (baseline_plate,) = baseline.result.plates
     (presented_plate,) = presented.result.plates
-    assert (baseline_plate.axis, baseline_plate.lo, baseline_plate.hi) == (
-        presented_plate.axis,
-        presented_plate.lo,
-        presented_plate.hi,
-    ) == ("x", -10.357, -0.357)
+    assert (
+        (baseline_plate.axis, baseline_plate.lo, baseline_plate.hi)
+        == (
+            presented_plate.axis,
+            presented_plate.lo,
+            presented_plate.hi,
+        )
+        == ("x", -10.357, -0.357)
+    )
     assert (baseline_plate.u, baseline_plate.v) == pytest.approx(
         (presented_plate.u, presented_plate.v), abs=1e-9
     )
@@ -531,9 +518,7 @@ def test_framed_plate_maximum_thickness_tie_is_rigid_motion_covariant() -> None:
 
 @pytest.mark.parametrize(("delta", "z_nodes"), [(0.4999, 3), (0.5, 3), (0.5001, 2)])
 def test_real_face_coordinate_clusters_include_exact_tolerance_only(delta, z_nodes) -> None:
-    part = (Pos(-10, 0, 0) * Box(20, 20, 8)) + (
-        Pos(10, 0, delta / 2) * Box(20, 20, 8 + delta)
-    )
+    part = (Pos(-10, 0, 0) * Box(20, 20, 8)) + (Pos(10, 0, delta / 2) * Box(20, 20, 8 + delta))
     records, candidates, ledger = _claimed(part, max_thick_frac=1.1)
     candidate = next(candidate for candidate in candidates if candidate.record.axis == "z")
     assert next(record for record in records if record.axis == "z").hi == 4.0
@@ -541,11 +526,7 @@ def test_real_face_coordinate_clusters_include_exact_tolerance_only(delta, z_nod
 
 
 def test_intervening_event_selects_two_adjacent_slabs_never_the_void_span() -> None:
-    part = (
-        Box(40, 40, 5)
-        + Pos(0, 0, 20) * Box(40, 40, 5)
-        + Pos(0, 0, 10) * Box(4, 4, 20)
-    )
+    part = Box(40, 40, 5) + Pos(0, 0, 20) * Box(40, 40, 5) + Pos(0, 0, 10) * Box(4, 4, 20)
     records, _candidates, _ledger = _claimed(part, max_thick_frac=0.9)
     z_intervals = [(record.lo, record.hi) for record in records if record.axis == "z"]
     assert z_intervals == [(-2.5, 2.5), (17.5, 22.5)]
@@ -820,18 +801,19 @@ def test_plate_import_constructor_and_capability_rosters_are_closed() -> None:
         and call.func.attr == "faces"
     ]
     assert len(face_scans) == 1
-    assert sum(
-        isinstance(call, ast.Call)
-        and isinstance(call.func, ast.Name)
-        and call.func.id == "_plate_proposals"
-        for call in ast.walk(discover)
-    ) == 1
+    assert (
+        sum(
+            isinstance(call, ast.Call)
+            and isinstance(call.func, ast.Name)
+            and call.func.id == "_plate_proposals"
+            for call in ast.walk(discover)
+        )
+        == 1
+    )
 
 
 def test_registry_uses_restricted_turned_occurrences_for_body_local_plate_veto() -> None:
-    tree = ast.parse(
-        (ROOT / "src/quiddity/_registry.py").read_text(encoding="utf-8")
-    )
+    tree = ast.parse((ROOT / "src/quiddity/_registry.py").read_text(encoding="utf-8"))
     function = next(
         node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_plates"
     )

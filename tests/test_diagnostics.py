@@ -88,25 +88,16 @@ def test_multiple_terminal_observations_emit_one_diagnostic_per_slant() -> None:
 
 
 def _side_subdivided_blind_step() -> Solid:
-    part = Box(60, 40, 12) - Pos(-20, 20, 6) * Rot(45, 0, 0) * Box(
-        30, 5.657, 5.657
-    )
+    part = Box(60, 40, 12) - Pos(-20, 20, 6) * Rot(45, 0, 0) * Box(30, 5.657, 5.657)
     faces = list(part.faces())
     slant = next(
-        face
-        for face in faces
-        if abs(face.normal_at().Y) > 0.5 and abs(face.normal_at().Z) > 0.5
+        face for face in faces if abs(face.normal_at().Y) > 0.5 and abs(face.normal_at().Z) > 0.5
     )
     terminal = next(
-        face
-        for face in faces
-        if len(face.edges()) == 3 and abs(face.normal_at().X) > 0.9
+        face for face in faces if len(face.edges()) == 3 and abs(face.normal_at().X) > 0.9
     )
     common = next(
-        first
-        for first in terminal.edges()
-        for second in slant.edges()
-        if first.is_same(second)
+        first for first in terminal.edges() for second in slant.edges() if first.is_same(second)
     )
     start, end = (vertex.center() for vertex in common.vertices())
     middle = (start + end) * 0.5
@@ -123,11 +114,7 @@ def _side_subdivided_blind_step() -> Solid:
         new_slant = Face(new_slant.outer_wire().reversed())
     result = Solid(
         Shell(
-            [
-                face
-                for face in faces
-                if not face.is_same(slant) and not face.is_same(terminal)
-            ]
+            [face for face in faces if not face.is_same(slant) and not face.is_same(terminal)]
             + [new_terminal, new_slant]
         )
     )
@@ -142,10 +129,7 @@ def test_split_terminal_now_flows_through_the_real_aggregate() -> None:
     assert len(product.result.angled_steps) == 1
     assert len(product.physical.candidate_set(FamilyId.ANGLED_STEPS).candidates) == 1
     assert (
-        product.evidence.observations(
-            FamilyId.ANGLED_STEPS, PredicateId.ANGLED_STEP_TERMINAL
-        )
-        == ()
+        product.evidence.observations(FamilyId.ANGLED_STEPS, PredicateId.ANGLED_STEP_TERMINAL) == ()
     )
     assert product.result.chamfers == ()
     assert product.diagnostics == ()
@@ -155,12 +139,8 @@ def test_split_terminal_now_flows_through_the_real_aggregate() -> None:
 
 
 def test_stock_supported_step_and_plain_chamfer_emit_no_residuals() -> None:
-    blind = Box(60, 40, 12) - Pos(-20, 20, 6) * Rot(45, 0, 0) * Box(
-        30, 5.657, 5.657
-    )
-    through = Box(60, 40, 12) - Pos(0, 20, 6) * Rot(45, 0, 0) * Box(
-        70, 5.657, 5.657
-    )
+    blind = Box(60, 40, 12) - Pos(-20, 20, 6) * Rot(45, 0, 0) * Box(30, 5.657, 5.657)
+    through = Box(60, 40, 12) - Pos(0, 20, 6) * Rot(45, 0, 0) * Box(70, 5.657, 5.657)
 
     assert _take_inventory(Box(10, 10, 10)).diagnostics == ()
     assert _take_inventory(blind).diagnostics == ()

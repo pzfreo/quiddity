@@ -128,9 +128,7 @@ def _plane_basis(normal: Vector3) -> tuple[Vector3, Vector3]:
     return u, v
 
 
-def _plane_curve_parameters_match(
-    curve: _PrismCurve, face: MatchingFace, metric: float
-) -> bool:
+def _plane_curve_parameters_match(curve: _PrismCurve, face: MatchingFace, metric: float) -> bool:
     if curve.start is None or curve.end is None:
         return curve.start_parameter is None and curve.end_parameter is None
     if curve.start_parameter is None or curve.end_parameter is None:
@@ -272,9 +270,7 @@ def _sample_curve(curve: _PrismCurve) -> tuple[Vector3, ...] | None:
         or curve.full
     ):
         return None
-    radial = tuple(
-        value - origin for value, origin in zip(curve.start, curve.centre, strict=True)
-    )
+    radial = tuple(value - origin for value, origin in zip(curve.start, curve.centre, strict=True))
     samples = []
     for index in range(9):
         angle = curve.sweep * index / 8.0
@@ -290,9 +286,7 @@ def _sample_curve(curve: _PrismCurve) -> tuple[Vector3, ...] | None:
                 Vector3,
                 tuple(
                     origin + cosine * value + sine * cross_value
-                    for origin, value, cross_value in zip(
-                        curve.centre, radial, cross, strict=True
-                    )
+                    for origin, value, cross_value in zip(curve.centre, radial, cross, strict=True)
                 ),
             )
         )
@@ -376,14 +370,10 @@ def prism_fact(
         or repeat_count * len(section_signature) != edge_count
     ):
         return None
-    signature_roster: list[
-        tuple[str, float, tuple[tuple[float, float], ...]]
-    ] = []
+    signature_roster: list[tuple[str, float, tuple[tuple[float, float], ...]]] = []
     relative_profile_centre = cast(
         Vector3,
-        tuple(
-            value - origin for value, origin in zip(profile_centre, centre_of_mass, strict=True)
-        ),
+        tuple(value - origin for value, origin in zip(profile_centre, centre_of_mass, strict=True)),
     )
     for value in section_signature:
         charged()
@@ -433,9 +423,7 @@ def prism_fact(
             or any(
                 abs(expected_point[0] - derived_point[0]) > signature_metric
                 or abs(expected_point[1] - derived_point[1]) > signature_angle
-                for expected_point, derived_point in zip(
-                    expected[2], derived[2], strict=True
-                )
+                for expected_point, derived_point in zip(expected[2], derived[2], strict=True)
             )
         ):
             return None
@@ -459,10 +447,7 @@ def prism_fact(
         occurrences = incidence.get(curve_position, ())
         if len(occurrences) != 2 or len(set(occurrences)) != 2:
             return None
-        owners = {
-            face_position
-            for face_position, _wire_position, _edge_position in occurrences
-        }
+        owners = {face_position for face_position, _wire_position, _edge_position in occurrences}
         if cap_position not in owners or len(owners) != 2:
             return None
         (side,) = owners - {cap_position}

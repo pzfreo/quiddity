@@ -12,9 +12,7 @@ def test_labels_are_read_after_the_geometric_candidate_roster() -> None:
         target.id: node.lineno
         for node in ast.walk(tree)
         if isinstance(node, (ast.Assign, ast.AnnAssign))
-        for target in (
-            node.targets if isinstance(node, ast.Assign) else (node.target,)
-        )
+        for target in (node.targets if isinstance(node, ast.Assign) else (node.target,))
         if isinstance(target, ast.Name)
     }
     label_reads = [

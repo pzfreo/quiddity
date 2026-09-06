@@ -76,9 +76,7 @@ def _first_rejection(part, face) -> dict[str, Any]:
 
     other_axes = [axis for axis in (0, 1, 2) if axis != edge_i]
     centre = {axis: 0.5 * sum(span[axis]) for axis in (0, 1, 2)}
-    neighbours = nearest_axis_aligned_planes(
-        face, edge_faces, centre, exclude_axis=edge_i
-    )
+    neighbours = nearest_axis_aligned_planes(face, edge_faces, centre, exclude_axis=edge_i)
     if any(axis not in neighbours for axis in other_axes):
         return {
             "gate": "nearest_axis_aligned_planes",
@@ -175,13 +173,9 @@ def audit(dataset_root: Path) -> dict[str, Any]:
                 "raw_aggregate_angled_steps": len(candidates),
                 "local_direct_angled_steps": len(recognise_angled_steps(local)),
                 "local_aggregate_angled_steps": len(
-                    _take_inventory(local)
-                    .accepted.candidate_set(FamilyId.ANGLED_STEPS)
-                    .candidates
+                    _take_inventory(local).accepted.candidate_set(FamilyId.ANGLED_STEPS).candidates
                 ),
-                "occurrences": sorted(
-                    occurrences, key=lambda item: item["defining_face_index"]
-                ),
+                "occurrences": sorted(occurrences, key=lambda item: item["defining_face_index"]),
             }
         )
     return {

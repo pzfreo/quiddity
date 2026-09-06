@@ -253,9 +253,7 @@ def _discover_flats(
             ax = c["axis_xyz"]
             s = (pcv[0] - ax[0]) * nv[0] + (pcv[1] - ax[1]) * nv[1] + (pcv[2] - ax[2]) * nv[2]
             r = c["diameter"] / 2
-            if not (
-                _CHORD_MIN < s < r - _CHORD_MARGIN
-            ):
+            if not (_CHORD_MIN < s < r - _CHORD_MARGIN):
                 continue  # outward normal points toward the axis (a slot wall), or outside OD
             if r - s < _MIN_FLAT_DEPTH:
                 continue  # a tangent sliver, not a machined flat
@@ -340,9 +338,7 @@ def _discover_flats(
     return [proposal.record for proposal in out]
 
 
-def _axis_line(
-    axis: str, ax: Sequence[float], direction: Sequence[float] | None = None
-) -> Span2:
+def _axis_line(axis: str, ax: Sequence[float], direction: Sequence[float] | None = None) -> Span2:
     """Canonical in-plane coordinates of the stock's axis line.
 
     Rounded to the same 3 dp as every other coordinate a record carries, so two faces on one

@@ -106,8 +106,9 @@ def test_framed_rigid_motion_keeps_each_channel_plate_join_coherent() -> None:
     framed = build_framed_recognition_result(part)
     assert isinstance(framed, FramedRecognitionResult)
 
-    channels = [r for r in framed.result.section_recesses
-                if r.classification.feature_kind == "channel"]
+    channels = [
+        r for r in framed.result.section_recesses if r.classification.feature_kind == "channel"
+    ]
     assert len(channels) == 2
     assert {r.body for r in channels} == {0, 1}
     # Unified records join by result-local body index, not the old geometric body signature.

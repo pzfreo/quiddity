@@ -324,9 +324,7 @@ def test_an_interrupted_wall_keeps_exact_graph_owned_evidence_and_aggregate_pari
         product.context.graph.require_node(product.context.graph.face(node)) is node
         for node in aggregate_defining
     )
-    assert any(
-        len(product.context.graph.face(node).wires()) > 1 for node in aggregate_defining
-    )
+    assert any(len(product.context.graph.face(node).wires()) > 1 for node in aggregate_defining)
 
 
 def test_an_interruption_crossing_the_defining_seam_fails_closed():

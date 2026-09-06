@@ -59,6 +59,7 @@ from tools._legacy_recognition import namespace
 
 r = namespace()
 
+
 def _prism(*corners, height=14):
     with BuildPart() as built:
         with BuildSketch(Plane.XY):
@@ -107,9 +108,7 @@ def _with_deep_side_opening(part, *, width: float = 12.0):
 def _through():
     """The same triangular void cut clean through: a passage, not a pocket."""
 
-    return Box(120, 80, 20) - Pos(0, 0, -20) * _prism(
-        (-12, -9), (12, -9), (0, 12), height=60
-    )
+    return Box(120, 80, 20) - Pos(0, 0, -20) * _prism((-12, -9), (12, -9), (0, 12), height=60)
 
 
 def test_partial_mouth_probe_helpers_fail_closed_at_their_kernel_boundaries() -> None:
@@ -356,9 +355,7 @@ def test_every_selected_blended_cap_patch_is_constituent_but_not_defining() -> N
 
 
 def test_both_capped_internal_cavity_issues_no_record_or_evidence() -> None:
-    enclosed = Box(120, 80, 20) - Pos(0, 0, -3) * _prism(
-        (-12, -9), (12, -9), (0, 12), height=6
-    )
+    enclosed = Box(120, 80, 20) - Pos(0, 0, -3) * _prism((-12, -9), (12, -9), (0, 12), height=6)
     ledger = ClaimLedger(FaceGraph(enclosed))
 
     assert r.recognise_prismatic_pockets(enclosed, ledger=ledger) == []
@@ -373,8 +370,7 @@ def test_multiple_pockets_keep_sorted_occurrence_identity() -> None:
     assert len(pockets) == 2
     candidates = ledger.candidate_set(FamilyId.PRISMATIC_POCKETS).candidates
     assert all(
-        candidate.record is pocket
-        for candidate, pocket in zip(candidates, pockets, strict=True)
+        candidate.record is pocket for candidate, pocket in zip(candidates, pockets, strict=True)
     )
     assert len({frozenset(ledger.defining_of(candidate)) for candidate in candidates}) == 2
 
@@ -516,9 +512,7 @@ def test_principal_ring_contract_survives_arbitrary_rigid_presentation_in_framed
     rectangular: bool,
 ) -> None:
     baseline = build_framed_recognition_result(fixture())
-    presented = Pos(-31, 17, 23) * fixture().rotate(
-        Axis((0, 0, 0), (1, 1, 0)), 37
-    )
+    presented = Pos(-31, 17, 23) * fixture().rotate(Axis((0, 0, 0), (1, 1, 0)), 37)
 
     framed = build_framed_recognition_result(presented)
 
@@ -576,9 +570,7 @@ def test_a_rectangular_recess_is_reported_by_both_families_and_reconciled_to_one
     part = _rectangular()
     rect_ledger, rect_records = _claimed(part)
     assert len(rect_records) == 1
-    (rect_candidate,) = rect_ledger.candidate_set(
-        FamilyId.PRISMATIC_POCKETS
-    ).candidates
+    (rect_candidate,) = rect_ledger.candidate_set(FamilyId.PRISMATIC_POCKETS).candidates
     assert_ring_role(rect_ledger, rect_candidate, rect_records[0])
 
     ledger = ClaimLedger(FaceGraph(part))
@@ -590,12 +582,7 @@ def test_a_rectangular_recess_is_reported_by_both_families_and_reconciled_to_one
     assert candidate.record is prismatic[0]
     assert len(ledger.defining_of(candidate)) == prismatic[0].sides == 4
     assert_ring_role(ledger, candidate, prismatic[0])
-    assert (
-        prismatic_pockets_that_are_not_pockets(
-            prismatic, pockets, ledger.snapshot_index()
-        )
-        == []
-    )
+    assert prismatic_pockets_that_are_not_pockets(prismatic, pockets, ledger.snapshot_index()) == []
 
     # And the rule is not simply "drop everything": a shape `Pocket` cannot express survives it.
     # One part, built once -- a second `_triangular()` is a different solid, and the ledger
@@ -605,11 +592,7 @@ def test_a_rectangular_recess_is_reported_by_both_families_and_reconciled_to_one
     tri_pockets = r.recognise_pockets(triangle, ledger=tri_ledger)
     tri = r.recognise_prismatic_pockets(triangle, ledger=tri_ledger)
     assert (
-        len(
-            prismatic_pockets_that_are_not_pockets(
-                tri, tri_pockets, tri_ledger.snapshot_index()
-            )
-        )
+        len(prismatic_pockets_that_are_not_pockets(tri, tri_pockets, tri_ledger.snapshot_index()))
         == 1
     )
 

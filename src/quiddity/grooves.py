@@ -43,9 +43,7 @@ from quiddity._typing import CylinderInventory, FaceLike, Part
 from quiddity.turned import TurnedProfileKey, profile_key_from_bands
 
 #: A conical face as ``(axis direction, ((rim centre, rim radius), ...))``.
-ConeJoin = tuple[
-    tuple[float, float, float], tuple[tuple[tuple[float, float, float], float], ...]
-]
+ConeJoin = tuple[tuple[float, float, float], tuple[tuple[tuple[float, float, float], float], ...]]
 
 # Every gate below is a fraction of the band it judges, per ADR 0008: a groove in 5 mm bar and
 # the same groove in 500 mm bar are the same feature, and only a proportional gate says so.
@@ -85,9 +83,7 @@ def _cone_joins(part: Part) -> list[ConeJoin]:
         if len(circles) < 2:
             continue  # a drill-point cone is one circle and an apex: it joins nothing
         direction = BRepAdaptor_Surface(face.wrapped).Cone().Axis().Direction()
-        rims = tuple(
-            ((c.arc_center.X, c.arc_center.Y, c.arc_center.Z), c.radius) for c in circles
-        )
+        rims = tuple(((c.arc_center.X, c.arc_center.Y, c.arc_center.Z), c.radius) for c in circles)
         joins.append(((direction.X(), direction.Y(), direction.Z()), rims))
     return joins
 
@@ -312,9 +308,7 @@ def recognise_grooves(
             # Cut into uniform stock: the two walls step back to (nearly) the same OD. Unequal
             # walls are a shoulder / stepped profile, not an annular channel.
             wider_dia = max(prev["diameter"], nxt["diameter"])
-            if abs(prev["diameter"] - nxt["diameter"]) > length_tol(
-                wider_dia, rel=_WALL_DIA_FRAC
-            ):
+            if abs(prev["diameter"] - nxt["diameter"]) > length_tol(wider_dia, rel=_WALL_DIA_FRAC):
                 continue
             # A narrow channel: narrower than the WIDER of its two walls. A band as wide as its
             # walls is a staircase step; an end-adjacent groove keeps one wide

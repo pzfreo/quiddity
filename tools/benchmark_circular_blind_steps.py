@@ -86,9 +86,7 @@ def _measure(parts: list[tuple[str, Any]]) -> dict[str, Any]:
                 ),
                 "exact_fillet_reconciliation": exact_fillet_reconciliation,
                 "raw_circular_blind_steps": len(
-                    enabled.physical.candidate_set(
-                        FamilyId.CIRCULAR_BLIND_STEPS
-                    ).candidates
+                    enabled.physical.candidate_set(FamilyId.CIRCULAR_BLIND_STEPS).candidates
                 ),
                 "accepted_circular_blind_steps": len(enabled_result.circular_blind_steps),
                 "reconciled_fillets": sum(
@@ -103,16 +101,10 @@ def _measure(parts: list[tuple[str, Any]]) -> dict[str, Any]:
     disabled_times = [row["disabled_seconds"] for row in rows]
     enabled_times = [row["enabled_seconds"] for row in rows]
     return {
-        "all_pre_existing_outputs_equal": all(
-            row["pre_existing_outputs_equal"] for row in rows
-        ),
-        "all_fillet_reconciliations_exact": all(
-            row["exact_fillet_reconciliation"] for row in rows
-        ),
+        "all_pre_existing_outputs_equal": all(row["pre_existing_outputs_equal"] for row in rows),
+        "all_fillet_reconciliations_exact": all(row["exact_fillet_reconciliation"] for row in rows),
         "raw_circular_blind_steps": sum(row["raw_circular_blind_steps"] for row in rows),
-        "accepted_circular_blind_steps": sum(
-            row["accepted_circular_blind_steps"] for row in rows
-        ),
+        "accepted_circular_blind_steps": sum(row["accepted_circular_blind_steps"] for row in rows),
         "reconciled_fillets": sum(row["reconciled_fillets"] for row in rows),
         "disabled": _summary(disabled_times),
         "enabled": _summary(enabled_times),

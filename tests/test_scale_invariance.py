@@ -52,9 +52,7 @@ FACTORS = (0.05, 5.0, 100.0)
 # Aggregate Blend membership is also threshold-dependent: direct Blend geometry is scale-free,
 # but an accepted thresholded Fillet deliberately supersedes the same complete chain. Its direct
 # scale contract is pinned in ``tests/test_blends.py`` rather than erased from that ownership rule.
-NOT_YET_SCALE_FREE = frozenset(
-    {"blend", "fillet", "flat", "plate", "pocket", "channel"}
-)
+NOT_YET_SCALE_FREE = frozenset({"blend", "fillet", "flat", "plate", "pocket", "channel"})
 
 # This test partitions internal detectors by their admission thresholds. A unified public
 # section_recess can come from either partition and must not erase that distinction.
@@ -166,8 +164,6 @@ def test_an_explicit_end_margin_is_also_honoured_literally():
 
     assert step_level_zs(part, tol=0.1) == step_level_zs(part, tol=0.1)
     assert step_level_zs(part) == step_level_zs(part)
-
-
 
 
 def test_the_precision_floor_follows_the_value_and_not_the_millimetre():

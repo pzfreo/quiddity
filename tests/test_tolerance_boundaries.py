@@ -39,9 +39,7 @@ def _drafted(degrees: float, scale: float = 1.0):
 
     part = Box(60 * scale, 40 * scale, 12 * scale)
     edge = part.edges().filter_by(Axis.Y).sort_by(Axis.X)[0]
-    return chamfer(
-        edge, length=4.0 * scale, length2=4.0 * scale * math.tan(math.radians(degrees))
-    )
+    return chamfer(edge, length=4.0 * scale, length2=4.0 * scale * math.tan(math.radians(degrees)))
 
 
 def test_a_face_just_inside_the_draft_boundary_is_a_wall_and_just_outside_is_a_chamfer():

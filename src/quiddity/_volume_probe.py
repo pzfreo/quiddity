@@ -59,17 +59,13 @@ def prism_material_fraction(
         # Nominally disjoint face bounds can overlap by a final bit while remaining below the
         # kernel's constructible-solid floor. Such a sliver cannot prove an empty region.
         return 1.0
-    probe = Pos(centre["x"], centre["y"], centre["z"]) * Box(
-        size["x"], size["y"], size["z"]
-    )
+    probe = Pos(centre["x"], centre["y"], centre["z"]) * Box(size["x"], size["y"], size["z"])
     intersection = part.intersect(probe)
     occupied = intersection_volume(intersection)
     return float(occupied / (size["x"] * size["y"] * size["z"]))
 
 
-def prism_is_empty(
-    spans: dict[str, tuple[float, float]], part: Part, *, inset: float
-) -> bool:
+def prism_is_empty(spans: dict[str, tuple[float, float]], part: Part, *, inset: float) -> bool:
     """Whether the inset prism has exactly zero volumetric intersection with ``part``."""
 
     return prism_material_fraction(spans, part, inset=inset) == 0.0

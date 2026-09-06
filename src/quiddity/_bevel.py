@@ -34,9 +34,7 @@ from quiddity._typing import FaceLike, Part, Vector3
 #: is a single-axis bevel rather than a compound corner. Dimensionless (ADR 0008).
 _RUN_AXIS_COS = 0.05
 
-_BevelRejectReason: TypeAlias = Literal[
-    "nonplanar", "degenerate", "aligned", "compound"
-]
+_BevelRejectReason: TypeAlias = Literal["nonplanar", "degenerate", "aligned", "compound"]
 
 
 class BevelReject(ValueError):
@@ -139,9 +137,11 @@ def _near_corner(
     corner[oi[0]] = neigh_coord[oi[0]]
     corner[oi[1]] = neigh_coord[oi[1]]
     step = toward * INTERIOR_PROBE_FRAC
-    return (corner[0] + step * (centre[0] - corner[0]),
-            corner[1] + step * (centre[1] - corner[1]),
-            corner[2] + step * (centre[2] - corner[2]))
+    return (
+        corner[0] + step * (centre[0] - corner[0]),
+        corner[1] + step * (centre[1] - corner[1]),
+        corner[2] + step * (centre[2] - corner[2]),
+    )
 
 
 def _material_at(part: Part, point: Vector3) -> bool:

@@ -51,21 +51,26 @@ def audit_product(product: InventoryProduct) -> dict:
                 )
             ]
             refused = any(
-                owner is not None and record.body == owner.ordinal
+                owner is not None
+                and record.body == owner.ordinal
                 and defining_indices == set(record.evidence.defining_faces)
                 and constituent_indices == set(record.evidence.constituent_faces)
                 for record in product.result.section_recess_refusals
             )
-            rows.append({
-                "family": family.value,
-                "candidate": ordinal,
-                "status": (
-                    ("explicit_refusal" if refused else "unrepresented") if not matches
-                    else "evidence_only" if family in {FamilyId.POCKETS, FamilyId.CHANNELS}
-                    else "exact_region"
-                ),
-                "section_recess_indices": [record.index for record in matches],
-            })
+            rows.append(
+                {
+                    "family": family.value,
+                    "candidate": ordinal,
+                    "status": (
+                        ("explicit_refusal" if refused else "unrepresented")
+                        if not matches
+                        else "evidence_only"
+                        if family in {FamilyId.POCKETS, FamilyId.CHANNELS}
+                        else "exact_region"
+                    ),
+                    "section_recess_indices": [record.index for record in matches],
+                }
+            )
     return {
         "section_recesses": len(product.result.section_recesses),
         "counts": {
@@ -78,8 +83,13 @@ def audit_product(product: InventoryProduct) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--step", type=Path, action="append", default=[],
-                        help="development STEP file; repeat for several inputs")
+    parser.add_argument(
+        "--step",
+        type=Path,
+        action="append",
+        default=[],
+        help="development STEP file; repeat for several inputs",
+    )
     args = parser.parse_args()
     models = {}
     if args.step:
@@ -94,10 +104,13 @@ def main() -> int:
                 _take_inventory(load_fixture(path).build_fixture())
             )
     print(json.dumps({"format_version": 1, "models": models}, indent=2, sort_keys=True))
-    return int(any(
-        row["status"] == "unrepresented"
-        for model in models.values() for row in model["candidates"]
-    ))
+    return int(
+        any(
+            row["status"] == "unrepresented"
+            for model in models.values()
+            for row in model["candidates"]
+        )
+    )
 
 
 if __name__ == "__main__":

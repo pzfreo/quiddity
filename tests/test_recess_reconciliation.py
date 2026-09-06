@@ -169,9 +169,7 @@ def test_empty_evidence_obround_pocket_survives_an_unrelated_passage():
 
 
 @pytest.mark.parametrize("placement", [None, Pos(7, -3, 11) * Rot(90, 0, 0)])
-def test_deep_obround_pocket_caps_do_not_become_transverse_through_slot(
-    placement, tmp_path
-):
+def test_deep_obround_pocket_caps_do_not_become_transverse_through_slot(placement, tmp_path):
     """Smooth end caps close the axis selected by the Slot length heuristic.
 
     The pocket is deeper than its straight footprint is long.  A pure extent comparison therefore

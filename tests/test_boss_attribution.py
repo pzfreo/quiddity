@@ -352,9 +352,7 @@ def test_external_spherical_end_retains_exact_classification_face() -> None:
         == "flat"
     )
     assert len(retained) == 1
-    assert (
-        BRepAdaptor_Surface(retained[0].wrapped).GetType() == GeomAbs_Sphere
-    )
+    assert BRepAdaptor_Surface(retained[0].wrapped).GetType() == GeomAbs_Sphere
 
 
 def test_radial_pipe_boss_and_turned_od_keep_current_roles() -> None:

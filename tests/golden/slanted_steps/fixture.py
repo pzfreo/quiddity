@@ -14,7 +14,5 @@ def build_fixture():
     bounds = solid.bounding_box()
     align_min = (Align.MIN, Align.MIN, Align.MIN)
     low = Pos(bounds.min.X, bounds.min.Y, bounds.min.Z) * Box(8, 12, 5, align=align_min)
-    high = Pos(bounds.min.X, bounds.max.Y - 12, bounds.max.Z - 5) * Box(
-        8, 12, 5, align=align_min
-    )
+    high = Pos(bounds.min.X, bounds.max.Y - 12, bounds.max.Z - 5) * Box(8, 12, 5, align=align_min)
     return solid - low - high

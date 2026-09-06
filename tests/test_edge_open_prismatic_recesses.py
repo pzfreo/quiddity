@@ -1,4 +1,3 @@
-
 import json
 from pathlib import Path
 from typing import cast
@@ -72,13 +71,18 @@ def test_y_axis_projection_preserves_world_wall_chain():
     result = build_raw_recognition_result(Rot(90, 0, 0) * _edge_open_hexagon())
     (source,) = result.edge_open_prismatic_recesses
     (unified,) = tuple(
-        record for record in result.section_recesses
+        record
+        for record in result.section_recesses
         if record.classification.feature_kind == "edge_open_recess"
     )
     frame = unified.geometry.frame
     world_points = tuple(
-        tuple(frame.origin[index] + vertex.point[0] * frame.u[index]
-              + vertex.point[1] * frame.v[index] for index in (0, 2))
+        tuple(
+            frame.origin[index]
+            + vertex.point[0] * frame.u[index]
+            + vertex.point[1] * frame.v[index]
+            for index in (0, 2)
+        )
         for vertex in unified.geometry.profile.boundary
     )
     for expected in source.section.wall_chain:
@@ -211,9 +215,10 @@ def test_polygonal_edge_open_profiles_retain_every_physical_wall(
 
 
 def test_two_wall_open_profile_is_refused() -> None:
-    assert recognise_edge_open_prismatic_recesses(
-        _edge_open_polygon(((-6, 20), (0, 6), (6, 20)))
-    ) == []
+    assert (
+        recognise_edge_open_prismatic_recesses(_edge_open_polygon(((-6, 20), (0, 6), (6, 20))))
+        == []
+    )
 
 
 @pytest.mark.parametrize("chain", _OPEN_CHAINS)
@@ -305,9 +310,7 @@ def test_shallow_nonparallel_endpoint_wall_supports_are_retained() -> None:
     stock = Box(40, 40, 20, align=(Align.CENTER, Align.CENTER, Align.MIN))
     with BuildPart() as cutter:
         with BuildSketch(Plane.XY.offset(10)):
-            Polygon(
-                (-6, 20), (-5.56, 15), (-8, 12), (0, 6), (8, 12), (6, 15), (6, 20)
-            )
+            Polygon((-6, 20), (-5.56, 15), (-8, 12), (0, 6), (8, 12), (6, 15), (6, 20))
         extrude(amount=15)
 
     assert len(recognise_edge_open_prismatic_recesses(stock - cutter.part)) == 1

@@ -160,9 +160,7 @@ def _oriented_cross_envelope_authority(
     return min(areas)
 
 
-AUTHORITIES: dict[
-    str, Callable[[Any, str, tuple[list[dict[str, Any]], ...]], float]
-] = {
+AUTHORITIES: dict[str, Callable[[Any, str, tuple[list[dict[str, Any]], ...]], float]] = {
     "bbox_envelope": _bbox_authority,
     "signed_planar_boundary": _signed_planar_authority,
     "largest_principal_group": _largest_group_authority,
@@ -236,9 +234,7 @@ def _evaluate(model_id: str, path: Path) -> dict[str, Any]:
         "status": "evaluated",
         "source_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
         "production": _records(production),
-        "production_matches": {
-            name: records == production for name, records in variants.items()
-        },
+        "production_matches": {name: records == production for name, records in variants.items()},
         "authorities": {name: _records(records) for name, records in variants.items()},
     }
 
@@ -257,9 +253,7 @@ def main() -> int:
     summary = {}
     for name in AUTHORITIES:
         changed = [
-            model
-            for model in evaluated
-            if model["authorities"][name] != model["production"]
+            model for model in evaluated if model["authorities"][name] != model["production"]
         ]
         summary[name] = {
             "records": sum(len(model["authorities"][name]) for model in evaluated),
@@ -280,8 +274,7 @@ def main() -> int:
         "format_version": 1,
         "commit": _commit(),
         "dataset": (
-            "MFCAD++ published test split; DOI "
-            "10.17034/d1fec5a0-8c10-4630-b02e-b92dc81df823"
+            "MFCAD++ published test split; DOI 10.17034/d1fec5a0-8c10-4630-b02e-b92dc81df823"
         ),
         "selection": {
             "rule": "first STEP paths, lexical ascending",

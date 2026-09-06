@@ -47,8 +47,7 @@ def test_one_view_projects_the_existing_result_and_every_original_face() -> None
     assert len(view.faces) == len(part.faces())
     resolved = [view.face(reference) for reference in view.faces]
     assert all(
-        any(face.wrapped.IsSame(source.wrapped) for source in part.faces())
-        for face in resolved
+        any(face.wrapped.IsSame(source.wrapped) for source in part.faces()) for face in resolved
     )
 
 
@@ -275,8 +274,7 @@ def test_projection_preserves_inventory_order_and_transformed_face_binding() -> 
 
     def signature(view: RecognitionEvidence):
         return tuple(
-            (view.family(feature), view.record(feature).to_dict())
-            for feature in view.features
+            (view.family(feature), view.record(feature).to_dict()) for feature in view.features
         )
 
     assert signature(forward) == signature(reverse)

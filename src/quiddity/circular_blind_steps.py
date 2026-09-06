@@ -120,9 +120,7 @@ def _shared_arc_endpoints(
         for vertex in edge.vertices():
             point = tuple(vertex)
             projected = (float(point[transverse[0]]), float(point[transverse[1]]))
-            if not any(
-                math.dist(projected, existing) <= COORD_FLOOR for existing in points
-            ):
+            if not any(math.dist(projected, existing) <= COORD_FLOOR for existing in points):
                 points.append(projected)
     if len(points) != 2:
         return None
@@ -138,16 +136,22 @@ def _candidate(
 ) -> CircularBlindStep | None:
     axis = _principal_axis(evidence)
     plane = axis_aligned_axis(graph.face(terminal).wrapped)
-    if axis is None or plane is None or plane[0] != axis or not _is_concave(
-        graph, cylinder, terminal
+    if (
+        axis is None
+        or plane is None
+        or plane[0] != axis
+        or not _is_concave(graph, cylinder, terminal)
     ):
         return None
-    if not math.isclose(
-        evidence["u_extent"],
-        math.pi / 2,
-        rel_tol=0.0,
-        abs_tol=QUARTER_TURN_RAD_TOL,
-    ) or evidence["external"]:
+    if (
+        not math.isclose(
+            evidence["u_extent"],
+            math.pi / 2,
+            rel_tol=0.0,
+            abs_tol=QUARTER_TURN_RAD_TOL,
+        )
+        or evidence["external"]
+    ):
         return None
 
     solid_ref = graph.common_valid_solid((cylinder, terminal))
@@ -188,9 +192,7 @@ def _candidate(
     if len(axial) != 1 or len(sides) != 2 or side_axes != transverse_axes:
         return None
     axial_plane = axis_aligned_axis(graph.face(axial[0]).wrapped)
-    if axial_plane is None or not math.isclose(
-        axial_plane[1], opening_at, abs_tol=COORD_FLOOR
-    ):
+    if axial_plane is None or not math.isclose(axial_plane[1], opening_at, abs_tol=COORD_FLOOR):
         return None
     if not _empty_terminal_sweep(
         graph,
@@ -258,9 +260,7 @@ def _discover_circular_blind_steps(
                 terminal_use, SurfaceUseRefusal
             ):
                 raise ValueError("CircularBlindStep surface provenance is unavailable")
-            proposals.append(
-                (record, (cylinder, terminal), (cylinder_use, terminal_use))
-            )
+            proposals.append((record, (cylinder, terminal), (cylinder_use, terminal_use)))
     proposals.sort(key=lambda proposal: proposal[0])
     if sink is not None:
         for _record, nodes, _uses in proposals:

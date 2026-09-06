@@ -34,6 +34,7 @@ jobs:
       # `scripts/update-recogniser-version` is named explicitly: ruff discovers *.py,
       # and an extensionless executable would otherwise be linted by nothing.
       - run: uv run ruff check . scripts/update-recogniser-version
+      - run: uv run ruff format --check . scripts/update-recogniser-version
       - run: uv run mypy
 
   fast-test:

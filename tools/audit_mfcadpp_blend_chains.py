@@ -118,9 +118,7 @@ def main() -> int:
         graph = context.graph
         results = BlendCollapseIndex(graph, context.surfaces).results()
         chains = tuple(result for result in results if isinstance(result, BlendChain))
-        refusals = tuple(
-            result for result in results if isinstance(result, RefusedBlendComponent)
-        )
+        refusals = tuple(result for result in results if isinstance(result, RefusedBlendComponent))
 
         # Labels enter only after the complete selected model's neutral discovery has finished.
         truth = load_mfcadpp_truth(path)
@@ -193,13 +191,9 @@ def main() -> int:
             "model_id": path.stem,
             "source_sha256": source_hashes[path.stem],
             "round_faces": len(labelled),
-            "accepted_defining_round_faces": len(
-                labelled_indices & accepted_defining_indices
-            ),
+            "accepted_defining_round_faces": len(labelled_indices & accepted_defining_indices),
             "accepted_covered_round_faces": len(touched),
-            "fillet_covered_round_faces": len(
-                labelled_indices & fillet_constituent_indices
-            ),
+            "fillet_covered_round_faces": len(labelled_indices & fillet_constituent_indices),
             "chain_faces": len(chain_nodes),
             "chain_round_faces": len(labelled & chain_nodes),
             "convex_chain_faces": len(convex_nodes),
@@ -239,9 +233,7 @@ def main() -> int:
         "chain_side_label_profiles": dict(sorted(chain_side_label_profiles.items())),
         "refused_round_faces_by_reason": dict(sorted(refusal_reasons.items())),
         "accepted_round_constituents_by_family": dict(sorted(accepted_families.items())),
-        "untouched_outside_index_by_kernel_surface": dict(
-            sorted(outside_surface_kinds.items())
-        ),
+        "untouched_outside_index_by_kernel_surface": dict(sorted(outside_surface_kinds.items())),
         "runtime_seconds": time.perf_counter() - started,
         "models": rows,
     }

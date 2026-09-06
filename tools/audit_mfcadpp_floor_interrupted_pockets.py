@@ -86,9 +86,9 @@ def _selection_hash(values: list[str]) -> str:
 def _raw_regions(
     graph: FaceGraph,
 ) -> dict[frozenset[FaceNode], list[tuple[FaceNode, frozenset[FaceNode], int]]]:
-    raw: dict[
-        frozenset[FaceNode], list[tuple[FaceNode, frozenset[FaceNode], int]]
-    ] = defaultdict(list)
+    raw: dict[frozenset[FaceNode], list[tuple[FaceNode, frozenset[FaceNode], int]]] = defaultdict(
+        list
+    )
     for opening in graph.nodes:
         axis = _axis_for_opening(graph, opening) if graph.is_planar(opening) else None
         if axis is None:
@@ -99,11 +99,7 @@ def _raw_regions(
             for node in seed:
                 kind = graph.arc(opening, node)
                 arcs.append(kind)
-            if (
-                seed
-                and all(kind in ("convex", "smooth") for kind in arcs)
-                and "convex" in arcs
-            ):
+            if seed and all(kind in ("convex", "smooth") for kind in arcs) and "convex" in arcs:
                 raw[_inner_region(graph, opening, seed)].append((opening, seed, axis))
     return raw
 
@@ -118,8 +114,7 @@ def _floor_groups(
         (
             (at, node)
             for node in region
-            if (at := _plane_at(graph, node, axis)) is not None
-            and abs(at - mouth_at) > SPAN_EPS
+            if (at := _plane_at(graph, node, axis)) is not None and abs(at - mouth_at) > SPAN_EPS
         ),
         key=lambda item: (item[0], item[1].index),
     )
@@ -161,9 +156,7 @@ def _probe_region(
     )
     wall_set = set(walls)
     interruptions = region - wall_set - floor
-    if len(walls) < 3 or any(
-        len(set(graph.neighbours(node)) & wall_set) != 2 for node in walls
-    ):
+    if len(walls) < 3 or any(len(set(graph.neighbours(node)) & wall_set) != 2 for node in walls):
         return RegionProbe("not_complete_wall_cycle", len(walls), 0, len(interruptions)), None
     if not interruptions or any(not graph.is_planar(node) for node in interruptions):
         return RegionProbe("not_planar_floor_interruption", len(walls), 0, len(interruptions)), None
@@ -182,8 +175,7 @@ def _probe_region(
         wall for wall, far in far_by_wall.items() if abs(far - floor_at) > SPAN_EPS
     )
     if not shortened or any(
-        direction * (floor_at - far_by_wall[wall]) <= SPAN_EPS
-        for wall in shortened
+        direction * (floor_at - far_by_wall[wall]) <= SPAN_EPS for wall in shortened
     ):
         return RegionProbe(
             "not_shortened_before_floor", len(walls), len(shortened), len(interruptions)
@@ -196,8 +188,7 @@ def _probe_region(
         or not any(graph.arc(node, wall) == "concave" for wall in shortened)
         for node in interruptions
     ) or any(
-        not any(graph.arc(wall, node) == "concave" for node in interruptions)
-        for wall in shortened
+        not any(graph.arc(wall, node) == "concave" for node in interruptions) for wall in shortened
     ):
         return RegionProbe(
             "interruption_does_not_bridge_floor", len(walls), len(shortened), len(interruptions)
@@ -214,9 +205,7 @@ def _probe_region(
     thickness = max(_END_PROBE, abs(floor_at - mouth_at) * 1e-4)
     try:
         body = graph.solid_shape(solid)
-        interior_fraction = _material_fraction(
-            body, _section_prism(section, axis, low, high)
-        )
+        interior_fraction = _material_fraction(body, _section_prism(section, axis, low, high))
         backed = _material_fraction(
             body,
             _section_slab(section, axis, floor_at, direction, thickness),
@@ -251,18 +240,21 @@ def _audit_model(
         truth = load_mfcadpp_truth(path)
         if truth.model_id not in _KNOWN_MFCADPP_2500_INVALID or str(error) != _KNOWN_INVALID_REASON:
             raise
-        return f"{truth.model_id}:{truth.source_sha256}", [], Counter(), {
-            "model_id": truth.model_id,
-            "source_sha256": truth.source_sha256,
-            "reason": str(error),
-        }
+        return (
+            f"{truth.model_id}:{truth.source_sha256}",
+            [],
+            Counter(),
+            {
+                "model_id": truth.model_id,
+                "source_sha256": truth.source_sha256,
+                "reason": str(error),
+            },
+        )
     graph = product.context.graph
     accepted = _accepted_constituent(product)
     raw = _raw_regions(graph)
     intersecting = {
-        region
-        for region in raw
-        if any(region != other and region & other for other in raw)
+        region for region in raw if any(region != other and region & other for other in raw)
     }
     probes = [
         (region, *_probe_region(graph, region, mouths))
@@ -281,22 +273,25 @@ def _audit_model(
         labels = Counter(truth.semantic[node.index] for node in region)
         target = frozenset(node for node in region if truth.semantic[node.index] in _TARGET_CLASSES)
         if candidate is not None:
-            rows.append({
-                "model_id": truth.model_id,
-                "source_sha256": truth.source_sha256,
-                "probe": asdict(probe),
-                "region_faces": sorted(node.index for node in region),
-                "labels": dict(sorted(labels.items())),
-                "accepted_as_candidate": candidate is not None,
-                "target_faces": len(target),
-                "target_face_indices": sorted(node.index for node in target),
-                "target_faces_new_if_accepted": len(target - accepted) if candidate else 0,
-                "pure_target_plus_interruption": bool(target) and all(
-                    label in _TARGET_CLASSES
-                    or node in (candidate.interruptions if candidate else ())
-                    for node, label in ((node, truth.semantic[node.index]) for node in region)
-                ),
-            })
+            rows.append(
+                {
+                    "model_id": truth.model_id,
+                    "source_sha256": truth.source_sha256,
+                    "probe": asdict(probe),
+                    "region_faces": sorted(node.index for node in region),
+                    "labels": dict(sorted(labels.items())),
+                    "accepted_as_candidate": candidate is not None,
+                    "target_faces": len(target),
+                    "target_face_indices": sorted(node.index for node in target),
+                    "target_faces_new_if_accepted": len(target - accepted) if candidate else 0,
+                    "pure_target_plus_interruption": bool(target)
+                    and all(
+                        label in _TARGET_CLASSES
+                        or node in (candidate.interruptions if candidate else ())
+                        for node, label in ((node, truth.semantic[node.index]) for node in region)
+                    ),
+                }
+            )
     return f"{truth.model_id}:{truth.source_sha256}", rows, gates, None
 
 
@@ -370,9 +365,9 @@ def main() -> int:
         "candidate_pure_target_plus_interruption_regions": sum(
             row["pure_target_plus_interruption"] for row in candidates
         ),
-        "target_faces_reached": len({
-            (row["model_id"], face) for row in candidates for face in row["target_face_indices"]
-        }),
+        "target_faces_reached": len(
+            {(row["model_id"], face) for row in candidates for face in row["target_face_indices"]}
+        ),
         "new_target_faces_if_accepted": sum(
             row["target_faces_new_if_accepted"] for row in candidates
         ),

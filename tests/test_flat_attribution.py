@@ -97,9 +97,7 @@ def _assert_flat_role(part, ledger: ClaimLedger, candidate, record) -> None:
         for inventory in analyse_cylinders(part)
         for fact in inventory
         if fact.get("external")
-        and ledger.graph.common_valid_solid(
-            (node, ledger.graph.require_node(fact["face"]))
-        )
+        and ledger.graph.common_valid_solid((node, ledger.graph.require_node(fact["face"])))
         is owner_solid
         and fact["diameter"] == pytest.approx(stock["diameter"])
         and fact["axis_xyz"] == pytest.approx(stock["axis_xyz"])
@@ -120,9 +118,7 @@ def _assert_flat_role(part, ledger: ClaimLedger, candidate, record) -> None:
         if sum(normal[i] * other_normal[i] for i in range(3)) > -0.95:
             continue
         other_center = _xyz(face.center())
-        other_offset = sum(
-            (other_center[i] - axis_point[i]) * other_normal[i] for i in range(3)
-        )
+        other_offset = sum((other_center[i] - axis_point[i]) * other_normal[i] for i in range(3))
         if 0.05 < other_offset < radius - 0.05:
             opposed.append((face, other_offset))
     assert len(opposed) <= 1

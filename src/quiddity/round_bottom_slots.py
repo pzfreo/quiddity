@@ -159,8 +159,12 @@ def _region_boundary_wire(
     try:
         wires = list(Wire.combine(boundary, tol=COORD_FLOOR))
     except (
-        Standard_Failure, Standard_ConstructionError, Standard_DomainError,
-        StdFail_NotDone, RuntimeError, ValueError,
+        Standard_Failure,
+        Standard_ConstructionError,
+        Standard_DomainError,
+        StdFail_NotDone,
+        RuntimeError,
+        ValueError,
     ):
         return None
     if len(wires) != 1 or not wires[0].is_closed:
@@ -183,8 +187,12 @@ def _validated_planar_face(wire: Wire) -> Face | None:
         face = Face(wire)
         return face if face.is_valid else None
     except (
-        Standard_Failure, Standard_ConstructionError, Standard_DomainError,
-        StdFail_NotDone, RuntimeError, ValueError,
+        Standard_Failure,
+        Standard_ConstructionError,
+        Standard_DomainError,
+        StdFail_NotDone,
+        RuntimeError,
+        ValueError,
     ):
         return None
 

@@ -65,11 +65,7 @@ def assert_turned_step_role(part, ledger, candidate, record) -> None:
     """Derive all cylindrical bands that establish one turned rung."""
 
     inventory = (*analyse_cylinders(part)[0], *analyse_cylinders(part)[1])
-    axis_bands = [
-        item
-        for item in inventory
-        if item["external"] and item["axis"] == record.axis
-    ]
+    axis_bands = [item for item in inventory if item["external"] and item["axis"] == record.axis]
     main = max(axis_bands, key=lambda item: item["diameter"])
     midpoint = 0.5 * (record.lo + record.hi)
 
@@ -84,9 +80,7 @@ def assert_turned_step_role(part, ledger, candidate, record) -> None:
             tol=1e-6,
         )
     ]
-    eligible = [
-        item for item in coaxial if item["s_lo"] <= midpoint <= item["s_hi"]
-    ]
+    eligible = [item for item in coaxial if item["s_lo"] <= midpoint <= item["s_hi"]]
     if not eligible:
         # ADR 0008 freezes the 0.7 mm allowance and its per-band half-width cap.
         eligible = [
@@ -103,9 +97,7 @@ def assert_turned_step_role(part, ledger, candidate, record) -> None:
         return item in eligible and abs(item["diameter"] - widest) <= 1e-6
 
     expected = frozenset(
-        ledger.graph.require_node(item["face"])
-        for item in inventory
-        if establishes(item)
+        ledger.graph.require_node(item["face"]) for item in inventory if establishes(item)
     )
     assert expected
     assert ledger.defining_of(candidate) == expected
@@ -131,21 +123,14 @@ def assert_chamfer_role(ledger, candidate, record) -> None:
         components = (direction.X(), direction.Y(), direction.Z())
         major_center = (major.arc_center.X, major.arc_center.Y, major.arc_center.Z)
         minor_center = (minor.arc_center.X, minor.arc_center.Y, minor.arc_center.Z)
-        axial = abs(
-            sum(
-                (major_center[at] - minor_center[at]) * components[at]
-                for at in range(3)
-            )
-        )
+        axial = abs(sum((major_center[at] - minor_center[at]) * components[at] for at in range(3)))
         radial = major.radius - minor.radius
         assert abs(abs(components[axis]) - 1.0) <= 1e-6
         assert (round(max(axial, radial), 3), round(min(axial, radial), 3)) == (
             record.leg1,
             record.leg2,
         )
-        assert round(degrees(atan2(min(axial, radial), max(axial, radial))), 2) == (
-            record.angle
-        )
+        assert round(degrees(atan2(min(axial, radial), max(axial, radial))), 2) == (record.angle)
     else:
         edge_i, _normal, _span, leg_hi, leg_lo = classify_bevel(face)
         assert edge_i == axis

@@ -79,10 +79,13 @@ def _classify_region(
         return "duplicate_or_existing_cycle"
     if mouths is None or len(mouths) != 2:
         return "planar_mouth_seed"
-    (first_opening, first_wire, _first_seed), (
-        second_opening,
-        second_wire,
-        _second_seed,
+    (
+        (first_opening, first_wire, _first_seed),
+        (
+            second_opening,
+            second_wire,
+            _second_seed,
+        ),
     ) = mouths
     first_normal = graph.normal(first_opening)
     second_normal = graph.normal(second_opening)
@@ -98,10 +101,7 @@ def _classify_region(
         second = _line_section(second_wire, base)
         if first is None or second is None:
             return "straight_polygonal_sections"
-        if (
-            not _same_section(first[0], second[0])
-            or math.dist(first[1], second[1]) > _INTERVAL_TOL
-        ):
+        if not _same_section(first[0], second[0]) or math.dist(first[1], second[1]) > _INTERVAL_TOL:
             return "mouth_congruence"
         section, centre = first
         frame = LocalFrame.canonical(base.run, centre)
@@ -155,9 +155,7 @@ def _classify_region(
     if fallback is None:
         raise RuntimeError("production fallback disagrees with rejection census")
     return (
-        "accepted_fallback"
-        if region in final_fallback_regions
-        else "duplicate_or_existing_cycle"
+        "accepted_fallback" if region in final_fallback_regions else "duplicate_or_existing_cycle"
     )
 
 
@@ -219,9 +217,7 @@ def main() -> int:
             proposal.constituent for proposal in final if proposal.constituent
         )
         for proposal in final:
-            production_class_records[
-                _dominant_passage_class(truth.semantic, proposal.nodes)
-            ] += 1
+            production_class_records[_dominant_passage_class(truth.semantic, proposal.nodes)] += 1
 
         class_nodes = {
             graph.require_node(faces[index])
@@ -306,8 +302,7 @@ def main() -> int:
                 sorted(production_class_records.items())
             ),
             "first_rejection_gates": {
-                gate: {metric: totals[gate][metric] for metric in GATE_METRICS}
-                for gate in GATES
+                gate: {metric: totals[gate][metric] for metric in GATE_METRICS} for gate in GATES
             },
             "accepted_fallback_class_4_face_reach": _ratio(
                 totals["accepted_fallback"]["unique_class_4_faces"],

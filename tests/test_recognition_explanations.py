@@ -78,25 +78,16 @@ def test_non_recess_family_can_have_equal_detector_and_public_counts() -> None:
 
 
 def _side_subdivided_blind_step() -> Solid:
-    part = Box(60, 40, 12) - Pos(-20, 20, 6) * Rot(45, 0, 0) * Box(
-        30, 5.657, 5.657
-    )
+    part = Box(60, 40, 12) - Pos(-20, 20, 6) * Rot(45, 0, 0) * Box(30, 5.657, 5.657)
     faces = list(part.faces())
     slant = next(
-        face
-        for face in faces
-        if abs(face.normal_at().Y) > 0.5 and abs(face.normal_at().Z) > 0.5
+        face for face in faces if abs(face.normal_at().Y) > 0.5 and abs(face.normal_at().Z) > 0.5
     )
     terminal = next(
-        face
-        for face in faces
-        if len(face.edges()) == 3 and abs(face.normal_at().X) > 0.9
+        face for face in faces if len(face.edges()) == 3 and abs(face.normal_at().X) > 0.9
     )
     common = next(
-        first
-        for first in terminal.edges()
-        for second in slant.edges()
-        if first.is_same(second)
+        first for first in terminal.edges() for second in slant.edges() if first.is_same(second)
     )
     start, end = (vertex.center() for vertex in common.vertices())
     middle = (start + end) * 0.5
@@ -113,11 +104,7 @@ def _side_subdivided_blind_step() -> Solid:
         new_slant = Face(new_slant.outer_wire().reversed())
     result = Solid(
         Shell(
-            [
-                face
-                for face in faces
-                if not face.is_same(slant) and not face.is_same(terminal)
-            ]
+            [face for face in faces if not face.is_same(slant) and not face.is_same(terminal)]
             + [new_terminal, new_slant]
         )
     )
@@ -165,8 +152,13 @@ def test_reconciliation_loss_is_counted_without_identity_leakage() -> None:
     assert (passage.proposed, passage.accepted, passage.rejected) == (1, 1, 0)
     assert passage.dispositions[0].reason is r.ReconciliationReason.DEFAULT_ACCEPTED
     assert report.result.slots == ()
-    assert sum(record.classification.feature_kind == "passage"
-               for record in report.result.section_recesses) == 1
+    assert (
+        sum(
+            record.classification.feature_kind == "passage"
+            for record in report.result.section_recesses
+        )
+        == 1
+    )
     assert all(item.proposed == item.accepted + item.rejected for item in report.families)
 
 
@@ -271,14 +263,28 @@ def test_evidence_and_report_share_one_inventory(monkeypatch, route, case) -> No
     # of whether a particular authored shape still triggers this residual as detectors improve.
     diagnostic = ResidualDiagnostic(
         DiagnosticCode.UNSUPPORTED_SUBDIVIDED_ANGLED_STEP_TERMINAL,
-        DiagnosticStatus.UNSUPPORTED, "angled_steps", "x", (1.0, 2.0, 3.0), 4, 3,
+        DiagnosticStatus.UNSUPPORTED,
+        "angled_steps",
+        "x",
+        (1.0, 2.0, 3.0),
+        4,
+        3,
     )
     if case == "injected_diagnostic":
-        expected = replace(expected, diagnostics=(r.RecognitionDiagnostic(
-            r.RecognitionDiagnosticCode.UNSUPPORTED_SUBDIVIDED_ANGLED_STEP_TERMINAL,
-            r.RecognitionDiagnosticStatus.UNSUPPORTED, "angled_steps", "x",
-            (1.0, 2.0, 3.0), 4, 3,
-        ),))
+        expected = replace(
+            expected,
+            diagnostics=(
+                r.RecognitionDiagnostic(
+                    r.RecognitionDiagnosticCode.UNSUPPORTED_SUBDIVIDED_ANGLED_STEP_TERMINAL,
+                    r.RecognitionDiagnosticStatus.UNSUPPORTED,
+                    "angled_steps",
+                    "x",
+                    (1.0, 2.0, 3.0),
+                    4,
+                    3,
+                ),
+            ),
+        )
     original_inventory = evidence_module._take_inventory
     products = []
 

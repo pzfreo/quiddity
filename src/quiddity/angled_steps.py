@@ -161,9 +161,7 @@ def _effective_linear_sides(face: FaceLike) -> int | None:
         return None
     return sum(
         1
-        for previous, current in zip(
-            directions, directions[1:] + directions[:1], strict=True
-        )
+        for previous, current in zip(directions, directions[1:] + directions[:1], strict=True)
         if 1.0 - previous.dot(current) > SMOOTH_ARC_GAP
     )
 

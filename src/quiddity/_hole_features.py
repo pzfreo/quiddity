@@ -253,9 +253,7 @@ def _axis_point(seg: SegmentEvidence, s: float) -> tuple[float, float, float]:
     return (ax + t * dx, ay + t * dy, az + t * dz)
 
 
-def _canonical_hole_axis_point(
-    seg: SegmentEvidence, s: float
-) -> tuple[float, float, float]:
+def _canonical_hole_axis_point(seg: SegmentEvidence, s: float) -> tuple[float, float, float]:
     """Remove the final kernel-noise digit from a reconstructed Hole location."""
 
     measured = _axis_point(seg, s)
@@ -389,6 +387,7 @@ def _classify_end_uncached(
         if terminal_faces is not None:
             terminal_faces.extend(faces)
         return state
+
     for partner in _end_partners(seg, s_end, edge_faces, cache):
         surf = BRepAdaptor_Surface(partner.wrapped)
         kind = surf.GetType()
@@ -808,9 +807,7 @@ def _discover_holes(
             }
             if resolved & terminal_resolved:
                 raise ValueError("Hole terminal identity aliases cylindrical evidence")
-            terminal_nodes = tuple(
-                node for node in writer.graph.nodes if node in terminal_resolved
-            )
+            terminal_nodes = tuple(node for node in writer.graph.nodes if node in terminal_resolved)
             members = (*nodes, *terminal_nodes)
             solid = writer.graph.common_valid_solid(members)
             if solid is None:
@@ -949,9 +946,7 @@ def _discover_bosses(
             }
             if resolved & terminal_resolved:
                 raise ValueError("Boss terminal identity aliases cylindrical evidence")
-            terminal_nodes = tuple(
-                node for node in writer.graph.nodes if node in terminal_resolved
-            )
+            terminal_nodes = tuple(node for node in writer.graph.nodes if node in terminal_resolved)
             members = (*nodes, *terminal_nodes)
             solid = writer.graph.common_valid_solid(members)
             if solid is None:

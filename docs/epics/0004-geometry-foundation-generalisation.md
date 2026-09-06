@@ -465,19 +465,23 @@ class LocalFrame:
     u: tuple[float, float, float]
     v: tuple[float, float, float]
 
+
 @dataclass(frozen=True)
 class SectionVertex:
     point: tuple[float, float]
     bulge: float  # tan(signed circular sweep / 4); zero is a line
 
+
 @dataclass(frozen=True)
 class PlanarSection:
     boundary: tuple[SectionVertex, ...]
+
 
 @dataclass(frozen=True)
 class SectionEnds:
     low_capped: bool
     high_capped: bool
+
 
 @dataclass(frozen=True, eq=False)
 class SectionOccurrence:

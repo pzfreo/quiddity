@@ -200,13 +200,16 @@ def test_nearest_axis_aligned_planes_can_refuse_distinct_equidistant_planes(
     edge_faces = edge_face_map(part.faces())
     centre = {axis: 5.0 if axis == face_axis else 0.0 for axis in range(3)}
 
-    assert nearest_axis_aligned_planes(
-        face,
-        edge_faces,
-        centre,
-        exclude_axis=face_axis,
-        refuse_equidistant=True,
-    ) == {}
+    assert (
+        nearest_axis_aligned_planes(
+            face,
+            edge_faces,
+            centre,
+            exclude_axis=face_axis,
+            refuse_equidistant=True,
+        )
+        == {}
+    )
 
 
 def test_nearest_axis_aligned_planes_drops_the_axis_the_feature_runs_along():

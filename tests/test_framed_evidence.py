@@ -44,9 +44,7 @@ def _axial_part():
         (_axial_part(), FrameGauge.AXIAL),
     ],
 )
-def test_framed_evidence_maps_every_local_face_exactly_to_its_caller_partner(
-    source, gauge
-) -> None:
+def test_framed_evidence_maps_every_local_face_exactly_to_its_caller_partner(source, gauge) -> None:
     caller = Pos(13, -7, 5) * source.rotate(Axis((0, 0, 0), (1, 1, 0)), 37)
     framed = build_framed_recognition_evidence(cast(Part, caller), rotational=True)
 
@@ -118,9 +116,7 @@ def test_caller_mapping_distinguishes_located_occurrences_that_share_one_tshape(
     resolved = tuple(framed.caller_face(reference) for reference in framed.faces)
     assert len(resolved) == len(caller_faces)
     assert all(
-        framed.face(reference).wrapped.IsSame(
-            (location * framed.caller_face(reference)).wrapped
-        )
+        framed.face(reference).wrapped.IsSame((location * framed.caller_face(reference)).wrapped)
         for reference in framed.faces
     )
     assert all(
@@ -226,11 +222,7 @@ def test_late_mapping_refusal_retains_exact_completed_result(monkeypatch, failur
             evidence_module.RecognitionEvidence, "faces", property(lambda self: frozenset())
         )
     else:
-        face = (
-            Box(1, 2, 3).faces()[0]
-            if failure == "foreign_face"
-            else prepared.part.faces()[0]
-        )
+        face = Box(1, 2, 3).faces()[0] if failure == "foreign_face" else prepared.part.faces()[0]
         monkeypatch.setattr(evidence_module.RecognitionEvidence, "face", lambda self, ref: face)
 
     refused = prepared.recognise_evidence(rotational=True)

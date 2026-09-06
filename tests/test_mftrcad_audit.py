@@ -303,9 +303,7 @@ def test_selected_incomplete_model_is_recorded_but_holdout_one_cannot_block(
     assert "missing labels/" in result["invalid"][0]["error"]
 
     holdout_id = next(
-        f"holdout-{at}"
-        for at in range(10_000)
-        if selection_of(f"holdout-{at}") == "holdout"
+        f"holdout-{at}" for at in range(10_000) if selection_of(f"holdout-{at}") == "holdout"
     )
     _dataset(tmp_path, model_id=holdout_id)
     (root / "labels" / f"{holdout_id}_result_rel.json").unlink()

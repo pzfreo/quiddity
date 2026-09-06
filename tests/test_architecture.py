@@ -230,12 +230,21 @@ MODULE_SEAM_EDGES = {
     "_volume_probe": {"_typing"},
     "_section_recess": {"_record", "_sections", "passages"},
     "_section_recess_geometry": {
-        "_adjacency", "_geometry", "_recess_obround", "_section_passages",
-        "_section_recess", "_sections", "passages",
+        "_adjacency",
+        "_geometry",
+        "_recess_obround",
+        "_section_passages",
+        "_section_recess",
+        "_sections",
+        "passages",
     },
     "_section_recess_discovery": {
-        "_adjacency", "_candidates", "_claims", "_section_recess",
-        "_section_recess_geometry", "_typing",
+        "_adjacency",
+        "_candidates",
+        "_claims",
+        "_section_recess",
+        "_section_recess_geometry",
+        "_typing",
     },
     "_wire_seed": {"_adjacency"},
     # The recess stack, bottom to top: faces are read, candidates are proposed from them,
@@ -380,8 +389,13 @@ MODULE_SEAM_EDGES = {
     # private run identity into opaque public references but owns no discovery or policy.
     # Issue #494 also permits the bounded same-product explanation projection (ADR 0012).
     "evidence": {
-        "_adjacency", "_candidates", "_registry", "_section_recess", "_typing",
-        "explanations", "result",
+        "_adjacency",
+        "_candidates",
+        "_registry",
+        "_section_recess",
+        "_typing",
+        "explanations",
+        "result",
     },
     # The only graph/evidence translation seam. Feature consumers receive facade refs and
     # cannot import the concrete graph or writer themselves.
@@ -451,21 +465,11 @@ ARC_READER_SITES = {
     "tools/audit_mfcadpp_oriented_circular_pockets:_one_candidate:arc:1": "exact-nonsmooth",
     "tools/audit_mfcadpp_oriented_circular_pockets:_one_candidate:arc:2": "legacy-contract",
     "tools/audit_mfcadpp_oriented_circular_pockets:_one_candidate:arc:3": "legacy-contract",
-    "src/quiddity/_section_recess_geometry:_one_obround_candidate:arc:1": (
-        "exact-nonsmooth"
-    ),
-    "src/quiddity/_section_recess_geometry:_one_obround_candidate:arc:2": (
-        "legacy-contract"
-    ),
-    "src/quiddity/_section_recess_geometry:_one_obround_candidate:arc:3": (
-        "legacy-contract"
-    ),
-    "src/quiddity/_section_recess_geometry:_one_polygonal_candidate:arc:1": (
-        "exact-nonsmooth"
-    ),
-    "src/quiddity/_section_recess_geometry:_one_polygonal_candidate:arc:2": (
-        "legacy-contract"
-    ),
+    "src/quiddity/_section_recess_geometry:_one_obround_candidate:arc:1": ("exact-nonsmooth"),
+    "src/quiddity/_section_recess_geometry:_one_obround_candidate:arc:2": ("legacy-contract"),
+    "src/quiddity/_section_recess_geometry:_one_obround_candidate:arc:3": ("legacy-contract"),
+    "src/quiddity/_section_recess_geometry:_one_polygonal_candidate:arc:1": ("exact-nonsmooth"),
+    "src/quiddity/_section_recess_geometry:_one_polygonal_candidate:arc:2": ("legacy-contract"),
     "tools/audit_mfcadpp_floor_interrupted_pockets:_raw_regions:arc:1": "legacy-contract",
     "tools/audit_mfcadpp_floor_interrupted_pockets:_probe_region:arc:1": "exact-nonsmooth",
     "tools/audit_mfcadpp_floor_interrupted_pockets:_probe_region:arc:2": "exact-nonsmooth",
@@ -897,8 +901,7 @@ def test_private_section_adapters_are_only_used_by_the_unified_projection() -> N
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         if any(
-            isinstance(node, ast.ImportFrom)
-            and node.module == "quiddity._section_adapters"
+            isinstance(node, ast.ImportFrom) and node.module == "quiddity._section_adapters"
             for node in ast.walk(tree)
         ):
             importers.append(path.name)
@@ -1461,7 +1464,8 @@ def test_compatibility_facades_preserve_export_identity_and_module_paths() -> No
     )
     for name in moved_records:
         owner = (
-            recess_facade if name in {"Channel", "Pocket", "PocketArray", "PocketGrid"}
+            recess_facade
+            if name in {"Channel", "Pocket", "PocketArray", "PocketGrid"}
             else recognition
         )
         assert typing.get_type_hints(getattr(owner, name))

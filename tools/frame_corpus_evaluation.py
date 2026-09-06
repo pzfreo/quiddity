@@ -34,8 +34,7 @@ from quiddity.frames import (  # noqa: E402
 from tools.rigid_motion_sweep import Occurrence, _match, _occurrences  # noqa: E402
 
 MFCADPP_TEST_SPLIT = (
-    "MFCAD++ published test split; "
-    "DOI 10.17034/d1fec5a0-8c10-4630-b02e-b92dc81df823"
+    "MFCAD++ published test split; DOI 10.17034/d1fec5a0-8c10-4630-b02e-b92dc81df823"
 )
 
 

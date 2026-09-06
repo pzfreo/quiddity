@@ -170,9 +170,7 @@ def _linear_array_candidates(
     return out
 
 
-def _rect_grid(
-    members, pts: Sequence[tuple[float, float]], make: Callable[..., _R]
-) -> _R | None:
+def _rect_grid(members, pts: Sequence[tuple[float, float]], make: Callable[..., _R]) -> _R | None:
     """A rectangular-grid record when the whole spec group fills a regular N×M
     lattice, else ``None``. The two shortest near-orthogonal pairwise vectors
     define the lattice basis; every point must land on an integer cell and every

@@ -525,14 +525,17 @@ def test_cached_end_classification_retains_terminal_identity_for_later_projectio
     for coordinate, high in ((segment["s_lo"], False), (segment["s_hi"], True)):
         state = _classify_end(segment, coordinate, high, adjacency, cache)
         retained = []
-        assert _classify_end(
-            segment,
-            coordinate,
-            high,
-            adjacency,
-            cache,
-            terminal_faces=retained,
-        ) == state
+        assert (
+            _classify_end(
+                segment,
+                coordinate,
+                high,
+                adjacency,
+                cache,
+                terminal_faces=retained,
+            )
+            == state
+        )
         classified.append((state, retained))
 
     (terminal,) = [faces for state, faces in classified if state == "flat"]
@@ -1398,9 +1401,7 @@ def test_private_hole_core_has_one_writer_caller_and_declared_predecessor() -> N
     predecessor = keywords["predecessor_occurrences"]
     assert isinstance(predecessor, ast.Name) and predecessor.id == "occurrences"
 
-    source = ast.parse(
-        (ROOT / "src/quiddity/_hole_features.py").read_text(encoding="utf-8")
-    )
+    source = ast.parse((ROOT / "src/quiddity/_hole_features.py").read_text(encoding="utf-8"))
     functions = {node.name: node for node in source.body if isinstance(node, ast.FunctionDef)}
     public_calls = [
         call
@@ -1414,9 +1415,7 @@ def test_private_hole_core_has_one_writer_caller_and_declared_predecessor() -> N
         "face_edges",
     }
 
-    registry_tree = ast.parse(
-        (ROOT / "src/quiddity/_registry.py").read_text(encoding="utf-8")
-    )
+    registry_tree = ast.parse((ROOT / "src/quiddity/_registry.py").read_text(encoding="utf-8"))
     registry_functions = {
         node.name: node for node in registry_tree.body if isinstance(node, ast.FunctionDef)
     }

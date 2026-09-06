@@ -568,9 +568,7 @@ def _discover_risers(
     scopes = list(part.solids()) or [part]
     body_keys = unambiguous_body_keys(scopes, require_valid_solid=True)
     for scope, body_key in zip(scopes, body_keys, strict=True):
-        for proposal in _riser_proposals_one(
-            scope, min_area_frac=0.15, tol=_TOL, body_levels=()
-        ):
+        for proposal in _riser_proposals_one(scope, min_area_frac=0.15, tol=_TOL, body_levels=()):
             nodes = tuple(writer.graph.require_node(face) for face in proposal.faces)
             solid = writer.graph.common_valid_solid(nodes)
             if solid is None:  # pragma: no cover - graph-bound nodes retain one valid owner

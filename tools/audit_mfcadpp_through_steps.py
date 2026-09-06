@@ -175,8 +175,7 @@ def _probe_pair(
     if not _shared_run_is_complete(graph, left, right, run, low, high):
         return _PairProbe(4, run, full_run_faces, None, None)
     terminals = sum(
-        _common_terminal(graph, left, right, run, station, spans, planes)
-        for station in (low, high)
+        _common_terminal(graph, left, right, run, station, spans, planes) for station in (low, high)
     )
     if terminals != 2:
         return _PairProbe(5, run, full_run_faces, terminals, None)
@@ -209,8 +208,7 @@ def describe_component(graph: FaceGraph, nodes: tuple[FaceNode, ...]) -> Compone
     principal = _counts([_AXES[plane[0]] for node in ordered if (plane := planes[node])])
     nonprincipal = sum(graph.is_planar(node) and planes[node] is None for node in ordered)
     rectangular_outer = sum(
-        plane is not None
-        and _four_principal_runs(graph.face(node).outer_wire(), plane[0])
+        plane is not None and _four_principal_runs(graph.face(node).outer_wire(), plane[0])
         for node in ordered
         if (plane := planes[node]) is not None
     )
@@ -245,9 +243,7 @@ def describe_component(graph: FaceGraph, nodes: tuple[FaceNode, ...]) -> Compone
     ]
     best = max(probes, key=lambda probe: (probe.stage, -probe.run), default=None)
     component_plane_axes = {plane[0] for node in ordered if (plane := planes[node]) is not None}
-    inferred_run = (
-        3 - sum(component_plane_axes) if len(component_plane_axes) == 2 else None
-    )
+    inferred_run = 3 - sum(component_plane_axes) if len(component_plane_axes) == 2 else None
     if best is not None:
         inferred_run = best.run
     diagnostic = best
@@ -369,9 +365,7 @@ def _rank_broad_motifs(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
             ),
             "components": len(interrupted),
             "faces": sum(item["face_count"] for item in interrupted),
-            "component_share_of_unrecalled": (
-                len(interrupted) / len(items) if items else None
-            ),
+            "component_share_of_unrecalled": (len(interrupted) / len(items) if items else None),
             "subtypes": [
                 {
                     "rectangular_outer_faces": key[0],

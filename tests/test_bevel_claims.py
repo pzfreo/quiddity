@@ -175,9 +175,7 @@ def test_the_rule_drops_the_chamfer_a_step_already_has_and_nothing_else():
 
     through_ledger, through_chamfers, through_steps = _claimed(_through())
     assert len(through_chamfers) == 1 and through_steps == []
-    assert (
-        chamfers_that_are_not_angled_steps(through_chamfers, through_ledger) == through_chamfers
-    )
+    assert chamfers_that_are_not_angled_steps(through_chamfers, through_ledger) == through_chamfers
 
     both_ledger, both_chamfers, both_steps = _claimed(_both())
     assert len(both_chamfers) == 2, "both wedges are bevels on the chamfer family's evidence"
@@ -229,9 +227,7 @@ def test_the_rule_does_not_care_what_order_or_how_many_records_it_is_given():
         reversed(kept)
     )
     for one in chamfers:
-        assert chamfers_that_are_not_angled_steps([one], ledger) == (
-            [one] if one in kept else []
-        )
+        assert chamfers_that_are_not_angled_steps([one], ledger) == ([one] if one in kept else [])
 
 
 def test_a_ledger_built_from_another_block_is_refused_rather_than_left_empty():
@@ -279,8 +275,10 @@ def test_the_census_counts_the_slant_once_and_under_the_family_that_owns_it():
     the rule unwired, the same slant appears under `chamfer` and under `angled_step`.
     """
 
-    blind, through, both = r.feature_census(_blind()), r.feature_census(_through()), (
-        r.feature_census(_both())
+    blind, through, both = (
+        r.feature_census(_blind()),
+        r.feature_census(_through()),
+        (r.feature_census(_both())),
     )
 
     assert (blind["chamfer"], blind["angled_step"]) == (0, 1)
@@ -304,13 +302,14 @@ def test_the_three_rules_share_one_ledger_without_reading_each_others_claims():
     from tools._legacy_recognition import recognise_passages
 
     assert recognise_passages(part), "the slot must be a passage too, or that rule is vacuous"
-    assert not any(item.classification.feature_kind == "passage"
-                   for item in result.section_recesses), "the slot still wins against the passage"
+    assert not any(
+        item.classification.feature_kind == "passage" for item in result.section_recesses
+    ), "the slot still wins against the passage"
     assert len(result.angled_steps) == 1
     assert len(result.chamfers) == 1
     assert result.chamfers[0].at != result.angled_steps[0].at
+
+
 def chamfers_that_are_not_angled_steps(chamfers, ledger):
-    steps = [
-        claim.claimant for claim in ledger.claims if isinstance(claim.claimant, r.AngledStep)
-    ]
+    steps = [claim.claimant for claim in ledger.claims if isinstance(claim.claimant, r.AngledStep)]
     return _reconcile_chamfers(chamfers, steps, ledger.snapshot_index())

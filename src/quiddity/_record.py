@@ -30,5 +30,6 @@ class Record:
         # Record is intentionally a non-dataclass mixin, so mypy cannot prove that every
         # concrete subclass is a dataclass. The public contract test proves that invariant.
         return cast(
-            dict[str, object], dataclasses.asdict(self)  # type: ignore[call-overload]
+            dict[str, object],
+            dataclasses.asdict(self),  # type: ignore[call-overload]
         )

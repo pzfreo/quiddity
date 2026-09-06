@@ -714,8 +714,7 @@ def _snapshot_partition_witness(before_product, after_product, rotation):
             )
         )
     translation = tuple(
-        math.fsum(candidate[at] for candidate in candidates) / len(candidates)
-        for at in range(3)
+        math.fsum(candidate[at] for candidate in candidates) / len(candidates) for at in range(3)
     )
     return RigidScaleWitness(
         rotation,
@@ -940,8 +939,7 @@ def test_raw_oracle_refuses_children_without_one_common_transverse_axis_line() -
         ),
     )
     assert all(
-        relation.kind not in {ChangeKind.SPLIT, ChangeKind.MERGED}
-        for relation in result.relations
+        relation.kind not in {ChangeKind.SPLIT, ChangeKind.MERGED} for relation in result.relations
     )
 
 
@@ -976,9 +974,7 @@ def test_product_pair_refuses_real_inner_wire_taper_twist_and_anisotropy() -> No
                 points.append((1.2 * radius * math.cos(angle), radius * math.sin(angle)))
         return Pos(0, 0, start) * Rot(0, 0, 13) * extrude(Polygon(*points), height)
 
-    anisotropic_children = Compound(
-        [anisotropic_piece(4.0, 0.0), anisotropic_piece(6.0, 4.0)]
-    )
+    anisotropic_children = Compound([anisotropic_piece(4.0, 0.0), anisotropic_piece(6.0, 4.0)])
     with pytest.raises(AssertionError):
         _raw_partition_relation_oracle(
             _raw_prism_partition_oracle(_partition_rrp(10.0)),
@@ -986,8 +982,7 @@ def test_product_pair_refuses_real_inner_wire_taper_twist_and_anisotropy() -> No
         )
     result = correspondence_changes(parent, _take_inventory(anisotropic_children))
     assert all(
-        relation.kind not in {ChangeKind.SPLIT, ChangeKind.MERGED}
-        for relation in result.relations
+        relation.kind not in {ChangeKind.SPLIT, ChangeKind.MERGED} for relation in result.relations
     )
 
 
@@ -1091,9 +1086,7 @@ def test_partition_witness_canonicalization_is_clique_closed_and_swap_covariant(
         RigidScaleWitness(IDENTITY_ROTATION, (0.8, 0.0, 0.0), 1.0),
         RigidScaleWitness(IDENTITY_ROTATION, (1.2, 0.0, 0.0), 1.0),
     )
-    (near_zero_canonical,) = _canonicalize_partition_witnesses(
-        near_zero, 2.0, _MatchBudget()
-    )
+    (near_zero_canonical,) = _canonicalize_partition_witnesses(near_zero, 2.0, _MatchBudget())
     assert near_zero_canonical.translation == (1.0, 0.0, 0.0)
 
 
@@ -1317,29 +1310,35 @@ def test_prism_fact_rejects_complete_lateral_and_connector_topology_drift() -> N
             faces=(*graph.faces[:position], value, *graph.faces[position + 1 :]),
         )
 
-    assert _prism_fact_for(
-        occurrence, graph=changed_face(side_position, replace(side, kind="SPHERE"))
-    ) is None
-    assert _prism_fact_for(
-        occurrence, graph=changed_face(side_position, replace(side, kind="CYLINDER"))
-    ) is None
-    assert _prism_fact_for(
-        occurrence,
-        graph=changed_face(
-            side_position,
-            replace(side, parameters=(0.0, 0.0, 1.0, *side.parameters[3:])),
-        ),
-    ) is None
-    assert _prism_fact_for(
-        occurrence, graph=changed_face(side_position, replace(side, wires=()))
-    ) is None
+    assert (
+        _prism_fact_for(occurrence, graph=changed_face(side_position, replace(side, kind="SPHERE")))
+        is None
+    )
+    assert (
+        _prism_fact_for(
+            occurrence, graph=changed_face(side_position, replace(side, kind="CYLINDER"))
+        )
+        is None
+    )
+    assert (
+        _prism_fact_for(
+            occurrence,
+            graph=changed_face(
+                side_position,
+                replace(side, parameters=(0.0, 0.0, 1.0, *side.parameters[3:])),
+            ),
+        )
+        is None
+    )
+    assert (
+        _prism_fact_for(occurrence, graph=changed_face(side_position, replace(side, wires=())))
+        is None
+    )
 
     joining_position = next(
         curve_at
         for curve_at, owners in graph.incidence
-        if {
-            owner[0] for owner in owners
-        }.isdisjoint(cap_positions)
+        if {owner[0] for owner in owners}.isdisjoint(cap_positions)
     )
     joining_curve = graph.curves[joining_position]
     assert joining_curve.vertices is not None
@@ -1356,17 +1355,20 @@ def test_prism_fact_rejects_complete_lateral_and_connector_topology_drift() -> N
         changed_vertices[end_at][1],
         changed_vertices[end_at][2],
     )
-    assert _prism_fact_for(
-        occurrence, graph=replace(graph, vertices=tuple(changed_vertices))
-    ) is None
+    assert (
+        _prism_fact_for(occurrence, graph=replace(graph, vertices=tuple(changed_vertices))) is None
+    )
 
-    assert _prism_fact_for(
-        occurrence,
-        summary=replace(
-            occurrence.summary,
-            span=(occurrence.summary.span[0] + 1.0, occurrence.summary.span[1] + 1.0),
-        ),
-    ) is None
+    assert (
+        _prism_fact_for(
+            occurrence,
+            summary=replace(
+                occurrence.summary,
+                span=(occurrence.summary.span[0] + 1.0, occurrence.summary.span[1] + 1.0),
+            ),
+        )
+        is None
+    )
 
 
 def test_prism_leaf_numeric_domains_fail_closed(monkeypatch) -> None:
@@ -1375,9 +1377,7 @@ def test_prism_leaf_numeric_domains_fail_closed(monkeypatch) -> None:
         partition_module._plane_basis((0.0, 0.0, 1.0))
     monkeypatch.setattr(partition_module, "DIRECTION_TOL", DIRECTION_TOL)
     with pytest.raises(ValueError, match="axis is not principal"):
-        partition_module._polar_signature(
-            ((0.0, 0.0, 0.0),), (0.0, 0.0, 0.0), (1.0, 1.0, 0.0)
-        )
+        partition_module._polar_signature(((0.0, 0.0, 0.0),), (0.0, 0.0, 0.0), (1.0, 1.0, 0.0))
 
 
 def test_prism_curve_leafs_refuse_missing_or_incompatible_geometry() -> None:
@@ -1394,16 +1394,17 @@ def test_prism_curve_leafs_refuse_missing_or_incompatible_geometry() -> None:
         start_parameter=None,
         end_parameter=None,
     )
-    assert partition_module._plane_curve_parameters_match(
-        endpoint_free, fact.low_cap.face, metric
-    )
+    assert partition_module._plane_curve_parameters_match(endpoint_free, fact.low_cap.face, metric)
     assert not partition_module._plane_curve_parameters_match(
         replace(curve, start_parameter=None), fact.low_cap.face, metric
     )
     assert partition_module._sample_curve(endpoint_free) is None
-    assert partition_module._sample_curve(
-        replace(curve, kind="CIRCLE", centre=None, axis=None, sweep=None)
-    ) is None
+    assert (
+        partition_module._sample_curve(
+            replace(curve, kind="CIRCLE", centre=None, axis=None, sweep=None)
+        )
+        is None
+    )
 
     attempts = 0
 
@@ -1433,10 +1434,13 @@ def test_prism_fact_rejects_malformed_signature_and_complete_incidence_drift() -
         ),
         *occurrence.summary.sector_signature[1:],
     )
-    assert _prism_fact_for(
-        occurrence,
-        summary=replace(occurrence.summary, sector_signature=malformed_signature),
-    ) is None
+    assert (
+        _prism_fact_for(
+            occurrence,
+            summary=replace(occurrence.summary, sector_signature=malformed_signature),
+        )
+        is None
+    )
 
     cap_positions = {fact.low_cap.face_position, fact.high_cap.face_position}
     side_positions = set(range(len(graph.faces))) - cap_positions
@@ -1468,14 +1472,12 @@ def test_prism_fact_rejects_malformed_signature_and_complete_incidence_drift() -
         (position, owners[1:] if position == cap_curve_position else owners)
         for position, owners in graph.incidence
     )
-    assert _prism_fact_for(
-        occurrence, graph=replace(graph, incidence=changed_incidence)
-    ) is None
+    assert _prism_fact_for(occurrence, graph=replace(graph, incidence=changed_incidence)) is None
 
     extra_face = replace(graph.faces[fact.low_cap.face_position], wires=())
-    assert _prism_fact_for(
-        occurrence, graph=replace(graph, faces=(*graph.faces, extra_face))
-    ) is None
+    assert (
+        _prism_fact_for(occurrence, graph=replace(graph, faces=(*graph.faces, extra_face))) is None
+    )
 
 
 def test_prism_fact_rejects_cap_sampling_and_side_cycle_authority_drift() -> None:
@@ -1492,7 +1494,7 @@ def test_prism_fact_rejects_cap_sampling_and_side_cycle_authority_drift() -> Non
         *low_face.wires[0].cycle[1:],
     )
     changed_faces = (
-        *graph.faces[:fact.low_cap.face_position],
+        *graph.faces[: fact.low_cap.face_position],
         replace(low_face, wires=(replace(low_face.wires[0], cycle=changed_low_cycle),)),
         *graph.faces[fact.low_cap.face_position + 1 :],
     )
@@ -1505,7 +1507,7 @@ def test_prism_fact_rejects_cap_sampling_and_side_cycle_authority_drift() -> Non
         *high_face.wires[0].cycle[1:],
     )
     changed_faces = (
-        *graph.faces[:fact.high_cap.face_position],
+        *graph.faces[: fact.high_cap.face_position],
         replace(high_face, wires=(replace(high_face.wires[0], cycle=changed_high_cycle),)),
         *graph.faces[fact.high_cap.face_position + 1 :],
     )
@@ -1514,9 +1516,7 @@ def test_prism_fact_rejects_cap_sampling_and_side_cycle_authority_drift() -> Non
     cap_positions = {fact.low_cap.face_position, fact.high_cap.face_position}
     side_position = fact.low_cap.side_faces[0]
     side = graph.faces[side_position]
-    changed_cycle = tuple(
-        item for item in side.wires[0].cycle if item.curve != low_curve_position
-    )
+    changed_cycle = tuple(item for item in side.wires[0].cycle if item.curve != low_curve_position)
     changed_faces = (
         *graph.faces[:side_position],
         replace(side, wires=(replace(side.wires[0], cycle=changed_cycle),)),
@@ -1533,9 +1533,7 @@ def test_prism_fact_rejects_cap_sampling_and_side_cycle_authority_drift() -> Non
         (position, owners[:1] if position == joining_position else owners)
         for position, owners in graph.incidence
     )
-    assert _prism_fact_for(
-        occurrence, graph=replace(graph, incidence=changed_incidence)
-    ) is None
+    assert _prism_fact_for(occurrence, graph=replace(graph, incidence=changed_incidence)) is None
 
 
 def test_two_independent_partitions_share_one_exact_cover_without_order_authority() -> None:
@@ -1610,9 +1608,7 @@ def test_raw_joint_graph_keeps_degree_zero_add_remove_outside_exact_cover() -> N
         ChangeKind.REMOVED,
     }
     added = next(relation for relation in result.relations if relation.kind is ChangeKind.ADDED)
-    removed = next(
-        relation for relation in result.relations if relation.kind is ChangeKind.REMOVED
-    )
+    removed = next(relation for relation in result.relations if relation.kind is ChangeKind.REMOVED)
     assert (len(added.before_refs), len(added.after_refs)) == (0, 1)
     assert (len(removed.before_refs), len(removed.after_refs)) == (1, 0)
 
@@ -1653,9 +1649,7 @@ def test_partition_and_unrelated_multi_occurrence_f6b1_group_share_joint_cover()
 
     raw_split_witnesses, _raw_com = _raw_partition_relation_oracle(
         _raw_prism_partition_oracle(_partition_rrp(10.0)),
-        _raw_prism_partition_oracle(
-            Compound([_partition_rrp(4.0), _partition_rrp(6.0, 4.0)])
-        ),
+        _raw_prism_partition_oracle(Compound([_partition_rrp(4.0), _partition_rrp(6.0, 4.0)])),
     )
     assert len(raw_split_witnesses) == 1
     result = correspondence_changes(before, after)
@@ -1692,8 +1686,7 @@ def test_independent_moved_resized_body_group_witness_and_competition() -> None:
                 for row in range(3)
             )
             expected_centre = tuple(
-                scale * value + offset
-                for value, offset in zip(rotated, translation, strict=True)
+                scale * value + offset for value, offset in zip(rotated, translation, strict=True)
             )
             if math.dist(expected_centre, right.summary.centre) > 1.0e-6:
                 continue
@@ -1710,12 +1703,14 @@ def test_independent_moved_resized_body_group_witness_and_competition() -> None:
                 scale**2 * left.body.quantization.area_quantum
                 + right.body.quantization.area_quantum
             )
-            if abs(
-                right.body.intrinsic.volume - scale**3 * left.body.intrinsic.volume
-            ) > volume_bound or abs(
-                right.body.intrinsic.surface_area
-                - scale**2 * left.body.intrinsic.surface_area
-            ) > area_bound:
+            if (
+                abs(right.body.intrinsic.volume - scale**3 * left.body.intrinsic.volume)
+                > volume_bound
+                or abs(
+                    right.body.intrinsic.surface_area - scale**2 * left.body.intrinsic.surface_area
+                )
+                > area_bound
+            ):
                 continue
             matches.append(right_at)
         rows.append(tuple(matches))
@@ -1723,9 +1718,7 @@ def test_independent_moved_resized_body_group_witness_and_competition() -> None:
     assert len({row[0] for row in rows}) == 2
 
     def derive_witness(left_snapshot, right_snapshot, right_group=(0, 1)):
-        left = next(
-            item for item in left_snapshot.occurrences if item.summary.repeat_count == 5
-        )
+        left = next(item for item in left_snapshot.occurrences if item.summary.repeat_count == 5)
         right = next(
             right_snapshot.occurrences[at]
             for at in right_group
@@ -1744,9 +1737,7 @@ def test_independent_moved_resized_body_group_witness_and_competition() -> None:
         )
         exact_translation = tuple(
             target - exact_scale * source
-            for source, target in zip(
-                rotated, right.body.placement.centre_of_mass, strict=True
-            )
+            for source, target in zip(rotated, right.body.placement.centre_of_mass, strict=True)
         )
         return RigidScaleWitness(rotation, exact_translation, exact_scale)
 
@@ -1771,9 +1762,7 @@ def test_independent_moved_resized_body_group_witness_and_competition() -> None:
 
 
 def test_raw_joint_graph_exposes_connected_many_to_many_cover_ambiguity() -> None:
-    before_part = Compound(
-        [_partition_rrp(10.0), Pos(50, 0, 0) * _partition_rrp(10.0)]
-    )
+    before_part = Compound([_partition_rrp(10.0), Pos(50, 0, 0) * _partition_rrp(10.0)])
     after_part = Compound(
         [
             _partition_rrp(4.0),
@@ -1840,8 +1829,7 @@ def test_three_child_partition_accepts_one_shared_moved_scaled_rotation() -> Non
     witness_bound = 4.0 * (
         relation.witness.scale * before_snapshot.occurrences[0].body.quantization.metric_quantum
         + min(
-            occurrence.body.quantization.metric_quantum
-            for occurrence in after_snapshot.occurrences
+            occurrence.body.quantization.metric_quantum for occurrence in after_snapshot.occurrences
         )
     )
     assert math.dist(relation.witness.translation, snapshot_witness.translation) <= witness_bound
@@ -1975,9 +1963,7 @@ def test_partition_interval_join_is_inclusive_and_nextafter_closed() -> None:
     children = tuple(_prism_fact_for(value) for value in child_snapshot.occurrences)
     assert parent is not None and all(child is not None for child in children)
     left, right = (child for child in children if child is not None)
-    join_bound = 2.0 * (
-        left.quantization.metric_quantum + right.quantization.metric_quantum
-    )
+    join_bound = 2.0 * (left.quantization.metric_quantum + right.quantization.metric_quantum)
 
     equality_gap_at = left.interval[1] + join_bound
     while abs(equality_gap_at - left.interval[1]) > join_bound:
@@ -2152,10 +2138,9 @@ def test_partition_cap_metric_area_pcurve_and_angle_bounds_are_closed() -> None:
     start_outside = metric
     for _ in range(80):
         candidate = (start_diagonal + start_outside) / 2.0
-        distance_squared = (
-            (line.start[0] + candidate - line.start[0]) ** 2
-            + (line.start[1] + candidate - line.start[1]) ** 2
-        )
+        distance_squared = (line.start[0] + candidate - line.start[0]) ** 2 + (
+            line.start[1] + candidate - line.start[1]
+        ) ** 2
         if distance_squared <= metric**2:
             start_diagonal = candidate
         else:
@@ -2260,14 +2245,11 @@ def test_partition_cap_metric_area_pcurve_and_angle_bounds_are_closed() -> None:
         _MatchBudget(),
     )
 
-
     assert line.start_parameter is not None
     parameter_bound = 4.0 * metric
     parameter_equality_value = line.start_parameter[0] + parameter_bound
     while abs(parameter_equality_value - line.start_parameter[0]) > parameter_bound:
-        parameter_equality_value = math.nextafter(
-            parameter_equality_value, line.start_parameter[0]
-        )
+        parameter_equality_value = math.nextafter(parameter_equality_value, line.start_parameter[0])
     parameter_equality = replace(
         line,
         start_parameter=(parameter_equality_value, line.start_parameter[1]),
@@ -2339,14 +2321,11 @@ def test_partition_section_point_euclidean_bound_is_inclusive_and_closed() -> No
     assert parent is not None and all(child is not None for child in children)
     typed = tuple(child for child in children if child is not None)
     first = typed[0]
-    bound = 2.0 * (
-        parent.quantization.metric_quantum + first.quantization.metric_quantum
-    )
+    bound = 2.0 * (parent.quantization.metric_quantum + first.quantization.metric_quantum)
     point = first.section_points[0]
     source_point = min(
         parent.section_points,
-        key=lambda candidate: (candidate[0] - point[0]) ** 2
-        + (candidate[1] - point[1]) ** 2,
+        key=lambda candidate: (candidate[0] - point[0]) ** 2 + (candidate[1] - point[1]) ** 2,
     )
     diagonal = bound / math.sqrt(2.0)
     equality_point = (
@@ -2366,11 +2345,9 @@ def test_partition_section_point_euclidean_bound_is_inclusive_and_closed() -> No
         _MatchBudget(),
     )
     outside = math.nextafter(diagonal, math.inf)
-    while (
-        (source_point[0] + outside - source_point[0]) ** 2
-        + (source_point[1] + outside - source_point[1]) ** 2
-        <= bound**2
-    ):
+    while (source_point[0] + outside - source_point[0]) ** 2 + (
+        source_point[1] + outside - source_point[1]
+    ) ** 2 <= bound**2:
         outside = math.nextafter(outside, math.inf)
     outside_first = replace(
         first,
@@ -2399,9 +2376,7 @@ def test_partition_common_transverse_centre_bound_is_inclusive(diagonal: bool) -
     children = tuple(_prism_fact_for(value) for value in child_snapshot.occurrences)
     assert parent is not None and all(child is not None for child in children)
     typed = tuple(child for child in children if child is not None)
-    bound = 2.0 * (
-        parent.quantization.metric_quantum + typed[0].quantization.metric_quantum
-    )
+    bound = 2.0 * (parent.quantization.metric_quantum + typed[0].quantization.metric_quantum)
     component = bound / math.sqrt(2.0) if diagonal else bound
     base = child_snapshot.occurrences[0].summary.centre
 
@@ -2433,6 +2408,7 @@ def test_partition_common_transverse_centre_bound_is_inclusive(diagonal: bool) -
         typed,
         _MatchBudget(),
     )
+
 
 def test_raw_partition_volume_enclosure_is_inclusive_and_nextafter_closed() -> None:
     parent = _raw_prism_partition_oracle(_partition_rrp(10.0))[0]

@@ -751,9 +751,7 @@ class FaceGraph:
             if node is None:
                 raise BodyGeometryAuthorityError("matching solid face is not graph-owned")
             matching_builds.append(fact._matching_face(node))
-        return matching_boundary_for_solid(
-            solid_shape, fact.descriptor, tuple(matching_builds)
-        )
+        return matching_boundary_for_solid(solid_shape, fact.descriptor, tuple(matching_builds))
 
     def solid_shape(self, solid: SolidRef) -> Solid:
         """Return the borrowed exact solid for an issuer-owned reference.
@@ -1367,12 +1365,9 @@ def nearest_axis_aligned_planes(
         tied = [
             coordinate
             for coordinate, distance in zip(coordinates, distances, strict=True)
-            if abs(distance - nearest)
-            <= length_tol(max(distance, nearest), rel=1e-9)
+            if abs(distance - nearest) <= length_tol(max(distance, nearest), rel=1e-9)
         ]
-        plane_tol = length_tol(
-            max(abs(coordinate - centre[axis]) for coordinate in tied), rel=1e-9
-        )
+        plane_tol = length_tol(max(abs(coordinate - centre[axis]) for coordinate in tied), rel=1e-9)
         if max(tied) - min(tied) > plane_tol:
             continue
         selected[axis] = 0.5 * (min(tied) + max(tied))

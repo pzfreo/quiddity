@@ -65,11 +65,12 @@ def _measure(parts: list[tuple[str, Any]]) -> dict[str, Any]:
             if disposition.outcome is Outcome.REJECTED
             and disposition.reason is ReasonCode.POCKET_SUPERSEDED_BY_RECTANGULAR_BLIND_SLOT
         )
-        expected_pocket_delta = (
-            len(disabled._legacy_result.pockets) - len(enabled._legacy_result.pockets)
+        expected_pocket_delta = len(disabled._legacy_result.pockets) - len(
+            enabled._legacy_result.pockets
         )
         other_outputs_equal = detector_outputs_equal(
-            enabled._legacy_result, disabled._legacy_result,
+            enabled._legacy_result,
+            disabled._legacy_result,
             excluding=("rectangular_blind_slots", "pockets"),
         )
         rows.append(
@@ -92,9 +93,7 @@ def _measure(parts: list[tuple[str, Any]]) -> dict[str, Any]:
         "all_pocket_deltas_explained": all(
             row["pocket_delta_matches_reconciliation"] for row in rows
         ),
-        "raw_rectangular_blind_slots": sum(
-            row["raw_rectangular_blind_slots"] for row in rows
-        ),
+        "raw_rectangular_blind_slots": sum(row["raw_rectangular_blind_slots"] for row in rows),
         "accepted_rectangular_blind_slots": sum(
             row["accepted_rectangular_blind_slots"] for row in rows
         ),

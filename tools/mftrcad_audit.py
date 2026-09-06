@@ -300,9 +300,7 @@ def _validate_selection_policy(value: object) -> JsonObject:
         for bucket in range(lo, hi + 1)
     )
     manifest_holdout = frozenset(
-        bucket
-        for lo, hi in cast(list[list[int]], holdout_ranges)
-        for bucket in range(lo, hi + 1)
+        bucket for lo, hi in cast(list[list[int]], holdout_ranges) for bucket in range(lo, hi + 1)
     )
     if manifest_development != DEVELOPMENT_BUCKETS or manifest_holdout != HOLDOUT_BUCKETS:
         raise ValueError("selection policy ranges differ from the scanner bucket sets")

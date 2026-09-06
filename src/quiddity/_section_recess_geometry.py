@@ -247,7 +247,12 @@ def project_section_recess_geometry(
 
 
 def _obround_prism(
-    depth: Vector3, first: Vector3, second: Vector3, radius: float, low: float, high: float,
+    depth: Vector3,
+    first: Vector3,
+    second: Vector3,
+    radius: float,
+    low: float,
+    high: float,
 ) -> Solid:
     """Exact line/semicircle probe, before publication rounding (not a chord polygon)."""
     along = _subtract(second, first)
@@ -262,17 +267,23 @@ def _obround_prism(
     )
 
     def point(center: Vector3, offset: Vector3, sign: float) -> Vector:
-        return Vector(*(center[i] + depth[i] * (low - _dot(center, depth))
-                        + sign * radius * offset[i] for i in range(3)))
+        return Vector(
+            *(
+                center[i] + depth[i] * (low - _dot(center, depth)) + sign * radius * offset[i]
+                for i in range(3)
+            )
+        )
 
     a, b = point(first, width, -1), point(second, width, -1)
     c, d = point(second, width, 1), point(first, width, 1)
-    boundary = Wire([
-        Edge.make_line(a, b),
-        Edge.make_three_point_arc(b, point(second, direction, 1), c),
-        Edge.make_line(c, d),
-        Edge.make_three_point_arc(d, point(first, direction, -1), a),
-    ])
+    boundary = Wire(
+        [
+            Edge.make_line(a, b),
+            Edge.make_three_point_arc(b, point(second, direction, 1), c),
+            Edge.make_line(c, d),
+            Edge.make_three_point_arc(d, point(first, direction, -1), a),
+        ]
+    )
     return Solid.extrude(Face(boundary), Vector(*_scale(depth, high - low)))
 
 
@@ -379,10 +390,14 @@ def _one_obround_candidate(graph: FaceGraph, floor: FaceNode) -> _Candidate | No
 
         if (
             _material_fraction(solid, probe(low + inset, high - inset)) > 1e-9
-            or _material_fraction(solid, probe(mouth_at - floor_sign * inset,
-                                              mouth_at - floor_sign * thickness)) > 1e-9
-            or _material_fraction(solid, probe(floor_at + floor_sign * inset,
-                                              floor_at + floor_sign * thickness)) < 1.0 - 1e-9
+            or _material_fraction(
+                solid, probe(mouth_at - floor_sign * inset, mouth_at - floor_sign * thickness)
+            )
+            > 1e-9
+            or _material_fraction(
+                solid, probe(floor_at + floor_sign * inset, floor_at + floor_sign * thickness)
+            )
+            < 1.0 - 1e-9
         ):
             return None
         geometry = _public_geometry(

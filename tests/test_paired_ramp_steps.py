@@ -71,9 +71,7 @@ def _proved_pair_from(part):
                 right.index > left.index
                 and left in bevels
                 and right in bevels
-                and paired_ramp_module._candidate(
-                    graph, left, right, bevels[left], bevels[right]
-                )
+                and paired_ramp_module._candidate(graph, left, right, bevels[left], bevels[right])
                 is not None
             ):
                 return graph, left, right, bevels[left], bevels[right]
@@ -86,9 +84,7 @@ def _proved_pair():
 
 def _two_side_cuts():
     def cutter(center_x):
-        return Pos(center_x, 20, 0) * extrude(
-            Plane.XZ * Polygon((0, -6), (0, 6), (-8, 0)), 25
-        )
+        return Pos(center_x, 20, 0) * extrude(Plane.XZ * Polygon((0, -6), (0, 6), (-8, 0)), 25)
 
     return Box(45, 40, 30) - cutter(10) - cutter(30)
 
@@ -346,9 +342,7 @@ def test_an_independent_circular_ramp_inner_wire_retains_the_original_face_pair(
 def test_multiple_coplanar_ramp_faces_are_not_traversed_or_merged() -> None:
     part = _side_cut()
     lower_ramp = next(
-        face
-        for face in part.faces()
-        if (normal := face.normal_at()).X > 0.6 and normal.Z > 0.7
+        face for face in part.faces() if (normal := face.normal_at()).X > 0.6 and normal.Z > 0.7
     )
     splitter = BRepFeat_SplitShape(part.wrapped)
     splitter.Add(
@@ -364,16 +358,17 @@ def test_multiple_coplanar_ramp_faces_are_not_traversed_or_merged() -> None:
     ramps = [
         node
         for node in graph.nodes
-        if (normal := graph.normal(node)) is not None
-        and normal[0] > 0.6
-        and abs(normal[2]) > 0.7
+        if (normal := graph.normal(node)) is not None and normal[0] > 0.6 and abs(normal[2]) > 0.7
     ]
     assert len(ramps) == 3
-    assert sum(
-        graph.normal(left) == graph.normal(right) and bool(graph.shared_edges(left, right))
-        for index, left in enumerate(ramps)
-        for right in ramps[index + 1 :]
-    ) == 1
+    assert (
+        sum(
+            graph.normal(left) == graph.normal(right) and bool(graph.shared_edges(left, right))
+            for index, left in enumerate(ramps)
+            for right in ramps[index + 1 :]
+        )
+        == 1
+    )
 
     ledger = ClaimLedger(graph)
     assert recognise_paired_ramp_steps(split, ledger=ledger) == []
@@ -394,12 +389,8 @@ def test_subdivided_ramps_remain_covariant_and_profile_order_independent() -> No
 
 
 def test_interrupted_ramp_recognition_is_scale_independent() -> None:
-    small = recognise_paired_ramp_steps(
-        _side_cut(scale=0.01) - _ramp_inner_wire(scale=0.01)
-    )[0]
-    large = recognise_paired_ramp_steps(
-        _side_cut(scale=100.0) - _ramp_inner_wire(scale=100.0)
-    )[0]
+    small = recognise_paired_ramp_steps(_side_cut(scale=0.01) - _ramp_inner_wire(scale=0.01))[0]
+    large = recognise_paired_ramp_steps(_side_cut(scale=100.0) - _ramp_inner_wire(scale=100.0))[0]
 
     assert small.axis == large.axis == "y"
     assert small.angle == large.angle == 51.34

@@ -212,11 +212,7 @@ def _support_region(
         current = queue.popleft()
         for neighbour in sorted(graph.neighbours(current), key=lambda node: node.index):
             exact_smooth = graph.arc(current, neighbour) == "smooth"
-            if (
-                neighbour in found
-                or neighbour in excluded
-                or not exact_smooth
-            ):
+            if neighbour in found or neighbour in excluded or not exact_smooth:
                 continue
             fact = surfaces.fact(neighbour)
             local = min(
