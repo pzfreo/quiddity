@@ -65,9 +65,18 @@ MODULE_SEAM_EDGES = {
     "_corner_section": {"_adjacency", "_section_passages", "_sections", "_volume_probe"},
     "_open_channel_section": {
         "_adjacency",
+        "_effective_surfaces",
         "_recess_records",
         "_section_passages",
         "_sections",
+        "_support_apertures",
+        "_support_patches",
+        "_volume_probe",
+    },
+    "_support_apertures": {
+        "_adjacency",
+        "_effective_surfaces",
+        "_support_patches",
         "_volume_probe",
     },
     # Base layer: the kernel, the shared type aliases, and `_geometry`'s alignment threshold.

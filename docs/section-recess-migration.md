@@ -83,6 +83,15 @@ The two former summaries in `plates_pads_levels_and_slanted_steps` now have prov
 geometry: the pad-overhang region has an 18-unit run, and the wall/step region a 50-unit run.
 The proof intersects opposed source-wall extents and verifies the entire three support patches
 against actual same-body faces. Holes and incomplete trims cannot masquerade as full support.
+An independently proved circular aperture strictly inside a channel wall or floor
+may now explain its exact missing support patch (ADR 0021). Each finite native
+cylinder segment must have complete observed side support and an empty same-body
+cell. Its original face joins constituent evidence; the generated disk does not.
+The unchanged U-profile is **base support geometry with proved apertures**, not an
+unperforated final boundary. Independent holes remain separate occurrences. A
+consumer must not reconstruct the fully treated channel from the base record alone.
+Unexplained gaps, outer-contour/run-end breakouts and pierced capped ends remain
+outside this exception.
 Material probes require the full section, both run-end openings and lateral opening to be empty.
 The shorter support bounds the run; it need not span the stock envelope.
 

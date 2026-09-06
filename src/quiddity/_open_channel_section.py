@@ -7,12 +7,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from itertools import product
 
-from build123d import Face, Plane, Shape, ShapeList, Solid, Vector, Wire
+from build123d import Face, Plane, Solid, Vector, Wire
 
 from quiddity._adjacency import FaceGraph, FaceNode
+from quiddity._effective_surfaces import EffectiveSurfaceQuery
 from quiddity._recess_records import Channel, Pocket
 from quiddity._section_passages import _end_slab, _probe_prism
 from quiddity._sections import LocalFrame, PlanarSection, SectionVertex
+from quiddity._support_apertures import proved_support_apertures
+from quiddity._support_patches import covered_patch
 from quiddity._volume_probe import material_fraction as _material_fraction
 
 
@@ -21,6 +24,7 @@ class OpenChannelProof:
     axis: str
     run_interval: tuple[float, float]
     boundary: tuple[tuple[float, float], ...]
+    aperture_faces: tuple[FaceNode, ...] = ()
 
 
 def _bounds(graph: FaceGraph, node: FaceNode):
@@ -28,8 +32,18 @@ def _bounds(graph: FaceGraph, node: FaceNode):
     return tuple((min(p[i] for p in points), max(p[i] for p in points)) for i in range(3))
 
 
-def _supports(graph: FaceGraph, nodes: frozenset[FaceNode], bounds, axis, at, sign) -> bool:
-    """Require actual source-face area over the whole proposed physical support patch."""
+def _supports(
+    graph: FaceGraph,
+    nodes: frozenset[FaceNode],
+    bounds,
+    axis,
+    at,
+    sign,
+    *,
+    surfaces: EffectiveSurfaceQuery | None = None,
+    aperture_faces: set[FaceNode] | None = None,
+) -> bool:
+    """Require complete actual support or individually proved interior apertures."""
     transverse = [i for i in range(3) if i != axis]
     corners = list(product(*(bounds[i] for i in transverse)))
     points = []
@@ -38,7 +52,7 @@ def _supports(graph: FaceGraph, nodes: frozenset[FaceNode], bounds, axis, at, si
         xyz[axis], xyz[transverse[0]], xyz[transverse[1]] = at, a, b
         points.append(Vector(*xyz))
     patch = Face(Wire.make_polygon((*points, points[0])))
-    uncovered: list[Shape] = [patch]
+    supports = []
     for node in nodes:
         normal = graph.normal(node) if graph.is_planar(node) else None
         if normal is None or normal[axis] * sign < 1 - 1e-8:
@@ -46,22 +60,22 @@ def _supports(graph: FaceGraph, nodes: frozenset[FaceNode], bounds, axis, at, si
         limits = _bounds(graph, node)[axis]
         if max(abs(limit - at) for limit in limits) > 1e-6:
             continue
-        # Subtract supporting source faces rather than summing areas (which double counts
-        # overlaps). Holes, split trims and unrelated coplanar faces cannot fill a missing patch.
-        remaining: list[Shape] = []
-        for fragment in uncovered:
-            difference = fragment.cut(graph.face(node))
-            # Older supported build123d returns ShapeList for empty/split results; newer
-            # versions may return one shape (including a compound). Keep every fragment
-            # for subsequent subtraction, not just its area or the first returned shape.
-            if isinstance(difference, ShapeList):
-                remaining.extend(difference)
-            elif difference is not None:
-                remaining.append(difference)
-        uncovered = remaining
-        if sum(fragment.area for fragment in uncovered) <= patch.area * 1e-9:
-            return True
-    return False
+        supports.append(node)
+    source_faces = tuple(graph.face(node) for node in supports)
+    if covered_patch(patch, source_faces):
+        return True
+    if surfaces is None:
+        return False
+    apertures = tuple(
+        proof
+        for node in supports
+        for proof in proved_support_apertures(graph, surfaces, node, patch)
+    )
+    if not covered_patch(patch, (*source_faces, *(proof.disk for proof in apertures))):
+        return False
+    if aperture_faces is not None:
+        aperture_faces.update(proof.cylinder for proof in apertures)
+    return True
 
 
 def prove_open_channel(
@@ -69,6 +83,8 @@ def prove_open_channel(
     defining: frozenset[FaceNode],
     constituent: frozenset[FaceNode],
     record: Pocket | Channel,
+    *,
+    surfaces: EffectiveSurfaceQuery,
 ) -> OpenChannelProof | None:
     if isinstance(record, Pocket) and record.edge_anchored:
         return None
@@ -96,15 +112,27 @@ def prove_open_channel(
         return None
     floor = bounds[d][0 if record.open_sign == 1 else 1]
     mouth = bounds[d][1 if record.open_sign == 1 else 0]
+    aperture_faces: set[FaceNode] = set()
     try:
         if not all(
-            _supports(graph, constituent, bounds, axis, at, sign)
+            _supports(
+                graph,
+                constituent,
+                bounds,
+                axis,
+                at,
+                sign,
+                surfaces=surfaces,
+                aperture_faces=aperture_faces,
+            )
             for axis, at, sign in (
                 (w, bounds[w][0], 1),
                 (w, bounds[w][1], -1),
                 (d, floor, record.open_sign),
             )
         ):
+            return None
+        if graph.common_valid_solid((*constituent, *aperture_faces)) != owner:
             return None
         centre = tuple((low + high) / 2 for low, high in bounds)
         frame = LocalFrame.principal(record.long_axis, (centre[0], centre[1], centre[2]))
@@ -154,4 +182,9 @@ def prove_open_channel(
         xyz = [0.0, 0.0, 0.0]
         xyz[w], xyz[d] = width, depth
         chain.append((xyz[transverse[0]], xyz[transverse[1]]))
-    return OpenChannelProof(record.long_axis, (round(span[0], 3), round(span[1], 3)), tuple(chain))
+    return OpenChannelProof(
+        record.long_axis,
+        (round(span[0], 3), round(span[1], 3)),
+        tuple(chain),
+        tuple(sorted(aperture_faces, key=lambda node: node.index)),
+    )
