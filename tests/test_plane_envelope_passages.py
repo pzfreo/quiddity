@@ -66,9 +66,7 @@ def test_material_bridge_refuses():
     ],
 )
 def test_off_centre_ridges_and_different_slopes(sides, slope, ridge, rotation):
-    stock = Box(40, 40, 40).split(
-        Plane(origin=(ridge, 0, 20), z_dir=(slope, 0, 1)), Keep.BOTTOM
-    )
+    stock = Box(40, 40, 40).split(Plane(origin=(ridge, 0, 20), z_dir=(slope, 0, 1)), Keep.BOTTOM)
     tool = Pos(0, 0, -25) * extrude(RegularPolygon(3, sides), 50)
     cut_stock = stock - tool
     expected_volume = stock.volume - cut_stock.volume
