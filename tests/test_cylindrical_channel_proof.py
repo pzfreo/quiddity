@@ -39,7 +39,10 @@ def channel(scale=1, radius=4):
 
 
 def prove(part):
-    product = _take_inventory(part)
+    return prove_product(_take_inventory(part))
+
+
+def prove_product(product):
     (candidate,) = product.accepted.candidate_set(FamilyId.POCKETS).candidates
     record = candidate.record
     return prove_cylindrical_channel(
@@ -81,6 +84,9 @@ def test_original_step_faces_prove_same_curved_channel(tmp_path):
 
 @pytest.mark.parametrize("stage", range(4))
 def test_material_in_cell_or_any_opening_independently_refuses(monkeypatch, stage):
+    # Discovery now invokes this proof too. Prepare its source evidence before
+    # injecting a one-shot failure into the single proof invocation under test.
+    product = _take_inventory(channel())
     calls = []
 
     def material(*args):
@@ -88,7 +94,7 @@ def test_material_in_cell_or_any_opening_independently_refuses(monkeypatch, stag
         return 1.0 if len(calls) == stage + 1 else 0.0
 
     monkeypatch.setattr(proof_module, "material_fraction", material)
-    assert prove(channel()) is None
+    assert prove_product(product) is None
     assert len(calls) == stage + 1
 
 
