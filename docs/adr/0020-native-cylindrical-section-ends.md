@@ -30,6 +30,16 @@ whole-occurrence serialization error bound and exporter/consumer reconstruction
 tests must be delivered together. Do not silently add cylinder parameters to a
 record that existing readers interpret as a plane.
 
+The implementation uses document version 3 and explicit nested surface records.
+Cylindrical profile coordinates use the existing four-decimal allowance; axis,
+radius and cylinder-placement values use six decimals. Publication retains the
+0.002 mm whole-occurrence displacement limit. Its bound includes the source-axis
+perpendicularisation error over the complete axial footprint, cylinder-parameter
+and profile rounding, and frame rounding. A small angular tolerance alone cannot
+justify flattening a long, slightly tilted cylinder. A tighter paired-coordinate
+bound is used only for convex original and serialized profiles; other profiles
+retain a conservative bound.
+
 ## Physical proof obligations
 
 - An original planar floor supplies one complete line-bounded profile.

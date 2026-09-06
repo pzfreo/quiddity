@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import math
+
 import pytest
 from build123d import Box, Compound, Cylinder, Pos, Rot, export_step, import_step
 
+from quiddity import CylindricalEndSurface, build_section_recess_document
 from quiddity._adjacency import FaceGraph
 from quiddity._cylindrical_pockets import cylindrical_pocket_proofs
 from quiddity._effective_surfaces import EffectiveSurfaceIndex
+from quiddity._section_recess_geometry import _cylindrical_candidate
 
 
 def _base(scale=1.0, offset=0.0):
@@ -59,3 +63,32 @@ def test_compound_ownership_and_step(tmp_path):
     _, reread = _proofs(import_step(path))
     assert len(reread) == 2
     assert [p.volume for p in reread] == pytest.approx([p.volume for p in proofs])
+
+
+@pytest.mark.parametrize("scale", [0.1, 1.0, 10.0])
+@pytest.mark.parametrize("offset", [0.0, 3.0])
+@pytest.mark.parametrize("rotation", [Rot(), Rot(17, 31, 43), Rot(180, 0, 0)])
+def test_public_cylindrical_pocket_preserves_source_evidence(scale, offset, rotation):
+    part = Pos(3, 7, 11) * rotation * _base(scale, offset)
+    document = build_section_recess_document(part)
+    assert document.schema_version == 3
+    assert len(document.occurrences) == 1
+    assert not document.refusals
+    record = document.occurrences[0]
+    assert record.classification.feature_kind == "pocket"
+    assert record.classification.section_shape == "rectangular"
+    assert len(record.evidence.defining_faces) == 4
+    assert len(record.evidence.constituent_faces) == 5
+    surfaces = (record.geometry.ends.low.surface, record.geometry.ends.high.surface)
+    cylinders = [surface for surface in surfaces if isinstance(surface, CylindricalEndSurface)]
+    assert len(cylinders) == 1
+    assert cylinders[0].radius == pytest.approx(20 * scale)
+
+
+def test_tiny_source_axis_tilt_cannot_exceed_public_displacement_budget():
+    part = Rot(0, 90 - math.degrees(5e-9), 0) * Cylinder(20, 1600000)
+    part -= Pos(0, 0, 14) * Box(1200000, 24, 12)
+    graph, proofs = _proofs(part)
+    assert len(proofs) == 1
+    with pytest.raises(ValueError, match="displacement limit"):
+        _cylindrical_candidate(graph, proofs[0])
