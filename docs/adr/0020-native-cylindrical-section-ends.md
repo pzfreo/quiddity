@@ -1,6 +1,6 @@
 # ADR 0020 — Native cylindrical SectionRecess ends
 
-- **Status:** Proposed; public implementation under regression and independent review
+- **Status:** Accepted; implementation merge remains gated on required CI
 - **Date:** 2026-09-06
 - **Issues:** #541, #369, #290; related #540 and #538
 
@@ -72,10 +72,21 @@ cases, six negatives, distinct compound ownership and STEP round-trip. Independe
 review found a side-breakout false positive; complete edge support and strict
 boundary separation fixed it, and focused re-review was clear.
 
-Those results establish feasibility, not production completion. Deliver authored
-public-path tests (including the breakout), tolerance-boundary and serialization
-tests, exact reconstruction, MFCAD++ before/after evidence, independent substantive
-review and required green CI before accepting this ADR as implemented.
+The production implementation is in PR #544. Authored public-path tests include
+the breakout, a source-axis tilt exceeding the publication bound, and JSON-only
+consumer reconstruction across eighteen scaled, offset and transformed cases.
+The reconstructed volumes and sampled physical boundaries (including curved
+interiors) agree within the unchanged publication allowance. Sampling supplements,
+not replaces, the analytic whole-occurrence bound. Four additional authored
+triangular/hexagonal cases retain complete original wall evidence.
+
+Independent whole-branch and focused closure reviews have no remaining blocking
+findings. The full same-selection MFCAD++ comparison at `88cd359` versus
+main-equivalent `154182c` evaluated 2,493 of 2,500 models with the same seven invalid
+inputs: zero changed model results, coverage/defining losses or summary changes.
+This is a proved consumer capability repair, not a claimed corpus recall increase.
+See [the validation record](../benchmarks/e5-cylindrical-pocket-541.md).
+Required green CI remains the implementation merge gate.
 
 ## Deliberate exclusions
 
