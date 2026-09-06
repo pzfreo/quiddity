@@ -3,7 +3,7 @@
 """Kernel-free cylindrical end values and complete polygon-domain bounds.
 
 The cylinder axis lies in the section plane. Heights are measured along frame.run.
-This value is not yet registered in the public SectionEnd contract.
+SectionEnd publishes this value through its explicitly tagged surface contract.
 """
 
 from __future__ import annotations

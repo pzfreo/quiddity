@@ -761,7 +761,9 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_section_recesses",
         (),
         always,
-        _simple(lambda s: list(discover_section_recesses(s.context.part, writer=s.writer))),
+        _simple(
+            lambda s: list(discover_section_recesses(writer=s.writer, surfaces=s.context.surfaces))
+        ),
         Counted("section_recess"),
         FullyAttributed(
             "every SectionRecess publishes its original wall faces and complete constituent set"

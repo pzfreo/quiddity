@@ -15,7 +15,7 @@ from OCP.GeomAbs import GeomAbs_Cylinder
 from quiddity._adjacency import FaceGraph, FaceNode, frame_points_outward
 from quiddity._cylindrical_end_surface import CylindricalEndSurface
 from quiddity._cylindrical_pockets import CylindricalPocketProof, cylindrical_pocket_proofs
-from quiddity._effective_surfaces import EffectiveSurfaceIndex
+from quiddity._effective_surfaces import EffectiveSurfaceQuery
 from quiddity._geometry import length_tol
 from quiddity._recess_obround import _END_RADIUS_FRAC
 from quiddity._section_passages import _end_slab, _line_section, _probe_prism
@@ -842,7 +842,7 @@ def _cylindrical_candidate(graph: FaceGraph, proof: CylindricalPocketProof) -> _
     )
 
 
-def _candidates(graph: FaceGraph) -> tuple[_Candidate, ...]:
+def _candidates(graph: FaceGraph, surfaces: EffectiveSurfaceQuery) -> tuple[_Candidate, ...]:
     found = set()
     for node in graph.nodes:
         if not graph.is_planar(node):
@@ -856,7 +856,7 @@ def _candidates(graph: FaceGraph) -> tuple[_Candidate, ...]:
         )
         if candidate is not None:
             found.add(candidate)
-    for proof in cylindrical_pocket_proofs(graph, EffectiveSurfaceIndex(graph)):
+    for proof in cylindrical_pocket_proofs(graph, surfaces):
         try:
             found.add(_cylindrical_candidate(graph, proof))
         except (RuntimeError, TypeError, ValueError, ZeroDivisionError):

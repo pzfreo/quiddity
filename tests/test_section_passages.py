@@ -268,8 +268,10 @@ def test_oblique_parallel_ends_publish_owned_wall_evidence_in_public_document():
     for record in records:
         assert record.classification.section_shape == "hexagonal"
         assert len(record.evidence.defining_faces) == len(record.evidence.constituent_faces) == 6
-        assert record.geometry.ends.low.gradient == record.geometry.ends.high.gradient
-        assert math.hypot(*record.geometry.ends.low.gradient) == pytest.approx(
+        assert (
+            record.geometry.ends.low.surface.gradient == record.geometry.ends.high.surface.gradient
+        )
+        assert math.hypot(*record.geometry.ends.low.surface.gradient) == pytest.approx(
             math.tan(math.radians(20)), abs=1e-6
         )
     assert set(records[0].evidence.constituent_faces).isdisjoint(

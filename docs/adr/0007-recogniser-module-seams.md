@@ -86,6 +86,13 @@ goldens, determinism tests, benchmarks, and installed-archive audits protect beh
 
 ## Consequences
 
+Issue #541 adds `_cylindrical_pockets` below section publication. It consumes the
+original graph and internal analytic-surface query, returns original source/owner
+proofs, and imports no public inspection facade or aggregate. The kernel-free
+`_cylindrical_end_surface` value depends only on the record leaf. Section geometry
+owns projection and its whole-occurrence error bound; discovery and publication
+retain their existing ownership. No generated clipping face becomes evidence.
+
 Issue #540 adds private `_entry_treatments` below `_section_passages`. It reads the existing
 graph and exact kernel geometry, but no records, candidates, evidence, registry or result.
 It returns original treatment/context nodes after a bounded finite-cell proof; Passage remains

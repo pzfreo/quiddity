@@ -202,6 +202,10 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "finite treatment cells require original planar bevel and stock footprints",
     ),
+    "_cylindrical_pockets": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "native analytic cylinder with exact original planar supports and private clipped probes",
+    ),
     "_corner_section": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "corner projection requires original rectangular faces and an original exterior mouth",
@@ -284,6 +288,26 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
     "_entry_treatments:prove_entry_treatments:is_planar:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "prove native planar stock termination of a finite entry treatment",
+    ),
+    "_cylindrical_pockets:_proofs:is_planar:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "original planar floor authority",
+    ),
+    "_cylindrical_pockets:_proofs:is_planar:2": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "original constant planar wall supports",
+    ),
+    "_cylindrical_pockets:_proofs:geom_type:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "require complete original straight floor edges",
+    ),
+    "_cylindrical_pockets:_proofs:geom_type:2": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "classify private generated floor support patches",
+    ),
+    "_cylindrical_pockets:_proofs:geom_type:3": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "classify private generated wall support patches",
     ),
     "_entry_treatments:prove_entry_treatments:is_planar:2": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,

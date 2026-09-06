@@ -1,6 +1,6 @@
 # ADR 0020 — Native cylindrical SectionRecess ends
 
-- **Status:** Proposed; private proof reviewed, public implementation pending
+- **Status:** Proposed; public implementation under regression and independent review
 - **Date:** 2026-09-06
 - **Issues:** #541, #369, #290; related #540 and #538
 
