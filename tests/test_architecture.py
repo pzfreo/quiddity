@@ -228,6 +228,15 @@ MODULE_SEAM_EDGES = {
     "_recess_records": {"_record", "_typing"},
     # Exact volumetric evidence is shared without importing either recognition policy.
     "_volume_probe": {"_typing"},
+    "_section_recess": {"_record", "_sections", "passages"},
+    "_section_recess_geometry": {
+        "_adjacency", "_geometry", "_recess_obround", "_section_passages",
+        "_section_recess", "_sections", "passages",
+    },
+    "_section_recess_discovery": {
+        "_adjacency", "_candidates", "_claims", "_section_recess",
+        "_section_recess_geometry", "_typing",
+    },
     "_wire_seed": {"_adjacency"},
     # The recess stack, bottom to top: faces are read, candidates are proposed from them,
     # obround ends recover the ones no wall pair found, and reduction turns what is left into
@@ -442,19 +451,19 @@ ARC_READER_SITES = {
     "tools/audit_mfcadpp_oriented_circular_pockets:_one_candidate:arc:1": "exact-nonsmooth",
     "tools/audit_mfcadpp_oriented_circular_pockets:_one_candidate:arc:2": "legacy-contract",
     "tools/audit_mfcadpp_oriented_circular_pockets:_one_candidate:arc:3": "legacy-contract",
-    "src/quiddity/_section_recess:_one_obround_candidate:arc:1": (
+    "src/quiddity/_section_recess_geometry:_one_obround_candidate:arc:1": (
         "exact-nonsmooth"
     ),
-    "src/quiddity/_section_recess:_one_obround_candidate:arc:2": (
+    "src/quiddity/_section_recess_geometry:_one_obround_candidate:arc:2": (
         "legacy-contract"
     ),
-    "src/quiddity/_section_recess:_one_obround_candidate:arc:3": (
+    "src/quiddity/_section_recess_geometry:_one_obround_candidate:arc:3": (
         "legacy-contract"
     ),
-    "src/quiddity/_section_recess:_one_polygonal_candidate:arc:1": (
+    "src/quiddity/_section_recess_geometry:_one_polygonal_candidate:arc:1": (
         "exact-nonsmooth"
     ),
-    "src/quiddity/_section_recess:_one_polygonal_candidate:arc:2": (
+    "src/quiddity/_section_recess_geometry:_one_polygonal_candidate:arc:2": (
         "legacy-contract"
     ),
     "tools/audit_mfcadpp_floor_interrupted_pockets:_raw_regions:arc:1": "legacy-contract",

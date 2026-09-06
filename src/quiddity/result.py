@@ -77,8 +77,8 @@ from quiddity._section_recess import (
     SectionRecessGeometry,
     SectionRecessGrid,
     SectionRecessRefusal,
-    _polygonal_shape,
 )
+from quiddity._section_recess_geometry import _polygonal_shape
 from quiddity._sections import LocalFrame
 from quiddity._typing import Bounds, CylinderInventory, FrozenCylinderInventory, Part
 from quiddity.angled_steps import AngledStep

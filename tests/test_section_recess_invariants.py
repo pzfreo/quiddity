@@ -4,6 +4,9 @@ import json
 
 import pytest
 
+import quiddity
+import quiddity._section_recess as records
+import quiddity.section_recesses as facade
 from quiddity import (
     ClosedSectionProfile,
     OpenSectionProfile,
@@ -19,6 +22,14 @@ def _open(points, bulges=None):
     bulges = bulges or [0.0] * len(points)
     vertices = tuple(PassageSectionVertex(p, b) for p, b in zip(points, bulges, strict=True))
     return OpenSectionProfile("open", vertices, (vertices[-1].point, vertices[0].point))
+
+
+def test_record_extraction_preserves_public_class_identity():
+    for name in facade.__all__:
+        value = getattr(facade, name)
+        if isinstance(value, type):
+            assert getattr(quiddity, name) is getattr(records, name) is value
+            assert value.__module__ == "quiddity._section_recess"
 
 
 @pytest.mark.parametrize(

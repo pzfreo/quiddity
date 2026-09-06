@@ -194,7 +194,7 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.PENDING_MIGRATION,
         "original planar opening, wall and floor roles in the bounded cavity proof",
     ),
-    "_section_recess": (
+    "_section_recess_geometry": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "section-recess recognition intentionally requires audited original-face anatomy",
     ),
@@ -245,39 +245,39 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "prove exterior planar mouth faces rather than assuming the opposite end is open",
     ),
-    "_section_recess:_cylinder:adaptor:1": (
+    "_section_recess_geometry:_cylinder:adaptor:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "recogniser reads native cylinder parameters from the audited obround wall",
     ),
-    "_section_recess:_edge_sweep:geom_type:1": (
+    "_section_recess_geometry:_edge_sweep:geom_type:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "recogniser requires the original semicircular floor boundary",
     ),
-    "_section_recess:_one_obround_candidate:graph_surface:1": (
+    "_section_recess_geometry:_one_obround_candidate:graph_surface:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "recogniser classifies the two original cylindrical walls",
     ),
-    "_section_recess:_one_obround_candidate:is_planar:1": (
+    "_section_recess_geometry:_one_obround_candidate:is_planar:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "recogniser classifies the two original planar walls",
     ),
-    "_section_recess:_one_obround_candidate:is_planar:2": (
+    "_section_recess_geometry:_one_obround_candidate:is_planar:2": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "recogniser requires an original planar mouth",
     ),
-    "_section_recess:_candidates:is_planar:1": (
+    "_section_recess_geometry:_candidates:is_planar:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "recogniser seeds only from an original planar floor",
     ),
-    "_section_recess:_polygonal_section:geom_type:1": (
+    "_section_recess_geometry:_polygonal_section:geom_type:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "recogniser requires the observed polygonal floor boundary to be straight",
     ),
-    "_section_recess:_one_polygonal_candidate:is_planar:1": (
+    "_section_recess_geometry:_one_polygonal_candidate:is_planar:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "recogniser requires original planar polygonal wall supports",
     ),
-    "_section_recess:_one_polygonal_candidate:is_planar:2": (
+    "_section_recess_geometry:_one_polygonal_candidate:is_planar:2": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "recogniser requires one original planar exterior mouth",
     ),
