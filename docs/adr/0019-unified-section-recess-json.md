@@ -122,6 +122,13 @@ second serialized facts.
 interval, apart from separately proved end or edge treatments. A drafted, tapered, twisted or
 otherwise varying wall set does not become a `SectionRecess` by recording a nominal section.
 
+A polygonal pocket's planar mouth may be partitioned into multiple coplanar stock faces.
+These patches collectively provide termination context only when every wall has observed
+convex or smooth adjacency to a qualifying patch on the same mouth plane and all consulted
+faces belong to the same valid solid. This does not relax the floor, constant-section,
+empty-run, open-mouth or floor-backing proofs. Stock patches remain consulted context,
+not defining or constituent evidence; their partition does not change the public geometry.
+
 Chamfers, blends, wall draft and bottom radii do not add optional shape-specific fields to this
 record. Independently proved chamfer and blend occurrences remain separate and may be related to a
 recess occurrence in a future result relationship table. The base recess and related treatment

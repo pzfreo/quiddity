@@ -475,7 +475,7 @@ def _one_polygonal_candidate(graph: FaceGraph, floor: FaceNode) -> _Candidate | 
     mouth_at = high if abs(floor_at - low) <= tolerance else low
     context = set(graph.neighbours(walls[0]))
     for wall in walls[1:]:
-        context &= set(graph.neighbours(wall))
+        context |= set(graph.neighbours(wall))
     mouths = []
     for node in context - {floor}:
         mouth_normal = graph.normal(node) if graph.is_planar(node) else None
@@ -485,11 +485,21 @@ def _one_polygonal_candidate(graph: FaceGraph, floor: FaceNode) -> _Candidate | 
             and _parallel(_canonical(mouth_normal), depth)
             and interval is not None
             and abs(sum(interval) / 2.0 - mouth_at) <= tolerance
-            and all(graph.arc(node, wall) in ("convex", "smooth") for wall in walls)
+            and any(graph.arc(node, wall) in ("convex", "smooth") for wall in walls)
         ):
             mouths.append(node)
-    owner = graph.common_valid_solid((*walls, floor))
-    if len(mouths) != 1 or owner is None:
+    # A physical mouth may be partitioned into several coplanar stock faces. Every
+    # wall still needs observed termination context on that same plane; none of
+    # these consulted patches becomes defining or constituent pocket evidence.
+    owner = graph.common_valid_solid((*walls, floor, *mouths))
+    if (
+        not mouths
+        or owner is None
+        or any(
+            not any(graph.arc(node, wall) in ("convex", "smooth") for node in mouths)
+            for wall in walls
+        )
+    ):
         return None
     centre = graph.face(floor).center()
     frame = LocalFrame.canonical(depth, (float(centre.X), float(centre.Y), float(centre.Z)))
@@ -533,7 +543,7 @@ def _one_polygonal_candidate(graph: FaceGraph, floor: FaceNode) -> _Candidate | 
     return _Candidate(
         defining,
         tuple(sorted((floor.index, *defining))),
-        mouths[0].index,
+        min(node.index for node in mouths),
         owner.ordinal,
         geometry,
         shape,
