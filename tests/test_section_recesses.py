@@ -33,8 +33,8 @@ from quiddity import (
 )
 from quiddity._section_recess import (
     SectionRecessClassification,
-    project_section_recess_geometry,
 )
+from quiddity._section_recess_geometry import project_section_recess_geometry
 from quiddity._sections import (
     BodyRefIssuer,
     LocalFrame,
@@ -84,14 +84,14 @@ def test_obround_material_probe_uses_only_the_owning_body():
 
 
 def test_obround_probe_contains_the_complete_semicircular_ends():
-    from quiddity._section_recess import _obround_prism
+    from quiddity._section_recess_geometry import _obround_prism
 
     probe = _obround_prism((0, 0, 1), (-6, 0, 0), (6, 0, 0), 3, 0, 6)
     assert probe.volume == pytest.approx((12 * 6 + math.pi * 3**2) * 6)
 
 
 def test_obround_kernel_probe_failure_refuses(monkeypatch):
-    import quiddity._section_recess as implementation
+    import quiddity._section_recess_geometry as implementation
 
     def failed(*_args):
         raise RuntimeError("kernel boolean failed")
@@ -102,7 +102,7 @@ def test_obround_kernel_probe_failure_refuses(monkeypatch):
 
 @pytest.mark.parametrize("fractions", [(1.0,), (0.0, 1.0), (0.0, 0.0, 0.0)])
 def test_obround_requires_empty_run_open_mouth_and_complete_backing(monkeypatch, fractions):
-    import quiddity._section_recess as implementation
+    import quiddity._section_recess_geometry as implementation
     from quiddity._adjacency import FaceGraph
 
     graph = FaceGraph(_blind_pocket(angle=0))
