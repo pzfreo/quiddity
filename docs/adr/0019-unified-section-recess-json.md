@@ -168,6 +168,17 @@ geometry and never enter the face roster as observed support. The base passage p
 planar run ends retain their existing meaning, with the explicitly proved treatment exception.
 This does not admit arbitrary nonplanar ends, varying sections or a general relationship API.
 
+ADR 0021 separately permits proved circular apertures strictly inside channel wall
+or floor supports. Each original inner wire must match a native inward cylinder
+with two observed finite limits, complete original side support and an empty cell
+on the same body. Original supports plus these exact aperture explanations must
+cover each complete proposed patch; touching ends, outer-contour breaks and
+unexplained gaps remain refused. Opposite-wall bore segments stay separate. The
+public profile describes base channel support with these proved interruptions,
+not an unperforated final boundary. Original cylinders join constituent evidence;
+independent hole occurrences remain separate. This does not admit pierced capped
+ends or imply full treated-boundary reconstruction from the base record alone.
+
 Islands are excluded from schema version 1 because no current family proves them. A later version
 may add a canonical list of closed inner profiles after recognition and consumer evidence exists.
 

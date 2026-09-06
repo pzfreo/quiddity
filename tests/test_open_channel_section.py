@@ -6,6 +6,7 @@ from build123d import Box, Compound, Cylinder, Pos, Rot, Vertex, export_step, im
 import quiddity._open_channel_section as proof_module
 from quiddity import build_section_recess_document
 from quiddity._adjacency import FaceGraph
+from quiddity._effective_surfaces import EffectiveSurfaceIndex
 from tools._legacy_recognition import recognise_channels
 
 
@@ -27,7 +28,9 @@ def proof(part):
         and abs(graph.normal(node)[1]) > 0.999
         and all(abs(abs(vertex.Y) - 10) < 1e-6 for vertex in graph.face(node).vertices())
     )
-    return proof_module.prove_open_channel(graph, defining, frozenset(graph.nodes), record)
+    return proof_module.prove_open_channel(
+        graph, defining, frozenset(graph.nodes), record, surfaces=EffectiveSurfaceIndex(graph)
+    )
 
 
 @pytest.mark.parametrize("scale", [0.1, 1, 10])
@@ -74,7 +77,7 @@ def test_channel_step_roundtrip(tmp_path):
 @pytest.mark.parametrize(
     "part",
     [
-        channel() - Cylinder(2, 60),  # a hole through the floor
+        channel() - Pos(39, 0, 0) * Cylinder(2, 60),  # floor hole breaks the run end
         channel() + Pos(0, 0, 7) * Box(3, 24, 3),  # suspended crossbar
         channel() + Pos(39, 0, 7.5) * Box(2, 20, 15),  # capped run
         Compound([channel(), Pos(100, 0, 0) * channel()]),  # no cross-body proof

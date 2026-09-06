@@ -534,6 +534,14 @@ recess values, neutral section primitives and material probes, but not the regis
 evidence index, reconciliation or results. `result` owns its invocation and projects the proved
 support into the ADR-0019 public record.
 
+ADR 0021 adds `_support_apertures` beneath that proof. It consumes the same-run
+internal effective-surface query, original graph topology, exact support-patch
+comparisons and volume probes. It returns original cylinder references plus private
+aperture disks. `_open_channel_section` checks the complete support remainder and
+passes only original cylinder references to `result` for constituent publication.
+It does not import recognisers, public inspection, candidate/evidence ownership or
+orchestration, and does not construct another analytic index.
+
 `evidence` may import immutable `_section_recess` record types to expose the completed public
 geometry and explicit refusal roster. It performs no recognition or geometry inference. The
 private detector result remains available only to internal inventory/scoring tools; the public
