@@ -12,6 +12,7 @@ from quiddity import (
     OpenSectionProfile,
     PassageFrame,
     PassageSectionVertex,
+    PlanarEndSurface,
     SectionEnd,
     SectionRecessEnds,
     SectionRecessGeometry,
@@ -29,7 +30,12 @@ def test_record_extraction_preserves_public_class_identity():
         value = getattr(facade, name)
         if isinstance(value, type):
             assert getattr(quiddity, name) is getattr(records, name) is value
-            assert value.__module__ == "quiddity._section_recess"
+            expected_module = (
+                "quiddity._cylindrical_end_surface"
+                if name == "CylindricalEndSurface"
+                else "quiddity._section_recess"
+            )
+            assert value.__module__ == expected_module
 
 
 @pytest.mark.parametrize(
@@ -73,7 +79,10 @@ def _geometry(profile, low=(0.0, 0.0), high=(0.0, 0.0), span=1.0):
         PassageFrame((0, 0, 0), (0, 0, 1), (1, 0, 0), (0, 1, 0)),
         (0.0, span),
         profile,
-        SectionRecessEnds(SectionEnd("capped", low), SectionEnd("open", high)),
+        SectionRecessEnds(
+            SectionEnd("capped", PlanarEndSurface(gradient=low)),
+            SectionEnd("open", PlanarEndSurface(gradient=high)),
+        ),
     )
 
 
@@ -149,7 +158,10 @@ def test_closed_arc_extrema_and_geometry_json_round_trip():
         ),
         SectionRecessEnds(
             *(
-                SectionEnd(data["ends"][end]["condition"], tuple(data["ends"][end]["gradient"]))
+                SectionEnd(
+                    data["ends"][end]["condition"],
+                    PlanarEndSurface(gradient=tuple(data["ends"][end]["surface"]["gradient"])),
+                )
                 for end in ("low", "high")
             )
         ),

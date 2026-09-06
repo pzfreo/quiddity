@@ -4,25 +4,24 @@
 
 from __future__ import annotations
 
-from quiddity._adjacency import FaceGraph
 from quiddity._candidates import FamilyId
 from quiddity._claims import EvidenceWriter
+from quiddity._effective_surfaces import EffectiveSurfaceQuery
 from quiddity._section_recess import (
     SectionRecess,
     SectionRecessClassification,
     SectionRecessEvidence,
 )
 from quiddity._section_recess_geometry import _candidates
-from quiddity._typing import Part
 
 
 def discover_section_recesses(
-    part: Part, *, writer: EvidenceWriter | None = None
+    *, writer: EvidenceWriter, surfaces: EffectiveSurfaceQuery
 ) -> list[SectionRecess]:
     """Discover native section recesses without depending on the public facade."""
 
-    graph = writer.graph if writer is not None else FaceGraph(part)
-    found = _candidates(graph)
+    graph = writer.graph
+    found = _candidates(graph, surfaces)
     records = [
         SectionRecess(
             index,
@@ -33,14 +32,13 @@ def discover_section_recesses(
         )
         for index, candidate in enumerate(found)
     ]
-    if writer is not None:
-        for record in records:
-            defining = tuple(graph.nodes[index] for index in record.evidence.defining_faces)
-            constituent = tuple(graph.nodes[index] for index in record.evidence.constituent_faces)
-            writer.add_defining(
-                record,
-                defining,
-                family=FamilyId.SECTION_RECESSES,
-                constituent=constituent,
-            )
+    for record in records:
+        defining = tuple(graph.nodes[index] for index in record.evidence.defining_faces)
+        constituent = tuple(graph.nodes[index] for index in record.evidence.constituent_faces)
+        writer.add_defining(
+            record,
+            defining,
+            family=FamilyId.SECTION_RECESSES,
+            constituent=constituent,
+        )
     return records

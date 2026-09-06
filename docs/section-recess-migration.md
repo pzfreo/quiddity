@@ -1,7 +1,7 @@
 # Consuming unified recess geometry
 
 The 0.4.15 cutover replaces specialised pocket, recess, channel and passage outputs with
-`SectionRecess`. Use `build_section_recess_document(part).to_dict()` for JSON schema 2, or
+`SectionRecess`. Use `build_section_recess_document(part).to_dict()` for JSON schema 3, or
 `RecognitionResult.section_recesses` when already running the aggregate. The builder runs
 raw/caller-coordinate recognition once; it does not automatically frame the input.
 
@@ -20,7 +20,25 @@ fourth side is explicitly absent. No bounding box is promoted to a closed pocket
 
 A section point `(u, v)` at run coordinate `s` reconstructs as
 `frame.origin + u * frame.u + v * frame.v + s * frame.run`.
-End gradients give the additional run displacement as a function of section coordinates.
+Each end separates `condition` from its explicitly tagged `surface`.
+For `surface.type == "plane"`, `surface.gradient` gives additional run displacement
+relative to the corresponding centroid `run_interval` value.
+
+For `surface.type == "cylinder"`, normalize its in-plane `axis_direction = (a,b)`.
+With `axis_point = (cx,cy,cz)`, let `q = -b*(u-cx) + a*(v-cy)`.
+The end coordinate is `cz ± sqrt(radius²-q²)`, using the explicit `positive` or
+`negative` branch. The existing closed polygon supplies the domain. Radius and
+axis point are in millimetres; the direction is dimensionless. The corresponding
+run-interval value is the rounded intersection at `(u,v)=(0,0)`, not an envelope.
+The producer proves valid branch and positive separation over the complete profile.
+
+Schema 3 is an explicit breaking change: schema-2 `end.gradient` moves to
+`end.surface.gradient`, and consumers must dispatch on the surface type. Do not
+silently flatten an unfamiliar cylinder to the centroid plane. A pocket in
+cylindrical stock may have a 6 × 24 footprint with 8–12 mm physical depth; label
+depth as local, maximum or centroid depth, never as uniform. This requires no
+build123d-specific value or consumer-side recognition. See ADR 0020.
+
 A bulge belongs to the segment starting at that vertex. The last open-chain vertex has zero
 bulge. The `opening` joins loose endpoints only to describe missing boundary.
 
@@ -53,9 +71,11 @@ coordinates, plus center and pitches; no implicit world-XY angle is required. On
 one unambiguous geometric occurrence per member are published; this
 does not introduce a new free-axis pattern detector.
 
-This ships in 0.4.15 at the maintainer's request. Despite the patch version, it is a breaking,
-coordinated consumer change and an explicit exception to the earlier 0.4.x compatibility promise.
-Consumers must migrate; pin 0.4.14 until ready. It does not change Draftwright automatically.
+The original unified cutover shipped in 0.4.15 at the maintainer's request. Despite
+the patch version, that was a breaking, coordinated consumer change and an explicit
+exception to the earlier 0.4.x compatibility promise. Schema 3 is a subsequent
+Quiddity change, not part of 0.4.15. Consumers must migrate before adopting it;
+neither change updates Draftwright automatically.
 
 ## Explicit refusals, not fabricated geometry
 

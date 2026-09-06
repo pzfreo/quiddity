@@ -68,6 +68,7 @@ from quiddity._section_adapters import legacy_section_geometry
 from quiddity._section_recess import (
     ClosedSectionProfile,
     OpenSectionProfile,
+    PlanarEndSurface,
     SectionEnd,
     SectionRecess,
     SectionRecessArray,
@@ -737,8 +738,8 @@ def _section_passage_recess(
         record.run_interval,
         ClosedSectionProfile("closed", record.section.boundary),
         SectionRecessEnds(
-            SectionEnd("open", record.ends.low_gradient),
-            SectionEnd("open", record.ends.high_gradient),
+            SectionEnd("open", PlanarEndSurface(gradient=record.ends.low_gradient)),
+            SectionEnd("open", PlanarEndSurface(gradient=record.ends.high_gradient)),
         ),
     )
     return SectionRecess(

@@ -189,7 +189,9 @@ from quiddity.result import (
 )
 from quiddity.section_recesses import (
     ClosedSectionProfile,
+    CylindricalEndSurface,
     OpenSectionProfile,
+    PlanarEndSurface,
     SectionEnd,
     SectionRecess,
     SectionRecessArray,
@@ -260,6 +262,8 @@ __all__ = [
     "SectionRecessGrid",
     "SectionEnd",
     "ClosedSectionProfile",
+    "CylindricalEndSurface",
+    "PlanarEndSurface",
     "OrientedSlot",
     "OrientedSlotArray",
     "OrientedSlotGrid",

@@ -1,7 +1,8 @@
 # Proven recognition capability
 
 The SectionRecess cutover replaces specialised pocket/recess/passage outputs and uses JSON schema
-version 2. See [the migration guide](section-recess-migration.md). Detector names in historical
+version 3 with explicit planar or cylindrical end surfaces. See
+[the migration guide](section-recess-migration.md). Detector names in historical
 proof discussions are not additional public entry points; the tables below are authoritative.
 
 This inventory states what the current recognisers prove, rather than what their
@@ -526,7 +527,9 @@ invitation to construct values outside that evidence and call them recognized.
 | `RiserEvidence` | One body-local full-span candidate riser before consumer-specific projection; `body_levels` retains the complete same-solid FaceLevel occurrences (`null` only for hand-built legacy records). `project_step_shoulders(..., levels_by_riser=...)` provides explicit occurrence-aligned selection when separate bodies have value-identical levels. |
 | `ClosedSectionProfile` | Canonical closed line/arc boundary nested in a `SectionRecessGeometry`. |
 | `OpenSectionProfile` | Canonical physical line/arc chain plus the explicit gap between its loose endpoints. |
-| `SectionEnd` | One explicit open or capped end with its local planar gradient. |
+| `SectionEnd` | One explicit open or capped end with a tagged planar or cylindrical surface. |
+| `PlanarEndSurface` | Local planar gradient relative to the end's centroid run coordinate. |
+| `CylindricalEndSurface` | Explicit native cylinder branch, axis and radius in the section frame; its complete closed polygon is the end domain. |
 | `SectionRecessRefusal` | Explicit source-face evidence for a candidate whose support geometry could not be proved; not a recognised occurrence. |
 | `SectionRecessArray` | Constant-pitch group using result-local occurrence indices, not embedded legacy records. |
 | `SectionRecessGrid` | Rectangular lattice using result-local occurrence indices and lattice geometry. |

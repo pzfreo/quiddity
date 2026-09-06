@@ -4,6 +4,9 @@
 - **Date:** 2026-09-04
 - **Issues:** #290, #495
 - **Prototype:** #496
+- **Extension:** [ADR 0020](0020-native-cylindrical-section-ends.md) proposes explicit
+  planar/cylindrical end surfaces in document schema 3; the schema-2 example below
+  records this ADR's original contract.
 - **Consumer review:**
   [`docs/draftwright-section-recess-schema-review.md`](../draftwright-section-recess-schema-review.md)
 

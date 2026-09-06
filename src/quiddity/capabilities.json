@@ -1844,6 +1844,41 @@
         },
         {
           "aggregate_membership": [],
+          "aggregate_membership_rationale": "Native cylindrical branch nested only in SectionEnd.",
+          "fields": {
+            "axis_direction": {
+              "required": true,
+              "type": "tuple[float,2]",
+              "units": "unit-vector"
+            },
+            "axis_point": {
+              "required": true,
+              "type": "tuple[float,3]",
+              "units": "mm"
+            },
+            "branch": {
+              "required": true,
+              "type": "str",
+              "units": "none"
+            },
+            "radius": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "type": {
+              "required": true,
+              "type": "str",
+              "units": "none"
+            }
+          },
+          "name": "CylindricalEndSurface",
+          "qualified_name": "quiddity.CylindricalEndSurface",
+          "role": "nested",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [],
           "aggregate_membership_rationale": "Nested only in SectionRecessGeometry.",
           "fields": {
             "boundary": {
@@ -1934,6 +1969,26 @@
         },
         {
           "aggregate_membership": [],
+          "aggregate_membership_rationale": "Planar boundary nested only in SectionEnd.",
+          "fields": {
+            "gradient": {
+              "required": false,
+              "type": "tuple[float,2]",
+              "units": "none"
+            },
+            "type": {
+              "required": false,
+              "type": "str",
+              "units": "none"
+            }
+          },
+          "name": "PlanarEndSurface",
+          "qualified_name": "quiddity.PlanarEndSurface",
+          "role": "nested",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [],
           "aggregate_membership_rationale": "Nested only in SectionRecessEnds.",
           "fields": {
             "condition": {
@@ -1941,16 +1996,16 @@
               "type": "str",
               "units": "none"
             },
-            "gradient": {
+            "surface": {
               "required": false,
-              "type": "tuple[float,2]",
+              "type": "record:CylindricalEndSurface|record:PlanarEndSurface",
               "units": "none"
             }
           },
           "name": "SectionEnd",
           "qualified_name": "quiddity.SectionEnd",
           "role": "nested",
-          "schema_version": 1
+          "schema_version": 2
         },
         {
           "aggregate_membership": [
@@ -1986,7 +2041,7 @@
           "name": "SectionRecess",
           "qualified_name": "quiddity.SectionRecess",
           "role": "output",
-          "schema_version": 1
+          "schema_version": 2
         },
         {
           "aggregate_membership": [
@@ -2092,7 +2147,7 @@
           "name": "SectionRecessDocument",
           "qualified_name": "quiddity.SectionRecessDocument",
           "role": "aggregate",
-          "schema_version": 1
+          "schema_version": 3
         },
         {
           "aggregate_membership": [],
@@ -2112,7 +2167,7 @@
           "name": "SectionRecessEnds",
           "qualified_name": "quiddity.SectionRecessEnds",
           "role": "nested",
-          "schema_version": 1
+          "schema_version": 2
         },
         {
           "aggregate_membership": [],
@@ -2182,7 +2237,7 @@
           "name": "SectionRecessGeometry",
           "qualified_name": "quiddity.SectionRecessGeometry",
           "role": "nested",
-          "schema_version": 1
+          "schema_version": 2
         },
         {
           "aggregate_membership": [
