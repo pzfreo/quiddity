@@ -15,8 +15,9 @@ from OCP.BRepAdaptor import BRepAdaptor_Curve
 from OCP.GeomAbs import GeomAbs_Line
 
 from quiddity._adjacency import FaceGraph, FaceNode
-from quiddity._section_passages import _end_slab, _material_fraction, _probe_prism
+from quiddity._section_passages import _end_slab, _probe_prism
 from quiddity._sections import LocalFrame, PlanarSection, SectionVertex
+from quiddity._volume_probe import material_fraction as _material_fraction
 
 
 @dataclass(frozen=True)
