@@ -210,6 +210,7 @@ MODULE_SEAM_EDGES = {
         "_geometry",
         "_record",
         "_typing",
+        "_volume_probe",
     },
     "pads": {
         "_analytic_surfaces",
