@@ -17,6 +17,7 @@ from quiddity._geometry import AXIS_ZERO_COS
 from quiddity._record import Record
 from quiddity._rings import SPAN_EPS
 from quiddity._typing import Part
+from quiddity._volume_probe import intersection_volume
 
 _AXES = "xyz"
 _POINT_DIGITS = 4
@@ -301,11 +302,7 @@ def _material_fraction(part: Part, probe: Solid) -> float:
     result = part.intersect(probe)
     if result is None:
         return 0.0
-    volume = (
-        float(result.volume)
-        if hasattr(result, "volume")
-        else sum(float(item.volume) for item in result)
-    )
+    volume = intersection_volume(result)
     return volume / float(probe.volume)
 
 

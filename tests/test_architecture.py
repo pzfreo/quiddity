@@ -62,8 +62,10 @@ def test_correspondence_matcher_remains_private_and_result_neutral() -> None:
 
 
 MODULE_SEAM_EDGES = {
-    "_corner_section": {"_adjacency", "_section_passages", "_sections"},
-    "_open_channel_section": {"_adjacency", "_recess_records", "_section_passages", "_sections"},
+    "_corner_section": {"_adjacency", "_section_passages", "_sections", "_volume_probe"},
+    "_open_channel_section": {
+        "_adjacency", "_recess_records", "_section_passages", "_sections", "_volume_probe",
+    },
     # Base layer: the kernel, the shared type aliases, and `_geometry`'s alignment threshold.
     "_body_identity": {"_typing"},
     "_analytic_surfaces": {"_geometry"},
@@ -77,6 +79,7 @@ MODULE_SEAM_EDGES = {
         "_record",
         "_rings",
         "_typing",
+        "_volume_probe",
     },
     "edge_open_circular_recesses": {
         "_adjacency",
@@ -86,6 +89,7 @@ MODULE_SEAM_EDGES = {
         "_record",
         "_rings",
         "_typing",
+        "_volume_probe",
     },
     # Interpretation depends on geometric fact; the reverse edge is what keeps `FaceGraph`
     # immutable, so it must stay absent.
@@ -120,6 +124,7 @@ MODULE_SEAM_EDGES = {
         "_geometry",
         "_record",
         "_typing",
+        "_volume_probe",
     },
     "round_bottom_slots": {
         "_adjacency",
@@ -128,6 +133,7 @@ MODULE_SEAM_EDGES = {
         "_geometry",
         "_record",
         "_typing",
+        "_volume_probe",
     },
     "blends": {
         "_adjacency",
@@ -223,6 +229,7 @@ MODULE_SEAM_EDGES = {
     "_recess_records": {"_record", "_typing"},
     # Exact volumetric evidence is shared without importing either recognition policy.
     "_volume_probe": {"_typing"},
+    "_wire_seed": {"_adjacency"},
     # The recess stack, bottom to top: faces are read, candidates are proposed from them,
     # obround ends recover the ones no wall pair found, and reduction turns what is left into
     # features. Each layer may import the ones below it and none may import one above, which is
@@ -253,6 +260,7 @@ MODULE_SEAM_EDGES = {
         "_recess_records",
         "_recess_reduce",
         "_typing",
+        "_wire_seed",
     },
     "_recess_features": {
         "_adjacency",

@@ -28,6 +28,7 @@ from quiddity._geometry import (
 )
 from quiddity._record import Record
 from quiddity._typing import EdgeLike, Part
+from quiddity._volume_probe import intersection_volume
 
 _AXES = "xyz"
 _LENGTH_REL = 1e-7
@@ -430,11 +431,7 @@ def _empty_sweep(cap_face, part, run: int, distance: float) -> bool:
     direction[run] = distance
     probe = Solid.extrude(cap_face, Vector(*direction))
     intersection = part.intersect(probe)
-    if intersection is None:
-        return True
-    if hasattr(intersection, "volume"):
-        return bool(intersection.volume == 0.0)
-    return bool(sum(shape.volume for shape in intersection) == 0.0)
+    return intersection_volume(intersection) == 0.0
 
 
 def _recognise_one(

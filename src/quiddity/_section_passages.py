@@ -23,6 +23,8 @@ from quiddity._sections import (
     validate_occurrence,
 )
 from quiddity._typing import Part
+from quiddity._volume_probe import material_fraction as _material_fraction
+from quiddity._wire_seed import wire_seed as _wire_seed
 
 _DIRECTION_TOL = 2e-8
 _INTERVAL_TOL = 1e-6
@@ -154,17 +156,6 @@ def _face_interval(graph: FaceGraph, node: FaceNode, run: Vector3) -> tuple[floa
     return (min(values), max(values)) if values else None
 
 
-def _wire_seed(graph: FaceGraph, opening: FaceNode, wire: Wire) -> frozenset[FaceNode]:
-    edges = tuple(wire.edges())
-    return frozenset(
-        neighbour
-        for neighbour in graph.neighbours(opening)
-        if any(
-            occurrence.edge == edge
-            for occurrence in graph.shared_occurrences(opening, neighbour)
-            for edge in edges
-        )
-    )
 
 
 def _bounded_inner_region(
@@ -529,15 +520,6 @@ def _end_slab(
     )
 
 
-def _material_fraction(part: Part, probe: Solid) -> float:
-    intersection = part.intersect(probe)
-    if intersection is None:
-        volume = 0.0
-    elif hasattr(intersection, "volume"):
-        volume = float(intersection.volume)
-    else:
-        volume = sum(float(shape.volume) for shape in intersection)
-    return volume / float(probe.volume)
 
 
 def _void_and_open(

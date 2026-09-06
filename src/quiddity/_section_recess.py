@@ -21,7 +21,7 @@ from quiddity._adjacency import FaceGraph, FaceNode, frame_points_outward
 from quiddity._geometry import length_tol
 from quiddity._recess_obround import _END_RADIUS_FRAC
 from quiddity._record import Record
-from quiddity._section_passages import _end_slab, _material_fraction, _probe_prism
+from quiddity._section_passages import _end_slab, _probe_prism
 from quiddity._sections import (
     BodyRefIssuer,
     LocalFrame,
@@ -33,6 +33,7 @@ from quiddity._sections import (
     occurrence_geometry_dict,
     validate_section_end_separation,
 )
+from quiddity._volume_probe import material_fraction as _material_fraction
 from quiddity.passages import PassageFrame, PassageSection, PassageSectionVertex
 
 _DIRECTION_TOL = 1e-6

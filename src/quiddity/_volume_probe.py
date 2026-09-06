@@ -4,12 +4,38 @@
 
 from __future__ import annotations
 
-from build123d import Box, Pos
+from collections.abc import Iterable
+from typing import Protocol, cast
+
+from build123d import Box, Pos, Solid
 
 from quiddity._typing import Part
 
 #: OCCT cannot construct a volumetric probe at or below this coordinate extent.
 PRISM_PROBE_FLOOR = 1e-6
+
+
+class _VolumeValue(Protocol):
+    @property
+    def volume(self) -> float: ...
+
+
+def intersection_volume(result: object) -> float:
+    """Normalize empty, single-shape and fragmented boolean volumes without policy.
+
+    Unexpected result types and kernel errors propagate to the caller's proof boundary.
+    No tolerance, absolute value, clamping or fragment selection is applied here.
+    """
+    if result is None:
+        return 0.0
+    if hasattr(result, "volume"):
+        return float(cast(_VolumeValue, result).volume)
+    return sum(float(shape.volume) for shape in cast(Iterable[_VolumeValue], result))
+
+
+def material_fraction(part: Part, probe: Solid) -> float:
+    """Measure occupied fraction of the supplied probe; callers own admission policy."""
+    return intersection_volume(part.intersect(probe)) / float(probe.volume)
 
 
 def prism_material_fraction(
@@ -37,12 +63,7 @@ def prism_material_fraction(
         size["x"], size["y"], size["z"]
     )
     intersection = part.intersect(probe)
-    if intersection is None:
-        occupied = 0.0
-    elif hasattr(intersection, "volume"):
-        occupied = intersection.volume
-    else:
-        occupied = sum(shape.volume for shape in intersection)
+    occupied = intersection_volume(intersection)
     return float(occupied / (size["x"] * size["y"] * size["z"]))
 
 
