@@ -16,6 +16,21 @@ the squared norm instead. It now validates `abs(sqrt(dot(direction, direction)) 
 directly. This changes no documented allowance, discovery rule, or independent `0.002 mm`
 reconstructed-section displacement bound.
 
+### Shared line/arc endpoints (#547)
+
+Adjacent section edges already share an exact input vertex. Their intersection test must
+factor out that known root rather than recompute it with a generic quadratic discriminant.
+Near tangency, cancellation followed by a square root can otherwise manufacture a second
+intersection and reject a valid profile. This is numerical conditioning, not a reason to
+increase the recognition or publication allowance. The adjacency-specific calculation tests
+the remaining root against the finite line, signed arc and existing positional tolerance;
+nonadjacent-edge intersection checks are unchanged. Independently authored tangent, inward
+crossing and outward noncrossing cases cover scale, rotation and reversed traversal.
+The adjacency-specific finite-line and finite-arc membership checks convert the existing
+spatial endpoint allowance to parameter units (`epsilon / line_length`) and angular units
+(`epsilon / radius`). Fixed dimensionless or radian margins would otherwise admit increasingly
+large endpoint overruns as a feature grows. Generic nonadjacent membership behavior is unchanged.
+
 ## Context
 
 Recognition gates are written in fixed millimetres: `_MERGE_TOL = 0.5`, `_HOLE_DIA_TOL = 0.2`,

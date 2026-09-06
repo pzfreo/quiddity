@@ -65,7 +65,7 @@ from quiddity._registry import (
     validate_result_fields,
 )
 from quiddity._run import RecognitionContext, start
-from quiddity._section_adapters import legacy_section_geometry
+from quiddity._section_adapters import LegacySectionProjectionError, legacy_section_geometry
 from quiddity._section_recess import (
     ClosedSectionProfile,
     OpenSectionProfile,
@@ -713,6 +713,17 @@ def _derive_passage_compat(
     return cast(tuple[Passage, ...], tuple(records))
 
 
+def _publication_value(build: Callable[..., RecordT], /, *args, **kwargs) -> RecordT:
+    """Type only value-construction failures, never discovery or evidence failures."""
+
+    try:
+        return build(*args, **kwargs)
+    except LegacySectionProjectionError:
+        raise
+    except ValueError as error:
+        raise LegacySectionProjectionError(str(error)) from error
+
+
 def _section_passage_recess(
     record: SectionPassage,
     *,
@@ -733,11 +744,12 @@ def _section_passage_recess(
         if line_only
         else "general"
     )
-    geometry = SectionRecessGeometry(
+    geometry = _publication_value(
+        SectionRecessGeometry,
         "section_recess",
         record.frame,
         record.run_interval,
-        ClosedSectionProfile("closed", record.section.boundary),
+        _publication_value(ClosedSectionProfile, "closed", record.section.boundary),
         SectionRecessEnds(
             SectionEnd("open", PlanarEndSurface(gradient=record.ends.low_gradient)),
             SectionEnd("open", PlanarEndSurface(gradient=record.ends.high_gradient)),
@@ -769,7 +781,7 @@ def _prismatic_pocket_recess(
     owner = context.graph.common_valid_solid(defining)
     if owner is None:
         raise ValueError("accepted prismatic pocket lost its body authority")
-    geometry = legacy_section_geometry(record)
+    geometry = _publication_value(legacy_section_geometry, record)
     section_shape = _polygonal_shape(tuple(vertex.point for vertex in geometry.profile.boundary))
     if len(geometry.profile.boundary) != len(record.section):
         section_shape = "polygonal"
@@ -934,7 +946,8 @@ def _corner_pocket_recess(
                     tuple(sorted(node.index for node in curved.supports)),
                 ),
             )
-        geometry = _principal_open_geometry(
+        geometry = _publication_value(
+            _principal_open_geometry,
             axis=channel.axis,
             run_interval=channel.run_interval,
             open_sign=1,
@@ -968,7 +981,8 @@ def _corner_pocket_recess(
     proof = prove_corner_section(context.graph, evidence.defining_of(record), record.depth_axis)
     if proof is None:
         return None
-    geometry = _principal_open_geometry(
+    geometry = _publication_value(
+        _principal_open_geometry,
         axis=record.depth_axis,
         run_interval=proof.run_interval,
         open_sign=proof.open_sign,
@@ -1013,7 +1027,8 @@ def _rectangular_blind_slot_recess(
             (half_width, opening),
         )
     )
-    geometry = _principal_open_geometry(
+    geometry = _publication_value(
+        _principal_open_geometry,
         axis=record.axis,
         run_interval=(
             round(record.at["xyz".index(record.axis)] - record.length / 2, 3),
@@ -1064,7 +1079,8 @@ def _round_bottom_blind_slot_recess(
         PassageSectionVertex(point(half_flat, floor), arc_bulge),
         PassageSectionVertex(point(half_width, opening), 0.0),
     )
-    geometry = _principal_open_geometry(
+    geometry = _publication_value(
+        _principal_open_geometry,
         axis=record.axis,
         run_interval=(
             round(record.at["xyz".index(record.axis)] - record.length / 2, 3),
@@ -1101,7 +1117,8 @@ def _edge_open_prismatic_recess(
     return SectionRecess(
         index,
         owner.ordinal,
-        _principal_open_geometry(
+        _publication_value(
+            _principal_open_geometry,
             axis=record.axis,
             run_interval=record.run_interval,
             open_sign=record.open_sign,
@@ -1142,7 +1159,8 @@ def _edge_open_circular_recess(
     return SectionRecess(
         index,
         owner.ordinal,
-        _principal_open_geometry(
+        _publication_value(
+            _principal_open_geometry,
             axis=record.axis,
             run_interval=record.run_interval,
             open_sign=record.open_sign,
@@ -1278,6 +1296,23 @@ def _section_patterns(patterns, recesses, context, evidence, projected_regions=N
     return tuple(result)
 
 
+def _project_recess_records(records, projector, *, context, evidence):
+    """Keep accepted evidence available when a single public value cannot be issued."""
+
+    projected = []
+    for index, record in enumerate(records):
+        try:
+            value = projector(record, context=context, evidence=evidence, index=index)
+        except LegacySectionProjectionError:
+            # _recess_refusals publishes this accepted candidate's source evidence.
+            # Do not catch ValueError here: ownership and proof invariants are not
+            # publication refusals and must remain visible.
+            continue
+        if value is not None:
+            projected.append(value)
+    return tuple(projected)
+
+
 def _project_result(
     context: RecognitionContext,
     accepted: CandidateInventory,
@@ -1299,65 +1334,38 @@ def _project_result(
         for record in _records(accepted, FamilyId.PRISMATIC_POCKETS, PrismaticPocket)
         if _accepted_region_key(record, context=context, evidence=evidence) not in native_regions
     )
-    prismatic_recesses = tuple(
-        _prismatic_pocket_recess(
-            record,
-            context=context,
-            evidence=evidence,
-            index=index,
-        )
-        for index, record in enumerate(uncovered_prismatic)
+    prismatic_recesses = _project_recess_records(
+        uncovered_prismatic, _prismatic_pocket_recess, context=context, evidence=evidence
     )
-    passage_recesses = tuple(
-        _section_passage_recess(
-            record,
-            context=context,
-            evidence=evidence,
-            index=index,
-        )
-        for index, record in enumerate(_records(accepted, FamilyId.PASSAGES, SectionPassage))
+    passage_recesses = _project_recess_records(
+        _records(accepted, FamilyId.PASSAGES, SectionPassage),
+        _section_passage_recess,
+        context=context,
+        evidence=evidence,
     )
-    open_prismatic_recesses = tuple(
-        _edge_open_prismatic_recess(
-            record,
-            context=context,
-            evidence=evidence,
-            index=index,
-        )
-        for index, record in enumerate(
-            _records(
-                accepted,
-                FamilyId.EDGE_OPEN_PRISMATIC_RECESSES,
-                EdgeOpenPrismaticRecess,
-            )
-        )
+    open_prismatic_recesses = _project_recess_records(
+        _records(accepted, FamilyId.EDGE_OPEN_PRISMATIC_RECESSES, EdgeOpenPrismaticRecess),
+        _edge_open_prismatic_recess,
+        context=context,
+        evidence=evidence,
     )
-    open_circular_recesses = tuple(
-        _edge_open_circular_recess(
-            record,
-            context=context,
-            evidence=evidence,
-            index=index,
-        )
-        for index, record in enumerate(
-            _records(
-                accepted,
-                FamilyId.EDGE_OPEN_CIRCULAR_POCKETS,
-                EdgeOpenCircularPocket,
-            )
-        )
+    open_circular_recesses = _project_recess_records(
+        _records(accepted, FamilyId.EDGE_OPEN_CIRCULAR_POCKETS, EdgeOpenCircularPocket),
+        _edge_open_circular_recess,
+        context=context,
+        evidence=evidence,
     )
-    rectangular_blind_recesses = tuple(
-        _rectangular_blind_slot_recess(record, context=context, evidence=evidence, index=index)
-        for index, record in enumerate(
-            _records(accepted, FamilyId.RECTANGULAR_BLIND_SLOTS, RectangularBlindSlot)
-        )
+    rectangular_blind_recesses = _project_recess_records(
+        _records(accepted, FamilyId.RECTANGULAR_BLIND_SLOTS, RectangularBlindSlot),
+        _rectangular_blind_slot_recess,
+        context=context,
+        evidence=evidence,
     )
-    round_bottom_recesses = tuple(
-        _round_bottom_blind_slot_recess(record, context=context, evidence=evidence, index=index)
-        for index, record in enumerate(
-            _records(accepted, FamilyId.ROUND_BOTTOM_BLIND_SLOTS, RoundBottomBlindSlot)
-        )
+    round_bottom_recesses = _project_recess_records(
+        _records(accepted, FamilyId.ROUND_BOTTOM_BLIND_SLOTS, RoundBottomBlindSlot),
+        _round_bottom_blind_slot_recess,
+        context=context,
+        evidence=evidence,
     )
     legacy_candidates: tuple[Pocket | Channel, ...] = (
         *_records(accepted, FamilyId.POCKETS, Pocket),
@@ -1366,7 +1374,12 @@ def _project_result(
     corner_recesses = []
     projected_regions = {}
     for index, record in enumerate(legacy_candidates):
-        projected = _corner_pocket_recess(record, context=context, evidence=evidence, index=index)
+        try:
+            projected = _corner_pocket_recess(
+                record, context=context, evidence=evidence, index=index
+            )
+        except LegacySectionProjectionError:
+            continue
         if projected is not None:
             corner_recesses.append(projected)
             projected_regions[id(record)] = (projected.body, projected.evidence.constituent_faces)
