@@ -38,6 +38,7 @@ from quiddity._typing import (
     FrozenCylinderInventory,
     Part,
 )
+from quiddity._volume_probe import intersection_volume
 
 _AXES = "xyz"
 #: Radians of OCCT cylindrical parameter noise admitted around an exact quarter turn. This is a
@@ -106,13 +107,7 @@ def _empty_terminal_sweep(
     vector[axis] = float(direction)
     swept = extrude(graph.face(terminal), amount=length, dir=Vector(*vector))
     intersection: Any = swept.intersect(graph.solid_shape(solid_ref))
-    if intersection is None:
-        return True
-    occupied = (
-        intersection.volume
-        if hasattr(intersection, "volume")
-        else sum(shape.volume for shape in intersection)
-    )
+    occupied = intersection_volume(intersection)
     return bool(occupied == 0.0)
 
 

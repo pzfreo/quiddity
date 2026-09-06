@@ -86,6 +86,11 @@ goldens, determinism tests, benchmarks, and installed-archive audits protect beh
 
 ## Consequences
 
+Issue #519 extracts identical opening-wire incidence into private `_wire_seed` and consolidates
+empty/single/fragmented boolean-volume normalization in `_volume_probe`. Recogniser-local traversal,
+probe construction, material thresholds and exception/refusal boundaries stay in their callers.
+The shared helpers do not discover features, clamp evidence or choose one boolean fragment.
+
 - A hole/boss change no longer shares a file with generic pattern allocation, and a recess-family
   change no longer shares a file with its pure pattern interpretation.
 - Shared geometry stays shared: neither recogniser families nor their pattern modules duplicate a

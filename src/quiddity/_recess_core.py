@@ -61,6 +61,7 @@ from quiddity._recess_reduce import (
     _region_center,
 )
 from quiddity._typing import Part
+from quiddity._wire_seed import wire_seed as _inner_wire_seed
 
 _LENGTH_TIE_FRAC = 0.05
 
@@ -645,17 +646,6 @@ def _pocket_proposals_one(
     return _attach_complete_pocket_regions(proposals, owner)
 
 
-def _inner_wire_seed(graph: FaceGraph, opening: FaceNode, wire) -> frozenset[FaceNode]:
-    edges = tuple(wire.edges())
-    return frozenset(
-        neighbour
-        for neighbour in graph.neighbours(opening)
-        if any(
-            occurrence.edge == edge
-            for occurrence in graph.shared_occurrences(opening, neighbour)
-            for edge in edges
-        )
-    )
 
 
 def _bounded_inner_region(
