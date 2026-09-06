@@ -384,6 +384,19 @@ def validate_capability_manifest(manifest: object) -> None:
         raise CapabilityManifestError("record names must have exactly one primary family")
     if len(entry_points) != len(set(entry_points)):
         raise CapabilityManifestError("recognisers must belong to exactly one family")
+    published_records = set(record_names)
+    for family in families:
+        for record in family["records"]:
+            for field_name, field in record["fields"].items():
+                # The grammar was validated above. Tokens remain visible inside any
+                # supported list, fixed tuple or union nesting.
+                references = set(re.findall(r"record:([A-Z][A-Za-z0-9]*)", field["type"]))
+                missing = sorted(references - published_records)
+                if missing:
+                    raise CapabilityManifestError(
+                        f"family {family['id']!r} record {record['name']!r}.{field_name} "
+                        f"references unpublished records: {', '.join(missing)}"
+                    )
     _validate_aliases(manifest["aliases"], set(ids), set(record_names), package_version)
 
 

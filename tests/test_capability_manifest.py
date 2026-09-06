@@ -155,6 +155,48 @@ def test_manifest_record_schemas_match_exported_dataclasses() -> None:
             assert getattr(recognition, declared["name"]) is record_type
 
 
+def test_public_record_annotations_are_closed_over_published_contracts() -> None:
+    published = _public_records()
+    for name in published:
+        for annotation in typing.get_type_hints(getattr(recognition, name)).values():
+            for nested in _record_types(annotation):
+                assert nested.__name__ in published, (name, nested.__name__)
+                assert getattr(recognition, nested.__name__) is nested
+
+
+@pytest.mark.parametrize(
+    "field_type",
+    [
+        "record:{name}",
+        "record:{name}|null",
+        "list[record:{name}]",
+        "tuple[record:{name},2]",
+        "list[tuple[record:{name}|record:PassageFrame,2]]|null",
+    ],
+)
+def test_manifest_rejects_unpublished_record_references_at_any_depth(field_type: str) -> None:
+    manifest = capability_manifest()
+    family = next(item for item in manifest["families"] if item["id"] == "oriented-slots")
+    slot = next(item for item in family["records"] if item["name"] == "OrientedSlot")
+    slot["fields"]["source"]["type"] = field_type.format(name="SectionPassage")
+    validate_capability_manifest(manifest)
+    slot["fields"]["source"]["type"] = field_type.format(name="UnpublishedSource")
+    with pytest.raises(
+        CapabilityManifestError,
+        match="oriented-slots.*OrientedSlot.*source.*unpublished records: UnpublishedSource",
+    ):
+        validate_capability_manifest(manifest)
+
+
+@pytest.mark.parametrize("missing", ["SectionPassage", "PassageEnds"])
+def test_manifest_requires_transitive_oriented_slot_source_contract(missing: str) -> None:
+    manifest = capability_manifest()
+    family = next(item for item in manifest["families"] if item["id"] == "oriented-slots")
+    family["records"] = [item for item in family["records"] if item["name"] != missing]
+    with pytest.raises(CapabilityManifestError, match=f"unpublished records: {missing}"):
+        validate_capability_manifest(manifest)
+
+
 def test_aggregate_membership_paths_resolve_to_the_declared_record() -> None:
     for family in _families():
         for record in family["records"]:

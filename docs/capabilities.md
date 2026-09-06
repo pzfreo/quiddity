@@ -539,6 +539,7 @@ invitation to construct values outside that evidence and call them recognized.
 | `SectionRecessFaceRef` | One dense document-local entry in the complete input-face roster. |
 | `SectionRecessGeometry` | Reconstructible free frame, run interval, closed or truthfully open line/arc profile and explicit ends. |
 | `OrientedSlot` | One rectangular through-slot with free width/long direction vectors; its nested `SectionPassage` retains the exact run frame, span, section and open-end proof. |
+| `SectionPassage`, `PassageEnds` | Root-exported nested source contracts for `OrientedSlot`, both schema version 2 under `oriented-slots`; no standalone recogniser, aggregate field or census family is restored. |
 | `OrientedSlotArray` | At least three identical compatible oriented through-slots on one constant-pitch line. |
 | `OrientedSlotGrid` | A complete rectangular lattice of identical compatible oriented through-slots. |
 | `Slot` | One enclosed through-slot; no floor and no open longitudinal end. |

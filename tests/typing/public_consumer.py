@@ -14,14 +14,19 @@ from quiddity import (
     FramedRecognitionReport,
     FramedRecognitionResult,
     HoleRecord,
+    OrientedSlot,
     PairedRampStep,
     PartFrame,
+    PassageEnds,
+    PassageFrame,
+    PassageSection,
     Plate,
     PreparedFramedPart,
     RaisedPad,
     RecognitionReport,
     RecognitionResult,
     RefusedFramedEvidence,
+    SectionPassage,
     SectionRecess,
     SectionRecessArray,
     SectionRecessDocument,
@@ -61,6 +66,13 @@ from quiddity.inspection import (
     inspect_face,
     read_double_d_tool,
 )
+
+
+def consume_oriented_slot(slot: OrientedSlot) -> None:
+    assert_type(slot.source, SectionPassage)
+    assert_type(slot.source.ends, PassageEnds)
+    assert_type(slot.source.frame, PassageFrame)
+    assert_type(slot.source.section, PassageSection)
 
 
 def consume_bevel_rejection(error: BevelReject) -> None:
