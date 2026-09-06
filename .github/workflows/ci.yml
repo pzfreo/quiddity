@@ -81,9 +81,11 @@ jobs:
           --cov-report=xml:coverage.xml
           --cov-fail-under=91
       - name: Upload coverage to Codecov
+        # Reporting is advisory; pytest above owns the required coverage gate.
+        continue-on-error: true
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6
         with:
-          fail_ci_if_error: true
+          fail_ci_if_error: false
           files: coverage.xml
           flags: unittests
           use_oidc: true

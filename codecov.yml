@@ -1,0 +1,10 @@
+# Keep coverage feedback without adding a second merge gate.
+# The required pytest job enforces the repository's coverage threshold.
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
