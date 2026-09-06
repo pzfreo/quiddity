@@ -529,6 +529,8 @@ invitation to construct values outside that evidence and call them recognized.
 | `OpenSectionProfile` | Canonical physical line/arc chain plus the explicit gap between its loose endpoints. |
 | `SectionEnd` | One explicit open or capped end with a tagged planar or cylindrical surface. |
 | `PlanarEndSurface` | Local planar gradient relative to the end's centroid run coordinate. |
+| `PlanarEndTerm` | Absolute local-run height and gradient of one observed plane in a two-plane end. |
+| `PlanarEnvelopeEndSurface` | Canonical minimum/maximum of two observed planes, both active over a convex polygonal passage; one opposite planar opening. |
 | `CylindricalEndSurface` | Explicit native cylinder branch, axis and radius in the section frame; its complete closed polygon is the end domain. |
 | `SectionRecessRefusal` | Explicit source-face evidence for a candidate whose support geometry could not be proved; not a recognised occurrence. |
 | `SectionRecessArray` | Constant-pitch group using result-local occurrence indices, not embedded legacy records. |

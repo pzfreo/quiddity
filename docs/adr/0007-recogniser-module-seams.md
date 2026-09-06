@@ -4,6 +4,16 @@
 - **Date:** 2026-08-16
 - **Review:** `b123d-recognisers` issue #21
 
+ADR 0024 adds `_plane_envelope_passages` as the original-source proof owner for
+closed polygonal passages ending on an observed convex two-plane roof. It may
+use original adjacency, the existing wall-cycle line primitives, private section
+values, support-patch equality and volume probes. It publishes no records and
+has no registry, writer or result authority. `_section_recess_geometry` alone
+projects its proof into the public envelope value under the whole-occurrence
+error bound; existing discovery and evidence issuance retain their ownership.
+Raw planar reads and convex/concave edge tests are explicitly inventoried as
+original-topology checks, not effective-surface substitutions.
+
 Writer capability is intentionally absent from the Step Level and Riser registry adapters. Their
 public values are not injective occurrence keys, so adding a writer seam would either select a
 source by traversal order or publish a cross-solid defining set. A future seam requires a reviewed
