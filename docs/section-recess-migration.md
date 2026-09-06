@@ -32,11 +32,19 @@ islands are not admitted by this contract.
 ## Complete public cutover
 
 The root exports and aggregate fields for `Pocket`, `PrismaticPocket`, `Channel`,
-`SectionPassage`, `Passage`, both edge-open families, both blind-slot families and old pocket
+`Passage`, both edge-open families, both blind-slot families and old pocket
 patterns are removed. Their `recognise_*` entrypoints are replaced by
 `recognise_section_recesses`. Shared `PassageFrame`, `PassageSection` and
 `PassageSectionVertex` geometry primitives remain. Unrelated `Slot` and `OrientedSlot`
 families are unchanged.
+
+`SectionPassage` and `PassageEnds` remain public **nested** contracts because
+`OrientedSlot.source` still returns them. Both are available from the package root
+and declared under `oriented-slots` in the manifest (schema version 2). Consumers
+can validate their exact types without importing implementation modules. This
+repairs the missing exports in Quiddity 0.2.0–0.2.2; it does not restore
+`recognise_section_passages`, `RecognitionResult.section_passages` or a passage
+census family, nor change the existing oriented-slot JSON.
 
 `section_recess_patterns` contains `SectionRecessArray` or `SectionRecessGrid`, whose
 `members` are occurrence indices, not embedded old Pocket values. Array direction is in result

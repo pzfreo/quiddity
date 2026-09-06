@@ -18,7 +18,6 @@ RETIRED = {
     "PrismaticPocket",
     "Channel",
     "Passage",
-    "SectionPassage",
     "RectangularBlindSlot",
     "RoundBottomBlindSlot",
     "EdgeOpenCircularPocket",

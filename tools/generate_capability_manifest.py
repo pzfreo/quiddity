@@ -256,6 +256,8 @@ FAMILIES = {
         "recognisers": [("recognise_oriented_slots", "part")],
         "records": [
             ("OrientedSlot", "output", ["RecognitionResult.oriented_slots"]),
+            ("PassageEnds", "nested", []),
+            ("SectionPassage", "nested", []),
         ],
         "census": "oriented_slot",
         "goldens": [],
@@ -341,8 +343,11 @@ NO_MEMBERSHIP_RATIONALE = {
         "Nested physical-profile membership retained by Groove, TurnedStep and TurnedProfile."
     ),
     "PassageEnds": "Nested only in SectionPassage; retained to preserve explicit end topology.",
-    "PassageFrame": "Nested only in SectionPassage.",
-    "PassageSection": "Nested only in SectionPassage.",
+    "SectionPassage": "Nested source geometry of OrientedSlot; no standalone aggregate family.",
+    "PassageFrame": "Shared placement of SectionRecessGeometry and OrientedSlot source geometry.",
+    "PassageSection": (
+        "Shared closed boundary of ClosedSectionProfile and OrientedSlot source geometry."
+    ),
     "PassageSectionVertex": "Nested only in PassageSection.",
     "OpenPolygonalSection": "Nested only in EdgeOpenPrismaticRecess.",
     "OpenSectionOpening": "Nested only in OpenPolygonalSection.",

@@ -374,6 +374,23 @@ once after the branch and test command are frozen and returns only the aggregate
 result permits production integration; an unfavourable result rejects or narrows the recognition
 hypothesis but does not authorize inspecting holdout models or tuning against them.
 
+### Still-used oriented-slot source contract (#533)
+
+`OrientedSlot` remains a public output and still embeds `SectionPassage` as its
+source geometry. The cutover must not leave this live reference unpublished:
+`SectionPassage` and its `PassageEnds` are root-exported, versioned nested records
+under the `oriented-slots` capability. This repairs the manifest/export omission;
+it does not change the existing slot geometry, serialized fields or schema versions.
+Shared `PassageFrame` and `PassageSection` retain their primary declaration under
+`section-recesses`.
+
+This does not restore standalone passage entrypoints, result fields or census
+families. Unified recess consumers continue to use `SectionRecess`. A future
+replacement of `OrientedSlot.source` would require an explicit migration and
+occurrence correspondence, not a silent type substitution in this repair.
+ADR 0005's manifest validator checks every record reference, including nested
+containers and unions, against the complete published record inventory.
+
 ## Consequences
 
 - New section shapes and free orientations do not require new foundational JSON records.

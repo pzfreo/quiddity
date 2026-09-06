@@ -24,6 +24,11 @@ from build123d import (
 )
 
 from quiddity import (
+    PassageEnds,
+    PassageFrame,
+    PassageSection,
+    SectionPassage,
+    capability_manifest,
     feature_census,
     recognise_oriented_slot_patterns,
     recognise_oriented_slots,
@@ -93,6 +98,24 @@ def test_aggregate_reconciles_the_generic_source_passage() -> None:
     assert product.evidence.defining_of(decision.candidate) == product.evidence.defining_of(
         decision.related[0]
     )
+
+
+def test_oriented_slot_source_has_exact_public_nested_contracts() -> None:
+    (slot,) = recognise_oriented_slots(_rectangular_through_slot())
+    assert type(slot.source) is SectionPassage
+    assert type(slot.source.ends) is PassageEnds
+    assert type(slot.source.frame) is PassageFrame
+    assert type(slot.source.section) is PassageSection
+    assert slot.source.ends.low_capped is False
+    assert slot.source.ends.high_capped is False
+    family = next(
+        item for item in capability_manifest()["families"] if item["id"] == "oriented-slots"
+    )
+    contracts = {item["name"]: item for item in family["records"]}
+    for name in ("SectionPassage", "PassageEnds"):
+        assert contracts[name]["role"] == "nested"
+        assert contracts[name]["schema_version"] == 2
+        assert contracts[name]["aggregate_membership"] == []
 
 
 @pytest.mark.parametrize("presentation", [Rot(), Rot(90, 0, 0), Rot(0, 90, 0)])
