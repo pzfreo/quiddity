@@ -98,6 +98,21 @@ def test_parallel_sloped_arc_ends_remain_valid():
     assert _geometry(profile, low=(2.0, 3.0), high=(2.0, 3.0))
 
 
+@pytest.mark.parametrize(
+    "bulge,gradient,contact_span",
+    [
+        (2.0, (-0.6, 0.8), 0.45),
+        (-2.0, (-0.6, -0.8), 6.85),
+    ],
+)
+def test_translated_major_arc_extremum_with_oblique_gradient(bulge, gradient, contact_span):
+    # Centres (3, 3.25)/(3, 4.75), radius 1.25; extrema lie inside each major arc.
+    profile = _open([(2, 4), (4, 4)], [bulge, 0.0])
+    with pytest.raises(ValueError, match="termination planes"):
+        _geometry(profile, high=gradient, span=round(contact_span - 0.001, 3))
+    assert _geometry(profile, high=gradient, span=round(contact_span + 0.001, 3))
+
+
 def test_closed_arc_extrema_and_geometry_json_round_trip():
     profile = ClosedSectionProfile(
         "closed",
