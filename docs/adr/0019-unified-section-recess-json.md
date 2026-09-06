@@ -362,6 +362,15 @@ Non-adjacent repetitions that still imply ambiguous topology, zero-area loops an
 are refused with a bounded `LegacySectionProjectionError` naming the failed condition. Source
 records and face evidence are retained; simplified profiles remain classified as `polygonal`.
 
+Issue #547 enforces this refusal boundary during aggregate publication. Expected `ValueError`
+from public geometry construction is converted locally to `LegacySectionProjectionError`.
+Projection skips only that occurrence, then the existing `SectionRecessRefusal` roster publishes
+its accepted source evidence unless another truthful occurrence already covers that region.
+Other occurrences survive and their public indices and pattern references are rebuilt normally.
+Discovery, source-proof, ownership and evidence-invariant failures are outside this conversion;
+there is no blanket exception handler around recognition. Historical compatibility checks during
+passage issuance are also outside this publication boundary.
+
 The adapter chooses a frame origin on the same grid near the analytic centroid, then subtracts
 integer grid coordinates before constructing the public section. Its analytic local centroid
 remains within the published 0.0008 mm allowance. Distinct grid vertices cannot collapse through

@@ -396,6 +396,23 @@ def _arc_arc_intersection(first: _Arc, second: _Arc) -> bool:
     )
 
 
+def _adjacent_line_arc_crosses(shared: Vector2, end: Vector2, arc: _Arc) -> bool:
+    """Test the second intersection, factoring out the known shared endpoint.
+
+    A generic quadratic can split a tangent double root through cancellation.
+    Adjacency supplies the exact first root; solving only the remaining linear
+    factor preserves that topology without increasing the positional tolerance.
+    """
+
+    dx, dy = end[0] - shared[0], end[1] - shared[1]
+    fx, fy = shared[0] - arc.centre[0], shared[1] - arc.centre[1]
+    fraction = -2 * (fx * dx + fy * dy) / (dx * dx + dy * dy)
+    if not -_EPS <= fraction <= 1 + _EPS:
+        return False
+    point = (shared[0] + fraction * dx, shared[1] + fraction * dy)
+    return math.dist(point, shared) > _EPS and _point_on_arc(point, arc)
+
+
 def _validate_adjacent(
     first_start: SectionVertex, shared: SectionVertex, second_end: SectionVertex
 ) -> None:
@@ -415,13 +432,11 @@ def _validate_adjacent(
             raise ValueError("adjacent section edges overlap or backtrack")
         return
     if first is None:
-        points = _line_arc_points(first_start.point, shared.point, second)  # type: ignore[arg-type]
-        if any(math.dist(point, shared.point) > _EPS for point in points):
+        if _adjacent_line_arc_crosses(shared.point, first_start.point, second):  # type: ignore[arg-type]
             raise ValueError("adjacent section edges meet away from their shared endpoint")
         return
     if second is None:
-        points = _line_arc_points(shared.point, second_end.point, first)
-        if any(math.dist(point, shared.point) > _EPS for point in points):
+        if _adjacent_line_arc_crosses(shared.point, second_end.point, first):
             raise ValueError("adjacent section edges meet away from their shared endpoint")
         return
     arc_points = _arc_arc_points(first, second)
