@@ -477,6 +477,8 @@ ARC_READER_SITES = {
     "src/quiddity/_section_recess_geometry:_one_obround_candidate:arc:3": ("legacy-contract"),
     "src/quiddity/_section_recess_geometry:_one_polygonal_candidate:arc:1": ("exact-nonsmooth"),
     "src/quiddity/_section_recess_geometry:_one_polygonal_candidate:arc:2": ("legacy-contract"),
+    # Coplanar mouth patches collectively retain the same convex-or-smooth context policy.
+    "src/quiddity/_section_recess_geometry:_one_polygonal_candidate:arc:3": ("legacy-contract"),
     "tools/audit_mfcadpp_floor_interrupted_pockets:_raw_regions:arc:1": "legacy-contract",
     "tools/audit_mfcadpp_floor_interrupted_pockets:_probe_region:arc:1": "exact-nonsmooth",
     "tools/audit_mfcadpp_floor_interrupted_pockets:_probe_region:arc:2": "exact-nonsmooth",
