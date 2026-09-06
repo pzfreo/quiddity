@@ -388,8 +388,13 @@ def _enclosure_proposals(graph: FaceGraph, bodies: _BodyAdapter) -> tuple[Sectio
         solid = graph.common_valid_solid(region | {first_opening, second_opening})
         if first_normal is None or second_normal is None or solid is None:
             continue
-        if not _parallel(first_normal, second_normal):
-            run = _wall_run(graph, region)
+        parallel_mouths = _parallel(first_normal, second_normal)
+        if parallel_mouths and _dot(first_normal, second_normal) > 0.0:
+            continue
+        run = _wall_run(graph, region)
+        # Parallel stock faces need not be perpendicular to the passage. Their
+        # normals describe termination planes, not the independently proved run.
+        if not parallel_mouths or (run is not None and not _parallel(run, first_normal)):
             if run is None:
                 continue
             base = LocalFrame.canonical(run, (0.0, 0.0, 0.0))
@@ -433,8 +438,6 @@ def _enclosure_proposals(graph: FaceGraph, bodies: _BodyAdapter) -> tuple[Sectio
                     high_gradient=high[1],
                 )
             )
-            continue
-        if _dot(first_normal, second_normal) > 0.0:
             continue
         base = LocalFrame.canonical(first_normal, (0.0, 0.0, 0.0))
         first = _line_section(first_wire, base)

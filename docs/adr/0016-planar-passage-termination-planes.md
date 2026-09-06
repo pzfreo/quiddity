@@ -42,6 +42,11 @@ unique straight run and constant section.
 Opening stock faces remain consulted termination context. Their identity is not published and
 they are neither defining nor constituent evidence. Mouth geometry does not choose the run.
 
+This also applies when both stock planes are parallel to each other but oblique to the
+wall-proved run. Parallel stock normals do not establish a perpendicular passage. Such
+occurrences use the same planar-end proof, with equal nonzero local end gradients, rather
+than the perpendicular-end fast path. No extra record variant or schema version is required.
+
 ## Consequences
 
 The record describes the complete clipped passage rather than an envelope or a common-core
