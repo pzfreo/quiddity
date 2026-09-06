@@ -210,6 +210,10 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "observed native bore termination and exact original three-support channel anatomy",
     ),
+    "_cylindrical_passages": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "original closed planar wall cycle ending on an observed native bore",
+    ),
     "_support_apertures": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "original circular aperture/rim topology and finite native cylinder support proof",
@@ -304,6 +308,22 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
     "_cylindrical_channels:_prove:is_planar:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "require original opposed planar wall supports",
+    ),
+    "_cylindrical_passages:cylindrical_passage_proofs:is_planar:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "original planar mouth authority",
+    ),
+    "_cylindrical_passages:cylindrical_passage_proofs:is_planar:2": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "original planar closed-cycle walls",
+    ),
+    "_cylindrical_passages:_cell_proof:geom_type:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "generated planes checked against complete original wall and mouth support",
+    ),
+    "_cylindrical_passages:_cell_proof:geom_type:2": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "generated cylindrical branch and absence of artificial cap",
     ),
     "_cylindrical_channels:_prove:is_planar:2": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,

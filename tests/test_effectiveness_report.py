@@ -74,10 +74,23 @@ TAXONOMY_V8 = ROOT / "docs" / "benchmarks" / "effectiveness-taxonomy-v8.json"
 def test_section_recess_keeps_one_physical_identity_while_scoring_taxonomy(shape, expected) -> None:
     candidate = SimpleNamespace(
         family=FamilyId.SECTION_RECESSES,
-        record=SimpleNamespace(classification=SimpleNamespace(section_shape=shape)),
+        record=SimpleNamespace(
+            classification=SimpleNamespace(feature_kind="pocket", section_shape=shape)
+        ),
     )
 
     assert _scoring_family(candidate) == expected
+
+
+@pytest.mark.parametrize("shape", ["triangular", "rectangular", "hexagonal", "polygonal"])
+def test_native_section_recess_passage_scores_as_passage_not_pocket(shape) -> None:
+    candidate = SimpleNamespace(
+        family=FamilyId.SECTION_RECESSES,
+        record=SimpleNamespace(
+            classification=SimpleNamespace(feature_kind="passage", section_shape=shape)
+        ),
+    )
+    assert _scoring_family(candidate) == "passages"
 
 
 TAXONOMY_V9 = ROOT / "docs" / "benchmarks" / "effectiveness-taxonomy-v9.json"

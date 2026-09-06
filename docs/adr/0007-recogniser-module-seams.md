@@ -86,6 +86,14 @@ goldens, determinism tests, benchmarks, and installed-archive audits protect beh
 
 ## Consequences
 
+ADR 0023 adds private `_cylindrical_passages` below section publication. It
+reuses original wall-junction and cycle readers from `_section_passages` and
+the same-run native-surface query, but constructs no public records. Its
+closed wall-cycle proof has two open ends, unlike a cylindrical-stock pocket
+or laterally open channel. The shared cylindrical projection owns the existing
+whole-occurrence error bound; native discovery carries explicit passage
+classification rather than treating every native section recess as a pocket.
+
 ADR 0022 adds private `_cylindrical_channels` alongside the cylindrical-pocket
 proof. It takes the existing graph, same-run native-surface query and candidate
 evidence hints, but no legacy or public records. Original adjacency and exact

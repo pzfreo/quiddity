@@ -1,6 +1,6 @@
 # ADR 0023 — Polygonal passages ending on an observed bore
 
-- **Status:** Proposed; authored feasibility established, production proof pending
+- **Status:** Accepted; independent architecture and implementation review clear
 - **Date:** 2026-09-06
 - **Issues:** #540, #369, #290
 
@@ -92,6 +92,23 @@ missing/split support and ambiguous terminal authority. Test public round trips,
 ownership, coexistence with the independent bore, duplicate reconciliation and
 per-candidate failure isolation. Obtain independent ADR and implementation
 review, full MFCAD++ before/after coverage and defining evidence, and green CI.
+
+## Implementation evidence
+
+The private source proof and shared bounded public projection are implemented.
+Independent review cleared both. The retained authored tests include STEP round
+trip, arbitrary rigid transforms, two-owner duplicates, a physical bridge that
+refuses only the obstructed side, a partial-bore refusal, unequal opposite mouth
+positions, and independent empty-volume gates. JSON-only reconstruction passes
+for triangular, rectangular and hexagonal profiles at two scales and arbitrary
+rotation. Existing cylindrical pocket/channel regressions remain green.
+
+Native discovery now carries explicit passage classification; the scorer maps
+that classification to the existing passage taxonomy instead of the historical
+native-recess pocket default. No dataset labels influence discovery. The motivating
+MFCAD++ model 12354 publishes both original six-wall groups; a full before/after
+comparison and required CI are still needed before merge. This architecture
+acceptance is not a claim that those delivery gates are complete.
 
 ## Explicit remaining scope
 

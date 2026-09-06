@@ -15,6 +15,7 @@ from OCP.GeomAbs import GeomAbs_Cylinder
 from quiddity._adjacency import FaceGraph, FaceNode, frame_points_outward
 from quiddity._cylindrical_channels import CylindricalChannelProof
 from quiddity._cylindrical_end_surface import CylindricalEndSurface
+from quiddity._cylindrical_passages import CylindricalPassageProof, cylindrical_passage_proofs
 from quiddity._cylindrical_pockets import CylindricalPocketProof, cylindrical_pocket_proofs
 from quiddity._effective_surfaces import EffectiveSurfaceQuery
 from quiddity._geometry import length_tol
@@ -54,6 +55,7 @@ class _Candidate:
     body: int
     geometry: SectionRecessGeometry
     section_shape: str
+    feature_kind: str = "pocket"
 
 
 def _dot(left: Vector3, right: Vector3) -> float:
@@ -759,13 +761,15 @@ def cylindrical_channel_geometry(proof: CylindricalChannelProof) -> SectionReces
 
 
 def _cylindrical_geometry(
-    proof: CylindricalPocketProof | CylindricalChannelProof,
+    proof: CylindricalPocketProof | CylindricalChannelProof | CylindricalPassageProof,
     frame: LocalFrame,
     section: PlanarSection,
     floor_at: float,
     sign: int,
     end_index: int,
     opening_edge: int | None = None,
+    *,
+    planar_open: bool = False,
 ) -> SectionRecessGeometry:
     """One whole-occurrence error bound for observed cylindrical terminations.
 
@@ -889,7 +893,7 @@ def _cylindrical_geometry(
         chain = min(chain, tuple(reversed(chain)))
         profile = OpenSectionProfile("open", chain, (chain[-1].point, chain[0].point))
     curved_end = SectionEnd("open", surface)
-    flat_end = SectionEnd("capped" if opening_edge is None else "open")
+    flat_end = SectionEnd("open" if planar_open or opening_edge is not None else "capped")
     centroid_end = round(surface.height((0.0, 0.0)), 3)
     interval = (
         (round(floor_at, 3), centroid_end) if end_index == 1 else (centroid_end, round(floor_at, 3))
@@ -923,6 +927,31 @@ def _candidates(graph: FaceGraph, surfaces: EffectiveSurfaceQuery) -> tuple[_Can
     for proof in cylindrical_pocket_proofs(graph, surfaces):
         try:
             found.add(_cylindrical_candidate(graph, proof))
+        except (RuntimeError, TypeError, ValueError, ZeroDivisionError):
+            continue
+    for passage in cylindrical_passage_proofs(graph, surfaces):
+        try:
+            geometry = _cylindrical_geometry(
+                passage,
+                passage.frame,
+                passage.section,
+                passage.run_interval[1 - passage.cylindrical_end],
+                -1 if passage.cylindrical_end == 1 else 1,
+                passage.cylindrical_end,
+                planar_open=True,
+            )
+            walls = tuple(sorted(n.index for n in passage.walls))
+            found.add(
+                _Candidate(
+                    walls,
+                    walls,
+                    passage.planar_context.index,
+                    passage.owner.ordinal,
+                    geometry,
+                    _polygonal_shape(tuple(v.point for v in passage.section.boundary)),
+                    "passage",
+                )
+            )
         except (RuntimeError, TypeError, ValueError, ZeroDivisionError):
             continue
     return tuple(
