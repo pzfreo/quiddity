@@ -8,7 +8,7 @@ import math
 from dataclasses import dataclass
 from typing import cast
 
-from build123d import Edge, Face, Solid, Vector, Wire
+from build123d import Edge, Face, Shape, ShapeList, Solid, Vector, Wire
 from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.GeomAbs import GeomAbs_Cylinder
 
@@ -550,14 +550,183 @@ def _one_polygonal_candidate(graph: FaceGraph, floor: FaceNode) -> _Candidate | 
     )
 
 
+def _mixed_floor_section(face: Face, depth: Vector3) -> tuple[LocalFrame, PlanarSection] | None:
+    """Read the observed line/arc wire without replacing short edges or offset axes."""
+    wires = tuple(face.wires())
+    if len(wires) != 1:
+        return None
+    edges = tuple(wires[0].edges())
+    kinds = {edge.geom_type.name for edge in edges}
+    if kinds != {"LINE", "CIRCLE"}:
+        return None
+    centre = face.center()
+    frame = LocalFrame.canonical(depth, (centre.X, centre.Y, centre.Z))
+    corners = []
+    for index, edge in enumerate(edges):
+        shared = [a for a in edges[index - 1].vertices() for b in edge.vertices() if a == b]
+        if len(shared) != 1:
+            return None
+        point = shared[0]
+        corners.append(_project((point.X, point.Y, point.Z), frame))
+    vertices = []
+    for index, edge in enumerate(edges):
+        start, end = corners[index], corners[(index + 1) % len(corners)]
+        bulge = 0.0
+        if edge.geom_type.name == "CIRCLE":
+            midpoint = edge.position_at(0.5)
+            mid = _project((midpoint.X, midpoint.Y, midpoint.Z), frame)
+            cross = (mid[0] - start[0]) * (end[1] - mid[1]) - (mid[1] - start[1]) * (
+                end[0] - mid[0]
+            )
+            if abs(cross) <= 1e-12:
+                return None
+            bulge = math.copysign(math.tan(edge.length / edge.radius / 4), cross)
+        vertices.append(SectionVertex(start, bulge))
+    raw = PlanarSection(tuple(vertices))
+    offset = raw.centroid
+    frame = LocalFrame.canonical(
+        depth,
+        cast(
+            Vector3,
+            tuple(
+                frame.origin[i] + frame.u[i] * offset[0] + frame.v[i] * offset[1] for i in range(3)
+            ),
+        ),
+    )
+    section = PlanarSection(
+        tuple(
+            SectionVertex((vertex.point[0] - offset[0], vertex.point[1] - offset[1]), vertex.bulge)
+            for vertex in raw.boundary
+        )
+    )
+    return frame, section
+
+
+def _covered_patch(patch: Face, supports: tuple[Face, ...]) -> bool:
+    """Prove full physical support, counting split faces by union rather than summed area."""
+    remaining: list[Shape] = [patch]
+    for support in supports:
+        fragments: list[Shape] = []
+        for fragment in remaining:
+            difference = fragment.cut(support)
+            if isinstance(difference, ShapeList):
+                fragments.extend(difference)
+            elif difference is not None:
+                fragments.append(difference)
+        remaining = fragments
+        if sum(fragment.area for fragment in remaining) <= patch.area * 1e-9:
+            return True
+    return False
+
+
+def _one_mixed_candidate(graph: FaceGraph, floor: FaceNode) -> _Candidate | None:
+    """Prove an intact native mixed line/arc pocket from its exact swept floor."""
+    normal = graph.normal(floor)
+    if normal is None:
+        return None
+    depth = _canonical(normal)
+    try:
+        source = graph.face(floor)
+        profile = _mixed_floor_section(source, depth)
+        if profile is None:
+            return None
+        frame, section = profile
+        walls = tuple(
+            node for node in graph.neighbours(floor) if graph.arc(floor, node) == "concave"
+        )
+        spans = tuple(_node_interval(graph, wall, depth) for wall in walls)
+        if not walls or any(span is None for span in spans):
+            return None
+        low = min(span[0] for span in spans if span is not None)
+        high = max(span[1] for span in spans if span is not None)
+        floor_at = _dot((source.center().X, source.center().Y, source.center().Z), depth)
+        tolerance = 1e-6
+        if high - low <= 2 * tolerance:
+            return None
+        if abs(floor_at - low) <= tolerance:
+            mouth_at, sign = high, 1.0
+        elif abs(floor_at - high) <= tolerance:
+            mouth_at, sign = low, -1.0
+        else:
+            return None
+        context = {node for wall in walls for node in graph.neighbours(wall)} - {floor}
+        mouths = tuple(
+            node
+            for node in context
+            if graph.is_planar(node)
+            and (n := graph.normal(node)) is not None
+            and _parallel(n, depth)
+            and (span := _node_interval(graph, node, depth)) is not None
+            and max(abs(value - mouth_at) for value in span) <= tolerance
+        )
+        if not mouths or any(
+            not any(graph.arc(wall, mouth) in ("convex", "smooth") for mouth in mouths)
+            for wall in walls
+        ):
+            return None
+        owner = graph.common_valid_solid((floor, *walls, *mouths))
+        if owner is None:
+            return None
+
+        def probe(start: float, end: float) -> Solid:
+            base = source.translate(Vector(*_scale(depth, start - floor_at)))
+            return Solid.extrude(base, Vector(*_scale(depth, end - start)))
+
+        swept = probe(floor_at, mouth_at)
+        supports = tuple(graph.face(wall) for wall in walls)
+        # Include caps in the subtraction proof too: this avoids relying on generated
+        # face ordering or guessing which extrusion faces are the lateral supports.
+        cap = source.translate(Vector(*_scale(depth, mouth_at - floor_at)))
+        if any(not _covered_patch(patch, (*supports, source, cap)) for patch in swept.faces()):
+            return None
+        solid = graph.solid_shape(owner)
+        thickness = max(2e-5, max(1.0, high - low, math.sqrt(source.area)) * 1e-4)
+        if (
+            _material_fraction(solid, probe(low + tolerance, high - tolerance)) > 1e-9
+            or _material_fraction(
+                solid, probe(mouth_at + sign * tolerance, mouth_at + sign * thickness)
+            )
+            > 1e-9
+            or _material_fraction(
+                solid, probe(floor_at - sign * tolerance, floor_at - sign * thickness)
+            )
+            < 1 - 1e-9
+        ):
+            return None
+        issuer = BodyRefIssuer()
+        geometry = project_section_recess_geometry(
+            SectionOccurrence(
+                issuer.issue(), frame, (low, high), section, SectionEnds(sign > 0, sign < 0)
+            ),
+            body_refs=issuer,
+        )
+        defining = tuple(sorted(node.index for node in walls))
+        return _Candidate(
+            defining,
+            tuple(sorted((floor.index, *defining))),
+            min(node.index for node in mouths),
+            owner.ordinal,
+            geometry,
+            "general",
+        )
+    except (AttributeError, RuntimeError, TypeError, ValueError, ZeroDivisionError):
+        return None
+
+
 def _candidates(graph: FaceGraph) -> tuple[_Candidate, ...]:
-    found = {
-        candidate
-        for node in graph.nodes
-        if graph.is_planar(node)
-        for recogniser in (_one_obround_candidate, _one_polygonal_candidate)
-        if (candidate := recogniser(graph, node)) is not None
-    }
+    found = set()
+    for node in graph.nodes:
+        if not graph.is_planar(node):
+            continue
+        # Prefer the existing proved specific classification. The general reader
+        # is a fallback for this floor, not a second occurrence of the same pocket.
+        candidate = (
+            _one_obround_candidate(graph, node)
+            or _one_polygonal_candidate(graph, node)
+            or _one_mixed_candidate(graph, node)
+        )
+        if candidate is not None:
+            found.add(candidate)
     return tuple(
         sorted(found, key=lambda item: (item.constituent_faces, item.section_shape, item.mouth))
     )

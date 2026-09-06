@@ -273,6 +273,18 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "recogniser requires the observed polygonal floor boundary to be straight",
     ),
+    "_section_recess_geometry:_mixed_floor_section:geom_type:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "require an observed native mixed line/circle floor boundary",
+    ),
+    "_section_recess_geometry:_mixed_floor_section:geom_type:2": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "encode the original circular edge sweep rather than a chord",
+    ),
+    "_section_recess_geometry:_one_mixed_candidate:is_planar:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "require observed planar stock termination for exact swept supports",
+    ),
     "_section_recess_geometry:_one_polygonal_candidate:is_planar:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "recogniser requires original planar polygonal wall supports",

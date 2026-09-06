@@ -129,6 +129,21 @@ faces belong to the same valid solid. This does not relax the floor, constant-se
 empty-run, open-mouth or floor-backing proofs. Stock patches remain consulted context,
 not defining or constituent evidence; their partition does not change the public geometry.
 
+An intact mixed line/circular-arc floor may likewise establish a `general` pocket when
+its exact extrusion has complete observed wall support, an empty interior, an open planar
+mouth and backed floor, all within one owning solid. The proof reads the physical wire:
+short straight segments and distinct cylinder axes are not merged into a nominal obround.
+Unsupported floor islands, missing wall patches and obstructed runs or mouths remain refused.
+This admits, for example, rounded rectangles without adding a shape-specific schema.
+Existing more specific proved classifications take precedence for the same floor.
+
+Publication keeps the existing displacement limit. Arc-rounding displacement is bounded
+over the whole sweep analytically: for equal sweeps the pointwise difference is a constant
+vector plus a rotating vector, whose maximum lies at an endpoint or vector alignment.
+A radius-times-sweep-change term bounds the serialized bulge perturbation. This avoids
+rejecting accurately representable transformed sections solely through an unnecessarily
+loose sum of centre, radius and angular errors; it does not relax the geometric limit.
+
 Chamfers, blends, wall draft and bottom radii do not add optional shape-specific fields to this
 record. Independently proved chamfer and blend occurrences remain separate and may be related to a
 recess occurrence in a future result relationship table. The base recess and related treatment

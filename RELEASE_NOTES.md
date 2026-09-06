@@ -2,6 +2,11 @@
 
 ## Next release
 
+- Recognise intact general line/arc pockets from exact swept source support, including
+  rounded rectangles with short straight end segments. Preserve physical dimensions
+  instead of forcing an obround classification (#536). Tighten the analytic arc-rounding
+  error bound without changing the existing publication displacement limit.
+
 - Recognise straight polygonal passages through parallel stock faces oblique to their
   wall-proved run, preserving actual planar terminations in the existing schema (#369).
 
