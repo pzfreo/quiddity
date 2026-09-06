@@ -2,6 +2,14 @@ import json
 
 import pytest
 
+from quiddity import (
+    ClosedSectionProfile,
+    PassageFrame,
+    PassageSectionVertex,
+    SectionEnd,
+    SectionRecessEnds,
+    SectionRecessGeometry,
+)
 from quiddity._cylindrical_end_surface import CylindricalEndSurface
 
 POLYGON = ((-3.0, -12.0), (3.0, -12.0), (3.0, 12.0), (-3.0, 12.0))
@@ -59,3 +67,31 @@ def test_invalid_or_tangent_domain_refused(point):
 def test_noncanonical_or_invalid_parameters_refused(change):
     with pytest.raises(ValueError):
         _surface(**change)
+
+
+def _geometry(interval=(8.0, 20.0), surface=None):
+    return SectionRecessGeometry(
+        "section_recess",
+        PassageFrame((0, 0, 0), (0, 0, 1), (1, 0, 0), (0, 1, 0)),
+        interval,
+        ClosedSectionProfile("closed", tuple(PassageSectionVertex(p, 0.0) for p in POLYGON)),
+        SectionRecessEnds(SectionEnd("capped"), SectionEnd("open", surface or _surface())),
+    )
+
+
+def test_public_geometry_has_explicit_plane_and_cylinder_surfaces():
+    value = json.loads(json.dumps(_geometry().to_dict()))
+    assert value["ends"]["low"]["surface"]["type"] == "plane"
+    assert value["ends"]["high"]["surface"]["type"] == "cylinder"
+    assert value["run_interval"] == [8, 20]
+
+
+@pytest.mark.parametrize("interval", [(17.0, 20.0), (8.0, 19.0), (16.0, 20.0)])
+def test_public_geometry_refuses_crossing_touching_or_inconsistent_ends(interval):
+    with pytest.raises(ValueError):
+        _geometry(interval)
+
+
+def test_public_geometry_refuses_wrong_cylinder_branch():
+    with pytest.raises(ValueError):
+        _geometry(surface=_surface(branch="negative"))

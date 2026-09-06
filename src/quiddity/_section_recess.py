@@ -12,6 +12,7 @@ import math
 from dataclasses import dataclass
 from typing import cast
 
+from quiddity._cylindrical_end_surface import CylindricalEndSurface
 from quiddity._record import Record
 from quiddity._sections import (
     SectionVertex,
@@ -108,19 +109,33 @@ class OpenSectionProfile(Record):
 
 
 @dataclass(frozen=True, order=True, slots=True)
-class SectionEnd(Record):
-    """One physical end condition in the section frame."""
+class PlanarEndSurface(Record):
+    """Plane through the centroid end coordinate, with local section gradients."""
 
-    condition: str
+    type: str = "plane"
     gradient: tuple[float, float] = (0.0, 0.0)
 
     def __post_init__(self) -> None:
-        if self.condition not in {"open", "capped"}:
-            raise ValueError("section end condition must be 'open' or 'capped'")
+        if self.type != "plane":
+            raise ValueError("planar end surface type must be 'plane'")
         gradient = cast(tuple[float, float], _numbers(self.gradient, 2, name="gradient"))
         if any(round(value, 6) != value for value in gradient):
             raise ValueError("section end gradient must serialize at six decimal places")
         object.__setattr__(self, "gradient", gradient)
+
+
+@dataclass(frozen=True, order=True, slots=True)
+class SectionEnd(Record):
+    """Physical end condition and explicitly discriminated analytic surface."""
+
+    condition: str
+    surface: PlanarEndSurface | CylindricalEndSurface = PlanarEndSurface()
+
+    def __post_init__(self) -> None:
+        if self.condition not in {"open", "capped"}:
+            raise ValueError("section end condition must be 'open' or 'capped'")
+        if not isinstance(self.surface, PlanarEndSurface | CylindricalEndSurface):
+            raise ValueError("section end requires an explicit analytic surface")
 
 
 @dataclass(frozen=True, order=True, slots=True)
@@ -155,16 +170,54 @@ class SectionRecessGeometry(Record):
             raise ValueError("a section recess requires a closed or open section profile")
         if not isinstance(self.ends, SectionRecessEnds):
             raise ValueError("section recess requires explicit ends")
-        validate_section_end_separation(
-            tuple(SectionVertex(vertex.point, vertex.bulge) for vertex in self.profile.boundary),
-            interval[1] - interval[0],
-            (
-                self.ends.high.gradient[0] - self.ends.low.gradient[0],
-                self.ends.high.gradient[1] - self.ends.low.gradient[1],
-            ),
-            closed=isinstance(self.profile, ClosedSectionProfile),
-        )
+        low_surface, high_surface = self.ends.low.surface, self.ends.high.surface
+        if isinstance(low_surface, PlanarEndSurface) and isinstance(high_surface, PlanarEndSurface):
+            validate_section_end_separation(
+                tuple(
+                    SectionVertex(vertex.point, vertex.bulge) for vertex in self.profile.boundary
+                ),
+                interval[1] - interval[0],
+                (
+                    high_surface.gradient[0] - low_surface.gradient[0],
+                    high_surface.gradient[1] - low_surface.gradient[1],
+                ),
+                closed=isinstance(self.profile, ClosedSectionProfile),
+            )
+        else:
+            self._validate_cylindrical_end(interval)
         object.__setattr__(self, "run_interval", interval)
+
+    def _validate_cylindrical_end(self, interval: tuple[float, float]) -> None:
+        if not isinstance(self.profile, ClosedSectionProfile) or any(
+            vertex.bulge != 0 for vertex in self.profile.boundary
+        ):
+            raise ValueError("cylindrical end currently requires a closed polygonal profile")
+        ends = (self.ends.low, self.ends.high)
+        curved_indices = [
+            i for i, end in enumerate(ends) if isinstance(end.surface, CylindricalEndSurface)
+        ]
+        if len(curved_indices) != 1:
+            raise ValueError("cylindrical pocket requires exactly one cylindrical end")
+        index = curved_indices[0]
+        curved = cast(CylindricalEndSurface, ends[index].surface)
+        floor = ends[1 - index]
+        if (
+            ends[index].condition != "open"
+            or floor.condition != "capped"
+            or not isinstance(floor.surface, PlanarEndSurface)
+            or floor.surface.gradient != (0.0, 0.0)
+            or curved.branch != ("positive" if index == 1 else "negative")
+        ):
+            raise ValueError(
+                "cylindrical pocket needs an outward open branch and flat capped floor"
+            )
+        points = tuple(vertex.point for vertex in self.profile.boundary)
+        low, high = curved.polygon_height_bounds(points)
+        separation = low - interval[0] if index == 1 else interval[1] - high
+        if separation <= 1e-9:
+            raise ValueError("cylindrical pocket ends must remain strictly separated")
+        if round(curved.height((0.0, 0.0)), 3) != interval[index]:
+            raise ValueError("run interval must agree with the cylindrical centroid intersection")
 
 
 @dataclass(frozen=True, order=True, slots=True)
@@ -337,7 +390,7 @@ class SectionRecessDocument(Record):
     patterns: tuple[SectionRecessArray | SectionRecessGrid, ...] = ()
 
     def __post_init__(self) -> None:
-        if type(self.schema_version) is not int or self.schema_version != 2:
+        if type(self.schema_version) is not int or self.schema_version != 3:
             raise ValueError("unsupported section-recess document")
         if self.reference_scope != "result":
             raise ValueError("unsupported section-recess document")
