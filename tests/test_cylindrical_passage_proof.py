@@ -102,6 +102,26 @@ def test_unequal_opposite_regions_keep_independent_planar_mouths():
     assert result[1].run_interval == pytest.approx((8, 20))
 
 
+@pytest.mark.parametrize("radius", [2.9999, 3.0, 3.0001])
+def test_source_branch_requires_strict_domain_at_extreme_polygon_vertices(radius):
+    part = Box(40, 40, 40) - Rot(90, 0, 0) * Cylinder(radius, 50)
+    part -= Rot(0, 90, 0) * Pos(0, 0, -25) * extrude(RegularPolygon(3, 6), 50)
+    assert len(proofs(part)) == (2 if radius > 3 else 0)
+
+
+def test_disconnected_wall_cycles_sharing_context_remain_separate():
+    part = Box(40, 40, 40) - Rot(90, 0, 0) * Cylinder(8, 50)
+    tool = Rot(0, 90, 0) * Pos(0, 0, -25) * extrude(RegularPolygon(1, 6), 50)
+    part = part - Pos(0, -5, 0) * tool - Pos(0, 5, 0) * tool
+    result = proofs(part)
+    assert len(result) == 4
+    assert len({p.owner for p in result}) == 1
+    assert len({p.cylinder for p in result}) == 1
+    assert len({p.planar_context for p in result}) == 2
+    assert len({node for p in result for node in p.walls}) == 24
+    assert all(len(p.walls) == 6 for p in result)
+
+
 @pytest.mark.parametrize("stage", [0, 1, 2])
 def test_each_empty_volume_gate_independently_refuses(monkeypatch, stage):
     graph = FaceGraph(passage(6))
