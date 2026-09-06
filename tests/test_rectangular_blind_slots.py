@@ -92,8 +92,9 @@ def test_rectangular_blind_slot_has_truthful_dimensions_and_complete_evidence():
     assert len(ledger.claims[0].defining) == 4
 
     evidence = build_recognition_evidence(part)
-    (feature,) = tuple(ref for ref in evidence.features
-                      if evidence.family(ref) == "section_recesses")
+    (feature,) = tuple(
+        ref for ref in evidence.features if evidence.family(ref) == "section_recesses"
+    )
     assert evidence.constituent_faces(feature) == evidence.defining_faces(feature)
     assert len(evidence.defining_faces(feature)) == 4
 
@@ -152,18 +153,9 @@ def test_reconciliation_prefers_complete_edge_open_contract_over_pocket_fragment
 
 def test_enclosed_pocket_doubly_open_channel_and_non_slot_role_are_refused():
     stock = Box(30, 20, 40, align=(Align.CENTER, Align.CENTER, Align.MIN))
-    enclosed = stock - (
-        Pos(0, 5, 10)
-        * Box(10, 5, 20, align=(Align.CENTER, Align.MIN, Align.MIN))
-    )
-    channel = stock - (
-        Pos(0, 5, 0)
-        * Box(10, 5, 40, align=(Align.CENTER, Align.MIN, Align.MIN))
-    )
-    short_notch = stock - (
-        Pos(0, 5, 0)
-        * Box(10, 5, 4, align=(Align.CENTER, Align.MIN, Align.MIN))
-    )
+    enclosed = stock - (Pos(0, 5, 10) * Box(10, 5, 20, align=(Align.CENTER, Align.MIN, Align.MIN)))
+    channel = stock - (Pos(0, 5, 0) * Box(10, 5, 40, align=(Align.CENTER, Align.MIN, Align.MIN)))
+    short_notch = stock - (Pos(0, 5, 0) * Box(10, 5, 4, align=(Align.CENTER, Align.MIN, Align.MIN)))
 
     assert recognise_rectangular_blind_slots(enclosed) == []
     assert recognise_rectangular_blind_slots(channel) == []

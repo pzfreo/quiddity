@@ -122,9 +122,7 @@ def main() -> int:
             rows.append({"model_id": truth.model_id, "candidates": model_rows})
 
     passage_faces = sum(class_totals[class_id]["faces"] for class_id in PASSAGE_CLASSES)
-    passage_reached = sum(
-        class_totals[class_id]["faces_reached"] for class_id in PASSAGE_CLASSES
-    )
+    passage_reached = sum(class_totals[class_id]["faces_reached"] for class_id in PASSAGE_CLASSES)
     report = {
         "format": "b123d-recognisers-mfcadpp-two-ended-enclosure-audit",
         "format_version": 1,

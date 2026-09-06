@@ -67,6 +67,11 @@ geometry in the section frame and remain available where proved. `capped` identi
 termination; it does not encode the detailed bottom shape. Opening direction, cap condition and
 bottom treatment are separate facts.
 
+Record validation enforces positive separation of the two termination planes over the physical
+profile, including analytic interior extrema of arcs (#516). An open physical chain must be
+simple and cannot overlap or backtrack; its absent closing boundary is not an edge to validate.
+These checks preserve the truthful geometry contract independently of the originating detector.
+
 The initially admitted interpretations are:
 
 | Feature kind | Profile | Run ends |

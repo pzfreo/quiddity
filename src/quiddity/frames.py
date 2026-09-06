@@ -494,9 +494,7 @@ def build_framed_recognition_result(part: Part, *, rotational: bool = False) -> 
     return prepared.recognise(rotational=rotational)
 
 
-def build_framed_recognition_evidence(
-    part: Part, *, rotational: bool = False
-) -> FramedEvidence:
+def build_framed_recognition_evidence(part: Part, *, rotational: bool = False) -> FramedEvidence:
     """Recognise once in an inferred local frame with exact caller-face evidence.
 
     The caller must not mutate *part* while using a successful returned view.

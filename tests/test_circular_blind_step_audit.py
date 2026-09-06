@@ -86,8 +86,7 @@ def test_quarter_turn_parameter_tolerance_is_pinned_on_both_sides() -> None:
 
     assert probe_pair(graph, cylinder, terminal, within).first_failed_gate == "recognisable"
     assert (
-        probe_pair(graph, cylinder, terminal, outside).first_failed_gate
-        == "not_quarter_cylinder"
+        probe_pair(graph, cylinder, terminal, outside).first_failed_gate == "not_quarter_cylinder"
     )
 
 
@@ -163,9 +162,7 @@ def test_command_refuses_invalid_imported_geometry(tmp_path, monkeypatch) -> Non
     source = tmp_path / "invalid.step"
     source.touch()
     monkeypatch.setattr(audit, "import_step", lambda _path: SimpleNamespace(is_valid=False))
-    monkeypatch.setattr(
-        audit, "load_mfcadpp_truth", lambda _path: SimpleNamespace(semantic=())
-    )
+    monkeypatch.setattr(audit, "load_mfcadpp_truth", lambda _path: SimpleNamespace(semantic=()))
     monkeypatch.setattr(
         sys,
         "argv",

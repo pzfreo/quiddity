@@ -16,8 +16,11 @@ pytestmark = pytest.mark.slow
 
 
 def _missing_exact(report):
-    return [row for row in report["candidates"]
-            if row["status"] == "unrepresented" and row["family"] != FamilyId.POCKETS.value]
+    return [
+        row
+        for row in report["candidates"]
+        if row["status"] == "unrepresented" and row["family"] != FamilyId.POCKETS.value
+    ]
 
 
 @pytest.mark.parametrize("name", sorted(path.parent.name for path in GOLDEN.glob("*/fixture.py")))

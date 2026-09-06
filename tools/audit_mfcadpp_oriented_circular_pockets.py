@@ -151,9 +151,7 @@ def _one_candidate(graph: FaceGraph, floor: FaceNode) -> PrototypeCandidate | No
     if floor_normal is None:
         return None
     depth = _canonical(floor_normal)
-    concave = tuple(
-        node for node in graph.neighbours(floor) if graph.arc(floor, node) == "concave"
-    )
+    concave = tuple(node for node in graph.neighbours(floor) if graph.arc(floor, node) == "concave")
     cylinders = tuple(node for node in concave if graph.surface(node) == GeomAbs_Cylinder)
     sides = tuple(node for node in concave if graph.is_planar(node))
     if len(cylinders) != 2 or len(sides) != 2 or len(concave) != 4:
@@ -188,11 +186,7 @@ def _one_candidate(graph: FaceGraph, floor: FaceNode) -> PrototypeCandidate | No
         or any(abs(_dot(normal, depth)) > _DIRECTION_TOL for normal in normals)
     ):
         return None
-    if not all(
-        graph.arc(cylinder, side) == "smooth"
-        for cylinder in cylinders
-        for side in sides
-    ):
+    if not all(graph.arc(cylinder, side) == "smooth" for cylinder in cylinders for side in sides):
         return None
     sweeps = tuple(_edge_sweep(graph, floor, cylinder, radius) for cylinder in cylinders)
     if any(sweep is None or abs(sweep - math.pi) > _SEMICIRCLE_TOL for sweep in sweeps):
@@ -229,8 +223,7 @@ def _one_candidate(graph: FaceGraph, floor: FaceNode) -> PrototypeCandidate | No
             and interval is not None
             and abs(sum(interval) / 2 - mouth_at) <= tolerance
             and all(
-                graph.arc(node, support) in ("convex", "smooth")
-                for support in (*cylinders, *sides)
+                graph.arc(node, support) in ("convex", "smooth") for support in (*cylinders, *sides)
             )
         ):
             mouths.append(node)

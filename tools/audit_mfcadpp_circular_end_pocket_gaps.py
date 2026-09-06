@@ -122,14 +122,10 @@ def _cylinder_end_result(cap: tuple) -> str:
         for candidate in other_axes
     }
     across = [
-        candidate
-        for candidate in other_axes
-        if abs(extents[candidate] - 2.0) <= _OBROUND_RATIO_TOL
+        candidate for candidate in other_axes if abs(extents[candidate] - 2.0) <= _OBROUND_RATIO_TOL
     ]
     bulge = [
-        candidate
-        for candidate in other_axes
-        if abs(extents[candidate] - 1.0) <= _OBROUND_RATIO_TOL
+        candidate for candidate in other_axes if abs(extents[candidate] - 1.0) <= _OBROUND_RATIO_TOL
     ]
     if len(across) != 1:
         return "not_one_diameter_extent"
@@ -331,13 +327,9 @@ def main() -> int:
 
     untouched = [row for row in rows if row["untouched"]]
     selected_ids = {path.stem for path in paths}
-    full_known_selection = (
-        len(paths) == 2500 and selected_ids >= _KNOWN_MFCADPP_2500_INVALID
-    )
+    full_known_selection = len(paths) == 2500 and selected_ids >= _KNOWN_MFCADPP_2500_INVALID
     expected_invalid = _KNOWN_MFCADPP_2500_INVALID & class_model_ids
-    if full_known_selection and {
-        item["model_id"] for item in invalid
-    } != expected_invalid:
+    if full_known_selection and {item["model_id"] for item in invalid} != expected_invalid:
         parser.error("the full-corpus invalid-model set differs from the documented policy")
     gates = Counter(row["probe"]["first_failed_gate"] for row in untouched)
     anatomy_complete = [
@@ -348,13 +340,9 @@ def main() -> int:
     anatomy_declined = [
         row for row in anatomy_complete if row["probe"]["first_failed_gate"] != "current_proposal"
     ]
-    anatomy_declined_gates = Counter(
-        row["probe"]["first_failed_gate"] for row in anatomy_declined
-    )
+    anatomy_declined_gates = Counter(row["probe"]["first_failed_gate"] for row in anatomy_declined)
     anatomy_end_results = Counter(
-        result
-        for row in anatomy_declined
-        for result in row["probe"]["cylinder_end_results"]
+        result for row in anatomy_declined for result in row["probe"]["cylinder_end_results"]
     )
     report = {
         "format": "b123d-recognisers-mfcadpp-circular-end-pocket-gap-audit",
@@ -398,18 +386,13 @@ def main() -> int:
             ),
             "anatomy_complete_components": len(anatomy_complete),
             "anatomy_complete_faces": sum(row["face_count"] for row in anatomy_complete),
-            "anatomy_complete_current_proposals": len(anatomy_complete)
-            - len(anatomy_declined),
+            "anatomy_complete_current_proposals": len(anatomy_complete) - len(anatomy_declined),
             "anatomy_complete_declined_components": len(anatomy_declined),
-            "anatomy_complete_declined_faces": sum(
-                row["face_count"] for row in anatomy_declined
-            ),
+            "anatomy_complete_declined_faces": sum(row["face_count"] for row in anatomy_declined),
             "anatomy_complete_declined_untouched_components": sum(
                 row["untouched"] for row in anatomy_declined
             ),
-            "anatomy_complete_declined_failure_gates": dict(
-                sorted(anatomy_declined_gates.items())
-            ),
+            "anatomy_complete_declined_failure_gates": dict(sorted(anatomy_declined_gates.items())),
             "anatomy_complete_declined_cylinder_end_results": dict(
                 sorted(anatomy_end_results.items())
             ),

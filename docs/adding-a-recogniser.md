@@ -192,11 +192,11 @@ PhysicalDefinition(
     (ExampleFeature,),
     "example_features",
     "recognise_example_features",
-    (),                 # completed physical dependencies
-    always,             # discovery applicability
-    _example_adapter,   # aggregate discovery adapter
-    Counted("example"), # or NotCounted("reason")
-    projected=always,   # public projection applicability
+    (),  # completed physical dependencies
+    always,  # discovery applicability
+    _example_adapter,  # aggregate discovery adapter
+    Counted("example"),  # or NotCounted("reason")
+    projected=always,  # public projection applicability
 )
 ```
 
@@ -224,9 +224,7 @@ Add the record tuple to `RecognitionResult` and map it in `_project_result` usin
 example_features: tuple[ExampleFeature, ...]
 
 # In _project_result:
-example_features=tuple(
-    _records(accepted, FamilyId.EXAMPLE_FEATURES, ExampleFeature)
-),
+example_features = tuple(_records(accepted, FamilyId.EXAMPLE_FEATURES, ExampleFeature))
 ```
 
 Then update the independent public surfaces:

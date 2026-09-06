@@ -214,9 +214,7 @@ def test_a_radiused_lead_in_joins_the_groove_bands():
     radiused = fillet(plain.edges().filter_by(GeomType.CIRCLE).group_by(Axis.Z)[1], 1.0)
 
     ledger, grooves = attributed_run(radiused, FamilyId.GROOVES, recognise_grooves)
-    assert [(groove.diameter, groove.width) for groove in grooves] == [
-        (24.0, 1.5)
-    ]
+    assert [(groove.diameter, groove.width) for groove in grooves] == [(24.0, 1.5)]
     (candidate,) = ledger.candidate_set(FamilyId.GROOVES).candidates
     assert_groove_role(ledger, candidate, grooves[0])
 

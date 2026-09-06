@@ -1,6 +1,6 @@
 # Quiddity CLI and recognition document
 
-Available in the next release after 0.2.0:
+Available from Quiddity 0.2.1:
 
 ```bash
 quiddity part.step

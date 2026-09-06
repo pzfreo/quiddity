@@ -183,9 +183,9 @@ def _type_name(annotation: object) -> str:
             sorted({_type_name(arg) for arg in args}, key=lambda item: (item == "null", item))
         )
     if origin is tuple:
-        return "tuple[" + ",".join(
-            "..." if arg is Ellipsis else _type_name(arg) for arg in args
-        ) + "]"
+        return (
+            "tuple[" + ",".join("..." if arg is Ellipsis else _type_name(arg) for arg in args) + "]"
+        )
     raise TypeError(f"unsupported inspection field annotation {annotation!r}")
 
 
@@ -203,11 +203,7 @@ def _contract(name: str, kind: str, value: object) -> dict[str, object]:
         }
     if kind == "enum":
         assert inspect.isclass(value) and issubclass(value, Enum)
-        return {
-            "members": [
-                {"name": member.name, "value": member.value} for member in value
-            ]
-        }
+        return {"members": [{"name": member.name, "value": member.value} for member in value]}
     if kind == "exception":
         assert inspect.isclass(value) and issubclass(value, Exception)
         hints = typing.get_type_hints(value)
@@ -216,9 +212,7 @@ def _contract(name: str, kind: str, value: object) -> dict[str, object]:
         reason_values = list(typing.get_args(reason))
         assert reason_values and all(isinstance(item, str) for item in reason_values)
         return {
-            "attributes": [
-                {"name": "reason", "type": "str", "values": reason_values}
-            ],
+            "attributes": [{"name": "reason", "type": "str", "values": reason_values}],
             "base": value.__bases__[0].__name__,
         }
     if kind == "function":

@@ -67,9 +67,7 @@ def test_every_copy_of_the_version_agrees() -> None:
     )
     assert inspection["package"]["version"] == version
     evidence = json.loads(
-        (ROOT / "src" / "quiddity" / "evidence_api.json").read_text(
-            encoding="utf-8"
-        )
+        (ROOT / "src" / "quiddity" / "evidence_api.json").read_text(encoding="utf-8")
     )
     assert evidence["package"]["version"] == version
 
@@ -216,9 +214,7 @@ def test_installed_wheel_imports_without_the_repository_on_sys_path(tmp_path) ->
     )
     # Text mode normalises a checkout's platform newline convention. The public exporter is
     # deliberately canonical JSON with LF newlines on every platform.
-    source_manifest = (ROOT / "src" / "quiddity" / "capabilities.json").read_text(
-        encoding="utf-8"
-    )
+    source_manifest = (ROOT / "src" / "quiddity" / "capabilities.json").read_text(encoding="utf-8")
     manifest_digest = hashlib.sha256(source_manifest.encode()).hexdigest()
     inspection_manifest = (ROOT / "src" / "quiddity" / "inspection_api.json").read_text(
         encoding="utf-8"

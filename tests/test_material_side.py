@@ -112,8 +112,7 @@ def _points_on(face, limit=4):
         return []
     transform = location.Transformation()
     nodes = [
-        triangulation.Node(i).Transformed(transform)
-        for i in range(1, triangulation.NbNodes() + 1)
+        triangulation.Node(i).Transformed(transform) for i in range(1, triangulation.NbNodes() + 1)
     ]
     out = []
     for i in range(1, min(triangulation.NbTriangles(), limit) + 1):

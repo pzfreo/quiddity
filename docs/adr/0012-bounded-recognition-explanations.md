@@ -70,6 +70,20 @@ generated into exports.
 
 ## Consequences
 
+### Clarification: detector counts versus public occurrences (#518)
+
+`RecognitionReport.detector_families` explicitly names the candidate lifecycle view; the original
+`families` field retains exactly the same tuple and semantics. Accepted candidates can converge
+through SectionRecess projection and deduplication. One accepted `pockets` candidate and one
+accepted `section_recesses` candidate can therefore publish a single SectionRecess. Their counts
+must not be summed as distinct features. Disposition `occurrences` counts candidate outcomes;
+`related_occurrences` counts links, not unique related physical features.
+
+Published record counts come from the same report's result collections, for example
+`len(report.result.section_recesses)`. Refusals and derived patterns have separate collections and
+must not be counted as additional physical recesses. This clarifies the existing two domains;
+it adds no detector, taxonomy, duplicate census implementation or recognition pass.
+
 - Consumers can distinguish not-run, clean evaluated absence and reconciliation loss without
   depending on private state.
 - Existing callers and `RecognitionResult` remain source and value compatible.

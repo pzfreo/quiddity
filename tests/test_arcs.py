@@ -213,10 +213,7 @@ def _split_native_solids():
         [Wire.make_circle(5, Plane.XY.offset(z)) for z in (0, 5, 10)], ruled=True
     )
     cone = Solid.make_loft(
-        [
-            Wire.make_circle(radius, Plane.XY.offset(z))
-            for radius, z in ((5, 0), (4, 5), (3, 10))
-        ],
+        [Wire.make_circle(radius, Plane.XY.offset(z)) for radius, z in ((5, 0), (4, 5), (3, 10))],
         ruled=True,
     )
     lower = Solid.make_sphere(5, angle1=-90, angle2=0)
@@ -764,12 +761,7 @@ def test_a_shallow_corner_is_not_smooth():
 
     ramp = Box(60, 40, 10) - Pos(0, 0, 5) * Rot(0, 1, 0) * Box(80, 60, 10)
     graph = FaceGraph(ramp)
-    kinds = {
-        graph.arc(a, b)
-        for a in graph.nodes
-        for b in graph.neighbours(a)
-        if b.index > a.index
-    }
+    kinds = {graph.arc(a, b) for a in graph.nodes for b in graph.neighbours(a) if b.index > a.index}
     assert "smooth" not in kinds
 
     # And the gap it would have to close is far outside the threshold, by orders of magnitude.

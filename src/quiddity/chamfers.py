@@ -215,9 +215,7 @@ def recognise_chamfers(
     cones = [f for f in all_faces if BRepAdaptor_Surface(f.wrapped).GetType() == GeomAbs_Cone]
     if cones:
         z_cyls, cross_cyls = cyls if cyls is not None else analyse_cylinders(part)
-        external_cylinders = {
-            c["face"]: c for c in (*z_cyls, *cross_cyls) if c["external"]
-        }
+        external_cylinders = {c["face"]: c for c in (*z_cyls, *cross_cyls) if c["external"]}
         for f in cones:
             rims = cone_rims(f)
             if rims is None:
@@ -252,9 +250,7 @@ def recognise_chamfers(
                     dv,
                     external_cylinders[n]["axis_xyz"],
                     external_cylinders[n]["dir_xyz"],
-                    tol=length_tol(
-                        external_cylinders[n]["diameter"], rel=_COAXIAL_FRAC
-                    ),
+                    tol=length_tol(external_cylinders[n]["diameter"], rel=_COAXIAL_FRAC),
                 )
             ]
             if not coaxial_cylinders:

@@ -105,8 +105,7 @@ def test_multiple_grooves_keep_occurrence_identity_and_floor_roles() -> None:
     assert len(grooves) == 2
     candidates = ledger.candidate_set(FamilyId.GROOVES).candidates
     assert all(
-        candidate.record is groove
-        for candidate, groove in zip(candidates, grooves, strict=True)
+        candidate.record is groove for candidate, groove in zip(candidates, grooves, strict=True)
     )
     assert len({next(iter(ledger.defining_of(candidate))) for candidate in candidates}) == 2
 
@@ -141,9 +140,7 @@ def test_the_rule_finds_the_rung_the_groove_is():
     plain_ledger, plain_grooves, plain_steps = _claimed(_plain_shaft())
     assert plain_grooves == []
     assert (
-        steps_that_are_not_grooves(
-            plain_steps, plain_grooves, plain_ledger.snapshot_index()
-        )
+        steps_that_are_not_grooves(plain_steps, plain_grooves, plain_ledger.snapshot_index())
         == plain_steps
     )
 
@@ -178,9 +175,7 @@ def test_parallel_grooved_shafts_publish_distinct_matching_profile_keys() -> Non
 def test_all_groove_ownership_validates_before_any_candidate_is_published(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    part = Compound(
-        children=[Pos(-30, 0, 0) * _grooved_shaft(), Pos(30, 0, 0) * _grooved_shaft()]
-    )
+    part = Compound(children=[Pos(-30, 0, 0) * _grooved_shaft(), Pos(30, 0, 0) * _grooved_shaft()])
     ledger = ClaimLedger(FaceGraph(part))
     original = FaceGraph.common_valid_solid
     calls = 0
@@ -289,9 +284,9 @@ def test_an_unclaimed_groove_cannot_suppress_a_step() -> None:
     ledger.propose(FamilyId.GROOVES, grooves[0])
     ledger.propose(FamilyId.TURNED_STEPS, steps[0], [ledger.graph.nodes[0]])
 
-    assert steps_that_are_not_grooves(
-        [steps[0]], [grooves[0]], ledger.snapshot_index()
-    ) == [steps[0]]
+    assert steps_that_are_not_grooves([steps[0]], [grooves[0]], ledger.snapshot_index()) == [
+        steps[0]
+    ]
 
 
 def test_the_ladder_keeps_the_rung_the_groove_is():

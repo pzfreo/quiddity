@@ -50,9 +50,10 @@ def test_direct_reader_recognises_conical_turned_chamfers():
         face = ledger.graph.face(node)
         assert face.geom_type == GeomType.CONE
         center = face.center()
-        assert tuple(
-            round(value, 3) for value in (center.X, center.Y, center.Z)
-        ) == candidate.record.at
+        assert (
+            tuple(round(value, 3) for value in (center.X, center.Y, center.Z))
+            == candidate.record.at
+        )
 
 
 def test_rotational_inventory_keeps_turned_chamfers():

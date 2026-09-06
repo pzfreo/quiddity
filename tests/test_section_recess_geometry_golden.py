@@ -17,8 +17,9 @@ TRIANGLE = ((-4.0, -3.0), (4.0, -3.0), (0.0, 5.0))
 CASES = {
     "obround_pocket": _blind_pocket,
     "polygonal_pocket": lambda: _polygonal_pocket(TRIANGLE),
-    "polygonal_passage": lambda: Box(60, 50, 12)
-    - Pos(0, 0, -7) * _polygonal_cutter(TRIANGLE, depth=14),
+    "polygonal_passage": lambda: (
+        Box(60, 50, 12) - Pos(0, 0, -7) * _polygonal_cutter(TRIANGLE, depth=14)
+    ),
     "edge_open_polygonal": _edge_open_hexagon,
     "edge_open_circular": _open_circular_pocket,
     "rectangular_blind_slot": rectangular_slot,

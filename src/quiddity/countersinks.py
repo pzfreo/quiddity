@@ -177,11 +177,7 @@ def _opens_into_void(face: FaceLike, cone: gp_Cone) -> bool:
         sample.Y - origin.Y(),
         sample.Z - origin.Z(),
     )
-    along = (
-        offset[0] * direction.X()
-        + offset[1] * direction.Y()
-        + offset[2] * direction.Z()
-    )
+    along = offset[0] * direction.X() + offset[1] * direction.Y() + offset[2] * direction.Z()
     radial = (
         offset[0] - along * direction.X(),
         offset[1] - along * direction.Y(),

@@ -318,8 +318,12 @@ def test_inapplicable_family_completes_as_an_empty_dependency(monkeypatch) -> No
 
 def test_registry_fields_and_public_entrypoints_have_independent_coverage() -> None:
     result_fields = {item.name for item in fields(result_module._LegacyRecognitionResult)}
-    orchestration_context = {"cylinders", "rotational", "section_recess_patterns",
-                             "section_recess_refusals"}
+    orchestration_context = {
+        "cylinders",
+        "rotational",
+        "section_recess_patterns",
+        "section_recess_refusals",
+    }
     validate_result_fields(frozenset(result_fields - orchestration_context))
     from tools._legacy_recognition import __all__ as retired
 
@@ -328,10 +332,14 @@ def test_registry_fields_and_public_entrypoints_have_independent_coverage() -> N
         for item in (*PHYSICAL_DEFINITIONS, *DERIVED_DEFINITIONS)
         if item.public_entrypoint is not None and item.public_entrypoint not in retired
     } == MIGRATED
-    assert all(hasattr(public, item.public_entrypoint) for item in PHYSICAL_DEFINITIONS
-               if item.public_entrypoint not in retired)
     assert all(
-        item.public_entrypoint is None or item.public_entrypoint in retired
+        hasattr(public, item.public_entrypoint)
+        for item in PHYSICAL_DEFINITIONS
+        if item.public_entrypoint not in retired
+    )
+    assert all(
+        item.public_entrypoint is None
+        or item.public_entrypoint in retired
         or hasattr(public, item.public_entrypoint)
         for item in DERIVED_DEFINITIONS
     )

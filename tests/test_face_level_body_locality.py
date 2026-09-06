@@ -32,9 +32,7 @@ def _stepped(dx: float):
 
 
 def _z_shaft():
-    return Cylinder(20, 30, align=_MINIMUM_Z) + Pos(0, 0, 30) * Cylinder(
-        12, 20, align=_MINIMUM_Z
-    )
+    return Cylinder(20, 30, align=_MINIMUM_Z) + Pos(0, 0, 30) * Cylinder(12, 20, align=_MINIMUM_Z)
 
 
 def test_equal_levels_on_separate_bodies_retain_two_body_local_supports() -> None:
@@ -80,9 +78,9 @@ def test_child_order_does_not_change_body_local_level_order() -> None:
 def test_nested_disconnected_stair_does_not_borrow_turned_profile_membership() -> None:
     shaft = _z_shaft()
     # Wholly inside the shaft AABB, but outside its cylindrical material.
-    stair = Pos(17, 17, 0) * Box(2, 2, 8, align=_MINIMUM_Z) + Pos(
-        17.5, 17, 8
-    ) * Box(1, 2, 5, align=_MINIMUM_Z)
+    stair = Pos(17, 17, 0) * Box(2, 2, 8, align=_MINIMUM_Z) + Pos(17.5, 17, 8) * Box(
+        1, 2, 5, align=_MINIMUM_Z
+    )
     part = Compound(children=[shaft, stair])
 
     levels = recognise_face_levels(part)

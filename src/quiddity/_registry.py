@@ -10,7 +10,6 @@ projection, reconciliation policy, and census key order remain independently rev
 
 from __future__ import annotations
 
-from collections import Counter
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import Enum
@@ -73,8 +72,10 @@ from quiddity.oriented_slots import (
     OrientedSlot,
     OrientedSlotArray,
     OrientedSlotGrid,
-    _body_signature,
     recognise_oriented_slot_patterns,
+)
+from quiddity.oriented_slots import (
+    _body_keys as _oriented_slot_body_keys,
 )
 from quiddity.oriented_slots import (
     _project as _project_oriented_slot,
@@ -123,12 +124,18 @@ from quiddity.turned import TurnedStep, recognise_turned_steps
 
 # Internal detector identities survive the public SectionRecess schema replacement so that
 # discovery, reconciliation and effectiveness scoring remain comparable across the cutover.
-RECESS_SOURCE_FAMILIES = frozenset({
-    FamilyId.POCKETS, FamilyId.CHANNELS, FamilyId.PRISMATIC_POCKETS,
-    FamilyId.PASSAGES, FamilyId.EDGE_OPEN_PRISMATIC_RECESSES,
-    FamilyId.EDGE_OPEN_CIRCULAR_POCKETS, FamilyId.RECTANGULAR_BLIND_SLOTS,
-    FamilyId.ROUND_BOTTOM_BLIND_SLOTS,
-})
+RECESS_SOURCE_FAMILIES = frozenset(
+    {
+        FamilyId.POCKETS,
+        FamilyId.CHANNELS,
+        FamilyId.PRISMATIC_POCKETS,
+        FamilyId.PASSAGES,
+        FamilyId.EDGE_OPEN_PRISMATIC_RECESSES,
+        FamilyId.EDGE_OPEN_CIRCULAR_POCKETS,
+        FamilyId.RECTANGULAR_BLIND_SLOTS,
+        FamilyId.ROUND_BOTTOM_BLIND_SLOTS,
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -427,17 +434,12 @@ def _oriented_slots(services: DiscoveryServices, inputs: CompletedInputs) -> lis
         if solid is None:  # pragma: no cover - completed passage evidence is nonempty/same-solid
             raise ValueError("completed SectionPassage occurrence has no valid solid")
         solids.append(solid)
-    unique = tuple(dict.fromkeys(solids))
-    signatures = {
-        solid: _body_signature(services.context.graph.solid_shape(solid)) for solid in unique
-    }
-    counts = Counter(signatures.values())
+    keys = _oriented_slot_body_keys(services.context.graph, tuple(solids))
     found: list[OrientedSlot] = []
     for occurrence, solid in zip(occurrences, solids, strict=True):
-        signature = signatures[solid]
         record = _project_oriented_slot(
             occurrence.record(SectionPassage),
-            signature if counts[signature] == 1 else None,
+            keys[solid],
         )
         if record is None:
             continue

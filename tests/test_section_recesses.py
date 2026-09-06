@@ -33,8 +33,8 @@ from quiddity import (
 )
 from quiddity._section_recess import (
     SectionRecessClassification,
-    project_section_recess_geometry,
 )
+from quiddity._section_recess_geometry import project_section_recess_geometry
 from quiddity._sections import (
     BodyRefIssuer,
     LocalFrame,
@@ -62,36 +62,43 @@ def _blind_pocket(*, angle: float = 30):
 
 
 @pytest.mark.parametrize("placement", [Rot(), Rot(180, 0, 0), Rot(17, 31, 43)])
-@pytest.mark.parametrize("obstruction", [
-    Pos(0, 0, 3) * Box(2, 10, 1),  # bridge through the straight middle
-    Pos(9, 0, 3) * Box(2, 1, 1),  # intrudes only into the curved cap, outside its chord
-    Pos(0, 0, 6.5) * Box(2, 10, 1),  # blocks the mouth without entering the run
-])
+@pytest.mark.parametrize(
+    "obstruction",
+    [
+        Pos(0, 0, 3) * Box(2, 10, 1),  # bridge through the straight middle
+        Pos(9, 0, 3) * Box(2, 1, 1),  # intrudes only into the curved cap, outside its chord
+        Pos(0, 0, 6.5) * Box(2, 10, 1),  # blocks the mouth without entering the run
+    ],
+)
 def test_obround_rejects_same_body_run_and_mouth_obstructions(placement, obstruction):
     base = _blind_pocket(angle=0)
     assert len(build_section_recess_document(placement * base).occurrences) == 1
     blocked = placement * (base + obstruction)
     assert blocked.is_valid and len(blocked.solids()) == 1
-    assert not any(record.classification.section_shape == "obround"
-                   for record in build_section_recess_document(blocked).occurrences)
+    assert not any(
+        record.classification.section_shape == "obround"
+        for record in build_section_recess_document(blocked).occurrences
+    )
 
 
 def test_obround_material_probe_uses_only_the_owning_body():
     part = Compound([_blind_pocket(angle=0), Pos(0, 0, 3) * Box(2, 2, 1)])
     document = build_section_recess_document(part)
-    assert sum(record.classification.section_shape == "obround"
-               for record in document.occurrences) == 1
+    assert (
+        sum(record.classification.section_shape == "obround" for record in document.occurrences)
+        == 1
+    )
 
 
 def test_obround_probe_contains_the_complete_semicircular_ends():
-    from quiddity._section_recess import _obround_prism
+    from quiddity._section_recess_geometry import _obround_prism
 
     probe = _obround_prism((0, 0, 1), (-6, 0, 0), (6, 0, 0), 3, 0, 6)
     assert probe.volume == pytest.approx((12 * 6 + math.pi * 3**2) * 6)
 
 
 def test_obround_kernel_probe_failure_refuses(monkeypatch):
-    import quiddity._section_recess as implementation
+    import quiddity._section_recess_geometry as implementation
 
     def failed(*_args):
         raise RuntimeError("kernel boolean failed")
@@ -102,12 +109,15 @@ def test_obround_kernel_probe_failure_refuses(monkeypatch):
 
 @pytest.mark.parametrize("fractions", [(1.0,), (0.0, 1.0), (0.0, 0.0, 0.0)])
 def test_obround_requires_empty_run_open_mouth_and_complete_backing(monkeypatch, fractions):
-    import quiddity._section_recess as implementation
+    import quiddity._section_recess_geometry as implementation
     from quiddity._adjacency import FaceGraph
 
     graph = FaceGraph(_blind_pocket(angle=0))
-    floor = next(node for node in graph.nodes
-                 if implementation._one_obround_candidate(graph, node) is not None)
+    floor = next(
+        node
+        for node in graph.nodes
+        if implementation._one_obround_candidate(graph, node) is not None
+    )
     remaining = iter(fractions)
     monkeypatch.setattr(implementation, "_material_fraction", lambda *_args: next(remaining))
     assert implementation._one_obround_candidate(graph, floor) is None
@@ -252,8 +262,9 @@ def test_document_projects_completed_aggregate_inventory(monkeypatch) -> None:
 
     def completed_inventory(supplied):
         assert supplied is part
-        return SimpleNamespace(section_recesses=(sentinel,), section_recess_refusals=(),
-                               section_recess_patterns=())
+        return SimpleNamespace(
+            section_recesses=(sentinel,), section_recess_refusals=(), section_recess_patterns=()
+        )
 
     monkeypatch.setattr(
         result_module,

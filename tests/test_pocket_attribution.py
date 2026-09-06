@@ -84,8 +84,13 @@ AXIS = {"x": 0, "y": 1, "z": 2}
 
 
 def _body_key(solid):
+    # Independent oracle for the documented public key policy, not the implementation helper.
     box = solid.bounding_box()
-    return (*tuple(box.min), *tuple(box.max), float(solid.volume), float(solid.area))
+    return (
+        *(round(float(value), 6) or 0.0 for value in (*tuple(box.min), *tuple(box.max))),
+        float(f"{solid.volume:.12g}"),
+        float(f"{solid.area:.12g}"),
+    )
 
 
 def _fresh_occurrences(part):
@@ -507,11 +512,7 @@ def test_equal_coincident_bodies_remain_distinct_occurrences() -> None:
 
 
 def test_nearby_hole_inner_loop_does_not_attach_to_pocket() -> None:
-    part = (
-        Box(80, 50, 14)
-        - Pos(-18, 0, 5) * Box(20, 12, 10)
-        - Pos(22, 0, 0) * Cylinder(4, 14)
-    )
+    part = Box(80, 50, 14) - Pos(-18, 0, 5) * Box(20, 12, 10) - Pos(22, 0, 0) * Cylinder(4, 14)
     ledger = ClaimLedger(FaceGraph(part))
 
     (record,) = _discover_pockets(part, writer=ledger.writer)
@@ -524,11 +525,7 @@ def test_nearby_hole_inner_loop_does_not_attach_to_pocket() -> None:
 
 
 def test_intersecting_hole_regions_fall_back_to_historical_pocket_membership() -> None:
-    part = (
-        Box(80, 50, 14)
-        - Pos(0, 0, 5) * Box(20, 12, 10)
-        - Pos(10, 0, 0) * Cylinder(2, 14)
-    )
+    part = Box(80, 50, 14) - Pos(0, 0, 5) * Box(20, 12, 10) - Pos(10, 0, 0) * Cylinder(2, 14)
     graph = FaceGraph(part)
     (proposal,) = _pocket_proposals_one(part, graph=graph)
     assert proposal.constituent == frozenset()
@@ -693,14 +690,18 @@ def test_corner_depth_survives_arbitrary_rigid_motion_through_the_framed_aggrega
     framed = build_framed_recognition_result(moved, rotational=False)
 
     assert isinstance(framed, FramedRecognitionResult)
-    corners = [recess for recess in framed.result.section_recesses
-               if recess.classification.feature_kind == "edge_open_recess"]
+    corners = [
+        recess
+        for recess in framed.result.section_recesses
+        if recess.classification.feature_kind == "edge_open_recess"
+    ]
     assert len(corners) == 1
     geometry = corners[0].geometry
     assert geometry.run_interval[1] - geometry.run_interval[0] == pytest.approx(6)
     points = [vertex.point for vertex in geometry.profile.boundary]
-    assert [max(p[i] for p in points) - min(p[i] for p in points)
-            for i in range(2)] == pytest.approx([15, 15])
+    assert [
+        max(p[i] for p in points) - min(p[i] for p in points) for i in range(2)
+    ] == pytest.approx([15, 15])
 
 
 @pytest.mark.parametrize(
@@ -993,9 +994,7 @@ def test_merge_tolerance_and_max_span_boundaries_drive_pocket_lifecycle(monkeypa
     ends = _obround_ends(base, graph)
     monkeypatch.setattr(module, "_has_side_walls", lambda _faces, _record: True)
     fake_floor = SimpleNamespace(node=FaceNode(999_999))
-    monkeypatch.setattr(
-        module, "_floor_end_faces", lambda _faces, _record: ((fake_floor,), ())
-    )
+    monkeypatch.setattr(module, "_floor_end_faces", lambda _faces, _record: ((fake_floor,), ()))
     for run, accepted in ((below, False), (_MERGE_TOL, False), (above, True)):
         changed = [
             (*ends[0][:5], -run / 2, *ends[0][6:]),
@@ -1029,17 +1028,13 @@ def test_obround_acceptance_carries_one_floor_read_directly_into_membership(monk
         return result
 
     monkeypatch.setattr(module, "_floor_end_faces", counted)
-    proposals = _recognise_obround_from_ends(
-        part, faces, blind=True, graph=graph, proposals=True
-    )
+    proposals = _recognise_obround_from_ends(part, faces, blind=True, graph=graph, proposals=True)
 
     assert len(proposals) == len(reads) == 1
     low, high = reads[0]
     selected = low if low else high
     assert bool(low) != bool(high)
-    assert proposals[0].floors == frozenset(
-        face.node for face in selected if face.node is not None
-    )
+    assert proposals[0].floors == frozenset(face.node for face in selected if face.node is not None)
 
 
 def test_stubby_cap_direction_is_mandatory(monkeypatch) -> None:
@@ -1208,9 +1203,7 @@ def test_private_writer_roster_and_prohibited_reads_are_closed_alias_aware() -> 
         }
         for statement in tree.body:
             if isinstance(statement, ast.ImportFrom) and statement.module:
-                prefix = (
-                    f"quiddity.{statement.module}" if statement.level else statement.module
-                )
+                prefix = f"quiddity.{statement.module}" if statement.level else statement.module
                 for alias in statement.names:
                     target = f"{prefix}.{alias.name}"
                     bindings[alias.asname or alias.name] = target
@@ -1288,21 +1281,17 @@ def test_private_writer_roster_and_prohibited_reads_are_closed_alias_aware() -> 
     target = "quiddity._recess_features._discover_pockets"
     assert (
         resolved_call(
-            "import quiddity._recess_features\n"
-            "quiddity._recess_features._discover_pockets(part)"
+            "import quiddity._recess_features\nquiddity._recess_features._discover_pockets(part)"
         )
         == target
     )
     assert (
-        resolved_call(
-            "import quiddity._recess_features as recess\nrecess._discover_pockets(part)"
-        )
+        resolved_call("import quiddity._recess_features as recess\nrecess._discover_pockets(part)")
         == target
     )
     assert (
         resolved_call(
-            "from quiddity._recess_features import _discover_pockets as discover\n"
-            "discover(part)"
+            "from quiddity._recess_features import _discover_pockets as discover\ndiscover(part)"
         )
         == target
     )

@@ -39,9 +39,15 @@ def import_step_geometry(path: str | os.PathLike[str]) -> Shape:
     status = reader.ReadFile(source)
     if status != IFSelect_ReturnStatus.IFSelect_RetDone:
         raise ValueError(f"cannot read STEP geometry from {source!r}: {status.name}")
+    expected_roots = int(reader.NbRootsForTransfer())
     transferred = int(reader.TransferRoots())
     if transferred <= 0:
         raise ValueError(f"STEP file {source!r} contains no transferable roots")
+    if transferred != expected_roots:
+        raise ValueError(
+            f"STEP file {source!r} transferred {transferred} of {expected_roots} roots; "
+            "refusing incomplete geometry"
+        )
     topology = cast(TopoDS_Shape, downcast(reader.OneShape()))
     if topology.IsNull():
         raise ValueError(f"STEP file {source!r} transferred a null shape")

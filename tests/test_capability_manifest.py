@@ -435,8 +435,12 @@ def test_compatibility_recogniser_contract_fails_closed(changes, message: str) -
     # No retired compatibility entrypoints ship now; exercise the schema with a synthetic
     # compatibility declaration rather than keeping a removed public function alive.
     compatibility = manifest["families"][0]["recognisers"][0]
-    compatibility.update(role="compatibility", ledger_state="unavailable", remove_in="1.0.0",
-                         replacement="quiddity.recognise_section_recesses")
+    compatibility.update(
+        role="compatibility",
+        ledger_state="unavailable",
+        remove_in="1.0.0",
+        replacement="quiddity.recognise_section_recesses",
+    )
     if changes.get("role") == "unknown":
         for key in ("ledger_state", "remove_in", "replacement"):
             compatibility.pop(key)

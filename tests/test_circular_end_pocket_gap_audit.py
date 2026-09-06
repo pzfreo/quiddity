@@ -146,11 +146,7 @@ def test_through_obround_is_not_a_pocket() -> None:
 
 
 def test_incompatible_rounded_ends_do_not_false_extend_a_rectangular_pocket() -> None:
-    tool = (
-        Box(12, 10, 8)
-        + Pos(-6, 0, 0) * Cylinder(5, 8)
-        + Pos(6, 0, 0) * Cylinder(4, 8)
-    )
+    tool = Box(12, 10, 8) + Pos(-6, 0, 0) * Cylinder(5, 8) + Pos(6, 0, 0) * Cylinder(4, 8)
     part = Box(60, 40, 12) - Pos(0, 0, 4) * tool
 
     assert [(record.width, record.length) for record in recognise_pockets(part)] == [(10.0, 12.0)]

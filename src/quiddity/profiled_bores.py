@@ -17,6 +17,8 @@ from math import asin, isfinite, sqrt
 
 from build123d import Face, GeomType, Solid, Vector
 from OCP.BRepAdaptor import BRepAdaptor_Surface
+from OCP.Standard import Standard_ConstructionError, Standard_DomainError, Standard_Failure
+from OCP.StdFail import StdFail_NotDone
 
 from quiddity._adjacency import FaceEdges, edge_face_map
 from quiddity._candidates import FamilyId
@@ -24,6 +26,7 @@ from quiddity._claims import EvidenceWriter
 from quiddity._geometry import part_scale
 from quiddity._record import Record
 from quiddity._typing import FaceLike, Part, Vector3
+from quiddity._volume_probe import intersection_volume
 
 
 @dataclass(frozen=True)
@@ -94,8 +97,7 @@ def _valid_wall_chain_facts(
     if set(intervals) != required:
         return False
     if any(
-        not all(isfinite(value) for value in interval)
-        or interval[1] <= interval[0]
+        not all(isfinite(value) for value in interval) or interval[1] <= interval[0]
         for interval in intervals.values()
     ):
         return False
@@ -161,9 +163,7 @@ def _complete_wall_component(
         found: list = []
         for edge in wire.edges():
             partners = [
-                face
-                for face in incidence.get(edge, ())
-                if not _same_shape(face, boundary_face)
+                face for face in incidence.get(edge, ()) if not _same_shape(face, boundary_face)
             ]
             if len(partners) != 1:
                 return []
@@ -201,8 +201,7 @@ def _complete_wall_component(
             location = plane.Location()
             offset = abs(
                 sum(
-                    ((location.X(), location.Y(), location.Z())[i] - centre[i])
-                    * flat_direction[i]
+                    ((location.X(), location.Y(), location.Z())[i] - centre[i]) * flat_direction[i]
                     for i in range(3)
                 )
             )
@@ -215,13 +214,10 @@ def _complete_wall_component(
                 return False
             location = cylinder.Axis().Location()
             axis_point = (location.X(), location.Y(), location.Z())
-            valid_support = (
-                abs(cylinder.Radius() - profile.major_diameter / 2.0) <= metric_tol
-                and all(
-                    abs(axis_point[i] - centre[i]) <= metric_tol
-                    for i in range(3)
-                    if i != axis_i
-                )
+            valid_support = abs(
+                cylinder.Radius() - profile.major_diameter / 2.0
+            ) <= metric_tol and all(
+                abs(axis_point[i] - centre[i]) <= metric_tol for i in range(3) if i != axis_i
             )
         if not valid_support:
             return False
@@ -246,8 +242,7 @@ def _complete_wall_component(
             values = (normal.X(), normal.Y(), normal.Z())
             location = plane.Location()
             offset = sum(
-                (location.X(), location.Y(), location.Z())[i] * values[i]
-                for i in range(3)
+                (location.X(), location.Y(), location.Z())[i] * values[i] for i in range(3)
             )
             if next(value for value in values if abs(value) > 1e-9) < 0:
                 values = tuple(-value for value in values)
@@ -272,12 +267,12 @@ def _complete_wall_component(
         if left[0] != right[0] or len(left) != len(right):
             return False
         if left[0] == "plane":
-            return all(abs(left[i] - right[i]) <= 1e-4 for i in range(1, 4)) and abs(
-                left[4] - right[4]
-            ) <= metric_tol
-        return (
-            all(abs(left[i] - right[i]) <= 1e-4 for i in range(1, 4))
-            and all(abs(left[i] - right[i]) <= metric_tol for i in range(4, len(left)))
+            return (
+                all(abs(left[i] - right[i]) <= 1e-4 for i in range(1, 4))
+                and abs(left[4] - right[4]) <= metric_tol
+            )
+        return all(abs(left[i] - right[i]) <= 1e-4 for i in range(1, 4)) and all(
+            abs(left[i] - right[i]) <= metric_tol for i in range(4, len(left))
         )
 
     def chain(seed) -> tuple[FaceLike, ...]:
@@ -557,12 +552,17 @@ def double_d_bores_from_openings(
                 )
                 overlap = part & prism
                 volume_tol = max(tol**3, float(prism.volume) * 1e-6)
-                # build123d returns ``None`` for a disjoint Solid/Solid boolean and an empty
-                # Compound for the equivalent Compound/Solid operation. Both prove no material.
-                overlap_volume = 0.0 if overlap is None else float(overlap.volume)
+                overlap_volume = intersection_volume(overlap)
                 if overlap_volume > volume_tol:
                     continue
-            except Exception:  # noqa: BLE001 - a failed topology proof is not recognition
+            except (
+                Standard_Failure,
+                Standard_ConstructionError,
+                Standard_DomainError,
+                StdFail_NotDone,
+                RuntimeError,
+                ValueError,
+            ):
                 continue
             location = list(high_profile.centre)
             location["xyz".index(axis)] = hi
@@ -726,9 +726,7 @@ def read_double_d_tool(
             for a, at, profile, wire in ends
             if a == axis and abs(at - lo) <= scan_tol
         ]
-        high = [
-            profile for a, at, profile, _wire in ends if a == axis and abs(at - hi) <= scan_tol
-        ]
+        high = [profile for a, at, profile, _wire in ends if a == axis and abs(at - hi) <= scan_tol]
         for low_profile, low_wire in low:
             high_profile = next(
                 (
@@ -750,14 +748,21 @@ def read_double_d_tool(
             try:
                 prism = Solid.extrude(Face(low_wire), Vector(*axis_vector))
                 overlap = obj & prism
-                overlap_volume = 0.0 if overlap is None else float(overlap.volume)
+                overlap_volume = intersection_volume(overlap)
                 volume_tol = max(scan_tol**3, float(prism.volume) * 1e-6)
                 if (
                     abs(overlap_volume - float(prism.volume)) > volume_tol
                     or abs(float(obj.volume) - float(prism.volume)) > volume_tol
                 ):
                     continue
-            except Exception:  # noqa: BLE001 - a failed topology proof is not a declaration
+            except (
+                Standard_Failure,
+                Standard_ConstructionError,
+                Standard_DomainError,
+                StdFail_NotDone,
+                RuntimeError,
+                ValueError,
+            ):
                 continue
             centre = list(low_profile.centre)
             centre[i] = (lo + hi) / 2.0

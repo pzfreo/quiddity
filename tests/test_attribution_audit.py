@@ -19,11 +19,11 @@ CONSTRUCTOR_COUNTS = {
     "chamfers.py": ("Chamfer", 2),
     "angled_steps.py": ("AngledStep", 1),
 }
+
+
 def test_new_record_constructor_paths_require_f5b_roster_review() -> None:
     for filename, (constructor, expected) in CONSTRUCTOR_COUNTS.items():
-        tree = ast.parse(
-            (ROOT / "src" / "quiddity" / filename).read_text(encoding="utf-8")
-        )
+        tree = ast.parse((ROOT / "src" / "quiddity" / filename).read_text(encoding="utf-8"))
         found = sum(
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)

@@ -5,11 +5,11 @@ Recognition algorithms and record geometry are unchanged by the rename.
 Quiddity 0.2.0 is the second alpha; the former package was the first alpha.
 This starts Quiddity's own version history, not a downgrade of the old distribution.
 All inherited capabilities therefore have `introduced_in: 0.2.0` in Quiddity's manifest.
-Historical old-package versions remain unchanged. This release is not yet published.
+Historical old-package versions remain unchanged. Quiddity 0.2.0 and 0.2.1 have shipped.
 GitHub releases use `quiddity-v0.2.0` (and the same prefix subsequently), because the old
 package already has a `v0.2.0` tag. The Python package version is simply `0.2.0`.
 
-After the first Quiddity release:
+To migrate:
 
 - Replace the `b123d-recognisers` dependency with `quiddity` and regenerate your lockfile.
 - Replace `b123d_recognisers` imports with `quiddity`, including module-qualified imports.
@@ -48,26 +48,25 @@ The SectionRecess migration in 0.4.15 remains a separate API change; see
 The repository URL is now `https://github.com/pzfreo/quiddity`.
 Update local remotes to that URL; historical provenance keeps the original repository URL.
 Historical reports, release notes and ADRs retain their original package terminology.
-Before merging, configure pending trusted publishers for `quiddity` on TestPyPI and PyPI
-as documented in [releasing](releasing.md). A public project lookup returning 404 does not
-guarantee that either index will accept the name.
+Maintainers should keep the `quiddity` trusted publishers on TestPyPI and PyPI aligned
+with the release workflow as documented in [releasing](releasing.md).
 
 ## Draftwright validation checklist
 
-- Test the rename branch in an isolated development environment; do not merge a mutable
-  branch/path dependency into production.
+- Test a released Quiddity version in an isolated development environment; do not merge a
+  mutable branch/path dependency into production.
 - Update dependency, imports, capability command, manifest identities and format checks.
 - Run existing capability, recognition-to-IR, drawing and serialization tests. Geometry and
   recognition results should not need new expectations merely because the package was renamed.
-- After Quiddity is published, pin its exact stable version and regenerate artifact hashes.
+- Pin the chosen released version and regenerate artifact hashes.
 - Keep rollback to the previous old-name dependency/lockfile available.
 
 ## Old-package retirement
 
-Only after Quiddity is published and verified, prepare `b123d-recognisers 0.4.16` from the
-0.4.15 release line, keeping its runtime code unchanged. Add a prominent rename notice and
-migration link in its distribution README/release notes. Do not build this old-name release
-from the Quiddity source tree or replace it with a dependency-only placeholder.
+The final notice release, `b123d-recognisers 0.4.16`, has shipped from the old release line
+with a rename notice and migration link. It is not a forwarding shim.
+Any further old-name maintenance must preserve that separate release line; do not build an
+old-name release from the Quiddity source tree or replace it with a dependency-only placeholder.
 Keep all existing releases and project ownership; do not delete or yank old releases.
 The new project's trusted-publisher configuration does not replace the old project's publisher.
 Keep old-name updates on that maintenance branch. Its release workflow must not run the

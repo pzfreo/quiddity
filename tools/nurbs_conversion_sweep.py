@@ -155,8 +155,7 @@ def _validate_topology(native, converted, correspondence: tuple[int, ...]) -> di
     for name, value in observed.items():
         if value > REVIEWED_DELTA_BOUNDS[name]:
             raise RuntimeError(
-                f"{name} delta {value!r} exceeds reviewed bound "
-                f"{REVIEWED_DELTA_BOUNDS[name]!r}"
+                f"{name} delta {value!r} exceeds reviewed bound {REVIEWED_DELTA_BOUNDS[name]!r}"
             )
     # Do not serialize raw OCCT integration results: their insignificant final
     # digits vary by platform. The checked-in evidence records only the stable
@@ -169,9 +168,7 @@ def _validate_topology(native, converted, correspondence: tuple[int, ...]) -> di
     }
 
 
-def _parameter_delta(
-    kind: SurfaceKind, left: tuple[float, ...], right: tuple[float, ...]
-) -> float:
+def _parameter_delta(kind: SurfaceKind, left: tuple[float, ...], right: tuple[float, ...]) -> float:
     """Return a primitive-gauge-invariant maximum parameter delta.
 
     Plane and axis directions describe the same geometry after simultaneous sign

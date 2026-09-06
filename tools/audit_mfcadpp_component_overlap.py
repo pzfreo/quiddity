@@ -135,9 +135,7 @@ def main() -> int:
 
     rows = []
     family_component_touches: Counter[str] = Counter()
-    family_totals: dict[str, Counter[str]] = {
-        family: Counter() for family in compared_families
-    }
+    family_totals: dict[str, Counter[str]] = {family: Counter() for family in compared_families}
     totals: Counter[str] = Counter()
     for path in paths:
         truth = load_mfcadpp_truth(path)
@@ -157,10 +155,7 @@ def main() -> int:
         mapped = tuple(claim for claim in claims if claim["family"] in args.mapped_family)
         for ordinal, component in enumerate(_components(graph, nodes), start=1):
             ordered = sorted(component, key=lambda node: node.index)
-            planes = {
-                node: axis_aligned_axis(graph.face(node).wrapped)
-                for node in ordered
-            }
+            planes = {node: axis_aligned_axis(graph.face(node).wrapped) for node in ordered}
             principal_axis_names = []
             for node in ordered:
                 plane = planes[node]
@@ -194,9 +189,7 @@ def main() -> int:
                     "surface_counts": dict(
                         sorted(Counter(graph.face(node).geom_type.name for node in ordered).items())
                     ),
-                    "principal_plane_axes": dict(
-                        sorted(Counter(principal_axis_names).items())
-                    ),
+                    "principal_plane_axes": dict(sorted(Counter(principal_axis_names).items())),
                     "faces": [
                         {
                             "index": node.index,
@@ -239,15 +232,12 @@ def main() -> int:
         "summary": dict(sorted(totals.items())),
         "constituent_component_touches_by_family": dict(sorted(family_component_touches.items())),
         "family_summary": {
-            family: dict(sorted(summary.items()))
-            for family, summary in family_totals.items()
+            family: dict(sorted(summary.items())) for family, summary in family_totals.items()
         },
         "components": rows,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(
-        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     summary = {key: value for key, value in report.items() if key != "components"}
     print(json.dumps(summary, indent=2))
     return 0

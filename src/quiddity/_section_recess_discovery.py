@@ -11,8 +11,8 @@ from quiddity._section_recess import (
     SectionRecess,
     SectionRecessClassification,
     SectionRecessEvidence,
-    _candidates,
 )
+from quiddity._section_recess_geometry import _candidates
 from quiddity._typing import Part
 
 

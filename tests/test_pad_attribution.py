@@ -128,9 +128,7 @@ def _assert_signed_five_face_evidence(
     terminal = record_bounds[axis_index][1 if record.direction > 0 else 0]
     base = record_bounds[axis_index][0 if record.direction > 0 else 1]
     top_nodes = [
-        node
-        for node in nodes
-        if abs(product.context.graph.normal(node)[axis_index]) >= 0.99
+        node for node in nodes if abs(product.context.graph.normal(node)[axis_index]) >= 0.99
     ]
     assert len(top_nodes) == 1
     top = top_nodes[0]
@@ -1217,11 +1215,7 @@ def test_rotated_non_pad_controls_remain_negative_or_independently_owned(rotatio
     pocket = Box(80, 60, 10) - Pos(0, 0, 3) * Box(30, 20, 4)
     polygonal = Box(80, 60, 10) + Pos(0, 0, 5) * extrude(RegularPolygon(10, 6), 4)
     detached = Compound([Box(80, 60, 10), Pos(0, 0, 20) * Box(30, 20, 4)])
-    staircase = (
-        Box(80, 60, 10)
-        + Pos(0, 0, 7) * Box(30, 20, 4)
-        + Pos(0, 0, 11) * Box(10, 8, 4)
-    )
+    staircase = Box(80, 60, 10) + Pos(0, 0, 7) * Box(30, 20, 4) + Pos(0, 0, 11) * Box(10, 8, 4)
 
     assert recognise_rectangular_pads(rotation * pocket) == []
     assert recognise_rectangular_pads(rotation * polygonal) == []

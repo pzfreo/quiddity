@@ -3,9 +3,9 @@
 """Immutable aggregate of one complete recognition pass.
 
 This is the orchestration boundary above the package ADR 0002 recognisers. It owns every public
-recognition family and the shared evidence consumers reuse. It deliberately stops at
-geometry-only evidence: reconciliation, requirement identity, drawing policy, and diagnostics
-belong to consumers and require their own independent evidence.
+recognition family and the shared evidence consumers reuse. It owns candidate reconciliation,
+bounded geometric diagnostics and public-result projection. Requirement identity, drawing
+policy and manufacturing decisions belong to consumers and require their own evidence.
 """
 
 from __future__ import annotations
@@ -77,8 +77,8 @@ from quiddity._section_recess import (
     SectionRecessGeometry,
     SectionRecessGrid,
     SectionRecessRefusal,
-    _polygonal_shape,
 )
+from quiddity._section_recess_geometry import _polygonal_shape
 from quiddity._sections import LocalFrame
 from quiddity._typing import Bounds, CylinderInventory, FrozenCylinderInventory, Part
 from quiddity.angled_steps import AngledStep
@@ -494,8 +494,9 @@ def build_recognition_result(
 
     New integrations should ordinarily use ``build_framed_recognition_result`` and retain its
     frame and working part.  Use ``build_raw_recognition_result`` when caller/world coordinates
-    are deliberately required.  This name retains its raw semantics throughout the 0.4 release
-    line and is scheduled for removal in 0.5.0; it will not silently change return type.
+    are deliberately required. This compatibility name retains caller-coordinate semantics;
+    it will not silently change return type. The former pre-Quiddity 0.4/0.5 migration schedule
+    is historical, not a removal promise for the reset Quiddity version series.
     """
 
     return build_raw_recognition_result(

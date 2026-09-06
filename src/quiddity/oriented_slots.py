@@ -50,8 +50,7 @@ def _canonical_direction(vector: Vector3) -> Vector3:
 def _world_direction(source: SectionPassage, vector: tuple[float, float]) -> Vector3:
     return _canonical_direction(
         tuple(
-            vector[0] * source.frame.u[axis] + vector[1] * source.frame.v[axis]
-            for axis in range(3)
+            vector[0] * source.frame.u[axis] + vector[1] * source.frame.v[axis] for axis in range(3)
         )  # type: ignore[arg-type]
     )
 
@@ -123,8 +122,7 @@ def _rectangle(source: SectionPassage) -> tuple[Vector3, Vector3, float, float] 
     if any(abs(lengths[at] - lengths[at + 2]) > _VECTOR_ERROR for at in (0, 1)):
         return None
     if any(
-        _length(tuple(edges[at][axis] + edges[at + 2][axis] for axis in range(2)))
-        > _VECTOR_ERROR
+        _length(tuple(edges[at][axis] + edges[at + 2][axis] for axis in range(2))) > _VECTOR_ERROR
         for at in (0, 1)
     ):
         return None
@@ -135,12 +133,8 @@ def _rectangle(source: SectionPassage) -> tuple[Vector3, Vector3, float, float] 
         return None
     long_at = 0 if lengths[0] > lengths[1] else 1
     width_at = 1 - long_at
-    long_direction = _world_direction(
-        source, (edges[long_at][0], edges[long_at][1])
-    )
-    width_direction = _world_direction(
-        source, (edges[width_at][0], edges[width_at][1])
-    )
+    long_direction = _world_direction(source, (edges[long_at][0], edges[long_at][1]))
+    width_direction = _world_direction(source, (edges[width_at][0], edges[width_at][1]))
     return width_direction, long_direction, lengths[width_at], lengths[long_at]
 
 
@@ -172,12 +166,20 @@ def _project(source: SectionPassage, body_key: tuple[float, ...] | None) -> Orie
 def _body_keys(
     graph: FaceGraph, solids: tuple[SolidRef, ...]
 ) -> dict[SolidRef, tuple[float, ...] | None]:
-    unique = tuple(dict.fromkeys(solids))
+    # Ambiguity is a property of the complete input, not just bodies on which this
+    # detector happened to find a slot. A non-slot body can have the same signature.
+    unique = tuple(
+        dict.fromkeys(
+            solid
+            for node in graph.nodes
+            if (solid := graph.common_valid_solid((node,))) is not None
+        )
+    )
     signatures = {solid: body_signature(graph.solid_shape(solid)) for solid in unique}
     counts = Counter(signatures.values())
     return {
-        solid: signature if counts[signature] == 1 else None
-        for solid, signature in signatures.items()
+        solid: signatures[solid] if counts[signatures[solid]] == 1 else None
+        for solid in dict.fromkeys(solids)
     }
 
 

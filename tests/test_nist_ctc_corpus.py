@@ -108,6 +108,7 @@ def _expected_after_supported_changes(stem: str, baseline: dict[str, int]) -> di
             expected[family] += change
     return expected
 
+
 _VENDORED = Path(__file__).parent / "corpus" / "nist"
 _DIR = os.environ.get("B123D_NIST_STEP_DIR") or str(_VENDORED)
 
@@ -172,7 +173,7 @@ _OBSERVED = {
         "holes": 23,
         "plates": 5,
         "slots": 5,
-        "step_levels": 10
+        "step_levels": 10,
     },
     "nist_ftc_08": {
         "cylinders": 2,
@@ -182,7 +183,7 @@ _OBSERVED = {
         "plates": 5,
         "pockets": 10,
         "slots": 4,
-        "step_levels": 3
+        "step_levels": 3,
     },
     "nist_ftc_09": {
         "chamfers": 8,
@@ -192,7 +193,7 @@ _OBSERVED = {
         "holes": 30,
         "pockets": 9,
         "slots": 3,
-        "step_levels": 15
+        "step_levels": 15,
     },
     "nist_ftc_10": {
         "cylinders": 2,
@@ -201,8 +202,8 @@ _OBSERVED = {
         "holes": 30,
         "pockets": 5,
         "slots": 2,
-        "step_levels": 10
-    }
+        "step_levels": 10,
+    },
 }
 
 

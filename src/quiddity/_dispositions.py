@@ -32,9 +32,7 @@ class ReasonCode(Enum):
     PASSAGE_SUPERSEDED_BY_SLOT = "recess.passage_superseded_by_slot"
     PASSAGE_SUPERSEDED_BY_ORIENTED_SLOT = "recess.passage_superseded_by_oriented_slot"
     CHAMFER_SUPERSEDED_BY_ANGLED_STEP = "bevel.chamfer_superseded_by_angled_step"
-    FILLET_SUPERSEDED_BY_CIRCULAR_BLIND_STEP = (
-        "blend.fillet_superseded_by_circular_blind_step"
-    )
+    FILLET_SUPERSEDED_BY_CIRCULAR_BLIND_STEP = "blend.fillet_superseded_by_circular_blind_step"
     BLEND_SUPERSEDED_BY_FILLET = "blend.chain_superseded_by_fillet"
     HOLE_SUPERSEDED_BY_DOUBLE_D_BORE = "bore.hole_superseded_by_double_d_bore"
     TURNED_STEP_GROOVE_COMPATIBLE = "turned.step_groove_compatible"
@@ -258,9 +256,7 @@ class ReconciliationResult:
             raise ValueError("candidate set is not covered by this reconciliation")
 
         accepted = {
-            id(item.candidate)
-            for item in self.dispositions
-            if item.outcome is Outcome.ACCEPTED
+            id(item.candidate) for item in self.dispositions if item.outcome is Outcome.ACCEPTED
         }
         result = object.__new__(CandidateSet)
         object.__setattr__(result, "family", source.family)

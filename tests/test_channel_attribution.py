@@ -329,9 +329,7 @@ def test_canonical_channel_owns_only_two_opposed_walls() -> None:
 
 
 @pytest.mark.parametrize("alias_wall", [False, True])
-def test_missing_or_wall_aliased_floor_refuses_before_publication(
-    monkeypatch, alias_wall
-) -> None:
+def test_missing_or_wall_aliased_floor_refuses_before_publication(monkeypatch, alias_wall) -> None:
     part = build_fixture()
     graph = FaceGraph(part)
     ledger = ClaimLedger(graph)

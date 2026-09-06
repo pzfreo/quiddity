@@ -61,9 +61,7 @@ def verify(checkout: Path, manifest_path: Path = DEFAULT_MANIFEST) -> None:
         path = source_file["path"]
         actual_blob = _git(checkout, "rev-parse", f"HEAD:{path}")
         if actual_blob != source_file["blob"]:
-            raise BaselineError(
-                f"blob for {path} is {actual_blob}, expected {source_file['blob']}"
-            )
+            raise BaselineError(f"blob for {path} is {actual_blob}, expected {source_file['blob']}")
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -142,9 +142,7 @@ def probe_pair(
     angular_span = float(evidence["u_extent"])
     if not _is_concave(graph, cylinder, terminal):
         return PairProbe(_GATES[2], axis_name, radius, None, angular_span, None)
-    if not math.isclose(
-        angular_span, math.pi / 2, rel_tol=0.0, abs_tol=_QUARTER_TURN_RAD_TOL
-    ):
+    if not math.isclose(angular_span, math.pi / 2, rel_tol=0.0, abs_tol=_QUARTER_TURN_RAD_TOL):
         return PairProbe(_GATES[3], axis_name, radius, None, angular_span, None)
     if evidence["external"]:
         return PairProbe(_GATES[4], axis_name, radius, None, angular_span, None)
@@ -211,9 +209,7 @@ def candidate_pairs(
 ) -> tuple[tuple[FaceNode, FaceNode, PairProbe], ...]:
     """Return every pair satisfying all proposed general geometry gates."""
 
-    evidence_by_node = {
-        graph.require_node(item["face"]): item for item in cylinder_evidence
-    }
+    evidence_by_node = {graph.require_node(item["face"]): item for item in cylinder_evidence}
     found = []
     for cylinder, evidence in sorted(evidence_by_node.items(), key=lambda item: item[0].index):
         for terminal in graph.neighbours(cylinder):
@@ -233,9 +229,7 @@ def describe_component(
     """Return a traversal-neutral labelled-component anatomy descriptor."""
 
     ordered = tuple(sorted(nodes, key=lambda node: node.index))
-    evidence_by_node = {
-        graph.require_node(item["face"]): item for item in cylinder_evidence
-    }
+    evidence_by_node = {graph.require_node(item["face"]): item for item in cylinder_evidence}
     probes = [
         probe_pair(graph, cylinder, terminal, evidence_by_node.get(cylinder))
         for cylinder in ordered
@@ -323,8 +317,7 @@ def main() -> int:
         )
         component_total += len(components)
         recalled = sum(
-            any(component & defining for defining in prediction_nodes)
-            for component in components
+            any(component & defining for defining in prediction_nodes) for component in components
         )
         recalled_components += recalled
         model_rows = []
@@ -378,9 +371,7 @@ def main() -> int:
         ),
         "predictions": prediction_total,
         "true_predictions": true_predictions,
-        "prediction_precision": (
-            true_predictions / prediction_total if prediction_total else None
-        ),
+        "prediction_precision": (true_predictions / prediction_total if prediction_total else None),
         "defining_faces": defining_faces,
         "true_defining_faces": true_defining_faces,
         "defining_face_precision": (

@@ -79,13 +79,16 @@ def test_a_four_wall_passage_survives_when_no_slot_candidate_claims_it() -> None
     empty_rings = ledger.candidate_set_for(FamilyId.PRISMATIC_POCKETS, ())
     passages = ledger.candidate_set_for(FamilyId.PASSAGES, passages_found)
 
-    assert reconcile_recess_candidates(
-        empty_slots,
-        empty_pockets,
-        empty_rings,
-        passages,
-        ledger.snapshot_index(),
-    ) == ()
+    assert (
+        reconcile_recess_candidates(
+            empty_slots,
+            empty_pockets,
+            empty_rings,
+            passages,
+            ledger.snapshot_index(),
+        )
+        == ()
+    )
 
 
 def test_a_through_slot_is_reported_here_too_and_the_aggregate_resolves_it():
@@ -456,6 +459,8 @@ def test_a_ledger_built_from_another_part_is_refused_rather_than_answered():
         assert "built from a different part" in str(refusal)
     else:
         raise AssertionError("recognise_section_passages answered about another part's graph")
+
+
 def _attributed_sections(part):
     plain = recognise_section_passages(part)
     ledger = ClaimLedger(FaceGraph(part))
@@ -464,7 +469,6 @@ def _attributed_sections(part):
     candidates = ledger.candidate_set(FamilyId.PASSAGES).candidates
     assert len(candidates) == len(measured)
     assert all(
-        candidate.record is record
-        for candidate, record in zip(candidates, measured, strict=True)
+        candidate.record is record for candidate, record in zip(candidates, measured, strict=True)
     )
     return ledger, measured

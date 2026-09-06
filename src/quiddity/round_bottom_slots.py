@@ -15,6 +15,8 @@ from math import pi
 from build123d import Face, GeomType, Solid, Vector, Wire
 from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.GeomAbs import GeomAbs_Cylinder
+from OCP.Standard import Standard_ConstructionError, Standard_DomainError, Standard_Failure
+from OCP.StdFail import StdFail_NotDone
 
 from quiddity._adjacency import FaceGraph, FaceNode, axis_aligned_axis, is_any_smooth
 from quiddity._candidates import EvidenceSink, FamilyId
@@ -28,6 +30,7 @@ from quiddity._geometry import (
 )
 from quiddity._record import Record
 from quiddity._typing import EdgeLike, Part
+from quiddity._volume_probe import intersection_volume
 
 _AXES = "xyz"
 _LENGTH_REL = 1e-7
@@ -153,27 +156,45 @@ def _region_boundary_wire(
     if any(count > 2 for count in uses.values()):
         return None
     boundary = [edge for edge, count in uses.items() if count == 1]
-    wires = list(Wire.combine(boundary, tol=COORD_FLOOR))
+    try:
+        wires = list(Wire.combine(boundary, tol=COORD_FLOOR))
+    except (
+        Standard_Failure,
+        Standard_ConstructionError,
+        Standard_DomainError,
+        StdFail_NotDone,
+        RuntimeError,
+        ValueError,
+    ):
+        return None
     if len(wires) != 1 or not wires[0].is_closed:
         return None
     if not planar:
         return wires[0]
-    try:
-        face = Face(wires[0])
-    except Exception:
-        return None
-    return wires[0] if face.is_valid else None
+    return wires[0] if _validated_planar_face(wires[0]) is not None else None
 
 
 def _region_face(graph: FaceGraph, nodes: frozenset[FaceNode]) -> Face | None:
-    wire = _region_boundary_wire(graph, nodes)
+    wire = _region_boundary_wire(graph, nodes, planar=False)
     if wire is None:
         return None
+    return _validated_planar_face(wire)
+
+
+def _validated_planar_face(wire: Wire) -> Face | None:
+    """Refuse kernel construction failure, but do not hide programming/invariant errors."""
     try:
         face = Face(wire)
-    except Exception:
+        return face if face.is_valid else None
+    except (
+        Standard_Failure,
+        Standard_ConstructionError,
+        Standard_DomainError,
+        StdFail_NotDone,
+        RuntimeError,
+        ValueError,
+    ):
         return None
-    return face if face.is_valid else None
 
 
 def _coplanar_region(graph: FaceGraph, seed: FaceNode) -> frozenset[FaceNode]:
@@ -430,11 +451,7 @@ def _empty_sweep(cap_face, part, run: int, distance: float) -> bool:
     direction[run] = distance
     probe = Solid.extrude(cap_face, Vector(*direction))
     intersection = part.intersect(probe)
-    if intersection is None:
-        return True
-    if hasattr(intersection, "volume"):
-        return bool(intersection.volume == 0.0)
-    return bool(sum(shape.volume for shape in intersection) == 0.0)
+    return intersection_volume(intersection) == 0.0
 
 
 def _recognise_one(

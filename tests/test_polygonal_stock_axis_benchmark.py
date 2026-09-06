@@ -31,12 +31,10 @@ def test_effectiveness_report_pins_neutral_complete_corpus_result() -> None:
     assert report["summary"]["empty"] == 0
     assert report["summary"] == baseline["summary"]
     without_seconds = [
-        {key: value for key, value in row.items() if key != "seconds"}
-        for row in report["models"]
+        {key: value for key, value in row.items() if key != "seconds"} for row in report["models"]
     ]
     baseline_without_seconds = [
-        {key: value for key, value in row.items() if key != "seconds"}
-        for row in baseline["models"]
+        {key: value for key, value in row.items() if key != "seconds"} for row in baseline["models"]
     ]
     assert without_seconds == baseline_without_seconds
 

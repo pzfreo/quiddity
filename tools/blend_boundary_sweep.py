@@ -189,9 +189,7 @@ def _outcome(
         return "same-family"
     if after:
         return "changed-record"
-    introduced = any(
-        not plain[family] and blended[family] for family in reclassification_families
-    )
+    introduced = any(not plain[family] and blended[family] for family in reclassification_families)
     return "reclassified" if introduced else "absent"
 
 
@@ -208,9 +206,7 @@ def sweep() -> dict[str, Any]:
             if not blended_part.is_valid:
                 raise RuntimeError(f"{case.name} radius {radius} produced an invalid solid")
             blended = _records(blended_part)
-            outcome = _outcome(
-                case.expected_family, case.reclassification_families, plain, blended
-            )
+            outcome = _outcome(case.expected_family, case.reclassification_families, plain, blended)
             totals[outcome] += 1
             variants.append(
                 {
@@ -218,14 +214,10 @@ def sweep() -> dict[str, Any]:
                     "outcome": outcome,
                     "expected_records": blended[case.expected_family],
                     "introduced_families": [
-                        family
-                        for family in _FAMILIES
-                        if not plain[family] and blended[family]
+                        family for family in _FAMILIES if not plain[family] and blended[family]
                     ],
                     "removed_families": [
-                        family
-                        for family in _FAMILIES
-                        if plain[family] and not blended[family]
+                        family for family in _FAMILIES if plain[family] and not blended[family]
                     ],
                     "records": blended,
                 }

@@ -70,11 +70,7 @@ def test_every_planar_face_of_the_part_survives_the_reduction():
     """
 
     part = _oblique_walled_block()
-    planar = [
-        face
-        for face in part.faces()
-        if face.geom_type.name.upper().startswith("PLANE")
-    ]
+    planar = [face for face in part.faces() if face.geom_type.name.upper().startswith("PLANE")]
     assert len(_planar_faces(part)) == len(planar) > 0
 
 

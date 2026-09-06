@@ -45,9 +45,7 @@ def test_cylinder_equivalence_ignores_seam_rotation_but_not_radius() -> None:
 
     assert equivalent_parameters(SurfaceKind.CYLINDER, left, right, local=10.0)
     changed_radius = (*right[:-1], right[-1] + 1e-3)
-    assert not equivalent_parameters(
-        SurfaceKind.CYLINDER, left, changed_radius, local=10.0
-    )
+    assert not equivalent_parameters(SurfaceKind.CYLINDER, left, changed_radius, local=10.0)
 
 
 @pytest.mark.parametrize(
@@ -72,9 +70,7 @@ def test_analytic_equivalence_has_closed_primitive_specific_rules(
 @pytest.mark.parametrize("local", [0.0, -1.0, float("nan")])
 def test_analytic_equivalence_refuses_invalid_local_scale(local: float) -> None:
     with pytest.raises(ValueError, match="finite positive"):
-        equivalent_parameters(
-            SurfaceKind.PLANE, (0, 0, 1, 0), (0, 0, 1, 0), local=local
-        )
+        equivalent_parameters(SurfaceKind.PLANE, (0, 0, 1, 0), (0, 0, 1, 0), local=local)
 
 
 @pytest.mark.parametrize(

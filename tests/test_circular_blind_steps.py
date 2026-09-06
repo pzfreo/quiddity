@@ -49,9 +49,7 @@ from quiddity.result import _take_inventory
 def _step(scale: float = 1.0):
     stock = Box(40 * scale, 30 * scale, 20 * scale)
     removal = (
-        Pos(7.5 * scale, 15 * scale, 10 * scale)
-        * Rot(0, 90, 0)
-        * Cylinder(4 * scale, 25 * scale)
+        Pos(7.5 * scale, 15 * scale, 10 * scale) * Rot(0, 90, 0) * Cylinder(4 * scale, 25 * scale)
     )
     return stock - removal
 
@@ -127,9 +125,7 @@ def test_exact_bspline_cylinder_keeps_record_and_original_surface_provenance() -
 
     assert records == recognise_circular_blind_steps(native)
     (candidate,) = ledger.candidate_set(FamilyId.CIRCULAR_BLIND_STEPS).candidates
-    assert {use.node for use in candidate.evidence.surfaces} == set(
-        candidate.evidence.defining
-    )
+    assert {use.node for use in candidate.evidence.surfaces} == set(candidate.evidence.defining)
     by_kind = {use.surface.kind: use for use in candidate.evidence.surfaces}
     cylinder = by_kind[SurfaceKind.CYLINDER]
     terminal = by_kind[SurfaceKind.PLANE]
@@ -168,15 +164,12 @@ def test_quarter_turn_parameter_tolerance_accepts_inside_and_refuses_outside() -
         )
 
     for sign in (-1, 1):
-        assert len(
-            recognise_circular_blind_steps(
-                part, cyls=changed(sign * QUARTER_TURN_RAD_TOL / 2)
-            )
-        ) == 1
         assert (
-            recognise_circular_blind_steps(
-                part, cyls=changed(sign * QUARTER_TURN_RAD_TOL * 2)
-            )
+            len(recognise_circular_blind_steps(part, cyls=changed(sign * QUARTER_TURN_RAD_TOL / 2)))
+            == 1
+        )
+        assert (
+            recognise_circular_blind_steps(part, cyls=changed(sign * QUARTER_TURN_RAD_TOL * 2))
             == []
         )
 

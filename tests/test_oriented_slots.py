@@ -51,8 +51,10 @@ def _rectangular_through_slot(angle: float = 30.0):
 def _oriented_slot_pattern(points, *, angle: float = 30.0):
     part = Box(120, 90, 10)
     for x, y in points:
-        part -= Pos(x, y, 0) * Rot(0, 0, angle) * Box(
-            24, 6, 20, align=(Align.CENTER, Align.CENTER, Align.CENTER)
+        part -= (
+            Pos(x, y, 0)
+            * Rot(0, 0, angle)
+            * Box(24, 6, 20, align=(Align.CENTER, Align.CENTER, Align.CENTER))
         )
     return part
 
@@ -69,14 +71,7 @@ def test_free_axis_rectangle_is_an_oriented_slot(angle: float) -> None:
     assert record.center == (0.0, 0.0, 0.0)
     # Public section vertices are serialized to 0.001 model units before this projection.
     assert (
-        abs(
-            sum(
-                a * b
-                for a, b in zip(
-                    record.width_direction, record.long_direction, strict=True
-                )
-            )
-        )
+        abs(sum(a * b for a, b in zip(record.width_direction, record.long_direction, strict=True)))
         < 2e-5
     )
     assert record.source == recognise_section_passages(part)[0]
@@ -148,9 +143,7 @@ def test_record_directions_follow_a_rotated_whole_part() -> None:
 def test_public_record_accepts_serialized_frame_after_arbitrary_rigid_transform(
     x_angle: float, z_angle: float
 ) -> None:
-    base = Box(120, 90, 10) - Rot(0, 0, 30) * Box(
-        24, 6, 20, align=(Align.CENTER,) * 3
-    )
+    base = Box(120, 90, 10) - Rot(0, 0, 30) * Box(24, 6, 20, align=(Align.CENTER,) * 3)
     moved = base.rotate(Axis.X, x_angle).rotate(Axis.Z, z_angle)
 
     (record,) = recognise_oriented_slots(moved)
@@ -253,18 +246,26 @@ def test_patterns_require_matching_geometry_plane_orientation_and_body() -> None
 
     assert pattern.slots == tuple(members)
     assert pattern.pitch == pytest.approx(20.0)
-    assert recognise_oriented_slot_patterns(
-        [members[0], members[1], replace(members[2], width=9.0)]
-    ) == []
-    assert recognise_oriented_slot_patterns(
-        [members[0], members[1], replace(members[2], length=31.0)]
-    ) == []
-    assert recognise_oriented_slot_patterns(
-        [members[0], members[1], replace(members[2], center=(20.0, 0.0, 2.0))]
-    ) == []
-    assert recognise_oriented_slot_patterns(
-        [members[0], members[1], replace(members[2], body_key=None)]
-    ) == []
+    assert (
+        recognise_oriented_slot_patterns([members[0], members[1], replace(members[2], width=9.0)])
+        == []
+    )
+    assert (
+        recognise_oriented_slot_patterns([members[0], members[1], replace(members[2], length=31.0)])
+        == []
+    )
+    assert (
+        recognise_oriented_slot_patterns(
+            [members[0], members[1], replace(members[2], center=(20.0, 0.0, 2.0))]
+        )
+        == []
+    )
+    assert (
+        recognise_oriented_slot_patterns(
+            [members[0], members[1], replace(members[2], body_key=None)]
+        )
+        == []
+    )
 
 
 def test_real_array_and_grid_are_derived_from_aggregate_occurrences() -> None:
@@ -272,9 +273,7 @@ def test_real_array_and_grid_are_derived_from_aggregate_occurrences() -> None:
         _oriented_slot_pattern(((-30, 0), (0, 0), (30, 0))), rotational=False
     )
     grid = build_recognition_result(
-        _oriented_slot_pattern(
-            ((-30, -20), (0, -20), (30, -20), (-30, 20), (0, 20), (30, 20))
-        ),
+        _oriented_slot_pattern(((-30, -20), (0, -20), (30, -20), (-30, 20), (0, 20), (30, 20))),
         rotational=False,
     )
 
@@ -298,8 +297,10 @@ def test_compound_ownership_prevents_cross_body_patterns() -> None:
 def test_competing_orientation_and_material_obstruction_refuse_false_patterns() -> None:
     mixed = Box(120, 90, 10)
     for x, angle in ((-30, 30), (0, 30), (30, 45)):
-        mixed -= Pos(x, 0, 0) * Rot(0, 0, angle) * Box(
-            24, 6, 20, align=(Align.CENTER, Align.CENTER, Align.CENTER)
+        mixed -= (
+            Pos(x, 0, 0)
+            * Rot(0, 0, angle)
+            * Box(24, 6, 20, align=(Align.CENTER, Align.CENTER, Align.CENTER))
         )
     obstructed = _rectangular_through_slot(30) + Box(
         2, 20, 10, align=(Align.CENTER, Align.CENTER, Align.CENTER)

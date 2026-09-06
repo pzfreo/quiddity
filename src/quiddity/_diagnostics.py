@@ -17,9 +17,7 @@ class DiagnosticStatus(Enum):
 
 
 class DiagnosticCode(Enum):
-    UNSUPPORTED_SUBDIVIDED_ANGLED_STEP_TERMINAL = (
-        "unsupported.subdivided_angled_step_terminal"
-    )
+    UNSUPPORTED_SUBDIVIDED_ANGLED_STEP_TERMINAL = "unsupported.subdivided_angled_step_terminal"
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,9 +65,7 @@ def diagnose_residuals(
     for observations in grouped.values():
         observation = min(
             observations,
-            key=lambda item: (
-                item.fact.raw_outer_edges, item.fact.effective_outer_sides
-            ),
+            key=lambda item: (item.fact.raw_outer_edges, item.fact.effective_outer_sides),
         )
         subject = frozenset({observation.subject})
         owners = tuple(

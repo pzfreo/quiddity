@@ -58,9 +58,7 @@ class ReconciliationReason(Enum):
     PASSAGE_SUPERSEDED_BY_SLOT = "recess.passage_superseded_by_slot"
     PASSAGE_SUPERSEDED_BY_ORIENTED_SLOT = "recess.passage_superseded_by_oriented_slot"
     CHAMFER_SUPERSEDED_BY_ANGLED_STEP = "bevel.chamfer_superseded_by_angled_step"
-    FILLET_SUPERSEDED_BY_CIRCULAR_BLIND_STEP = (
-        "blend.fillet_superseded_by_circular_blind_step"
-    )
+    FILLET_SUPERSEDED_BY_CIRCULAR_BLIND_STEP = "blend.fillet_superseded_by_circular_blind_step"
     BLEND_SUPERSEDED_BY_FILLET = "blend.chain_superseded_by_fillet"
     HOLE_SUPERSEDED_BY_DOUBLE_D_BORE = "bore.hole_superseded_by_double_d_bore"
     TURNED_STEP_GROOVE_COMPATIBLE = "turned.step_groove_compatible"
@@ -76,14 +74,16 @@ class RecognitionDiagnosticStatus(Enum):
 class RecognitionDiagnosticCode(Enum):
     """Closed codes currently established by frozen run evidence."""
 
-    UNSUPPORTED_SUBDIVIDED_ANGLED_STEP_TERMINAL = (
-        "unsupported.subdivided_angled_step_terminal"
-    )
+    UNSUPPORTED_SUBDIVIDED_ANGLED_STEP_TERMINAL = "unsupported.subdivided_angled_step_terminal"
 
 
 @dataclass(frozen=True, slots=True)
 class DispositionExplanation:
-    """Counted final outcomes sharing one closed reason."""
+    """Candidate outcomes sharing one reason, not published physical occurrences.
+
+    ``occurrences`` counts candidate dispositions; ``related_occurrences`` sums their
+    related-candidate links and may count the same related candidate more than once.
+    """
 
     reason: ReconciliationReason
     outcome: RecognitionOutcome
@@ -93,7 +93,11 @@ class DispositionExplanation:
 
 @dataclass(frozen=True, slots=True)
 class FamilyExplanation:
-    """Bounded lifecycle counts for one closed physical family."""
+    """Bounded lifecycle counts for one detector family.
+
+    Accepted candidates precede public projection and deduplication. Several detectors
+    can contribute to one published occurrence; these counts are not a feature census.
+    """
 
     family: str
     evaluation: FamilyEvaluation
@@ -118,12 +122,28 @@ class RecognitionDiagnostic:
 
 @dataclass(frozen=True, slots=True)
 class RecognitionReport:
-    """One result and its bounded explanation from exactly the same recognition run."""
+    """One public result and detector explanations from exactly the same run.
+
+    Use ``detector_families`` for candidate lifecycle counts and the collections in
+    ``result`` for published records. ``families`` retains the original detector-count
+    field; neither name counts deduplicated public occurrences.
+    """
 
     coverage: ExplanationCoverage
     result: RecognitionResult
     families: tuple[FamilyExplanation, ...]
     diagnostics: tuple[RecognitionDiagnostic, ...]
+
+    @property
+    def detector_families(self) -> tuple[FamilyExplanation, ...]:
+        """Explicitly named view of detector counts, preserving their provenance.
+
+        For example, accepted ``pockets`` and ``section_recesses`` candidates may
+        publish one record in ``result.section_recesses``. Summing accepted counts
+        would count detector decisions, not distinct recognised features.
+        """
+
+        return self.families
 
 
 def _project_diagnostic(item: ResidualDiagnostic) -> RecognitionDiagnostic:

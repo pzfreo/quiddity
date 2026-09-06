@@ -38,6 +38,7 @@ def _run_case(part: Any, enabled: bool, operation: Callable[[Any], Any]) -> tupl
 
     original: Any = pads._recognise_blended_rectangular_pads_one
     if not enabled:
+
         def disabled(*_args: Any, **_kwargs: Any) -> list[Any]:
             return []
 

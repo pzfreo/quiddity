@@ -65,6 +65,8 @@ from quiddity._rings import (
     rings,
 )
 from quiddity._typing import Part
+from quiddity._volume_probe import material_fraction as _material_fraction
+from quiddity._wire_seed import wire_seed as _wire_seed
 
 
 @dataclass(frozen=True, order=True)
@@ -150,17 +152,6 @@ def _section_slab(
     return _section_prism(section, axis, low - SPAN_EPS, high + SPAN_EPS)
 
 
-def _material_fraction(part: Part, probe: Solid) -> float:
-    intersection = part.intersect(probe)
-    if intersection is None:
-        volume = 0.0
-    elif hasattr(intersection, "volume"):
-        volume = float(intersection.volume)
-    else:
-        volume = sum(float(shape.volume) for shape in intersection)
-    return volume / float(probe.volume)
-
-
 def _void_open_and_floored(
     part: Part,
     section: tuple[tuple[float, float], ...],
@@ -184,19 +175,6 @@ def _void_open_and_floored(
         )
     except (RuntimeError, TypeError, ValueError, ZeroDivisionError):
         return False
-
-
-def _wire_seed(graph: FaceGraph, opening: FaceNode, wire) -> frozenset[FaceNode]:
-    edges = tuple(wire.edges())
-    return frozenset(
-        neighbour
-        for neighbour in graph.neighbours(opening)
-        if any(
-            occurrence.edge == edge
-            for occurrence in graph.shared_occurrences(opening, neighbour)
-            for edge in edges
-        )
-    )
 
 
 def _inner_region(
@@ -330,7 +308,7 @@ def _floor_seeded_regions(part: Part, graph: FaceGraph) -> tuple[_RecoveredPocke
                 or caps[mouth_index]
                 or owner is None
                 or not _void_open_and_floored(
-                graph.solid_shape(owner), section, axis, mouth_at, floor_at
+                    graph.solid_shape(owner), section, axis, mouth_at, floor_at
                 )
             ):
                 continue
@@ -352,9 +330,9 @@ def _floor_seeded_regions(part: Part, graph: FaceGraph) -> tuple[_RecoveredPocke
 def _one_ended_regions(part: Part, graph: FaceGraph) -> tuple[_RecoveredPocket, ...]:
     """Recover unique principal-axis polygonal cavities whose wall spans are interrupted."""
 
-    raw: dict[
-        frozenset[FaceNode], list[tuple[FaceNode, frozenset[FaceNode], int]]
-    ] = defaultdict(list)
+    raw: dict[frozenset[FaceNode], list[tuple[FaceNode, frozenset[FaceNode], int]]] = defaultdict(
+        list
+    )
     for opening in graph.nodes:
         axis = _axis_for_opening(graph, opening) if graph.is_planar(opening) else None
         if axis is None:
@@ -375,9 +353,7 @@ def _one_ended_regions(part: Part, graph: FaceGraph) -> tuple[_RecoveredPocket, 
             raw[_inner_region(graph, opening, seed)].append((opening, seed, axis))
 
     intersecting = {
-        region
-        for region in raw
-        if any(region != other and region & other for other in raw)
+        region for region in raw if any(region != other and region & other for other in raw)
     }
     recovered = []
     for region, mouths in raw.items():
@@ -521,9 +497,7 @@ def recognise_prismatic_pockets(
                     depth=round(recovered.high - recovered.low, 3),
                     open_sign=recovered.open_sign,
                     at=(round(at[0], 3), round(at[1], 3), round(at[2], 3)),
-                    section=tuple(
-                        (round(u, 3), round(v, 3)) for u, v in recovered.section
-                    ),
+                    section=tuple((round(u, 3), round(v, 3)) for u, v in recovered.section),
                 ),
                 recovered.walls,
                 recovered.constituent,

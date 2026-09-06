@@ -109,7 +109,13 @@ not discover or reconcile anything itself.
 including family evaluation, proposal/acceptance/rejection counts, disposition reasons and
 bounded diagnostics. This is also available on framed and prepared evidence views, where
 diagnostic coordinates are local to the view's working part. Reading it never reruns recognition.
-These are detector-family counts, not necessarily counts of unified public SectionRecess records.
+Use `report.detector_families` for these detector-family counts (`report.families` is the original
+field for that same tuple). Count published recess records with
+`len(report.result.section_recesses)`. One accepted `pockets` candidate and one accepted
+`section_recesses` candidate can publish just one recess: do not sum detector acceptances as a
+feature total. Disposition `occurrences` counts candidate outcomes; `related_occurrences` counts
+related-candidate links, which are not necessarily unique physical features. Refusals and derived
+patterns have separate result collections and do not add physical recess occurrences.
 An empty diagnostic list does not prove that no geometry was missed. No JSON report schema is
 introduced by this Python API addition.
 
@@ -473,6 +479,14 @@ would have deleted a correct record. Which family owns a face is decided by the 
 the claims, under ADR 0003, and by evidence about the geometry rather than about the label.
 
 ## Public record contract audit
+
+Records exposing `body_key` use one shared geometric signature policy: six-decimal bounding
+coordinates and twelve-significant-digit volume/area. Compare keys only within the same source
+geometry and coordinate convention; a key is neither a persistent ID nor an occurrence handle.
+Duplicate signatures are ambiguous and publish `null`, never a traversal-selected owner. Raw and
+framed coordinates may produce different keys. The rounding policy absorbs kernel noise but does
+not promise identity across edits, arbitrary transforms, or every STEP translation. Source-face
+and feature identity remain authoritative through the same-run evidence API.
 
 The record audit below distinguishes recogniser output from helper/projection
 records. Fields describe evidence already proved by current code; they are not an

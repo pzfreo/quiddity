@@ -28,9 +28,7 @@ from tools.audit_mfcadpp_paired_ramp_steps import (
 
 def _side_cut():
     stock = Box(40, 40, 30)
-    cutter = Pos(20, 20, 0) * extrude(
-        Plane.XZ * Polygon((0, -8), (0, 8), (-10, 0)), 25
-    )
+    cutter = Pos(20, 20, 0) * extrude(Plane.XZ * Polygon((0, -8), (0, 8), (-10, 0)), 25)
     return stock - cutter
 
 
@@ -123,7 +121,9 @@ def test_subdivided_ramp_uses_the_ordinary_production_path(monkeypatch) -> None:
         (left, right)
         for left in graph.nodes
         for right in graph.neighbours(left)
-        if right.index > left.index and left in bevels and right in bevels
+        if right.index > left.index
+        and left in bevels
+        and right in bevels
         and _probe_pair(graph, left, right, bevels[left], bevels[right]).first_failed_gate
         == "recognisable"
     )
@@ -138,9 +138,7 @@ def test_subdivided_ramp_uses_the_ordinary_production_path(monkeypatch) -> None:
     monkeypatch.setattr(graph, "edges", subdivided_edges)
 
     ordinary = _probe_pair(graph, left, right, bevels[left], bevels[right])
-    bypass = _ramp_boundary_bypass_pairs(
-        graph, tuple(set((left, right, *graph.neighbours(left))))
-    )
+    bypass = _ramp_boundary_bypass_pairs(graph, tuple(set((left, right, *graph.neighbours(left)))))
 
     assert ordinary.first_failed_gate == "recognisable"
     assert bypass == ()
@@ -231,9 +229,9 @@ def test_subdivided_ramp_multiplicity_needs_no_legacy_bypass(monkeypatch) -> Non
     monkeypatch.setattr(
         graph,
         "edges",
-        lambda node: original_edges(node) + (extras[node],)
-        if node in extras
-        else original_edges(node),
+        lambda node: (
+            original_edges(node) + (extras[node],) if node in extras else original_edges(node)
+        ),
     )
 
     forward = _ramp_boundary_bypass_pairs(graph, tuple(graph.nodes))

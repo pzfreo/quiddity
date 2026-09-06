@@ -51,9 +51,7 @@ _INSPECTION_API_MAJOR = 1
 _INSPECTION_NAMESPACE = "quiddity.inspection"
 _VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:[.+-][A-Za-z0-9.-]+)?$")
 _SYMBOL = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
-_QUALIFIED = re.compile(
-    r"^quiddity(?:\.[A-Za-z][A-Za-z0-9_]*)+$"
-)
+_QUALIFIED = re.compile(r"^quiddity(?:\.[A-Za-z][A-Za-z0-9_]*)+$")
 _KINDS = {"dataclass", "enum", "exception", "function", "type-alias"}
 _PARAMETER_KINDS = {"plane", "cylinder", "cone", "sphere"}
 _PARAMETER_UNITS = {"model-length", "radian", "unitless"}
@@ -163,9 +161,7 @@ def _surface_anchor(face: FaceLike) -> tuple[float, float, float]:
         for u_fraction, v_fraction in samples:
             u = u_bounds[0] + u_fraction * (u_bounds[1] - u_bounds[0])
             v = v_bounds[0] + v_fraction * (v_bounds[1] - v_bounds[0])
-            classifier = _BRepClass_FaceClassifier(
-                face.wrapped, _gp_Pnt2d(u, v), 1e-7
-            )
+            classifier = _BRepClass_FaceClassifier(face.wrapped, _gp_Pnt2d(u, v), 1e-7)
             if classifier.State() not in {_TopAbs_IN, _TopAbs_ON}:
                 continue
             point = surface.Value(u, v)
@@ -219,9 +215,7 @@ def inspect_face(face: FaceLike) -> FaceInspection:
 def _keys(value: dict[str, Any], allowed: set[str], context: str) -> None:
     unknown = sorted(set(value) - allowed)
     if unknown:
-        raise InspectionApiManifestError(
-            f"{context} has unknown fields: {', '.join(unknown)}"
-        )
+        raise InspectionApiManifestError(f"{context} has unknown fields: {', '.join(unknown)}")
 
 
 def _version(value: object, context: str) -> tuple[int, int, int]:
@@ -255,9 +249,7 @@ def validate_inspection_api_manifest(manifest: object) -> None:
         raise InspectionApiManifestError("package must be an object")
     _keys(package, {"name", "version"}, "package")
     if set(package) != {"name", "version"} or package["name"] != "quiddity":
-        raise InspectionApiManifestError(
-            "package identity must be quiddity with a version"
-        )
+        raise InspectionApiManifestError("package identity must be quiddity with a version")
     package_version = _version(package["version"], "package.version")
 
     api = manifest["api"]
@@ -272,10 +264,7 @@ def validate_inspection_api_manifest(manifest: object) -> None:
     if api["namespace"] != _INSPECTION_NAMESPACE:
         raise InspectionApiManifestError("inspection API namespace is invalid")
     surface_parameters = api["surface_parameters"]
-    if (
-        not isinstance(surface_parameters, dict)
-        or set(surface_parameters) != _PARAMETER_KINDS
-    ):
+    if not isinstance(surface_parameters, dict) or set(surface_parameters) != _PARAMETER_KINDS:
         raise InspectionApiManifestError(
             "api.surface_parameters must define the four supported surface kinds"
         )
@@ -294,10 +283,7 @@ def validate_inspection_api_manifest(manifest: object) -> None:
             parameter_name = parameter["name"]
             if not isinstance(parameter_name, str) or not _SYMBOL.fullmatch(parameter_name):
                 raise InspectionApiManifestError(f"{item_context}.name is invalid")
-            if (
-                not isinstance(parameter["unit"], str)
-                or parameter["unit"] not in _PARAMETER_UNITS
-            ):
+            if not isinstance(parameter["unit"], str) or parameter["unit"] not in _PARAMETER_UNITS:
                 raise InspectionApiManifestError(f"{item_context}.unit is invalid")
             parameter_names.append(parameter_name)
         if len(parameter_names) != len(set(parameter_names)):
@@ -358,9 +344,7 @@ def validate_inspection_api_manifest(manifest: object) -> None:
             "enum": {"members"},
             "exception": {"attributes", "base"},
             "function": (
-                {"returns", "signature"}
-                if name == "read_double_d_tool"
-                else {"signature"}
+                {"returns", "signature"} if name == "read_double_d_tool" else {"signature"}
             ),
             "type-alias": {"definition"},
         }[kind]
@@ -383,9 +367,7 @@ def validate_inspection_api_manifest(manifest: object) -> None:
                     raise InspectionApiManifestError(f"{field_context} must be an object")
                 _keys(field, {"name", "type"}, field_context)
                 if set(field) != {"name", "type"}:
-                    raise InspectionApiManifestError(
-                        f"{field_context} is missing required fields"
-                    )
+                    raise InspectionApiManifestError(f"{field_context} is missing required fields")
                 if (
                     not isinstance(field["name"], str)
                     or not _SYMBOL.fullmatch(field["name"])
@@ -395,9 +377,7 @@ def validate_inspection_api_manifest(manifest: object) -> None:
                     raise InspectionApiManifestError(f"{field_context} is invalid")
                 field_names.append(field["name"])
             if len(field_names) != len(set(field_names)):
-                raise InspectionApiManifestError(
-                    f"{context}.contract field names must be unique"
-                )
+                raise InspectionApiManifestError(f"{context}.contract field names must be unique")
         elif kind == "enum":
             members = contract["members"]
             if not isinstance(members, list) or not members:
@@ -412,9 +392,7 @@ def validate_inspection_api_manifest(manifest: object) -> None:
                     raise InspectionApiManifestError(f"{member_context} must be an object")
                 _keys(member, {"name", "value"}, member_context)
                 if set(member) != {"name", "value"}:
-                    raise InspectionApiManifestError(
-                        f"{member_context} is missing required fields"
-                    )
+                    raise InspectionApiManifestError(f"{member_context} is missing required fields")
                 if (
                     not isinstance(member["name"], str)
                     or not _SYMBOL.fullmatch(member["name"])
@@ -440,13 +418,9 @@ def validate_inspection_api_manifest(manifest: object) -> None:
                 )
             attribute_names: list[str] = []
             for attribute_index, attribute in enumerate(attributes):
-                attribute_context = (
-                    f"{context}.contract.attributes[{attribute_index}]"
-                )
+                attribute_context = f"{context}.contract.attributes[{attribute_index}]"
                 if not isinstance(attribute, dict):
-                    raise InspectionApiManifestError(
-                        f"{attribute_context} must be an object"
-                    )
+                    raise InspectionApiManifestError(f"{attribute_context} must be an object")
                 _keys(attribute, {"name", "type", "values"}, attribute_context)
                 if set(attribute) != {"name", "type", "values"}:
                     raise InspectionApiManifestError(
@@ -463,9 +437,7 @@ def validate_inspection_api_manifest(manifest: object) -> None:
                     or not all(isinstance(value, str) and value for value in values)
                     or len(values) != len(set(values))
                 ):
-                    raise InspectionApiManifestError(
-                        f"{attribute_context} is invalid"
-                    )
+                    raise InspectionApiManifestError(f"{attribute_context} is invalid")
                 attribute_names.append(attribute["name"])
             if len(attribute_names) != len(set(attribute_names)):
                 raise InspectionApiManifestError(
@@ -473,21 +445,15 @@ def validate_inspection_api_manifest(manifest: object) -> None:
                 )
         elif kind == "function":
             if not isinstance(contract["signature"], str) or not contract["signature"]:
-                raise InspectionApiManifestError(
-                    f"{context}.contract.signature is invalid"
-                )
+                raise InspectionApiManifestError(f"{context}.contract.signature is invalid")
             if "returns" not in contract:
                 continue
             returns = contract["returns"]
             if not isinstance(returns, dict):
-                raise InspectionApiManifestError(
-                    f"{context}.contract.returns must be an object"
-                )
+                raise InspectionApiManifestError(f"{context}.contract.returns must be an object")
             _keys(returns, {"kind", "members"}, f"{context}.contract.returns")
             if set(returns) != {"kind", "members"} or returns["kind"] != "tuple":
-                raise InspectionApiManifestError(
-                    f"{context}.contract.returns must define a tuple"
-                )
+                raise InspectionApiManifestError(f"{context}.contract.returns must define a tuple")
             members = returns["members"]
             if not isinstance(members, list) or not members:
                 raise InspectionApiManifestError(
@@ -495,18 +461,12 @@ def validate_inspection_api_manifest(manifest: object) -> None:
                 )
             return_member_names: list[str] = []
             for member_index, member in enumerate(members):
-                member_context = (
-                    f"{context}.contract.returns.members[{member_index}]"
-                )
+                member_context = f"{context}.contract.returns.members[{member_index}]"
                 if not isinstance(member, dict):
-                    raise InspectionApiManifestError(
-                        f"{member_context} must be an object"
-                    )
+                    raise InspectionApiManifestError(f"{member_context} must be an object")
                 _keys(member, {"name", "type", "unit", "values"}, member_context)
                 if set(member) != {"name", "type", "unit", "values"}:
-                    raise InspectionApiManifestError(
-                        f"{member_context} is missing required fields"
-                    )
+                    raise InspectionApiManifestError(f"{member_context} is missing required fields")
                 unit = member["unit"]
                 values = member["values"]
                 if (
@@ -520,9 +480,7 @@ def validate_inspection_api_manifest(manifest: object) -> None:
                         and (
                             not isinstance(values, list)
                             or not values
-                            or not all(
-                                isinstance(value, str) and value for value in values
-                            )
+                            or not all(isinstance(value, str) and value for value in values)
                             or len(values) != len(set(values))
                         )
                     )
@@ -547,9 +505,7 @@ def validate_inspection_api_manifest(manifest: object) -> None:
 
 def _load_inspection_api_manifest() -> InspectionApiManifest:
     resource = files("quiddity").joinpath("inspection_api.json")
-    manifest = cast(
-        InspectionApiManifest, json.loads(resource.read_text(encoding="utf-8"))
-    )
+    manifest = cast(InspectionApiManifest, json.loads(resource.read_text(encoding="utf-8")))
     validate_inspection_api_manifest(manifest)
     from quiddity import __version__
 
@@ -574,14 +530,13 @@ def inspection_api_manifest(
     return copy.deepcopy(_load_inspection_api_manifest())
 
 
-def inspection_api_manifest_json(
-    *, format_version: int = INSPECTION_API_FORMAT_VERSION
-) -> str:
+def inspection_api_manifest_json(*, format_version: int = INSPECTION_API_FORMAT_VERSION) -> str:
     """Return the installed inspection API contract as canonical JSON."""
 
-    return json.dumps(
-        inspection_api_manifest(format_version=format_version), indent=2, sort_keys=True
-    ) + "\n"
+    return (
+        json.dumps(inspection_api_manifest(format_version=format_version), indent=2, sort_keys=True)
+        + "\n"
+    )
 
 
 __all__ = [
