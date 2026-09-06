@@ -114,22 +114,46 @@ class Passage(Record):
     section: tuple[tuple[float, float], ...]
 
 
-def _same_legacy_passage_geometry(left: Passage | None, right: Passage) -> bool:
+def _same_legacy_passage_geometry(
+    left: Passage | None,
+    right: Passage,
+    *,
+    exact_at: tuple[float, float, float] | None = None,
+) -> bool:
     """Compare closed section geometry without weakening the frozen legacy publication value."""
 
-    return left is not None and (
+    if left is None or (
         left.axis,
         left.sides,
         left.length,
-        left.at,
         _canonical_section(left.section),
-    ) == (
+    ) != (
         right.axis,
         right.sides,
         right.length,
-        right.at,
         _canonical_section(right.section),
-    )
+    ):
+        return False
+    if left.at == right.at:
+        return True
+    if exact_at is None:
+        return False
+    for first, second, source in zip(left.at, right.at, exact_at, strict=True):
+        if first == second:
+            continue
+        # Only opposite roundings of the same source half-grid tie are equivalent.
+        # This numerical epsilon is not the occurrence displacement allowance.
+        first_grid, second_grid = round(first * 1000), round(second * 1000)
+        if (
+            first != first_grid / 1000
+            or second != second_grid / 1000
+            or abs(first_grid - second_grid) != 1
+            or not math.isclose(
+                source, (first_grid + second_grid) / 2000, rel_tol=0.0, abs_tol=1e-9
+            )
+        ):
+            return False
+    return True
 
 
 def _numbers(value: object, size: int, *, name: str) -> tuple[float, ...]:
@@ -456,7 +480,13 @@ def _discover_section_passages(
             # an odd number of millimetre quanta has a half-quantum midpoint (10060.step is the
             # concrete case).  The source displacement is bounded above; the frozen old finder is
             # the authority for its legacy value.
-            if not _same_legacy_passage_geometry(full_precision_passage, legacy):
+            exact_at = list(proposal.frame.origin)
+            exact_at["xyz".index(legacy.axis)] = sum(proposal.run_interval) / 2
+            if not _same_legacy_passage_geometry(
+                full_precision_passage,
+                legacy,
+                exact_at=cast(tuple[float, float, float], tuple(exact_at)),
+            ):
                 raise ValueError("rich passage cannot reproduce its historical legacy value")
             compatibility = compatibility_view(
                 (

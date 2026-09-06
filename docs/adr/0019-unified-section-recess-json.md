@@ -371,6 +371,14 @@ Discovery, source-proof, ownership and evidence-invariant failures are outside t
 there is no blanket exception handler around recognition. Historical compatibility checks during
 passage issuance are also outside this publication boundary.
 
+An independently authored #547 regression also exposed half-grid centroid ties in the
+historical passage check. Two independently computed centroids can round to opposite adjacent
+0.001 mm values. The comparison admits this only when the full-precision occurrence centroid
+lies on their shared half-grid boundary within 1e-9 mm numerical epsilon. Axis, side count,
+length and canonical section must still agree exactly; original defining-node and owner proofs
+are unchanged. The historical value is frozen unchanged, not replaced or averaged. This is not
+a general tolerance between rounded centroids and does not suppress substantive mismatches.
+
 The adapter chooses a frame origin on the same grid near the analytic centroid, then subtracts
 integer grid coordinates before constructing the public section. Its analytic local centroid
 remains within the published 0.0008 mm allowance. Distinct grid vertices cannot collapse through
