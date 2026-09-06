@@ -2,6 +2,23 @@
 
 ## Next release
 
+## 0.2.2 — Quiddity
+
+- Reject incomplete STEP root transfers before returning partial geometry, while preserving
+  valid multi-root imports (#515).
+- Enforce simple physical open SectionRecess profiles and non-crossing termination planes,
+  including curved-profile extrema. Valid micro-feature rounding remains supported (#516).
+- Use one body-key precision policy across recognition families, with explicit ambiguity for
+  equal-signature bodies. Consumers may see normalized body-key values; these remain
+  same-document correlation keys, not persistent topology identifiers (#517).
+- Add `RecognitionReport.detector_families` to distinguish detector activity from deduplicated
+  public feature occurrences, without another recognition pass (#518).
+- Consolidate shared wire and material-probe helpers, preserve fragmented boolean results,
+  and distinguish expected geometric refusal from programming errors in the audited
+  round-bottom and Double-D proof paths (#519, #520).
+- Separate SectionRecess records from kernel-backed geometry, retaining public class identity
+  and JSON contracts. Refresh documentation and enforce consistent formatting (#521, #522).
+
 ## 0.2.1 — Quiddity
 
 - Expand provider-owned grid-lattice and corner-notch regression coverage, and stabilize
