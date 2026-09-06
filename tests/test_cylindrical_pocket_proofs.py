@@ -186,7 +186,7 @@ def test_polygonal_cylindrical_pocket_keeps_complete_original_wall_ring(sides, r
     assert len(document.occurrences) == 1
     record = document.occurrences[0]
     assert record.classification.feature_kind == "pocket"
-    assert record.classification.section_shape == "polygonal"
+    assert record.classification.section_shape == {3: "triangular", 6: "hexagonal"}[sides]
     assert len(record.geometry.profile.boundary) == sides
     assert len(record.evidence.defining_faces) == sides
     assert len(record.evidence.constituent_faces) == sides + 1
