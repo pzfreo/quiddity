@@ -172,12 +172,20 @@ def _project(source: SectionPassage, body_key: tuple[float, ...] | None) -> Orie
 def _body_keys(
     graph: FaceGraph, solids: tuple[SolidRef, ...]
 ) -> dict[SolidRef, tuple[float, ...] | None]:
-    unique = tuple(dict.fromkeys(solids))
+    # Ambiguity is a property of the complete input, not just bodies on which this
+    # detector happened to find a slot. A non-slot body can have the same signature.
+    unique = tuple(
+        dict.fromkeys(
+            solid
+            for node in graph.nodes
+            if (solid := graph.common_valid_solid((node,))) is not None
+        )
+    )
     signatures = {solid: body_signature(graph.solid_shape(solid)) for solid in unique}
     counts = Counter(signatures.values())
     return {
-        solid: signature if counts[signature] == 1 else None
-        for solid, signature in signatures.items()
+        solid: signatures[solid] if counts[signatures[solid]] == 1 else None
+        for solid in dict.fromkeys(solids)
     }
 
 
