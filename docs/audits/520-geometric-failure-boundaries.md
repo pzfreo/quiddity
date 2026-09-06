@@ -7,7 +7,7 @@ not a claim that every kernel operation has been standardized.
 
 | Boundary | Evidence | Disposition |
 | --- | --- | --- |
-| Round-bottom planar region construction | `Face` caught every `Exception`; an injected assertion became ordinary absence. `Wire.combine` propagated the equivalent kernel construction failure. | Catch `Standard_Failure`, `RuntimeError`, and `ValueError` at these construction calls. Attribute/type/assertion errors propagate. Construct and validate a region face only once. |
+| Round-bottom planar region construction | `Face` caught every `Exception`; an injected assertion became ordinary absence. `Wire.combine` propagated the equivalent kernel construction failure. | Catch the four explicit OCP construction classes listed below, plus `RuntimeError` and `ValueError`. Attribute/type/assertion errors propagate. Construct and validate a region face only once. |
 | Double-D opening and declared-tool prism proofs | Broad catch masked programming errors; scalar-only `.volume` access could also mask fragmented boolean results as missed recognition. | Use shared boolean-volume normalization; narrow both catches to the same expected construction/kernel classes. |
 | Section-passage `_void_and_open` | Explicit construction/arithmetic exceptions already delimit an existing geometric proof. | Retained; no evidence here justifies changing its full acceptance policy. |
 | Adjacency ownership and differential queries | Broad catches wrap source validity, normal evaluation or analytic continuation, with explicit unproved ownership/side outcomes. | Retained in this increment. Their kernel/input domain differs from constructing a proved planar region; replacing every catch mechanically would not establish better semantics. |

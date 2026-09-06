@@ -214,7 +214,7 @@ def _public_geometry(
 def project_section_recess_geometry(
     occurrence: SectionOccurrence, *, body_refs: BodyRefIssuer
 ) -> SectionRecessGeometry:
-    """Project any closed private section occurrence into the experimental JSON geometry."""
+    """Project a closed private section occurrence into the public SectionRecess geometry."""
 
     projected = occurrence_geometry_dict(occurrence, body_refs=body_refs)
     frame_value = cast(dict[str, list[float]], projected["frame"])
