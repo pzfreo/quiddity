@@ -83,7 +83,11 @@ class RecognitionDiagnosticCode(Enum):
 
 @dataclass(frozen=True, slots=True)
 class DispositionExplanation:
-    """Counted final outcomes sharing one closed reason."""
+    """Candidate outcomes sharing one reason, not published physical occurrences.
+
+    ``occurrences`` counts candidate dispositions; ``related_occurrences`` sums their
+    related-candidate links and may count the same related candidate more than once.
+    """
 
     reason: ReconciliationReason
     outcome: RecognitionOutcome
@@ -93,7 +97,11 @@ class DispositionExplanation:
 
 @dataclass(frozen=True, slots=True)
 class FamilyExplanation:
-    """Bounded lifecycle counts for one closed physical family."""
+    """Bounded lifecycle counts for one detector family.
+
+    Accepted candidates precede public projection and deduplication. Several detectors
+    can contribute to one published occurrence; these counts are not a feature census.
+    """
 
     family: str
     evaluation: FamilyEvaluation
@@ -118,12 +126,28 @@ class RecognitionDiagnostic:
 
 @dataclass(frozen=True, slots=True)
 class RecognitionReport:
-    """One result and its bounded explanation from exactly the same recognition run."""
+    """One public result and detector explanations from exactly the same run.
+
+    Use ``detector_families`` for candidate lifecycle counts and the collections in
+    ``result`` for published records. ``families`` retains the original detector-count
+    field; neither name counts deduplicated public occurrences.
+    """
 
     coverage: ExplanationCoverage
     result: RecognitionResult
     families: tuple[FamilyExplanation, ...]
     diagnostics: tuple[RecognitionDiagnostic, ...]
+
+    @property
+    def detector_families(self) -> tuple[FamilyExplanation, ...]:
+        """Explicitly named view of detector counts, preserving their provenance.
+
+        For example, accepted ``pockets`` and ``section_recesses`` candidates may
+        publish one record in ``result.section_recesses``. Summing accepted counts
+        would count detector decisions, not distinct recognised features.
+        """
+
+        return self.families
 
 
 def _project_diagnostic(item: ResidualDiagnostic) -> RecognitionDiagnostic:
