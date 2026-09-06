@@ -62,8 +62,10 @@ def test_correspondence_matcher_remains_private_and_result_neutral() -> None:
 
 
 MODULE_SEAM_EDGES = {
-    "_corner_section": {"_adjacency", "_section_passages", "_sections"},
-    "_open_channel_section": {"_adjacency", "_recess_records", "_section_passages", "_sections"},
+    "_corner_section": {"_adjacency", "_section_passages", "_sections", "_volume_probe"},
+    "_open_channel_section": {
+        "_adjacency", "_recess_records", "_section_passages", "_sections", "_volume_probe",
+    },
     # Base layer: the kernel, the shared type aliases, and `_geometry`'s alignment threshold.
     "_body_identity": {"_typing"},
     "_analytic_surfaces": {"_geometry"},
