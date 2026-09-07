@@ -117,7 +117,7 @@ MODULE_SEAM_EDGES = {
     # immutable, so it must stay absent.
     # Three recognisers begin with the same two questions of a face. Naming the layer is
     # what lets this map have an opinion about it -- see the module docstring.
-    "_bevel": {"_geometry", "_typing"},
+    "_bevel": {"_geometry", "_solid_properties", "_typing"},
     "paired_ramp_steps": {
         "_adjacency",
         "_bevel",

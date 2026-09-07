@@ -102,6 +102,7 @@ from quiddity._candidates import (
 from quiddity._claims import ClaimLedger, EvidenceWriter
 from quiddity._geometry import SMOOTH_ARC_GAP
 from quiddity._record import Record
+from quiddity._solid_properties import solid_properties
 from quiddity._typing import FaceLike, Part
 
 
@@ -233,6 +234,9 @@ def _discover_angled_steps(
 
     all_faces = list(part.faces())
     edge_faces = edge_face_map(all_faces, face_edges=face_edges)
+    # Both corner probes below classify points against the same solid, and so does every other
+    # family that asks one -- so the classifier they need is the run's, not this loop's.
+    properties = solid_properties(graph)
 
     out: list[tuple[AngledStep, FaceLike, tuple[FaceLike, ...]]] = []
     for f in all_faces:
@@ -247,9 +251,9 @@ def _discover_angled_steps(
         )
         if oi[0] not in neigh_coord or oi[1] not in neigh_coord:
             continue
-        if not convex_bevel(part, fc, edge_i, neigh_coord):
+        if not convex_bevel(part, fc, edge_i, neigh_coord, properties=properties):
             continue  # concave — a pocket or passage wall, not a step
-        if material_beyond_corner(part, fc, edge_i, neigh_coord):
+        if material_beyond_corner(part, fc, edge_i, neigh_coord, properties=properties):
             continue  # the corner two recess walls meet at, not a corner of the part
         # Last, though it is the gate this family is named for — the three above it are the
         # shared bevel read, and this is the one thing that is only about a step.
