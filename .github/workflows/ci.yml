@@ -73,8 +73,11 @@ jobs:
           python-version: "3.12"
       - run: uv sync --dev
       - name: Test with authoritative branch coverage
+        # Two workers on the two-core runner: pytest-cov combines per-worker data, so the gate
+        # sees the same total it saw single-process (checked locally: identical TOTAL line).
         run: >-
           uv run pytest
+          -n 2
           --cov=quiddity
           --cov-branch
           --cov-report=term-missing

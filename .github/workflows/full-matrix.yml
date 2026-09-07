@@ -31,4 +31,4 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: uv sync --dev
       - name: Test compatibility without coverage instrumentation
-        run: uv run pytest
+        run: uv run pytest -n 2
