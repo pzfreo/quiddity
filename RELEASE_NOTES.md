@@ -2,7 +2,10 @@
 
 ## Next release
 
-Nothing yet.
+- Refuse a blended pocket floor whose wall-tangent level cannot be proved as a physical
+  planar cap, retaining source evidence and separate Blend occurrences. Require observed
+  stock planes for untreated straight passage ends so the same tangent cannot be reported
+  as an open passage at another scale (#556).
 
 ## 0.2.5 — Quiddity
 

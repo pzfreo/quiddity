@@ -562,6 +562,12 @@ ordinary raw/caller-coordinate aggregate exactly once and serializes only its ac
 rosters; occurrence indices are dense within the document. The function is therefore an export
 projection, not an independent recogniser.
 
+A legacy prismatic pocket with floor blends is refused when its wall-tangent level has no
+observed physical planar floor. The result retains `unsupported_support_geometry` source
+evidence and separate Blend occurrences instead of certifying the shortened wall band as
+the pocket's physical depth. Untreated straight passages also require observed stock planes
+at both ends; a thin empty probe at a blend tangent is insufficient (#556).
+
 `RecognitionResult` is the frozen orchestration inventory rather than a `Record`
 subclass. It owns every public recogniser family, preserves classification-gated
 empty inventories explicitly, and makes no claim that every geometry fact has

@@ -154,6 +154,19 @@ must not publish two authoritative values for the same measurement. Wall draft o
 that prevents proof of a constant base support causes refusal; a future lofted or station-based
 geometry requires its own decision.
 
+For legacy prismatic pockets, a curved cap witness establishes a blind void but does not
+establish a planar physical termination (#556). Publication requires an original planar floor
+in the accepted constituent evidence, aligned with the capped ends of the original wall
+supports and within the existing publication allowance of the serialized end. A floor blend's
+tangent level fails that proof and produces an `unsupported_support_geometry` refusal while
+retaining source evidence and separately accepted Blends. This is enforcement of the physical
+end contract, not a new representation of the blended transition.
+
+Untreated planar passage rings likewise require same-solid original stock planes at both
+ends of every wall. An almost-empty slab at a curved tangent cannot establish an open planar
+mouth. Existing separately proved entry treatments and nonplanar-end paths retain their own
+support contracts; the void probes remain additional material checks.
+
 An entry bevel may separately explain missing planar passage support without a new public
 termination schema (#540). One intact polygonal mouth supplies the base section. Observed
 opposite stock, wall and bevel planes bound a finite removed cell; its predicted bevel footprint

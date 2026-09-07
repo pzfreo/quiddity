@@ -80,7 +80,11 @@ from quiddity._section_recess import (
     SectionRecessGrid,
     SectionRecessRefusal,
 )
-from quiddity._section_recess_geometry import _polygonal_shape, cylindrical_channel_geometry
+from quiddity._section_recess_geometry import (
+    _polygonal_shape,
+    cylindrical_channel_geometry,
+    has_physical_planar_floor,
+)
 from quiddity._sections import LocalFrame
 from quiddity._typing import Bounds, CylinderInventory, FrozenCylinderInventory, Part
 from quiddity.angled_steps import AngledStep
@@ -773,7 +777,7 @@ def _prismatic_pocket_recess(
     context: RecognitionContext,
     evidence: EvidenceIndex,
     index: int,
-) -> SectionRecess:
+) -> SectionRecess | None:
     """Project one accepted pocket at the legacy publication grid."""
 
     defining = evidence.defining_of(record)
@@ -782,6 +786,15 @@ def _prismatic_pocket_recess(
     if owner is None:
         raise ValueError("accepted prismatic pocket lost its body authority")
     geometry = _publication_value(legacy_section_geometry, record)
+    if not has_physical_planar_floor(
+        context.graph,
+        defining,
+        constituent,
+        axis=record.axis,
+        open_sign=record.open_sign,
+        published_floor=geometry.run_interval[0 if record.open_sign == 1 else 1],
+    ):
+        return None
     section_shape = _polygonal_shape(tuple(vertex.point for vertex in geometry.profile.boundary))
     if len(geometry.profile.boundary) != len(record.section):
         section_shape = "polygonal"

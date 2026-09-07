@@ -293,6 +293,10 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "recogniser seeds only from an original planar floor",
     ),
+    "_section_recess_geometry:has_physical_planar_floor:is_planar:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "Original planar floor and wall endpoints establish the physical capped end.",
+    ),
     "_section_recess_geometry:_polygonal_section:geom_type:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "recogniser requires the observed polygonal floor boundary to be straight",
@@ -587,6 +591,10 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
     "_section_passages:section_ring_proposals:is_planar:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "F4b original planar wall-cycle membership",
+    ),
+    "_section_passages:_observed_planar_ring_ends:is_planar:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "Original planar stock faces establish both untreated ring mouths.",
     ),
     "inspection:_surface_anchor:adaptor:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
