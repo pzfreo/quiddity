@@ -62,6 +62,8 @@ def test_correspondence_matcher_remains_private_and_result_neutral() -> None:
 
 
 MODULE_SEAM_EDGES = {
+    "_outer_profile": {"_record"},
+    "_outer_profile_geometry": {"_adjacency", "_outer_profile", "_typing"},
     "_corner_section": {"_adjacency", "_section_passages", "_sections", "_volume_probe"},
     "_open_channel_section": {
         "_adjacency",
@@ -465,6 +467,8 @@ MODULE_SEAM_EDGES = {
     "evidence": {
         "_adjacency",
         "_candidates",
+        "_outer_profile",
+        "_outer_profile_geometry",
         "_registry",
         "_section_recess",
         "_typing",

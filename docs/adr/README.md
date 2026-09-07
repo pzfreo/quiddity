@@ -29,6 +29,7 @@ the record stays a decision rather than a status report.
 | [0018](0018-edge-open-polygonal-recess-profile.md) | Preserve an edge-open polygonal recess as an open profile | Accepted |
 | [0019](0019-unified-section-recess-json.md) | Unify constant-section recesses in one JSON geometry | Accepted |
 | [0023](0023-observed-cylindrical-passage-ends.md) | Polygonal passages ending on an observed bore | Accepted |
+| [0025](0025-body-owned-planar-outer-profile-inspection.md) | Body-owned planar outer-profile inspection | Proposed |
 
 Draftwright ADRs 0007, 0013, 0015 and 0017 are historical inputs, not normative records for this
 project. Consumer-specific requirements, annotation provenance, lint and placement remain owned

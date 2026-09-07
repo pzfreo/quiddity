@@ -100,6 +100,10 @@ class MaterialSideRefusalReason(Enum):
 # the source-side set independently so adding another raw reader fails visibly. The rationale is
 # mandatory; a disposition is not permission to leave an undocumented acceptance path forever.
 SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
+    "_outer_profile_geometry": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "bounded original line/arc outer-wire inspection; recovered or fitted curves excluded",
+    ),
     "_open_channel_section": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "open support projection requires original planar source patches",
@@ -826,6 +830,22 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
     "repeating_profiles:_common_circle_centre:geom_type:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "circular boundary edge proof",
+    ),
+    "_outer_profile_geometry:_read_profile:geom_type:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "native planar face required by the bounded outer-profile inspection contract",
+    ),
+    "_outer_profile_geometry:_read_profile:geom_type:2": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "original outer-wire curve-kind roster; no freeform fitting",
+    ),
+    "_outer_profile_geometry:_read_profile:geom_type:3": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "minimum two original line supports for the outer-profile contract",
+    ),
+    "_outer_profile_geometry:_read_profile:geom_type:4": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "exact original line versus circular-arc value projection",
     ),
 }
 

@@ -621,3 +621,11 @@ Callers reach the memo through the `properties` keyword `convex_bevel` and `mate
 now accept, resolved from the ledger, writer or graph the three bevel families already hold. A probe
 called with no run context computes exactly what it computed before. `_bevel` gains no dependency on
 a recogniser and remains below the three families that share it.
+
+## Proposed outer-profile inspection seam (#579)
+
+ADR0025 records the bounded new evidence inspection. `_outer_profile` is a value leaf over
+`_record`; `_outer_profile_geometry` may import `_adjacency`, `_outer_profile` and `_typing`
+to inspect exact native wires on the existing run. `evidence` may import both for this one
+lazy, source-bound operation. No recognition, Candidate, reconciliation or result dependency
+is permitted in either profile module. The architecture and raw-reader rosters enforce it.

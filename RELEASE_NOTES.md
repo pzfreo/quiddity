@@ -2,6 +2,10 @@
 
 ## Next release
 
+- Add same-run planar outer-profile inspection with body-owned ordered line/arc supports,
+  exact source-edge resolution, raw/framed parity and typed refusals. Inner loops are
+  counted and excluded from outer adjacency; angle selection remains consumer policy (#579).
+
 - Project recess pattern centres from accepted section-centroid run midpoints, with explicit
   row-major grid membership. Remove duplicate arrays/grids and redundant row arrays after
   their legacy sources resolve to the same public occurrences (#555).
