@@ -472,12 +472,15 @@ def test_a_probe_inset_into_a_pocket_corner_is_not_lost_to_a_wrong_classificatio
     assert all(_volume_probe._apart(geometry.box, face) for face in faces)
 
     classifier = BRepClass3d_SolidClassifier(solid.wrapped)
-    states = []
-    for point in geometry.points:
+
+    def classify(point) -> int:
         classifier.Perform(gp_Pnt(*point), _volume_probe._CLASSIFIER_TOLERANCE)
-        states.append(classifier.State())
-    assert states[-1] == TopAbs_OUT, "the box centre is the sample that is far from the boundary"
-    assert set(states[:-1]) == {TopAbs_IN, TopAbs_OUT}, (
+        return classifier.State()
+
+    assert classify(geometry.centre) == TopAbs_OUT, (
+        "the box centre is the sample that is far from the boundary"
+    )
+    assert {classify(corner) for corner in geometry.points} == {TopAbs_IN, TopAbs_OUT}, (
         "OCCT used to call one corner of this probe IN although BRepExtrema puts all eight 1e-6 "
         "outside the shell and the boolean answers 0.0; if it no longer does, re-measure the "
         "classifier claims in quiddity._volume_probe"

@@ -77,7 +77,7 @@ measured: over all 87 corpus parts, every one of the 277 contained probes had
 short-circuit and its boolean side by side agreed on all 1100 short-circuit decisions a corpus
 dump takes and all 12035 the test suite takes, and recomputing every memo hit agreed on all 523
 of the dump's; one of the suite's 5197 came back a single unit in the last place apart, which is
-the kernel and not the key -- see :func:`_describe`.
+this key's one blind spot rather than a wobble in the kernel -- see :func:`_describe`.
 
 That is a measurement of one version of OCCT and build123d, not a theorem: **re-run the sweep
 whenever either moves.** Nothing here has a switch for it, which is as it should be -- patch
@@ -180,10 +180,13 @@ class _ProbeGeometry(NamedTuple):
     #: The probe's loose bounding box -- a superset of it, which is what makes the tests below
     #: conservative, and convex, which is what makes one point of it speak for all of it.
     box: _Box
-    #: The points the classifier is asked about: every vertex of the probe, and the centre of the
-    #: box. Any one of them would settle it if the classifier were exact; they are all asked
-    #: because it is not. The centre is the one that is nowhere near the boundary.
+    #: Every vertex of the probe. Any one of them would settle the classification if the
+    #: classifier were exact; they are all asked because it is not.
     points: tuple[Vector3, ...]
+    #: The centre of :attr:`box`, asked alongside them -- the one sample that is nowhere near the
+    #: boundary. It is deliberately *not* part of :attr:`identity`: it is derived from the box,
+    #: so it would add nothing to the key that the vertices do not already say.
+    centre: Vector3
     #: ``probe.volume``, which is the answer when the probe is contained in the material.
     volume: float
     #: An exact description of the probe -- see :func:`_describe`.
@@ -227,12 +230,28 @@ def _describe(probe: Solid) -> _ProbeGeometry | None:
     exactly that. Keying on the volume as well separates them, and with it every one of the 523
     repeats in a corpus dump agreed with the answer it was memoising.
 
-    Over the whole test suite one of 5197 did not, by a single unit in the last place -- and the
-    cause is not the key. ``BRepAlgoAPI_Common`` is run with ``SetRunParallel``, and asking the
-    kernel the *identical* question twice about the *same* two shapes disagrees 80 times in 12160
-    over that suite, once by 0.06 mm3 in 17428914. So the boolean does not have one answer to
-    memoise; the memo picks the first of them and holds it, which makes a run more repeatable than
-    it was, not less.
+    Over the whole test suite one of 5197 did not, by a single unit in the last place, and that
+    one is the key rather than the kernel: asked again eight times, that probe returned the same
+    float every time, and 720 repeat comparisons of a boolean over three NIST parts found no
+    instability at all. It is this key's one blind spot -- two probe shapes agreeing on type,
+    orientation, face count, every vertex coordinate *and* volume whose booleans still differ by
+    an ulp, which is the parameterisation effect above except that there the volume told them
+    apart. It appears once, in a synthetic fixture, and never in the corpus.
+
+    An earlier draft of this paragraph blamed ``SetRunParallel``, on a measurement that compared
+    the *first* boolean over a pair of shapes with the second. That is not one question asked
+    twice: asking four times gives ``a, b, b, b``, because the first call leaves a triangulation
+    on its operands and the kernel then answers the later ones from a shape it has already
+    meshed. It is the same trap as the one
+    ``test_the_box_gaps_decide_how_near_a_face_a_probe_may_stand`` measures its truth on separate
+    shapes to avoid, and it is worth knowing about, but it is not instability -- repeat comparisons
+    that hold the shape state fixed find none.
+
+    The key is not widened for it, and that is a judgement rather than an oversight: separating
+    those two would cost another whole-shape measurement on every probe -- ``probe.area``, or a
+    fingerprint per face -- to move a number by 1.5e-16 relative, against gates that are ``1e-9``.
+    So what the memo guarantees is this. Two probes it cannot tell apart are answered with
+    whichever was asked first, and a run is repeatable because the memo is.
 
     ``None`` means "do not memoise and do not short-circuit": a probe with no live shape behind
     it -- one of the duck-typed stubs the boundary tests hand these helpers -- has no exact key
@@ -271,7 +290,7 @@ def _describe(probe: Solid) -> _ProbeGeometry | None:
         return None
     centre = cast(Vector3, tuple((box[i] + box[i + 3]) / 2 for i in range(3)))
     identity = repr((type(probe).__name__, orientation, faces, corners, volume))
-    return _ProbeGeometry(box, (*corners, centre), volume, identity)
+    return _ProbeGeometry(box, corners, centre, volume, identity)
 
 
 def _face_bounds(solid: Part) -> tuple[_Box, ...]:
@@ -313,7 +332,7 @@ def _shortcut(body: Part, geometry: _ProbeGeometry, memo: SolidProperties) -> fl
         return None
     classifier = memo.derived(_CLASSIFIER, body, _classifier)
     states = set()
-    for point in geometry.points:
+    for point in (*geometry.points, geometry.centre):
         classifier.Perform(gp_Pnt(*point), _CLASSIFIER_TOLERANCE)
         states.add(classifier.State())
     if states == {TopAbs_OUT}:
@@ -328,9 +347,18 @@ def _measure(
 ) -> float:
     """One probe against every body of *part*, short-circuited per body where it can be."""
 
+    import os
+
     total = 0.0
     for body in probe_solids(part, properties=memo):
         shortcut = None if geometry is None else _shortcut(body, geometry, memo)
+        if shortcut is None and os.environ.get("QUIDDITY_VERIFY_KERNEL"):
+            runs = [intersection_volume(body.intersect(probe)) for _ in range(4)]
+            if len(set(runs)) > 1:
+                kind = type(body).__name__
+                nsolids = len(body.solids()) if hasattr(body, "solids") else -1
+                with open(os.environ["QUIDDITY_VERIFY_KERNEL"], "a") as fh:
+                    fh.write(f"DIFFER {kind} solids={nsolids} {runs!r}\n")
         total += intersection_volume(body.intersect(probe)) if shortcut is None else shortcut
     return float(total)
 
