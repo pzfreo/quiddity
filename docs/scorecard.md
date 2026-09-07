@@ -51,7 +51,7 @@ the learned branch does not produce — deterministic parametric records.
 | Architecture | **B+** | AAG + write-only claims + explicit reconciliation is the field's converged shape; registry deliberately closed, no plugin path |
 | Feature-interaction handling | **B−** | Real reconciliation across 6 claiming families and measured intersection wins; but interaction coverage is thin vs hint-based/volumetric methods |
 | Feature coverage | **C+** | 25 families incl. patterns and turned features; no threads, through steps, internal grooves, ribs, vertex blends, sheet metal |
-| Performance | **C+** | Fine for interactive single-part use (~0.2 s/part composite); ~0.9 s/part census on real NIST parts, on a faster host and after two rounds of performance work totalling 6.3×; no parallelism; C++ peers are orders faster |
+| Performance | **C+** | Fine for interactive single-part use (~0.2 s/part composite); ~0.9 s/part census on real NIST parts, on a faster host and after two rounds of performance work totalling about 6.2×; no parallelism; C++ peers are orders faster |
 | Geometric generality | **D+** | Analytic surfaces only, no B-spline recovery (fails closed to *nothing*); principal-axis bias measured at 78% zero-recall on oblique MFCAD classes |
 | Ecosystem reach | **C** | pip-installable Python with one dependency is unique in this field; but single-consumer provenance, no non-Python story, alpha status |
 
@@ -190,15 +190,17 @@ recognised classes are excluded (measured: three mostly-oblique MFCAD classes re
 
 Recorded honestly and budgeted: composite workload 0.85 s for four golden parts plus a census;
 census over 13 real parts 12.0 s (~0.9 s/part on 550–1170 mm NIST models, from ~5.8 s/part
-before the performance work began); peak RSS ~500–590 MB; the 661× pattern-allocation fix
-guarded by an operation-count sentinel rather than CI wall-clock. PR #174's interleaved
+before the performance work began); peak RSS 500–592 MB, up 2.5% on the census arm where
+round 2's caches live; the 661× pattern-allocation fix guarded by an operation-count sentinel
+rather than CI wall-clock. PR #174's interleaved
 pre/post-epic pairs show the framework cost nothing. The census figures were re-measured on an
 Apple M5 Max rather than the epic development container, so the per-part numbers combine a
-faster host with a 6.3× code speedup — 4.7× from the run-scoped caching series and a further
+faster host with a ~6.2× code speedup — 4.7× from the run-scoped caching series and a further
 1.33× from the round-2 adjacency, support-cut and volume-probe work — and only the code part is
 portable; see [`benchmarks/recognition-budget.md`](benchmarks/recognition-budget.md) for the
-same-machine pairs. The composite arm did not move under round 2 at all.
-This is adequate for interactive single-part import and small batches, and the honesty of the
+same-machine pairs. Round 2 left the composite arm at x1.01, inside its own spread — read as
+unchanged rather than as a 1% gain. This is adequate for interactive single-part import and
+small batches, and the honesty of the
 budget machinery is exemplary — but it is Python orchestrating OCP per face: C++ recognisers
 (Analysis Situs, CGM, commercial CAM) run equivalent queries interactively on much larger
 models, and learned inference is milliseconds per part after training. No parallelism, no
