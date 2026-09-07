@@ -349,7 +349,11 @@ def _void_and_planar_open(
     *,
     properties: FaceGraph | None = None,
 ) -> bool:
-    """Prove an empty clipped prism and exterior void beyond both planar mouths."""
+    """Prove an empty clipped prism and exterior void beyond both planar mouths.
+
+    *properties* is the run's graph, which carries the whole-solid cache the volume probes read;
+    see :func:`quiddity._volume_probe.probe_volume` for what a probe without one falls back to.
+    """
 
     try:
         scale = max(1.0, high[0] - low[0])
@@ -604,6 +608,8 @@ def _void_and_open(
     *,
     properties: FaceGraph | None = None,
 ) -> bool:
+    """Prove an empty run and exterior void beyond both ends, *properties* as above."""
+
     try:
         if (
             _material_fraction(solid, _probe_prism(frame, interval, section), properties=properties)

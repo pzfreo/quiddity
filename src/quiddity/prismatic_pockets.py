@@ -161,6 +161,13 @@ def _void_open_and_floored(
     *,
     properties: FaceGraph | None = None,
 ) -> bool:
+    """Is the section empty over the run, open at the mouth and closed at the floor?
+
+    *properties* is the run's graph, which carries the whole-solid cache the volume probes read
+    (:mod:`quiddity._solid_properties`). Without it each probe answers the same question the same
+    way, having rebuilt what it needed -- see :func:`quiddity._volume_probe.probe_volume`.
+    """
+
     low, high = sorted((mouth_at, floor_at))
     centre = _centroid(section)
     radius = max(math.dist(point, centre) for point in section)
