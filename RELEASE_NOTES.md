@@ -2,6 +2,49 @@
 
 ## Next release
 
+Nothing yet.
+
+## 0.2.5 — Quiddity
+
+A performance-only release. Recognition output is byte-identical on every vendored corpus
+part before and after; every change carries an operation-count sentinel so the regression it
+removes cannot return silently. Measured on one machine, the census workload over the ten NIST
+and three real parts went from 75.0 s to 12.0 s; the four-golden composite workload is
+unchanged within noise.
+
+- Derive each solid's bounding box, validity, volume, area and body signature once per run
+  through a run-scoped cache owned by the face graph, instead of once per recogniser (#558).
+- Build the collapsed blend view from face adjacency rather than every pair of faces (#557).
+- Measure volumetric probes against the part's solids only, not the loose construction
+  geometry an imported STEP compound can carry (#562).
+- Answer opening-wire incidence from a per-face edge index, and load each solid into one
+  point classifier per run for the bevel corner probes (#561).
+- Pair shared edge occurrences by an ordered edge index instead of nested identity scans
+  (#568).
+- Skip support cuts a patch's bounding box cannot reach, and ask the plate cross-envelope one
+  vertex projection per direction rather than per face (#569).
+- Answer a volume probe without the kernel where the answer is known: a run-scoped memo for
+  repeated probes, and exact short-circuits for probes disjoint from the solid or clear of
+  every face (#570).
+- Replace the whole-corpus inventory agreement test with the one part that ever disagreed,
+  run the coverage gate on two workers, and re-baseline the recorded runtime budget
+  (#566, #567, #574).
+- Recorded rather than fixed, because this release changes no output: #559 (body keys differ
+  across families on single-solid imports), #560, #564, #565, #571 and #573.
+
+## 0.2.4 — Quiddity
+
+- Recognise polygonal passages ending on observed native cross-bores (#551).
+- Recognise polygonal passages through observed two-plane roofs (#553).
+- Contain section publication failures and stabilise tangent junctions (#552).
+- Make Codecov reporting advisory rather than a merge gate (#548).
+
+## 0.2.3 — Quiddity
+
+- Restore pockets in cylindrical stock with explicit section end surfaces (#544).
+- Restore pierced channels through independently proved support apertures (#545).
+- Publish observed bore-ended channels with cylindrical end geometry (#546).
+
 - Recognise polygonal passages interrupted by a separately proved finite planar entry
   chamfer, retaining exact base support and original treatment-face evidence (#540).
 
