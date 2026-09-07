@@ -17,7 +17,7 @@ from quiddity._geometry import AXIS_ZERO_COS
 from quiddity._record import Record
 from quiddity._rings import SPAN_EPS
 from quiddity._typing import Part
-from quiddity._volume_probe import intersection_volume
+from quiddity._volume_probe import material_fraction as _material_fraction
 
 _AXES = "xyz"
 _POINT_DIGITS = 4
@@ -298,14 +298,6 @@ def _orient_segments(
     return None
 
 
-def _material_fraction(part: Part, probe: Solid) -> float:
-    result = part.intersect(probe)
-    if result is None:
-        return 0.0
-    volume = intersection_volume(result)
-    return volume / float(probe.volume)
-
-
 def _floor_proof(
     part: Part, graph: FaceGraph, floor: FaceNode, axis: int, floor_at: float, mouth_at: float
 ) -> bool:
@@ -318,9 +310,10 @@ def _floor_proof(
     try:
         cavity = Solid.extrude(graph.face(floor), Vector(*toward))
         backing = Solid.extrude(graph.face(floor), Vector(*behind))
+        properties = graph.solid_properties
         return (
-            _material_fraction(part, cavity) <= 1e-9
-            and _material_fraction(part, backing) >= 1 - 1e-9
+            _material_fraction(part, cavity, properties=properties) <= 1e-9
+            and _material_fraction(part, backing, properties=properties) >= 1 - 1e-9
         )
     except (AttributeError, RuntimeError, TypeError, ValueError, ZeroDivisionError):
         return False

@@ -148,7 +148,9 @@ def _candidate_has_void_evidence(
         return False
     probe = dict(spans)
     probe[long_axis] = long_span
-    return _prism_is_empty(probe, part, inset=COORD_FLOOR)
+    # The graph is here for the interruption evidence above; it also owns the run's cache, and
+    # this is the one probe site a whole imported compound reaches -- see `_volume_probe`.
+    return _prism_is_empty(probe, part, inset=COORD_FLOOR, properties=graph.solid_properties)
 
 
 def _has_smooth_depth_closure(

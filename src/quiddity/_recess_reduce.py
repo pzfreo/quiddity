@@ -87,17 +87,27 @@ _VOID_VOL_FRAC = 0.01
 
 
 def _prism_material_fraction(
-    spans: dict[str, tuple[float, float]], part: Part, *, inset: float = _VOID_INSET
+    spans: dict[str, tuple[float, float]],
+    part: Part,
+    *,
+    inset: float = _VOID_INSET,
+    properties: SolidProperties | None = None,
 ) -> float:
     """Compatibility facade over the policy-neutral volumetric measurement."""
 
-    return prism_material_fraction(spans, part, inset=inset)
+    return prism_material_fraction(spans, part, inset=inset, properties=properties)
 
 
-def _prism_is_empty(spans: dict[str, tuple[float, float]], part: Part, *, inset: float) -> bool:
+def _prism_is_empty(
+    spans: dict[str, tuple[float, float]],
+    part: Part,
+    *,
+    inset: float,
+    properties: SolidProperties | None = None,
+) -> bool:
     """Compatibility facade over the exact-empty volumetric measurement."""
 
-    return prism_is_empty(spans, part, inset=inset)
+    return prism_is_empty(spans, part, inset=inset, properties=properties)
 
 
 def _absorb(claims: _Claims | None, into: Slot | Pocket, *from_: Slot | Pocket) -> None:

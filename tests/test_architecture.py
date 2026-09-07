@@ -252,8 +252,9 @@ MODULE_SEAM_EDGES = {
     # Ring geometry: `passages` owned it while it was the only family walking rings.
     "_rings": {"_adjacency", "_geometry", "_typing"},
     "_recess_records": {"_record", "_typing"},
-    # Exact volumetric evidence is shared without importing either recognition policy.
-    "_volume_probe": {"_typing"},
+    # Exact volumetric evidence is shared without importing either recognition policy;
+    # the run-scoped cache only holds which solids a probe is measured against.
+    "_volume_probe": {"_solid_properties", "_typing"},
     "_support_patches": set(),
     "_entry_treatments": {"_adjacency", "_support_patches", "_volume_probe"},
     "_section_passages": {

@@ -596,3 +596,15 @@ already the run object a recogniser can reach through the ledger or writer it is
 recogniser called standalone has no graph, resolves a fresh call-scoped instance, and computes
 exactly what it computed before. The values are identical either way; only the number of times the
 kernel is asked for them changes.
+
+## Amendment (solids-only volumetric probes)
+
+`_volume_probe` may import `_solid_properties`. It stays a policy-neutral leaf: the only thing it
+gains is the run-scoped memo for one derived value, the tuple of solids a part's probe is measured
+against. Narrowing a probe to the part's solids is not a policy choice about what counts as
+material -- the fragments a non-solid child can produce have volume `0.0` by construction, so the
+measured number is unchanged; it removes boolean operations that could not contribute to it.
+
+Callers reach the memo through the `properties` keyword the probe helpers now accept, resolved
+from the `graph` they already hold. A probe helper called with no run context computes exactly
+what it computed before, and a caller that already holds one solid never consults the cache at all.
