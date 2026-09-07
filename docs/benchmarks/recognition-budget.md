@@ -47,7 +47,17 @@ that pair is the comparison that means something:
 
 The `a5f1fcc` pair was taken against `7918c8a`, the revision immediately before the one recorded
 above, which measured 0.866 s and 16.295 s — within this box's own run-to-run spread of the rows
-in the table, and the reason the ratios are quoted to two figures and not three.
+in the table. Read strictly, within that one window, the census ratio is x4.61 and the composite
+x1.12; the table pairs `a5f1fcc` with the later reading instead. **The ratios are good to about
+this box's own spread and no further**, which is why the interesting digit is the 4, not the 68.
+
+**The census arm's headroom is now 1.6 seconds, and that changes how it must be run.** 1.10 of
+16.022 s is a 17.624 s ceiling; the same ratio used to allow ten seconds of slack on a
+hundred-second arm. A review run of this file measured **17.963 s — OVER —** with the one-minute
+load average around 6. Nothing had got slower; the box was busier. The load-under-4 protocol
+above was close to a nicety at a hundred seconds and is a precondition at sixteen, and a single
+OVER taken on a loaded machine is evidence about the machine. Re-run it quiet before believing
+it, and if it is reproducibly over on a quiet box, that is the signal the ratio exists for.
 
 The budget is **1.10** by default, and a workload may record its own. Two arms of very
 different length cannot share one ceiling on a shared box:

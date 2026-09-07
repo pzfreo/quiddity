@@ -25,8 +25,10 @@ carries the family, so the evidence only has to make each family appear once. Me
 golden fixtures already do — every one of the sixteen `SHARED` families is populated by at least
 one of them (`section_recess` by eight, `hole` by seven, `boss`, `blend` and `plate` by four
 each, `slot`, `chamfer` and `through_step` by two, the rest by one). Reading all 87 vendored
-parts added 188 seconds serially — the whole test suite's critical path, longer than every other
-test put together — and put no family through the map that the goldens had not already.
+parts added 188 seconds serially at the series' branch point, and 65 s once run-scoped caching
+landed — either way the whole test suite's critical path, longer than the next four slowest tests
+together, and unsplittable by `xdist` because it is one test — and put no family through the map
+that the goldens had not already.
 
 What is kept from the corpus is the one part the goldens cannot make: the real turned screw
 below. Goldens are built to exercise one family at a time, and the historical disagreement was an
