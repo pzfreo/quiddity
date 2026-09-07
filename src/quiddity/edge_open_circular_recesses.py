@@ -316,6 +316,11 @@ def _floor_proof(
             and _material_fraction(part, backing, properties=properties) >= 1 - 1e-9
         )
     except (AttributeError, RuntimeError, TypeError, ValueError, ZeroDivisionError):
+        # ``ZeroDivisionError`` covers the one path where the shared ``material_fraction``
+        # differs from the private copy this family used to keep: given a degenerate
+        # zero-volume probe whose intersection is empty, the copy returned 0.0 before
+        # dividing and the shared helper divides. Refusing the proof is the safer answer of
+        # the two, and no corpus part reaches it.
         return False
 
 

@@ -68,9 +68,19 @@ def test_wire_seed_uses_exact_shared_edge_occurrences_without_growing_region():
 
 
 def test_recognisers_share_the_same_seed_and_fraction_implementations():
-    from quiddity import _recess_core, _section_passages, prismatic_pockets
+    from quiddity import (
+        _recess_core,
+        _section_passages,
+        edge_open_circular_recesses,
+        edge_open_prismatic_recesses,
+        prismatic_pockets,
+    )
 
     assert _recess_core._inner_wire_seed is _section_passages._wire_seed is wire_seed
     assert prismatic_pockets._wire_seed is wire_seed
     assert _section_passages._material_fraction is material_fraction
     assert prismatic_pockets._material_fraction is material_fraction
+    # The two edge-open families each carried their own copy until the probe was narrowed to
+    # the part's solids; pinned here so the copies cannot quietly return and miss that.
+    assert edge_open_prismatic_recesses._material_fraction is material_fraction
+    assert edge_open_circular_recesses._material_fraction is material_fraction

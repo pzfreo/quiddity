@@ -21,10 +21,12 @@ from pathlib import Path
 import pytest
 from build123d import Box, Compound, Edge, Pos, Shell, Solid, Vertex, import_step
 from build123d.topology.shape_core import Shape
+from OCP.BRepAlgoAPI import BRepAlgoAPI_Common
 
 from quiddity import _volume_probe
 from quiddity._adjacency import FaceGraph
 from quiddity._solid_properties import SolidProperties
+from quiddity._typing import Part
 from quiddity._volume_probe import (
     intersection_volume,
     material_fraction,
@@ -37,11 +39,19 @@ CORPUS = Path(__file__).parent / "corpus"
 
 
 def _loose_geometry() -> tuple[Compound, Shell, Vertex]:
-    """The kinds of child the NIST compounds actually carry beside their solid."""
+    """The kinds of child the NIST compounds carry beside their solid, at their most hazardous.
+
+    The shell is deliberately *closed*. A manifold shell is the one non-solid shape build123d
+    gives a non-zero ``volume`` (this one encloses 2744 mm3), so it is the only way narrowing
+    the probe to solids could move a number -- and it does not, because ``ShapeList.expand``
+    dissolves a shell into its faces before the sum ever sees it. An open shell would leave the
+    equality tests below unable to tell that apart from "this shell had no volume anyway".
+    """
 
     edges = Compound([Edge.make_line((-40.0, y, -40.0), (40.0, y, 40.0)) for y in (-6.0, 0.0, 6.0)])
-    open_shell = Shell((Pos(0, 0, 3) * Box(14, 14, 14)).faces()[:3])
-    return edges, open_shell, Vertex(3.0, 3.0, 3.0)
+    closed_shell = Shell((Pos(0.0, 0.0, 24.0) * Box(14.0, 14.0, 14.0)).faces())
+    assert closed_shell.is_manifold and closed_shell.volume == pytest.approx(2744.0)
+    return edges, closed_shell, Vertex(3.0, 3.0, 3.0)
 
 
 def _one_body_with_clutter() -> tuple[Compound, Solid]:
@@ -54,7 +64,7 @@ def _two_bodies_with_clutter() -> tuple[Compound, tuple[Solid, ...]]:
     return Compound([*bodies, *_loose_geometry()]), bodies
 
 
-def _full_distribution_fraction(part, probe: Solid) -> float:
+def _full_distribution_fraction(part: Part, probe: Solid) -> float:
     """What build123d computes when it distributes the intersection over every child."""
 
     return intersection_volume(part.intersect(probe)) / float(probe.volume)
@@ -70,6 +80,11 @@ def test_loose_children_do_not_change_the_measurement() -> None:
     assert material_fraction(part, probe) == material_fraction(body, probe)
     assert material_fraction(part, probe) == pytest.approx(0.7)  # 14 mm of the probe's 20
 
+    # The same, for a probe that reaches the closed shell and cuts it open on the way past.
+    spanning = Pos(6.0, 0.0, 10.0) * Box(20.0, 8.0, 40.0)
+    assert material_fraction(part, spanning) == _full_distribution_fraction(part, spanning)
+    assert material_fraction(part, spanning) == material_fraction(body, spanning)
+
 
 def test_every_body_of_a_multi_solid_part_still_contributes() -> None:
     """Narrowing to solids is not narrowing to *one* solid: the sum is over all of them."""
@@ -83,9 +98,24 @@ def test_every_body_of_a_multi_solid_part_still_contributes() -> None:
     assert probe_volume(part, probe) == sum(probe_volume(body, probe) for body in bodies)
 
 
-def test_a_probe_that_meets_only_clutter_measures_empty() -> None:
+def test_a_probe_that_swallows_a_closed_shell_whole_still_measures_empty() -> None:
+    """The hazardous case at its worst: nothing cuts the shell, so nothing opens it.
+
+    A manifold shell has a volume, and ``BRepAlgoAPI_Common`` of a probe that contains it
+    entirely returns the shell intact rather than an open piece of it -- the kernel result
+    really does carry 2744 mm3, which the first assertion below pins. It still contributes
+    nothing, because ``ShapeList.expand`` dissolves it into faces before the sum sees it. This
+    probe sits clear of the body and holds the whole shell, plus a length of each loose edge.
+    """
+
     part, _body = _one_body_with_clutter()
-    probe = Pos(0.0, 0.0, 22.0) * Box(30.0, 30.0, 4.0)  # above the body, across the shell
+    _edges, shell, _vertex = _loose_geometry()
+    probe = Pos(0.0, 0.0, 25.0) * Box(30.0, 30.0, 26.0)
+
+    # The kernel hands back a whole manifold shell; build123d's expansion is what disarms it.
+    raw = probe.solids()[0]._bool_op_list((probe.solids()[0],), (shell,), BRepAlgoAPI_Common())
+    assert [fragment.volume for fragment in raw] == [pytest.approx(2744.0)]
+    assert {type(fragment).__name__ for fragment in raw.expand()} == {"Face"}
 
     assert _full_distribution_fraction(part, probe) == 0.0
     assert material_fraction(part, probe) == 0.0
@@ -111,7 +141,7 @@ def test_anything_that_is_not_a_compound_is_passed_through_untouched() -> None:
 
 
 def test_the_probe_target_is_derived_once_per_run(monkeypatch) -> None:
-    """It hangs off the PR-1 cache's ``derived`` hook, so a run walks the part's solids once."""
+    """It hangs off ``quiddity._solid_properties.SolidProperties.derived``: one walk per run."""
 
     part, body = _one_body_with_clutter()
     memo = SolidProperties()
