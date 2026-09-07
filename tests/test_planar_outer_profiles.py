@@ -396,3 +396,32 @@ def test_step_reimport_preserves_geometry_with_fresh_source_binding(tmp_path):
     )
     with pytest.raises(ValueError, match="foreign"):
         after.profile_edge(old, 0)
+
+
+@pytest.mark.parametrize("change", ["plane", "normal", "radius", "sweep", "open", "unsupported"])
+def test_profile_schema_rejects_incoherent_hand_built_geometry(change):
+    view = build_recognition_evidence(triangle())
+    p = bound(view, cap(view)).profile
+    with pytest.raises((ValueError, TypeError)):
+        if change == "plane":
+            replace(p, origin=(0, 0, 7))
+        elif change == "normal":
+            replace(p, normal=(0, 0, 0))
+        else:
+            supports = list(p.supports)
+            if change == "open":
+                supports.pop()
+            elif change == "unsupported":
+                supports.append(object())
+            else:
+                at = next(i for i, s in enumerate(supports) if isinstance(s, ProfileArc))
+                arc = supports[at]
+                supports[at] = replace(
+                    arc,
+                    **(
+                        {"radius": arc.radius + 1}
+                        if change == "radius"
+                        else {"sweep": arc.sweep + 0.1}
+                    ),
+                )
+            replace(p, supports=tuple(supports))

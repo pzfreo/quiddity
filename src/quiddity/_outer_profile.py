@@ -14,6 +14,38 @@ from quiddity._record import Record
 Point3 = tuple[float, float, float]
 
 
+def _sub(a: Point3, b: Point3) -> Point3:
+    return tuple(x - y for x, y in zip(a, b, strict=True))  # type: ignore[return-value]
+
+
+def _dot(a: Point3, b: Point3) -> float:
+    return math.fsum(x * y for x, y in zip(a, b, strict=True))
+
+
+def _cross(a: Point3, b: Point3) -> Point3:
+    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+
+
+def _tangent(support: ProfileLine | ProfileArc, normal: Point3, *, end: bool) -> Point3:
+    if isinstance(support, ProfileLine):
+        return support.direction
+    radius = _sub(support.end if end else support.start, support.center)
+    tangent = _cross(normal, radius)
+    length = math.hypot(*tangent)
+    if length == 0:
+        raise ValueError("profile arc must have a nonzero in-plane tangent")
+    return tuple(v * math.copysign(1, support.sweep) / length for v in tangent)  # type: ignore[return-value]
+
+
+def _turns(supports, normal: Point3) -> list[float]:
+    turns = []
+    for at, support in enumerate(supports):
+        before = _tangent(support, normal, end=True)
+        after = _tangent(supports[(at + 1) % len(supports)], normal, end=False)
+        turns.append(math.atan2(_dot(_cross(before, after), normal), _dot(before, after)))
+    return turns
+
+
 def _point(value: Point3) -> None:
     if not isinstance(value, tuple) or len(value) != 3 or not all(math.isfinite(v) for v in value):
         raise ValueError("profile coordinates must be finite three-tuples")
@@ -30,8 +62,9 @@ class ProfileLine(Record):
     def __post_init__(self) -> None:
         _point(self.start)
         _point(self.end)
-        if math.dist(self.start, self.end) == 0:
-            raise ValueError("profile line must have nonzero length")
+        length = math.dist(self.start, self.end)
+        if not math.isfinite(length) or length == 0:
+            raise ValueError("profile line must have finite nonzero length")
 
     @property
     def direction(self) -> Point3:
@@ -89,11 +122,41 @@ class PlanarOuterProfile(Record):
             or sum(isinstance(s, ProfileLine) for s in self.supports) < 2
         ):
             raise ValueError("profile requires at least two finite line supports")
+        if not all(isinstance(s, ProfileLine | ProfileArc) for s in self.supports):
+            raise TypeError("profile supports must be lines or circular arcs")
         for at, support in enumerate(self.supports):
-            if not isinstance(support, ProfileLine | ProfileArc):
-                raise TypeError("profile supports must be lines or circular arcs")
             if support.end != self.supports[(at + 1) % len(self.supports)].start:
                 raise ValueError("profile supports must form one exactly connected closed wire")
+            points: tuple[Point3, ...] = (support.start, support.end)
+            if isinstance(support, ProfileArc):
+                points += (support.center,)
+                if support.sweep <= 0:
+                    raise ValueError(
+                        "convex outer-profile arcs must sweep about the outward normal"
+                    )
+                radial = _sub(support.start, support.center)
+                if any(
+                    abs(math.dist(point, support.center) - support.radius) > 1e-6
+                    for point in (support.start, support.end)
+                ):
+                    raise ValueError("arc endpoints must lie on the declared circle")
+                crossed = _cross(self.normal, radial)
+                reconstructed = tuple(
+                    support.center[i]
+                    + math.cos(support.sweep) * radial[i]
+                    + math.sin(support.sweep) * crossed[i]
+                    for i in range(3)
+                )
+                if math.dist(reconstructed, support.end) > 1e-6:
+                    raise ValueError("arc sweep must reconstruct its directed endpoint")
+            if any(abs(_dot(_sub(point, self.origin), self.normal)) > 1e-6 for point in points):
+                raise ValueError("profile supports must lie on the supporting plane")
+        turns = _turns(self.supports, self.normal)
+        winding = math.fsum(turns) + math.fsum(
+            s.sweep for s in self.supports if isinstance(s, ProfileArc)
+        )
+        if abs(winding - 2 * math.pi) > 2e-8 or any(turn < -2e-8 for turn in turns):
+            raise ValueError("profile must be a convex outer wire about the outward normal")
 
 
 class OuterProfileRefusalReason(Enum):

@@ -45,7 +45,9 @@ silhouette of an assembly, merge coplanar patches or connect separate bodies.
 `start` and `end`, exposes their normalized `direction`, and serializes `kind="line"`.
 `ProfileArc` stores finite `start`, `end`, `center`, `radius`, signed radian `sweep`, and
 `kind="arc"`. Sweep is measured about the profile normal. The supported convex output uses
-positive sweeps. Coordinates retain source floating-point precision without display rounding.
+positive sweeps. Coordinates retain source floating-point precision without display rounding. Value constructors
+validate closed connectivity, the supporting plane, arc radius and directed sweep reconstruction,
+and convex winding; hand-built inconsistent geometry is not a valid schema-1 value.
 
 The complete wire is oriented counterclockwise about the outward face normal, with material to
 its left, and starts at its lexicographically least start point. That starting index is a local

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2024-2026 Paul Fremantle
-"""Original-wire inspection behind the run-local evidence facade (issue #579)."""
+"""Original-wire inspection behind the run-local evidence facade (ADR 0025)."""
 
 from __future__ import annotations
 
@@ -21,6 +21,10 @@ from quiddity._outer_profile import (
     ProfileArc,
     ProfileLine,
     RefusedPlanarOuterProfile,
+    _cross,
+    _dot,
+    _sub,
+    _turns,
 )
 from quiddity._typing import FaceLike
 
@@ -28,27 +32,6 @@ from quiddity._typing import FaceLike
 # consistent with ADR0008's 1e-6 source endpoint bound. No public rounding is used.
 _POSITION_TOL = 1e-6
 _DIRECTION_TOL = 2e-8
-
-
-def _sub(a: Point3, b: Point3) -> Point3:
-    return tuple(x - y for x, y in zip(a, b, strict=True))  # type: ignore[return-value]
-
-
-def _dot(a: Point3, b: Point3) -> float:
-    return math.fsum(x * y for x, y in zip(a, b, strict=True))
-
-
-def _cross(a: Point3, b: Point3) -> Point3:
-    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
-
-
-def _tangent(support: ProfileLine | ProfileArc, normal: Point3, *, end: bool) -> Point3:
-    if isinstance(support, ProfileLine):
-        return support.direction
-    radius = _sub(support.end if end else support.start, support.center)
-    tangent = _cross(normal, radius)
-    length = math.hypot(*tangent)
-    return tuple(v * math.copysign(1, support.sweep) / length for v in tangent)  # type: ignore[return-value]
 
 
 def _read_profile(
@@ -107,25 +90,7 @@ def _read_profile(
 
     # OCCT wire orientation can differ from outward face orientation. Choose the
     # complete boundary winding, not an individual edge's parameter direction.
-    def turning(items):
-        return [
-            math.atan2(
-                _dot(
-                    _cross(
-                        _tangent(item, normal, end=True),
-                        _tangent(items[(at + 1) % len(items)], normal, end=False),
-                    ),
-                    normal,
-                ),
-                _dot(
-                    _tangent(item, normal, end=True),
-                    _tangent(items[(at + 1) % len(items)], normal, end=False),
-                ),
-            )
-            for at, item in enumerate(items)
-        ]
-
-    turns = turning(supports)
+    turns = _turns(supports, normal)
     winding = math.fsum(turns) + math.fsum(s.sweep for s in supports if isinstance(s, ProfileArc))
     if winding < 0:
         supports = [
@@ -135,7 +100,7 @@ def _read_profile(
             for s in reversed(supports)
         ]
         edges.reverse()
-        turns = turning(supports)
+        turns = _turns(supports, normal)
         winding = -winding
     if abs(winding - 2 * math.pi) > _DIRECTION_TOL:
         return RefusedPlanarOuterProfile(Reason.INVALID_BOUNDARY)
