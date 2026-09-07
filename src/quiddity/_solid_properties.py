@@ -45,9 +45,11 @@ attribute read that costs nothing measurable beside the queries it guards, and a
 under a caller-chosen name, so a per-solid cache hangs off the run's existing instance rather
 than inventing another lifetime to get wrong. The name is the owning module's business; this
 module holds no policy about what is derived, only about how long the answer lives and what it
-is keyed on. Two modules use it: :mod:`quiddity._volume_probe` holds the solids a volumetric
+is keyed on. Three modules use it: :mod:`quiddity._volume_probe` holds the solids a volumetric
 probe is measured against, under ``"_volume_probe.solids"``, and :mod:`quiddity._bevel` holds
-the point classifier its corner probes ask, under ``"_bevel.solid_classifier"``. A per-*node*
+the point classifier its corner probes ask, under ``"_bevel.solid_classifier"``, and
+:mod:`quiddity.plates` holds one body's vertex coordinates, which its oriented cross-envelope
+walks once per axis, under ``"plates.vertex_coordinates"``. A per-*node*
 cache is not one of its users and should not become one: the wire-edge index that opening-wire
 incidence needs lives on :class:`quiddity._adjacency.FaceGraph`, beside the other per-face
 caches.
@@ -142,9 +144,10 @@ class SolidProperties:
         The caller owns both the name and the meaning; this only owns the lifetime and the
         shape identity. Two callers sharing a name are sharing a value on purpose.
 
-        Used by :func:`quiddity._volume_probe.probe_solids` for a compound's solids and by
+        Used by :func:`quiddity._volume_probe.probe_solids` for a compound's solids, by
         :func:`quiddity._bevel._material_at` for the point classifier of the shape it is
-        asked about.
+        asked about, and by :func:`quiddity.plates._oriented_cross_area` for the body's
+        vertex coordinates.
         """
 
         key = (name, *_key(solid))

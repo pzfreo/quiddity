@@ -114,11 +114,27 @@ class _PlateGroup:
     faces: tuple[Face, ...]
 
 
+#: The run cache's name for one body's vertex coordinates (see :meth:`SolidProperties.derived`).
+_VERTEX_COORDINATES = "plates.vertex_coordinates"
+
+
+def _vertex_coordinates(part: Part) -> tuple[tuple[float, ...], ...]:
+    """Every vertex of the body as a plain coordinate triple, walked once per body.
+
+    ``_oriented_cross_area`` asks for these once per axis, so a three-axis body walked the
+    topology three times for the same answer. The walk is the expensive half (about 10 ms of
+    the 12 ms on the 664-face ``nist_ctc_02``), and it is a pure function of the body.
+    """
+
+    return tuple(tuple(vertex) for vertex in part.vertices())
+
+
 def _oriented_cross_area(
     part: Part,
     faces: Sequence[Face],
     axis_index: int,
     extents: tuple[float, float, float],
+    properties: SolidProperties,
 ) -> float:
     """Smallest body cross-envelope in directions established by its planar faces.
 
@@ -132,8 +148,14 @@ def _oriented_cross_area(
 
     other = [index for index in range(3) if index != axis_index]
     angles: set[float] = set()
-    vertices = tuple(tuple(vertex) for vertex in part.vertices())
+    vertices = properties.derived(_VERTEX_COORDINATES, part, _vertex_coordinates)
     support_eps = max(max(extents), 1.0) * 1e-9
+    # The support test asks one question per *direction*, and a prismatic body has far fewer
+    # directions than eligible faces -- 52 faces over 12 distinct normals on ``nist_ctc_02``.
+    # Each answer costs a pass over every vertex of the part, which was 375k inner terms across
+    # four NIST parts. Memoise it on the exact normal tuple, so a repeat is the same expression
+    # over the same operands in the same order and returns the identical float.
+    extreme_projections: dict[tuple[float, ...], float] = {}
     for face in faces:
         try:
             normal = tuple(face.normal_at())
@@ -149,16 +171,16 @@ def _oriented_cross_area(
         plane_projection = sum(
             value * direction for value, direction in zip(plane, normal, strict=True)
         )
-        if (
-            vertices
-            and max(
-                sum(value * direction for value, direction in zip(vertex, normal, strict=True))
-                for vertex in vertices
-            )
-            > plane_projection + support_eps
-        ):
-            # A concave/internal planar wall does not establish a body-envelope direction.
-            continue
+        if vertices:
+            extreme = extreme_projections.get(normal)
+            if extreme is None:
+                extreme_projections[normal] = extreme = max(
+                    sum(value * direction for value, direction in zip(vertex, normal, strict=True))
+                    for vertex in vertices
+                )
+            if extreme > plane_projection + support_eps:
+                # A concave/internal planar wall does not establish a body-envelope direction.
+                continue
         angle = math.degrees(math.atan2(normal[other[1]], normal[other[0]])) % 90.0
         # Apply modulo again so a value numerically just below 90 canonicalises with 0.
         angles.add(round(angle, _ORIENTED_ANGLE_DIGITS) % 90.0)
@@ -219,7 +241,8 @@ def _plate_proposals(
 ) -> list[_PlateProposal]:
     """Discover one body's Plate proposals without publishing evidence."""
 
-    bb = solid_properties(properties).bounding_box(part)
+    memo = solid_properties(properties)
+    bb = memo.bounding_box(part)
     extents = (bb.max.X - bb.min.X, bb.max.Y - bb.min.Y, bb.max.Z - bb.min.Z)
     ext = dict(zip("xyz", extents, strict=True))
     axidx = {"x": 0, "y": 1, "z": 2}
@@ -279,7 +302,7 @@ def _plate_proposals(
         ):
             continue
 
-        cross = _oriented_cross_area(part, faces, i, extents)
+        cross = _oriented_cross_area(part, faces, i, extents, memo)
         if cross <= 0:
             continue
         threshold = min_area_frac * cross

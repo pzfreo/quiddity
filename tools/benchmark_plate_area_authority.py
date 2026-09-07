@@ -40,9 +40,13 @@ def _run_case(part: Any, enabled: bool) -> tuple[Any, float]:
     original = plates._oriented_cross_area
 
     def coordinate_envelope(
-        value: Any, faces: Any, axis_index: int, extents: tuple[float, float, float]
+        value: Any,
+        faces: Any,
+        axis_index: int,
+        extents: tuple[float, float, float],
+        properties: Any,
     ) -> float:
-        del value, faces
+        del value, faces, properties
         return math.prod(extents[index] for index in range(3) if index != axis_index)
 
     if not enabled:
