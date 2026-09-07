@@ -136,14 +136,17 @@ def _proofs(
         if any(not covered_patch(f, side_patches) for f in supports):
             continue
         solid = graph.solid_shape(owner)
-        if material_fraction(solid, clipped) > 1e-9:
+        if material_fraction(solid, clipped, properties=graph) > 1e-9:
             continue
         thickness = max(2e-5, radius * 1e-4)
-        if material_fraction(solid, Solid.extrude(source, -run * thickness)) < 1 - 1e-9:
+        if (
+            material_fraction(solid, Solid.extrude(source, -run * thickness), properties=graph)
+            < 1 - 1e-9
+        ):
             continue
         expanded = _shape(sweep.intersect(cylinder.translate(run * thickness)))
         mouth = _shape(expanded.cut(clipped))
-        if mouth.volume <= 1e-12 or material_fraction(solid, mouth) > 1e-9:
+        if mouth.volume <= 1e-12 or material_fraction(solid, mouth, properties=graph) > 1e-9:
             continue
         results.append(
             CylindricalPocketProof(

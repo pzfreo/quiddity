@@ -347,7 +347,7 @@ def _recognise_one(
                 for candidate in regions
             ):
                 continue
-            if not prism_is_empty(spans, solid, inset=COORD_FLOOR):
+            if not prism_is_empty(spans, solid, inset=COORD_FLOOR, properties=graph):
                 continue
             nodes = frozenset((*left.nodes, *right.nodes))
             if nodes in claimed:

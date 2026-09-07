@@ -1,25 +1,25 @@
 {
   "schema_version": 1,
   "measured_at": "2026-09-07",
-  "source_commit": "8147f39",
-  "environment": "Apple M5 Max, macOS 26.6, Python 3.14.7, build123d 0.11.1; shared developer machine, measured with the one-minute load average below 4; minimum of samples",
+  "source_commit": "4ce8bb7",
+  "environment": "Apple M5 Max, macOS 26.6, Python 3.14.7, build123d 0.11.1; shared developer machine, measured with the one-minute load average below 4 before and after the run; readings taken at parent 740184c, whose only successor 4ce8bb7 deletes env-gated dead code the benchmark never activated; minimum of samples",
   "budget": 1.1,
   "workloads": {
     "composite": {
       "what": "two recognition results and one census over four golden fixtures, rebuilt each iteration",
       "iterations": 5,
-      "min_seconds": 0.863,
-      "peak_rss_kb": 510240,
+      "min_seconds": 0.851,
+      "peak_rss_kb": 512368,
       "budget": 1.4,
-      "budget_note": "Inherited from the previous host, where this two-second arm's minimum-of-five ranged 1.93s to 2.66s over one evening and a ceiling under that spread would have reported the load rather than the code. This box is steadier -- three quiet windows over two hours, on adjacent revisions of this stack, gave 0.863s, 0.866s and 0.898s, a 4.1% spread -- but three windows on a machine other work shares is not enough to tighten a ceiling on, and a check that cries wolf stops being run. The census arm is nineteen times longer and remains the tight one.",
-      "baseline_note": "0.972s at a5f1fcc, the branch point, measured on the same box in the adjacent quiet window, against 7918c8a (0.866s) -- the revision of this stack immediately before the one recorded here, and within this arm's own spread of it."
+      "budget_note": "Inherited from the host this arm was sized on, where its minimum-of-five ranged 1.93s to 2.66s over one evening and a ceiling under that spread would have reported the load rather than the code. This box is steadier -- six quiet windows during this re-baselining gave 0.839s to 0.886s, a 5.6% spread, and an independent seventh reading during review came in at 0.830s, widening it to 6.7% -- but a shared machine's spread is not evidence to tighten a ceiling on, a check that cries wolf stops being run, and the arm this ceiling guards is not the one that moves. The census arm is fourteen times longer and remains the tight one.",
+      "baseline_note": "0.858s at ac1543e, the round-2 branch point, measured on the same box in the same paired window -- x1.01, which is no change. Round 2's three changes are in wide-face adjacency, support cuts and probe booleans, and four small golden fixtures barely exercise any of them; the census arm is where round 2 is visible. Earlier paired windows read 0.849s/0.855s and 0.852s/0.855s. The 0.863s recorded at 8147f39 re-measures at 0.855-0.858s here, so this arm has not moved outside its own spread since round 1."
     },
     "census": {
       "what": "feature_census over the ten vendored NIST parts and three real gramel parts, imported once",
       "iterations": 3,
-      "min_seconds": 16.022,
-      "peak_rss_kb": 590944,
-      "baseline_note": "75.032s at a5f1fcc, the branch point, measured on the same box in the adjacent quiet window, against 7918c8a (16.295s) -- the revision of this stack immediately before the one recorded here."
+      "min_seconds": 11.990,
+      "peak_rss_kb": 605792,
+      "baseline_note": "15.896s at ac1543e, the round-2 branch point, measured on the same box in the same paired window -- x1.33. Earlier paired windows read 12.170s/15.893s and 12.186s/15.991s: x1.31, x1.31 and x1.33 across the three, agreeing to two figures. The 16.022s recorded at 8147f39 re-measures at 15.893-15.991s here, which is what makes the two recordings comparable at all; against a5f1fcc, round 1's branch point at 75.032s, the two rounds together are x6.2-6.3 (4.683 x 1.3258 = 6.21 by the recorded ratios; 75.032/11.990 = 6.26 by direct division, which swaps ac1543e's re-measured 15.896s in for 8147f39's recorded 16.022s). Five quiet windows span 11.982s to 12.186s, 1.7%; the 1.10 ceiling is drawn off the bottom of that, so the margin a regression must actually exceed is about 8%, not 10%. Peak RSS rose 2.5% (590944kB to 605792kB): round 2 trades memory for booleans, and the field is recorded rather than checked."
     }
   },
   "commands": [
@@ -27,5 +27,5 @@
     "uv run python tools/benchmark_recognition.py --implementation package --workload census --iterations 3",
     "uv run python tools/benchmark_recognition.py --implementation package --workload census --iterations 3 --check docs/benchmarks/recognition-budget.json"
   ],
-  "budget_note": "The default multiplier, used by any workload that records none of its own. Applied to the census arm, which is long enough to be stable here."
+  "budget_note": "The default multiplier, used by any workload that records none of its own. Applied to the census arm, which is the longer of the two and the one every recognition change is felt in."
 }

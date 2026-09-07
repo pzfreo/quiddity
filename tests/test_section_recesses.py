@@ -100,7 +100,7 @@ def test_obround_probe_contains_the_complete_semicircular_ends():
 def test_obround_kernel_probe_failure_refuses(monkeypatch):
     import quiddity._section_recess_geometry as implementation
 
-    def failed(*_args):
+    def failed(*_args, **_kwargs):
         raise RuntimeError("kernel boolean failed")
 
     monkeypatch.setattr(implementation, "_material_fraction", failed)
@@ -119,7 +119,9 @@ def test_obround_requires_empty_run_open_mouth_and_complete_backing(monkeypatch,
         if implementation._one_obround_candidate(graph, node) is not None
     )
     remaining = iter(fractions)
-    monkeypatch.setattr(implementation, "_material_fraction", lambda *_args: next(remaining))
+    monkeypatch.setattr(
+        implementation, "_material_fraction", lambda *_args, **_kwargs: next(remaining)
+    )
     assert implementation._one_obround_candidate(graph, floor) is None
     assert list(remaining) == []
 

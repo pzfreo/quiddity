@@ -92,7 +92,7 @@ def test_incomplete_support_material_and_mixed_ownership_refuse(part):
 def test_each_void_probe_can_independently_refuse(monkeypatch, stage):
     calls = []
 
-    def material(*args):
+    def material(*args, **_kwargs):
         calls.append(args)
         return 1.0 if len(calls) == stage + 1 else 0.0
 
@@ -102,7 +102,7 @@ def test_each_void_probe_can_independently_refuse(monkeypatch, stage):
 
 
 def test_boolean_failure_refuses_geometry(monkeypatch):
-    def failed(*_args):
+    def failed(*_args, **_kwargs):
         raise RuntimeError("kernel operation failed")
 
     monkeypatch.setattr(proof_module, "_material_fraction", failed)

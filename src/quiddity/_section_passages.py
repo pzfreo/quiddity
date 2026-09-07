@@ -346,8 +346,14 @@ def _void_and_planar_open(
     low: tuple[float, tuple[float, float]],
     high: tuple[float, tuple[float, float]],
     section: PlanarSection,
+    *,
+    properties: FaceGraph | None = None,
 ) -> bool:
-    """Prove an empty clipped prism and exterior void beyond both planar mouths."""
+    """Prove an empty clipped prism and exterior void beyond both planar mouths.
+
+    *properties* is the run's graph, which carries the whole-solid cache the volume probes read;
+    see :func:`quiddity._volume_probe.probe_volume` for what a probe without one falls back to.
+    """
 
     try:
         scale = max(1.0, high[0] - low[0])
@@ -371,8 +377,11 @@ def _void_and_planar_open(
             (high[0] + thickness, high[1]),
             section,
         )
-        return _material_fraction(solid, inner) <= _MATERIAL_VOL_FRAC and all(
-            _material_fraction(solid, slab) <= _MATERIAL_VOL_FRAC for slab in (low_slab, high_slab)
+        return _material_fraction(
+            solid, inner, properties=properties
+        ) <= _MATERIAL_VOL_FRAC and all(
+            _material_fraction(solid, slab, properties=properties) <= _MATERIAL_VOL_FRAC
+            for slab in (low_slab, high_slab)
         )
     except (RuntimeError, TypeError, ValueError, ZeroDivisionError):
         return False
@@ -424,7 +433,7 @@ def _treated_entry_proposals(
                 solid = graph.common_valid_solid(seed | proof.treatments | proof.stock | {opening})
                 interval = (min(at, far), max(at, far))
                 if solid is None or not _void_and_open(
-                    graph.solid_shape(solid), frame, interval, section
+                    graph.solid_shape(solid), frame, interval, section, properties=graph
                 ):
                     continue
                 occurrence = SectionOccurrence(
@@ -481,7 +490,7 @@ def _enclosure_proposals(graph: FaceGraph, bodies: _BodyAdapter) -> tuple[Sectio
                 continue
             low, high = sorted((first_plane, second_plane), key=lambda item: item[0])
             if high[0] - low[0] <= _COORD_FLOOR or not _void_and_planar_open(
-                graph.solid_shape(solid), frame, low, high, section
+                graph.solid_shape(solid), frame, low, high, section, properties=graph
             ):
                 continue
             defining = tuple(sorted(first_seed | second_seed, key=lambda node: node.index))
@@ -521,7 +530,11 @@ def _enclosure_proposals(graph: FaceGraph, bodies: _BodyAdapter) -> tuple[Sectio
             )
         )
         if interval[1] - interval[0] <= _COORD_FLOOR or not _void_and_open(
-            graph.solid_shape(solid), frame, cast(tuple[float, float], interval), section
+            graph.solid_shape(solid),
+            frame,
+            cast(tuple[float, float], interval),
+            section,
+            properties=graph,
         ):
             continue
         defining = tuple(sorted(first_seed | second_seed, key=lambda node: node.index))
@@ -592,15 +605,24 @@ def _void_and_open(
     frame: LocalFrame,
     interval: tuple[float, float],
     section: PlanarSection,
+    *,
+    properties: FaceGraph | None = None,
 ) -> bool:
+    """Prove an empty run and exterior void beyond both ends, *properties* as above."""
+
     try:
-        if _material_fraction(solid, _probe_prism(frame, interval, section)) > _MATERIAL_VOL_FRAC:
+        if (
+            _material_fraction(solid, _probe_prism(frame, interval, section), properties=properties)
+            > _MATERIAL_VOL_FRAC
+        ):
             return False
         scale = max(1.0, interval[1] - interval[0])
         radius = max(math.hypot(*vertex.point) for vertex in section.boundary)
         thickness = max(_END_PROBE, scale * 1e-4, radius * 1e-4)
         return all(
-            _material_fraction(solid, _end_slab(frame, end, sign, thickness, section))
+            _material_fraction(
+                solid, _end_slab(frame, end, sign, thickness, section), properties=properties
+            )
             <= _MATERIAL_VOL_FRAC
             for end, sign in ((interval[0], -1.0), (interval[1], 1.0))
         )
@@ -753,7 +775,9 @@ def section_ring_proposals(part: Part, graph: FaceGraph) -> tuple[SectionRingPro
                 )
             except ValueError:
                 continue
-            if not _void_and_open(graph.solid_shape(solid), frame, (low, high), section):
+            if not _void_and_open(
+                graph.solid_shape(solid), frame, (low, high), section, properties=graph
+            ):
                 continue
             seen.add(identity)
             occurrence = SectionOccurrence(

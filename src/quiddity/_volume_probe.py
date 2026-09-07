@@ -24,26 +24,111 @@ Those could not change an answer, because they could not produce volume:
 So the sum over *all* children equals the sum over the solid children, and
 :func:`probe_solids` narrows every probe in this module to those. The sum is over all of them:
 a multi-solid part keeps contributing every body it has, exactly as the distribution did.
+
+**The cheapest boolean is the one that is not run.** With the loose children gone, the booleans
+that remain are the largest single cost of a recognition: 208 of them across four NIST parts
+were 3.15 s of a 13.1 s profile, about 15 ms each, and build123d already runs each one with
+``SetRunParallel``, so the kernel operation itself cannot be made cheaper. Measured over the
+whole 87-part corpus, a run builds 2061 of them, and two independent measurements say most of
+them need not be asked at all.
+
+- **523 (25%) repeat an earlier probe** -- the same probe geometry asked of the same shape again
+  within one run, because two families ask the same region the same question. :func:`probe_volume`
+  memoises its answer on the run's cache under an *exact* description of the probe (see
+  :func:`_describe`); a repeat returns the identical float.
+- Classifying all 2061 by geometry rather than by repetition: **489 (24%) have a probe box
+  disjoint from the solid's box**; **353 more (17%) overlap no *face* box of the solid and lie
+  entirely outside it** -- both answer ``0.0``; **277 (13%) overlap no face box and lie entirely
+  inside**, where the common is the probe and the answer is the probe's own volume. The
+  remaining 938 straddle the material and still run the boolean.
+
+Together they take a census of ``nist_ctc_01`` from 56 probe booleans to 27.
+
+The two geometric short-circuits are exact, not tolerant approximations:
+
+- ``Shape.bounding_box(optimal=False)`` is a *superset* of the shape -- OCCT's loose box, padded
+  outwards by the box gap -- which is what makes a disjointness test on it conservative. It is
+  used here only to prove that two shapes cannot meet, never as a measurement, so the repository
+  rule that a *measured* box keeps ``optimal=True`` is untouched (the solid's own box still comes
+  from the run cache's ``optimal=True`` query).
+- If the probe's box meets no face box, it meets no part of the solid's boundary -- and a box is
+  convex, so it is connected, so *the whole box* lies in the material's interior or entirely
+  outside it. The probe is a subset of its own box and follows it, voids, non-convexity and
+  disconnection included. **Any** point of the box is therefore a witness for all of it, and the
+  decision is only as good as the classifier that reads one.
+
+That last sentence is why :func:`_shortcut` classifies the box's **centre** as well as every
+vertex of the probe, and takes an answer only when all of them agree. Unanimity is not a step in
+the proof -- the proof is finished once the boxes are apart -- it is a guard against
+``BRepClass3d_SolidClassifier`` not being a perfect oracle, and this corpus shows it is not: two
+probes in it (``nist_ftc_08``, ``nist_ctc_04``) have a corner the classifier calls ``IN`` while
+``BRepExtrema`` puts every corner ``1e-6`` *outside* the shell and the boolean answers ``0.0``,
+reproducibly and at every tolerance from ``0`` to ``1e-6``. That configuration is one this module
+manufactures on purpose -- ``inset=COORD_FLOOR`` stands a probe off a pocket wall by exactly
+``1e-6`` -- and a probe's vertices are the worst sample it has, sitting on its own boundary and so
+as near the solid's as the probe ever comes. The box centre stands off by half the probe's
+smallest dimension instead, six orders of magnitude further; over the corpus it is right on all
+435 cases that reach the classifier, including both the ones a vertex gets wrong.
+
+The exactness of the inside case (that the common of a contained probe reports the probe's own
+volume, to the last bit) is not a claim about OCCT that this module can prove, so it was
+measured: over all 87 corpus parts, every one of the 277 contained probes had
+``intersection_volume(body.intersect(probe)) == probe.volume`` exactly. Running every
+short-circuit and its boolean side by side agreed on all 1100 short-circuit decisions a corpus
+dump takes and all 12035 the test suite takes, and recomputing every memo hit agreed on all 523
+of the dump's; one of the suite's 5197 came back a single unit in the last place apart, which is
+this key's one blind spot rather than a wobble in the kernel -- see :func:`_describe`.
+
+That is a measurement of one version of OCCT and build123d, not a theorem: **re-run the sweep
+whenever either moves.** Nothing here has a switch for it, which is as it should be -- patch
+:func:`_measure` to take both answers and compare them with ``==``, run a corpus dump and the
+test suite, and throw the patch away.
+
+**A probe reaches all of this only when it is given a run to share**, because the per-solid
+values it reads cost far more to build than the boolean they save -- see :func:`probe_volume`.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Protocol, cast
+from typing import NamedTuple, Protocol, cast
 
 from build123d import Box, Compound, Pos, Solid
+from OCP.BRepClass3d import BRepClass3d_SolidClassifier
+from OCP.gp import gp_Pnt
+from OCP.TopAbs import TopAbs_FORWARD, TopAbs_IN, TopAbs_OUT, TopAbs_SOLID
 
 from quiddity._solid_properties import SolidProperties, SolidPropertyOwner, solid_properties
-from quiddity._typing import Part
+from quiddity._typing import Bounds, Part, Vector3
 
 #: OCCT cannot construct a volumetric probe at or below this coordinate extent.
 PRISM_PROBE_FLOOR = 1e-6
 
-#: Name under which a run's :class:`SolidProperties` holds one part's probe solids.
+#: Names under which a run's :class:`SolidProperties` holds this module's values.
 #:
 #: ``derived`` documents that two callers sharing a name are sharing a value on purpose, so the
-#: name is namespaced by the module that owns the meaning rather than left in a flat space.
+#: names are namespaced by the module that owns the meaning rather than left in a flat space.
+#: The classifier is a sibling of the one :mod:`quiddity._bevel` files under its own name rather
+#: than the same entry: the module seams (``tests/test_architecture.py``) keep this module's
+#: imports to :mod:`quiddity._solid_properties` and :mod:`quiddity._typing`, and reaching into a
+#: recogniser for the string would be a worse dependency than one extra classifier per solid.
 _PROBE_SOLIDS = "_volume_probe.solids"
+_FACE_BOUNDS = "_volume_probe.face_bounds"
+_CLASSIFIER = "_volume_probe.solid_classifier"
+_PROBE_VOLUME = "_volume_probe.volume"
+
+#: Tolerance the point classifier is asked at, and why it is not the ``1e-6`` :mod:`quiddity._bevel`
+#: uses. A probe reaches the classifier only once its box has been proved not to meet any face box,
+#: and both boxes are padded outwards, so a *vertex* of the probe stands clear of the boundary by
+#: at least the two gaps -- but only by that. Asking at ``1e-6`` calls a legitimate inset off a
+#: wall ``ON`` and throws the decision away; asking at the kernel's own confusion tolerance keeps
+#: the answer crisp exactly where the boolean's is. Across the corpus no probe that reached this
+#: classifier returned ``ON`` -- but two returned a wrong ``IN`` at every tolerance from ``0``
+#: upwards, which is a thing no tolerance fixes and the box centre is sampled for.
+_CLASSIFIER_TOLERANCE = 1e-7
+
+#: An axis-aligned box as ``(min x, min y, min z, max x, max y, max z)``.
+_Box = tuple[float, float, float, float, float, float]
 
 
 class _VolumeValue(Protocol):
@@ -89,19 +174,220 @@ def probe_solids(
     return solid_properties(properties).derived(_PROBE_SOLIDS, part, _solids_of)
 
 
+class _ProbeGeometry(NamedTuple):
+    """Everything the short-circuits and the memo need to know about one probe."""
+
+    #: The probe's loose bounding box -- a superset of it, which is what makes the tests below
+    #: conservative, and convex, which is what makes one point of it speak for all of it.
+    box: _Box
+    #: Every vertex of the probe. Any one of them would settle the classification if the
+    #: classifier were exact; they are all asked because it is not.
+    points: tuple[Vector3, ...]
+    #: The centre of :attr:`box`, asked alongside them -- the one sample that is nowhere near the
+    #: boundary. It is deliberately *not* part of :attr:`identity`: it is derived from the box,
+    #: so it would add nothing to the key that the vertices do not already say.
+    centre: Vector3
+    #: ``probe.volume``, which is the answer when the probe is contained in the material.
+    volume: float
+    #: An exact description of the probe -- see :func:`_describe`.
+    identity: str
+
+
+def _box_of(bounds: Bounds) -> _Box:
+    low, high = bounds.min, bounds.max
+    return (low.X, low.Y, low.Z, high.X, high.Y, high.Z)
+
+
+def _apart(one: _Box, other: _Box) -> bool:
+    """Whether two boxes share no volume. Boxes that merely touch count as apart.
+
+    That is deliberate and it is still exact: a common of shapes meeting in a plane, a line or a
+    point has no volume, and :func:`intersection_volume` sums volumes.
+    """
+
+    return (
+        one[3] <= other[0]
+        or other[3] <= one[0]
+        or one[4] <= other[1]
+        or other[4] <= one[1]
+        or one[5] <= other[2]
+        or other[5] <= one[2]
+    )
+
+
+def _describe(probe: Solid) -> _ProbeGeometry | None:
+    """Measure the probe once, and name it exactly -- or decline to name it at all.
+
+    The memo's key has to distinguish two probes that would get different answers, and nothing
+    weaker than exact floats will do: no rounding, no tolerance. The name here is the probe's
+    type, its orientation, its face count and *every vertex coordinate*, each through ``repr``,
+    which round-trips a float exactly and so gives distinct floats distinct names.
+
+    ``volume`` is in the name as well, and it is the half found by measurement rather than by
+    argument. Two probes built by different callers over the same eight corners -- one a ``Box``,
+    one an extrusion -- can carry surface parameterisations that differ, and OCCT's boolean then
+    answers them a few units in the last place apart. Eleven probe pairs in the corpus did
+    exactly that. Keying on the volume as well separates them, and with it every one of the 523
+    repeats in a corpus dump agreed with the answer it was memoising.
+
+    Over the whole test suite one of 5197 did not, by a single unit in the last place, and that
+    one is the key rather than the kernel: asked again eight times, that probe returned the same
+    float every time, and 720 repeat comparisons of a boolean over three NIST parts found no
+    instability at all. It is this key's one blind spot -- two probe shapes agreeing on type,
+    orientation, face count, every vertex coordinate *and* volume whose booleans still differ by
+    an ulp, which is the parameterisation effect above except that there the volume told them
+    apart. It appears once, in a synthetic fixture, and never in the corpus.
+
+    An earlier draft of this paragraph blamed ``SetRunParallel``, on a measurement that compared
+    the *first* boolean over a pair of shapes with the second. That is not one question asked
+    twice: asking four times gives ``a, b, b, b``, because the first call leaves a triangulation
+    on its operands and the kernel then answers the later ones from a shape it has already
+    meshed. It is the same trap as the one
+    ``test_the_box_gaps_decide_how_near_a_face_a_probe_may_stand`` measures its truth on separate
+    shapes to avoid, and it is worth knowing about, but it is not instability -- repeat comparisons
+    that hold the shape state fixed find none.
+
+    The key is not widened for it, and that is a judgement rather than an oversight: separating
+    those two would cost another whole-shape measurement on every probe -- ``probe.area``, or a
+    fingerprint per face -- to move a number by 1.5e-16 relative, against gates that are ``1e-9``.
+    So what the memo guarantees is this. Two probes it cannot tell apart are answered with
+    whichever was asked first, and a run is repeatable because the memo is.
+
+    ``None`` means "do not memoise and do not short-circuit": a probe with no live shape behind
+    it -- one of the duck-typed stubs the boundary tests hand these helpers -- has no exact key
+    and no geometry to reason about, and must reach the boolean exactly as it did before.
+
+    **A reversed probe is one of those.** ``Solid(probe.wrapped.Reversed())`` is the complement of
+    the region it looks like: its ``volume`` is ``-V``, and ``BRepAlgoAPI_Common`` intersects with
+    everything *outside* it, so the contained case would answer ``-64.0`` where the kernel answers
+    ``+7936`` and ``material_fraction`` would swing from ``-124`` to ``+1`` -- past every gate that
+    reads it. Nothing builds one today, exactly as nothing reverses a solid in
+    :func:`quiddity._bevel._material_at`; this is the same line that module holds for the same
+    reason, and an orientation that is not ``TopAbs_FORWARD`` goes to the kernel, which has never
+    been confused by one.
+
+    The ``except`` is narrow on purpose. It catches what a *stub* raises when asked for geometry it
+    does not have; OCP's ``Standard_Failure`` is deliberately not in it, so a kernel error inside
+    ``probe.volume`` or ``probe.bounding_box`` propagates to the caller's proof boundary as this
+    module's opening docstring says kernel errors do, rather than being quietly reclassified as
+    "this probe cannot be named".
+    """
+
+    wrapped = getattr(probe, "wrapped", None)
+    if wrapped is None:
+        return None
+    try:
+        orientation = wrapped.Orientation()
+        if orientation != TopAbs_FORWARD:
+            return None
+        corners = tuple(sorted(cast(Vector3, tuple(vertex)) for vertex in probe.vertices()))
+        faces = len(probe.faces())
+        volume = float(probe.volume)
+        box = _box_of(probe.bounding_box(optimal=False))
+    except (AssertionError, AttributeError, TypeError, ValueError):
+        return None
+    if not corners:
+        return None
+    centre = cast(Vector3, tuple((box[i] + box[i + 3]) / 2 for i in range(3)))
+    identity = repr((type(probe).__name__, orientation, faces, corners, volume))
+    return _ProbeGeometry(box, corners, centre, volume, identity)
+
+
+def _face_bounds(solid: Part) -> tuple[_Box, ...]:
+    """The loose box of every face of *solid* -- the run's one walk of its boundary."""
+
+    return tuple(_box_of(face.bounding_box(optimal=False)) for face in solid.faces())
+
+
+def _classifier(solid: Part) -> BRepClass3d_SolidClassifier:
+    """Load one solid into a point classifier -- the expensive half of a material question."""
+
+    return BRepClass3d_SolidClassifier(solid.wrapped)
+
+
+def _shortcut(body: Part, geometry: _ProbeGeometry, memo: SolidProperties) -> float | None:
+    """The boolean's answer, when it can be had without the boolean. ``None`` means run it.
+
+    Both proofs need the body to be a real solid: the boxes have to bound something, and the
+    point classifier is defined on solids. Anything else -- a stub with an ``intersect`` method,
+    a shape narrowed to something that is not a solid -- takes the boolean, as before.
+    """
+
+    wrapped = getattr(body, "wrapped", None)
+    if wrapped is None or wrapped.ShapeType() != TopAbs_SOLID:
+        return None
+
+    # Nothing to intersect: the probe stands outside the body's own box.
+    if _apart(geometry.box, _box_of(memo.bounding_box(body))):
+        return 0.0
+
+    # The probe's box meets no face, so it meets no part of the body's boundary; a box is convex
+    # and so connected, so all of it -- and the probe inside it -- is on one side. Which side is
+    # then a question about one point, and every point of the box answers it. They are all asked
+    # because the classifier is not an oracle: see the module docstring for the two corpus probes
+    # where a vertex says IN of a region the kernel and BRepExtrema both call empty.
+    if any(
+        not _apart(geometry.box, face) for face in memo.derived(_FACE_BOUNDS, body, _face_bounds)
+    ):
+        return None
+    classifier = memo.derived(_CLASSIFIER, body, _classifier)
+    states = set()
+    for point in (*geometry.points, geometry.centre):
+        classifier.Perform(gp_Pnt(*point), _CLASSIFIER_TOLERANCE)
+        states.add(classifier.State())
+    if states == {TopAbs_OUT}:
+        return 0.0
+    if states == {TopAbs_IN}:
+        return geometry.volume
+    return None
+
+
+def _measure(
+    part: Part, probe: Solid, geometry: _ProbeGeometry | None, memo: SolidProperties
+) -> float:
+    """One probe against every body of *part*, short-circuited per body where it can be."""
+
+    total = 0.0
+    for body in probe_solids(part, properties=memo):
+        shortcut = None if geometry is None else _shortcut(body, geometry, memo)
+        total += intersection_volume(body.intersect(probe)) if shortcut is None else shortcut
+    return float(total)
+
+
 def probe_volume(
     part: Part,
     probe: Solid,
     *,
     properties: SolidProperties | SolidPropertyOwner | None = None,
 ) -> float:
-    """The volume *probe* shares with the material of *part* -- its solids, and all of them."""
+    """The volume *probe* shares with the material of *part* -- its solids, and all of them.
 
-    return float(
-        sum(
-            intersection_volume(body.intersect(probe))
-            for body in probe_solids(part, properties=properties)
-        )
+    The answer is memoised on the run's cache under the shape asked about and an exact
+    description of the probe, so the quarter of a run's probes that repeat an earlier question
+    return that question's identical float rather than asking the kernel again. Both halves of
+    the key matter: :meth:`SolidProperties.derived` pins the shape and separates orientations,
+    and :func:`_describe` refuses to key anything it cannot name exactly.
+
+    **A probe with no cache to share takes the plain boolean**, which is the same code this
+    function was before. Both short-circuits are answered out of per-solid values -- the solid's
+    box, the box of each of its faces, its point classifier -- that cost far more to build than
+    one boolean and only pay for themselves when a whole run's probes read them. Handed a cache
+    of its own, a probe would rebuild all three and hand them straight back to the garbage
+    collector: measured, that turned a 30 s corpus into an 81 s one. So the caller that has a run
+    passes it (every recogniser does, through ``properties=``), and the caller that has none --
+    a public recogniser called on its own -- asks the kernel exactly what it asked before.
+    """
+
+    if properties is None:
+        return _measure(part, probe, None, SolidProperties())
+    memo = solid_properties(properties)
+    geometry = _describe(probe)
+    if geometry is None or getattr(part, "wrapped", None) is None:
+        return _measure(part, probe, geometry, memo)
+    return memo.derived(
+        f"{_PROBE_VOLUME}:{geometry.identity}",
+        part,
+        lambda target: _measure(target, probe, geometry, memo),
     )
 
 

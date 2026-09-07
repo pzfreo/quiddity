@@ -92,7 +92,7 @@ def _cell_supports(
     if not cell.is_valid or cell.volume <= 1e-12:
         return None
     owner = graph.common_valid_solid((*seed, bevel))
-    if owner is None or material_fraction(graph.solid_shape(owner), cell) > 1e-9:
+    if owner is None or material_fraction(graph.solid_shape(owner), cell, properties=graph) > 1e-9:
         return None
     return tuple(cell.faces())
 

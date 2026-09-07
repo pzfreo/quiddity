@@ -18,7 +18,7 @@ about performance that names one should say which.
 
 ## The recorded baseline
 
-Measured at `8147f39` on an Apple M5 Max (macOS 26.6, Python 3.14.7, build123d 0.11.1). That is
+Measured at `4ce8bb7` on an Apple M5 Max (macOS 26.6, Python 3.14.7, build123d 0.11.1). That is
 a **shared** developer machine, so these are minimums over repeated samples rather than medians,
 taken with the one-minute load average below 4: the median moves with whatever else happens to
 be running, and the minimum is the closest available reading of the machine's own answer. Peak
@@ -27,54 +27,109 @@ resident set is the whole process, so it includes the kernel's C++ allocations t
 
 | Workload | Iterations | Minimum | Peak RSS |
 | --- | ---: | ---: | ---: |
-| `composite` | 5 | 0.863 s | 498 MB |
-| `census` | 3 | 16.022 s | 577 MB |
+| `composite` | 5 | 0.851 s | 500 MB |
+| `census` | 3 | 11.990 s | 592 MB |
 
-`8147f39` is the head of the five-PR run-scoped-caching series; the PR that records these
-numbers adds no library code of its own, which is why the commit named here is the last one that
-changed any.
+`4ce8bb7` is the head of the three-PR round-2 series (`shared_occurrences` grouping, support-cut
+and plate-loop skips, volume-probe short-circuits); the PR that records these numbers adds no
+library code of its own, which is why the commit named here is the last one that changed any. The
+readings were taken at its parent `740184c` and were not re-run for it, because `4ce8bb7`'s only
+change is the deletion of an env-gated debug block that the benchmark — which does not set the
+variable — never executed. The seconds stand.
 
-**These seconds are not comparable with the ones they replace.** The previous recording was
-taken on a different host as well as different code, so the drop from 99.683 s is a host change
-and a code change added together and cannot be split by subtraction. The same two commands were
-therefore also run on `a5f1fcc`, the branch point, on this box in the adjacent quiet window, and
-that pair is the comparison that means something:
+**These seconds are comparable with the ones they replace, and that is new.** The previous
+recording was taken on this same box under this same protocol, and re-measuring the branch point
+confirms it. The 16.022 s and 0.863 s the previous recording carried were measured at `8147f39`;
+`ac1543e` is the merge that brought that stack to `main` and differs from it in nothing but a
+docstring in `_solid_properties.py`, so measuring `ac1543e` measures the code that produced those
+seconds. It read **15.896 s and 0.858 s** here, within 0.8% and 0.6%. So the drop below is a code
+change and nothing else. Both arms were run alternating between the two checkouts in one quiet
+window, and the rows above are that window's readings rather than the best seen anywhere, so that
+the seconds and the ratio are one measurement:
 
-| Workload | `a5f1fcc` | this stack | |
+| Workload | `ac1543e` | this stack | |
 | --- | ---: | ---: | ---: |
-| `composite` | 0.972 s | 0.863 s | x1.13 |
-| `census` | 75.032 s | 16.022 s | **x4.68** |
+| `composite` | 0.858 s | 0.851 s | x1.01 |
+| `census` | 15.896 s | 11.990 s | **x1.33** |
 
-The `a5f1fcc` pair was taken against `7918c8a`, the revision immediately before the one recorded
-above, which measured 0.866 s and 16.295 s — within this box's own run-to-run spread of the rows
-in the table. Read strictly, within that one window, the census ratio is x4.61 and the composite
-x1.12; the table pairs `a5f1fcc` with the later reading instead. **The ratios are good to about
-this box's own spread and no further**, which is why the interesting digit is the 4, not the 68.
+Two earlier paired windows read 12.170 s against 15.893 s and 12.186 s against 15.991 s — x1.31,
+x1.31 and x1.33 across the three windows, agreeing to two figures — and 0.849 s and 0.852 s
+against 0.855 s on the composite. Over the five windows that stayed quiet throughout, this arm's
+own readings span 11.982 s to 12.186 s, 1.7%.
 
-**The census arm's headroom is now 1.6 seconds, and that changes how it must be run.** 1.10 of
-16.022 s is a 17.624 s ceiling; the same ratio used to allow ten seconds of slack on a
-hundred-second arm. A review run of this file measured **17.963 s — OVER —** with the one-minute
-load average around 6. Nothing had got slower; the box was busier. The load-under-4 protocol
-above was close to a nicety at a hundred seconds and is a precondition at sixteen, and a single
-OVER taken on a loaded machine is evidence about the machine. Re-run it quiet before believing
-it, and if it is reproducibly over on a quiet box, that is the signal the ratio exists for.
+**Peak RSS moved the other way, and that is the expected shape too.** The census arm's peak went
+590,944 kB to 605,792 kB, **+2.5%**; the composite's 510,240 to 512,368, +0.4%. Round 2 buys census
+time partly with per-run caches, and the census arm is where they live, so it is the arm that pays
+for them. The field is recorded rather than checked — the seconds are what the budget is about —
+but it is recorded so that a reader does not have to go and discover it.
+
+**The composite arm did not move, and that is the expected answer rather than a disappointment.**
+Round 2's three changes are in wide-face adjacency grouping, support cuts that cannot reach, and
+volume-probe booleans; four small golden fixtures barely reach any of them, and x1.01 is well
+inside this arm's own 5.6% spread. Read it as *unchanged*, not as a 1% gain. The census arm is
+the one round 2 is visible in.
+
+Round 1 was measured the same way against `a5f1fcc`, its own branch point, at 75.032 s and
+0.972 s. Chaining the two recordings — legitimate here only because the intermediate revision
+re-measures to within 1% — puts the two rounds together at **x6.2–6.3** on the census arm and
+x1.14 on the composite. The range is the two ways of doing the arithmetic: multiplying the two
+recorded ratios gives 4.683 x 1.3258 = 6.21, while dividing 75.032 s by 11.990 s directly gives
+6.26, because that quietly swaps `ac1543e`'s re-measured 15.896 s in for the 16.022 s recorded at
+`8147f39`. **The ratios are good to about this box's own spread and no further**, which is why the
+interesting digit is the 6.
+
+**The census arm's headroom is now 1.2 seconds, and that is tighter than it has ever been.**
+1.10 of 11.990 s is a **13.189 s** ceiling, against 1.6 s of slack at sixteen seconds and ten
+seconds of slack on the hundred-second arm this file started with. And 10% is the *nominal* margin,
+not the available one: the ceiling is drawn off 11.990 s, near the bottom of the quiet
+distribution, while a typical quiet reading here is 12.1–12.2 s. Measured from where readings
+actually land, what a regression has to exceed to fire this check is about **8%**, or 1.07 s. Do
+not budget the full 1.2 s. The evidence for what that
+costs is in this re-baselining itself. The first window taken for it **passed** the load check —
+one-minute load 2.9 before the run — and measured the census arm at **13.116 s** on this branch:
+99% of its own new ceiling, and 9.4% above what the same code gave in quieter windows minutes
+later. The load was 4.9 by the time the run ended. Nothing had got slower; the box had got
+busier while the run was in it. The previous recording watched the same effect push a reading
+**OVER** (17.963 s against a 17.624 s ceiling, at load ~6).
+
+So the load-under-4 protocol above was close to a nicety at a hundred seconds and is now a
+precondition — and checking `uptime` before the run is no longer sufficient on its own. Check it
+**after** as well, and throw the reading away if the window did not stay quiet through it. A
+single OVER taken on a loaded machine is evidence about the machine. Re-run it quiet before
+believing it, and if it is reproducibly over on a quiet box, that is the signal the ratio exists
+for.
 
 The budget is **1.10** by default, and a workload may record its own. Two arms of very
 different length cannot share one ceiling on a shared box:
 
 | Workload | Budget | Why |
 | --- | ---: | --- |
-| `census` | 1.10 | sixteen seconds, stable here, and the arm every recognition change is felt in |
-| `composite` | 1.40 | under a second, and inherited: on the previous host its minimum-of-five ranged 1.93 s to 2.66 s over one evening with nothing else obviously running |
+| `census` | 1.10 | twelve seconds, stable to 1.7% across quiet windows here, and the arm every recognition change is felt in |
+| `composite` | 1.40 | under a second, and inherited: on the host it was sized on its minimum-of-five ranged 1.93 s to 2.66 s over one evening with nothing else obviously running |
 
 The composite figure is loose because of the host it was sized on, not because the code is
-allowed to be forty percent slower. This box is steadier — three quiet windows over two hours,
-on adjacent revisions of this stack, gave 0.863 s, 0.866 s and 0.898 s, a 4.1% spread rather
-than the 1.38x the ceiling was drawn under. Three windows on a machine other work shares is not
-enough evidence to tighten a ceiling on, and a check that cries wolf stops being run, so the
-ratio is left where it is and the reason for revisiting it is recorded here instead. **The
-census arm is the one to trust for a regression**: it is nineteen times longer, it moved by
-4.68x under the caching series, and it is the arm the one-inventory consolidation cost.
+allowed to be forty percent slower. This box is steadier — six quiet windows during this
+re-baselining spanned 0.839 s to 0.886 s, a 5.6% spread rather than the 1.38x the ceiling was
+drawn under, and in the same range as the 4.1% the previous recording measured on it; an
+independent seventh reading during review came in at 0.830 s, widening it to 6.7%. Two
+recordings agreeing on the order of the spread is better evidence than one, but it is still a
+machine other work shares, a check that cries wolf stops being run, and the arm this ceiling
+guards is not the one that moves; so the ratio is left where it is and the reason for revisiting
+it is recorded here instead. **The census arm is the one to trust for a regression**: it is
+fourteen times longer, it moved by 4.68x under the round-1 caching series and 1.33x under round
+2 while the composite arm sat still through the second of those, and it is the arm the
+one-inventory consolidation cost.
+
+**A trigger for the next round, written down while the reasoning is fresh.** Host noise steals
+roughly a fixed number of core-seconds, not a fixed fraction, so a proportional ceiling gets
+absolutely *tighter* every time the arm gets faster: ten seconds of slack at a hundred, 1.6 s at
+sixteen, 1.2 s now. One more round the size of this one puts it under a second, where a single
+competing process is the entire budget. So: **when the census arm drops below about ten seconds,
+stop using a bare ratio.** Either raise `iterations` — min-of-5 costs about 24 s more and is much
+harder for one bad iteration to spoil — or make the ceiling `max(1.10 x, x + 1.5 s)` so that it
+stops shrinking. Until then 1.10 stays, and deliberately: the arm's quiet-window spread is 1.7%, a
+10% ceiling is about six times that, and loosening it to accommodate windows the protocol above
+tells you to discard would buy nothing and blunt the guard.
 
 **The `budget` fields in the JSON are the authority**: `--check` reads its ceiling from there --
 a workload's own if it has one, the file's default otherwise -- so editing the policy changes
