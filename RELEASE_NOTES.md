@@ -1,6 +1,6 @@
 # Release notes
 
-## Next release
+## 0.2.6 — Quiddity
 
 - Add same-run planar outer-profile inspection with body-owned ordered line/arc supports,
   exact source-edge resolution, raw/framed parity and typed refusals. Inner loops are
