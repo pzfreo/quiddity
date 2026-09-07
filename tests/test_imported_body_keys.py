@@ -67,14 +67,16 @@ def _keys(value):
             yield from _keys(member)
 
 
-@pytest.mark.parametrize("name", ["nist_ctc_01_asme1_rd.stp", "nist_ctc_03_asme1_rc.stp"])
+@pytest.mark.parametrize(
+    "name", ["nist_ctc_01_asme1_rd.stp", "nist_ctc_02_asme1_rc.stp", "nist_ctc_03_asme1_rc.stp"]
+)
 def test_imported_nist_aggregate_has_one_physical_body_key(name):
     part = import_step_geometry(f"tests/corpus/nist/{name}")
     (solid,) = part.solids()
     assert body_signature(part) != body_signature(solid)
     result = build_raw_recognition_result(part)
     keys = list(_keys(result))
-    assert len({family for family, _ in keys}) >= 2
+    assert len({family for family, _ in keys}) >= (1 if "ctc_02" in name else 2)
     assert {key for _, key in keys} == {body_signature(solid)}
 
 
