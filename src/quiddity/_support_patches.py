@@ -12,9 +12,10 @@ def _separated(one: Bounds, other: Bounds) -> bool:
 
     Only ever asked of *conservative* boxes (``optimal=False`` is a superset of the shape),
     so a ``True`` here proves the shapes themselves are disjoint. Boxes that merely touch,
-    and a box with no live ``Bnd_Box`` behind it (a null or degenerate shape, whose
-    ``min``/``max`` both collapse to the origin), answer ``False``: the caller then does the
-    work it would have done anyway, which is the side of the test that cannot be wrong.
+    and a box with no live ``Bnd_Box`` behind it (a null or empty shape, whose ``min``/``max``
+    both collapse to the origin -- a live but degenerate shape has a real box and does not
+    take this branch), answer ``False``: the caller then does the work it would have done
+    anyway, which is the side of the test that cannot be wrong.
     """
 
     if one.wrapped is None or other.wrapped is None:
@@ -37,11 +38,15 @@ def covered_patch(patch: Face, supports: tuple[Face, ...]) -> bool:
     candidate against every wall plus the source and the cap, so a candidate with *W* walls
     costs about ``(W + 2)²`` Booleans of which nearly all are between faces that never meet.
     A fragment whose conservative bounding box is strictly apart from the support's is left
-    exactly as it is, because ``Face.cut`` by a disjoint tool returns the fragment's own area
-    back and the remaining-area sum below is unchanged. That is a rejection, not a
-    reordering: the supports are still consumed in the order given and the remaining-area
-    threshold is still evaluated after each one, because the fragments that exist at each
-    step -- and hence the number the threshold sees -- depend on that order.
+    exactly as it is, because ``Face.cut`` by a disjoint tool returns *the fragment itself* --
+    ``BOPAlgo`` records no image for a shape nothing interfered with, so
+    ``patch.cut(far).wrapped.IsEqual(patch.wrapped)`` is ``True``: same ``TShape``, location
+    and orientation. Skipping the call therefore leaves the remaining-area sum below and every
+    later cut looking at exactly the shape they would have seen, not at a numerically equal
+    rebuild. That is a rejection, not a reordering: the supports are still consumed in the
+    order given and the remaining-area threshold is still evaluated after each one, because
+    the fragments that exist at each step -- and hence the number the threshold sees -- depend
+    on that order.
     """
 
     remaining: list[Shape] = [patch]
@@ -55,7 +60,7 @@ def covered_patch(patch: Face, supports: tuple[Face, ...]) -> bool:
         for index, fragment in enumerate(remaining):
             box = boxes[index]
             if box is None:
-                boxes[index] = box = fragment.bounding_box(optimal=False)
+                box = fragment.bounding_box(optimal=False)
             if _separated(box, support_box):
                 fragments.append(fragment)
                 fragment_boxes.append(box)

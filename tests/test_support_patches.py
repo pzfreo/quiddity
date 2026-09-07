@@ -79,6 +79,13 @@ def _traced(monkeypatch) -> list[float]:
 
 
 def _cut_count(monkeypatch) -> list[int]:
+    """``Face.cut`` calls made directly by ``covered_patch``.
+
+    Narrower than "Booleans", deliberately: a fragment that came back as a ``Compound`` would
+    cut through ``Shape.cut`` and go uncounted. Every fragment on the parts here is a ``Face``,
+    and a count that drifts either way is the regression this is here to catch.
+    """
+
     counted: list[int] = []
     original = Face.cut
 
@@ -169,12 +176,18 @@ def test_a_touching_support_is_still_cut(monkeypatch):
     assert len(counted) == 2
 
 
-#: The sentinel part and its measured Boolean count inside ``covered_patch``.
+#: The sentinel part and its measured ``Face.cut`` count inside ``covered_patch``.
 #:
 #: ``nist_ctc_01`` is a NIST part whose mixed-section recesses drive the swept-prism proof, the
-#: caller that made 1516 of the 13.1 s profile's Face.cut calls. One census of it made **382**
-#: Booleans there before the bounding-box rejection and makes those below after; across the six
-#: largest NIST parts the same change took 1536 down to 664.
+#: caller that made 1516 of the 13.1 s profile's ``Face.cut`` calls. One census of it made
+#: **382** of them before the bounding-box rejection and makes those below after; across the
+#: six largest NIST parts the same change took 1536 down to 664.
+#:
+#: Chosen for separation, not only for cost. ``nist_ftc_10`` -- the sentinel part in
+#: ``test_solid_properties`` -- makes 12 of these with the rejection and 12 without, so it
+#: cannot pin anything; ``nist_ftc_07`` makes none at all. The only cheaper NIST part that
+#: separates the counts widely is ``nist_ctc_03`` (172 against 394) and it saves 0.1 s of a
+#: 1.0 s test, which does not pay for re-pinning the constants.
 _SENTINEL_PART = Path(__file__).parent / "corpus" / "nist" / "nist_ctc_01_asme1_rd.stp"
 _SUPPORT_CUTS_BEFORE = 382
 _SUPPORT_CUTS = 164
