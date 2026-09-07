@@ -74,7 +74,7 @@ def assert_support_correspondence(view, issued, supports=None):
         endpoints = (tuple(edge.position_at(0)), tuple(edge.position_at(1)))
         assert (
             min(
-                math.dist(support.start, a) + math.dist(support.end, b)
+                max(math.dist(support.start, a), math.dist(support.end, b))
                 for a, b in (endpoints, endpoints[::-1])
             )
             < 1e-6
@@ -82,6 +82,16 @@ def assert_support_correspondence(view, issued, supports=None):
         if isinstance(support, ProfileLine):
             assert edge.geom_type == GeomType.LINE
             assert math.dist(support.start, support.end) == pytest.approx(edge.length, abs=1e-6)
+            source_direction = tuple(
+                (endpoints[1][i] - endpoints[0][i]) / edge.length for i in range(3)
+            )
+            assert (
+                min(
+                    math.dist(support.direction, source_direction),
+                    math.dist(support.direction, tuple(-v for v in source_direction)),
+                )
+                <= 2e-8
+            )
         else:
             assert edge.geom_type == GeomType.CIRCLE
             assert support.center == pytest.approx(tuple(edge.arc_center), abs=1e-6)
@@ -425,3 +435,37 @@ def test_profile_schema_rejects_incoherent_hand_built_geometry(change):
                     ),
                 )
             replace(p, supports=tuple(supports))
+
+
+@pytest.mark.parametrize("displacement", [3e-5, 5e-7])
+def test_loose_vertex_tolerance_cannot_invent_a_different_line_support(displacement):
+    from OCP.BRep import BRep_Builder
+    from OCP.gp import gp_Pnt
+
+    part = Box(20, 20, 6)
+    face = part.faces().sort_by(Axis.Z)[-1]
+    vertex = face.vertices()[0]
+    point = vertex.center()
+    # Authored OCCT-valid tolerance mismatch: the vertex moves, its edge curve does not.
+    BRep_Builder().UpdateVertex(
+        vertex.wrapped, gp_Pnt(point.X + displacement, point.Y, point.Z), 1e-4
+    )
+    assert part.is_valid
+    view = build_recognition_evidence(part)
+    assert view.planar_outer_profile(cap(view)).reason is Reason.INVALID_BOUNDARY
+
+
+def test_nist_import_never_publishes_displaced_vertex_as_a_trimmed_support():
+    view = build_recognition_evidence(
+        import_step_geometry("tests/corpus/nist/nist_ftc_08_asme1_rc.stp")
+    )
+    accepted = 0
+    refused = 0
+    for ref in view.faces:
+        inspected = view.planar_outer_profile(ref)
+        if isinstance(inspected, PlanarOuterProfileEvidence):
+            assert_support_correspondence(view, inspected)
+            accepted += 1
+        elif inspected.reason is Reason.INVALID_BOUNDARY:
+            refused += 1
+    assert accepted and refused

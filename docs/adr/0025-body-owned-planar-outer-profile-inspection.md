@@ -38,7 +38,8 @@ finite native lines and otherwise only finite circular arcs. Inner loops are cou
 from this outer-wire projection; they never connect to its support roster. Concave outer wires,
 freeform or other analytic curve kinds, circle-only profiles, degenerate/incomplete boundaries,
 unowned faces and ambiguous body membership return named refusals. This does not infer an outer
-silhouette of an assembly, merge coplanar patches or connect separate bodies.
+silhouette of an assembly, merge coplanar patches or connect separate bodies. "Outer" identifies
+the requested face's outer loop, not a stock/body-envelope classification.
 
 `PlanarOuterProfile` contains `origin`, outward face `normal`, ordered `supports`,
 `inner_loop_count`, `schema_version=1`, and `boundary_kind="outer"`. `ProfileLine` stores finite
@@ -62,9 +63,11 @@ The same inspection is available on both lifecycles. No caller-space edge rematc
 
 ## Bounds and module seams
 
-Native source plane coincidence uses the existing 1e-6 model-length bound; angular winding and
-convexity use 2e-8 radians. These are numerical consistency bounds, not feature-size thresholds,
-fit tolerances or permission to round endpoints. No minimum useful edge length or angle is chosen.
+Native source plane and vertex/trimmed-curve endpoint coincidence use the existing 1e-6
+model-length bound; line-direction agreement, angular winding and
+convexity use the 2e-8 directional/angular bound. These are numerical consistency bounds, not feature-size thresholds,
+fit tolerances or permission to round endpoints. No minimum useful edge length or angle is chosen. An imported vertex lying farther from its
+trimmed curve endpoint refuses instead of changing the published support direction.
 
 `_outer_profile` is a kernel-free value leaf over `_record`. `_outer_profile_geometry` reads
 original topology and graph ownership, depending only on that leaf, `_adjacency` and `_typing`.

@@ -644,6 +644,7 @@ supported. Inner loops are counted and excluded, so holes cannot be mistaken for
 adjacency. `RefusedPlanarOuterProfile.reason` reports `not_planar`, `ambiguous_body`,
 `unsupported_curve`, `insufficient_line_supports`, `concave_profile` or `invalid_boundary`.
 There is no fitting of freeform curves, merging of coplanar patches, or assembly silhouette.
+"Outer" identifies the requested face's outer loop, not a stock/body-envelope classification.
 The finite line supports and intervening arcs allow a consumer to derive a virtual intersection
 where one exists; the API chooses no angle, sector, datum, dimension, tolerance or annotation.
 

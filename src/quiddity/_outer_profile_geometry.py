@@ -69,6 +69,18 @@ def _read_profile(
         start, end = points[at], points[following]
         if math.dist(start, end) == 0:
             return RefusedPlanarOuterProfile(Reason.INVALID_BOUNDARY)
+        # OCCT can accept a vertex displaced from its trimmed curve endpoint
+        # within a larger imported topology tolerance. Using that vertex would
+        # invent a different finite support even though the wire stays connected.
+        curve_ends = (tuple(edge.position_at(0)), tuple(edge.position_at(1)))
+        if (
+            min(
+                max(math.dist(start, a), math.dist(end, b))
+                for a, b in (curve_ends, curve_ends[::-1])
+            )
+            > _POSITION_TOL
+        ):
+            return RefusedPlanarOuterProfile(Reason.INVALID_BOUNDARY)
         midpoint: Point3 = tuple(edge.position_at(0.5))
         if any(
             abs(_dot(_sub(point, origin), normal)) > _POSITION_TOL
@@ -76,7 +88,17 @@ def _read_profile(
         ):
             return RefusedPlanarOuterProfile(Reason.INVALID_BOUNDARY)
         if edge.geom_type == GeomType.LINE:
-            supports.append(ProfileLine(start, end))
+            line = ProfileLine(start, end)
+            source_direction = ProfileLine(*curve_ends).direction
+            if (
+                min(
+                    math.dist(line.direction, source_direction),
+                    math.dist(line.direction, tuple(-v for v in source_direction)),
+                )
+                > _DIRECTION_TOL
+            ):
+                return RefusedPlanarOuterProfile(Reason.INVALID_BOUNDARY)
+            supports.append(line)
         else:
             center: Point3 = tuple(edge.arc_center)
             sense = _dot(_cross(_sub(start, center), _sub(midpoint, center)), normal)
