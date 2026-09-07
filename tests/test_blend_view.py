@@ -7,7 +7,19 @@ import copy
 from dataclasses import dataclass
 
 import pytest
-from build123d import Axis, Box, Cylinder, Plane, Pos, export_step, fillet, import_step
+from build123d import (
+    Axis,
+    Box,
+    Cylinder,
+    Keep,
+    Plane,
+    Pos,
+    Shell,
+    Solid,
+    export_step,
+    fillet,
+    import_step,
+)
 
 from quiddity._adjacency import (
     EdgeOccurrenceRef,
@@ -25,6 +37,7 @@ from quiddity._blend_view import (
     CollapsedGraphView,
     OriginalArcRef,
     RefusedBlendComponent,
+    _adjacent_pairs,
     _edge_groups,
     _one_nonbranching_edge_group,
 )
@@ -733,14 +746,32 @@ def test_all_disjoint_box_chains_can_be_selected_atomically():
 
 
 def _pocketed_plate():
-    # Fifty-eight faces and twenty-eight chains: large enough that the difference between
-    # asking every node pair and asking only the adjacent ones is an order of magnitude.
+    # Sixty faces and twenty-eight chains: large enough that the difference between asking every
+    # node pair and asking only the adjacent ones is an order of magnitude. The two long walls
+    # are rebuilt as coplanar halves, as `tests.test_arcs` splits its native solids, so that two
+    # of the chains have a two-face support region -- otherwise every logical node is a
+    # singleton and the internal-arc half of the construction is never exercised.
     plate = fillet(Box(120, 80, 12).edges().filter_by(Axis.Z), radius=6)
     for x in (-40, 0, 40):
         for y in (-20, 20):
             pocket = fillet(Box(16, 12, 20).edges().filter_by(Axis.Z), radius=3)
             plate -= Pos(x, y, 4) * pocket
-    return plate
+    faces = list(plate.faces())
+    walls = [face for face in faces if abs(face.center().Y) > 39 and face.area > 100]
+    assert len(walls) == 2
+    return Solid(
+        Shell(
+            [
+                half
+                for face in faces
+                for half in (
+                    face.split(Plane.YZ, keep=Keep.BOTH)
+                    if any(face is wall for wall in walls)
+                    else (face,)
+                )
+            ]
+        )
+    )
 
 
 class _CountingGraph(FaceGraph):
@@ -816,10 +847,17 @@ def test_collapsed_view_reproduces_the_all_pairs_scan_without_asking_distant_pai
     graph = _CountingGraph(part)
     index = BlendCollapseIndex(graph, EffectiveSurfaceIndex(graph))
     chains = index.chains()
-    assert len(graph.nodes) > 50 and len(chains) > 8
+    assert len(graph.nodes) > 50
+    assert len(chains) > 8
     graph.shared_occurrence_calls = 0
     view = index.view(chains)
     construction_calls = graph.shared_occurrence_calls
+    assert max(len(view.expand_node(logical)) for logical in view.logical_nodes()) > 1
+
+    # Both ends of the pair, not just the left one: neighbour order follows the part's own
+    # traversal, which for most of these faces is not ascending.
+    pairs = list(_adjacent_pairs(graph, graph.nodes))
+    assert pairs == sorted(pairs, key=lambda pair: (pair[0].index, pair[1].index))
 
     hidden = frozenset(node for chain in chains for node in chain.blend_nodes)
     assert tuple(
