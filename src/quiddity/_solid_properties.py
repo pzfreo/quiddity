@@ -45,14 +45,28 @@ attribute read that costs nothing measurable beside the queries it guards, and a
 under a caller-chosen name, so a per-solid cache hangs off the run's existing instance rather
 than inventing another lifetime to get wrong. The name is the owning module's business; this
 module holds no policy about what is derived, only about how long the answer lives and what it
-is keyed on. Three modules use it: :mod:`quiddity._volume_probe` holds the solids a volumetric
-probe is measured against, under ``"_volume_probe.solids"``, and :mod:`quiddity._bevel` holds
-the point classifier its corner probes ask, under ``"_bevel.solid_classifier"``, and
-:mod:`quiddity.plates` holds one body's vertex coordinates, which its oriented cross-envelope
-walks once per axis, under ``"plates.vertex_coordinates"``. A per-*node*
-cache is not one of its users and should not become one: the wire-edge index that opening-wire
-incidence needs lives on :class:`quiddity._adjacency.FaceGraph`, beside the other per-face
-caches.
+is keyed on. Three modules use it, under six names:
+
+- :mod:`quiddity._bevel` holds the point classifier its corner probes ask, under
+  ``"_bevel.solid_classifier"``;
+- :mod:`quiddity._volume_probe` holds the solids a volumetric probe is measured against
+  (``"_volume_probe.solids"``), the box of every face of a solid (``"_volume_probe.face_bounds"``),
+  a point classifier of its own (``"_volume_probe.solid_classifier"``), and one entry per probe it
+  has already answered, named ``"_volume_probe.volume:"`` followed by an exact description of that
+  probe;
+- :mod:`quiddity.plates` holds one body's vertex coordinates, which its oriented cross-envelope
+  walks once per axis, under ``"plates.vertex_coordinates"``.
+
+The two classifiers are a deliberate duplicate rather than an oversight: the module seams
+(``tests/test_architecture.py``) hold :mod:`quiddity._volume_probe` to importing only this module
+and :mod:`quiddity._typing`, so it cannot reach into a recogniser for the name, and one more
+classifier per solid is cheaper than that dependency. The probe entries are the one family of
+names built at runtime rather than written down; they are exact all the same, and the key is
+still that name plus this module's shape identity.
+
+A per-*node* cache is not one of its users and should not become one: the wire-edge index that
+opening-wire incidence needs lives on :class:`quiddity._adjacency.FaceGraph`, beside the other
+per-face caches.
 
 Scope it to one run over one part, as :class:`quiddity._adjacency.FaceEdges` is scoped.
 """
@@ -144,10 +158,12 @@ class SolidProperties:
         The caller owns both the name and the meaning; this only owns the lifetime and the
         shape identity. Two callers sharing a name are sharing a value on purpose.
 
-        Used by :func:`quiddity._volume_probe.probe_solids` for a compound's solids, by
-        :func:`quiddity._bevel._material_at` for the point classifier of the shape it is
-        asked about, and by :func:`quiddity.plates._oriented_cross_area` for the body's
-        vertex coordinates.
+        Used by :func:`quiddity._bevel._material_at` for the point classifier of the shape it is
+        asked about, by :mod:`quiddity._volume_probe` for a compound's solids, a solid's
+        per-face boxes, a point classifier of its own and the answer to each probe it has already
+        measured, and by :func:`quiddity.plates._oriented_cross_area` for the body's vertex
+        coordinates -- see this module's docstring for the names, and for why the classifier is
+        duplicated rather than shared.
         """
 
         key = (name, *_key(solid))

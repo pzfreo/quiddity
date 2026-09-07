@@ -14,8 +14,11 @@ The booleans that survive that narrowing are then the ones a run does not need t
 a repeat of an earlier probe, a probe standing clear of the solid's bounding box, or a probe
 that touches none of its face boxes and so lies wholly inside the material or wholly outside it.
 Each of those has a test here that checks the short-circuit against the boolean it replaces on
-constructed geometry -- outside, inside, straddling, touching, and over a multi-solid compound --
-and the census equality test is repeated for them as a whole.
+constructed geometry -- outside, inside, straddling, touching, offset either side of a face by
+1e-9, 1e-7 and 1e-6, reversed, and over a multi-solid compound -- and the census equality test is
+repeated for them as a whole. One of them is not constructed: a probe ``nist_ftc_08`` really
+builds, inset ``COORD_FLOOR`` into a pocket corner, where the point classifier calls a corner of
+an empty region ``IN`` and the run has to survive it.
 
 The operation-count sentinel at the bottom pins the other half: that the booleans really are
 gone. Nothing here asserts wall-clock.
@@ -30,6 +33,9 @@ import pytest
 from build123d import Box, Compound, Edge, Pos, Shell, Solid, Vertex, import_step
 from build123d.topology.shape_core import Shape
 from OCP.BRepAlgoAPI import BRepAlgoAPI_Common
+from OCP.BRepClass3d import BRepClass3d_SolidClassifier
+from OCP.gp import gp_Pnt
+from OCP.TopAbs import TopAbs_IN, TopAbs_OUT
 
 from quiddity import _volume_probe
 from quiddity._adjacency import FaceGraph
@@ -355,6 +361,130 @@ def test_a_probe_that_only_touches_the_material_answers_what_the_kernel_answers(
     expected = intersection_volume(body.solids()[0].intersect(probe))
     assert expected == 0.0
     assert probe_volume(body, probe, properties=SolidProperties()) == expected
+
+
+@pytest.mark.parametrize(
+    ("offset", "outside", "booleans"),
+    [
+        (1e-9, True, 1),
+        (1e-7, True, 0),
+        (1e-6, True, 0),
+        (1e-9, False, 1),
+        (1e-7, False, 1),
+        (1e-6, False, 0),
+    ],
+)
+def test_the_box_gaps_decide_how_near_a_face_a_probe_may_stand(
+    monkeypatch, offset: float, outside: bool, booleans: int
+) -> None:
+    """How much clearance each short-circuit needs, pinned either side of one face.
+
+    The argument in the module docstring rests on both boxes being supersets of what they bound,
+    and the margin that buys is small and *different for the two tests*, so it is worth having in
+    a test rather than only in prose. Standing **outside** the material is measured against the
+    solid's ``optimal=True`` box, which has no pad at all, so the probe's own ``1e-7`` gap is the
+    whole margin and it clears at ``1e-7``. Standing **inside** it is measured against the face
+    boxes, which are padded too, so it takes more than two gaps and only clears at ``1e-6``.
+    Nearer than that the boxes overlap and the boolean runs -- and either way the answer is the
+    boolean's answer, which is what the first assertion pins.
+
+    The truth is measured on a *separate* pair of shapes, because running a boolean over a shape
+    can leave a triangulation on it and a triangulated shape's loose box is not the same box. It
+    is still a superset, so nothing about the answer moves -- but the count of booleans avoided
+    does, and this test is about that count.
+    """
+
+    def geometry() -> tuple[Solid, Solid]:
+        body = Box(20.0, 20.0, 20.0)  # top face at z = +10
+        low = 10.0 + offset if outside else 10.0 - offset - 4.0
+        return body, Pos(0.0, 0.0, low + 2.0) * Box(4.0, 4.0, 4.0)
+
+    measured, measured_probe = geometry()
+    truth, truth_probe = geometry()
+    expected = intersection_volume(truth.solids()[0].intersect(truth_probe))
+    assert expected == (0.0 if outside else pytest.approx(64.0))
+
+    counted = _count_booleans(monkeypatch)
+    assert probe_volume(measured, measured_probe, properties=SolidProperties()) == expected
+    assert len(counted) == booleans
+
+
+def test_a_reversed_probe_is_left_to_the_kernel(monkeypatch) -> None:
+    """The one shape whose ``volume`` is not the volume of the region it looks like.
+
+    ``Solid(box.wrapped.Reversed())`` *is* the complement of that box: it has volume ``-64``, and
+    ``BRepAlgoAPI_Common`` intersects the body with everything outside the box rather than with
+    the box. Short-circuiting it as "contained, so answer its own volume" would return ``-64.0``
+    where the kernel returns ``7936.0``, and ``material_fraction`` would swing from ``-124`` to
+    ``+1`` -- through every gate that reads it. Nothing builds one today, which is exactly what
+    :func:`quiddity._bevel._material_at` and :mod:`quiddity._solid_properties` say about the
+    reversed solids they nonetheless keep separate; this holds the same line.
+    """
+
+    body = Box(20.0, 20.0, 20.0)
+    forward = (Pos(4.0, 0.0, 0.0) * Box(4.0, 4.0, 4.0)).solids()[0]
+    probe = Solid(forward.wrapped.Reversed())
+    assert probe.volume == pytest.approx(-64.0)
+
+    expected = intersection_volume(body.solids()[0].intersect(probe))
+    assert expected == pytest.approx(7936.0)  # the complement, not the box
+
+    counted = _count_booleans(monkeypatch)
+    assert probe_volume(body, probe, properties=SolidProperties()) == expected
+    assert len(counted) == 1
+
+
+#: A probe the corpus really builds, inset ``COORD_FLOOR`` into a pocket corner, and the part it
+#: belongs to. Its spans are the ones ``_section_recess_geometry`` derived for that pocket.
+_POCKET_CORNER_PART = CORPUS / "nist" / "nist_ftc_08_asme1_rc.stp"
+_POCKET_CORNER_SPANS = (
+    (143.47825100050798, 146.018249000508),
+    (22.518108568469998, 28.92739191599),
+    (37.238990334419995, 40.39999900019399),
+)
+
+
+def test_a_probe_inset_into_a_pocket_corner_is_not_lost_to_a_wrong_classification() -> None:
+    """The case that made the box centre one of the classified points.
+
+    This probe stands ``1e-6`` off two walls of a pocket -- the clearance ``inset=COORD_FLOOR``
+    is *for*, and just past what the box gaps cover, so it reaches the classifier. Every one of
+    its eight corners is ``1e-6`` outside the shell by ``BRepExtrema`` and the boolean answers
+    ``0.0``, and yet ``BRepClass3d_SolidClassifier`` calls one corner ``IN``, reproducibly and at
+    every tolerance from ``0`` upwards. Unanimity is what stops that one wrong answer from being
+    the answer, and the box centre -- which is 1.27 mm from anything, not ``1e-6`` -- is what the
+    decision would rest on if all eight corners ever went wrong together.
+
+    The middle assertion pins third-party behaviour on purpose. If it starts failing, OCCT has
+    changed and the classifier claims in ``_volume_probe``'s docstring want re-measuring; the
+    recognition answer either side of that is the last assertion, and it does not depend on it.
+    """
+
+    solid = import_step(_POCKET_CORNER_PART).solids()[0]
+    centre = tuple((low + high) / 2 for low, high in _POCKET_CORNER_SPANS)
+    size = tuple(high - low for low, high in _POCKET_CORNER_SPANS)
+    probe = Pos(*centre) * Box(*size)
+    geometry = _volume_probe._describe(probe)
+    assert geometry is not None
+
+    # It gets past both box tests, so the classifier is what decides it.
+    faces = _volume_probe._face_bounds(solid)
+    assert all(_volume_probe._apart(geometry.box, face) for face in faces)
+
+    classifier = BRepClass3d_SolidClassifier(solid.wrapped)
+    states = []
+    for point in geometry.points:
+        classifier.Perform(gp_Pnt(*point), _volume_probe._CLASSIFIER_TOLERANCE)
+        states.append(classifier.State())
+    assert states[-1] == TopAbs_OUT, "the box centre is the sample that is far from the boundary"
+    assert set(states[:-1]) == {TopAbs_IN, TopAbs_OUT}, (
+        "OCCT used to call one corner of this probe IN although BRepExtrema puts all eight 1e-6 "
+        "outside the shell and the boolean answers 0.0; if it no longer does, re-measure the "
+        "classifier claims in quiddity._volume_probe"
+    )
+
+    assert intersection_volume(solid.intersect(probe)) == 0.0
+    assert probe_volume(solid, probe, properties=SolidProperties()) == 0.0
 
 
 def test_each_body_of_a_multi_solid_part_is_short_circuited_on_its_own(monkeypatch) -> None:
