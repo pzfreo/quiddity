@@ -289,11 +289,11 @@ immutable `SectionPassage` value so callers receive the exact frame, span, seria
 and open-end proof that authored the projection. Original-face identity remains available only
 through the run-scoped evidence facade.
 
-## Proposed extension (body-owned outer-profile inspection, issue #579)
+## Amendment (body-owned outer-profile inspection, issue #579)
 
-[ADR0025](0025-body-owned-planar-outer-profile-inspection.md) proposes a bounded same-run
+[ADR0025](0025-body-owned-planar-outer-profile-inspection.md) accepts a bounded same-run
 outer-wire inspection for Draftwright's demonstrated angular-support need. Its explicit
 exception covers ordered line/arc values and exact source-edge resolution, including lazy
 original-wire reads after recognition. It does not widen accepted constituent membership or
-publish general adjacency, cross-run correspondence or drawing policy. Review of the new
-contract is separate from the already accepted pure evidence projections above.
+publish general adjacency, cross-run correspondence or drawing policy. This contract extends
+the accepted pure evidence projections above.

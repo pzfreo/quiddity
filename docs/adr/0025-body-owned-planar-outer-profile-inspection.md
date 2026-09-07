@@ -1,10 +1,10 @@
 # ADR 0025 — Body-owned planar outer-profile inspection
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-09-07
 - **Consumer:** Quiddity #579 / Draftwright #1504
 
-## Decision proposed for review
+## Decision
 
 Extend the existing `quiddity.evidence` lifecycle with one narrow, lazy inspection:
 `planar_outer_profile(face_ref)`. It returns an issued `PlanarOuterProfileEvidence` or a
@@ -88,5 +88,5 @@ mapping. Source correspondence tests resolve actual edges and deliberately remov
 supports. A counted inventory test and lazy-cache test enforce one aggregate for all consumers.
 
 Draftwright owns angle selection, real/virtual measurement intent, sector, datums, tolerances,
-views, annotation placement and labels. This proposal supplies geometry and source evidence only.
+views, annotation placement and labels. This decision supplies geometry and source evidence only.
 The original STC618 file is not needed for CI and has not been claimed as a verified canary.

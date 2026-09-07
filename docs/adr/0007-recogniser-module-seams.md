@@ -622,7 +622,7 @@ now accept, resolved from the ledger, writer or graph the three bevel families a
 called with no run context computes exactly what it computed before. `_bevel` gains no dependency on
 a recogniser and remains below the three families that share it.
 
-## Proposed outer-profile inspection seam (#579)
+## Outer-profile inspection seam (#579)
 
 ADR0025 records the bounded new evidence inspection. `_outer_profile` is a value leaf over
 `_record`; `_outer_profile_geometry` may import `_adjacency`, `_outer_profile` and `_typing`
