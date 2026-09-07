@@ -26,7 +26,7 @@ from quiddity._effective_surfaces import (
 )
 from quiddity._geometry import AXIS_ALIGNED_COS, AXIS_ZERO_COS
 from quiddity._record import Record
-from quiddity._solid_properties import solid_properties
+from quiddity._solid_properties import run_solid_properties
 from quiddity._typing import FaceLike, Part
 from quiddity.experimental_geometry import (
     AnalyticSurface,
@@ -744,7 +744,7 @@ def _discover_rectangular_pads(
 
     solids = list(part.solids())
     sources = solids if len(solids) > 1 else [part]
-    properties = solid_properties(None if writer is None else writer.graph)
+    properties = run_solid_properties(writer)
     occurrences: list[tuple[RaisedPad, tuple[_PadProposal, ...]]] = []
     for solid in sources:
         by_record: dict[RaisedPad, list[_PadProposal]] = {}

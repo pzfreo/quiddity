@@ -54,7 +54,11 @@ from quiddity._geometry import (
     cluster_coordinates,
 )
 from quiddity._record import Record
-from quiddity._solid_properties import SolidProperties, solid_properties
+from quiddity._solid_properties import (
+    SolidProperties,
+    run_solid_properties,
+    solid_properties,
+)
 from quiddity._typing import Part
 
 #: **A minimum-evidence threshold, not a tolerance — deliberately absolute (ADR 0008).**
@@ -342,7 +346,7 @@ def _discover_plates(
 
     tol = _TOL if tol is None else tol
     scopes = _plate_scopes(part)
-    properties = solid_properties(None if writer is None else writer.graph)
+    properties = run_solid_properties(writer)
     body_keys = unambiguous_body_keys(scopes, require_valid_solid=True, properties=properties)
     proposal_groups = [
         [

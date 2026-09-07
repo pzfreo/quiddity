@@ -143,7 +143,7 @@ def _candidate(
     solid = graph.common_valid_solid((left, right, *terminals))
     if solid is None:
         return None
-    bounds = graph.solid_shape(solid).bounding_box()
+    bounds = graph.solid_properties.bounding_box(graph.solid_shape(solid))
     solid_axis = (
         (bounds.min.X, bounds.max.X),
         (bounds.min.Y, bounds.max.Y),

@@ -54,7 +54,7 @@ from quiddity._claims import EvidenceWriter
 from quiddity._features import analyse_cylinders
 from quiddity._geometry import AXIS_ALIGNED_COS, _coaxial_axis_lines, length_tol
 from quiddity._record import Record
-from quiddity._solid_properties import solid_properties
+from quiddity._solid_properties import run_solid_properties
 from quiddity._typing import CylinderInventory, FaceLike, Part, SurfaceAdaptor
 
 #: **A minimum-evidence threshold, not a tolerance — deliberately absolute (ADR 0008).**
@@ -154,7 +154,7 @@ def _discover_fillets(
 ) -> list[Fillet]:
     """Discover Fillets and validate every defining-face binding before publication."""
 
-    bb = solid_properties(None if writer is None else writer.graph).bounding_box(part)
+    bb = run_solid_properties(writer).bounding_box(part)
     min_radius = _MIN_RADIUS if min_radius is None else min_radius
     max_ext = max(bb.max.X - bb.min.X, bb.max.Y - bb.min.Y, bb.max.Z - bb.min.Z)
     all_faces = list(part.faces())

@@ -77,6 +77,7 @@ def recognise_slots(
         pairs = _body_scoped_pairs(
             sources,
             partial(_recognise_slots_one, face_edges=face_edges),
+            properties=solid_properties(None),
         )
         pairs.sort(key=lambda pair: (pair[0].width, _region_center(pair[0])))
         return [record for record, _nodes in pairs]
@@ -199,6 +200,7 @@ def recognise_pockets(
         pairs = _body_scoped_pairs(
             sources,
             partial(_recognise_pockets_one, face_edges=face_edges),
+            properties=solid_properties(None),
         )
         pairs.sort(key=lambda pair: (pair[0].width, _region_center(pair[0])))
         return [record for record, _nodes in pairs]

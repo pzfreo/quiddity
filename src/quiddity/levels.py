@@ -191,7 +191,7 @@ def recognise_face_levels(
     """
     tol = _TOL if tol is None else tol
     scopes = list(part.solids()) or [part]
-    properties = SolidProperties()  # standalone: no run to share with
+    properties = solid_properties(None)  # standalone: no run to share with
     body_keys = unambiguous_body_keys(scopes, require_valid_solid=True, properties=properties)
     return sorted(
         replace(proposal.record, body_key=body_key)
@@ -294,7 +294,7 @@ def step_level_records(part: Part, *, tol: float | None = None) -> list[FaceLeve
     """Area-filtered interior face-level records, retaining their support bounds."""
     records: list[FaceLevel] = []
     scopes = list(part.solids()) or [part]
-    properties = SolidProperties()  # standalone: no run to share with
+    properties = solid_properties(None)  # standalone: no run to share with
     body_keys = unambiguous_body_keys(scopes, require_valid_solid=True, properties=properties)
     for scope, body_key in zip(scopes, body_keys, strict=True):
         bb = properties.bounding_box(scope)
@@ -444,7 +444,7 @@ def recognise_risers(
     """
     tol = _TOL if tol is None else tol
     scopes = list(part.solids()) or [part]
-    properties = SolidProperties()  # standalone: no run to share with
+    properties = solid_properties(None)  # standalone: no run to share with
     body_keys = unambiguous_body_keys(scopes, require_valid_solid=True, properties=properties)
     proposals: list[_RiserProposal] = []
     for scope, body_key in zip(scopes, body_keys, strict=True):

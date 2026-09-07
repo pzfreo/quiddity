@@ -78,7 +78,7 @@ from quiddity._geometry import (
     length_tol,
 )
 from quiddity._record import Record
-from quiddity._solid_properties import solid_properties
+from quiddity._solid_properties import run_solid_properties
 from quiddity._typing import CylinderInventory, FaceLike, Part
 from quiddity.countersinks import cone_rims
 
@@ -153,7 +153,7 @@ def recognise_chamfers(
     A blind step's slant clears every gate here, because on the face alone it is a bevel; pass
     the ledger ``recognise_angled_steps`` wrote into and
     :func:`quiddity._reconcile.chamfers_that_are_not_angled_steps` removes it."""
-    bb = solid_properties(None if ledger is None else ledger.graph).bounding_box(part)
+    bb = run_solid_properties(ledger).bounding_box(part)
     # Geometry, rather than callout significance, decides the default answer. A caller that
     # deliberately wants a minimum reportable leg may still supply it through ``tol``.
     tol = 0.0 if tol is None else tol

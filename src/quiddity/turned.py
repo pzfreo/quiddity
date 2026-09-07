@@ -41,7 +41,11 @@ from quiddity._candidates import FamilyId
 from quiddity._claims import ClaimLedger, EvidenceWriter
 from quiddity._features import analyse_cylinders
 from quiddity._record import Record
-from quiddity._solid_properties import SolidProperties, solid_properties
+from quiddity._solid_properties import (
+    SolidProperties,
+    run_solid_properties,
+    solid_properties,
+)
 from quiddity._typing import CylinderEvidence, CylinderInventory, Part
 
 # A face's axial position counts as on a band edge / its normal counts as
@@ -274,7 +278,7 @@ def recognise_turned_steps(
     with a hole in it describes a different shaft. See :mod:`quiddity._reconcile`.
     """
     inventory = cyls if cyls is not None else analyse_cylinders(part)
-    properties = solid_properties(None if ledger is None else ledger.graph)
+    properties = run_solid_properties(ledger)
     scopes = list(part.solids()) or [part]
     body_keys = unambiguous_body_keys(scopes, require_valid_solid=True, properties=properties)
     proposals: list[tuple[TurnedStep, list[CylinderEvidence]]] = []

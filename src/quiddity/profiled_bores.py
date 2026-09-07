@@ -25,7 +25,11 @@ from quiddity._candidates import FamilyId
 from quiddity._claims import EvidenceWriter
 from quiddity._geometry import part_scale
 from quiddity._record import Record
-from quiddity._solid_properties import SolidProperties, solid_properties
+from quiddity._solid_properties import (
+    SolidProperties,
+    run_solid_properties,
+    solid_properties,
+)
 from quiddity._typing import FaceLike, Part, Vector3
 from quiddity._volume_probe import intersection_volume
 
@@ -658,7 +662,7 @@ def _discover_double_d_bores(
     solids = list(part.solids())
     sources = solids if len(solids) > 1 else [part]
     proposals: list[_DoubleDBoreProposal] | None = [] if writer is not None else None
-    properties = solid_properties(None if writer is None else writer.graph)
+    properties = run_solid_properties(writer)
     bores = [
         bore
         for solid in sources

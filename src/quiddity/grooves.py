@@ -39,7 +39,7 @@ from quiddity._claims import ClaimLedger, EvidenceWriter
 from quiddity._features import analyse_cylinders
 from quiddity._geometry import length_tol
 from quiddity._record import Record
-from quiddity._solid_properties import solid_properties
+from quiddity._solid_properties import run_solid_properties
 from quiddity._typing import CylinderInventory, FaceLike, Part
 from quiddity.turned import TurnedProfileKey, profile_key_from_bands
 
@@ -278,7 +278,7 @@ def recognise_grooves(
     has_tori = any(f.geom_type == GeomType.TORUS for f in all_faces)
     edge_faces = edge_face_map(all_faces, face_edges=face_edges) if has_tori else None
     scopes = list(part.solids()) or [part]
-    properties = solid_properties(None if ledger is None else ledger.graph)
+    properties = run_solid_properties(ledger)
     body_keys = unambiguous_body_keys(scopes, require_valid_solid=True, properties=properties)
     out: list[tuple[Groove, FaceLike]] = []
     for shaft, bands in shafts.items():

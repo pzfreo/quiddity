@@ -22,7 +22,11 @@ from quiddity._candidates import FamilyId
 from quiddity._claims import EvidenceWriter
 from quiddity._geometry import part_scale
 from quiddity._record import Record
-from quiddity._solid_properties import SolidProperties, solid_properties
+from quiddity._solid_properties import (
+    SolidProperties,
+    run_solid_properties,
+    solid_properties,
+)
 from quiddity._typing import FaceLike, Part
 from quiddity.profiled_bores import principal_boundary_plane
 
@@ -420,7 +424,7 @@ def _discover_repeating_radial_profiles(
     solids = list(part.solids())
     if not solids:
         solids = [part]
-    properties = solid_properties(None if writer is None else writer.graph)
+    properties = run_solid_properties(writer)
     proposals = sorted(
         (
             proposal

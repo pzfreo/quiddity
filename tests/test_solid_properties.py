@@ -14,13 +14,19 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from build123d import Box, Compound, Pos, import_step
+from build123d import Box, Compound, Pos, Solid, import_step
 from OCP.BRepBndLib import BRepBndLib
 from OCP.TopAbs import TopAbs_COMPOUND, TopAbs_COMPSOLID, TopAbs_SHELL, TopAbs_SOLID
 
 from quiddity._adjacency import FaceGraph
 from quiddity._body_identity import body_signature, unambiguous_body_keys
-from quiddity._solid_properties import SolidProperties, solid_properties
+from quiddity._claims import ClaimLedger
+from quiddity._solid_properties import (
+    SolidProperties,
+    run_solid_properties,
+    solid_properties,
+)
+from quiddity._solid_properties import _key as solid_property_key
 from quiddity.census import feature_census
 from quiddity.grooves import recognise_grooves
 
@@ -86,6 +92,46 @@ def test_distinct_solids_never_share_an_entry() -> None:
     assert memo.bounding_box(small).diagonal != memo.bounding_box(large).diagonal
 
 
+def test_a_reversed_solid_is_a_different_entry_from_the_forward_one() -> None:
+    """``IsSame`` throws orientation away, and ``volume`` is signed.
+
+    A solid and ``Solid(solid.wrapped.Reversed())`` hash equal and compare equal, so the wrapper
+    alone would let the reversed one read the forward one's ``+V`` -- the one way this memo could
+    return a value the kernel would not. Nothing in the tree reverses a solid today, which is why
+    this is a guard rather than a bug fix, and it is exactly why the guard belongs in a test.
+    """
+
+    forward = Box(10, 20, 30).solids()[0]
+    reversed_ = Solid(forward.wrapped.Reversed())
+    assert hash(forward) == hash(reversed_) and forward == reversed_
+    assert forward.volume == -reversed_.volume != 0.0
+
+    memo = SolidProperties()
+    assert memo.volume(forward) == float(forward.volume)
+    assert memo.volume(reversed_) == float(reversed_.volume)
+    assert memo.derived("label", forward, lambda _s: "forward") == "forward"
+    assert memo.derived("label", reversed_, lambda _s: "reversed") == "reversed"
+
+
+def test_a_shape_with_no_live_topods_still_keys_and_answers() -> None:
+    """An empty compound, and the duck-typed scopes the provenance tests build, have no
+    ``.wrapped`` to read an orientation from. They must key on the wrapper alone rather than
+    raise, which is what the memo did before orientation joined the key."""
+
+    empty = Compound()
+    assert solid_property_key(empty) == (empty, None)
+    memo = SolidProperties()
+    assert memo.bounding_box(empty).diagonal == empty.bounding_box().diagonal
+
+    class NotAShape:
+        def bounding_box(self):
+            return Box(2, 4, 6).bounding_box()
+
+    scope = NotAShape()
+    assert solid_property_key(scope) == (scope, None)  # type: ignore[arg-type]
+    assert memo.bounding_box(scope).diagonal == scope.bounding_box().diagonal  # type: ignore[arg-type]
+
+
 def test_derived_values_are_memoised_per_name_and_per_solid() -> None:
     part = _two_bodies()
     memo = SolidProperties()
@@ -114,6 +160,17 @@ def test_the_resolver_shares_a_run_and_isolates_a_standalone_call() -> None:
     assert solid_properties(existing) is existing
     first, second = solid_properties(None), solid_properties(None)
     assert isinstance(first, SolidProperties) and first is not second
+
+
+def test_the_ledger_door_reaches_the_same_run_cache() -> None:
+    """Most entry points hold the run as a ledger or writer, not as a graph."""
+
+    ledger = ClaimLedger(FaceGraph(_two_bodies()))
+    assert run_solid_properties(ledger) is ledger.graph.solid_properties
+    assert run_solid_properties(ledger.writer) is ledger.graph.solid_properties
+    standalone = run_solid_properties(None)
+    assert isinstance(standalone, SolidProperties)
+    assert standalone is not run_solid_properties(None)
 
 
 def test_body_keys_are_identical_with_and_without_the_run_cache() -> None:
@@ -210,9 +267,12 @@ def test_a_falsy_cached_value_is_still_a_cache_hit(solid) -> None:
     """
 
     memo = SolidProperties()
-    memo._volume[solid] = 0.0
-    memo._valid[solid] = False
-    memo._area[solid] = 0.0
+    # Reaching into the private dicts is deliberate: there is no public way to plant a falsy
+    # value, and the point of the test is the miss predicate, not how the value got there.
+    key = solid_property_key(solid)
+    memo._volume[key] = 0.0
+    memo._valid[key] = False
+    memo._area[key] = 0.0
     assert memo.volume(solid) == 0.0
     assert memo.is_valid(solid) is False
     assert memo.area(solid) == 0.0
