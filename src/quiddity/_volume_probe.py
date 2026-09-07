@@ -347,18 +347,9 @@ def _measure(
 ) -> float:
     """One probe against every body of *part*, short-circuited per body where it can be."""
 
-    import os
-
     total = 0.0
     for body in probe_solids(part, properties=memo):
         shortcut = None if geometry is None else _shortcut(body, geometry, memo)
-        if shortcut is None and os.environ.get("QUIDDITY_VERIFY_KERNEL"):
-            runs = [intersection_volume(body.intersect(probe)) for _ in range(4)]
-            if len(set(runs)) > 1:
-                kind = type(body).__name__
-                nsolids = len(body.solids()) if hasattr(body, "solids") else -1
-                with open(os.environ["QUIDDITY_VERIFY_KERNEL"], "a") as fh:
-                    fh.write(f"DIFFER {kind} solids={nsolids} {runs!r}\n")
         total += intersection_volume(body.intersect(probe)) if shortcut is None else shortcut
     return float(total)
 
