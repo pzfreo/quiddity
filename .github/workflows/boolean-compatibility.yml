@@ -36,4 +36,5 @@ jobs:
           --with . --with 'build123d==${{ matrix.build123d }}'
           --with pytest --with pytest-timeout
           python -m pytest tests/test_boolean_support_compat.py
-          tests/test_open_channel_section.py tests/test_corner_section.py -q
+          tests/test_open_channel_section.py tests/test_corner_section.py
+          tests/test_planar_outer_profiles.py -q

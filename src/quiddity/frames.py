@@ -398,7 +398,9 @@ def _normalization_location(frame: PartFrame) -> Location:
         values[8],
         offsets[2],
     )
-    return Location(gp_trsf=transform)
+    # Positional gp_Trsf construction is shared by supported build123d versions;
+    # 0.9.1 does not accept the newer gp_trsf keyword.
+    return Location(transform)
 
 
 def _normalize_part(

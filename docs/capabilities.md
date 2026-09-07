@@ -612,3 +612,60 @@ Every public `recognise_*` export must appear exactly once in the recogniser tab
 that export inventory from the installed public module rather than trusting this page,
 so adding a recogniser without an explicit capability claim fails closed even before the
 versioned manifest is implemented.
+
+## Body-owned planar outer-profile inspection (#579)
+
+`quiddity.evidence.RecognitionEvidence.planar_outer_profile(face_ref)` inspects a requested
+original face using the existing run. `FramedRecognitionEvidence` exposes the same operation in
+working coordinates; `frame.to_world(point)` maps values back to the caller. Queries are lazy
+and cached, and do not change the result, physical feature count or association summary.
+
+A supported native planar face returns `PlanarOuterProfileEvidence` with:
+
+- `face`: its exact same-view supporting `FaceRef`;
+- `body_faces`: the complete face-reference roster of one valid, unambiguously owned source solid;
+- `profile`: a frozen `PlanarOuterProfile` geometry value.
+
+`view.profile_edge(issued_profile, index)` resolves the indexed support to its exact borrowed
+source edge. Both references and the profile carrier are confined to the issuing view and
+cannot be serialized. Equal-valued bodies retain distinct face rosters. The original part must
+remain unchanged while the view is in use; this is not persistent source correspondence.
+
+Schema 1 has `origin`, outward `normal`, ordered `supports`, `inner_loop_count`,
+`schema_version=1` and `boundary_kind="outer"`. A line has `kind="line"`, finite `start`/`end`,
+and a derived unit `direction`. An arc has `kind="arc"`, finite `start`/`end`, `center`,
+`radius` and a signed radian `sweep` about the profile normal. The complete outer wire is
+counterclockwise about that normal, starting at its least lexicographic vertex. Adjacent
+supports share endpoints, including last/first. Values preserve source floating-point precision.
+A rigid transform may change the starting index; indices are never cross-run identity.
+
+Only convex outer wires with at least two native lines and otherwise native circular arcs are
+supported. Inner loops are counted and excluded, so holes cannot be mistaken for exterior
+adjacency. `RefusedPlanarOuterProfile.reason` reports `not_planar`, `ambiguous_body`,
+`unsupported_curve`, `insufficient_line_supports`, `concave_profile` or `invalid_boundary`.
+There is no fitting of freeform curves, merging of coplanar patches, or assembly silhouette.
+"Outer" identifies the requested face's outer loop, not a stock/body-envelope classification.
+The finite line supports and intervening arcs allow a consumer to derive a virtual intersection
+where one exists; the API chooses no angle, sector, datum, dimension, tolerance or annotation.
+
+```python
+from quiddity.evidence import (
+    PlanarOuterProfileEvidence,
+    ProfileLine,
+    build_recognition_evidence,
+)
+
+view = build_recognition_evidence(part)  # one aggregate for all consumers
+for face_ref in view.faces:
+    inspected = view.planar_outer_profile(face_ref)
+    if not isinstance(inspected, PlanarOuterProfileEvidence):
+        continue  # inspected.reason is the explicit unsupported outcome
+    for index, support in enumerate(inspected.profile.supports):
+        if isinstance(support, ProfileLine):
+            source_edge = view.profile_edge(inspected, index)
+            # support.start/end/direction are the ordered finite support geometry.
+```
+
+The new symbols are advertised by the installed evidence API manifest. The recognition and
+five-operation inspection manifests are unchanged. [ADR0025](adr/0025-body-owned-planar-outer-profile-inspection.md)
+records the accepted extension to ADR0010's evidence boundary.

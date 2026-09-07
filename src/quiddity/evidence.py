@@ -16,11 +16,19 @@ from enum import Enum
 from importlib.resources import files
 from typing import Generic, NoReturn, Protocol, SupportsIndex, TypeVar, cast
 
-from build123d import Shape
+from build123d import Edge, Shape
 from OCP.TopoDS import TopoDS_Shape
 
 from quiddity._adjacency import FaceNode
 from quiddity._candidates import FamilyId
+from quiddity._outer_profile import (
+    OuterProfileRefusalReason,
+    PlanarOuterProfile,
+    ProfileArc,
+    ProfileLine,
+    RefusedPlanarOuterProfile,
+)
+from quiddity._outer_profile_geometry import _OuterProfileSource
 from quiddity._registry import PHYSICAL_DEFINITIONS, RECESS_SOURCE_FAMILIES
 from quiddity._typing import CylinderInventory, FaceLike, Part
 from quiddity.explanations import RecognitionReport, _project_report
@@ -134,6 +142,43 @@ class FeatureRef:
         raise TypeError("feature references are run-local and cannot be serialized")
 
 
+class PlanarOuterProfileEvidence:
+    """Issued source binding for one profile; body identity is its exact face roster.
+
+    Equal-valued bodies have distinct ``body_faces``. The profile is geometry only;
+    serializing it does not retain this binding. Use ``profile_edge`` on the issuing
+    view to resolve each ordered support to its exact borrowed source edge.
+    """
+
+    __slots__ = ("__profile", "__face", "__body_faces", "__edges")
+    __profile: PlanarOuterProfile
+    __face: FaceRef
+    __body_faces: frozenset[FaceRef]
+    __edges: tuple[Edge, ...]
+
+    def __init__(self) -> None:
+        raise TypeError("outer profiles are issued by a recognition evidence lifecycle")
+
+    @property
+    def profile(self) -> PlanarOuterProfile:
+        return self.__profile
+
+    @property
+    def face(self) -> FaceRef:
+        return self.__face
+
+    @property
+    def body_faces(self) -> frozenset[FaceRef]:
+        return self.__body_faces
+
+    def _edge(self, index: int) -> Edge:
+        return self.__edges[index]
+
+    def __reduce_ex__(self, protocol: SupportsIndex) -> NoReturn:
+        del protocol
+        raise TypeError("profile evidence is run-local and cannot be serialized")
+
+
 class RecognitionEvidence:
     """One immutable projection of accepted occurrences and exact source-part faces."""
 
@@ -151,6 +196,8 @@ class RecognitionEvidence:
         "__node_refs",
         "__node_faces",
         "__association",
+        "__profile_source",
+        "__profiles",
     )
     __authority: object
     __result: RecognitionResult
@@ -165,6 +212,8 @@ class RecognitionEvidence:
     __node_refs: dict[FaceNode, FaceRef]
     __node_faces: dict[FaceNode, FaceLike]
     __association: GeometryAssociation
+    __profile_source: _OuterProfileSource
+    __profiles: dict[FaceNode, PlanarOuterProfileEvidence | RefusedPlanarOuterProfile]
 
     def __init__(self) -> None:
         raise TypeError("recognition evidence is created by a recognition evidence lifecycle")
@@ -244,6 +293,49 @@ class RecognitionEvidence:
 
         node = self.__face_node(reference)
         return self.__node_faces[node]
+
+    def planar_outer_profile(
+        self, reference: FaceRef
+    ) -> PlanarOuterProfileEvidence | RefusedPlanarOuterProfile:
+        """Inspect one same-run face's convex line/arc outer wire, lazily and once.
+
+        Inner loops are counted and excluded; concavity, non-native curves and
+        unproved body ownership refuse.
+        No feature, constituent association or angle requirement is manufactured.
+        """
+
+        node = self.__face_node(reference)
+        if node not in self.__profiles:
+            value = self.__profile_source.read(node)
+            if isinstance(value, RefusedPlanarOuterProfile):
+                self.__profiles[node] = value
+            else:
+                profile, edges, body_nodes = value
+                bound = object.__new__(PlanarOuterProfileEvidence)
+                object.__setattr__(bound, "_PlanarOuterProfileEvidence__profile", profile)
+                object.__setattr__(bound, "_PlanarOuterProfileEvidence__face", reference)
+                object.__setattr__(
+                    bound,
+                    "_PlanarOuterProfileEvidence__body_faces",
+                    frozenset(self.__node_refs[n] for n in body_nodes),
+                )
+                object.__setattr__(bound, "_PlanarOuterProfileEvidence__edges", edges)
+                self.__profiles[node] = bound
+        return self.__profiles[node]
+
+    def profile_edge(self, profile: PlanarOuterProfileEvidence, index: int) -> Edge:
+        """Resolve one ordered support to its exact source edge in this view's space."""
+
+        if type(profile) is not PlanarOuterProfileEvidence:
+            raise TypeError("profile must be issued PlanarOuterProfileEvidence")
+        node = self.__face_node(profile.face)
+        if self.__profiles.get(node) is not profile:
+            raise ValueError("profile evidence is foreign, copied, forged, or stale")
+        if type(index) is not int:
+            raise TypeError("profile support index must be an integer")
+        if not 0 <= index < len(profile.profile.supports):
+            raise IndexError("profile support index is outside the ordered roster")
+        return profile._edge(index)
 
     def __feature_position(self, feature: FeatureRef) -> int:
         if type(feature) is not FeatureRef:
@@ -365,6 +457,18 @@ class FramedRecognitionEvidence(Generic[FrameValue]):
                 return face
         raise ValueError("face reference is foreign, copied, forged, or stale")
 
+    def planar_outer_profile(
+        self, reference: FaceRef
+    ) -> PlanarOuterProfileEvidence | RefusedPlanarOuterProfile:
+        """Inspect the exact local working face; the retained frame maps its geometry."""
+
+        return self.__evidence.planar_outer_profile(reference)
+
+    def profile_edge(self, profile: PlanarOuterProfileEvidence, index: int) -> Edge:
+        """Resolve an ordered support to its borrowed local working edge."""
+
+        return self.__evidence.profile_edge(profile, index)
+
 
 def _issue_reference(
     reference_type: type[FaceRef] | type[FeatureRef], authority: object
@@ -397,6 +501,10 @@ def _project_recognition_evidence(product: InventoryProduct) -> RecognitionEvide
 
     authority = object()
     result = object.__new__(RecognitionEvidence)
+    object.__setattr__(
+        result, "_RecognitionEvidence__profile_source", _OuterProfileSource(product.context.graph)
+    )
+    object.__setattr__(result, "_RecognitionEvidence__profiles", {})
     node_refs: dict[FaceNode, FaceRef] = {}
     face_nodes: dict[int, FaceNode] = {}
     node_faces: dict[FaceNode, FaceLike] = {}
@@ -567,6 +675,12 @@ def _validate_manifest(manifest: object) -> None:
             "GeometryAssociation",
             "RefusedFramedEvidence",
             "RecognitionEvidence",
+            "OuterProfileRefusalReason",
+            "PlanarOuterProfile",
+            "PlanarOuterProfileEvidence",
+            "ProfileArc",
+            "ProfileLine",
+            "RefusedPlanarOuterProfile",
             "RecognitionRecord",
             "build_recognition_evidence",
             "evidence_api_manifest",
@@ -604,6 +718,12 @@ __all__ = [
     "GeometryAssociation",
     "RefusedFramedEvidence",
     "RecognitionEvidence",
+    "OuterProfileRefusalReason",
+    "PlanarOuterProfile",
+    "PlanarOuterProfileEvidence",
+    "ProfileArc",
+    "ProfileLine",
+    "RefusedPlanarOuterProfile",
     "RecognitionRecord",
     "build_recognition_evidence",
     "evidence_api_manifest",
