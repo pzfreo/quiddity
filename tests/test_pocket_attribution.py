@@ -1732,11 +1732,11 @@ def test_aggregate_identical_duplicate_completes_one_occurrence_and_capability(m
     proposal = _RecessProposal(record, nodes, floors=frozenset(planar[2:3]))
     real = module._body_scoped_proposals
 
-    def staged(sources, recognise_one):
+    def staged(sources, recognise_one, **kwargs):
         return (
             [proposal, proposal]
             if recognise_one.func is module._pocket_proposals_one
-            else real(sources, recognise_one)
+            else real(sources, recognise_one, **kwargs)
         )
 
     monkeypatch.setattr(module, "_body_scoped_proposals", staged)
@@ -1757,9 +1757,9 @@ def test_aggregate_competing_same_record_has_no_completion_or_capability(monkeyp
     planar = [node for node in context.graph.nodes if context.graph.is_planar(node)]
     real = module._body_scoped_proposals
 
-    def staged(sources, recognise_one):
+    def staged(sources, recognise_one, **kwargs):
         if recognise_one.func is not module._pocket_proposals_one:
-            return real(sources, recognise_one)
+            return real(sources, recognise_one, **kwargs)
         return [
             _RecessProposal(record, frozenset(planar[:2]), floors=frozenset(planar[4:5])),
             _RecessProposal(record, frozenset(planar[2:4]), floors=frozenset(planar[5:6])),
@@ -1799,10 +1799,10 @@ def test_aggregate_stale_second_occurrence_has_no_completed_state(monkeypatch) -
     monkeypatch.setattr(
         module,
         "_body_scoped_proposals",
-        lambda sources, recognise_one: (
+        lambda sources, recognise_one, **kwargs: (
             [proposals[0], stale]
             if recognise_one.func is module._pocket_proposals_one
-            else real(sources, recognise_one)
+            else real(sources, recognise_one, **kwargs)
         ),
     )
     with pytest.raises(_PocketAttributionError, match="identity"):
@@ -1894,10 +1894,10 @@ def test_shared_node_across_distinct_solidrefs_refuses_atomically(monkeypatch) -
     monkeypatch.setattr(
         module,
         "_body_scoped_proposals",
-        lambda sources, recognise_one: (
+        lambda sources, recognise_one, **kwargs: (
             [proposals[0], mixed]
             if recognise_one.func is module._pocket_proposals_one
-            else real(sources, recognise_one)
+            else real(sources, recognise_one, **kwargs)
         ),
     )
     with pytest.raises(_PocketAttributionError, match="one valid solid"):
@@ -1928,10 +1928,10 @@ def test_empty_roles_and_cap_ambiguity_are_atomic_without_completion(monkeypatch
         monkeypatch.setattr(
             module,
             "_body_scoped_proposals",
-            lambda sources, recognise_one, fail=failure: (
+            lambda sources, recognise_one, fail=failure, **kwargs: (
                 fail(sources, recognise_one)
                 if recognise_one.func is module._pocket_proposals_one
-                else real(sources, recognise_one)
+                else real(sources, recognise_one, **kwargs)
             ),
         )
         with pytest.raises(_PocketAttributionError, match=message):

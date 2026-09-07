@@ -28,6 +28,7 @@ from OCP.gp import gp_Pnt
 from OCP.TopAbs import TopAbs_IN
 
 from quiddity._geometry import AXIS_ALIGNED_COS, INTERIOR_PROBE_FRAC
+from quiddity._solid_properties import SolidProperties, SolidPropertyOwner, solid_properties
 from quiddity._typing import FaceLike, Part, Vector3
 
 #: The in-plane component below which a normal counts as running along that axis, so the face
@@ -83,7 +84,12 @@ def classify_bevel(
 
 
 def convex_bevel(
-    part: Part, centre: dict[int, float], edge_i: int, neigh_coord: dict[int, float]
+    part: Part,
+    centre: dict[int, float],
+    edge_i: int,
+    neigh_coord: dict[int, float],
+    *,
+    properties: SolidProperties | SolidPropertyOwner | None = None,
 ) -> bool:
     """Does the virtual sharp corner the bevel replaces lie outside the solid?
 
@@ -100,13 +106,24 @@ def convex_bevel(
     Shared with :func:`quiddity.recognise_angled_steps`, which admits larger slants
     than a chamfer and so needs this call for exactly the same reason: a gusset satisfies
     every other gate either recogniser applies.
+
+    *properties* is the run's whole-solid cache, which is where the point classifier this
+    probe needs lives -- see :func:`_material_at`. Omitting it answers the same question with
+    a classifier of this call's own.
     """
 
-    return not _material_at(part, _near_corner(centre, edge_i, neigh_coord, toward=1.0))
+    return not _material_at(
+        part, _near_corner(centre, edge_i, neigh_coord, toward=1.0), properties=properties
+    )
 
 
 def material_beyond_corner(
-    part: Part, centre: dict[int, float], edge_i: int, neigh_coord: dict[int, float]
+    part: Part,
+    centre: dict[int, float],
+    edge_i: int,
+    neigh_coord: dict[int, float],
+    *,
+    properties: SolidProperties | SolidPropertyOwner | None = None,
 ) -> bool:
     """Is there solid on the *far* side of the virtual sharp corner, away from the bevel?
 
@@ -120,9 +137,13 @@ def material_beyond_corner(
     both. Found by the held-out corpus: a triangular pocket whose two other walls happen to be
     axis-aligned satisfies every gate ``recognise_angled_steps`` applies, and was reported as
     a step. The design corpus contained no such pocket.
+
+    *properties* is the run's whole-solid cache, as in :func:`convex_bevel`.
     """
 
-    return _material_at(part, _near_corner(centre, edge_i, neigh_coord, toward=-1.0))
+    return _material_at(
+        part, _near_corner(centre, edge_i, neigh_coord, toward=-1.0), properties=properties
+    )
 
 
 def _near_corner(
@@ -144,8 +165,42 @@ def _near_corner(
     )
 
 
-def _material_at(part: Part, point: Vector3) -> bool:
-    clsf = BRepClass3d_SolidClassifier(part.wrapped)
+#: The name the run's whole-solid cache files this module's point classifier under.
+_CLASSIFIER = "_bevel.solid_classifier"
+
+
+def _classifier(shape: Part) -> BRepClass3d_SolidClassifier:
+    """Load one shape into a point classifier -- the expensive half of a material probe."""
+
+    return BRepClass3d_SolidClassifier(shape.wrapped)
+
+
+def _material_at(
+    part: Part,
+    point: Vector3,
+    *,
+    properties: SolidProperties | SolidPropertyOwner | None = None,
+) -> bool:
+    """Is *point* inside the material of *part*?
+
+    ``BRepClass3d_SolidClassifier`` is built for repeated queries: constructing it loads and
+    indexes the shape, and ``Perform`` then classifies one point against that. This asked for
+    a fresh one per point, so every probe paid the loading and none of the reuse -- 54 probes
+    of the 664-face NIST part were 0.6 s, essentially all of it construction. One classifier
+    per shape *asked about* is what the run's cache holds -- in production that is the whole
+    part every caller passes, not one of its bodies -- and ``Perform`` answers exactly what a
+    freshly built classifier answers, at the same tolerance.
+
+    **The orientation half of the cache key is what makes that reuse safe**, and this is the
+    strongest reason :mod:`quiddity._solid_properties` keys on it. ``IsSame`` -- and so the
+    wrapper half of the key on its own -- ignores orientation, but a classifier does not: a
+    reversed solid *inverts* ``IN`` and ``OUT`` rather than flipping a sign the way ``volume``
+    does, so a shape and ``Solid(shape.wrapped.Reversed())`` would otherwise share one entry
+    and one of them would get the other's answer back. Nothing reverses a solid today; the key
+    is what keeps "exactly what a freshly built classifier answers" true anyway.
+    """
+
+    clsf = solid_properties(properties).derived(_CLASSIFIER, part, _classifier)
     clsf.Perform(gp_Pnt(*point), 1e-6)
     # `State()` is untyped in OCP, so the comparison is Any until it is narrowed here.
     return bool(clsf.State() == TopAbs_IN)

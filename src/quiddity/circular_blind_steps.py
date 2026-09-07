@@ -76,8 +76,8 @@ def _is_convex(graph: FaceGraph, left: FaceNode, right: FaceNode) -> bool:
     return graph.arc(left, right) == "convex"
 
 
-def _axis_bounds(shape: Any, axis: int) -> tuple[float, float]:
-    bounds = shape.bounding_box()
+def _axis_bounds(graph: FaceGraph, shape: Any, axis: int) -> tuple[float, float]:
+    bounds = graph.solid_properties.bounding_box(shape)
     return (
         (bounds.min.X, bounds.max.X),
         (bounds.min.Y, bounds.max.Y),
@@ -158,7 +158,7 @@ def _candidate(
     if solid_ref is None:
         return None
     low, high = graph.bounds(cylinder)[axis]
-    solid_low, solid_high = _axis_bounds(graph.solid_shape(solid_ref), axis)
+    solid_low, solid_high = _axis_bounds(graph, graph.solid_shape(solid_ref), axis)
     terminal_at = plane[1]
     if math.isclose(terminal_at, low, abs_tol=COORD_FLOOR) and math.isclose(
         high, solid_high, abs_tol=COORD_FLOOR

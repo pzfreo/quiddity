@@ -54,6 +54,11 @@ from quiddity._geometry import (
     cluster_coordinates,
 )
 from quiddity._record import Record
+from quiddity._solid_properties import (
+    SolidProperties,
+    run_solid_properties,
+    solid_properties,
+)
 from quiddity._typing import Part
 
 #: **A minimum-evidence threshold, not a tolerance — deliberately absolute (ADR 0008).**
@@ -210,10 +215,11 @@ def _plate_proposals(
     min_area_frac: float,
     max_thick_frac: float,
     tol: float,
+    properties: SolidProperties | None = None,
 ) -> list[_PlateProposal]:
     """Discover one body's Plate proposals without publishing evidence."""
 
-    bb = part.bounding_box()
+    bb = solid_properties(properties).bounding_box(part)
     extents = (bb.max.X - bb.min.X, bb.max.Y - bb.min.Y, bb.max.Z - bb.min.Z)
     ext = dict(zip("xyz", extents, strict=True))
     axidx = {"x": 0, "y": 1, "z": 2}
@@ -232,10 +238,10 @@ def _plate_proposals(
             component = (normal.X, normal.Y, normal.Z)[i]
             if abs(component) < AXIS_ALIGNED_COS:
                 continue
-            properties = GProp_GProps()
-            BRepGProp.SurfaceProperties_s(face.wrapped, properties)
-            area = properties.Mass()
-            centre = properties.CentreOfMass()
+            surface_properties = GProp_GProps()
+            BRepGProp.SurfaceProperties_s(face.wrapped, surface_properties)
+            area = surface_properties.Mass()
+            centre = surface_properties.CentreOfMass()
             centre_point = (centre.X(), centre.Y(), centre.Z())
             plane_location = surface.Plane().Location()
             location = (plane_location.X(), plane_location.Y(), plane_location.Z())[i]
@@ -340,7 +346,8 @@ def _discover_plates(
 
     tol = _TOL if tol is None else tol
     scopes = _plate_scopes(part)
-    body_keys = unambiguous_body_keys(scopes, require_valid_solid=True)
+    properties = run_solid_properties(writer)
+    body_keys = unambiguous_body_keys(scopes, require_valid_solid=True, properties=properties)
     proposal_groups = [
         [
             replace(proposal, record=replace(proposal.record, body_key=body_key))
@@ -349,6 +356,7 @@ def _discover_plates(
                 min_area_frac=min_area_frac,
                 max_thick_frac=max_thick_frac,
                 tol=tol,
+                properties=properties,
             )
         ]
         for scope, body_key in zip(scopes, body_keys, strict=True)

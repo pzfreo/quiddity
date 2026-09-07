@@ -25,6 +25,11 @@ from quiddity._candidates import FamilyId
 from quiddity._claims import EvidenceWriter
 from quiddity._geometry import part_scale
 from quiddity._record import Record
+from quiddity._solid_properties import (
+    SolidProperties,
+    run_solid_properties,
+    solid_properties,
+)
 from quiddity._typing import FaceLike, Part, Vector3
 from quiddity._volume_probe import intersection_volume
 
@@ -605,9 +610,10 @@ def _recognise_double_d_bores_one(
     tol: float,
     face_edges: FaceEdges | None = None,
     proposals: list[_DoubleDBoreProposal] | None = None,
+    properties: SolidProperties | None = None,
 ) -> list[DoubleDBore]:
     """Recognise double-D bores within one solid's own boundary."""
-    bbox = part.bounding_box()
+    bbox = solid_properties(properties).bounding_box(part)
     scan_tol = max(tol, part_scale(bbox) * 1e-5)
     openings: list[tuple[str, float, DoubleDProfile, object]] = []
     opening_faces: dict[int, FaceLike] = {}
@@ -656,6 +662,7 @@ def _discover_double_d_bores(
     solids = list(part.solids())
     sources = solids if len(solids) > 1 else [part]
     proposals: list[_DoubleDBoreProposal] | None = [] if writer is not None else None
+    properties = run_solid_properties(writer)
     bores = [
         bore
         for solid in sources
@@ -664,6 +671,7 @@ def _discover_double_d_bores(
             tol=tol,
             face_edges=face_edges,
             proposals=proposals,
+            properties=properties,
         )
     ]
     ordered = sorted(bores, key=lambda bore: (bore.axis, bore.location, bore.major_diameter))

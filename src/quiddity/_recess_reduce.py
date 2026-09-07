@@ -27,6 +27,7 @@ from quiddity._adjacency import FaceNode
 from quiddity._body_identity import body_signature, unambiguous_body_keys
 from quiddity._recess_faces import _MERGE_TOL
 from quiddity._recess_records import Pocket, Slot
+from quiddity._solid_properties import SolidProperties
 from quiddity._typing import Part
 from quiddity._volume_probe import prism_is_empty, prism_material_fraction
 
@@ -86,17 +87,27 @@ _VOID_VOL_FRAC = 0.01
 
 
 def _prism_material_fraction(
-    spans: dict[str, tuple[float, float]], part: Part, *, inset: float = _VOID_INSET
+    spans: dict[str, tuple[float, float]],
+    part: Part,
+    *,
+    inset: float = _VOID_INSET,
+    properties: SolidProperties | None = None,
 ) -> float:
     """Compatibility facade over the policy-neutral volumetric measurement."""
 
-    return prism_material_fraction(spans, part, inset=inset)
+    return prism_material_fraction(spans, part, inset=inset, properties=properties)
 
 
-def _prism_is_empty(spans: dict[str, tuple[float, float]], part: Part, *, inset: float) -> bool:
+def _prism_is_empty(
+    spans: dict[str, tuple[float, float]],
+    part: Part,
+    *,
+    inset: float,
+    properties: SolidProperties | None = None,
+) -> bool:
     """Compatibility facade over the exact-empty volumetric measurement."""
 
-    return prism_is_empty(spans, part, inset=inset)
+    return prism_is_empty(spans, part, inset=inset, properties=properties)
 
 
 def _absorb(claims: _Claims | None, into: Slot | Pocket, *from_: Slot | Pocket) -> None:
@@ -120,7 +131,13 @@ def _absorb(claims: _Claims | None, into: Slot | Pocket, *from_: Slot | Pocket) 
 _body_signature = body_signature
 
 
-def _body_scoped_pairs(sources, recognise_one, claims: _Claims | None = None) -> list[tuple]:
+def _body_scoped_pairs(
+    sources,
+    recognise_one,
+    claims: _Claims | None = None,
+    *,
+    properties: SolidProperties | None = None,
+) -> list[tuple]:
     """The same, paired with the nodes each record was built from.
 
     The claim is read **per solid**, before the next one runs, and the map is cleared between
@@ -131,7 +148,7 @@ def _body_scoped_pairs(sources, recognise_one, claims: _Claims | None = None) ->
     reappeared in the claims.
     """
 
-    keys = unambiguous_body_keys(sources)
+    keys = unambiguous_body_keys(sources, properties=properties)
     out: list[tuple] = []
     for solid, body_key in zip(sources, keys, strict=True):
         if claims is not None:
@@ -143,10 +160,12 @@ def _body_scoped_pairs(sources, recognise_one, claims: _Claims | None = None) ->
     return out
 
 
-def _body_scoped_proposals(sources, recognise_one) -> list[_RecessProposal]:
+def _body_scoped_proposals(
+    sources, recognise_one, *, properties: SolidProperties | None = None
+) -> list[_RecessProposal]:
     """Body-scope exact occurrences without using record values as provenance authority."""
 
-    keys = unambiguous_body_keys(sources)
+    keys = unambiguous_body_keys(sources, properties=properties)
     out: list[_RecessProposal] = []
     for solid, body_key in zip(sources, keys, strict=True):
         for proposal in recognise_one(solid):

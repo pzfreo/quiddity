@@ -58,7 +58,7 @@ def _recognise_one(
     solid, graph: FaceGraph
 ) -> list[tuple[RectangularBlindSlot, frozenset[FaceNode]]]:
     solid_nodes = {graph.require_node(face) for face in solid.faces()}
-    bounds = solid.bounding_box()
+    bounds = graph.solid_properties.bounding_box(solid)
     envelope = (
         (bounds.min.X, bounds.max.X),
         (bounds.min.Y, bounds.max.Y),
@@ -217,7 +217,7 @@ def recognise_rectangular_blind_slots(
     sink: EvidenceSink | None = None if ledger is None else ledger.sink
     found: list[tuple[RectangularBlindSlot, frozenset[FaceNode]]] = []
     for solid in part.solids():
-        if solid.is_valid:
+        if graph.solid_properties.is_valid(solid):
             found.extend(_recognise_one(solid, graph))
     found.sort(key=lambda item: item[0])
     if sink is not None:

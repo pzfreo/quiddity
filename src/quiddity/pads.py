@@ -26,6 +26,7 @@ from quiddity._effective_surfaces import (
 )
 from quiddity._geometry import AXIS_ALIGNED_COS, AXIS_ZERO_COS
 from quiddity._record import Record
+from quiddity._solid_properties import run_solid_properties
 from quiddity._typing import FaceLike, Part
 from quiddity.experimental_geometry import (
     AnalyticSurface,
@@ -743,6 +744,7 @@ def _discover_rectangular_pads(
 
     solids = list(part.solids())
     sources = solids if len(solids) > 1 else [part]
+    properties = run_solid_properties(writer)
     occurrences: list[tuple[RaisedPad, tuple[_PadProposal, ...]]] = []
     for solid in sources:
         by_record: dict[RaisedPad, list[_PadProposal]] = {}
@@ -750,7 +752,7 @@ def _discover_rectangular_pads(
         blend_facts_cache: list[tuple[BlendFact, ...]] = []
         planar_faces = _planar_faces(solid, face_surfaces)
         material_side_cache: dict[int, SurfaceUse | SurfaceUseRefusal] = {}
-        part_bounds = solid.bounding_box()
+        part_bounds = properties.bounding_box(solid)
         for axis in ("z", "x", "y"):
             for axis_sign in (1, -1):
                 proposals.extend(

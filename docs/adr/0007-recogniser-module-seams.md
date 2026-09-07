@@ -582,3 +582,42 @@ public report. It must not invoke a report builder that runs another inventory. 
 does not import `evidence`; no cycle, recogniser dependency or private-product export is added.
 ADR 0012 defines the bounded semantics and result-identity contract. The explicit module-edge
 allowlist and same-run call-count tests enforce this boundary.
+
+## Amendment (run-scoped whole-solid property cache)
+
+`_solid_properties` is a private base-layer leaf over shared part typing, below `_adjacency` and
+`_body_identity` and importing nothing else. It owns no geometric policy: it memoises the four
+whole-solid kernel queries every family already asks -- optimal bounding box, validity, volume and
+area -- for the length of one run, keyed on the live build123d shape wrapper, and exposes one
+`derived` hook so a later per-solid cache hangs off the same lifetime.
+
+`FaceGraph` owns the one instance a run shares, alongside its per-face caches, because the graph is
+already the run object a recogniser can reach through the ledger or writer it is handed. A public
+recogniser called standalone has no graph, resolves a fresh call-scoped instance, and computes
+exactly what it computed before. The values are identical either way; only the number of times the
+kernel is asked for them changes.
+
+## Amendment (solids-only volumetric probes)
+
+`_volume_probe` may import `_solid_properties`. It stays a policy-neutral leaf: the only thing it
+gains is the run-scoped memo for one derived value, the tuple of solids a part's probe is measured
+against. Narrowing a probe to the part's solids is not a policy choice about what counts as
+material -- the fragments a non-solid child can produce have volume `0.0` by construction, so the
+measured number is unchanged; it removes boolean operations that could not contribute to it.
+
+Callers reach the memo through the `properties` keyword the probe helpers now accept, resolved
+from the `graph` they already hold. A probe helper called with no run context computes exactly
+what it computed before, and a caller that already holds one solid never consults the cache at all.
+
+## Amendment (one point classifier per run for the bevel corner probes)
+
+`_bevel` may import `_solid_properties`. It stays the shared single-face bevel read it was: the
+only thing it gains is the run-scoped memo for one derived value, the `BRepClass3d_SolidClassifier`
+its corner probes classify points against. Loading a shape into a classifier is the expensive half
+of that query and `Perform` is the cheap half, so building one per point paid the loading once per
+probe; the answers are unchanged, and the tolerance with them.
+
+Callers reach the memo through the `properties` keyword `convex_bevel` and `material_beyond_corner`
+now accept, resolved from the ledger, writer or graph the three bevel families already hold. A probe
+called with no run context computes exactly what it computed before. `_bevel` gains no dependency on
+a recogniser and remains below the three families that share it.

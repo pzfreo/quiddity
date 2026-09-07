@@ -80,10 +80,19 @@ MODULE_SEAM_EDGES = {
         "_volume_probe",
     },
     # Base layer: the kernel, the shared type aliases, and `_geometry`'s alignment threshold.
-    "_body_identity": {"_typing"},
+    "_body_identity": {"_solid_properties", "_typing"},
+    # The run's whole-solid query cache: a leaf over part typing, below everything that
+    # asks a solid for its box, validity, volume or area.
+    "_solid_properties": {"_typing"},
     "_analytic_surfaces": {"_geometry"},
     "_body_geometry": set(),
-    "_adjacency": {"_analytic_surfaces", "_body_geometry", "_geometry", "_typing"},
+    "_adjacency": {
+        "_analytic_surfaces",
+        "_body_geometry",
+        "_geometry",
+        "_solid_properties",
+        "_typing",
+    },
     "edge_open_prismatic_recesses": {
         "_adjacency",
         "_candidates",
@@ -108,7 +117,7 @@ MODULE_SEAM_EDGES = {
     # immutable, so it must stay absent.
     # Three recognisers begin with the same two questions of a face. Naming the layer is
     # what lets this map have an opinion about it -- see the module docstring.
-    "_bevel": {"_geometry", "_typing"},
+    "_bevel": {"_geometry", "_solid_properties", "_typing"},
     "paired_ramp_steps": {
         "_adjacency",
         "_bevel",
@@ -224,6 +233,7 @@ MODULE_SEAM_EDGES = {
         "_claims",
         "_geometry",
         "_record",
+        "_solid_properties",
         "_typing",
         "_volume_probe",
     },
@@ -234,6 +244,7 @@ MODULE_SEAM_EDGES = {
         "_effective_surfaces",
         "_geometry",
         "_record",
+        "_solid_properties",
         "_typing",
         "experimental_geometry",
     },
@@ -241,8 +252,9 @@ MODULE_SEAM_EDGES = {
     # Ring geometry: `passages` owned it while it was the only family walking rings.
     "_rings": {"_adjacency", "_geometry", "_typing"},
     "_recess_records": {"_record", "_typing"},
-    # Exact volumetric evidence is shared without importing either recognition policy.
-    "_volume_probe": {"_typing"},
+    # Exact volumetric evidence is shared without importing either recognition policy;
+    # the run-scoped cache only holds which solids a probe is measured against.
+    "_volume_probe": {"_solid_properties", "_typing"},
     "_support_patches": set(),
     "_entry_treatments": {"_adjacency", "_support_patches", "_volume_probe"},
     "_section_passages": {
@@ -318,6 +330,7 @@ MODULE_SEAM_EDGES = {
         "_geometry",
         "_recess_faces",
         "_recess_records",
+        "_solid_properties",
         "_typing",
         "_volume_probe",
     },
@@ -347,6 +360,7 @@ MODULE_SEAM_EDGES = {
         "_recess_core",
         "_recess_records",
         "_recess_reduce",
+        "_solid_properties",
         "_typing",
     },
     # The reconciler names both families it decides between, so it sits above them and neither
@@ -660,6 +674,9 @@ for _site in (
     "test_non_manifold_three_face_edge_is_side_unproven:smooth_side:1",
 ):
     ARC_READER_SITES[f"tests/test_arcs:{_site}"] = "side-read"
+# The collapsed view's brute-force reference deliberately mirrors the legacy closed value the
+# view itself reads, so that the adjacency-driven scan is proved to answer identically.
+ARC_READER_SITES["tests/test_blend_view:_all_pairs_arc_reference:arc:1"] = "legacy-contract"
 
 
 def test_every_arc_reader_has_one_reviewed_disposition() -> None:

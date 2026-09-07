@@ -604,9 +604,9 @@ def test_second_occurrence_identity_failure_is_detected_before_any_issue(monkeyp
     original = module._recognise_solid
     calls = 0
 
-    def corrupt_second(solid, *, tol):
+    def corrupt_second(solid, *, tol, properties=None):
         nonlocal calls
-        proposals = original(solid, tol=tol)
+        proposals = original(solid, tol=tol, properties=properties)
         calls += 1
         if calls == 2:
             proposal = proposals[0]
@@ -628,9 +628,9 @@ def test_aggregate_late_refusal_has_no_empty_candidate_or_completed_capability(m
     original = module._recognise_solid
     calls = 0
 
-    def corrupt_second(solid, *, tol):
+    def corrupt_second(solid, *, tol, properties=None):
         nonlocal calls
-        proposals = original(solid, tol=tol)
+        proposals = original(solid, tol=tol, properties=properties)
         calls += 1
         if calls == 2:
             proposals[0] = replace(
@@ -754,6 +754,7 @@ def test_private_core_and_constructor_rosters_are_closed() -> None:
         "quiddity._claims",
         "quiddity._geometry",
         "quiddity._record",
+        "quiddity._solid_properties",
         "quiddity._typing",
         "quiddity.profiled_bores",
     }

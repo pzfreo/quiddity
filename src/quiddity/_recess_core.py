@@ -148,7 +148,9 @@ def _candidate_has_void_evidence(
         return False
     probe = dict(spans)
     probe[long_axis] = long_span
-    return _prism_is_empty(probe, part, inset=COORD_FLOOR)
+    # The graph is here for the interruption evidence above; it also owns the run's cache, and
+    # this is the one probe site a whole imported compound reaches -- see `_volume_probe`.
+    return _prism_is_empty(probe, part, inset=COORD_FLOOR, properties=graph.solid_properties)
 
 
 def _has_smooth_depth_closure(
@@ -333,7 +335,7 @@ def _slot_proposals_one(
 
     owner = FaceGraph(part, face_edges=face_edges) if graph is None else graph
     faces = _planar_faces(part, face_edges, owner)
-    pbb = part.bounding_box()
+    pbb = owner.solid_properties.bounding_box(part)
     part_ext = {a: getattr(pbb.size, "XYZ"[_AXES[a]]) for a in "xyz"}
     # Only straight-walled faces can be slot walls; bucket them by axis so the
     # O(n^2) pairing runs within each axis instead of across all planar faces.
@@ -602,7 +604,7 @@ def _pocket_proposals_one(
 
     owner = FaceGraph(part, face_edges=face_edges) if graph is None else graph
     faces = _planar_faces(part, face_edges, owner)
-    pbb = part.bounding_box()
+    pbb = owner.solid_properties.bounding_box(part)
     part_ext = {a: getattr(pbb.size, "XYZ"[_AXES[a]]) for a in "xyz"}
     by_axis: dict[str, list[_Face]] = {}
     for f in faces:
@@ -758,7 +760,7 @@ def _channel_proposals_one(
 
     owner = FaceGraph(part, face_edges=face_edges) if graph is None else graph
     faces = _planar_faces(part, face_edges, owner)
-    pbb = part.bounding_box()
+    pbb = owner.solid_properties.bounding_box(part)
     part_ext = {a: getattr(pbb.size, "XYZ"[_AXES[a]]) for a in "xyz"}
     part_bounds = {
         a: (

@@ -78,6 +78,7 @@ from quiddity._geometry import (
     length_tol,
 )
 from quiddity._record import Record
+from quiddity._solid_properties import run_solid_properties
 from quiddity._typing import CylinderInventory, FaceLike, Part
 from quiddity.countersinks import cone_rims
 
@@ -152,7 +153,8 @@ def recognise_chamfers(
     A blind step's slant clears every gate here, because on the face alone it is a bevel; pass
     the ledger ``recognise_angled_steps`` wrote into and
     :func:`quiddity._reconcile.chamfers_that_are_not_angled_steps` removes it."""
-    bb = part.bounding_box()
+    properties = run_solid_properties(ledger)
+    bb = properties.bounding_box(part)
     # Geometry, rather than callout significance, decides the default answer. A caller that
     # deliberately wants a minimum reportable leg may still supply it through ``tol``.
     tol = 0.0 if tol is None else tol
@@ -185,7 +187,7 @@ def recognise_chamfers(
         )
         if oi[0] not in neigh_coord or oi[1] not in neigh_coord:
             continue
-        if not convex_bevel(part, fc, edge_i, neigh_coord):
+        if not convex_bevel(part, fc, edge_i, neigh_coord, properties=properties):
             continue  # concave corner — a gusset / rib / web, not a chamfer
         # Anchor the leader on the bevel FACE (its centroid), not the supporting plane's
         # parametric origin: that origin is arbitrary (OCC parameterisation) and can project to

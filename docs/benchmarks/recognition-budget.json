@@ -1,23 +1,25 @@
 {
   "schema_version": 1,
-  "measured_at": "2026-08-20",
-  "source_commit": "51d388b",
-  "environment": "epic development container, shared; interleaved arms, minimum of samples",
+  "measured_at": "2026-09-07",
+  "source_commit": "8147f39",
+  "environment": "Apple M5 Max, macOS 26.6, Python 3.14.7, build123d 0.11.1; shared developer machine, measured with the one-minute load average below 4; minimum of samples",
   "budget": 1.1,
   "workloads": {
     "composite": {
       "what": "two recognition results and one census over four golden fixtures, rebuilt each iteration",
       "iterations": 5,
-      "min_seconds": 1.927,
-      "peak_rss_kb": 471896,
+      "min_seconds": 0.863,
+      "peak_rss_kb": 510240,
       "budget": 1.4,
-      "budget_note": "Loose because of the host, not because the code may be 40% slower. Measured repeatedly over one evening with nothing else obviously running, this two-second arm's minimum-of-five ranged 1.93s to 2.66s -- 1.38x. A ceiling under that reports the load. The census arm is fifty times longer, does not move like this, and is the tight one; this arm becomes a real budget only on a dedicated machine."
+      "budget_note": "Inherited from the previous host, where this two-second arm's minimum-of-five ranged 1.93s to 2.66s over one evening and a ceiling under that spread would have reported the load rather than the code. This box is steadier -- three quiet windows over two hours, on adjacent revisions of this stack, gave 0.863s, 0.866s and 0.898s, a 4.1% spread -- but three windows on a machine other work shares is not enough to tighten a ceiling on, and a check that cries wolf stops being run. The census arm is nineteen times longer and remains the tight one.",
+      "baseline_note": "0.972s at a5f1fcc, the branch point, measured on the same box in the adjacent quiet window, against 7918c8a (0.866s) -- the revision of this stack immediately before the one recorded here, and within this arm's own spread of it."
     },
     "census": {
       "what": "feature_census over the ten vendored NIST parts and three real gramel parts, imported once",
       "iterations": 3,
-      "min_seconds": 99.683,
-      "peak_rss_kb": 495264
+      "min_seconds": 16.022,
+      "peak_rss_kb": 590944,
+      "baseline_note": "75.032s at a5f1fcc, the branch point, measured on the same box in the adjacent quiet window, against 7918c8a (16.295s) -- the revision of this stack immediately before the one recorded here."
     }
   },
   "commands": [

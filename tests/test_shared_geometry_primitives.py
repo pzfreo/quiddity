@@ -55,22 +55,36 @@ def test_fraction_retains_division_and_kernel_error_boundaries():
 
 
 def test_wire_seed_uses_exact_shared_edge_occurrences_without_growing_region():
+    """Only the neighbours carrying an edge of *this* wire, and none of the rest.
+
+    The graph's own index answers "which neighbours meet me along this edge"; that it is built
+    from exactly the paired shared occurrences the earlier scan read is pinned on real geometry
+    in :mod:`tests.test_wire_seed_index`.
+    """
+
     edge = object()
     other = object()
     graph = SimpleNamespace(
-        neighbours=lambda _: ("wall", "unrelated"),
-        shared_occurrences=lambda _, neighbour: (
-            SimpleNamespace(edge=edge if neighbour == "wall" else other),
-        ),
+        neighbours_by_occurrence_edge=lambda _: {edge: ("wall",), other: ("unrelated",)}
     )
     assert wire_seed(graph, "mouth", SimpleNamespace(edges=lambda: [edge])) == frozenset({"wall"})
     assert wire_seed(graph, "mouth", SimpleNamespace(edges=lambda: [])) == frozenset()
 
 
 def test_recognisers_share_the_same_seed_and_fraction_implementations():
-    from quiddity import _recess_core, _section_passages, prismatic_pockets
+    from quiddity import (
+        _recess_core,
+        _section_passages,
+        edge_open_circular_recesses,
+        edge_open_prismatic_recesses,
+        prismatic_pockets,
+    )
 
     assert _recess_core._inner_wire_seed is _section_passages._wire_seed is wire_seed
     assert prismatic_pockets._wire_seed is wire_seed
     assert _section_passages._material_fraction is material_fraction
     assert prismatic_pockets._material_fraction is material_fraction
+    # The two edge-open families each carried their own copy until the probe was narrowed to
+    # the part's solids; pinned here so the copies cannot quietly return and miss that.
+    assert edge_open_prismatic_recesses._material_fraction is material_fraction
+    assert edge_open_circular_recesses._material_fraction is material_fraction

@@ -54,6 +54,7 @@ from quiddity._claims import EvidenceWriter
 from quiddity._features import analyse_cylinders
 from quiddity._geometry import AXIS_ALIGNED_COS, _coaxial_axis_lines, length_tol
 from quiddity._record import Record
+from quiddity._solid_properties import run_solid_properties
 from quiddity._typing import CylinderInventory, FaceLike, Part, SurfaceAdaptor
 
 #: **A minimum-evidence threshold, not a tolerance — deliberately absolute (ADR 0008).**
@@ -153,7 +154,8 @@ def _discover_fillets(
 ) -> list[Fillet]:
     """Discover Fillets and validate every defining-face binding before publication."""
 
-    bb = part.bounding_box()
+    properties = run_solid_properties(writer)
+    bb = properties.bounding_box(part)
     min_radius = _MIN_RADIUS if min_radius is None else min_radius
     max_ext = max(bb.max.X - bb.min.X, bb.max.Y - bb.min.Y, bb.max.Z - bb.min.Z)
     all_faces = list(part.faces())
@@ -200,7 +202,7 @@ def _discover_fillets(
         # filled *material* for an internal round bevelling a re-entrant corner. This was a
         # line-for-line copy of `convex_bevel` down to the probe fraction and the classifier
         # tolerance, and the copies could have drifted with nothing to notice.
-        if not convex_bevel(part, fc, edge_i, neigh_coord):
+        if not convex_bevel(part, fc, edge_i, neigh_coord, properties=properties):
             continue  # concave corner — an internal round / slot-wall blend, not an edge fillet
 
         # Anchor the leader on the curved radius surface itself via the shared

@@ -458,7 +458,7 @@ def _recognise_one(
     solid, graph: FaceGraph
 ) -> list[tuple[RoundBottomBlindSlot, frozenset[FaceNode]]]:
     solid_nodes = {graph.require_node(face) for face in solid.faces()}
-    bounds = solid.bounding_box()
+    bounds = graph.solid_properties.bounding_box(solid)
     envelope = (
         (bounds.min.X, bounds.max.X),
         (bounds.min.Y, bounds.max.Y),
@@ -608,7 +608,7 @@ def recognise_round_bottom_blind_slots(
     sink: EvidenceSink | None = None if ledger is None else ledger.sink
     found: list[tuple[RoundBottomBlindSlot, frozenset[FaceNode]]] = []
     for solid in part.solids():
-        if not solid.is_valid:
+        if not graph.solid_properties.is_valid(solid):
             continue
         for record, nodes in _recognise_one(solid, graph):
             found.append((record, nodes))

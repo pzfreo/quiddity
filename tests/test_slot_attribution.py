@@ -500,7 +500,7 @@ def test_same_record_competing_role_sets_still_refuse_atomically(monkeypatch) ->
     monkeypatch.setattr(
         recess_features,
         "_body_scoped_proposals",
-        lambda _sources, _recognise_one: [proposal, competing],
+        lambda _sources, _recognise_one, **_kwargs: [proposal, competing],
     )
     with pytest.raises(_SlotAttributionError, match="competing source roles"):
         _discover_all(context, ledger)
@@ -518,7 +518,7 @@ def test_graph_identical_proposal_duplicate_collapses_before_issue(monkeypatch) 
     monkeypatch.setattr(
         recess_features,
         "_body_scoped_proposals",
-        lambda _sources, _recognise_one: [proposal, proposal],
+        lambda _sources, _recognise_one, **_kwargs: [proposal, proposal],
     )
     (record,) = _discover_slots(part, writer=ledger.writer)
     (candidate,) = ledger.candidate_set(FamilyId.SLOTS).candidates
@@ -535,7 +535,9 @@ def test_empty_complete_role_set_refuses_before_issue(monkeypatch) -> None:
     monkeypatch.setattr(
         recess_features,
         "_body_scoped_proposals",
-        lambda _sources, _recognise_one: [_RecessProposal(proposal.record, frozenset(), ())],
+        lambda _sources, _recognise_one, **_kwargs: [
+            _RecessProposal(proposal.record, frozenset(), ())
+        ],
     )
     with pytest.raises(_SlotAttributionError, match="no defining source faces"):
         _discover_slots(part, writer=ledger.writer)
@@ -546,7 +548,7 @@ def test_competing_cap_clusters_are_a_closed_atomic_attribution_failure(monkeypa
     part = Box(100, 60, 20) - _obround(30, 12, 20)
     ledger = ClaimLedger(FaceGraph(part))
 
-    def compete(_sources, _recognise_one):
+    def compete(_sources, _recognise_one, **_kwargs):
         raise ValueError("obround cap clusters compete at one endpoint")
 
     monkeypatch.setattr(recess_features, "_body_scoped_proposals", compete)
@@ -559,7 +561,7 @@ def test_unrelated_geometry_value_error_is_not_relabelled(monkeypatch) -> None:
     part = Box(100, 60, 20) - _obround(30, 12, 20)
     ledger = ClaimLedger(FaceGraph(part))
 
-    def geometry_failure(_sources, _recognise_one):
+    def geometry_failure(_sources, _recognise_one, **_kwargs):
         raise ValueError("kernel classification failed")
 
     monkeypatch.setattr(recess_features, "_body_scoped_proposals", geometry_failure)
@@ -587,7 +589,7 @@ def test_shared_node_across_solidrefs_refuses_before_issue(monkeypatch) -> None:
     monkeypatch.setattr(
         recess_features,
         "_body_scoped_proposals",
-        lambda _sources, _recognise_one: [proposals[0], mixed],
+        lambda _sources, _recognise_one, **_kwargs: [proposals[0], mixed],
     )
     with pytest.raises(_SlotAttributionError, match="one valid solid"):
         _discover_slots(part, writer=ledger.writer)
@@ -614,7 +616,7 @@ def test_shared_node_with_conflicting_issuer_solidrefs_refuses_atomically(monkey
     monkeypatch.setattr(
         recess_features,
         "_body_scoped_proposals",
-        lambda _sources, _recognise_one: [proposals[0], mixed],
+        lambda _sources, _recognise_one, **_kwargs: [proposals[0], mixed],
     )
     monkeypatch.setattr(
         ledger.graph,

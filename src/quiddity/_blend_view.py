@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import math
 from collections import deque
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from enum import Enum
 from typing import cast
@@ -123,6 +123,45 @@ def _arc_key(arc: OriginalArcRef) -> tuple[int, int, int, int, int, int]:
 
 def _ordered_arcs(occurrences: Iterable[OriginalArcRef]) -> tuple[OriginalArcRef, ...]:
     return tuple(sorted(occurrences, key=_arc_key))
+
+
+def _adjacent_pairs(
+    graph: FaceGraphQuery, nodes: Iterable[FaceNode]
+) -> Iterator[tuple[FaceNode, FaceNode]]:
+    """Every pair among *nodes* that shares an edge, ordered by ``(left.index, right.index)``.
+
+    The collapsed view used to ask the graph about all ``n * (n - 1) / 2`` node pairs. On the
+    664-face NIST part that was 216k questions of which 1.3k -- 0.6% -- have an answer, and
+    proving a negative is not cheap: each one pairs both faces' whole edge-occurrence lists
+    before concluding they never meet, which measured 5.2 s of that part's 29 s recognition.
+    Faces that share no edge have no shared occurrence to expose and no arc to classify, so the
+    pairs dropped here are exactly the ones the loop body already discarded.
+
+    ``neighbours`` is the right question to ask instead because it is derived from the same
+    edge/face map as ``shared_edges``, and therefore as ``arc``: a pair absent from it has no
+    shared edge, so ``arc`` is ``None`` and ``shared_occurrences`` is empty by construction.
+
+    **The order is reproduced deliberately, and it is belt and braces rather than an
+    invariant.** Validation is by object identity -- :class:`LogicalArc` is ``eq=False``, so
+    ``_issued_arcs`` is a dict lookup and nothing in it is positional. What makes the order
+    observable at all is that ``_arcs`` is a *sequence*, handed out in that order by
+    :meth:`CollapsedGraphView.neighbours` and :meth:`CollapsedGraphView.arcs_between`. No
+    consumer is known to depend on it, and reversing it outright leaves every corpus document
+    byte-identical; a change that promises to move nothing should still not move it. Hence the
+    sorts: :meth:`FaceGraph.neighbours` follows the part's own traversal order and explicitly
+    promises nothing, so both ends of the pair are re-sorted into the index order the nested
+    scan this replaces produced.
+    """
+
+    allowed = {node.index: node for node in nodes}
+    for at in sorted(allowed):
+        left = allowed[at]
+        for right in sorted(graph.neighbours(left), key=_node_key):
+            # Identity, not membership: this generator is lazy, so a foreign node with a
+            # colliding index would otherwise be yielded as a *right* long before
+            # ``neighbours`` reaches it as a *left* and refuses it.
+            if right.index > at and allowed.get(right.index) is right:
+                yield left, right
 
 
 def _edge_groups(
@@ -627,11 +666,9 @@ class CollapsedGraphView:
         self._node_provenance: dict[LogicalNode, FrozenProvenance] = {}
         self._issued_nodes: dict[LogicalNode, tuple] = {}
         for node in self._nodes:
-            members = tuple(sorted(node.sources, key=_node_key))
             internal = _ordered_arcs(
                 arc
-                for at, left in enumerate(members)
-                for right in members[at + 1 :]
+                for left, right in _adjacent_pairs(self._graph, node.sources)
                 for arc in self._index._arc_refs(left, right)
             )
             node_value = FrozenProvenance(node.sources, internal)
@@ -640,23 +677,19 @@ class CollapsedGraphView:
         self._by_source = {source: node for node in self._nodes for source in node.sources}
         arcs: list[LogicalArc] = []
         arc_provenance: dict[LogicalArc, FrozenProvenance] = {}
-        for at, left in enumerate(self._graph.nodes):
-            if left in hidden:
+        visible = tuple(node for node in self._graph.nodes if node not in hidden)
+        for left, right in _adjacent_pairs(self._graph, visible):
+            mapped_left, mapped_right = self._by_source[left], self._by_source[right]
+            refs = self._index._arc_refs(left, right)
+            if mapped_left is mapped_right:
                 continue
-            for right in self._graph.nodes[at + 1 :]:
-                if right in hidden:
-                    continue
-                mapped_left, mapped_right = self._by_source[left], self._by_source[right]
-                refs = self._index._arc_refs(left, right)
-                if mapped_left is mapped_right:
-                    continue
-                kind = self._graph.arc(left, right)
-                if kind is None:
-                    continue
-                for ref in refs:
-                    arc = LogicalArc((mapped_left, mapped_right), kind, False)
-                    arcs.append(arc)
-                    arc_provenance[arc] = FrozenProvenance(frozenset((left, right)), (ref,))
+            kind = self._graph.arc(left, right)
+            if kind is None:
+                continue
+            for ref in refs:
+                arc = LogicalArc((mapped_left, mapped_right), kind, False)
+                arcs.append(arc)
+                arc_provenance[arc] = FrozenProvenance(frozenset((left, right)), (ref,))
         for chain in selected:
             logical_left, logical_right = (
                 self._by_source[min(source, key=_node_key)] for source in chain.supports

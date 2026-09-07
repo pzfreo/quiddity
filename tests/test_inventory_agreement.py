@@ -17,8 +17,24 @@ They now share one inventory — `_take_inventory` — so a disagreement of that
 be written. What remains for this file to guard is the *mapping*: the census names a kind, the
 inventory returns a field, and nothing but this checks that the census counts the field it means
 to. A key wired to the wrong family, or a family added to one side and not the other, still
-produces a wrong number silently. So the property is kept, over the whole corpus, rather than
-retired as impossible.
+produces a wrong number silently. So the property is kept rather than retired as impossible.
+
+**It is no longer checked over the whole vendored corpus.** The mapping is a property of the two
+inventories, not of any part: a key wired to the wrong field is wrong on *every* part that
+carries the family, so the evidence only has to make each family appear once. Measured, the 30
+golden fixtures already do — every one of the sixteen `SHARED` families is populated by at least
+one of them (`section_recess` by eight, `hole` by seven, `boss`, `blend` and `plate` by four
+each, `slot`, `chamfer` and `through_step` by two, the rest by one). Reading all 87 vendored
+parts added 188 seconds serially at the series' branch point, and 65 s once run-scoped caching
+landed — either way the whole test suite's critical path, longer than the next four slowest tests
+together, and unsplittable by `xdist` because it is one test — and put no family through the map
+that the goldens had not already.
+
+What is kept from the corpus is the one part the goldens cannot make: the real turned screw
+below. Goldens are built to exercise one family at a time, and the historical disagreement was an
+*interaction* — a shaft whose steps form a ladder and a slab the plate recogniser would claim,
+on the same part. That is a fifth of a second, so it stays, and the test checks the part still
+carries the shape rather than trusting that it does.
 
 **Two differences are by design and are named rather than asserted away.** They are the reason
 this cannot simply compare every key:
@@ -86,36 +102,36 @@ def test_the_two_inventories_agree_on_every_golden(fixture):
     assert _disagreements(part) == {}
 
 
+#: The one imported part that ever disagreed: a real turned screw whose four steps form a ladder,
+#: and from which `recognise_plates`, asked on its own, still claims a slab. `plate` went 1 to 0
+#: for this file when the census learned the aggregate's turned-profile gate.
+DIAGNOSTIC_SCREW = CORPUS / "gramel" / "GRM-03_thumbwheel_drive_screw.step"
+
+
 @pytest.mark.skipif(
-    not (CORPUS / "mfcadpp" / "MANIFEST.json").is_file(),
+    not DIAGNOSTIC_SCREW.is_file(),
     reason="the vendored corpora are excluded from the sdist",
 )
-def test_the_two_inventories_agree_on_imported_parts():
+def test_the_two_inventories_agree_on_the_screw_that_once_disagreed():
     """Where the one real disagreement was, and the only part in 73 that had it.
 
     Goldens are built to exercise one family at a time; the divergence that motivated this file
-    needed a real turned screw whose steps form a ladder. Imported geometry is where an
-    inventory that has quietly drifted shows up.
+    needed a real turned screw whose steps form a ladder *and* a slab a plate would be claimed
+    from. Imported geometry is where an inventory that has quietly drifted shows up.
     """
 
-    models = sorted(CORPUS.glob("*/*.st*p"))
-    assert models, "the vendored corpora must be present for this to mean anything"
+    # No skipping. This is a checked-in input, and swallowing an import failure would quietly
+    # remove the one diagnostic screw this file exists for from the evidence. A file that stops
+    # importing is a finding, so the exception is left to fail the test.
+    part = import_step(str(DIAGNOSTIC_SCREW))
 
-    # No skipping. These are checked-in inputs, and swallowing an import failure would quietly
-    # remove a part from the evidence -- including the one diagnostic screw this file exists
-    # for. A file that stops importing is a finding, not a reason to compare fewer parts.
-    unreadable, disagreed = {}, {}
-    for path in models:
-        try:
-            part = import_step(str(path))
-        except Exception as failure:  # noqa: BLE001 - reported, never skipped
-            unreadable[path.name] = repr(failure)
-            continue
-        found = _disagreements(part)
-        if found:
-            disagreed[path.name] = found
-    assert unreadable == {}, "a checked-in corpus file stopped importing"
-    assert disagreed == {}
+    # The part still has to carry the shape that made it diagnostic, or the agreement below is
+    # agreement about nothing: a step ladder, and a plate that only the ladder suppresses.
+    result = r.build_recognition_result(part)
+    assert len(result.turned_steps) >= 2, "the screw's step ladder"
+    assert r.recognise_plates(part) and not result.plates, "the plate the ladder suppresses"
+
+    assert _disagreements(part) == {}
 
 
 #: `RecognitionResult` fields the census deliberately does not count, and why. Written out

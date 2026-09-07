@@ -22,8 +22,9 @@ predicates induce the same partition of the edges *and* the faces of every pinne
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Literal, Protocol, TypeVar, cast
 
 from build123d import Edge, Solid
@@ -51,6 +52,7 @@ from quiddity._body_geometry import (
     matching_boundary_for_solid,
 )
 from quiddity._geometry import AXIS_ALIGNED_COS, SMOOTH_ARC_GAP, length_tol
+from quiddity._solid_properties import SolidProperties
 from quiddity._typing import EdgeLike, FaceLike
 
 _T = TypeVar("_T")
@@ -305,6 +307,7 @@ class FaceGraph:
         self._nodes = tuple(FaceNode(at) for at in range(len(self._faces)))
         self._index = {face: at for at, face in enumerate(self._faces)}
         self._face_edges = face_edges
+        self._solid_properties = SolidProperties()
         self._edges: dict[int, tuple[EdgeLike, ...]] = {}
         self._surface: dict[int, int] = {}
         self._normal: dict[int, tuple[float, float, float] | None] = {}
@@ -325,10 +328,24 @@ class FaceGraph:
         self._issued_edge_occurrences: dict[EdgeOccurrenceRef, tuple] = {}
         self._shared_occurrences: dict[tuple[int, int], tuple[SharedEdgeOccurrenceRef, ...]] = {}
         self._issued_shared_occurrences: dict[SharedEdgeOccurrenceRef, tuple] = {}
+        self._occurrence_edge_neighbours: dict[int, Mapping[EdgeLike, tuple[FaceNode, ...]]] = {}
 
     @property
     def run_token(self) -> GraphRunToken:
         return self._run_token
+
+    @property
+    def solid_properties(self) -> SolidProperties:
+        """This run's whole-solid query cache -- see :mod:`quiddity._solid_properties`.
+
+        The node caches above answer *per face*; this answers per *solid*, for the families that
+        ask the part or one of its bodies for a bounding box, a validity, a volume or an area.
+        It lives here because the graph is the run object those families can already reach --
+        through the ledger or writer they are handed -- and because it must die when the graph
+        does, for the same reason the node caches must: it is keyed on this part's shapes.
+        """
+
+        return self._solid_properties
 
     def __len__(self) -> int:
         return len(self._faces)
@@ -641,7 +658,7 @@ class FaceGraph:
             try:
                 # A valid TopoDS_Solid is the closed ownership unit.  The shape's optional
                 # ``Closed`` cache flag is not reliably populated by OCCT booleans.
-                if solid.is_valid:
+                if self._solid_properties.is_valid(solid):
                     closed.add(solid_at)
                 faces = solid.faces()
             except Exception:  # noqa: BLE001 - invalid topology cannot prove material side
@@ -1113,6 +1130,48 @@ class FaceGraph:
         result = tuple(pairs)
         self._shared_occurrences[key] = result
         return result
+
+    def neighbours_by_occurrence_edge(
+        self, node: FaceNode
+    ) -> Mapping[EdgeLike, tuple[FaceNode, ...]]:
+        """Which neighbours meet *node* along each edge, keyed by the edge itself.
+
+        The same facts :meth:`shared_occurrences` exposes, indexed by edge instead of by
+        neighbour. A consumer holding an edge -- a wire of this face, say -- otherwise has to
+        ask every neighbour for its complete occurrence list and compare shapes one by one,
+        which is quadratic in the face's adjacency for an answer this graph can hand over
+        directly. On a 158-face NIST part that scan read 36,528 occurrence lists for 280
+        answers, against 260 through this index.
+
+        Keys are the live ``Edge`` wrappers the occurrences carry, so a lookup is exactly the
+        ``==`` the scan performed: ``hash`` is the ``TopoDS_Shape``'s and ``__eq__`` is
+        ``IsSame``, which is why an edge read from one face finds the entry an edge read from
+        the other face created. Orientation differs between the two and is deliberately not
+        part of that identity, here as in :meth:`shared_edges`.
+
+        Only *exactly paired* occurrences appear, so this says no more than
+        :meth:`shared_occurrences` does: a pair meeting along an edge with no
+        traversal-independent pairing has no occurrence, and so contributes no entry.
+
+        Each tuple is in :meth:`neighbours` order, and inherits that method's warning with it:
+        the order is the part's traversal order and nothing more, so a caller needing
+        determinism must sort or reduce. :func:`quiddity._wire_seed.wire_seed` reduces to a
+        frozenset.
+        """
+
+        at = self._at(node)
+        cached = self._occurrence_edge_neighbours.get(at)
+        if cached is not None:
+            return cached
+        carriers: dict[EdgeLike, list[FaceNode]] = {}
+        for neighbour in self.neighbours(node):
+            for occurrence in self.shared_occurrences(node, neighbour):
+                sharing = carriers.setdefault(occurrence.edge, [])
+                if neighbour not in sharing:
+                    sharing.append(neighbour)
+        built = MappingProxyType({edge: tuple(sharing) for edge, sharing in carriers.items()})
+        self._occurrence_edge_neighbours[at] = built
+        return built
 
     def ownership(self, occurrence: SharedEdgeOccurrenceRef) -> EdgeOwnershipFact | None:
         """Same-valid-solid/two-incident-face proof for one issued adjacency occurrence."""

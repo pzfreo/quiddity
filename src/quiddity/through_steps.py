@@ -303,7 +303,7 @@ def _recognise_one(
 ) -> list[tuple[ThroughStep, tuple[FaceNode, ...]]]:
     solid_nodes = {graph.require_node(face) for face in solid.faces()}
     regions = _regions(graph, solid_nodes, planes)
-    bounds = solid.bounding_box()
+    bounds = graph.solid_properties.bounding_box(solid)
     solid_bounds = (
         (bounds.min.X, bounds.max.X),
         (bounds.min.Y, bounds.max.Y),
@@ -378,7 +378,9 @@ def recognise_through_steps(
     sink: EvidenceSink | None = None if ledger is None else ledger.sink
     planes = {node: axis_aligned_axis(graph.face(node).wrapped) for node in graph.nodes}
     solids = list(part.solids())
-    body_keys = unambiguous_body_keys(solids, require_valid_solid=True)
+    body_keys = unambiguous_body_keys(
+        solids, require_valid_solid=True, properties=graph.solid_properties
+    )
     proposals = [
         proposal
         for solid, body_key in zip(solids, body_keys, strict=True)
