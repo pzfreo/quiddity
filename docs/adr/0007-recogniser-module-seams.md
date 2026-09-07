@@ -608,3 +608,16 @@ measured number is unchanged; it removes boolean operations that could not contr
 Callers reach the memo through the `properties` keyword the probe helpers now accept, resolved
 from the `graph` they already hold. A probe helper called with no run context computes exactly
 what it computed before, and a caller that already holds one solid never consults the cache at all.
+
+## Amendment (one point classifier per run for the bevel corner probes)
+
+`_bevel` may import `_solid_properties`. It stays the shared single-face bevel read it was: the
+only thing it gains is the run-scoped memo for one derived value, the `BRepClass3d_SolidClassifier`
+its corner probes classify points against. Loading a shape into a classifier is the expensive half
+of that query and `Perform` is the cheap half, so building one per point paid the loading once per
+probe; the answers are unchanged, and the tolerance with them.
+
+Callers reach the memo through the `properties` keyword `convex_bevel` and `material_beyond_corner`
+now accept, resolved from the ledger, writer or graph the three bevel families already hold. A probe
+called with no run context computes exactly what it computed before. `_bevel` gains no dependency on
+a recogniser and remains below the three families that share it.

@@ -18,11 +18,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from build123d import Axis, Box, Compound, Pos
+from build123d import Axis, Box, Compound, Pos, Solid
 from OCP.BRepClass3d import BRepClass3d_SolidClassifier
 
 from quiddity import _bevel
-from quiddity._bevel import _material_at, convex_bevel, material_beyond_corner
+from quiddity._bevel import _CLASSIFIER, _material_at, convex_bevel, material_beyond_corner
 from quiddity._solid_properties import SolidProperties
 from quiddity.angled_steps import recognise_angled_steps
 from quiddity.census import feature_census
@@ -87,8 +87,12 @@ def test_a_reused_classifier_answers_what_a_fresh_one_answers() -> None:
     )
 
 
-def test_each_solid_of_a_run_gets_its_own_classifier() -> None:
-    """Two bodies of one compound are two solids, and must not answer for each other."""
+def test_each_shape_asked_about_gets_its_own_classifier() -> None:
+    """Two shapes are two entries, and must not answer for each other.
+
+    Production always asks about the whole part, so this is the property that keeps that from
+    being load-bearing: the cache is keyed on the shape handed in, whatever it is.
+    """
 
     memo = SolidProperties()
     left, right = Box(10, 10, 10), Pos(50, 0, 0) * Box(10, 10, 10)
@@ -98,6 +102,31 @@ def test_each_solid_of_a_run_gets_its_own_classifier() -> None:
     assert not _material_at(left, inside_right, properties=memo)
     assert _material_at(right, inside_right, properties=memo)
     assert not _material_at(right, inside_left, properties=memo)
+
+
+def test_a_reversed_solid_never_shares_the_forward_solid_s_classifier() -> None:
+    """The orientation half of the cache key, from the side that needs it most.
+
+    ``IsSame`` ignores orientation, so a solid and its reverse are ``==`` and hash equal. A
+    classifier does not ignore it: reversing *inverts* ``IN`` and ``OUT``, rather than flipping
+    a sign the way ``volume`` does. Keyed on the wrapper alone these two would share one entry
+    and one of them would read the other's answer, so this pins that they do not -- and pins it
+    through a shared cache, which is the only place it could go wrong.
+    """
+
+    forward = Box(10, 10, 10)
+    reverse = Solid(forward.wrapped.Reversed())
+    assert forward == reverse and hash(forward) == hash(reverse)  # IsSame, orientation ignored
+
+    memo = SolidProperties()
+    inside, outside = (0.0, 0.0, 0.0), (99.0, 0.0, 0.0)
+    for point in (inside, outside):
+        shared_forward = _material_at(forward, point, properties=memo)
+        shared_reverse = _material_at(reverse, point, properties=memo)
+        assert shared_forward != shared_reverse
+        assert shared_forward == _material_at(forward, point)
+        assert shared_reverse == _material_at(reverse, point)
+    assert _material_at(forward, inside, properties=memo)  # and the entries stay put
 
 
 def _counted_classifiers(monkeypatch) -> list[int]:
@@ -139,11 +168,21 @@ def test_a_shared_cache_loads_each_solid_once(monkeypatch) -> None:
 
 
 def _without_the_shared_classifier(monkeypatch) -> None:
-    """Make every probe load the solid again, as the code did before the cache existed."""
+    """Make every probe load the shape again, as the code did before the cache existed.
 
-    monkeypatch.setattr(
-        SolidProperties, "derived", lambda _self, _name, solid, compute: compute(solid)
-    )
+    Keyed on this module's name so it unshares only the classifier: ``derived`` is class-level
+    machinery other modules in this series hang their own values off, and a blanket passthrough
+    would quietly be testing theirs too.
+    """
+
+    original = SolidProperties.derived
+
+    def unshared(self, name, solid, compute):
+        if name == _CLASSIFIER:
+            return compute(solid)
+        return original(self, name, solid, compute)
+
+    monkeypatch.setattr(SolidProperties, "derived", unshared)
 
 
 @pytest.mark.parametrize(

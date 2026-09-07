@@ -28,7 +28,7 @@ from OCP.gp import gp_Pnt
 from OCP.TopAbs import TopAbs_IN
 
 from quiddity._geometry import AXIS_ALIGNED_COS, INTERIOR_PROBE_FRAC
-from quiddity._solid_properties import SolidProperties, solid_properties
+from quiddity._solid_properties import SolidProperties, SolidPropertyOwner, solid_properties
 from quiddity._typing import FaceLike, Part, Vector3
 
 #: The in-plane component below which a normal counts as running along that axis, so the face
@@ -89,7 +89,7 @@ def convex_bevel(
     edge_i: int,
     neigh_coord: dict[int, float],
     *,
-    properties: SolidProperties | None = None,
+    properties: SolidProperties | SolidPropertyOwner | None = None,
 ) -> bool:
     """Does the virtual sharp corner the bevel replaces lie outside the solid?
 
@@ -123,7 +123,7 @@ def material_beyond_corner(
     edge_i: int,
     neigh_coord: dict[int, float],
     *,
-    properties: SolidProperties | None = None,
+    properties: SolidProperties | SolidPropertyOwner | None = None,
 ) -> bool:
     """Is there solid on the *far* side of the virtual sharp corner, away from the bevel?
 
@@ -169,21 +169,35 @@ def _near_corner(
 _CLASSIFIER = "_bevel.solid_classifier"
 
 
-def _classifier(solid: Part) -> BRepClass3d_SolidClassifier:
-    """Load one solid into a point classifier -- the expensive half of a material probe."""
+def _classifier(shape: Part) -> BRepClass3d_SolidClassifier:
+    """Load one shape into a point classifier -- the expensive half of a material probe."""
 
-    return BRepClass3d_SolidClassifier(solid.wrapped)
+    return BRepClass3d_SolidClassifier(shape.wrapped)
 
 
-def _material_at(part: Part, point: Vector3, *, properties: SolidProperties | None = None) -> bool:
+def _material_at(
+    part: Part,
+    point: Vector3,
+    *,
+    properties: SolidProperties | SolidPropertyOwner | None = None,
+) -> bool:
     """Is *point* inside the material of *part*?
 
     ``BRepClass3d_SolidClassifier`` is built for repeated queries: constructing it loads and
-    indexes the solid, and ``Perform`` then classifies one point against that. This asked for
+    indexes the shape, and ``Perform`` then classifies one point against that. This asked for
     a fresh one per point, so every probe paid the loading and none of the reuse -- 54 probes
     of the 664-face NIST part were 0.6 s, essentially all of it construction. One classifier
-    per solid per run is what the run's cache holds, and ``Perform`` answers exactly what a
+    per shape *asked about* is what the run's cache holds -- in production that is the whole
+    part every caller passes, not one of its bodies -- and ``Perform`` answers exactly what a
     freshly built classifier answers, at the same tolerance.
+
+    **The orientation half of the cache key is what makes that reuse safe**, and this is the
+    strongest reason :mod:`quiddity._solid_properties` keys on it. ``IsSame`` -- and so the
+    wrapper half of the key on its own -- ignores orientation, but a classifier does not: a
+    reversed solid *inverts* ``IN`` and ``OUT`` rather than flipping a sign the way ``volume``
+    does, so a shape and ``Solid(shape.wrapped.Reversed())`` would otherwise share one entry
+    and one of them would get the other's answer back. Nothing reverses a solid today; the key
+    is what keeps "exactly what a freshly built classifier answers" true anyway.
     """
 
     clsf = solid_properties(properties).derived(_CLASSIFIER, part, _classifier)

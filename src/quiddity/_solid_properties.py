@@ -42,12 +42,15 @@ attribute read that costs nothing measurable beside the queries it guards, and a
 ``part.solids()`` walk yields the same orientation every time, so the hit rate is unaffected.
 
 **Extension point.** :meth:`SolidProperties.derived` memoises one caller-owned value per solid
-under a caller-chosen name, so a later per-solid cache -- a solid classifier, a volume-probe
-scope, a wire-edge index -- hangs off the run's existing instance rather than inventing another
-lifetime to get wrong. The name is the owning module's business; this module holds no policy
-about what is derived, only about how long the answer lives and what it is keyed on. It has no
-caller in this change: the wire-seed index and bevel-classifier PRs later in this series are
-written against it, and it goes if neither lands.
+under a caller-chosen name, so a per-solid cache hangs off the run's existing instance rather
+than inventing another lifetime to get wrong. The name is the owning module's business; this
+module holds no policy about what is derived, only about how long the answer lives and what it
+is keyed on. It has no caller in this change; two later PRs in this series are written against
+it -- the solids a volumetric probe is measured against
+(:mod:`quiddity._volume_probe`) and the point classifier the bevel corner probes use
+(:mod:`quiddity._bevel`) -- and it goes if neither lands. A per-*node* cache is not one of its
+users and should not become one: the wire-edge index that opening-wire incidence needs lives on
+:class:`quiddity._adjacency.FaceGraph`, beside the other per-face caches.
 
 Scope it to one run over one part, as :class:`quiddity._adjacency.FaceEdges` is scoped.
 """

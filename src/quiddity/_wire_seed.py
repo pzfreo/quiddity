@@ -23,6 +23,4 @@ def wire_seed(graph: FaceGraph, opening: FaceNode, wire: Wire) -> frozenset[Face
     """
 
     sharing = graph.neighbours_by_occurrence_edge(opening)
-    if not sharing:
-        return frozenset()
     return frozenset(neighbour for edge in wire.edges() for neighbour in sharing.get(edge, ()))

@@ -1152,6 +1152,11 @@ class FaceGraph:
         Only *exactly paired* occurrences appear, so this says no more than
         :meth:`shared_occurrences` does: a pair meeting along an edge with no
         traversal-independent pairing has no occurrence, and so contributes no entry.
+
+        Each tuple is in :meth:`neighbours` order, and inherits that method's warning with it:
+        the order is the part's traversal order and nothing more, so a caller needing
+        determinism must sort or reduce. :func:`quiddity._wire_seed.wire_seed` reduces to a
+        frozenset.
         """
 
         at = self._at(node)
