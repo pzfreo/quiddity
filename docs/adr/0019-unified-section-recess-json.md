@@ -284,7 +284,9 @@ A grid's `center` is the arithmetic mean of those member reference points. Membe
 row-major, in increasing row then column along the published directions. Array members are
 ordered along their direction. Neither convention describes a removed-volume centroid.
 
-The proposed lattice must reconstruct each accepted member reference point within the existing
+Legacy pitch and angle values assign cells only. Published pitches and orthonormal directions
+are derived from the accepted member reference points, so legacy rounding cannot displace a
+valid lattice. The proposed lattice must reconstruct each accepted member reference point within the existing
 0.002 mm publication displacement allowance and stay within one body. A failed or ambiguous
 occurrence join produces no pattern. After projection, identical patterns collapse and the
 existing largest-first allocation rule applies across the joined groups: each occurrence belongs

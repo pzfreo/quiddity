@@ -149,12 +149,12 @@ def test_unified_pocket_grid_directions_reconstruct_rotated_lattice(rotation, pi
     (grid,) = document.patterns
     assert isinstance(grid, SectionRecessGrid)
     assert set(grid.members) == set(range(6))
-    # This physical route derives patterns from two-decimal detector centres. Two endpoint
-    # roundings plus pitch rounding bound pitch error by 0.02, unlike exact authored records.
+    # Rounded legacy proposals select the cells; published pitches and directions
+    # come from the accepted occurrence midpoints.
     assert sorted((grid.rows, grid.cols)) == [2, 3]
     by_count = {grid.rows: grid.row_pitch, grid.cols: grid.col_pitch}
-    assert by_count[2] == pytest.approx(pitches[0], abs=0.02)
-    assert by_count[3] == pytest.approx(pitches[1], abs=0.02)
+    assert by_count[2] == pytest.approx(pitches[0], abs=0.002)
+    assert by_count[3] == pytest.approx(pitches[1], abs=0.002)
     reconstructed = [
         tuple(
             grid.center[i]
@@ -168,5 +168,12 @@ def test_unified_pocket_grid_directions_reconstruct_rotated_lattice(rotation, pi
     assert_same_points(
         reconstructed,
         [tuple((rotation * Pos(*point)).position) for point in points],
-        tolerance=0.03,
+        tolerance=0.002,
     )
+    for index, point in zip(grid.members, reconstructed, strict=True):
+        geometry = document.occurrences[index].geometry
+        midpoint = tuple(
+            geometry.frame.origin[i] + sum(geometry.run_interval) / 2 * geometry.frame.run[i]
+            for i in range(3)
+        )
+        assert math.dist(point, midpoint) <= 0.002

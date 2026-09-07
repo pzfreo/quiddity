@@ -1295,20 +1295,34 @@ def _project_section_pattern(
         tuple(math.fsum(point[i] for point in points) / len(points) for i in range(3)),
     )
     pairs = list(zip(occurrences, points, strict=True))
+
+    def step(offsets):
+        denominator = math.fsum(offset * offset for offset in offsets)
+        return tuple(
+            math.fsum(
+                offset * (point[i] - center[i])
+                for offset, (_, point) in zip(offsets, pairs, strict=True)
+            )
+            / denominator
+            for i in range(3)
+        )
+
     if isinstance(pattern, PocketArray):
         direction = pattern.direction
         if next(value for value in direction if abs(value) > 1e-9) < 0:
             direction = cast(tuple[float, float, float], tuple(-value for value in direction))
         pairs.sort(key=lambda pair: sum(pair[1][i] * direction[i] for i in range(3)))
+        vector = step([at - (len(pairs) - 1) / 2 for at in range(len(pairs))])
+        pitch = math.hypot(*vector)
+        if pitch == 0:
+            return None
+        direction = cast(tuple[float, float, float], tuple(value / pitch for value in vector))
         expected = [
-            tuple(
-                center[i] + (at - (len(pairs) - 1) / 2) * pattern.pitch * direction[i]
-                for i in range(3)
-            )
+            tuple(center[i] + (at - (len(pairs) - 1) / 2) * pitch * direction[i] for i in range(3))
             for at in range(len(pairs))
         ]
         projected: SectionRecessArray | SectionRecessGrid = SectionRecessArray(
-            tuple(record.index for record, _ in pairs), pattern.pitch, direction
+            tuple(record.index for record, _ in pairs), pitch, direction
         )
     else:
         u, v = plane_axes(pattern.pockets[0].depth_axis)
@@ -1338,11 +1352,29 @@ def _project_section_pattern(
             )
 
         pairs.sort(key=cell)
+        # Legacy pitch/angle fields are rounded. Use them only to assign cells;
+        # derive the published lattice from the accepted midpoint coordinates.
+        row_step = step([at // pattern.cols - (pattern.rows - 1) / 2 for at in range(len(pairs))])
+        col_step = step([at % pattern.cols - (pattern.cols - 1) / 2 for at in range(len(pairs))])
+        col_pitch = math.hypot(*col_step)
+        if col_pitch == 0:
+            return None
+        col_direction = cast(
+            tuple[float, float, float], tuple(value / col_pitch for value in col_step)
+        )
+        skew = math.fsum(a * b for a, b in zip(row_step, col_direction, strict=True))
+        row_step = tuple(a - skew * b for a, b in zip(row_step, col_direction, strict=True))
+        row_pitch = math.hypot(*row_step)
+        if row_pitch == 0:
+            return None
+        row_direction = cast(
+            tuple[float, float, float], tuple(value / row_pitch for value in row_step)
+        )
         expected = [
             tuple(
                 center[i]
-                + (row - (pattern.rows - 1) / 2) * pattern.row_pitch * row_direction[i]
-                + (col - (pattern.cols - 1) / 2) * pattern.col_pitch * col_direction[i]
+                + (row - (pattern.rows - 1) / 2) * row_pitch * row_direction[i]
+                + (col - (pattern.cols - 1) / 2) * col_pitch * col_direction[i]
                 for i in range(3)
             )
             for row in range(pattern.rows)
@@ -1352,8 +1384,8 @@ def _project_section_pattern(
             tuple(record.index for record, _ in pairs),
             pattern.rows,
             pattern.cols,
-            pattern.row_pitch,
-            pattern.col_pitch,
+            row_pitch,
+            col_pitch,
             row_direction,
             col_direction,
             center,
