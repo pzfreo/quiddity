@@ -160,11 +160,11 @@ def _cell_proof(
     ):
         return None
     solid = graph.solid_shape(owner)
-    if material_fraction(solid, cell) > 1e-9:
+    if material_fraction(solid, cell, properties=graph) > 1e-9:
         return None
     for direction in (-run, run):
         opening = _shape(cell.translate(direction * max(2e-5, radius * 1e-4)).cut(cell))
-        if opening.volume <= 1e-12 or material_fraction(solid, opening) > 1e-9:
+        if opening.volume <= 1e-12 or material_fraction(solid, opening, properties=graph) > 1e-9:
             return None
     centroid = raw.centroid
     origin = world(centroid, 0)

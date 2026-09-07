@@ -174,7 +174,7 @@ def test_suspended_material_in_run_or_mouth_refuses_corner_projection(xy, post_z
 def test_material_probe_failure_refuses_projection_without_dropping_legacy_record(monkeypatch):
     import quiddity._corner_section as adapter
 
-    def failure(*args):
+    def failure(*args, **kwargs):
         raise RuntimeError("authored boolean failure")
 
     monkeypatch.setattr(adapter, "_material_fraction", failure)

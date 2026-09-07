@@ -89,7 +89,7 @@ def test_material_in_cell_or_any_opening_independently_refuses(monkeypatch, stag
     product = _take_inventory(channel())
     calls = []
 
-    def material(*args):
+    def material(*args, **_kwargs):
         calls.append(args)
         return 1.0 if len(calls) == stage + 1 else 0.0
 

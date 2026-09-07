@@ -143,11 +143,11 @@ def _prove(
     if len(matches) != len(terminal) or any(matches.count(f) != 1 for f in terminal):
         return None
     solid = graph.solid_shape(owner)
-    if material_fraction(solid, cell) > 1e-9:
+    if material_fraction(solid, cell, properties=graph) > 1e-9:
         return None
     for direction in (-run, run):
         probe = _shape(cell.translate(direction * max(2e-5, span * 1e-4)).cut(cell))
-        if probe.volume <= 1e-12 or material_fraction(solid, probe) > 1e-9:
+        if probe.volume <= 1e-12 or material_fraction(solid, probe, properties=graph) > 1e-9:
             return None
     origin = world(raw.centroid, 0)
     frame = LocalFrame.canonical(base.run, cast(Vector3, tuple(origin)))

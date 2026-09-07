@@ -101,7 +101,7 @@ def _aperture(
             not covered_patch(side, (source,)) for side in sides
         ):
             continue
-        if material_fraction(graph.solid_shape(owner), cell) > 1e-9:
+        if material_fraction(graph.solid_shape(owner), cell, properties=graph) > 1e-9:
             continue
         if abs(disk.area - math.pi * radius**2) > 1e-6:
             continue

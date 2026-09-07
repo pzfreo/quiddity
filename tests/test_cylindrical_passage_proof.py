@@ -130,7 +130,7 @@ def test_each_empty_volume_gate_independently_refuses(monkeypatch, stage):
     fact = surfaces.fact(baseline.cylinder)
     calls = []
 
-    def material(*args):
+    def material(*args, **_kwargs):
         calls.append(args)
         return 1.0 if len(calls) == stage + 1 else 0.0
 

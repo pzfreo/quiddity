@@ -404,13 +404,17 @@ def _one_obround_candidate(graph: FaceGraph, floor: FaceNode) -> _Candidate | No
             return _obround_prism(depth, first[2], second[2], radius, lo, hi)
 
         if (
-            _material_fraction(solid, probe(low + inset, high - inset)) > 1e-9
+            _material_fraction(solid, probe(low + inset, high - inset), properties=graph) > 1e-9
             or _material_fraction(
-                solid, probe(mouth_at - floor_sign * inset, mouth_at - floor_sign * thickness)
+                solid,
+                probe(mouth_at - floor_sign * inset, mouth_at - floor_sign * thickness),
+                properties=graph,
             )
             > 1e-9
             or _material_fraction(
-                solid, probe(floor_at + floor_sign * inset, floor_at + floor_sign * thickness)
+                solid,
+                probe(floor_at + floor_sign * inset, floor_at + floor_sign * thickness),
+                properties=graph,
             )
             < 1.0 - 1e-9
         ):
@@ -528,10 +532,19 @@ def _one_polygonal_candidate(graph: FaceGraph, floor: FaceNode) -> _Candidate | 
         floor_sign = -1.0 if abs(floor_at - low) <= tolerance else 1.0
         mouth_sign = -floor_sign
         if (
-            _material_fraction(solid, _probe_prism(frame, (low, high), section)) > 1e-9
-            or _material_fraction(solid, _end_slab(frame, mouth_at, mouth_sign, thickness, section))
+            _material_fraction(solid, _probe_prism(frame, (low, high), section), properties=graph)
             > 1e-9
-            or _material_fraction(solid, _end_slab(frame, floor_at, floor_sign, thickness, section))
+            or _material_fraction(
+                solid,
+                _end_slab(frame, mouth_at, mouth_sign, thickness, section),
+                properties=graph,
+            )
+            > 1e-9
+            or _material_fraction(
+                solid,
+                _end_slab(frame, floor_at, floor_sign, thickness, section),
+                properties=graph,
+            )
             < 1.0 - 1e-9
         ):
             return None
@@ -679,13 +692,18 @@ def _one_mixed_candidate(graph: FaceGraph, floor: FaceNode) -> _Candidate | None
         solid = graph.solid_shape(owner)
         thickness = max(2e-5, max(1.0, high - low, math.sqrt(source.area)) * 1e-4)
         if (
-            _material_fraction(solid, probe(low + tolerance, high - tolerance)) > 1e-9
+            _material_fraction(solid, probe(low + tolerance, high - tolerance), properties=graph)
+            > 1e-9
             or _material_fraction(
-                solid, probe(mouth_at + sign * tolerance, mouth_at + sign * thickness)
+                solid,
+                probe(mouth_at + sign * tolerance, mouth_at + sign * thickness),
+                properties=graph,
             )
             > 1e-9
             or _material_fraction(
-                solid, probe(floor_at - sign * tolerance, floor_at - sign * thickness)
+                solid,
+                probe(floor_at - sign * tolerance, floor_at - sign * thickness),
+                properties=graph,
             )
             < 1 - 1e-9
         ):

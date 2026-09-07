@@ -152,10 +152,13 @@ def prove_open_channel(
         solid = graph.solid_shape(owner)
         span = bounds[run]
         thickness = max(2e-5, max(1.0, span[1] - span[0], half_u, half_v) * 1e-4)
-        if _material_fraction(solid, _probe_prism(frame, span, section)) > 1e-9:
+        if _material_fraction(solid, _probe_prism(frame, span, section), properties=graph) > 1e-9:
             return None
         if any(
-            _material_fraction(solid, _end_slab(frame, end, sign, thickness, section)) > 1e-9
+            _material_fraction(
+                solid, _end_slab(frame, end, sign, thickness, section), properties=graph
+            )
+            > 1e-9
             for end, sign in ((span[0], -1), (span[1], 1))
         ):
             return None
@@ -167,7 +170,7 @@ def prove_open_channel(
         origin = Vector(*(pair[0] for pair in lateral_bounds))
         dx, dy, dz = (hi - lo for lo, hi in lateral_bounds)
         probe = Solid.make_box(dx, dy, dz, plane=Plane(origin))
-        if _material_fraction(solid, probe) > 1e-9:
+        if _material_fraction(solid, probe, properties=graph) > 1e-9:
             return None
     except (RuntimeError, TypeError, ValueError, ZeroDivisionError):
         return None

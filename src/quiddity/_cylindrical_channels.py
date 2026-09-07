@@ -226,7 +226,7 @@ def _prove(
             ):
                 continue
             solid = graph.solid_shape(owner)
-            if material_fraction(solid, clipped) > 1e-9:
+            if material_fraction(solid, clipped, properties=graph) > 1e-9:
                 continue
             thickness = max(2e-5, radius * 1e-4)
             lateral = Vector(*(float(i == d) * open_sign for i in range(3)))
@@ -234,7 +234,10 @@ def _prove(
                 _shape(clipped.translate(direction * thickness).cut(clipped))
                 for direction in (-run, run, lateral)
             )
-            if any(p.volume <= 1e-12 or material_fraction(solid, p) > 1e-9 for p in openings):
+            if any(
+                p.volume <= 1e-12 or material_fraction(solid, p, properties=graph) > 1e-9
+                for p in openings
+            ):
                 continue
             centroid = [(lo + hi) / 2 for lo, hi in bounds]
             centroid[r] = 0.0

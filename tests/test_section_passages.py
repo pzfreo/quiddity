@@ -659,10 +659,10 @@ def test_material_classification_reads_each_graph_authorized_solid_not_the_compo
     original = section_module._material_fraction
     classified = []
 
-    def same_solid_only(solid, probe):
+    def same_solid_only(solid, probe, **kwargs):
         assert len(solid.solids()) == 1
         classified.append(solid)
-        return original(solid, probe)
+        return original(solid, probe, **kwargs)
 
     monkeypatch.setattr(section_module, "_material_fraction", same_solid_only)
     assert len(recognise_section_passages(part)) == 2  # type: ignore[arg-type]
@@ -815,7 +815,7 @@ def test_full_prism_and_both_end_slabs_share_the_closed_material_boundary(
     part = Rot(17, 23, 31) * _square()
     (proposal,) = module.section_ring_proposals(part, FaceGraph(part))
     pending = iter(fractions)
-    monkeypatch.setattr(module, "_material_fraction", lambda part, probe: next(pending))
+    monkeypatch.setattr(module, "_material_fraction", lambda part, probe, **_kw: next(pending))
     assert (
         module._void_and_open(part, proposal.frame, proposal.run_interval, proposal.section)
         is accepted

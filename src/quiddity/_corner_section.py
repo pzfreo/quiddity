@@ -151,8 +151,12 @@ def prove_corner_section(
         solid = graph.solid_shape(owner)
         thickness = max(2e-5, max(1.0, high - low) * 1e-4, (half_u**2 + half_v**2) ** 0.5 * 1e-4)
         if (
-            _material_fraction(solid, _probe_prism(frame, (low, high), section)) > 1e-9
-            or _material_fraction(solid, _end_slab(frame, mouth, sign, thickness, section)) > 1e-9
+            _material_fraction(solid, _probe_prism(frame, (low, high), section), properties=graph)
+            > 1e-9
+            or _material_fraction(
+                solid, _end_slab(frame, mouth, sign, thickness, section), properties=graph
+            )
+            > 1e-9
         ):
             return None
     except (RuntimeError, TypeError, ValueError, ZeroDivisionError):

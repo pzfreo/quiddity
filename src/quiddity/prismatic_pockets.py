@@ -158,6 +158,8 @@ def _void_open_and_floored(
     axis: int,
     mouth_at: float,
     floor_at: float,
+    *,
+    properties: FaceGraph | None = None,
 ) -> bool:
     low, high = sorted((mouth_at, floor_at))
     centre = _centroid(section)
@@ -169,9 +171,9 @@ def _void_open_and_floored(
         mouth = _section_slab(section, axis, mouth_at, mouth_sign, thickness)
         floor = _section_slab(section, axis, floor_at, -mouth_sign, thickness)
         return (
-            _material_fraction(part, interior) <= _MATERIAL_VOL_FRAC
-            and _material_fraction(part, mouth) <= _MATERIAL_VOL_FRAC
-            and _material_fraction(part, floor) >= 1.0 - _MATERIAL_VOL_FRAC
+            _material_fraction(part, interior, properties=properties) <= _MATERIAL_VOL_FRAC
+            and _material_fraction(part, mouth, properties=properties) <= _MATERIAL_VOL_FRAC
+            and _material_fraction(part, floor, properties=properties) >= 1.0 - _MATERIAL_VOL_FRAC
         )
     except (RuntimeError, TypeError, ValueError, ZeroDivisionError):
         return False
@@ -308,7 +310,7 @@ def _floor_seeded_regions(part: Part, graph: FaceGraph) -> tuple[_RecoveredPocke
                 or caps[mouth_index]
                 or owner is None
                 or not _void_open_and_floored(
-                    graph.solid_shape(owner), section, axis, mouth_at, floor_at
+                    graph.solid_shape(owner), section, axis, mouth_at, floor_at, properties=graph
                 )
             ):
                 continue
@@ -404,7 +406,7 @@ def _one_ended_regions(part: Part, graph: FaceGraph) -> tuple[_RecoveredPocket, 
             or solid is None
             or not _is_void(graph.solid_shape(solid), section, axis, low, high)
             or not _void_open_and_floored(
-                graph.solid_shape(solid), section, axis, mouth_at, floor_at
+                graph.solid_shape(solid), section, axis, mouth_at, floor_at, properties=graph
             )
         ):
             continue
