@@ -5,6 +5,8 @@
 - Add same-run planar outer-profile inspection with body-owned ordered line/arc supports,
   exact source-edge resolution, raw/framed parity and typed refusals. Inner loops are
   counted and excluded from outer adjacency; angle selection remains consumer policy (#579).
+  Preserve framed preparation on build123d 0.9.1 by using its supported positional transform
+  constructor, and exercise the profile contract across all supported build123d versions.
 
 - Project recess pattern centres from accepted section-centroid run midpoints, with explicit
   row-major grid membership. Remove duplicate arrays/grids and redundant row arrays after
