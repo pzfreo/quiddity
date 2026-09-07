@@ -30,8 +30,8 @@ requests; in the sections below, bare numbers cite issues and pull requests are 
 - Replace the whole-corpus inventory agreement test with the one part that ever disagreed,
   run the coverage gate on two workers, and re-baseline the recorded runtime budget
   (#566, #567, #574).
-- Recorded rather than fixed, because this release changes no output: #559 (body keys differ
-  across families on single-solid imports), #560, #564, #565, #571 and #573.
+- Recorded rather than fixed, because this release changes no output, as issues #559 (body
+  keys differ across families on single-solid imports), #560, #564, #565, #571 and #573.
 
 ## 0.2.4 — Quiddity
 
