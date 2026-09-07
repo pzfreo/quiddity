@@ -10,8 +10,8 @@ A performance-only release. Recognition output is byte-identical on every vendor
 part before and after, and every library change carries an operation-count sentinel so the
 regression it removes cannot return silently. Measured on one machine against 0.2.4, the
 census workload over the ten NIST and three real parts went from 75.0 s to 12.0 s and the
-four-golden composite workload from 0.97 s to 0.85 s. Numbers in this section are pull
-requests; earlier sections cite issues.
+four-golden composite workload from 0.97 s to 0.85 s. Bare numbers in this section are pull
+requests; in the sections below, bare numbers cite issues and pull requests are labelled.
 
 - Derive each solid's bounding box, validity, volume, area and body signature once per run
   through a run-scoped cache owned by the face graph, instead of once per recogniser (#558).
