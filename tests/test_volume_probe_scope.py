@@ -154,8 +154,8 @@ def test_the_probe_target_is_derived_once_per_run(monkeypatch) -> None:
         return original(self)
 
     monkeypatch.setattr(Compound, "solids", counted)
-    first = probe_solids(part, memo)
-    second = probe_solids(part, memo)
+    first = probe_solids(part, properties=memo)
+    second = probe_solids(part, properties=memo)
     uncached = (probe_solids(part), probe_solids(part))
 
     assert first is second
@@ -167,7 +167,9 @@ def test_the_probe_target_is_derived_once_per_run(monkeypatch) -> None:
 def test_a_graph_supplies_the_run_cache_the_probes_use() -> None:
     part, _body = _one_body_with_clutter()
     graph = FaceGraph(part)
-    assert probe_solids(part, graph) is probe_solids(part, graph.solid_properties)
+    assert probe_solids(part, properties=graph) is probe_solids(
+        part, properties=graph.solid_properties
+    )
 
 
 #: The sentinel part and its measured boolean-build count inside volume probes.
@@ -233,5 +235,5 @@ def test_a_whole_census_answers_exactly_what_it_answered_undistributed(monkeypat
 
     part = import_step(_SENTINEL_PART)
     narrowed = feature_census(part)
-    monkeypatch.setattr(_volume_probe, "probe_solids", lambda part, _properties=None: (part,))
+    monkeypatch.setattr(_volume_probe, "probe_solids", lambda part, *, properties=None: (part,))
     assert feature_census(part) == narrowed

@@ -40,7 +40,10 @@ from quiddity._typing import Part
 PRISM_PROBE_FLOOR = 1e-6
 
 #: Name under which a run's :class:`SolidProperties` holds one part's probe solids.
-_PROBE_SOLIDS = "volume_probe_solids"
+#:
+#: ``derived`` documents that two callers sharing a name are sharing a value on purpose, so the
+#: name is namespaced by the module that owns the meaning rather than left in a flat space.
+_PROBE_SOLIDS = "_volume_probe.solids"
 
 
 class _VolumeValue(Protocol):
@@ -66,7 +69,7 @@ def _solids_of(part: Part) -> tuple[Part, ...]:
 
 
 def probe_solids(
-    part: Part, properties: SolidProperties | SolidPropertyOwner | None = None
+    part: Part, *, properties: SolidProperties | SolidPropertyOwner | None = None
 ) -> tuple[Part, ...]:
     """The bodies of *part* a volumetric probe is measured against.
 
@@ -95,7 +98,10 @@ def probe_volume(
     """The volume *probe* shares with the material of *part* -- its solids, and all of them."""
 
     return float(
-        sum(intersection_volume(body.intersect(probe)) for body in probe_solids(part, properties))
+        sum(
+            intersection_volume(body.intersect(probe))
+            for body in probe_solids(part, properties=properties)
+        )
     )
 
 
