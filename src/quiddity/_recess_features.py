@@ -26,6 +26,7 @@ from quiddity._recess_reduce import (
     _body_scoped_proposals,
     _region_center,
 )
+from quiddity._solid_properties import solid_properties
 from quiddity._typing import Part
 
 
@@ -98,9 +99,10 @@ def _discover_slots(
     owner = writer.graph if writer is not None else graph
     solids = list(part.solids())
     sources = solids if len(solids) > 1 else [part]
+    properties = solid_properties(owner)
     recognise_one = partial(_slot_proposals_one, face_edges=face_edges, graph=owner)
     if writer is None:
-        proposals = _body_scoped_proposals(sources, recognise_one)
+        proposals = _body_scoped_proposals(sources, recognise_one, properties=properties)
     else:
         # Close the graph/run authority boundary before geometry discovery. Once every source
         # face resolves, unrelated kernel and predicate defects remain geometry failures and are
@@ -113,7 +115,7 @@ def _discover_slots(
                 raise
             raise _SlotAttributionError("Slot source identity does not belong to this run") from exc
         try:
-            proposals = _body_scoped_proposals(sources, recognise_one)
+            proposals = _body_scoped_proposals(sources, recognise_one, properties=properties)
         except ValueError as exc:
             if "obround cap clusters compete" not in str(exc):
                 raise
@@ -233,6 +235,7 @@ def _discover_pockets(
         proposals = _body_scoped_proposals(
             sources,
             partial(_pocket_proposals_one, face_edges=face_edges, graph=owner),
+            properties=solid_properties(owner),
         )
     except ValueError as exc:
         if "obround cap clusters compete" not in str(exc):
@@ -331,7 +334,9 @@ def _discover_channels(
     # records from one body carry different keys.
     sources = solids or [part]
     retained: list[_ChannelProposal] = []
-    body_keys = unambiguous_body_keys(sources, require_valid_solid=True)
+    body_keys = unambiguous_body_keys(
+        sources, require_valid_solid=True, properties=solid_properties(owner)
+    )
     for solid, body_key in zip(sources, body_keys, strict=True):
         proposals = _channel_proposals_one(solid, face_edges, owner)
         by_record: dict[Channel, list[_ChannelProposal]] = {}

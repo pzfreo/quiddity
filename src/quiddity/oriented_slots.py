@@ -175,7 +175,10 @@ def _body_keys(
             if (solid := graph.common_valid_solid((node,))) is not None
         )
     )
-    signatures = {solid: body_signature(graph.solid_shape(solid)) for solid in unique}
+    signatures = {
+        solid: body_signature(graph.solid_shape(solid), properties=graph.solid_properties)
+        for solid in unique
+    }
     counts = Counter(signatures.values())
     return {
         solid: signatures[solid] if counts[signatures[solid]] == 1 else None

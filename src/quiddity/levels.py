@@ -33,6 +33,7 @@ from quiddity._geometry import (
     cluster_coordinates,
 )
 from quiddity._record import Record
+from quiddity._solid_properties import SolidProperties, solid_properties
 from quiddity._typing import FaceLike, Part
 
 
@@ -190,16 +191,23 @@ def recognise_face_levels(
     """
     tol = _TOL if tol is None else tol
     scopes = list(part.solids()) or [part]
-    body_keys = unambiguous_body_keys(scopes, require_valid_solid=True)
+    properties = SolidProperties()  # standalone: no run to share with
+    body_keys = unambiguous_body_keys(scopes, require_valid_solid=True, properties=properties)
     return sorted(
         replace(proposal.record, body_key=body_key)
         for scope, body_key in zip(scopes, body_keys, strict=True)
-        for proposal in _face_level_proposals_one(scope, tol=tol, min_area_frac=min_area_frac)
+        for proposal in _face_level_proposals_one(
+            scope, tol=tol, min_area_frac=min_area_frac, properties=properties
+        )
     )
 
 
 def _face_level_proposals_one(
-    part: Part, *, tol: float, min_area_frac: float
+    part: Part,
+    *,
+    tol: float,
+    min_area_frac: float,
+    properties: SolidProperties | None = None,
 ) -> list[_FaceLevelProposal]:
     """Recognise levels within one valid body so support never bridges another solid."""
 
@@ -223,7 +231,7 @@ def _face_level_proposals_one(
 
     threshold = 0.0
     if min_area_frac > 0.0:
-        bb = part.bounding_box()
+        bb = solid_properties(properties).bounding_box(part)
         threshold = min_area_frac * (bb.max.X - bb.min.X) * (bb.max.Y - bb.min.Y)
 
     levels: list[_FaceLevelProposal] = []
@@ -286,14 +294,15 @@ def step_level_records(part: Part, *, tol: float | None = None) -> list[FaceLeve
     """Area-filtered interior face-level records, retaining their support bounds."""
     records: list[FaceLevel] = []
     scopes = list(part.solids()) or [part]
-    body_keys = unambiguous_body_keys(scopes, require_valid_solid=True)
+    properties = SolidProperties()  # standalone: no run to share with
+    body_keys = unambiguous_body_keys(scopes, require_valid_solid=True, properties=properties)
     for scope, body_key in zip(scopes, body_keys, strict=True):
-        bb = scope.bounding_box()
+        bb = properties.bounding_box(scope)
         scope_tol = bounded_end_margin(bb.max.Z - bb.min.Z) if tol is None else tol
         records.extend(
             replace(proposal.record, body_key=body_key)
             for proposal in _face_level_proposals_one(
-                scope, tol=_TOL, min_area_frac=_STEP_MIN_AREA_FRAC
+                scope, tol=_TOL, min_area_frac=_STEP_MIN_AREA_FRAC, properties=properties
             )
             if bb.min.Z + scope_tol < proposal.record.z < bb.max.Z - scope_tol
         )
@@ -305,14 +314,15 @@ def _discover_step_levels(part: Part, *, writer: EvidenceWriter) -> list[FaceLev
 
     accepted: list[_FaceLevelProposal] = []
     scopes = list(part.solids()) or [part]
-    body_keys = unambiguous_body_keys(scopes, require_valid_solid=True)
+    properties = solid_properties(writer.graph)
+    body_keys = unambiguous_body_keys(scopes, require_valid_solid=True, properties=properties)
     for scope, body_key in zip(scopes, body_keys, strict=True):
-        bb = scope.bounding_box()
+        bb = properties.bounding_box(scope)
         scope_tol = bounded_end_margin(bb.max.Z - bb.min.Z)
         accepted.extend(
             replace(proposal, record=replace(proposal.record, body_key=body_key))
             for proposal in _face_level_proposals_one(
-                scope, tol=_TOL, min_area_frac=_STEP_MIN_AREA_FRAC
+                scope, tol=_TOL, min_area_frac=_STEP_MIN_AREA_FRAC, properties=properties
             )
             if bb.min.Z + scope_tol < proposal.record.z < bb.max.Z - scope_tol
         )
@@ -434,14 +444,15 @@ def recognise_risers(
     """
     tol = _TOL if tol is None else tol
     scopes = list(part.solids()) or [part]
-    body_keys = unambiguous_body_keys(scopes, require_valid_solid=True)
+    properties = SolidProperties()  # standalone: no run to share with
+    body_keys = unambiguous_body_keys(scopes, require_valid_solid=True, properties=properties)
     proposals: list[_RiserProposal] = []
     for scope, body_key in zip(scopes, body_keys, strict=True):
-        bb = scope.bounding_box()
+        bb = properties.bounding_box(scope)
         body_levels = tuple(
             replace(proposal.record, body_key=body_key)
             for proposal in _face_level_proposals_one(
-                scope, tol=_TOL, min_area_frac=_STEP_MIN_AREA_FRAC
+                scope, tol=_TOL, min_area_frac=_STEP_MIN_AREA_FRAC, properties=properties
             )
             if bb.min.Z + tol < proposal.record.z < bb.max.Z - tol
         )
@@ -452,6 +463,7 @@ def recognise_risers(
                 min_area_frac=min_area_frac,
                 tol=tol,
                 body_levels=body_levels,
+                properties=properties,
             )
         )
     return sorted(proposal.record for proposal in proposals)
@@ -463,10 +475,11 @@ def _riser_proposals_one(
     min_area_frac: float,
     tol: float,
     body_levels: tuple[FaceLevel, ...],
+    properties: SolidProperties | None = None,
 ) -> list[_RiserProposal]:
     """Discover and reduce riser occurrences within one valid-solid authority."""
 
-    bb = part.bounding_box()
+    bb = solid_properties(properties).bounding_box(part)
     ext = {"x": bb.max.X - bb.min.X, "y": bb.max.Y - bb.min.Y, "z": bb.max.Z - bb.min.Z}
     lo = {"x": bb.min.X, "y": bb.min.Y}
     hi = {"x": bb.max.X, "y": bb.max.Y}
@@ -566,9 +579,16 @@ def _discover_risers(
 
     pending: list[tuple[RiserEvidence, tuple[FaceNode, ...]]] = []
     scopes = list(part.solids()) or [part]
-    body_keys = unambiguous_body_keys(scopes, require_valid_solid=True)
+    properties = solid_properties(writer.graph)
+    body_keys = unambiguous_body_keys(scopes, require_valid_solid=True, properties=properties)
     for scope, body_key in zip(scopes, body_keys, strict=True):
-        for proposal in _riser_proposals_one(scope, min_area_frac=0.15, tol=_TOL, body_levels=()):
+        for proposal in _riser_proposals_one(
+            scope,
+            min_area_frac=0.15,
+            tol=_TOL,
+            body_levels=(),
+            properties=properties,
+        ):
             nodes = tuple(writer.graph.require_node(face) for face in proposal.faces)
             solid = writer.graph.common_valid_solid(nodes)
             if solid is None:  # pragma: no cover - graph-bound nodes retain one valid owner

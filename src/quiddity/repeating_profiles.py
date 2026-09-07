@@ -22,6 +22,7 @@ from quiddity._candidates import FamilyId
 from quiddity._claims import EvidenceWriter
 from quiddity._geometry import part_scale
 from quiddity._record import Record
+from quiddity._solid_properties import SolidProperties, solid_properties
 from quiddity._typing import FaceLike, Part
 from quiddity.profiled_bores import principal_boundary_plane
 
@@ -355,8 +356,10 @@ class _RepeatingRadialAttributionError(ValueError):
     """A public geometry result whose aggregate source ownership is unprovable."""
 
 
-def _recognise_solid(solid, *, tol: float) -> list[_RepeatingRadialProposal]:
-    bbox = solid.bounding_box()
+def _recognise_solid(
+    solid, *, tol: float, properties: SolidProperties | None = None
+) -> list[_RepeatingRadialProposal]:
+    bbox = solid_properties(properties).bounding_box(solid)
     metric_tol = max(tol, part_scale(bbox) * 1e-5)
     boundaries = []
     for face in solid.faces():
@@ -417,8 +420,13 @@ def _discover_repeating_radial_profiles(
     solids = list(part.solids())
     if not solids:
         solids = [part]
+    properties = solid_properties(None if writer is None else writer.graph)
     proposals = sorted(
-        (proposal for solid in solids for proposal in _recognise_solid(solid, tol=tol)),
+        (
+            proposal
+            for solid in solids
+            for proposal in _recognise_solid(solid, tol=tol, properties=properties)
+        ),
         key=lambda proposal: proposal.record,
     )
     records = [proposal.record for proposal in proposals]

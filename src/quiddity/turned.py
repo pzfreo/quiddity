@@ -41,6 +41,7 @@ from quiddity._candidates import FamilyId
 from quiddity._claims import ClaimLedger, EvidenceWriter
 from quiddity._features import analyse_cylinders
 from quiddity._record import Record
+from quiddity._solid_properties import SolidProperties, solid_properties
 from quiddity._typing import CylinderEvidence, CylinderInventory, Part
 
 # A face's axial position counts as on a band edge / its normal counts as
@@ -212,11 +213,17 @@ def profile_key_from_bands(
     bands: list[CylinderEvidence],
     *,
     body_key: BodyKey | None = (),
+    properties: SolidProperties | None = None,
 ) -> TurnedProfileKey:
     """Return the public profile membership proved by one body's cylinder bands.
 
     This is shared by the step ladder and other turned features that must publish the exact
     same body/profile join.  Callers must pass bands already partitioned to *part*.
+
+    *properties* is the run's whole-solid cache. ``recognise_grooves`` calls this once per
+    shaft, and every shaft of one body wants that body's *same* bounding box: on the 664-face
+    ``nist_ctc_02`` those 57 calls were 10.2 s of a 26 s run, all of it one box computed 57
+    times. The key is unchanged -- the same box, asked once.
     """
     idx = "xyz".index(axis)
 
@@ -230,7 +237,7 @@ def profile_key_from_bands(
 
     origins = Counter(axis_origin(band) for band in bands)
     origin = min(origins, key=lambda value: (-origins[value], value))
-    bounds = part.bounding_box()
+    bounds = solid_properties(properties).bounding_box(part)
     body_bounds = (
         round(float(bounds.min.X), 8),
         round(float(bounds.max.X), 8),
@@ -267,15 +274,18 @@ def recognise_turned_steps(
     with a hole in it describes a different shaft. See :mod:`quiddity._reconcile`.
     """
     inventory = cyls if cyls is not None else analyse_cylinders(part)
+    properties = solid_properties(None if ledger is None else ledger.graph)
     scopes = list(part.solids()) or [part]
-    body_keys = unambiguous_body_keys(scopes, require_valid_solid=True)
+    body_keys = unambiguous_body_keys(scopes, require_valid_solid=True, properties=properties)
     proposals: list[tuple[TurnedStep, list[CylinderEvidence]]] = []
     for solid_idx, (scope, body_key) in enumerate(zip(scopes, body_keys, strict=True)):
         scoped = (
             [item for item in inventory[0] if len(scopes) == 1 or item["solid_idx"] == solid_idx],
             [item for item in inventory[1] if len(scopes) == 1 or item["solid_idx"] == solid_idx],
         )
-        proposals.extend(_turned_step_proposals_one(scope, cyls=scoped, body_key=body_key))
+        proposals.extend(
+            _turned_step_proposals_one(scope, cyls=scoped, body_key=body_key, properties=properties)
+        )
     if ledger is not None:
         # Bind and validate the complete family before publishing any occurrence. A malformed
         # cylinder inventory must not leave a partial candidate prefix in the aggregate run.
@@ -316,6 +326,7 @@ def _turned_step_proposals_one(
     *,
     cyls: CylinderInventory,
     body_key: BodyKey | None,
+    properties: SolidProperties | None = None,
 ) -> list[tuple[TurnedStep, list[CylinderEvidence]]]:
     """Propose one valid-solid turned profile from prepartitioned cylinder evidence."""
 
@@ -334,7 +345,8 @@ def _turned_step_proposals_one(
     # axis. Reject incidental small cylinders on a prismatic part — e.g. a case shell's
     # side screw-holes — whose unrelated feature faces would otherwise be read as a
     # spurious multi-step profile.
-    pbb = part.bounding_box()
+    memo = solid_properties(properties)
+    pbb = memo.bounding_box(part)
     perp = [s for i, s in enumerate((pbb.size.X, pbb.size.Y, pbb.size.Z)) if i != idx]
     cross = max(perp)
     max_od = max(c["diameter"] for c in bands)
@@ -345,7 +357,7 @@ def _turned_step_proposals_one(
     ):
         return []
 
-    profile = profile_key_from_bands(part, axis, bands, body_key=body_key)
+    profile = profile_key_from_bands(part, axis, bands, body_key=body_key, properties=memo)
 
     def bands_over(pos: float) -> list[CylinderEvidence]:
         """The widest external bands covering *pos* -- what sets the OD there, and therefore

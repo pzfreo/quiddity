@@ -333,7 +333,7 @@ def _slot_proposals_one(
 
     owner = FaceGraph(part, face_edges=face_edges) if graph is None else graph
     faces = _planar_faces(part, face_edges, owner)
-    pbb = part.bounding_box()
+    pbb = owner.solid_properties.bounding_box(part)
     part_ext = {a: getattr(pbb.size, "XYZ"[_AXES[a]]) for a in "xyz"}
     # Only straight-walled faces can be slot walls; bucket them by axis so the
     # O(n^2) pairing runs within each axis instead of across all planar faces.
@@ -602,7 +602,7 @@ def _pocket_proposals_one(
 
     owner = FaceGraph(part, face_edges=face_edges) if graph is None else graph
     faces = _planar_faces(part, face_edges, owner)
-    pbb = part.bounding_box()
+    pbb = owner.solid_properties.bounding_box(part)
     part_ext = {a: getattr(pbb.size, "XYZ"[_AXES[a]]) for a in "xyz"}
     by_axis: dict[str, list[_Face]] = {}
     for f in faces:
@@ -758,7 +758,7 @@ def _channel_proposals_one(
 
     owner = FaceGraph(part, face_edges=face_edges) if graph is None else graph
     faces = _planar_faces(part, face_edges, owner)
-    pbb = part.bounding_box()
+    pbb = owner.solid_properties.bounding_box(part)
     part_ext = {a: getattr(pbb.size, "XYZ"[_AXES[a]]) for a in "xyz"}
     part_bounds = {
         a: (
