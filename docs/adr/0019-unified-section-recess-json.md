@@ -271,6 +271,27 @@ Every index must be a non-negative integer within its referenced roster. Rosters
 contain no duplicate entry. A consumer can derive reverse face-to-occurrence indices; the format
 does not serialize a second redundant association map.
 
+### Derived pattern projection (#555)
+
+SectionRecess patterns refer to the exact accepted occurrence roster after reconciliation
+and public projection. Multiple legacy detector groups may converge on those same occurrences;
+they must not create duplicate public pattern assertions.
+
+A member's reference point is its section-centroid run line at the midpoint of its published
+`run_interval`: `frame.origin + frame.run * (low + high) / 2`. For cylindrical mouths this uses
+the actual centroid-reference end intersections, not the legacy maximum-depth envelope.
+A grid's `center` is the arithmetic mean of those member reference points. Members are listed
+row-major, in increasing row then column along the published directions. Array members are
+ordered along their direction. Neither convention describes a removed-volume centroid.
+
+The proposed lattice must reconstruct each accepted member reference point within the existing
+0.002 mm publication displacement allowance and stay within one body. A failed or ambiguous
+occurrence join produces no pattern. After projection, identical patterns collapse and the
+existing largest-first allocation rule applies across the joined groups: each occurrence belongs
+to at most one retained pattern, so a row array cannot duplicate part of its complete grid.
+This remains a pure projection over the one completed inventory, with no new recognition pass,
+face inference, schema field or identity mechanism.
+
 The face index is neither random nor globally meaningful. It is valid only within its containing
 result document and can be resolved to a source face only while the exact recognition input and its
 face roster are retained. It must never be used as a database key, compared across recognition

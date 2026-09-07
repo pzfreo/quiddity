@@ -2,6 +2,10 @@
 
 ## Next release
 
+- Project recess pattern centres from accepted section-centroid run midpoints, with explicit
+  row-major grid membership. Remove duplicate arrays/grids and redundant row arrays after
+  their legacy sources resolve to the same public occurrences (#555).
+
 - Use actual source solids for single-solid imports so loose STEP construction geometry
   cannot change a recess body key or disagree with other families. The same solid scope also
   prevents construction edges from hiding Double-D bores or creating false Pads. Open-shell

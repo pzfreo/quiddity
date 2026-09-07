@@ -455,6 +455,8 @@ class SectionRecessRefusal(Record):
 
 @dataclass(frozen=True, slots=True)
 class SectionRecessArray(Record):
+    """A line of member section-centroid run midpoints, ordered along ``direction``."""
+
     members: tuple[int, ...]
     pitch: float
     direction: Vector3
@@ -471,6 +473,12 @@ class SectionRecessArray(Record):
 
 @dataclass(frozen=True, slots=True)
 class SectionRecessGrid(Record):
+    """A row-major lattice of member section-centroid run midpoints.
+
+    ``center`` is their arithmetic mean in the recognition coordinate system;
+    it is not an envelope centre or the centroid of removed volume.
+    """
+
     members: tuple[int, ...]
     rows: int
     cols: int
