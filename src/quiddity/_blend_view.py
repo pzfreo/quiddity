@@ -141,16 +141,25 @@ def _adjacent_pairs(
     edge/face map as ``shared_edges``, and therefore as ``arc``: a pair absent from it has no
     shared edge, so ``arc`` is ``None`` and ``shared_occurrences`` is empty by construction.
 
-    **The ordering is the contract, not a convenience.** The view issues one logical arc per
-    original occurrence and validates them positionally against that issuance, so the sequence
-    of pairs has to match the nested index scan this replaces rather than the part's own
-    traversal order, which :meth:`FaceGraph.neighbours` explicitly does not promise.
+    **The order is reproduced deliberately, and it is belt and braces rather than an
+    invariant.** Validation is by object identity -- :class:`LogicalArc` is ``eq=False``, so
+    ``_issued_arcs`` is a dict lookup and nothing in it is positional. What makes the order
+    observable at all is that ``_arcs`` is a *sequence*, handed out in that order by
+    :meth:`CollapsedGraphView.neighbours` and :meth:`CollapsedGraphView.arcs_between`. No
+    consumer is known to depend on it, and reversing it outright leaves every corpus document
+    byte-identical; a change that promises to move nothing should still not move it. Hence the
+    sorts: :meth:`FaceGraph.neighbours` follows the part's own traversal order and explicitly
+    promises nothing, so both ends of the pair are re-sorted into the index order the nested
+    scan this replaces produced.
     """
 
     allowed = {node.index: node for node in nodes}
     for at in sorted(allowed):
         left = allowed[at]
         for right in sorted(graph.neighbours(left), key=_node_key):
+            # Identity, not membership: this generator is lazy, so a foreign node with a
+            # colliding index would otherwise be yielded as a *right* long before
+            # ``neighbours`` reaches it as a *left* and refuses it.
             if right.index > at and allowed.get(right.index) is right:
                 yield left, right
 
