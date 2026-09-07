@@ -55,13 +55,17 @@ def test_fraction_retains_division_and_kernel_error_boundaries():
 
 
 def test_wire_seed_uses_exact_shared_edge_occurrences_without_growing_region():
+    """Only the neighbours carrying an edge of *this* wire, and none of the rest.
+
+    The graph's own index answers "which neighbours meet me along this edge"; that it is built
+    from exactly the paired shared occurrences the earlier scan read is pinned on real geometry
+    in :mod:`tests.test_wire_seed_index`.
+    """
+
     edge = object()
     other = object()
     graph = SimpleNamespace(
-        neighbours=lambda _: ("wall", "unrelated"),
-        shared_occurrences=lambda _, neighbour: (
-            SimpleNamespace(edge=edge if neighbour == "wall" else other),
-        ),
+        neighbours_by_occurrence_edge=lambda _: {edge: ("wall",), other: ("unrelated",)}
     )
     assert wire_seed(graph, "mouth", SimpleNamespace(edges=lambda: [edge])) == frozenset({"wall"})
     assert wire_seed(graph, "mouth", SimpleNamespace(edges=lambda: [])) == frozenset()
