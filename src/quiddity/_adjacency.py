@@ -1069,8 +1069,43 @@ class FaceGraph:
         for half in halves:
             self._validate_edge_occurrence(half)
 
+    @staticmethod
+    def _halves_by_edge(
+        halves: Iterable[EdgeOccurrenceRef],
+    ) -> dict[EdgeLike, list[EdgeOccurrenceRef]]:
+        """Group one face's occurrences by the edge they run along, in traversal order.
+
+        The dictionary key is the live ``Edge`` wrapper the first occurrence of each group
+        carries, so a lookup is exactly the ``IsSame`` a scan would have performed: ``hash`` is
+        the ``TopoDS_Shape``'s and ``__eq__`` is ``IsSame``, the same identity
+        :meth:`neighbours_by_occurrence_edge` and :meth:`shared_edges` already index on, and
+        the reason a group built from one face is found by an edge read from the other.
+
+        Insertion order makes the groups appear in the order of their first occurrence and
+        keeps each group's members in traversal order, which is what the pairing below --
+        and through it the order of :meth:`shared_occurrences`' answer -- depends on.
+        """
+
+        grouped: dict[EdgeLike, list[EdgeOccurrenceRef]] = {}
+        for half in halves:
+            grouped.setdefault(half.edge, []).append(half)
+        return grouped
+
     def shared_occurrences(self, a: FaceNode, b: FaceNode) -> tuple[SharedEdgeOccurrenceRef, ...]:
-        """Exact paired oriented occurrences shared by two original nodes."""
+        """Exact paired oriented occurrences shared by two original nodes.
+
+        Each face's half-edges are grouped once by :meth:`_halves_by_edge`, and the two faces'
+        groups meet by lookup. The pairing rule below is unchanged and deliberately strict: a
+        group pairs only when the two sides have equal size, every left half has exactly one
+        oppositely-oriented candidate, and every right half is claimed exactly once. Anything
+        else has no traversal-independent answer, so it yields no occurrence at all.
+
+        The grouping used to be nested ``IsSame`` scans -- a seed popped from the pending left
+        halves, every other pending half compared against it and removed, then every right half
+        compared again for the same seed. That is ``O(L² + L×R)`` comparisons per adjacent pair,
+        and on the corpus's larger parts it was where most of recognition's shape comparisons
+        went: one census of ``nist_ctc_02`` made 1.15M of its 1.21M ``IsSame`` calls here.
+        """
 
         at_a, at_b = self._at(a), self._at(b)
         if at_a == at_b:
@@ -1085,17 +1120,11 @@ class FaceGraph:
         left_halves = self._face_edge_occurrences(left)
         right_halves = self._face_edge_occurrences(right)
         pairs: list[SharedEdgeOccurrenceRef] = []
-        pending_left = list(left_halves)
-        while pending_left:
-            seed = pending_left.pop(0)
-            left_group = [seed]
-            for half in tuple(pending_left):
-                if half.edge.wrapped.IsSame(seed.edge.wrapped):
-                    pending_left.remove(half)
-                    left_group.append(half)
-            right_group = [
-                half for half in right_halves if half.edge.wrapped.IsSame(seed.edge.wrapped)
-            ]
+        right_groups = self._halves_by_edge(right_halves)
+        for edge, left_group in self._halves_by_edge(left_halves).items():
+            right_group = right_groups.get(edge, [])
+            if len(left_group) != len(right_group):
+                continue  # no traversal-independent unique pairing
             candidate_pairs = {
                 left_half: tuple(
                     right_half
@@ -1108,10 +1137,8 @@ class FaceGraph:
                 right_half: sum(right_half in matches for matches in candidate_pairs.values())
                 for right_half in right_group
             }
-            if (
-                len(left_group) != len(right_group)
-                or any(len(matches) != 1 for matches in candidate_pairs.values())
-                or any(count != 1 for count in reverse_counts.values())
+            if any(len(matches) != 1 for matches in candidate_pairs.values()) or any(
+                count != 1 for count in reverse_counts.values()
             ):
                 continue  # no traversal-independent unique pairing
             for left_half, matches in candidate_pairs.items():
