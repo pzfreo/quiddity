@@ -255,7 +255,7 @@ MODULE_SEAM_EDGES = {
     # Exact volumetric evidence is shared without importing either recognition policy;
     # the run-scoped cache only holds which solids a probe is measured against.
     "_volume_probe": {"_solid_properties", "_typing"},
-    "_support_patches": set(),
+    "_support_patches": {"_typing"},
     "_entry_treatments": {"_adjacency", "_support_patches", "_volume_probe"},
     "_section_passages": {
         "_adjacency",

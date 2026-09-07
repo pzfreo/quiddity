@@ -71,6 +71,11 @@ def test_boolean_return_shapes_preserve_physical_support(monkeypatch, return_api
     monkeypatch.setattr(Shape, "cut", adapted_cut)
     assert supported([rectangle(4, 6), rectangle(0, 4), rectangle(6, 10)]) == [True]
     assert supported([rectangle(4, 6), rectangle(0, 4)]) == [False]
+    # A support that trims the patch without splitting it, so the kernel returns a single
+    # face. The cases above reach this shape only by cutting a fragment with a support that
+    # cannot touch it, which ``covered_patch`` now rejects on the bounding boxes; the return
+    # convention still has to be exercised, so ask for it with abutting supports instead.
+    assert supported([rectangle(0, 4), rectangle(4, 10)]) == [True]
     assert {0, 1, 2} <= set(result_sizes)
 
 
