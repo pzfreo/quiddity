@@ -7,10 +7,11 @@ Nothing yet.
 ## 0.2.5 — Quiddity
 
 A performance-only release. Recognition output is byte-identical on every vendored corpus
-part before and after; every change carries an operation-count sentinel so the regression it
-removes cannot return silently. Measured on one machine, the census workload over the ten NIST
-and three real parts went from 75.0 s to 12.0 s; the four-golden composite workload is
-unchanged within noise.
+part before and after, and every library change carries an operation-count sentinel so the
+regression it removes cannot return silently. Measured on one machine against 0.2.4, the
+census workload over the ten NIST and three real parts went from 75.0 s to 12.0 s and the
+four-golden composite workload from 0.97 s to 0.85 s. Numbers in this section are pull
+requests; earlier sections cite issues.
 
 - Derive each solid's bounding box, validity, volume, area and body signature once per run
   through a run-scoped cache owned by the face graph, instead of once per recogniser (#558).
@@ -34,28 +35,25 @@ unchanged within noise.
 
 ## 0.2.4 — Quiddity
 
-- Recognise polygonal passages ending on observed native cross-bores (#551).
-- Recognise polygonal passages through observed two-plane roofs (#553).
-- Contain section publication failures and stabilise tangent junctions (#552).
-- Make Codecov reporting advisory rather than a merge gate (#548).
+- Recognise polygonal passages ending on observed native cross-bores (PR #551).
+- Recognise polygonal passages through observed two-plane roofs (PR #553).
+- Contain section publication failures and stabilise tangent junctions (PR #552).
+- Make Codecov reporting advisory rather than a merge gate (PR #548).
+- Record a full-corpus MFInstSeg coverage sweep (PR #549).
 
 ## 0.2.3 — Quiddity
 
-- Restore pockets in cylindrical stock with explicit section end surfaces (#544).
-- Restore pierced channels through independently proved support apertures (#545).
-- Publish observed bore-ended channels with cylindrical end geometry (#546).
-
+- Restore pockets in cylindrical stock with explicit section end surfaces (PR #544).
+- Restore pierced channels through independently proved support apertures (PR #545).
+- Publish observed bore-ended channels with cylindrical end geometry (PR #546).
 - Recognise polygonal passages interrupted by a separately proved finite planar entry
   chamfer, retaining exact base support and original treatment-face evidence (#540).
-
 - Recognise intact general line/arc pockets from exact swept source support, including
   rounded rectangles with short straight end segments. Preserve physical dimensions
   instead of forcing an obround classification (#536). Tighten the analytic arc-rounding
   error bound without changing the existing publication displacement limit.
-
 - Recognise straight polygonal passages through parallel stock faces oblique to their
   wall-proved run, preserving actual planar terminations in the existing schema (#369).
-
 - Recognise polygonal pockets whose planar stock mouth is split into coplanar faces,
   retaining whole-wall termination checks and the existing SectionRecess geometry and
   evidence contracts (#369).
