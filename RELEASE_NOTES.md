@@ -2,17 +2,58 @@
 
 ## Next release
 
+Nothing yet.
+
+## 0.2.5 — Quiddity
+
+A performance-only release. Recognition output is byte-identical on every vendored corpus
+part before and after, and every library change carries an operation-count sentinel so the
+regression it removes cannot return silently. Measured on one machine against 0.2.4, the
+census workload over the ten NIST and three real parts went from 75.0 s to 12.0 s and the
+four-golden composite workload from 0.97 s to 0.85 s. Bare numbers in this section are pull
+requests; in the sections below, bare numbers cite issues and pull requests are labelled.
+
+- Derive each solid's bounding box, validity, volume, area and body signature once per run
+  through a run-scoped cache owned by the face graph, instead of once per recogniser (#558).
+- Build the collapsed blend view from face adjacency rather than every pair of faces (#557).
+- Measure volumetric probes against the part's solids only, not the loose construction
+  geometry an imported STEP compound can carry (#562).
+- Answer opening-wire incidence from a per-face edge index, and load each solid into one
+  point classifier per run for the bevel corner probes (#561).
+- Pair shared edge occurrences by an ordered edge index instead of nested identity scans
+  (#568).
+- Skip support cuts a patch's bounding box cannot reach, and ask the plate cross-envelope one
+  vertex projection per direction rather than per face (#569).
+- Answer a volume probe without the kernel where the answer is known: a run-scoped memo for
+  repeated probes, and exact short-circuits for probes disjoint from the solid or clear of
+  every face (#570).
+- Replace the whole-corpus inventory agreement test with the one part that ever disagreed,
+  run the coverage gate on two workers, and re-baseline the recorded runtime budget
+  (#566, #567, #574).
+- Recorded rather than fixed, because this release changes no output, as issues #559 (body
+  keys differ across families on single-solid imports), #560, #564, #565, #571 and #573.
+
+## 0.2.4 — Quiddity
+
+- Recognise polygonal passages ending on observed native cross-bores (PR #551).
+- Recognise polygonal passages through observed two-plane roofs (PR #553).
+- Contain section publication failures and stabilise tangent junctions (PR #552).
+- Make Codecov reporting advisory rather than a merge gate (PR #548).
+- Record a full-corpus MFInstSeg coverage sweep (PR #549).
+
+## 0.2.3 — Quiddity
+
+- Restore pockets in cylindrical stock with explicit section end surfaces (PR #544).
+- Restore pierced channels through independently proved support apertures (PR #545).
+- Publish observed bore-ended channels with cylindrical end geometry (PR #546).
 - Recognise polygonal passages interrupted by a separately proved finite planar entry
   chamfer, retaining exact base support and original treatment-face evidence (#540).
-
 - Recognise intact general line/arc pockets from exact swept source support, including
   rounded rectangles with short straight end segments. Preserve physical dimensions
   instead of forcing an obround classification (#536). Tighten the analytic arc-rounding
   error bound without changing the existing publication displacement limit.
-
 - Recognise straight polygonal passages through parallel stock faces oblique to their
   wall-proved run, preserving actual planar terminations in the existing schema (#369).
-
 - Recognise polygonal pockets whose planar stock mouth is split into coplanar faces,
   retaining whole-wall termination checks and the existing SectionRecess geometry and
   evidence contracts (#369).
