@@ -29,17 +29,20 @@ a multi-solid part keeps contributing every body it has, exactly as the distribu
 that remain are the largest single cost of a recognition: 208 of them across four NIST parts
 were 3.15 s of a 13.1 s profile, about 15 ms each, and build123d already runs each one with
 ``SetRunParallel``, so the kernel operation itself cannot be made cheaper. Measured over the
-whole 87-part corpus, 2061 probe booleans divided as follows.
+whole 87-part corpus, a run builds 2061 of them, and two independent measurements say most of
+them need not be asked at all.
 
-- **523 (25%) repeated an earlier probe** -- the same probe geometry asked of the same shape
-  again within one run, because two families ask the same region the same question.
-  :func:`probe_volume` memoises its answer on the run's cache under an *exact* description of
-  the probe (see :func:`_describe`); a repeat returns the identical float.
-- **489 (24%) had a probe box disjoint from the solid's box**, and 353 more (17%) overlapped no
-  *face* box of the solid while classifying entirely outside it. Both return ``0.0``.
-- **277 (13%) overlapped no face box while classifying entirely inside**, where the common is
-  the probe and the answer is the probe's own volume.
-- The remaining 727 (35%) genuinely straddle the material and still run the boolean.
+- **523 (25%) repeat an earlier probe** -- the same probe geometry asked of the same shape again
+  within one run, because two families ask the same region the same question. :func:`probe_volume`
+  memoises its answer on the run's cache under an *exact* description of the probe (see
+  :func:`_describe`); a repeat returns the identical float.
+- Classifying all 2061 by geometry rather than by repetition: **489 (24%) have a probe box
+  disjoint from the solid's box**; **353 more (17%) overlap no *face* box of the solid and lie
+  entirely outside it** -- both answer ``0.0``; **277 (13%) overlap no face box and lie entirely
+  inside**, where the common is the probe and the answer is the probe's own volume. The
+  remaining 938 straddle the material and still run the boolean.
+
+Together they take a census of ``nist_ctc_01`` from 56 probe booleans to 27.
 
 The two geometric short-circuits are exact, not tolerant approximations:
 
@@ -57,7 +60,12 @@ The two geometric short-circuits are exact, not tolerant approximations:
 The exactness of the inside case (that the common of a contained probe reports the probe's own
 volume, to the last bit) is not a claim about OCCT that this module can prove, so it was
 measured: over all 87 corpus parts, every one of the 277 contained probes had
-``intersection_volume(body.intersect(probe)) == probe.volume`` exactly.
+``intersection_volume(body.intersect(probe)) == probe.volume`` exactly. Running every
+short-circuit and its boolean side by side agreed on all 799 short-circuits a corpus dump takes
+and on all 8976 the test suite takes.
+
+**A probe reaches all of this only when it is given a run to share**, because the per-solid
+values it reads cost far more to build than the boolean they save -- see :func:`probe_volume`.
 """
 
 from __future__ import annotations
