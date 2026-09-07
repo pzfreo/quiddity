@@ -45,12 +45,12 @@ attribute read that costs nothing measurable beside the queries it guards, and a
 under a caller-chosen name, so a per-solid cache hangs off the run's existing instance rather
 than inventing another lifetime to get wrong. The name is the owning module's business; this
 module holds no policy about what is derived, only about how long the answer lives and what it
-is keyed on. It has no caller in this change; two later PRs in this series are written against
-it -- the solids a volumetric probe is measured against
-(:mod:`quiddity._volume_probe`) and the point classifier the bevel corner probes use
-(:mod:`quiddity._bevel`) -- and it goes if neither lands. A per-*node* cache is not one of its
-users and should not become one: the wire-edge index that opening-wire incidence needs lives on
-:class:`quiddity._adjacency.FaceGraph`, beside the other per-face caches.
+is keyed on. Two modules use it: :mod:`quiddity._volume_probe` holds the solids a volumetric
+probe is measured against, under ``"_volume_probe.solids"``, and :mod:`quiddity._bevel` holds
+the point classifier its corner probes ask, under ``"_bevel.solid_classifier"``. A per-*node*
+cache is not one of its users and should not become one: the wire-edge index that opening-wire
+incidence needs lives on :class:`quiddity._adjacency.FaceGraph`, beside the other per-face
+caches.
 
 Scope it to one run over one part, as :class:`quiddity._adjacency.FaceEdges` is scoped.
 """
@@ -141,6 +141,10 @@ class SolidProperties:
 
         The caller owns both the name and the meaning; this only owns the lifetime and the
         shape identity. Two callers sharing a name are sharing a value on purpose.
+
+        Used by :func:`quiddity._volume_probe.probe_solids` for a compound's solids and by
+        :func:`quiddity._bevel._material_at` for the point classifier of the shape it is
+        asked about.
         """
 
         key = (name, *_key(solid))
