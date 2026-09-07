@@ -673,6 +673,9 @@ for _site in (
     "test_non_manifold_three_face_edge_is_side_unproven:smooth_side:1",
 ):
     ARC_READER_SITES[f"tests/test_arcs:{_site}"] = "side-read"
+# The collapsed view's brute-force reference deliberately mirrors the legacy closed value the
+# view itself reads, so that the adjacency-driven scan is proved to answer identically.
+ARC_READER_SITES["tests/test_blend_view:_all_pairs_arc_reference:arc:1"] = "legacy-contract"
 
 
 def test_every_arc_reader_has_one_reviewed_disposition() -> None:

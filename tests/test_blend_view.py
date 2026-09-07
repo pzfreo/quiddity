@@ -730,3 +730,130 @@ def test_all_disjoint_box_chains_can_be_selected_atomically():
         for right in view.logical_nodes()[at + 1 :]
         for arc in view.arcs_between(left, right)
     ) == len(chains)
+
+
+def _pocketed_plate():
+    # Fifty-eight faces and twenty-eight chains: large enough that the difference between
+    # asking every node pair and asking only the adjacent ones is an order of magnitude.
+    plate = fillet(Box(120, 80, 12).edges().filter_by(Axis.Z), radius=6)
+    for x in (-40, 0, 40):
+        for y in (-20, 20):
+            pocket = fillet(Box(16, 12, 20).edges().filter_by(Axis.Z), radius=3)
+            plate -= Pos(x, y, 4) * pocket
+    return plate
+
+
+class _CountingGraph(FaceGraph):
+    """A graph that records how many face pairs a caller asked adjacency about."""
+
+    def __init__(self, part):
+        super().__init__(part)
+        self.shared_occurrence_calls = 0
+
+    def shared_occurrences(self, a, b):
+        self.shared_occurrence_calls += 1
+        return super().shared_occurrences(a, b)
+
+
+def _occurrence_key(occurrence):
+    left, right = occurrence.halves
+    return (
+        occurrence.endpoints[0].index,
+        occurrence.endpoints[1].index,
+        left.wire_ordinal,
+        left.ordinal,
+        right.wire_ordinal,
+        right.ordinal,
+    )
+
+
+def _all_pairs_arc_reference(graph, view, hidden):
+    """The view's own arcs, recomputed by scanning every node pair in index order."""
+
+    logical_of = {
+        source: logical for logical in view.logical_nodes() for source in view.expand_node(logical)
+    }
+    expected = []
+    for at, left in enumerate(graph.nodes):
+        if left in hidden:
+            continue
+        for right in graph.nodes[at + 1 :]:
+            if right in hidden or logical_of[left] is logical_of[right]:
+                continue
+            kind = graph.arc(left, right)
+            if kind is None:
+                continue
+            for occurrence in sorted(graph.shared_occurrences(left, right), key=_occurrence_key):
+                expected.append(
+                    (
+                        logical_of[left],
+                        logical_of[right],
+                        kind,
+                        frozenset((left, right)),
+                        occurrence,
+                    )
+                )
+    return tuple(expected)
+
+
+def _all_pairs_member_reference(graph, members):
+    ordered = sorted(members, key=lambda node: node.index)
+    return tuple(
+        sorted(
+            (
+                occurrence
+                for at, left in enumerate(ordered)
+                for right in ordered[at + 1 :]
+                for occurrence in graph.shared_occurrences(left, right)
+            ),
+            key=_occurrence_key,
+        )
+    )
+
+
+def test_collapsed_view_reproduces_the_all_pairs_scan_without_asking_distant_pairs():
+    part = _pocketed_plate()
+    graph = _CountingGraph(part)
+    index = BlendCollapseIndex(graph, EffectiveSurfaceIndex(graph))
+    chains = index.chains()
+    assert len(graph.nodes) > 50 and len(chains) > 8
+    graph.shared_occurrence_calls = 0
+    view = index.view(chains)
+    construction_calls = graph.shared_occurrence_calls
+
+    hidden = frozenset(node for chain in chains for node in chain.blend_nodes)
+    assert tuple(
+        (
+            arc.endpoints[0],
+            arc.endpoints[1],
+            arc.kind,
+            provenance.nodes,
+            provenance.arcs[0].occurrence,
+        )
+        for arc in view._arcs
+        if not arc.synthetic
+        for provenance in (view.expand_arc(arc),)
+    ) == _all_pairs_arc_reference(graph, view, hidden)
+    assert {
+        logical: tuple(arc.occurrence for arc in view.node_provenance(logical).arcs)
+        for logical in view.logical_nodes()
+    } == {
+        logical: _all_pairs_member_reference(graph, view.expand_node(logical))
+        for logical in view.logical_nodes()
+    }
+
+    # The sentinel: one question per adjacent pair the two construction loops can reach, not one
+    # per node pair. Wall clock would only say this machine is fast today.
+    def adjacent_within(nodes):
+        ordered = sorted(nodes, key=lambda node: node.index)
+        return sum(
+            bool(graph.shared_edges(left, right))
+            for at, left in enumerate(ordered)
+            for right in ordered[at + 1 :]
+        )
+
+    every_pair = len(graph.nodes) * (len(graph.nodes) - 1) // 2
+    assert construction_calls == adjacent_within(
+        node for node in graph.nodes if node not in hidden
+    ) + sum(adjacent_within(view.expand_node(logical)) for logical in view.logical_nodes())
+    assert construction_calls * 5 < every_pair
