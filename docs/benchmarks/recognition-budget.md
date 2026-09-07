@@ -18,30 +18,53 @@ about performance that names one should say which.
 
 ## The recorded baseline
 
-Measured on the development container at `51d388b`, which is a **shared** machine: these are
-minimums over repeated samples rather than medians, because the median moves with whatever else
-happens to be running and the minimum is the closest available reading of the machine's own
-answer. Peak resident set is the whole process, so it includes the kernel's C++ allocations
-that `tracemalloc` cannot see.
+Measured at `8147f39` on an Apple M5 Max (macOS 26.6, Python 3.14.7, build123d 0.11.1). That is
+a **shared** developer machine, so these are minimums over repeated samples rather than medians,
+taken with the one-minute load average below 4: the median moves with whatever else happens to
+be running, and the minimum is the closest available reading of the machine's own answer. Peak
+resident set is the whole process, so it includes the kernel's C++ allocations that
+`tracemalloc` cannot see.
 
 | Workload | Iterations | Minimum | Peak RSS |
 | --- | ---: | ---: | ---: |
-| `composite` | 5 | 1.927 s | 461 MB |
-| `census` | 3 | 99.683 s | 484 MB |
+| `composite` | 5 | 0.863 s | 498 MB |
+| `census` | 3 | 16.022 s | 577 MB |
+
+`8147f39` is the head of the five-PR run-scoped-caching series; the PR that records these
+numbers adds no library code of its own, which is why the commit named here is the last one that
+changed any.
+
+**These seconds are not comparable with the ones they replace.** The previous recording was
+taken on a different host as well as different code, so the drop from 99.683 s is a host change
+and a code change added together and cannot be split by subtraction. The same two commands were
+therefore also run on `a5f1fcc`, the branch point, on this box in the adjacent quiet window, and
+that pair is the comparison that means something:
+
+| Workload | `a5f1fcc` | this stack | |
+| --- | ---: | ---: | ---: |
+| `composite` | 0.972 s | 0.863 s | x1.13 |
+| `census` | 75.032 s | 16.022 s | **x4.68** |
+
+The `a5f1fcc` pair was taken against `7918c8a`, the revision immediately before the one recorded
+above, which measured 0.866 s and 16.295 s — within this box's own run-to-run spread of the rows
+in the table, and the reason the ratios are quoted to two figures and not three.
 
 The budget is **1.10** by default, and a workload may record its own. Two arms of very
 different length cannot share one ceiling on a shared box:
 
 | Workload | Budget | Why |
 | --- | ---: | --- |
-| `census` | 1.10 | a hundred seconds, stable here, and the arm the consolidation regression was about |
-| `composite` | 1.40 | two seconds, and its minimum-of-five ranged 1.93 s to 2.66 s over one evening with nothing else obviously running |
+| `census` | 1.10 | sixteen seconds, stable here, and the arm every recognition change is felt in |
+| `composite` | 1.40 | under a second, and inherited: on the previous host its minimum-of-five ranged 1.93 s to 2.66 s over one evening with nothing else obviously running |
 
-The composite figure is loose because of the host, not because the code is allowed to be forty
-percent slower. On a dedicated machine it would be the tighter of the two; here, a ceiling under
-the observed spread reports the load rather than the code, and a check that cries wolf stops
-being run. **The census arm is the one to trust for a regression**, and it is also the one the
-one-inventory change actually cost.
+The composite figure is loose because of the host it was sized on, not because the code is
+allowed to be forty percent slower. This box is steadier — three quiet windows over two hours,
+on adjacent revisions of this stack, gave 0.863 s, 0.866 s and 0.898 s, a 4.1% spread rather
+than the 1.38x the ceiling was drawn under. Three windows on a machine other work shares is not
+enough evidence to tighten a ceiling on, and a check that cries wolf stops being run, so the
+ratio is left where it is and the reason for revisiting it is recorded here instead. **The
+census arm is the one to trust for a regression**: it is nineteen times longer, it moved by
+4.68x under the caching series, and it is the arm the one-inventory consolidation cost.
 
 **The `budget` fields in the JSON are the authority**: `--check` reads its ceiling from there --
 a workload's own if it has one, the file's default otherwise -- so editing the policy changes
@@ -74,7 +97,10 @@ box is the portable part, not the seconds.
 
 ## Issue #173 post-consolidation A/B
 
-Measured on the same shared development host, alternating the pre-epic baseline `ccf3b8c` and
+Historical, and on the epic development container rather than the host the baseline above was
+re-measured on. The seconds do not compare with anything current; the paired directions do.
+
+Measured on that shared development host, alternating the pre-epic baseline `ccf3b8c` and
 post-epic `d73f612` processes. Two five-sample composite runs crossed directions: current was
 3.5% faster by minimum in one pair (2.628 s versus 2.725 s) and 1.8% slower in the other
 (2.938 s versus 2.887 s). That is host noise, not a reproducible regression.
