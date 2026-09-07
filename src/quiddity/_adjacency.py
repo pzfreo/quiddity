@@ -1124,7 +1124,7 @@ class FaceGraph:
         for edge, left_group in self._halves_by_edge(left_halves).items():
             right_group = right_groups.get(edge, [])
             if len(left_group) != len(right_group):
-                continue  # no traversal-independent unique pairing
+                continue  # the two faces read this edge a different number of times
             candidate_pairs = {
                 left_half: tuple(
                     right_half
