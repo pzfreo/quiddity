@@ -51,6 +51,7 @@ from quiddity._body_geometry import (
     matching_boundary_for_solid,
 )
 from quiddity._geometry import AXIS_ALIGNED_COS, SMOOTH_ARC_GAP, length_tol
+from quiddity._solid_properties import SolidProperties
 from quiddity._typing import EdgeLike, FaceLike
 
 _T = TypeVar("_T")
@@ -305,6 +306,7 @@ class FaceGraph:
         self._nodes = tuple(FaceNode(at) for at in range(len(self._faces)))
         self._index = {face: at for at, face in enumerate(self._faces)}
         self._face_edges = face_edges
+        self._solid_properties = SolidProperties()
         self._edges: dict[int, tuple[EdgeLike, ...]] = {}
         self._surface: dict[int, int] = {}
         self._normal: dict[int, tuple[float, float, float] | None] = {}
@@ -329,6 +331,19 @@ class FaceGraph:
     @property
     def run_token(self) -> GraphRunToken:
         return self._run_token
+
+    @property
+    def solid_properties(self) -> SolidProperties:
+        """This run's whole-solid query cache -- see :mod:`quiddity._solid_properties`.
+
+        The node caches above answer *per face*; this answers per *solid*, for the families that
+        ask the part or one of its bodies for a bounding box, a validity, a volume or an area.
+        It lives here because the graph is the run object those families can already reach --
+        through the ledger or writer they are handed -- and because it must die when the graph
+        does, for the same reason the node caches must: it is keyed on this part's shapes.
+        """
+
+        return self._solid_properties
 
     def __len__(self) -> int:
         return len(self._faces)
@@ -641,7 +656,7 @@ class FaceGraph:
             try:
                 # A valid TopoDS_Solid is the closed ownership unit.  The shape's optional
                 # ``Closed`` cache flag is not reliably populated by OCCT booleans.
-                if solid.is_valid:
+                if self._solid_properties.is_valid(solid):
                     closed.add(solid_at)
                 faces = solid.faces()
             except Exception:  # noqa: BLE001 - invalid topology cannot prove material side

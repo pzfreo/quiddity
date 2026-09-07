@@ -582,3 +582,17 @@ public report. It must not invoke a report builder that runs another inventory. 
 does not import `evidence`; no cycle, recogniser dependency or private-product export is added.
 ADR 0012 defines the bounded semantics and result-identity contract. The explicit module-edge
 allowlist and same-run call-count tests enforce this boundary.
+
+## Amendment (run-scoped whole-solid property cache)
+
+`_solid_properties` is a private base-layer leaf over shared part typing, below `_adjacency` and
+`_body_identity` and importing nothing else. It owns no geometric policy: it memoises the four
+whole-solid kernel queries every family already asks -- optimal bounding box, validity, volume and
+area -- for the length of one run, keyed on the live build123d shape wrapper, and exposes one
+`derived` hook so a later per-solid cache hangs off the same lifetime.
+
+`FaceGraph` owns the one instance a run shares, alongside its per-face caches, because the graph is
+already the run object a recogniser can reach through the ledger or writer it is handed. A public
+recogniser called standalone has no graph, resolves a fresh call-scoped instance, and computes
+exactly what it computed before. The values are identical either way; only the number of times the
+kernel is asked for them changes.

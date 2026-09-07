@@ -80,10 +80,19 @@ MODULE_SEAM_EDGES = {
         "_volume_probe",
     },
     # Base layer: the kernel, the shared type aliases, and `_geometry`'s alignment threshold.
-    "_body_identity": {"_typing"},
+    "_body_identity": {"_solid_properties", "_typing"},
+    # The run's whole-solid query cache: a leaf over part typing, below everything that
+    # asks a solid for its box, validity, volume or area.
+    "_solid_properties": {"_typing"},
     "_analytic_surfaces": {"_geometry"},
     "_body_geometry": set(),
-    "_adjacency": {"_analytic_surfaces", "_body_geometry", "_geometry", "_typing"},
+    "_adjacency": {
+        "_analytic_surfaces",
+        "_body_geometry",
+        "_geometry",
+        "_solid_properties",
+        "_typing",
+    },
     "edge_open_prismatic_recesses": {
         "_adjacency",
         "_candidates",
@@ -219,6 +228,7 @@ MODULE_SEAM_EDGES = {
     },
     "_pattern_geometry": {"_geometry"},
     "profiled_bores": {
+        "_solid_properties",
         "_adjacency",
         "_candidates",
         "_claims",
@@ -228,6 +238,7 @@ MODULE_SEAM_EDGES = {
         "_volume_probe",
     },
     "pads": {
+        "_solid_properties",
         "_analytic_surfaces",
         "_candidates",
         "_claims",
@@ -313,6 +324,7 @@ MODULE_SEAM_EDGES = {
     # the property the split was for -- a family predicate cannot quietly become substrate.
     "_recess_faces": {"_adjacency", "_recess_records", "_typing", "_volume_probe"},
     "_recess_reduce": {
+        "_solid_properties",
         "_adjacency",
         "_body_identity",
         "_geometry",
@@ -340,6 +352,7 @@ MODULE_SEAM_EDGES = {
         "_wire_seed",
     },
     "_recess_features": {
+        "_solid_properties",
         "_adjacency",
         "_body_identity",
         "_candidates",
