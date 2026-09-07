@@ -2,7 +2,19 @@
 
 ## Next release
 
-Nothing yet.
+- Project recess pattern centres from accepted section-centroid run midpoints, with explicit
+  row-major grid membership. Remove duplicate arrays/grids and redundant row arrays after
+  their legacy sources resolve to the same public occurrences (#555).
+
+- Use actual source solids for single-solid imports so loose STEP construction geometry
+  cannot change a recess body key or disagree with other families. The same solid scope also
+  prevents construction edges from hiding Double-D bores or creating false Pads. Open-shell
+  compatibility remains unchanged (#559).
+
+- Refuse a blended pocket floor whose wall-tangent level cannot be proved as a physical
+  planar cap, retaining source evidence and separate Blend occurrences. Require observed
+  stock planes for untreated straight passage ends so the same tangent cannot be reported
+  as an open passage at another scale (#556).
 
 ## 0.2.5 — Quiddity
 

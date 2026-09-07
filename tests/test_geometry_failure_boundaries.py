@@ -80,7 +80,7 @@ def test_double_d_boolean_fragments_are_measured_not_hidden_as_attribute_errors(
     tool = extrude(Circle(5) & Rectangle(7.2, 20), amount=20, both=True)
     part = Box(40, 40, 10) - tool
     monkeypatch.setattr(
-        type(part), "__and__", lambda *_: [SimpleNamespace(volume=value) for value in volumes]
+        bores.Solid, "__and__", lambda *_: [SimpleNamespace(volume=value) for value in volumes]
     )
     assert bool(bores.recognise_double_d_bores(part)) is accepted
 

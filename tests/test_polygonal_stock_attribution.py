@@ -790,6 +790,8 @@ def test_private_core_constructor_and_cap_identity_paths_are_closed() -> None:
     assert raw_readers == [
         ("_recognise_one", "faces"),
         ("_discover_polygonal_bosses", "solids"),
+        # Resolve solid membership in the existing wrapper graph without rebuilding it.
+        ("_discover_polygonal_bosses", "faces"),
         ("_discover_polygonal_stock", "solids"),
         ("_discover_polygonal_stock", "faces"),
     ]

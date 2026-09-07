@@ -80,7 +80,11 @@ from quiddity._section_recess import (
     SectionRecessGrid,
     SectionRecessRefusal,
 )
-from quiddity._section_recess_geometry import _polygonal_shape, cylindrical_channel_geometry
+from quiddity._section_recess_geometry import (
+    _polygonal_shape,
+    cylindrical_channel_geometry,
+    has_physical_planar_floor,
+)
 from quiddity._sections import LocalFrame
 from quiddity._typing import Bounds, CylinderInventory, FrozenCylinderInventory, Part
 from quiddity.angled_steps import AngledStep
@@ -773,7 +777,7 @@ def _prismatic_pocket_recess(
     context: RecognitionContext,
     evidence: EvidenceIndex,
     index: int,
-) -> SectionRecess:
+) -> SectionRecess | None:
     """Project one accepted pocket at the legacy publication grid."""
 
     defining = evidence.defining_of(record)
@@ -782,6 +786,15 @@ def _prismatic_pocket_recess(
     if owner is None:
         raise ValueError("accepted prismatic pocket lost its body authority")
     geometry = _publication_value(legacy_section_geometry, record)
+    if not has_physical_planar_floor(
+        context.graph,
+        defining,
+        constituent,
+        axis=record.axis,
+        open_sign=record.open_sign,
+        published_floor=geometry.run_interval[0 if record.open_sign == 1 else 1],
+    ):
+        return None
     section_shape = _polygonal_shape(tuple(vertex.point for vertex in geometry.profile.boundary))
     if len(geometry.profile.boundary) != len(record.section):
         section_shape = "polygonal"
@@ -1253,6 +1266,139 @@ def _recess_refusals(accepted, recesses, *, context, evidence, projected_regions
     return tuple(refusals)
 
 
+def _section_midpoint(record: SectionRecess) -> tuple[float, float, float]:
+    """The published section-centroid run line at the midpoint of its end intersections."""
+
+    geometry = record.geometry
+    along = math.fsum(geometry.run_interval) / 2
+    return cast(
+        tuple[float, float, float],
+        tuple(geometry.frame.origin[i] + along * geometry.frame.run[i] for i in range(3)),
+    )
+
+
+def _project_section_pattern(
+    pattern: PocketArray | PocketGrid, occurrences: tuple[SectionRecess, ...]
+) -> SectionRecessArray | SectionRecessGrid | None:
+    """Validate a derived lattice against its exact accepted public occurrences.
+
+    Legacy depth envelopes may differ from the published centroid-reference ends.
+    Their lattice is a proposal; its centre and member positions must come from the
+    surviving SectionRecess values, without another recognition or face lookup.
+    """
+
+    if len({record.body for record in occurrences}) != 1:
+        return None
+    points = tuple(_section_midpoint(record) for record in occurrences)
+    center = cast(
+        tuple[float, float, float],
+        tuple(math.fsum(point[i] for point in points) / len(points) for i in range(3)),
+    )
+    pairs = list(zip(occurrences, points, strict=True))
+
+    def step(offsets):
+        denominator = math.fsum(offset * offset for offset in offsets)
+        return tuple(
+            math.fsum(
+                offset * (point[i] - center[i])
+                for offset, (_, point) in zip(offsets, pairs, strict=True)
+            )
+            / denominator
+            for i in range(3)
+        )
+
+    if isinstance(pattern, PocketArray):
+        direction = pattern.direction
+        if next(value for value in direction if abs(value) > 1e-9) < 0:
+            direction = cast(tuple[float, float, float], tuple(-value for value in direction))
+        pairs.sort(key=lambda pair: sum(pair[1][i] * direction[i] for i in range(3)))
+        vector = step([at - (len(pairs) - 1) / 2 for at in range(len(pairs))])
+        pitch = math.hypot(*vector)
+        if pitch == 0:
+            return None
+        direction = cast(tuple[float, float, float], tuple(value / pitch for value in vector))
+        expected = [
+            tuple(center[i] + (at - (len(pairs) - 1) / 2) * pitch * direction[i] for i in range(3))
+            for at in range(len(pairs))
+        ]
+        projected: SectionRecessArray | SectionRecessGrid = SectionRecessArray(
+            tuple(record.index for record, _ in pairs), pitch, direction
+        )
+    else:
+        u, v = plane_axes(pattern.pockets[0].depth_axis)
+        cosine, sine = math.cos(math.radians(pattern.angle)), math.sin(math.radians(pattern.angle))
+        col_direction = cast(
+            tuple[float, float, float],
+            tuple(cosine * a + sine * b for a, b in zip(u, v, strict=True)),
+        )
+        row_direction = cast(
+            tuple[float, float, float],
+            tuple(-sine * a + cosine * b for a, b in zip(u, v, strict=True)),
+        )
+
+        # Legacy grid members are column-major. Publish an explicit row-major roster,
+        # matching the reconstructed cells, regardless of the source detector's ordering.
+        def cell(pair):
+            delta = tuple(pair[1][i] - center[i] for i in range(3))
+            return (
+                round(
+                    sum(delta[i] * row_direction[i] for i in range(3)) / pattern.row_pitch
+                    + (pattern.rows - 1) / 2
+                ),
+                round(
+                    sum(delta[i] * col_direction[i] for i in range(3)) / pattern.col_pitch
+                    + (pattern.cols - 1) / 2
+                ),
+            )
+
+        pairs.sort(key=cell)
+        # Legacy pitch/angle fields are rounded. Use them only to assign cells;
+        # derive the published lattice from the accepted midpoint coordinates.
+        row_step = step([at // pattern.cols - (pattern.rows - 1) / 2 for at in range(len(pairs))])
+        col_step = step([at % pattern.cols - (pattern.cols - 1) / 2 for at in range(len(pairs))])
+        col_pitch = math.hypot(*col_step)
+        if col_pitch == 0:
+            return None
+        col_direction = cast(
+            tuple[float, float, float], tuple(value / col_pitch for value in col_step)
+        )
+        skew = math.fsum(a * b for a, b in zip(row_step, col_direction, strict=True))
+        row_step = tuple(a - skew * b for a, b in zip(row_step, col_direction, strict=True))
+        row_pitch = math.hypot(*row_step)
+        if row_pitch == 0:
+            return None
+        row_direction = cast(
+            tuple[float, float, float], tuple(value / row_pitch for value in row_step)
+        )
+        expected = [
+            tuple(
+                center[i]
+                + (row - (pattern.rows - 1) / 2) * row_pitch * row_direction[i]
+                + (col - (pattern.cols - 1) / 2) * col_pitch * col_direction[i]
+                for i in range(3)
+            )
+            for row in range(pattern.rows)
+            for col in range(pattern.cols)
+        ]
+        projected = SectionRecessGrid(
+            tuple(record.index for record, _ in pairs),
+            pattern.rows,
+            pattern.cols,
+            row_pitch,
+            col_pitch,
+            row_direction,
+            col_direction,
+            center,
+        )
+    # Existing whole-occurrence publication displacement allowance, not a fitted
+    # recognition tolerance: the pattern must reconstruct the public member centres.
+    if any(
+        math.dist(point, target) > 0.002 for (_, point), target in zip(pairs, expected, strict=True)
+    ):
+        return None
+    return projected
+
+
 def _section_patterns(patterns, recesses, context, evidence, projected_regions=None):
     result: list[SectionRecessArray | SectionRecessGrid] = []
     for pattern in patterns:
@@ -1262,38 +1408,23 @@ def _section_patterns(patterns, recesses, context, evidence, projected_regions=N
         ]
         if any(len(match) != 1 for match in matches):
             continue  # a pattern cannot refer to unproved or ambiguously projected geometry
-        members = tuple(match[0].index for match in matches)
-        if len(set(members)) != len(members):
+        occurrences = tuple(match[0] for match in matches)
+        if len({record.index for record in occurrences}) != len(occurrences):
             continue
-        if isinstance(pattern, PocketArray):
-            result.append(SectionRecessArray(members, pattern.pitch, pattern.direction))
-        else:
-            u, v = plane_axes(pattern.pockets[0].depth_axis)
-            cosine, sine = (
-                math.cos(math.radians(pattern.angle)),
-                math.sin(math.radians(pattern.angle)),
-            )
-            col_direction = cast(
-                tuple[float, float, float],
-                tuple(cosine * a + sine * b for a, b in zip(u, v, strict=True)),
-            )
-            row_direction = cast(
-                tuple[float, float, float],
-                tuple(-sine * a + cosine * b for a, b in zip(u, v, strict=True)),
-            )
-            result.append(
-                SectionRecessGrid(
-                    members,
-                    pattern.rows,
-                    pattern.cols,
-                    pattern.row_pitch,
-                    pattern.col_pitch,
-                    row_direction,
-                    col_direction,
-                    pattern.center,
-                )
-            )
-    return tuple(result)
+        projected = _project_section_pattern(pattern, occurrences)
+        if projected is not None and projected not in result:
+            result.append(projected)
+    # Distinct legacy specification groups can resolve to the same public region.
+    # Apply the existing largest-first, one-pattern-per-member policy after that join,
+    # so a duplicate row array cannot accompany its complete grid.
+    result.sort(key=lambda pattern: -len(pattern.members))
+    allocated: list[SectionRecessArray | SectionRecessGrid] = []
+    used: set[int] = set()
+    for pattern in result:
+        if not used.intersection(pattern.members):
+            allocated.append(pattern)
+            used.update(pattern.members)
+    return tuple(allocated)
 
 
 def _project_recess_records(records, projector, *, context, evidence):

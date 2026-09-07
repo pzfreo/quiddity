@@ -154,6 +154,19 @@ must not publish two authoritative values for the same measurement. Wall draft o
 that prevents proof of a constant base support causes refusal; a future lofted or station-based
 geometry requires its own decision.
 
+For legacy prismatic pockets, a curved cap witness establishes a blind void but does not
+establish a planar physical termination (#556). Publication requires an original planar floor
+in the accepted constituent evidence, aligned with the capped ends of the original wall
+supports and within the existing publication allowance of the serialized end. A floor blend's
+tangent level fails that proof and produces an `unsupported_support_geometry` refusal while
+retaining source evidence and separately accepted Blends. This is enforcement of the physical
+end contract, not a new representation of the blended transition.
+
+Untreated planar passage rings likewise require same-solid original stock planes at both
+ends of every wall. An almost-empty slab at a curved tangent cannot establish an open planar
+mouth. Existing separately proved entry treatments and nonplanar-end paths retain their own
+support contracts; the void probes remain additional material checks.
+
 An entry bevel may separately explain missing planar passage support without a new public
 termination schema (#540). One intact polygonal mouth supplies the base section. Observed
 opposite stock, wall and bevel planes bound a finite removed cell; its predicted bevel footprint
@@ -257,6 +270,29 @@ For example:
 Every index must be a non-negative integer within its referenced roster. Rosters are canonical and
 contain no duplicate entry. A consumer can derive reverse face-to-occurrence indices; the format
 does not serialize a second redundant association map.
+
+### Derived pattern projection (#555)
+
+SectionRecess patterns refer to the exact accepted occurrence roster after reconciliation
+and public projection. Multiple legacy detector groups may converge on those same occurrences;
+they must not create duplicate public pattern assertions.
+
+A member's reference point is its section-centroid run line at the midpoint of its published
+`run_interval`: `frame.origin + frame.run * (low + high) / 2`. For cylindrical mouths this uses
+the actual centroid-reference end intersections, not the legacy maximum-depth envelope.
+A grid's `center` is the arithmetic mean of those member reference points. Members are listed
+row-major, in increasing row then column along the published directions. Array members are
+ordered along their direction. Neither convention describes a removed-volume centroid.
+
+Legacy pitch and angle values assign cells only. Published pitches and orthonormal directions
+are derived from the accepted member reference points, so legacy rounding cannot displace a
+valid lattice. The proposed lattice must reconstruct each accepted member reference point within the existing
+0.002 mm publication displacement allowance and stay within one body. A failed or ambiguous
+occurrence join produces no pattern. After projection, identical patterns collapse and the
+existing largest-first allocation rule applies across the joined groups: each occurrence belongs
+to at most one retained pattern, so a row array cannot duplicate part of its complete grid.
+This remains a pure projection over the one completed inventory, with no new recognition pass,
+face inference, schema field or identity mechanism.
 
 The face index is neither random nor globally meaningful. It is valid only within its containing
 result document and can be resolved to a source face only while the exact recognition input and its

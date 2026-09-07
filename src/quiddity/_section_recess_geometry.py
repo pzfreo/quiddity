@@ -68,6 +68,43 @@ def _dot(left: Vector3, right: Vector3) -> float:
     return sum(a * b for a, b in zip(left, right, strict=True))
 
 
+def has_physical_planar_floor(
+    graph: FaceGraph,
+    walls: frozenset[FaceNode],
+    constituent: frozenset[FaceNode],
+    *,
+    axis: str,
+    open_sign: int,
+    published_floor: float,
+) -> bool:
+    """Require an observed plane at the capped end of the original wall support.
+
+    A ring's cap witnesses can be curved blends: they establish blindness, but their
+    tangent level does not establish a physical plane. Keep that topology evidence
+    separate from the stronger planar-end publication contract (ADRs 0019/0020).
+    """
+
+    coordinate = "xyz".index(axis)
+    end = 0 if open_sign == 1 else 1
+    for node in constituent - walls:
+        if not graph.is_planar(node):
+            continue
+        normal = graph.normal(node)
+        if normal is None or normal[coordinate] * open_sign < 1 - _DIRECTION_TOL:
+            continue
+        low, high = graph.bounds(node)[coordinate]
+        if high - low > 1e-6:
+            continue
+        floor = (low + high) / 2
+        if any(abs(graph.bounds(wall)[coordinate][end] - floor) > 1e-6 for wall in walls):
+            continue
+        # This comparison bounds publication displacement, not source recognition.
+        # The legacy centre/depth and the projected interval are separately rounded.
+        if abs(published_floor - floor) <= 0.002:
+            return True
+    return False
+
+
 def _subtract(left: Vector3, right: Vector3) -> Vector3:
     return cast(Vector3, tuple(a - b for a, b in zip(left, right, strict=True)))
 

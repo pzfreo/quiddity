@@ -72,7 +72,9 @@ def recognise_slots(
     same wall subset; cap-recovered occurrences now carry the evidence that establishes them.
     """
     solids = list(part.solids())
-    sources = solids if len(solids) > 1 else [part]
+    # STEP wrappers may also contain loose construction geometry. The actual solid
+    # supplies both discovery scope and the same body signature used by other families.
+    sources = solids or [part]
     if ledger is None:
         pairs = _body_scoped_pairs(
             sources,
@@ -99,7 +101,7 @@ def _discover_slots(
         raise _SlotAttributionError("Slot graph and writer must share one authority")
     owner = writer.graph if writer is not None else graph
     solids = list(part.solids())
-    sources = solids if len(solids) > 1 else [part]
+    sources = solids or [part]
     properties = solid_properties(owner)
     recognise_one = partial(_slot_proposals_one, face_edges=face_edges, graph=owner)
     if writer is None:
@@ -195,7 +197,7 @@ def recognise_pockets(
     rather than silently claiming nothing.
     """
     solids = list(part.solids())
-    sources = solids if len(solids) > 1 else [part]
+    sources = solids or [part]
     if ledger is None:
         pairs = _body_scoped_pairs(
             sources,
@@ -222,7 +224,7 @@ def _discover_pockets(
         raise _PocketAttributionError("Pocket graph and writer must share one authority")
     owner = writer.graph if writer is not None else graph
     solids = list(part.solids())
-    sources = solids if len(solids) > 1 else [part]
+    sources = solids or [part]
     if writer is not None:
         try:
             for face in part.faces():

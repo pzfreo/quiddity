@@ -660,7 +660,7 @@ def _discover_double_d_bores(
     """Shared public/aggregate discovery with optional write-only wall evidence."""
 
     solids = list(part.solids())
-    sources = solids if len(solids) > 1 else [part]
+    sources = solids or [part]
     proposals: list[_DoubleDBoreProposal] | None = [] if writer is not None else None
     properties = run_solid_properties(writer)
     bores = [

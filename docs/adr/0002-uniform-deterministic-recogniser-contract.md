@@ -339,6 +339,13 @@ receive `None`; traversal order, kernel handles and nearest-coordinate inference
 ambiguity. Hand-built legacy records retain the empty-tuple default. This changes no geometric
 candidate, evidence role, count or reconciliation decision.
 
+Single-solid STEP imports obey the same source-solid scope (#559). A compound wrapper may
+also carry loose construction edges or faces; its mass properties and bounds are not that
+solid's correlation key. Families scan each actual solid even when there is only one, retaining
+the original input as a compatibility fallback only when no solids exist. The complete solid
+roster still determines signature ambiguity, and source signatures are not normalized into
+persistent identifiers. This corrects key values without changing their schema or precision.
+
 ## Amendment (FaceLevel/turned-profile body correlation, issue #385)
 
 `FaceLevel` and `TurnedProfileKey` schema version 2 append the same optional, opaque `body_key`

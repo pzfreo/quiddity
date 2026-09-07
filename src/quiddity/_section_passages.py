@@ -630,6 +630,40 @@ def _void_and_open(
         return False
 
 
+def _observed_planar_ring_ends(
+    graph: FaceGraph,
+    walls: tuple[FaceNode, ...],
+    run: Vector3,
+    interval: tuple[float, float],
+    owner: SolidRef,
+) -> bool:
+    """Require physical stock planes at both ends of an untreated straight ring.
+
+    A thin void probe beyond a blend tangent can miss the vanishingly small
+    curved material there. Such a tangent is neither a stock mouth nor a plane;
+    volume probes supplement observed end geometry rather than inventing it.
+    """
+
+    for at, sign in zip(interval, (-1, 1), strict=True):
+        for wall in walls:
+            for neighbour in graph.neighbours(wall):
+                if not graph.is_planar(neighbour):
+                    continue
+                normal = graph.normal(neighbour)
+                if normal is None or _dot(normal, run) * sign < 1 - _DIRECTION_TOL:
+                    continue
+                span = _face_interval(graph, neighbour, run)
+                if (
+                    span is not None
+                    and all(abs(value - at) <= _INTERVAL_TOL for value in span)
+                    and graph.common_valid_solid((*walls, neighbour)) == owner
+                ):
+                    break
+            else:
+                return False
+    return True
+
+
 def _ordered_cycle(
     members: tuple[FaceNode, ...],
     adjacency: dict[FaceNode, set[FaceNode]],
@@ -774,6 +808,8 @@ def section_ring_proposals(part: Part, graph: FaceGraph) -> tuple[SectionRingPro
                     )
                 )
             except ValueError:
+                continue
+            if not _observed_planar_ring_ends(graph, order, base.run, (low, high), solid):
                 continue
             if not _void_and_open(
                 graph.solid_shape(solid), frame, (low, high), section, properties=graph

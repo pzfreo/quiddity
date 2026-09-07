@@ -201,7 +201,8 @@ def test_a_graph_supplies_the_run_cache_the_probes_use() -> None:
 _SENTINEL_PART = CORPUS / "nist" / "nist_ctc_01_asme1_rd.stp"
 _PROBE_BOOLEANS_UNDISTRIBUTED = 1772
 _PROBE_BOOLEANS_BEFORE = 56
-_PROBE_BOOLEANS = 27
+# #556 rejects a ring without observed planar ends before its interior Boolean (27 -> 26).
+_PROBE_BOOLEANS = 26
 
 
 def test_one_census_builds_no_more_probe_booleans_than_it_needs(monkeypatch) -> None:

@@ -573,6 +573,7 @@ def _recognise_one(
     whole_stock: bool = False,
     axis: str = "z",
     graph: GeometryGraph | None = None,
+    source_faces: frozenset[FaceRef] | None = None,
 ) -> list[_PolygonalProposal]:
     tol = _TOL if tol is None else tol
     axis_index = _AXIS_INDEX[axis]
@@ -597,6 +598,8 @@ def _recognise_one(
             raise ValueError("supplied Polygonal Boss graph does not exactly match the part")
 
     sides = _principal_side_faces(graph, tol, axis_index=axis_index)
+    if source_faces is not None:
+        sides = [face for face in sides if face in source_faces]
     if len(sides) < 6:
         return []
     blend_bridges = (
@@ -774,20 +777,26 @@ def _discover_polygonal_bosses(
     """Shared Polygonal Boss discovery with optional aggregate evidence issuance."""
 
     solids = list(part.solids())
-    sources = solids if len(solids) > 1 else [part]
+    sources = solids or [part]
     shared = graph if len(sources) == 1 else None
     proposals: list[_PolygonalProposal] = []
     for solid in sources:
         owner = shared if shared is not None else GeometryGraph(solid)
+        # Keep the validated caller graph and its cached evidence, but select side
+        # faces only from the actual solid. Loose STEP faces are not boss supports.
+        source_faces = (
+            frozenset(owner.ref(face) for face in solid.faces()) if shared is not None else None
+        )
         for axis in ("z", "x", "y"):
             proposals.extend(
                 proposal
                 for proposal in _recognise_one(
-                    solid,
+                    part if shared is not None else solid,
                     tol=tol,
                     angle_tol=angle_tol,
                     axis=axis,
                     graph=owner,
+                    source_faces=source_faces,
                 )
                 if isinstance(proposal.record, PolygonalBoss)
             )
