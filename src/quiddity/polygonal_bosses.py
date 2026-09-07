@@ -774,7 +774,7 @@ def _discover_polygonal_bosses(
     """Shared Polygonal Boss discovery with optional aggregate evidence issuance."""
 
     solids = list(part.solids())
-    sources = solids if len(solids) > 1 else [part]
+    sources = solids or [part]
     shared = graph if len(sources) == 1 else None
     proposals: list[_PolygonalProposal] = []
     for solid in sources:

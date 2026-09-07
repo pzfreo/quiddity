@@ -2,6 +2,10 @@
 
 ## Next release
 
+- Use actual source solids for single-solid imports so loose STEP construction geometry
+  cannot change a recess body key or disagree with other families. Related solid-scoped
+  discovery uses the same input rule; open-shell compatibility remains unchanged (#559).
+
 - Refuse a blended pocket floor whose wall-tangent level cannot be proved as a physical
   planar cap, retaining source evidence and separate Blend occurrences. Require observed
   stock planes for untreated straight passage ends so the same tangent cannot be reported

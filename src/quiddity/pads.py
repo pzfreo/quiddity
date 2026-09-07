@@ -743,7 +743,7 @@ def _discover_rectangular_pads(
         raise ValueError("Pad geometry and evidence writer belong to different runs")
 
     solids = list(part.solids())
-    sources = solids if len(solids) > 1 else [part]
+    sources = solids or [part]
     properties = run_solid_properties(writer)
     occurrences: list[tuple[RaisedPad, tuple[_PadProposal, ...]]] = []
     for solid in sources:
