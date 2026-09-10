@@ -1,6 +1,6 @@
 # Release notes
 
-## Unreleased
+## 0.2.7 — Quiddity
 
 - Require circumferential cylinder support to establish each turned-profile axis line.
   Reject rounded plate corners and parallel offset cylinders as stepped shafts, preserving
