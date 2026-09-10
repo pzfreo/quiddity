@@ -15,10 +15,12 @@ instead gives each cylinder's true axial span (``s_lo``/``s_hi``) and an
 
 Algorithm:
 
-1. Take the **external** cylinders on the dominant turning axis (≥2 distinct
-   diameters, else the part is not a stepped turned part → ``None``). Internal
-   bores are excluded by the ``external`` flag, so a bored shaft is handled and
-   a blind bore's flat bottom never reads as a shoulder.
+1. Establish the dominant turning axis from **external** cylinders with sufficient
+   circumferential support. Partition by physical axis line (≥2 distinct diameters
+   per line), retaining partial bands only on these established lines. This keeps
+   shaft segments interrupted by flats while preventing unrelated corner blends
+   or parallel offset cylinders from establishing one coaxial profile. Internal
+   bores are excluded by the ``external`` flag.
 2. The shoulders/end faces are the part's transverse planar faces (normal along
    the axis). Keep a face only when its outer radius **reaches the local OD
    silhouette** (the max external-band radius spanning that axial position,
@@ -39,6 +41,7 @@ from functools import total_ordering
 from quiddity._body_identity import BodyKey, unambiguous_body_keys
 from quiddity._candidates import FamilyId
 from quiddity._claims import ClaimLedger, EvidenceWriter
+from quiddity._cylinder_substrate import _line_key, full_cylinders
 from quiddity._features import analyse_cylinders
 from quiddity._record import Record
 from quiddity._solid_properties import (
@@ -332,14 +335,46 @@ def _turned_step_proposals_one(
     body_key: BodyKey | None,
     properties: SolidProperties | None = None,
 ) -> list[tuple[TurnedStep, list[CylinderEvidence]]]:
-    """Propose one valid-solid turned profile from prepartitioned cylinder evidence."""
+    """Propose body-local coaxial profiles from supported external cylinder bands."""
 
     z_cyls, cross_cyls = cyls
+    # Reuse the hole/boss substrate's angular support rule. It combines split
+    # patches on one cylinder, while excluding quarter-circle plate corners.
+    # Filter before selecting the axis: face counts from blends are not evidence
+    # of a dominant turning direction.
     ext = [c for c in (*z_cyls, *cross_cyls) if c.get("external")]
-    if not ext:
+    supported = full_cylinders(ext)
+    if not supported:
         return []
-    axis, _ = Counter(c["axis"] for c in ext).most_common(1)[0]
-    bands = [c for c in ext if c["axis"] == axis]
+    axis, _ = Counter(c["axis"] for c in supported).most_common(1)[0]
+    supported_lines = {_line_key(c) for c in supported if c["axis"] == axis}
+    # Once a shaft line is established, interrupted bands on that same line
+    # still belong to its ladder. In particular, the real string_post fixture
+    # has two flats leaving less than half a turn on its narrowest segment.
+    groups: dict[tuple, list[CylinderEvidence]] = {}
+    for band in ext:
+        key = _line_key(band)
+        if key in supported_lines:
+            groups.setdefault(key, []).append(band)
+    return [
+        proposal
+        for key in sorted(groups)
+        for proposal in _turned_step_proposals_coaxial(
+            part, axis=axis, bands=groups[key], body_key=body_key, properties=properties
+        )
+    ]
+
+
+def _turned_step_proposals_coaxial(
+    part: Part,
+    *,
+    axis: str,
+    bands: list[CylinderEvidence],
+    body_key: BodyKey | None,
+    properties: SolidProperties | None = None,
+) -> list[tuple[TurnedStep, list[CylinderEvidence]]]:
+    """Read shoulders and local diameters within one supported physical axis line."""
+
     if len({round(c["diameter"], 2) for c in bands}) < 2:
         return []  # one OD → not a stepped turned part
     idx = "xyz".index(axis)

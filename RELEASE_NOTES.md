@@ -1,5 +1,12 @@
 # Release notes
 
+## Unreleased
+
+- Require circumferential cylinder support to establish each turned-profile axis line.
+  Reject rounded plate corners and parallel offset cylinders as stepped shafts, preserving
+  plate discovery on their solids. Retain interrupted bands on an established shaft axis,
+  including the real tuner post's two-flat segment (#586).
+
 ## 0.2.6 — Quiddity
 
 - Add same-run planar outer-profile inspection with body-owned ordered line/arc supports,
