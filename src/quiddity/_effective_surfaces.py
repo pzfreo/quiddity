@@ -251,6 +251,10 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "truthful open-chain recognition requires original planar, cylindrical and edge curves",
     ),
+    "turned": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "native shoulder-plane fast path; spline faces require certified effective planes",
+    ),
 }
 
 # Function/role/ordinal identities freeze every decision without depending on source line numbers.
@@ -846,6 +850,10 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
     "_outer_profile_geometry:_read_profile:geom_type:4": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "exact original line versus circular-arc value projection",
+    ),
+    "turned:_turned_step_proposals_coaxial:adaptor:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "read native shoulder planes; delegate BSpline/Bezier planarity to the effective query",
     ),
 }
 
