@@ -1,5 +1,12 @@
 # Release notes
 
+## Unreleased
+
+- Require proved planar shoulders and coalesce adjacent equal-diameter turned steps.
+  Modelled thread flanks no longer create artificial shoulder stations: the reported
+  connector produces seven nominal-OD intervals instead of 101, retaining all thread-crest
+  source patches. Valid partial profiles and axial gaps remain supported (#587).
+
 ## 0.2.7 — Quiddity
 
 - Require circumferential cylinder support to establish each turned-profile axis line.

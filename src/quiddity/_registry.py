@@ -813,7 +813,12 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         always,
         _simple(
             lambda s: list(
-                recognise_turned_steps(s.context.part, cyls=s.cylinders, ledger=s.writer)
+                recognise_turned_steps(
+                    s.context.part,
+                    cyls=s.cylinders,
+                    ledger=s.writer,
+                    face_surfaces=s.context.face_surfaces,
+                )
             )
         ),
         Counted("step"),
