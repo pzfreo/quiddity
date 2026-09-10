@@ -29,20 +29,33 @@ Algorithm:
    The allowance tolerates the chamfers that shrink a real shoulder face below
    the nominal OD.
 3. Sorted shoulder positions delimit the steps; each step carries the local OD.
+   Coalesce adjacent intervals of identical diameter on the same physical profile,
+   retaining their source bands. Unsupported axial gaps remain gaps.
 """
 
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterable
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass, replace
 from functools import total_ordering
 
+from OCP.BRepAdaptor import BRepAdaptor_Surface
+from OCP.GeomAbs import GeomAbs_BezierSurface, GeomAbs_BSplineSurface, GeomAbs_Plane
+from OCP.Standard import Standard_Failure
+
+from quiddity._analytic_surfaces import SurfaceKind, validated_parameters
 from quiddity._body_identity import BodyKey, unambiguous_body_keys
 from quiddity._candidates import FamilyId
 from quiddity._claims import ClaimLedger, EvidenceWriter
 from quiddity._cylinder_substrate import _line_key, full_cylinders
+from quiddity._effective_surfaces import (
+    AnalyticSurfaceFact,
+    EffectiveFaceSurfaceQuery,
+    effective_faces_for_part,
+)
 from quiddity._features import analyse_cylinders
+from quiddity._geometry import _axis_direction_is_aligned, _axis_letter_of
 from quiddity._record import Record
 from quiddity._solid_properties import (
     SolidProperties,
@@ -51,9 +64,6 @@ from quiddity._solid_properties import (
 )
 from quiddity._typing import CylinderEvidence, CylinderInventory, Part
 
-# A face's axial position counts as on a band edge / its normal counts as
-# axis-aligned within these tolerances (mm / unit-vector component).
-_AXIS_NORMAL_TOL = 0.05
 # Pad a band's [s_lo, s_hi] when asking "what is the OD here", so a shoulder face sitting
 # exactly at a (chamfer-shortened) band edge still sees that band's OD.
 #
@@ -158,8 +168,8 @@ class TurnedProfile(Record):
         empty (a non-turned part). The steps must be **coaxial** — a mixed-axis input is a
         programming error and raises (it would otherwise silently pick one axis and
         misrepresent the rest). Steps are sorted by ``lo`` so ``shoulders`` is correct
-        regardless of input order; contiguity / non-overlap is a caller precondition (the
-        recogniser guarantees it — this aggregate does not re-validate spans)."""
+        regardless of input order. Gaps are allowed; non-overlap is a caller precondition
+        (the recogniser guarantees it — this aggregate does not re-validate spans)."""
         steps = tuple(steps)
         if not steps:
             return None
@@ -261,6 +271,7 @@ def recognise_turned_steps(
     *,
     cyls: CylinderInventory | None = None,
     ledger: ClaimLedger | EvidenceWriter | None = None,
+    face_surfaces: EffectiveFaceSurfaceQuery | None = None,
 ) -> list[TurnedStep]:
     """Recognise the axial steps of a stepped turned ``part``.
 
@@ -271,6 +282,7 @@ def recognise_turned_steps(
 
     Pass *cyls* — a precomputed ``analyse_cylinders(part)`` result — to avoid
     re-scanning the solid, matching :func:`recognise_holes`'s dependency-injection contract.
+    *face_surfaces* reuses the run's certified surface query for spline shoulder planes.
 
     *ledger* records the bands a step was **established by**: the widest external bands lying
     over its span, which are what set its diameter. The shoulder planes that set ``lo`` and
@@ -279,8 +291,17 @@ def recognise_turned_steps(
 
     A rung whose band is also a groove is not dropped -- the ladder is a profile, and a profile
     with a hole in it describes a different shaft. See :mod:`quiddity._reconcile`.
+    The returned profile can still be partial: unsupported intervals are omitted,
+    so its steps need not cover the body's full axial extent.
     """
-    inventory = cyls if cyls is not None else analyse_cylinders(part)
+
+    def get_face_surfaces() -> EffectiveFaceSurfaceQuery:
+        nonlocal face_surfaces
+        if face_surfaces is None:
+            face_surfaces = effective_faces_for_part(part)
+        return face_surfaces
+
+    inventory = cyls if cyls is not None else analyse_cylinders(part, face_surfaces=face_surfaces)
     properties = run_solid_properties(ledger)
     scopes = list(part.solids()) or [part]
     body_keys = unambiguous_body_keys(scopes, require_valid_solid=True, properties=properties)
@@ -291,7 +312,13 @@ def recognise_turned_steps(
             [item for item in inventory[1] if len(scopes) == 1 or item["solid_idx"] == solid_idx],
         )
         proposals.extend(
-            _turned_step_proposals_one(scope, cyls=scoped, body_key=body_key, properties=properties)
+            _turned_step_proposals_one(
+                scope,
+                cyls=scoped,
+                body_key=body_key,
+                properties=properties,
+                get_face_surfaces=get_face_surfaces,
+            )
         )
     if ledger is not None:
         # Bind and validate the complete family before publishing any occurrence. A malformed
@@ -334,6 +361,7 @@ def _turned_step_proposals_one(
     cyls: CylinderInventory,
     body_key: BodyKey | None,
     properties: SolidProperties | None = None,
+    get_face_surfaces: Callable[[], EffectiveFaceSurfaceQuery],
 ) -> list[tuple[TurnedStep, list[CylinderEvidence]]]:
     """Propose body-local coaxial profiles from supported external cylinder bands."""
 
@@ -360,7 +388,12 @@ def _turned_step_proposals_one(
         proposal
         for key in sorted(groups)
         for proposal in _turned_step_proposals_coaxial(
-            part, axis=axis, bands=groups[key], body_key=body_key, properties=properties
+            part,
+            axis=axis,
+            bands=groups[key],
+            body_key=body_key,
+            properties=properties,
+            get_face_surfaces=get_face_surfaces,
         )
     ]
 
@@ -372,6 +405,7 @@ def _turned_step_proposals_coaxial(
     bands: list[CylinderEvidence],
     body_key: BodyKey | None,
     properties: SolidProperties | None = None,
+    get_face_surfaces: Callable[[], EffectiveFaceSurfaceQuery],
 ) -> list[tuple[TurnedStep, list[CylinderEvidence]]]:
     """Read shoulders and local diameters within one supported physical axis line."""
 
@@ -429,19 +463,89 @@ def _turned_step_proposals_coaxial(
         over = bands_over(pos)
         return over[0]["diameter"] / 2 if over else 0.0
 
+    planes = _shoulder_stations(part, profile, local_od, get_face_surfaces)
+    if len(planes) < 3:  # fewer than two steps
+        return []
+    # A segment whose midpoint has no external band over it (`local_od` → 0) is a
+    # gap between disconnected bands, not a real step — drop it so it never renders
+    # as a phantom ø0 diameter.
+    found: list[tuple[TurnedStep, list[CylinderEvidence]]] = []
+    for i in range(len(planes) - 1):
+        # One selection, read twice: the diameter and the faces behind it must be the same
+        # bands, and calling `bands_over` again would only invite them to stop being.
+        over = bands_over((planes[i] + planes[i + 1]) / 2)
+        if over:
+            # Shoulder filtering must not discard source patches elsewhere in
+            # the same nominal-OD interval (e.g. split cylindrical thread crests).
+            over = [
+                band
+                for band in bands
+                if band["diameter"] == over[0]["diameter"]
+                and band["s_hi"] > planes[i]
+                and band["s_lo"] < planes[i + 1]
+            ] or over  # Preserve evidence selected only by the chamfer span allowance.
+        step = TurnedStep(
+            axis=axis,
+            lo=planes[i],
+            hi=planes[i + 1],
+            diameter=over[0]["diameter"] if over else 0.0,
+            profile=profile,
+        )
+        if step.diameter > 0:
+            if found and found[-1][0].hi == step.lo and found[-1][0].diameter == step.diameter:
+                previous, sources = found[-1]
+                # Selections refer to original inventory entries. Preserve the
+                # union when a transverse internal face did not change the OD.
+                seen = {id(band) for band in sources}
+                sources = sources + [band for band in over if id(band) not in seen]
+                found[-1] = (replace(previous, hi=step.hi), sources)
+            else:
+                found.append((step, over))
+    if len(found) < 2:  # fewer than two real steps → nothing to dimension axially
+        return []
+    return found
+
+
+def _shoulder_stations(
+    part: Part,
+    profile: TurnedProfileKey,
+    local_od: Callable[[float], float],
+    get_face_surfaces: Callable[[], EffectiveFaceSurfaceQuery],
+) -> list[float]:
+    """Prove shoulder stations before diameter coalescing can hide false subdivisions.
+
+    The radius gate is still a bounding-box test, not a proof of annularity:
+    transverse lug faces can pass it. Equal-OD coalescing removes their redundant
+    subdivisions; proving shoulders are faces of revolution remains separate work.
+    """
+    axis = profile.axis
+    idx = "xyz".index(axis)
     shoulders: set[float] = set()
     for face in part.faces():
         try:
-            nrm = face.normal_at(face.center())
-        except Exception:  # noqa: BLE001 — a face whose normal won't evaluate isn't a shoulder
+            adaptor = BRepAdaptor_Surface(face.wrapped)
+            kind = adaptor.GetType()
+            if kind == GeomAbs_Plane:
+                plane = validated_parameters(SurfaceKind.PLANE, adaptor.Plane())
+            elif kind not in (GeomAbs_BSplineSurface, GeomAbs_BezierSurface):
+                continue
+        except (Standard_Failure, RuntimeError, ValueError):
             continue
-        nv = (nrm.X, nrm.Y, nrm.Z)
-        if abs(abs(nv[idx]) - 1) > _AXIS_NORMAL_TOL or any(
-            abs(nv[j]) > _AXIS_NORMAL_TOL for j in range(3) if j != idx
-        ):
-            continue  # not transverse to the axis
+        if kind in (GeomAbs_BSplineSurface, GeomAbs_BezierSurface):
+            fact = get_face_surfaces().fact(face)
+            if not isinstance(fact, AnalyticSurfaceFact) or fact.kind is not SurfaceKind.PLANE:
+                continue
+            plane = fact.parameters
+        # A thread flank can have an almost axial normal at its centre without
+        # containing any shoulder plane. Use proved plane geometry, including
+        # certified NURBS planes, and its intersection with this shaft line.
+        nv = plane[:3]
+        if _axis_letter_of(nv) != axis or not _axis_direction_is_aligned(axis, nv):
+            continue
         bb = face.bounding_box()
-        pos = (face.center().X, face.center().Y, face.center().Z)[idx]
+        pos = (plane[3] - sum(nv[j] * profile.axis_origin[j] for j in range(3) if j != idx)) / nv[
+            idx
+        ]
         spans = ((bb.min.X, bb.max.X), (bb.min.Y, bb.max.Y), (bb.min.Z, bb.max.Z))
         outer = max(
             max(
@@ -456,26 +560,4 @@ def _turned_step_proposals_coaxial(
         if outer >= od - allowance:
             shoulders.add(round(pos, 3))
 
-    planes = sorted(shoulders)
-    if len(planes) < 3:  # fewer than two steps
-        return []
-    # A segment whose midpoint has no external band over it (`local_od` → 0) is a
-    # gap between disconnected bands, not a real step — drop it so it never renders
-    # as a phantom ø0 diameter.
-    found = []
-    for i in range(len(planes) - 1):
-        # One selection, read twice: the diameter and the faces behind it must be the same
-        # bands, and calling `bands_over` again would only invite them to stop being.
-        over = bands_over((planes[i] + planes[i + 1]) / 2)
-        step = TurnedStep(
-            axis=axis,
-            lo=planes[i],
-            hi=planes[i + 1],
-            diameter=over[0]["diameter"] if over else 0.0,
-            profile=profile,
-        )
-        if step.diameter > 0:
-            found.append((step, over))
-    if len(found) < 2:  # fewer than two real steps → nothing to dimension axially
-        return []
-    return found
+    return sorted(shoulders)
