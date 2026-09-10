@@ -7,7 +7,11 @@ from pathlib import Path
 import pytest
 from attribution_audit import attributed_run
 from build123d import Box, Compound, Cylinder, GeomType, Pos, Rotation, Solid, import_step
-from OCP.BRepBuilderAPI import BRepBuilderAPI_NurbsConvert, BRepBuilderAPI_Sewing
+from OCP.BRepBuilderAPI import (
+    BRepBuilderAPI_MakeSolid,
+    BRepBuilderAPI_NurbsConvert,
+    BRepBuilderAPI_Sewing,
+)
 from OCP.TopoDS import TopoDS
 
 from quiddity import recognise_turned_steps
@@ -85,8 +89,9 @@ def _nurbs_shouldered_shaft():
             else face.wrapped
         )
     sewing.Perform()
-    nurbs = Solid(TopoDS.Shell_s(sewing.SewedShape()))
+    nurbs = Solid(BRepBuilderAPI_MakeSolid(TopoDS.Shell_s(sewing.SewedShape())).Solid())
     assert nurbs.is_valid
+    assert len(nurbs.solids()) == 1
     return nurbs
 
 
