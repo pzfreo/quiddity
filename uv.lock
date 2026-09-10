@@ -1301,7 +1301,7 @@ wheels = [
 
 [[package]]
 name = "quiddity"
-version = "0.2.7"
+version = "0.2.8.dev0"
 source = { editable = "." }
 dependencies = [
     { name = "build123d" },
