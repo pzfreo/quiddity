@@ -36,7 +36,7 @@ Algorithm:
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
 from functools import total_ordering
 
@@ -294,6 +294,13 @@ def recognise_turned_steps(
     The returned profile can still be partial: unsupported intervals are omitted,
     so its steps need not cover the body's full axial extent.
     """
+
+    def get_face_surfaces() -> EffectiveFaceSurfaceQuery:
+        nonlocal face_surfaces
+        if face_surfaces is None:
+            face_surfaces = effective_faces_for_part(part)
+        return face_surfaces
+
     inventory = cyls if cyls is not None else analyse_cylinders(part, face_surfaces=face_surfaces)
     properties = run_solid_properties(ledger)
     scopes = list(part.solids()) or [part]
@@ -310,7 +317,7 @@ def recognise_turned_steps(
                 cyls=scoped,
                 body_key=body_key,
                 properties=properties,
-                face_surfaces=face_surfaces,
+                get_face_surfaces=get_face_surfaces,
             )
         )
     if ledger is not None:
@@ -354,7 +361,7 @@ def _turned_step_proposals_one(
     cyls: CylinderInventory,
     body_key: BodyKey | None,
     properties: SolidProperties | None = None,
-    face_surfaces: EffectiveFaceSurfaceQuery | None = None,
+    get_face_surfaces: Callable[[], EffectiveFaceSurfaceQuery],
 ) -> list[tuple[TurnedStep, list[CylinderEvidence]]]:
     """Propose body-local coaxial profiles from supported external cylinder bands."""
 
@@ -386,7 +393,7 @@ def _turned_step_proposals_one(
             bands=groups[key],
             body_key=body_key,
             properties=properties,
-            face_surfaces=face_surfaces,
+            get_face_surfaces=get_face_surfaces,
         )
     ]
 
@@ -398,7 +405,7 @@ def _turned_step_proposals_coaxial(
     bands: list[CylinderEvidence],
     body_key: BodyKey | None,
     properties: SolidProperties | None = None,
-    face_surfaces: EffectiveFaceSurfaceQuery | None = None,
+    get_face_surfaces: Callable[[], EffectiveFaceSurfaceQuery],
 ) -> list[tuple[TurnedStep, list[CylinderEvidence]]]:
     """Read shoulders and local diameters within one supported physical axis line."""
 
@@ -456,6 +463,63 @@ def _turned_step_proposals_coaxial(
         over = bands_over(pos)
         return over[0]["diameter"] / 2 if over else 0.0
 
+    planes = _shoulder_stations(part, profile, local_od, get_face_surfaces)
+    if len(planes) < 3:  # fewer than two steps
+        return []
+    # A segment whose midpoint has no external band over it (`local_od` → 0) is a
+    # gap between disconnected bands, not a real step — drop it so it never renders
+    # as a phantom ø0 diameter.
+    found: list[tuple[TurnedStep, list[CylinderEvidence]]] = []
+    for i in range(len(planes) - 1):
+        # One selection, read twice: the diameter and the faces behind it must be the same
+        # bands, and calling `bands_over` again would only invite them to stop being.
+        over = bands_over((planes[i] + planes[i + 1]) / 2)
+        if over:
+            # Shoulder filtering must not discard source patches elsewhere in
+            # the same nominal-OD interval (e.g. split cylindrical thread crests).
+            over = [
+                band
+                for band in bands
+                if band["diameter"] == over[0]["diameter"]
+                and band["s_hi"] > planes[i]
+                and band["s_lo"] < planes[i + 1]
+            ] or over  # Preserve evidence selected only by the chamfer span allowance.
+        step = TurnedStep(
+            axis=axis,
+            lo=planes[i],
+            hi=planes[i + 1],
+            diameter=over[0]["diameter"] if over else 0.0,
+            profile=profile,
+        )
+        if step.diameter > 0:
+            if found and found[-1][0].hi == step.lo and found[-1][0].diameter == step.diameter:
+                previous, sources = found[-1]
+                # Selections refer to original inventory entries. Preserve the
+                # union when a transverse internal face did not change the OD.
+                seen = {id(band) for band in sources}
+                sources = sources + [band for band in over if id(band) not in seen]
+                found[-1] = (replace(previous, hi=step.hi), sources)
+            else:
+                found.append((step, over))
+    if len(found) < 2:  # fewer than two real steps → nothing to dimension axially
+        return []
+    return found
+
+
+def _shoulder_stations(
+    part: Part,
+    profile: TurnedProfileKey,
+    local_od: Callable[[float], float],
+    get_face_surfaces: Callable[[], EffectiveFaceSurfaceQuery],
+) -> list[float]:
+    """Prove shoulder stations before diameter coalescing can hide false subdivisions.
+
+    The radius gate is still a bounding-box test, not a proof of annularity:
+    transverse lug faces can pass it. Equal-OD coalescing removes their redundant
+    subdivisions; proving shoulders are faces of revolution remains separate work.
+    """
+    axis = profile.axis
+    idx = "xyz".index(axis)
     shoulders: set[float] = set()
     for face in part.faces():
         try:
@@ -468,9 +532,7 @@ def _turned_step_proposals_coaxial(
         except (Standard_Failure, RuntimeError, ValueError):
             continue
         if kind in (GeomAbs_BSplineSurface, GeomAbs_BezierSurface):
-            if face_surfaces is None:
-                face_surfaces = effective_faces_for_part(part)
-            fact = face_surfaces.fact(face)
+            fact = get_face_surfaces().fact(face)
             if not isinstance(fact, AnalyticSurfaceFact) or fact.kind is not SurfaceKind.PLANE:
                 continue
             plane = fact.parameters
@@ -498,44 +560,4 @@ def _turned_step_proposals_coaxial(
         if outer >= od - allowance:
             shoulders.add(round(pos, 3))
 
-    planes = sorted(shoulders)
-    if len(planes) < 3:  # fewer than two steps
-        return []
-    # A segment whose midpoint has no external band over it (`local_od` → 0) is a
-    # gap between disconnected bands, not a real step — drop it so it never renders
-    # as a phantom ø0 diameter.
-    found: list[tuple[TurnedStep, list[CylinderEvidence]]] = []
-    for i in range(len(planes) - 1):
-        # One selection, read twice: the diameter and the faces behind it must be the same
-        # bands, and calling `bands_over` again would only invite them to stop being.
-        over = bands_over((planes[i] + planes[i + 1]) / 2)
-        if over:
-            # Shoulder filtering must not discard source patches elsewhere in
-            # the same nominal-OD interval (e.g. split cylindrical thread crests).
-            over = [
-                band
-                for band in bands
-                if band["diameter"] == over[0]["diameter"]
-                and band["s_hi"] > planes[i]
-                and band["s_lo"] < planes[i + 1]
-            ] or over
-        step = TurnedStep(
-            axis=axis,
-            lo=planes[i],
-            hi=planes[i + 1],
-            diameter=over[0]["diameter"] if over else 0.0,
-            profile=profile,
-        )
-        if step.diameter > 0:
-            if found and found[-1][0].hi == step.lo and found[-1][0].diameter == step.diameter:
-                previous, sources = found[-1]
-                # Selections refer to original inventory entries. Preserve the
-                # union when a transverse internal face did not change the OD.
-                seen = {id(band) for band in sources}
-                sources = sources + [band for band in over if id(band) not in seen]
-                found[-1] = (replace(previous, hi=step.hi), sources)
-            else:
-                found.append((step, over))
-    if len(found) < 2:  # fewer than two real steps → nothing to dimension axially
-        return []
-    return found
+    return sorted(shoulders)

@@ -1,9 +1,17 @@
 # CADGenBench generated-part regressions
 
-These are the generated build123d submission outputs cited by Quiddity #587 and
-Draftwright #1132, not the benchmark reference drawings. Copied without modification from
-the local `cadgenbench-build123d/submit/opus5-xhigh-minimal-mcp-drawing-evidence-generation49-complete-r1`
-submission; the same files also occur in the drawing-evidence submission.
+These are generated build123d submission outputs, not benchmark reference drawings.
+The canonical submission cited by Quiddity #587 and independently verified in PR #591 is
+`cadgenbench-build123d/submit/build123d-mcp-0.3.85.dev0-opus-5-xhigh-complete81-r1`.
+The review also verified identical bytes in
+`build123d-mcp-0.3.85.dev0-opus-5-xhigh-recognition-guided-complete81-r1`.
+
+The files were copied without modification from this workspace's local submission named
+`opus5-xhigh-minimal-mcp-drawing-evidence-generation49-complete-r1`; that directory exists
+in this workspace but is not present in the reviewer's checkout. Submission directory
+names are checkout-specific; the hashes below identify the exact geometry in all copies.
+These generated outputs come from the author's Apache-2.0 CADGenBench harness; see
+`THIRD_PARTY_NOTICES.md` for their distinction from third-party reference geometry.
 
 | File | Original case | SHA-256 |
 |---|---|---|

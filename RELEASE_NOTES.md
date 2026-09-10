@@ -1,11 +1,16 @@
 # Release notes
 
-## Unreleased
+## 0.2.8 — Quiddity
 
 - Require proved planar shoulders and coalesce adjacent equal-diameter turned steps.
   Modelled thread flanks no longer create artificial shoulder stations: the reported
   connector produces seven nominal-OD intervals instead of 101, retaining all thread-crest
-  source patches. Valid partial profiles and axial gaps remain supported (#587).
+  source patches. NIST CTC-05 now has three steps instead of five: its adjacent
+  diameter-304.8 intervals merge into z=25.4–127.0. Consumers pinning the old
+  subdivisions (including Draftwright's CTC-05 format-invariance test) must update
+  their expected profiles. Shoulder normals now use the shared axis-alignment
+  tolerance of 1e-3 instead of 0.05, rejecting planes tilted 2° from the turning axis.
+  Valid partial profiles and axial gaps remain supported (#587).
 
 ## 0.2.7 — Quiddity
 

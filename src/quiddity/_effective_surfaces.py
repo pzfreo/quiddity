@@ -851,7 +851,7 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "exact original line versus circular-arc value projection",
     ),
-    "turned:_turned_step_proposals_coaxial:adaptor:1": (
+    "turned:_shoulder_stations:adaptor:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "read native shoulder planes; delegate BSpline/Bezier planarity to the effective query",
     ),

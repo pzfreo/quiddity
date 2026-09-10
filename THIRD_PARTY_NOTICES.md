@@ -34,14 +34,21 @@ bundles dependency binaries must review and satisfy the corresponding binary-dis
 Most of the STEP models under `tests/corpus` are third-party geometry redistributed here so
 that this project's tests run against parts it did not author. They are **not** part of the
 published wheel or source distribution — `pyproject.toml` excludes `/tests/corpus` from the
-sdist and the wheel packages only `src/b123d_recognisers` — and they carry their own terms,
+sdist and the wheel packages only `src/quiddity` — and they carry their own terms,
 which the Apache-2.0 licence of this project does not alter.
 
-`tests/corpus/gramel` is the exception and is listed here only so this section stays true of
-the whole directory: it is the author's own part, under this project's own licence, and needs
+`tests/corpus/gramel` is one exception: it is the author's own part, under this project's own licence, and needs
 no third-party notice. It is vendored for the same reason the others are — the two third-party
 corpora are milled prismatic parts and contain no turned geometry at all, so the turned
 families had no real part behind them.
+
+### Generated CADGenBench submissions (`tests/corpus/cadgenbench`)
+
+These are another exception: two generated build123d outputs from the author's Apache-2.0
+CADGenBench harness, included under this project's Apache-2.0 licence. They are not copies
+of benchmark reference drawings or third-party reference STEP models. The directory README
+records the submission identities and SHA-256 hashes. They are excluded from published
+packages along with the rest of `tests/corpus`.
 
 ### NIST MBE PMI test cases (`tests/corpus/nist`)
 

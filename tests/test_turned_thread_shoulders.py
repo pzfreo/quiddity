@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 from attribution_audit import attributed_run
-from build123d import Box, Cylinder, GeomType, Pos, Rotation, Solid, import_step
+from build123d import Box, Compound, Cylinder, GeomType, Pos, Rotation, Solid, import_step
 from OCP.BRepBuilderAPI import BRepBuilderAPI_NurbsConvert, BRepBuilderAPI_Sewing
 from OCP.TopoDS import TopoDS
 
@@ -75,7 +75,7 @@ def test_equal_diameters_across_an_axial_gap_are_not_joined():
     assert _signature(recognise_turned_steps(part)) == [(0, 5, 30), (15, 20, 30), (20, 25, 16)]
 
 
-def test_certified_nurbs_planes_still_establish_shoulders():
+def _nurbs_shouldered_shaft():
     native = Pos(0, 0, 20) * Cylinder(15, 40) + Pos(0, 0, 55) * Cylinder(8, 30)
     sewing = BRepBuilderAPI_Sewing(1e-6)
     for face in native.faces():
@@ -87,7 +87,71 @@ def test_certified_nurbs_planes_still_establish_shoulders():
     sewing.Perform()
     nurbs = Solid(TopoDS.Shell_s(sewing.SewedShape()))
     assert nurbs.is_valid
+    return nurbs
+
+
+def test_certified_nurbs_planes_still_establish_shoulders():
+    nurbs = _nurbs_shouldered_shaft()
     expected = [(0, 40, 30), (40, 70, 16)]
     assert _signature(recognise_turned_steps(nurbs)) == expected
     query = effective_faces_for_part(nurbs)
     assert _signature(recognise_turned_steps(nurbs, face_surfaces=query)) == expected
+
+
+@pytest.mark.skipif(not CORPUS.exists(), reason="Vendored STEP corpus is absent from sdist")
+def test_connector_shoulder_stations_are_proved_before_coalescing(monkeypatch):
+    import quiddity.turned as turned
+
+    part = import_step(CORPUS / "threaded_connector_109.step")
+    original = turned._shoulder_stations
+    observed = []
+
+    def observe(*args):
+        stations = original(*args)
+        observed.append(stations)
+        return stations
+
+    monkeypatch.setattr(turned, "_shoulder_stations", observe)
+    assert len(recognise_turned_steps(part)) == 7
+    # Coalescing alone gives the same seven public steps, but leaves 93 spurious
+    # B-spline-centre stations. These ten stations are the native planar faces.
+    assert observed == [[0, 57.42, 67.42, 87.42, 93.42, 113.42, 119.42, 343.13, 366.82, 420]]
+
+
+@pytest.mark.parametrize("tilt, expected", [(0, [0, 40, 70]), (2, [])])
+def test_shoulder_planes_must_align_with_the_turning_axis(tilt, expected):
+    from quiddity.turned import _shoulder_stations
+
+    native = Pos(0, 0, 20) * Cylinder(15, 40) + Pos(0, 0, 55) * Cylinder(8, 30)
+    profile = recognise_turned_steps(native)[0].profile
+    part = Rotation(0, tilt, 0) * native
+    assert _shoulder_stations(part, profile, lambda pos: 8, lambda: None) == expected
+
+
+@pytest.mark.skipif(not CORPUS.exists(), reason="Vendored STEP corpus is absent from sdist")
+def test_ctc05_coalesces_lug_subdivisions_without_closing_its_gap():
+    part = import_step(CORPUS.parent / "nist" / "nist_ctc_05_asme1_rd.stp")
+    assert _signature(recognise_turned_steps(part)) == [
+        (0, 25.4, 558.8),
+        (25.4, 127, 304.8),
+        (279.4, 482.6, 63.5),
+    ]
+
+
+def test_standalone_spline_query_is_built_once_across_solids(monkeypatch):
+    import quiddity.turned as turned
+
+    shaft = _nurbs_shouldered_shaft()
+    part = Compound(children=[shaft, Pos(100, 0, 0) * shaft])
+    original = turned.effective_faces_for_part
+    builds = []
+
+    def build(scope):
+        builds.append(scope)
+        return original(scope)
+
+    monkeypatch.setattr(turned, "effective_faces_for_part", build)
+    steps = recognise_turned_steps(part)
+    assert len(steps) == 4
+    assert len({step.profile for step in steps}) == 2
+    assert builds == [part]
