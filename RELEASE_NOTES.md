@@ -1,5 +1,18 @@
 # Release notes
 
+## Unreleased — Quiddity
+
+- Preserve separate coaxial hole occurrences across exterior gaps in a connected
+  body. Separated same-diameter stacks now require a shared original internal
+  cylindrical segment adjoining both lands and containing the bore-axis gap
+  before recombination. Oblique cross-drillings and shoulder transitions remain
+  supported; lateral cavity contact alone cannot join separate lugs. The whistle-key
+  frame reports six Ø1.1 × 2.7 through bores instead of one 53.09-deep hole.
+  Consumers may observe increased occurrence counts and shorter depths on
+  affected parts; public record fields and depth rounding are unchanged (#593).
+  Identical hole layouts on separate opening planes expose an existing derived
+  pattern limitation (#595); see the [compatibility evidence](docs/benchmarks/593-separated-coaxial-bores.md).
+
 ## 0.2.8 — Quiddity
 
 - Require proved planar shoulders and coalesce adjacent equal-diameter turned steps.
