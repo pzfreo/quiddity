@@ -4,8 +4,9 @@
 
 - Preserve separate coaxial hole occurrences across exterior gaps in a connected
   body. Separated same-diameter stacks now require a shared original internal
-  cylindrical segment at both facing ends before recombination; genuine
-  cross-drillings and shoulder transitions remain supported. The whistle-key
+  cylindrical segment adjoining both lands and containing the bore-axis gap
+  before recombination. Oblique cross-drillings and shoulder transitions remain
+  supported; lateral cavity contact alone cannot join separate lugs. The whistle-key
   frame reports six Ø1.1 × 2.7 through bores instead of one 53.09-deep hole.
   Consumers may observe increased occurrence counts and shorter depths on
   affected parts; public record fields and depth rounding are unchanged (#593).

@@ -95,6 +95,60 @@ def test_real_cross_drillings_still_join_the_interrupted_bore(crossings):
     assert cross.bottom == "through"
 
 
+@pytest.mark.parametrize("angle,offset", [(30, 0), (45, 0), (45, 2), (60, -2)])
+@pytest.mark.parametrize("placed", [False, True])
+@pytest.mark.parametrize("scale", [0.05, 1, 100])
+def test_oblique_cross_drilling_preserves_the_complete_bore(angle, offset, placed, scale):
+    part = (
+        Box(60, 60, 60)
+        - Cylinder(3, 100, rotation=(0, 90, 0))
+        - Pos(0, offset, 0) * Cylinder(4, 160, rotation=(0, angle, 0))
+    ).scale(scale)
+    if placed:
+        part = Pos(13, -7, 29) * Rot(21, 34, 17) * part
+    assert len(part.solids()) == 1 and part.is_valid
+    framed = build_framed_recognition_evidence(part)
+    assert isinstance(framed, FramedRecognitionEvidence)
+    for holes in (recognise_holes(part), framed.result.holes):
+        (bore,) = [h for h in holes if h.diameter == pytest.approx(6 * scale)]
+        assert bore.depth == pytest.approx(60 * scale)
+        assert bore.bottom == "through"
+
+
+@pytest.mark.parametrize("placed", [False, True])
+def test_interruption_containment_allows_inventory_rounding(placed):
+    part = Box(200, 200, 200) - Cylinder(0.05, 220, rotation=(0, 90, 0)) - Cylinder(50.00004, 220)
+    if placed:
+        part = Pos(13, -7, 29) * Rot(21, 34, 17) * part
+    assert len(part.solids()) == 1 and part.is_valid
+    framed = build_framed_recognition_evidence(part)
+    assert isinstance(framed, FramedRecognitionEvidence)
+    for holes in (recognise_holes(part), framed.result.holes):
+        (bore,) = [h for h in holes if h.diameter == pytest.approx(0.1)]
+        assert bore.depth == pytest.approx(200)
+        assert bore.bottom == "through"
+
+
+@pytest.mark.parametrize("placed", [False, True])
+def test_lateral_cavity_contact_does_not_bridge_exterior_air(placed):
+    tube = Pos(10, 0, 0) * Cylinder(9, 40)
+    lugs = Pos(0, 0, -18) * Box(10, 12, 4) + Pos(0, 0, 18) * Box(10, 12, 4)
+    part = (tube + lugs) - Pos(10, 0, 0) * Cylinder(8, 50) - Cylinder(3, 50)
+    # The middle slab opens the gap completely. Both bore lands still share
+    # side edges with the long cavity, whose interior excludes their axis.
+    part -= Pos(-7, 0, 0) * Box(20, 40, 32)
+    if placed:
+        part = Pos(13, -7, 29) * Rot(21, 34, 17) * part
+    assert len(part.solids()) == 1 and part.is_valid
+    framed = build_framed_recognition_evidence(part)
+    assert isinstance(framed, FramedRecognitionEvidence)
+    for holes in (recognise_holes(part), framed.result.holes):
+        bores = [h for h in holes if h.diameter == pytest.approx(6)]
+        assert len(bores) == 2
+        assert [h.depth for h in bores] == pytest.approx([4, 4])
+        assert {h.bottom for h in bores} == {"through"}
+
+
 def test_internal_cross_drilling_does_not_bridge_a_later_exterior_gap():
     left = Box(24, 24, 20) - Cylinder(2, 20) - Cylinder(4, 24, rotation=(0, 90, 0))
     right = Pos(0, 0, 30) * (Box(24, 24, 6) - Cylinder(2, 6))

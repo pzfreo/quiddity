@@ -10,12 +10,20 @@ as sufficient evidence of one interrupted bore. The whistle-key frame has one
 connected solid but six bored lugs separated by exterior air, so neither common
 solid ownership nor a void centreline midpoint distinguishes it from a cross-drilling.
 
-Recombination now requires both facing ends to meet original faces belonging to
-the same eligible internal cylindrical segment in the input inventory. Source
-membership is retained across native seam subdivision and certified recovered
-surfaces. The map is frozen before recombination; a newly merged span cannot
-become authority for a later merge. This uses existing discovery and cached end
-adjacency, without another recogniser, graph, material probe or public schema.
+Recombination now requires both lands to adjoin original faces belonging to
+the same eligible internal cylindrical segment in the input inventory. Its finite
+analytic cylinder must also contain the bore-axis interval across the gap. Exact
+source-edge adjacency avoids the limited end-classification window, which can
+miss oblique intersection rims; analytic containment rejects mere lateral contact.
+Axial bounds use the existing contiguous-segment tolerance, and radial comparison
+allows the inventory's six-significant-figure quantisation plus coordinate noise.
+This is a bounded cylindrical-source proof, not a general cavity-emptiness test.
+
+Source membership is retained across native seam subdivision and certified
+recovered surfaces. The map and segment inventory are frozen before recombination;
+a newly merged span cannot become authority for a later merge. This uses existing
+discovery and cached source adjacency, without another recogniser, graph, material
+probe or public schema.
 
 The independent cone/torus shoulder-transition branch, closed-end exclusions,
 contiguous-range tolerances and two-decimal depth publication are unchanged.
@@ -58,17 +66,20 @@ for view in (build_recognition_evidence(part), build_framed_recognition_evidence
 ## Authored regression evidence
 
 `tests/test_separated_coaxial_bores.py` supplies independent construction-defined
-geometry rather than requiring a network download in CI. Its 17 cases cover:
+geometry rather than requiring a network download in CI. Its 45 cases cover:
 
 - two, three and six lugs at different exterior spacings, with and without entry chamfers;
 - 0.05×, 1× and 100× scale plus arbitrary rigid placement through the framed evidence route;
 - STEP round-trip and six disjoint original cylindrical defining faces;
 - one and two genuine cross-drillings that must preserve the complete interrupted bore;
+- oblique and offset crossings at three scales, raw/framed routes and rigid placement;
+- lateral cavity contact that must not join two lands across exterior air;
+- a thin cross-bore near a rounded inventory-radius boundary;
 - a genuine internal interruption followed by an exterior gap in the same body;
 - native/recovered crossing cylinders subdivided into patches, with reversed injected inventory.
 
 The first separated-lug case fails on baseline source (one hole instead of two).
-All 17 cases pass with the repair. All 134 existing `test_recognition.py` and
+All 45 cases pass with the repair. All 134 existing `test_recognition.py` and
 `test_hole_attribution.py` cases also pass.
 
 ## Development corpus comparison
@@ -96,7 +107,7 @@ The final comparison used Python 3.14.7, build123d 0.11.1 and OCP 7.9.3.1 on
 macOS arm64. Both runs used installed package metadata 0.2.8. Selected-ID SHA-256:
 `f5efce2111616a9c0585c2f96a58f32aa258590d77cda3bdd744618807001fdc`.
 The repaired `_hole_features.py` SHA-256 is
-`6c1da11c87fa7ad41b9af03d5816ef85fd75ffec7176574d659aa28abee27ecf`.
+`4626e08e9a45dfc03c2a1b3eed37727704ac2c5c6980c4050b6e80a52e5de559`.
 
 ## Broader vendored regression comparison
 
@@ -124,14 +135,38 @@ HoleRecords reproduce the pattern defect on original main without this repair.
 It is tracked separately as [#595](https://github.com/pzfreo/quiddity/issues/595);
 preserving its former single circle would retain false 113 mm bore occurrences.
 
+## Independent review
+
+Independent review identified an oblique-crossing regression in the initial repair.
+The correction retains Ø6 × 60 through drilling at 45°, rejects a shared lateral
+cavity as a bridge between two Ø6 × 4 lands, and preserves a Ø0.1 × 200 crossing
+when its interruption radius rounds down in the inventory. All three findings are
+resolved. A separate 90-case authored crossing comparison matches baseline.
+
+A centred crossing with constructor rotation `(0, 60, 0)` exposed an existing
+axis-key collision on original main: nonparallel axes sharing a dominant letter
+and projected origin are combined into a false counterbore. It is tracked as
+[#597](https://github.com/pzfreo/quiddity/issues/597). The positive regression cases
+here exercise baseline-supported axes; this repair does not change `_line_key`.
+
 ## Checks
 
-- Full local suite: **7,810 passed**, **95.22%** line/branch coverage; the existing
+- Full local suite: **7,838 passed**, **95.23%** line/branch coverage; the existing
   91% coverage gate passed without adjustment.
 - Repository Ruff lint and formatting checks pass; mypy passes for 95 source files.
 - The initial broad run exposed stale editable metadata (0.2.6.dev0 versus the
   checked-in 0.2.8 manifest). `uv sync --dev --frozen` refreshed the installation;
   the complete successful run above used 0.2.8. No manifest policy was weakened.
+
+The correction's composite runtime check measured 1.730 s against the fixed
+1.191 s ceiling. Original main measured 1.721 s in the same loaded window,
+a difference of 0.5%; both checks were over budget. The machine's one-minute
+load average was 31.93, versus the below-4 condition of the checked-in baseline.
+The initial census check was also over budget (correction 24.570 s; original
+main 21.748 s as load fell). After the full suite finished, the correction's
+census check passed at 12.709 s against 13.189 s. Composite improved to 1.397 s
+but remained above 1.191 s. A passing composite runtime gate is not claimed;
+all budgets remain unchanged.
 
 Hosted platform/version checks are separate PR checks; no package release or
 Draftwright dependency-pin change is included.

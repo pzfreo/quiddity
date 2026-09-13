@@ -485,30 +485,69 @@ def _merge_stacks(
 
     - same bore diameter on both sides of one observed internal cylindrical
       segment, with neither facing end closed. The interruption's original faces
-      must meet both ends; exterior air between separate lugs is not a bridge;
+      must adjoin both lands and its finite cylinder must contain the bore-axis
+      gap; exterior air between separate lugs is not a bridge;
     - different diameters whose gap is bridged by a shoulder chamfer or
       fillet face (the steps of a counterbored hole with a deburred
       shoulder).
     """
     # The input already contains only full internal cylinder segments. Their
-    # source-face membership proves a common interruption, including a cylinder
-    # split into several patches at a seam. Keep the original inventory: merged
+    # source-face membership identifies a possible common interruption, including
+    # a cylinder split into several patches at a seam. Keep the original inventory: merged
     # spans must never become evidence for a later merge across exterior air.
+    original_segments = [seg for stack in stacks for seg in stack]
     interruptions = {
         (seg.get("solid_idx", 0), face): index
-        for index, seg in enumerate(seg for stack in stacks for seg in stack)
+        for index, seg in enumerate(original_segments)
         for face in seg["faces"]
     }
+    source_neighbours: dict[tuple[int, Face], frozenset[int]] = {}
 
     def shares_interruption(a: SegmentEvidence, b: SegmentEvidence) -> bool:
-        def sources(seg: SegmentEvidence, at: float) -> set[int]:
-            return {
-                interruptions[key]
-                for face in _end_partners(seg, at, edge_faces, cache)
-                if (key := (seg.get("solid_idx", 0), face)) in interruptions
-            }
+        def sources(seg: SegmentEvidence) -> set[int]:
+            found: set[int] = set()
+            for face in seg["faces"]:
+                key = (seg.get("solid_idx", 0), face)
+                if key not in source_neighbours:
+                    # Use exact source-edge adjacency. _end_partners is only a
+                    # bounded end-classification heuristic: an oblique crossing
+                    # rim can extend much farther axially than its search margin.
+                    # Exclude seams between patches of this same source segment.
+                    own = interruptions[key]
+                    source_neighbours[key] = frozenset(
+                        index
+                        for other in neighbours(face, edge_faces)
+                        if (index := interruptions.get((key[0], other))) is not None
+                        and index != own
+                    )
+                found.update(source_neighbours[key])
+            return found
 
-        return bool(sources(a, a["s_hi"]) & sources(b, b["s_lo"]))
+        endpoints = (_axis_point(a, a["s_hi"]), _axis_point(b, b["s_lo"]))
+        for index in sources(a) & sources(b):
+            interruption = original_segments[index]
+            tolerance = length_tol(interruption["diameter"], rel=_STACK_GAP_FRAC)
+            radius = interruption["diameter"] / 2
+            # Inventory diameters have six significant figures. Half a quantum
+            # is at most 5e-6 of the value; do not reject a genuine crossing just
+            # because its measured rim lies beyond the rounded-down radius.
+            radial_tolerance = length_tol(radius, rel=5e-6)
+            # Adjacency alone also admits a cavity running along the sides of
+            # separate lugs. Require the common source's finite cylinder to
+            # contain the bore axis across the gap. A cylinder is convex, so
+            # containment of both endpoints proves containment of the interval.
+            # This supplements source topology; exterior air alone proves nothing.
+            for point in endpoints:
+                axial = _dot(point, interruption["dir_xyz"])
+                centre = _axis_point(interruption, axial)
+                if not (
+                    interruption["s_lo"] - tolerance <= axial <= interruption["s_hi"] + tolerance
+                    and math.dist(point, centre) < radius + radial_tolerance
+                ):
+                    break
+            else:
+                return True
+        return False
 
     by_line: dict[tuple, list[list[SegmentEvidence]]] = {}
     for stack in stacks:
