@@ -290,7 +290,10 @@ def test_grouping_agrees_with_the_scan_on_every_face_of_a_real_part(sentinel_gra
 #: Across the whole census the part's ``IsSame`` count fell from 1,211,185 to 65,280.
 _ISSAME_BEFORE = 1147399
 _ISSAME = 1494
-_SHARED_OCCURRENCE_CALLS = 3138
+# #594 adds 74 cached questions while proving cylindrical seats. Both baseline
+# e122302 and the seat implementation still make 1,494 IsSame comparisons:
+# per-call cost falls from 0.4761 (3,138 calls) to 0.4651 (3,212 calls).
+_SHARED_OCCURRENCE_CALLS = 3212
 
 
 def test_one_census_pairs_occurrences_without_rescanning(monkeypatch) -> None:

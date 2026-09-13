@@ -289,6 +289,14 @@ MODULE_SEAM_EDGES = {
         "_support_patches",
         "_volume_probe",
     },
+    "_cylindrical_seats": {
+        "_adjacency",
+        "_geometry",
+        "_sections",
+        "_support_patches",
+        "_typing",
+        "_volume_probe",
+    },
     "_cylindrical_pockets": {
         "_adjacency",
         "_effective_surfaces",
@@ -299,6 +307,7 @@ MODULE_SEAM_EDGES = {
     "_section_recess_geometry": {
         "_adjacency",
         "_cylindrical_channels",
+        "_cylindrical_seats",
         "_cylindrical_end_surface",
         "_cylindrical_passages",
         "_cylindrical_pockets",
@@ -557,6 +566,7 @@ ARC_READER_SITES = {
     "src/quiddity/_entry_treatments:prove_entry_treatments:arc:3": ("exact-nonsmooth"),
     "src/quiddity/_cylindrical_pockets:_proofs:arc:1": ("exact-nonsmooth"),
     "src/quiddity/_cylindrical_pockets:_proofs:arc:2": ("exact-nonsmooth"),
+    "src/quiddity/_cylindrical_seats:_prove:arc:1": "exact-nonsmooth",
     "src/quiddity/_cylindrical_channels:_prove:arc:1": "exact-nonsmooth",
     "src/quiddity/_cylindrical_channels:_prove:arc:2": "exact-nonsmooth",
     "src/quiddity/_cylindrical_passages:_cell_proof:arc:1": "exact-nonsmooth",

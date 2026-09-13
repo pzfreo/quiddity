@@ -96,6 +96,16 @@ goldens, determinism tests, benchmarks, and installed-archive audits protect beh
 
 ## Consequences
 
+Issue #594 adds private `_cylindrical_seats` below section publication. It consumes
+original native cylinder and planar stock topology, groups connected patches of
+one analytic cylinder, and proves exact swept support and three physical openings.
+It returns original wall/context nodes, one valid owner and the unrounded open arc;
+generated probe faces never become evidence. It imports no public record or aggregate.
+`_section_recess_geometry` publishes the existing open-arc channel representation
+with four-decimal profile coordinates and a whole-occurrence displacement bound.
+Native circular/linear trim authority is explicit in the surface-reader roster;
+recovered spline trims remain outside this bounded proof.
+
 ADR 0023 adds private `_cylindrical_passages` below section publication. It
 reuses original wall-junction and cycle readers from `_section_passages` and
 the same-run native-surface query, but constructs no public records. Its
