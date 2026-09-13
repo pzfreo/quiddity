@@ -2,6 +2,13 @@
 
 ## Unreleased — Quiddity
 
+- Recognise native cylindrical seats as open-arc SectionRecess channels, retaining
+  located arc geometry and one occurrence per supported land. The whistle-key
+  frame now exposes all three Ø14.3 seats with their actual 62.89° sweep and 6 mm
+  axial length. The bounded proof preserves native seam patches and rejects
+  fillets, capped or obstructed troughs, and unsupported trims (#594). Existing
+  public fields suffice; see the [scope and validation](docs/benchmarks/594-cylindrical-seats.md).
+
 - Preserve separate coaxial hole occurrences across exterior gaps in a connected
   body. Separated same-diameter stacks now require a shared original internal
   cylindrical segment adjoining both lands and containing the bore-axis gap

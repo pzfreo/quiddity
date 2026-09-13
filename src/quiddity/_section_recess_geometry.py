@@ -17,6 +17,7 @@ from quiddity._cylindrical_channels import CylindricalChannelProof
 from quiddity._cylindrical_end_surface import CylindricalEndSurface
 from quiddity._cylindrical_passages import CylindricalPassageProof, cylindrical_passage_proofs
 from quiddity._cylindrical_pockets import CylindricalPocketProof, cylindrical_pocket_proofs
+from quiddity._cylindrical_seats import CylindricalSeatProof, cylindrical_seat_proofs
 from quiddity._effective_surfaces import EffectiveSurfaceQuery
 from quiddity._geometry import length_tol
 from quiddity._plane_envelope_passages import (
@@ -43,6 +44,7 @@ from quiddity._sections import (
     SectionEnds,
     SectionOccurrence,
     SectionVertex,
+    _arc,
     occurrence_geometry_dict,
 )
 from quiddity._support_patches import covered_patch as _covered_patch
@@ -1029,8 +1031,73 @@ def _cylindrical_geometry(
     return geometry
 
 
+def _seat_geometry(seat: CylindricalSeatProof) -> SectionRecessGeometry:
+    """Publish the actual open arc with a complete 0.002 mm displacement bound."""
+    raw = seat.frame
+    frame = PassageFrame(
+        cast(Vector3, tuple(round(v, 3) for v in raw.origin)),
+        cast(Vector3, tuple(round(v, 6) for v in raw.run)),
+        cast(Vector3, tuple(round(v, 6) for v in raw.u)),
+        cast(Vector3, tuple(round(v, 6) for v in raw.v)),
+    )
+    first, last = (
+        PassageSectionVertex((round(v.point[0], 4), round(v.point[1], 4)), round(v.bulge, 12))
+        for v in seat.boundary
+    )
+    original = _arc(*seat.boundary)
+    projected = _arc(SectionVertex(first.point, first.bulge), SectionVertex(last.point))
+    if original is None or projected is None:
+        raise ValueError("seat publication must retain its physical arc")
+    # At equal normalized sweep, circular points differ by centre displacement
+    # plus a rotated radial-vector displacement; the sweep-rounding term bounds
+    # the remaining rotation everywhere, without sampling only the endpoints.
+    radial = complex(*seat.boundary[0].point) - complex(*original.centre)
+    published_radial = complex(*first.point) - complex(*projected.centre)
+    arc_error = math.dist(original.centre, projected.centre) + abs(radial - published_radial)
+    arc_error += projected.radius * abs(original.sweep - projected.sweep)
+    interval = cast(tuple[float, float], tuple(round(t, 3) for t in seat.run_interval))
+    extent = math.hypot(*original.centre) + original.radius
+    displacement = math.dist(raw.origin, frame.origin)
+    displacement += max(abs(t) for t in seat.run_interval) * math.dist(raw.run, frame.run)
+    displacement += max(
+        abs(a - b) for a, b in zip(seat.run_interval, interval, strict=True)
+    ) * math.sqrt(_dot(frame.run, frame.run))
+    displacement += extent * (math.dist(raw.u, frame.u) + math.dist(raw.v, frame.v))
+    displacement += arc_error * (1 + 3e-6)
+    if displacement > 0.002:
+        raise ValueError("serialized seat exceeds whole-occurrence displacement limit")
+    chain = min(
+        (first, last),
+        (PassageSectionVertex(last.point, -first.bulge), PassageSectionVertex(first.point, 0.0)),
+    )
+    return SectionRecessGeometry(
+        "section_recess",
+        frame,
+        interval,
+        OpenSectionProfile("open", chain, (chain[-1].point, chain[0].point)),
+        SectionRecessEnds(SectionEnd("open"), SectionEnd("open")),
+    )
+
+
 def _candidates(graph: FaceGraph, surfaces: EffectiveSurfaceQuery) -> tuple[_Candidate, ...]:
     found = set()
+    for seat in cylindrical_seat_proofs(graph):
+        try:
+            geometry = _seat_geometry(seat)
+            walls = tuple(node.index for node in seat.walls)
+            found.add(
+                _Candidate(
+                    walls,
+                    walls,
+                    seat.context[0].index,
+                    seat.owner.ordinal,
+                    geometry,
+                    "circular",
+                    "channel",
+                )
+            )
+        except (RuntimeError, TypeError, ValueError, ZeroDivisionError):
+            continue
     for node in graph.nodes:
         if not graph.is_planar(node):
             continue

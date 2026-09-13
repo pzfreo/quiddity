@@ -210,6 +210,10 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "native analytic cylinder with exact original planar supports and private clipped probes",
     ),
+    "_cylindrical_seats": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "native cylindrical trough with original circular rims, straight lips and exact support",
+    ),
     "_cylindrical_channels": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "observed native bore termination and exact original three-support channel anatomy",
@@ -320,6 +324,30 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
     "_cylindrical_pockets:_proofs:is_planar:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "original planar floor authority",
+    ),
+    "_cylindrical_seats:_prove:is_planar:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "original stock planes witness the two axial openings and coplanar mouth lips",
+    ),
+    "_cylindrical_seats:_prove:geom_type:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "original circular rim establishes the native constant section",
+    ),
+    "_cylindrical_seats:_prove:geom_type:2": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "original straight longitudinal lips establish the mouth boundary",
+    ),
+    "_cylindrical_seats:_prove:geom_type:3": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "private swept cylindrical patch must equal the original support union",
+    ),
+    "_cylindrical_seats:cylindrical_seat_proofs:graph_surface:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "native-only cylinder gate; spline seats require a separate trim proof",
+    ),
+    "_cylindrical_seats:cylindrical_seat_proofs:adaptor:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "read the admitted native cylinder radius and complete located axis",
     ),
     "_cylindrical_channels:_prove:is_planar:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
