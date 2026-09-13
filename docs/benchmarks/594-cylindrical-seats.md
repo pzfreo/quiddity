@@ -64,12 +64,20 @@ reported semicircular span was inaccurate; the source trims determine the result
 
 ## Authored validation
 
-`tests/test_cylindrical_seats.py` has 37 authored cases covering 30°, 62.89°, 90°
+`tests/test_cylindrical_seats.py` has 45 authored cases covering 30°, 62.89°, 90°
 and 180° arcs; 0.1×, 1× and 10× scale; rigid placement; raw and framed routes;
 three distinct seats and exact original evidence; STEP round-trip; angular/axial
 native seam subdivision; separate owning solids; full bores, convex cylinders,
 blind cuts, broken support and convex/concave fillets; and the explicit undercut
 and spline-trim refusal boundary.
+
+Seam cases include axial splits 0.000005 mm from either end, below the
+feature-relative length tolerance, with and without rigid placement. They retain
+one circular channel and both original wall faces. Lip alignment uses the native
+line tangent, so subdividing a lip does not impose a minimum fragment length;
+zero-length edges still fail and the complete axial span retains its minimum.
+All four short-fragment cases fail before the fix and pass afterward; the
+0.00001 mm control and midpoint angular/axial splits also pass.
 
 A suspended rod attached outside the seat leaves its complete cylindrical support
 unchanged but places material inside the trough. It is refused, establishing why
@@ -115,8 +123,8 @@ comparison count and no-rescanning requirement remain intact.
 
 ## Independent review
 
-No actionable correctness findings remain in the bounded implementation.
-The reviewer independently reconstructed published arcs in 3-D under additional
+The short native seam-fragment finding is covered by the regression above.
+The reviewer also independently reconstructed published arcs in 3-D under additional
 rotations/scales and measured a maximum 0.00089 mm displacement from original
 cylindrical faces, within the 0.002 mm bound. Arbitrarily rotated 100× cases can
 reach conservative publication refusal; scale support is bounded by that existing
@@ -124,19 +132,28 @@ absolute publication contract, not an unrestricted promise.
 
 ## Final checks
 
-- Full local suite: **7,875 passed**, **95.17%** line/branch coverage; the unchanged
-  91% gate passes. Ruff lint/formatting and mypy (96 source files) pass.
+- Full local suite after the seam-fragment fix: **7,883 passed**, **95.17%**
+  line/branch coverage; the unchanged 91% gate passes. Ruff lint/formatting and
+  mypy (96 source files) pass.
+- Focused seat, section-invariant, pattern-projection and shared-query checks:
+  **110 passed**.
 - Raw and framed supplied-fixture checks both return three seats and preserve the
   six separate Ø1.1 × 2.7 bores from #593.
-- Runtime minimum of three: composite **0.966 s** against **1.191 s**, census
+- Pre-review runtime minimum of three: composite **0.966 s** against **1.191 s**, census
   **12.492 s** against **13.189 s**. Both fixed budgets pass. Baseline composite
   in the paired window was 0.935 s; no budget was raised.
+- The seam-fix runtime recheck ran during concurrent Draftwright test workers:
+  composite minima were **1.558 s** and **1.680 s** for the fix and **1.542 s**
+  for the pre-fix implementation at `8fda790`. Both versions exceed the fixed
+  ceiling under this load, so this recheck is inconclusive; it does not establish
+  a fresh runtime-budget pass. The census recheck was not run after the composite
+  check failed. The budgets remain unchanged.
 - Final 89-part documents and 40-model scorer outputs match the compatibility
   comparison above (scorer runtime excluded).
 
 Environment: Python 3.14.7, build123d 0.11.1, OCP 7.9.3.1, macOS arm64.
 Source SHA-256 values:
 
-- `_cylindrical_seats.py`: `74caa78f24c49a678a786cb2543e8b9ca33e626de14aeb3034674741daaef9ff`
+- `_cylindrical_seats.py`: `755584fbaa2e97c8795a947f5aeaf91e723b24790976694e7ce6dcccc8622c09`
 
 - `_section_recess_geometry.py`: `3b42fa5ea049cf29d9ed732162d4ed0f4402596c2f07af36e9cade8791b606c0`

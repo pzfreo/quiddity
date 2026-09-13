@@ -95,10 +95,12 @@ def _prove(
                         return None
                     rims[end_index].add(edge)
                 elif edge.geom_type.name == "LINE":
-                    delta = samples[-1] - samples[0]
+                    # Native seams may leave arbitrarily short lip fragments.
+                    # Prove direction from the line, independent of fragment length;
+                    # the complete axial span has its own minimum above.
                     if (
-                        delta.length <= tolerance
-                        or delta.cross(axis).length > tolerance
+                        (samples[-1] - samples[0]).length == 0
+                        or edge.tangent_at(0.5).cross(axis).length > 1e-8
                         or abs(normal.dot(axis)) > 1e-8
                     ):
                         return None

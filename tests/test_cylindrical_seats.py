@@ -86,8 +86,12 @@ def test_three_distinct_seats_keep_exact_original_faces_and_step_geometry(tmp_pa
             assert BRepAdaptor_Surface(face.wrapped).Cylinder().Radius() == pytest.approx(7.15)
 
 
-@pytest.mark.parametrize("split_axis", ["angular", "axial"])
-def test_native_surface_seams_do_not_split_the_occurrence(split_axis):
+@pytest.mark.parametrize(
+    ("split_axis", "end_offset"),
+    [("angular", None), ("axial", None), ("axial", 5e-6), ("axial", -5e-6), ("axial", 1e-5)],
+)
+@pytest.mark.parametrize("placed", [False, True])
+def test_native_surface_seams_do_not_split_the_occurrence(split_axis, end_offset, placed):
     part = seat()
     face = next(f for f in part.faces() if f.geom_type == GeomType.CYLINDER)
     a = BRepAdaptor_Surface(face.wrapped)
@@ -99,8 +103,12 @@ def test_native_surface_seams_do_not_split_the_occurrence(split_axis):
             a.LastVParameter(),
         ).Edge()
     else:
+        at = (a.FirstVParameter() + a.LastVParameter()) / 2
+        if end_offset is not None:
+            # The 5e-6 mm fragments are shorter than the seat's length tolerance.
+            at = (a.FirstVParameter() if end_offset > 0 else a.LastVParameter()) + end_offset
         edge = BRepBuilderAPI_MakeEdge(
-            s.VIso((a.FirstVParameter() + a.LastVParameter()) / 2),
+            s.VIso(at),
             a.FirstUParameter(),
             a.LastUParameter(),
         ).Edge()
@@ -109,8 +117,13 @@ def test_native_surface_seams_do_not_split_the_occurrence(split_axis):
     splitter.Build()
     assert splitter.IsDone()
     split = type(part).cast(splitter.Shape())
+    if placed:
+        split = Pos(13, -7, 29) * Rot(21, 34, 17) * split
+    assert split.is_valid and len(split.solids()) == 1
     (record,) = seats(build_section_recess_document(split).occurrences)
-    assert len(record.evidence.defining_faces) == 2
+    walls = {i for i, f in enumerate(split.faces()) if f.geom_type == GeomType.CYLINDER}
+    assert len(walls) == 2
+    assert set(record.evidence.defining_faces) == walls
     assert_arc(record, 7.15, math.radians(62.888787672), 6)
 
 
