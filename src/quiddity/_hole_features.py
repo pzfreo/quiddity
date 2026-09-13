@@ -483,13 +483,33 @@ def _merge_stacks(
 ) -> list[list[SegmentEvidence]]:
     """Recombine coaxial stacks that are one hole:
 
-    - same bore diameter on both sides of a crossing void, neither facing
-      end closed (a flat bottom or drill point means genuinely separate
-      holes, e.g. blind holes drilled from opposite faces);
+    - same bore diameter on both sides of one observed internal cylindrical
+      segment, with neither facing end closed. The interruption's original faces
+      must meet both ends; exterior air between separate lugs is not a bridge;
     - different diameters whose gap is bridged by a shoulder chamfer or
       fillet face (the steps of a counterbored hole with a deburred
       shoulder).
     """
+    # The input already contains only full internal cylinder segments. Their
+    # source-face membership proves a common interruption, including a cylinder
+    # split into several patches at a seam. Keep the original inventory: merged
+    # spans must never become evidence for a later merge across exterior air.
+    interruptions = {
+        (seg.get("solid_idx", 0), face): index
+        for index, seg in enumerate(seg for stack in stacks for seg in stack)
+        for face in seg["faces"]
+    }
+
+    def shares_interruption(a: SegmentEvidence, b: SegmentEvidence) -> bool:
+        def sources(seg: SegmentEvidence, at: float) -> set[int]:
+            return {
+                interruptions[key]
+                for face in _end_partners(seg, at, edge_faces, cache)
+                if (key := (seg.get("solid_idx", 0), face)) in interruptions
+            }
+
+        return bool(sources(a, a["s_hi"]) & sources(b, b["s_lo"]))
+
     by_line: dict[tuple, list[list[SegmentEvidence]]] = {}
     for stack in stacks:
         by_line.setdefault(_line_key(stack[0]), []).append(stack)
@@ -507,6 +527,7 @@ def _merge_stacks(
                 not in closed
                 and _classify_end(b, b["s_lo"], False, edge_faces, cache, face_surfaces)
                 not in closed
+                and shares_interruption(a, b)
             ):
                 joined = cast(
                     SegmentEvidence,
