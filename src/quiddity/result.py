@@ -57,6 +57,7 @@ from quiddity._registry import (
     DerivedId,
     DiscoveryServices,
     FullyAttributed,
+    PhysicalDefinition,
     ProjectionDiscoverer,
     ProjectionInputs,
     _issue_projection_inputs,
@@ -603,6 +604,15 @@ def _validate_attribution(
 
 
 RecordT = TypeVar("RecordT")
+
+
+_PHYSICAL_BY_FAMILY = {definition.family: definition for definition in PHYSICAL_DEFINITIONS}
+
+
+def _physical_definition(family: FamilyId) -> PhysicalDefinition:
+    """Return the one registry definition for *family*."""
+
+    return _PHYSICAL_BY_FAMILY[family]
 
 
 def _records(
@@ -1455,9 +1465,6 @@ def _project_result(
     """Project accepted and derived inventories without discovery or reconciliation."""
 
     z_cyls, cross_cyls = context.cylinders
-    passage_definition = next(
-        definition for definition in PHYSICAL_DEFINITIONS if definition.family is FamilyId.PASSAGES
-    )
     native_section_recesses = tuple(_records(accepted, FamilyId.SECTION_RECESSES, SectionRecess))
     native_regions = {
         (record.body, record.evidence.constituent_faces) for record in native_section_recesses
@@ -1538,84 +1545,40 @@ def _project_result(
     patterns = _section_patterns(
         derived.pocket_patterns, section_recesses, context, evidence, projected_regions
     )
+    # Every field below is declared once, in `_registry`. `PhysicalDefinition` already names
+    # the family, its record type, its result field and whether it is projected, so restating
+    # all four here was 31 of 33 lines saying only what the registry already said -- and one
+    # more line to add, in one more file, for every new family.
+    projection: dict[str, object] = {
+        definition.result_field: (
+            tuple(_records(accepted, definition.family, definition.record_types[0]))
+            if definition.projected(context)
+            else ()
+        )
+        for definition in PHYSICAL_DEFINITIONS
+    }
+    # A derived record is gated by the families it is derived from: a projection of an
+    # unprojected family has nothing truthful to say. Today only the Passage compatibility
+    # projection has a gated source, which is the case the explicit form spelled out.
+    projection.update(
+        {
+            definition.result_field: (
+                getattr(derived, definition.result_field)
+                if all(
+                    _physical_definition(source).projected(context) for source in definition.sources
+                )
+                else ()
+            )
+            for definition in DERIVED_DEFINITIONS
+        }
+    )
+    # The one field no single family owns: Section Recesses are assembled above from native
+    # records plus seven projected legacy families, so the registry cannot state it.
+    projection["section_recesses"] = section_recesses
     return _LegacyRecognitionResult(
         cylinders=(tuple(z_cyls), tuple(cross_cyls)),
-        countersinks=tuple(_records(accepted, FamilyId.COUNTERSINKS, CounterSink)),
-        holes=tuple(_records(accepted, FamilyId.HOLES, HoleRecord)),
-        double_d_bores=tuple(_records(accepted, FamilyId.DOUBLE_D_BORES, DoubleDBore)),
-        hole_patterns=derived.hole_patterns,
-        bosses=tuple(_records(accepted, FamilyId.BOSSES, BossRecord)),
-        polygonal_bosses=tuple(_records(accepted, FamilyId.POLYGONAL_BOSSES, PolygonalBoss)),
-        polygonal_stock=tuple(_records(accepted, FamilyId.POLYGONAL_STOCK, PolygonalStock)),
-        channels=tuple(_records(accepted, FamilyId.CHANNELS, Channel)),
-        slots=tuple(_records(accepted, FamilyId.SLOTS, Slot)),
-        oriented_slots=tuple(_records(accepted, FamilyId.ORIENTED_SLOTS, OrientedSlot)),
-        slot_patterns=derived.slot_patterns,
-        oriented_slot_patterns=derived.oriented_slot_patterns,
-        rectangular_blind_slots=tuple(
-            _records(
-                accepted,
-                FamilyId.RECTANGULAR_BLIND_SLOTS,
-                RectangularBlindSlot,
-            )
-        ),
-        round_bottom_blind_slots=tuple(
-            _records(
-                accepted,
-                FamilyId.ROUND_BOTTOM_BLIND_SLOTS,
-                RoundBottomBlindSlot,
-            )
-        ),
-        grooves=tuple(_records(accepted, FamilyId.GROOVES, Groove)),
-        flats=tuple(_records(accepted, FamilyId.FLATS, Flat)),
-        section_recesses=section_recesses,
+        rotational=context.rotational,
         section_recess_refusals=refusals,
         section_recess_patterns=patterns,
-        pockets=tuple(_records(accepted, FamilyId.POCKETS, Pocket)),
-        prismatic_pockets=tuple(_records(accepted, FamilyId.PRISMATIC_POCKETS, PrismaticPocket)),
-        edge_open_circular_pockets=tuple(
-            _records(
-                accepted,
-                FamilyId.EDGE_OPEN_CIRCULAR_POCKETS,
-                EdgeOpenCircularPocket,
-            )
-        ),
-        edge_open_prismatic_recesses=tuple(
-            _records(
-                accepted,
-                FamilyId.EDGE_OPEN_PRISMATIC_RECESSES,
-                EdgeOpenPrismaticRecess,
-            )
-        ),
-        pocket_patterns=derived.pocket_patterns,
-        pads=tuple(_records(accepted, FamilyId.PADS, RaisedPad)),
-        gusset_ribs=tuple(_records(accepted, FamilyId.GUSSET_RIBS, GussetRib)),
-        gusset_rib_patterns=derived.gusset_rib_patterns,
-        repeating_radial_profiles=tuple(
-            _records(
-                accepted,
-                FamilyId.REPEATING_RADIAL_PROFILES,
-                RepeatingRadialProfile,
-            )
-        ),
-        turned_steps=tuple(_records(accepted, FamilyId.TURNED_STEPS, TurnedStep)),
-        rotational=context.rotational,
-        step_levels=tuple(_records(accepted, FamilyId.STEP_LEVELS, FaceLevel)),
-        risers=tuple(_records(accepted, FamilyId.RISERS, RiserEvidence)),
-        chamfers=tuple(_records(accepted, FamilyId.CHAMFERS, Chamfer)),
-        angled_steps=tuple(_records(accepted, FamilyId.ANGLED_STEPS, AngledStep)),
-        paired_ramp_steps=tuple(_records(accepted, FamilyId.PAIRED_RAMP_STEPS, PairedRampStep)),
-        through_steps=tuple(_records(accepted, FamilyId.THROUGH_STEPS, ThroughStep)),
-        circular_blind_steps=tuple(
-            _records(accepted, FamilyId.CIRCULAR_BLIND_STEPS, CircularBlindStep)
-        ),
-        section_passages=(
-            tuple(_records(accepted, FamilyId.PASSAGES, SectionPassage))
-            if passage_definition.projected(context)
-            else ()
-        ),
-        passages=derived.passages if passage_definition.projected(context) else (),
-        blends=tuple(_records(accepted, FamilyId.BLENDS, Blend)),
-        fillets=tuple(_records(accepted, FamilyId.FILLETS, Fillet)),
-        plates=tuple(_records(accepted, FamilyId.PLATES, Plate)),
+        **projection,  # type: ignore[arg-type]
     )
