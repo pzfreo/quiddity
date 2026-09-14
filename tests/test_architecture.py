@@ -84,6 +84,8 @@ def test_cross_run_correspondence_is_absent() -> None:
 
 
 MODULE_SEAM_EDGES = {
+    # Stdlib-only leaf: the checks the capability and inspection manifests share (ADR 0007).
+    "_manifest": set(),
     "_outer_profile": {"_geometry", "_record"},
     "_outer_profile_geometry": {"_adjacency", "_geometry", "_outer_profile", "_typing"},
     "_corner_section": {"_adjacency", "_section_passages", "_sections", "_volume_probe"},
@@ -1247,6 +1249,21 @@ def test_internal_module_seams_match_adr_0007() -> None:
         if graph[module] - allowed
     }
     assert crossings == {}
+
+
+def test_shared_manifest_checks_have_exactly_the_two_declared_importers() -> None:
+    """ADR 0007 names `capabilities` and `inspection`, and names `evidence` as excluded.
+
+    `evidence` publishes `evidence_api.json`, so it is the importer a description like
+    "the modules that publish a JSON manifest" would wrongly admit. The seam entry above
+    keeps `_manifest` a stdlib-only leaf; this keeps its importers the reviewed two.
+    """
+
+    graph = _package_import_graph()
+    assert {module for module, dependencies in graph.items() if "_manifest" in dependencies} == {
+        "capabilities",
+        "inspection",
+    }
 
 
 def test_neutral_blend_view_has_exactly_the_reviewed_consumers() -> None:

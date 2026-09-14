@@ -13,7 +13,8 @@ from importlib.resources import files
 from typing import Any, TypeAlias, cast
 
 from quiddity import __version__
-from quiddity._manifest import check_keys, parse_version
+from quiddity._manifest import check_keys as _check_keys
+from quiddity._manifest import parse_version as _parse_version
 
 CAPABILITY_FORMAT = "quiddity-capabilities"
 CAPABILITY_FORMAT_VERSION = 2
@@ -30,8 +31,8 @@ class CapabilityManifestError(ValueError):
     """The installed manifest is missing, stale, or uses an unsupported format."""
 
 
-_keys = partial(check_keys, error=CapabilityManifestError)
-_version = partial(parse_version, error=CapabilityManifestError)
+_keys = partial(_check_keys, error=CapabilityManifestError)
+_version = partial(_parse_version, error=CapabilityManifestError)
 
 
 def _paths(value: object, context: str, *, allow_empty: bool = False) -> None:

@@ -41,7 +41,8 @@ from quiddity._effective_surfaces import (
 from quiddity._effective_surfaces import (
     RefusedSurfaceFact as _RefusedSurfaceFact,
 )
-from quiddity._manifest import check_keys, parse_version
+from quiddity._manifest import check_keys as _check_keys
+from quiddity._manifest import parse_version as _parse_version
 from quiddity._typing import FaceLike
 from quiddity.countersinks import cone_rims
 from quiddity.grooves import floor_face_anchor
@@ -213,8 +214,8 @@ def inspect_face(face: FaceLike) -> FaceInspection:
     return FaceInspection(surface, anchor)
 
 
-_keys = partial(check_keys, error=InspectionApiManifestError)
-_version = partial(parse_version, error=InspectionApiManifestError)
+_keys = partial(_check_keys, error=InspectionApiManifestError)
+_version = partial(_parse_version, error=InspectionApiManifestError)
 
 
 def validate_inspection_api_manifest(manifest: object) -> None:
