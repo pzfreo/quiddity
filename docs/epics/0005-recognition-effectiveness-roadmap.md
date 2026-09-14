@@ -1,10 +1,10 @@
 # Epic 0005 — Recognition effectiveness and transfer evidence
 
-**Status:** proposed
+**Status:** active
 **Owner:** @pzfreo
 **Opened:** 2026-08-28
 **Baseline:** `16c5e9d` (0.4.5.dev0; 2,388 tests collected)
-**Tracker:** [#290](https://github.com/pzfreo/b123d-recognisers/issues/290)
+**Tracker:** [#290](https://github.com/pzfreo/quiddity/issues/290)
 
 ## Outcome
 
@@ -29,9 +29,10 @@ The epic balances three concerns:
 The August 2026 project scorecard and the Epic 0004 retrospective agree on the main constraint:
 the foundation has been built faster than it has been connected. Canonical surface recovery,
 blend-collapsed graph views and correspondence machinery are individually substantial, but their
-recogniser and public consumers remain narrow. At the same time, known MFCAD++ classes have little
-or no coverage, and unsupported input commonly produces an empty result without a useful account
-of why.
+recogniser and public consumers remain narrow. (Correspondence was the sharpest case: it never
+reached a consumer and was withdrawn on 2026-09-14 — see the F6 withdrawal amendment in ADR 0003.)
+At the same time, known MFCAD++ classes have little or no coverage, and unsupported input commonly
+produces an empty result without a useful account of why.
 
 The next material improvement therefore comes from integration and measured feature coverage, not
 from another general substrate designed in advance of a consumer.
