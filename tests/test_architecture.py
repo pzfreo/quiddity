@@ -4,6 +4,7 @@
 import ast
 import importlib
 import typing
+from dataclasses import fields
 from pathlib import Path
 
 import quiddity as recognition
@@ -1048,8 +1049,6 @@ def test_every_result_field_is_registry_owned_or_a_reviewed_exception() -> None:
     dataclass field splats into a `TypeError` at recognition time, and a dataclass field with no
     definition is silently never populated. Both are test failures here instead.
     """
-
-    from dataclasses import fields
 
     registry = importlib.import_module("quiddity._registry")
     result = importlib.import_module("quiddity.result")

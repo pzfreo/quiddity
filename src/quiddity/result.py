@@ -57,7 +57,6 @@ from quiddity._registry import (
     DerivedId,
     DiscoveryServices,
     FullyAttributed,
-    PhysicalDefinition,
     ProjectionDiscoverer,
     ProjectionInputs,
     _issue_projection_inputs,
@@ -606,20 +605,22 @@ def _validate_attribution(
 RecordT = TypeVar("RecordT")
 
 
+#: The registry keyed for lookup, so a derived definition can ask about its source families.
 _PHYSICAL_BY_FAMILY = {definition.family: definition for definition in PHYSICAL_DEFINITIONS}
-
-
-def _physical_definition(family: FamilyId) -> PhysicalDefinition:
-    """Return the one registry definition for *family*."""
-
-    return _PHYSICAL_BY_FAMILY[family]
 
 
 def _records(
     inventory: CandidateInventory,
     family: FamilyId,
-    record_type: type[RecordT],
+    record_type: type[RecordT] | tuple[type[RecordT], ...],
 ) -> list[RecordT]:
+    """Return one family's accepted records, refusing any that is not a declared type.
+
+    Accepts a tuple because `PhysicalDefinition.record_types` is one: every physical family
+    happens to declare exactly one type today, but nothing in `validate_definitions` requires
+    it, and indexing `[0]` would have type-checked a two-type family against half its contract.
+    """
+
     records = list(inventory.records(family))
     if not all(isinstance(record, record_type) for record in records):
         raise TypeError(f"{family.value} inventory has the wrong record type")
@@ -1551,7 +1552,7 @@ def _project_result(
     # more line to add, in one more file, for every new family.
     projection: dict[str, object] = {
         definition.result_field: (
-            tuple(_records(accepted, definition.family, definition.record_types[0]))
+            tuple(_records(accepted, definition.family, definition.record_types))
             if definition.projected(context)
             else ()
         )
@@ -1565,20 +1566,28 @@ def _project_result(
             definition.result_field: (
                 getattr(derived, definition.result_field)
                 if all(
-                    _physical_definition(source).projected(context) for source in definition.sources
+                    _PHYSICAL_BY_FAMILY[source].projected(context) for source in definition.sources
                 )
                 else ()
             )
             for definition in DERIVED_DEFINITIONS
         }
     )
-    # The one field no single family owns: Section Recesses are assembled above from native
-    # records plus seven projected legacy families, so the registry cannot state it.
+    # The one field whose value no definition can state. The registry does name its inputs, in
+    # `RECESS_SOURCE_FAMILIES`, but each of those families needs its own projection function and
+    # the results are then de-duplicated and turned into refusals, so what the registry has is
+    # the source list rather than the value.
     projection["section_recesses"] = section_recesses
     return _LegacyRecognitionResult(
         cylinders=(tuple(z_cyls), tuple(cross_cyls)),
         rotational=context.rotational,
         section_recess_refusals=refusals,
         section_recess_patterns=patterns,
+        # mypy cannot check a splat of `dict[str, object]` against 39 differently typed
+        # fields. What still checks them: `_records` refuses any record that is not one of
+        # the family's declared types, `DerivedInventory` is itself a typed dataclass, and
+        # `test_every_result_field_is_registry_owned_or_a_reviewed_exception` fails if the
+        # field names drift. The 81 explicit keywords bought per-field checking of names and
+        # containers that the registry now states once instead.
         **projection,  # type: ignore[arg-type]
     )
