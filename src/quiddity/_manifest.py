@@ -1,10 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2024-2026 Paul Fremantle
-"""Validation primitives shared by the package's two published JSON manifests.
+"""Validation primitives shared by the capability and inspection API manifests.
 
 :mod:`quiddity.capabilities` and :mod:`quiddity.inspection` each validate a closed
-document format and each raises its own error type.  The checks that are common to
-both live here so that one question has one answer, following the argument
+document format and each raises its own error type.  They are the permitted importers
+by name, not by description: :mod:`quiddity.evidence` publishes a JSON manifest as well
+and is not one of them.
+
+The checks common to both live here so that one question has one answer, following the argument
 :mod:`quiddity._geometry` records for the direction primitives: the risk in a
 duplicated helper is not the repeated lines but that the copies are free to drift.
 

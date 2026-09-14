@@ -648,9 +648,11 @@ is permitted in either profile module. The architecture and raw-reader rosters e
 
 ## Amendment (shared manifest validation leaf, issue #610)
 
-`_manifest` is a value leaf over the standard library alone: it imports nothing from the package
-and nothing may import it except the two modules that publish a JSON manifest. `inspection` may
-import it; `capabilities` already sits outside the enforced seam table and gains no other edge.
+`_manifest` is a value leaf over the standard library alone: it imports nothing from the package.
+Its permitted importers are `capabilities` and `inspection`, named rather than described: `evidence`
+publishes `evidence_api.json` too, so "the modules that publish a JSON manifest" would license an
+importer the seam table rejects. `inspection` gains the edge; `capabilities` already sits outside
+the enforced table and gains no other.
 
 It holds the checks both manifest validators had duplicated -- the unknown-field check, the
 semantic-version parse and the version pattern itself. Callers bind their own error type, so
