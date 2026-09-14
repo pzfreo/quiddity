@@ -25,6 +25,8 @@ PUBLIC_RECOGNISERS = {
     "recognise_fillets",
     "recognise_flats",
     "recognise_grooves",
+    "recognise_gusset_ribs",
+    "recognise_gusset_rib_patterns",
     "recognise_hole_patterns",
     "recognise_holes",
     "recognise_plates",
@@ -64,7 +66,9 @@ def test_checked_in_goldens_are_canonical_and_bound_to_the_pinned_source():
         assert golden["fixture"] == path.parent.name
         # A golden says where it came from; it is no longer pinned to a Draftwright commit,
         # because the corpus has fixtures this package originated and they have no such source.
-        assert golden["source"]["repository"]
+        assert golden.get("source", {}).get("repository") or golden.get("provenance", {}).get(
+            "source_repository"
+        )
         assert set(golden["recognition"]["individual"]) == PUBLIC_RECOGNISERS
         assert set(golden["recognition"]["substrates"]) == SUBSTRATES
         assert set(golden["recognition"]["aggregate"]) == {"prismatic", "rotational"}

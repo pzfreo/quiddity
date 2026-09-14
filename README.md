@@ -13,8 +13,8 @@ geometry.
 
 A STEP file normally gives a CAD application faces, edges, and solids, but not the design intent
 that produced them. Quiddity analyses that topology and returns deterministic semantic
-records for features such as holes and counterbores, bosses, slots, pockets, pads, fillets,
-chamfers, grooves, hole and pocket patterns, and turned steps. The records contain ordinary,
+records for features such as holes and counterbores, bosses, slots, pockets, pads, gusset ribs,
+fillets, chamfers, grooves, hole and pocket patterns, and turned steps. The records contain ordinary,
 JSON-serialisable geometry values rather than build123d or OCP objects.
 
 Most recognition families classify faces by native analytic surface type, so imported geometry

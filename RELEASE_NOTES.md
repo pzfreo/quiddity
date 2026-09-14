@@ -1,5 +1,17 @@
 # Release notes
 
+## 0.2.10 — Quiddity
+
+- Recognise right-triangular gusset ribs joining perpendicular support planes, including
+  cylindrical fillets along the slanted side edges. Each `GussetRib` records the thickness
+  axis and bounds, both support planes, and the signed virtual sharp-corner leg lengths. The
+  bracket from #601 now yields two rib occurrences in the framed report. The supplied
+  fixture actually places them at x=−38..−32 and 20..26 because `Plane.YZ` extrudes
+  toward negative X; a separate symmetric-pair control tests the intended arrangement. The
+  two ribs are independent occurrences. Congruent same-body ribs now also project a mirror
+  pair when centred on the body's thickness-axis envelope, or a constant-pitch array of at
+  least three; the issue fixture's offset ribs correctly produce neither pattern.
+
 ## 0.2.9 — Quiddity
 
 - Recognise native cylindrical seats as open-arc SectionRecess channels, retaining

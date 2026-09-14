@@ -17,6 +17,8 @@ EXPECTED_CASES = {
     "counterbored_and_countersunk_holes",
     "double_d_bore",
     "hexagonal_passage",
+    "gusset_rib_patterns",
+    "gusset_ribs",
     "interrupted_and_cross_bores",
     "open_channels",
     "oriented_slots",

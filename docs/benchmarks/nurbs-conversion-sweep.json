@@ -193,6 +193,67 @@
         "orientation_preserved": true
       }
     },
+    "gusset_rib_patterns": {
+      "faces": 14,
+      "raised_pads": {
+        "absent": 0,
+        "changed_record": 0,
+        "converted_occurrences": 0,
+        "converted_provenance": [],
+        "converted_records": [],
+        "introduced": 0,
+        "native_occurrences": 0,
+        "native_records": [],
+        "reclassified": 0,
+        "same_family": 0
+      },
+      "surfaces": {
+        "ambiguous": 0,
+        "kind_correspondence_preserved": true,
+        "parameters_within_reviewed_bounds": true,
+        "recovered_by_primitive": {
+          "plane": 14
+        },
+        "refused_by_reason": {}
+      },
+      "topology": {
+        "adjacency_preserved": true,
+        "boundary_structure_preserved": true,
+        "evaluated_geometry_within_reviewed_bounds": true,
+        "orientation_preserved": true
+      }
+    },
+    "gusset_ribs": {
+      "faces": 23,
+      "raised_pads": {
+        "absent": 0,
+        "changed_record": 0,
+        "converted_occurrences": 0,
+        "converted_provenance": [],
+        "converted_records": [],
+        "introduced": 0,
+        "native_occurrences": 0,
+        "native_records": [],
+        "reclassified": 0,
+        "same_family": 0
+      },
+      "surfaces": {
+        "ambiguous": 0,
+        "kind_correspondence_preserved": true,
+        "parameters_within_reviewed_bounds": true,
+        "recovered_by_primitive": {
+          "cylinder": 6,
+          "plane": 17
+        },
+        "refused_by_reason": {}
+      },
+      "topology": {
+        "adjacency_preserved": true,
+        "boundary_structure_preserved": true,
+        "evaluated_geometry_within_reviewed_bounds": true,
+        "orientation_preserved": true
+      }
+    },
     "hexagonal_passage": {
       "faces": 12,
       "raised_pads": {
@@ -915,15 +976,15 @@
     "absent": 0,
     "changed_record": 0,
     "converted_occurrences": 1,
-    "faces": 384,
-    "fixtures": 26,
+    "faces": 421,
+    "fixtures": 28,
     "introduced": 0,
     "native_occurrences": 1,
     "reclassified": 0,
     "recovered_by_primitive": {
       "cone": 1,
-      "cylinder": 40,
-      "plane": 343
+      "cylinder": 46,
+      "plane": 374
     },
     "refused_by_reason": {},
     "same_family": 1

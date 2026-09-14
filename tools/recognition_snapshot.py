@@ -53,6 +53,7 @@ def recognition_snapshot(recognition, feature_census, part):
     for name in (
         "recognise_angled_steps",
         "recognise_blends",
+        "recognise_gusset_ribs",
         "recognise_circular_blind_steps",
         "recognise_paired_ramp_steps",
         "recognise_passages",
@@ -64,6 +65,12 @@ def recognition_snapshot(recognition, feature_census, part):
         recognise = getattr(recognition, name, None)
         if recognise is not None:
             individual[name] = recognise(part)
+
+    recognise_gusset_patterns = getattr(recognition, "recognise_gusset_rib_patterns", None)
+    if recognise_gusset_patterns is not None:
+        individual["recognise_gusset_rib_patterns"] = recognise_gusset_patterns(
+            individual["recognise_gusset_ribs"]
+        )
 
     # Added in the 0.4 rich-schema transition and pinned by its own schema/oracle goldens.
     # This legacy snapshot deliberately stays byte-identical to the Draftwright-era surface.

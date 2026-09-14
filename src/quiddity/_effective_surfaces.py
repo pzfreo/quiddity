@@ -184,6 +184,10 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.TORUS_DEFERRED,
         "groove evidence includes conical and toroidal surfaces",
     ),
+    "gussets": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "right-triangle caps and their cylindrical edge blends require original source faces",
+    ),
     "levels": (SurfaceReaderDisposition.PENDING_MIGRATION, "planar level and step gates"),
     "plates": (SurfaceReaderDisposition.PENDING_MIGRATION, "planar plate family gate"),
     "pads": (
@@ -265,6 +269,22 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
 # Every site has its own disposition and rationale, including mixed modules whose reads cannot be
 # truthfully covered by one module-level label.
 SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
+    "gussets:_cap:adaptor:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "require an original planar triangular end cap",
+    ),
+    "gussets:_cap:adaptor:2": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "classify the original slanted edge transition as plane or cylinder",
+    ),
+    "gussets:_cap:adaptor:3": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "require an original planar slant behind a cylindrical blend",
+    ),
+    "gussets:_cap:geom_type:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "require three original straight outer edges on each end cap",
+    ),
     "_open_channel_section:_supports:is_planar:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "verify complete source-face support area for each physical wall patch",

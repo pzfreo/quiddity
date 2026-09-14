@@ -97,6 +97,7 @@ from quiddity.edge_open_prismatic_recesses import EdgeOpenPrismaticRecess
 from quiddity.fillets import Fillet
 from quiddity.flats import Flat
 from quiddity.grooves import Groove
+from quiddity.gussets import GussetRib, GussetRibArray, GussetRibMirrorPair
 from quiddity.levels import (
     FaceLevel,
     RiserEvidence,
@@ -254,6 +255,7 @@ class DerivedInventory:
     slot_patterns: tuple[SlotArray | SlotGrid, ...]
     oriented_slot_patterns: tuple[OrientedSlotArray | OrientedSlotGrid, ...]
     pocket_patterns: tuple[PocketArray | PocketGrid, ...]
+    gusset_rib_patterns: tuple[GussetRibArray | GussetRibMirrorPair, ...]
     passages: tuple[Passage, ...]
 
 
@@ -329,6 +331,8 @@ class RecognitionResult:
     section_recess_patterns: tuple[SectionRecessArray | SectionRecessGrid, ...]
 
     pads: tuple[RaisedPad, ...]
+    gusset_ribs: tuple[GussetRib, ...]
+    gusset_rib_patterns: tuple[GussetRibArray | GussetRibMirrorPair, ...]
     #: Complete outer-wire cyclic correspondence.  Geometry-only: consumers may compare a
     #: declared axis/count, but this inventory never manufactures gear semantics.
     repeating_radial_profiles: tuple[RepeatingRadialProfile, ...]
@@ -700,6 +704,10 @@ def _derive_patterns(accepted: CandidateInventory) -> DerivedInventory:
         ),
         pocket_patterns=cast(
             tuple[PocketArray | PocketGrid, ...], derived[DerivedId.POCKET_PATTERNS]
+        ),
+        gusset_rib_patterns=cast(
+            tuple[GussetRibArray | GussetRibMirrorPair, ...],
+            derived[DerivedId.GUSSET_RIB_PATTERNS],
         ),
         passages=(),
     )
@@ -1587,6 +1595,8 @@ def _project_result(
         ),
         pocket_patterns=derived.pocket_patterns,
         pads=tuple(_records(accepted, FamilyId.PADS, RaisedPad)),
+        gusset_ribs=tuple(_records(accepted, FamilyId.GUSSET_RIBS, GussetRib)),
+        gusset_rib_patterns=derived.gusset_rib_patterns,
         repeating_radial_profiles=tuple(
             _records(
                 accepted,

@@ -258,6 +258,8 @@
           }
         ],
         "grooves": [],
+        "gusset_rib_patterns": [],
+        "gusset_ribs": [],
         "hole_patterns": [],
         "holes": [],
         "pads": [],
@@ -503,6 +505,8 @@
           }
         ],
         "grooves": [],
+        "gusset_rib_patterns": [],
+        "gusset_ribs": [],
         "hole_patterns": [],
         "holes": [],
         "pads": [],
@@ -539,6 +543,7 @@
       "fillet": 4,
       "flat": 1,
       "groove": 0,
+      "gusset_rib": 0,
       "hole": 0,
       "hole_pattern": 0,
       "paired_ramp_step": 0,
@@ -909,6 +914,8 @@
         }
       ],
       "recognise_grooves": [],
+      "recognise_gusset_rib_patterns": [],
+      "recognise_gusset_ribs": [],
       "recognise_hole_patterns": [],
       "recognise_holes": [],
       "recognise_paired_ramp_steps": [],

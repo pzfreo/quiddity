@@ -90,7 +90,7 @@ def test_shape_equality_and_is_same_agree_across_the_whole_corpus():
         assert _partition_by_equality(faces) == _partition_by_is_same(faces), f"faces of {name}"
         checked += 1
 
-    assert checked == 30, "the corpus moved; this test must still sweep all of it"
+    assert checked == 32, "the corpus moved; this test must still sweep all of it"
 
 
 def test_a_manifold_edge_maps_to_the_two_faces_that_meet_along_it():

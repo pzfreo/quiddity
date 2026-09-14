@@ -1,0 +1,1840 @@
+{
+  "canonicalizer_version": 1,
+  "fixture": "gusset_ribs",
+  "provenance": {
+    "creator": "Paul Fremantle",
+    "license": "Apache-2.0",
+    "source_path": "tests/test_gussets.py",
+    "source_repository": "https://github.com/pzfreo/b123d-recognisers.git"
+  },
+  "recognition": {
+    "aggregate": {
+      "prismatic": {
+        "_type": "RecognitionResult",
+        "angled_steps": [],
+        "blends": [],
+        "bosses": [
+          {
+            "_type": "BossRecord",
+            "axis": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "diameter": 20.0,
+            "height": 12.0,
+            "location": [
+              0.0,
+              3.0,
+              20.0
+            ]
+          }
+        ],
+        "chamfers": [],
+        "channels": [],
+        "circular_blind_steps": [],
+        "countersinks": [],
+        "cylinders": [
+          [
+            {
+              "axis": "z",
+              "axis_xyz": [
+                -25.0,
+                -13.0,
+                -1.0
+              ],
+              "diameter": 8.0,
+              "dir_xyz": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "external": false,
+              "s_hi": 8.0,
+              "s_lo": 0.0,
+              "u_extent": 6.28318531
+            },
+            {
+              "axis": "z",
+              "axis_xyz": [
+                25.0,
+                -13.0,
+                -1.0
+              ],
+              "diameter": 8.0,
+              "dir_xyz": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "external": false,
+              "s_hi": 8.0,
+              "s_lo": 0.0,
+              "u_extent": 6.28318531
+            },
+            {
+              "axis": "z",
+              "axis_xyz": [
+                0.0,
+                3.0,
+                8.0
+              ],
+              "diameter": 20.0,
+              "dir_xyz": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "external": true,
+              "s_hi": 20.0,
+              "s_lo": 8.0,
+              "u_extent": 6.28318531
+            },
+            {
+              "axis": "z",
+              "axis_xyz": [
+                0.0,
+                3.0,
+                -1.0
+              ],
+              "diameter": 10.0,
+              "dir_xyz": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "external": false,
+              "s_hi": 20.0,
+              "s_lo": 0.0,
+              "u_extent": 6.28318531
+            }
+          ],
+          [
+            {
+              "axis": "y",
+              "axis_xyz": [
+                9.0,
+                31.0,
+                32.0
+              ],
+              "diameter": 8.0,
+              "dir_xyz": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "external": false,
+              "s_hi": 25.0,
+              "s_lo": 17.0,
+              "u_extent": 3.14159265
+            },
+            {
+              "axis": "y",
+              "axis_xyz": [
+                -9.0,
+                31.0,
+                32.0
+              ],
+              "diameter": 8.0,
+              "dir_xyz": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "external": false,
+              "s_hi": 25.0,
+              "s_lo": 17.0,
+              "u_extent": 3.14159265
+            }
+          ]
+        ],
+        "double_d_bores": [],
+        "edge_open_circular_pockets": [],
+        "edge_open_prismatic_recesses": [],
+        "fillets": [],
+        "flats": [],
+        "grooves": [],
+        "gusset_rib_patterns": [],
+        "gusset_ribs": [
+          {
+            "_type": "GussetRib",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              60872.7432785,
+              19623.5193024
+            ],
+            "directions": [
+              -1,
+              1
+            ],
+            "legs": [
+              22.0,
+              26.0
+            ],
+            "supports": [
+              [
+                "y",
+                17.0
+              ],
+              [
+                "z",
+                8.0
+              ]
+            ],
+            "thickness_axis": "x",
+            "thickness_bounds": [
+              -38.0,
+              -32.0
+            ]
+          },
+          {
+            "_type": "GussetRib",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              60872.7432785,
+              19623.5193024
+            ],
+            "directions": [
+              -1,
+              1
+            ],
+            "legs": [
+              22.0,
+              26.0
+            ],
+            "supports": [
+              [
+                "y",
+                17.0
+              ],
+              [
+                "z",
+                8.0
+              ]
+            ],
+            "thickness_axis": "x",
+            "thickness_bounds": [
+              20.0,
+              26.0
+            ]
+          }
+        ],
+        "hole_patterns": [],
+        "holes": [
+          {
+            "_type": "HoleRecord",
+            "axis": [
+              0.0,
+              0.0,
+              -1.0
+            ],
+            "bottom": "through",
+            "cbore": null,
+            "csink": null,
+            "depth": 8.0,
+            "diameter": 8.0,
+            "location": [
+              -25.0,
+              -13.0,
+              8.0
+            ],
+            "spotface": null
+          },
+          {
+            "_type": "HoleRecord",
+            "axis": [
+              0.0,
+              0.0,
+              -1.0
+            ],
+            "bottom": "through",
+            "cbore": null,
+            "csink": null,
+            "depth": 8.0,
+            "diameter": 8.0,
+            "location": [
+              25.0,
+              -13.0,
+              8.0
+            ],
+            "spotface": null
+          },
+          {
+            "_type": "HoleRecord",
+            "axis": [
+              0.0,
+              0.0,
+              -1.0
+            ],
+            "bottom": "through",
+            "cbore": null,
+            "csink": null,
+            "depth": 20.0,
+            "diameter": 10.0,
+            "location": [
+              0.0,
+              3.0,
+              20.0
+            ],
+            "spotface": null
+          }
+        ],
+        "pads": [],
+        "paired_ramp_steps": [],
+        "passages": [],
+        "plates": [
+          {
+            "_type": "Plate",
+            "axis": "y",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              60872.7432785,
+              19623.5193024
+            ],
+            "hi": 25.0,
+            "lo": 17.0,
+            "u": 0.29529287,
+            "v": 25.67644202
+          },
+          {
+            "_type": "Plate",
+            "axis": "z",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              60872.7432785,
+              19623.5193024
+            ],
+            "hi": 8.0,
+            "lo": 0.0,
+            "u": 0.24360839,
+            "v": -2.08978664
+          }
+        ],
+        "pocket_patterns": [],
+        "pockets": [],
+        "polygonal_bosses": [],
+        "polygonal_stock": [],
+        "prismatic_pockets": [],
+        "rectangular_blind_slots": [],
+        "repeating_radial_profiles": [],
+        "risers": [
+          {
+            "_type": "RiserEvidence",
+            "axis": "y",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              60872.7432785,
+              19623.5193024
+            ],
+            "body_levels": [
+              {
+                "_type": "FaceLevel",
+                "body_key": [
+                  -40.0,
+                  -25.0,
+                  0.0,
+                  40.0,
+                  25.0,
+                  48.0,
+                  60872.7432785,
+                  19623.5193024
+                ],
+                "x_span": [
+                  -40.0,
+                  40.0
+                ],
+                "y_span": [
+                  -25.0,
+                  17.0
+                ],
+                "z": 8.0
+              },
+              {
+                "_type": "FaceLevel",
+                "body_key": [
+                  -40.0,
+                  -25.0,
+                  0.0,
+                  40.0,
+                  25.0,
+                  48.0,
+                  60872.7432785,
+                  19623.5193024
+                ],
+                "x_span": [
+                  -10.0,
+                  10.0
+                ],
+                "y_span": [
+                  -7.0,
+                  13.0
+                ],
+                "z": 20.0
+              },
+              {
+                "_type": "FaceLevel",
+                "body_key": [
+                  -40.0,
+                  -25.0,
+                  0.0,
+                  40.0,
+                  25.0,
+                  48.0,
+                  60872.7432785,
+                  19623.5193024
+                ],
+                "x_span": [
+                  -9.0,
+                  9.0
+                ],
+                "y_span": [
+                  17.0,
+                  25.0
+                ],
+                "z": 28.0
+              },
+              {
+                "_type": "FaceLevel",
+                "body_key": [
+                  -40.0,
+                  -25.0,
+                  0.0,
+                  40.0,
+                  25.0,
+                  48.0,
+                  60872.7432785,
+                  19623.5193024
+                ],
+                "x_span": [
+                  -9.0,
+                  9.0
+                ],
+                "y_span": [
+                  17.0,
+                  25.0
+                ],
+                "z": 36.0
+              }
+            ],
+            "hi_at_envelope": true,
+            "lo_at_envelope": false,
+            "other_axis": "x",
+            "other_positions": [],
+            "positions": [
+              17.0
+            ],
+            "tol": 0.5,
+            "vertical": true,
+            "z_hi": 48.0,
+            "z_lo": 8.0
+          }
+        ],
+        "rotational": false,
+        "round_bottom_blind_slots": [],
+        "slot_patterns": [],
+        "slots": [
+          {
+            "_type": "Slot",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              60872.7432785,
+              19623.5193024
+            ],
+            "d_hi": 25.0,
+            "d_lo": 17.0,
+            "hi": 13.0,
+            "length": 26.0,
+            "lo": -13.0,
+            "long_axis": "x",
+            "w_center": 32.0,
+            "width": 8.0,
+            "width_axis": "z"
+          }
+        ],
+        "step_levels": [
+          {
+            "_type": "FaceLevel",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              60872.7432785,
+              19623.5193024
+            ],
+            "x_span": [
+              -40.0,
+              40.0
+            ],
+            "y_span": [
+              -25.0,
+              17.0
+            ],
+            "z": 8.0
+          },
+          {
+            "_type": "FaceLevel",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              60872.7432785,
+              19623.5193024
+            ],
+            "x_span": [
+              -10.0,
+              10.0
+            ],
+            "y_span": [
+              -7.0,
+              13.0
+            ],
+            "z": 20.0
+          },
+          {
+            "_type": "FaceLevel",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              60872.7432785,
+              19623.5193024
+            ],
+            "x_span": [
+              -9.0,
+              9.0
+            ],
+            "y_span": [
+              17.0,
+              25.0
+            ],
+            "z": 28.0
+          },
+          {
+            "_type": "FaceLevel",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              60872.7432785,
+              19623.5193024
+            ],
+            "x_span": [
+              -9.0,
+              9.0
+            ],
+            "y_span": [
+              17.0,
+              25.0
+            ],
+            "z": 36.0
+          }
+        ],
+        "through_steps": [],
+        "turned_steps": []
+      },
+      "rotational": {
+        "_type": "RecognitionResult",
+        "angled_steps": [],
+        "blends": [],
+        "bosses": [
+          {
+            "_type": "BossRecord",
+            "axis": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "diameter": 20.0,
+            "height": 12.0,
+            "location": [
+              0.0,
+              3.0,
+              20.0
+            ]
+          }
+        ],
+        "chamfers": [],
+        "channels": [],
+        "circular_blind_steps": [],
+        "countersinks": [],
+        "cylinders": [
+          [
+            {
+              "axis": "z",
+              "axis_xyz": [
+                -25.0,
+                -13.0,
+                -1.0
+              ],
+              "diameter": 8.0,
+              "dir_xyz": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "external": false,
+              "s_hi": 8.0,
+              "s_lo": 0.0,
+              "u_extent": 6.28318531
+            },
+            {
+              "axis": "z",
+              "axis_xyz": [
+                25.0,
+                -13.0,
+                -1.0
+              ],
+              "diameter": 8.0,
+              "dir_xyz": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "external": false,
+              "s_hi": 8.0,
+              "s_lo": 0.0,
+              "u_extent": 6.28318531
+            },
+            {
+              "axis": "z",
+              "axis_xyz": [
+                0.0,
+                3.0,
+                8.0
+              ],
+              "diameter": 20.0,
+              "dir_xyz": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "external": true,
+              "s_hi": 20.0,
+              "s_lo": 8.0,
+              "u_extent": 6.28318531
+            },
+            {
+              "axis": "z",
+              "axis_xyz": [
+                0.0,
+                3.0,
+                -1.0
+              ],
+              "diameter": 10.0,
+              "dir_xyz": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "external": false,
+              "s_hi": 20.0,
+              "s_lo": 0.0,
+              "u_extent": 6.28318531
+            }
+          ],
+          [
+            {
+              "axis": "y",
+              "axis_xyz": [
+                9.0,
+                31.0,
+                32.0
+              ],
+              "diameter": 8.0,
+              "dir_xyz": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "external": false,
+              "s_hi": 25.0,
+              "s_lo": 17.0,
+              "u_extent": 3.14159265
+            },
+            {
+              "axis": "y",
+              "axis_xyz": [
+                -9.0,
+                31.0,
+                32.0
+              ],
+              "diameter": 8.0,
+              "dir_xyz": [
+                0.0,
+                1.0,
+                0.0
+              ],
+              "external": false,
+              "s_hi": 25.0,
+              "s_lo": 17.0,
+              "u_extent": 3.14159265
+            }
+          ]
+        ],
+        "double_d_bores": [],
+        "edge_open_circular_pockets": [],
+        "edge_open_prismatic_recesses": [],
+        "fillets": [],
+        "flats": [],
+        "grooves": [],
+        "gusset_rib_patterns": [],
+        "gusset_ribs": [],
+        "hole_patterns": [],
+        "holes": [
+          {
+            "_type": "HoleRecord",
+            "axis": [
+              0.0,
+              0.0,
+              -1.0
+            ],
+            "bottom": "through",
+            "cbore": null,
+            "csink": null,
+            "depth": 8.0,
+            "diameter": 8.0,
+            "location": [
+              -25.0,
+              -13.0,
+              8.0
+            ],
+            "spotface": null
+          },
+          {
+            "_type": "HoleRecord",
+            "axis": [
+              0.0,
+              0.0,
+              -1.0
+            ],
+            "bottom": "through",
+            "cbore": null,
+            "csink": null,
+            "depth": 8.0,
+            "diameter": 8.0,
+            "location": [
+              25.0,
+              -13.0,
+              8.0
+            ],
+            "spotface": null
+          },
+          {
+            "_type": "HoleRecord",
+            "axis": [
+              0.0,
+              0.0,
+              -1.0
+            ],
+            "bottom": "through",
+            "cbore": null,
+            "csink": null,
+            "depth": 20.0,
+            "diameter": 10.0,
+            "location": [
+              0.0,
+              3.0,
+              20.0
+            ],
+            "spotface": null
+          }
+        ],
+        "pads": [],
+        "paired_ramp_steps": [],
+        "passages": [],
+        "plates": [],
+        "pocket_patterns": [],
+        "pockets": [],
+        "polygonal_bosses": [],
+        "polygonal_stock": [],
+        "prismatic_pockets": [],
+        "rectangular_blind_slots": [],
+        "repeating_radial_profiles": [],
+        "risers": [
+          {
+            "_type": "RiserEvidence",
+            "axis": "y",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              60872.7432785,
+              19623.5193024
+            ],
+            "body_levels": [
+              {
+                "_type": "FaceLevel",
+                "body_key": [
+                  -40.0,
+                  -25.0,
+                  0.0,
+                  40.0,
+                  25.0,
+                  48.0,
+                  60872.7432785,
+                  19623.5193024
+                ],
+                "x_span": [
+                  -40.0,
+                  40.0
+                ],
+                "y_span": [
+                  -25.0,
+                  17.0
+                ],
+                "z": 8.0
+              },
+              {
+                "_type": "FaceLevel",
+                "body_key": [
+                  -40.0,
+                  -25.0,
+                  0.0,
+                  40.0,
+                  25.0,
+                  48.0,
+                  60872.7432785,
+                  19623.5193024
+                ],
+                "x_span": [
+                  -10.0,
+                  10.0
+                ],
+                "y_span": [
+                  -7.0,
+                  13.0
+                ],
+                "z": 20.0
+              },
+              {
+                "_type": "FaceLevel",
+                "body_key": [
+                  -40.0,
+                  -25.0,
+                  0.0,
+                  40.0,
+                  25.0,
+                  48.0,
+                  60872.7432785,
+                  19623.5193024
+                ],
+                "x_span": [
+                  -9.0,
+                  9.0
+                ],
+                "y_span": [
+                  17.0,
+                  25.0
+                ],
+                "z": 28.0
+              },
+              {
+                "_type": "FaceLevel",
+                "body_key": [
+                  -40.0,
+                  -25.0,
+                  0.0,
+                  40.0,
+                  25.0,
+                  48.0,
+                  60872.7432785,
+                  19623.5193024
+                ],
+                "x_span": [
+                  -9.0,
+                  9.0
+                ],
+                "y_span": [
+                  17.0,
+                  25.0
+                ],
+                "z": 36.0
+              }
+            ],
+            "hi_at_envelope": true,
+            "lo_at_envelope": false,
+            "other_axis": "x",
+            "other_positions": [],
+            "positions": [
+              17.0
+            ],
+            "tol": 0.5,
+            "vertical": true,
+            "z_hi": 48.0,
+            "z_lo": 8.0
+          }
+        ],
+        "rotational": true,
+        "round_bottom_blind_slots": [],
+        "slot_patterns": [],
+        "slots": [
+          {
+            "_type": "Slot",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              60872.7432785,
+              19623.5193024
+            ],
+            "d_hi": 25.0,
+            "d_lo": 17.0,
+            "hi": 13.0,
+            "length": 26.0,
+            "lo": -13.0,
+            "long_axis": "x",
+            "w_center": 32.0,
+            "width": 8.0,
+            "width_axis": "z"
+          }
+        ],
+        "step_levels": [
+          {
+            "_type": "FaceLevel",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              60872.7432785,
+              19623.5193024
+            ],
+            "x_span": [
+              -40.0,
+              40.0
+            ],
+            "y_span": [
+              -25.0,
+              17.0
+            ],
+            "z": 8.0
+          },
+          {
+            "_type": "FaceLevel",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              60872.7432785,
+              19623.5193024
+            ],
+            "x_span": [
+              -10.0,
+              10.0
+            ],
+            "y_span": [
+              -7.0,
+              13.0
+            ],
+            "z": 20.0
+          },
+          {
+            "_type": "FaceLevel",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              60872.7432785,
+              19623.5193024
+            ],
+            "x_span": [
+              -9.0,
+              9.0
+            ],
+            "y_span": [
+              17.0,
+              25.0
+            ],
+            "z": 28.0
+          },
+          {
+            "_type": "FaceLevel",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              60872.7432785,
+              19623.5193024
+            ],
+            "x_span": [
+              -9.0,
+              9.0
+            ],
+            "y_span": [
+              17.0,
+              25.0
+            ],
+            "z": 36.0
+          }
+        ],
+        "through_steps": [],
+        "turned_steps": []
+      }
+    },
+    "feature_census": {
+      "angled_step": 0,
+      "blend": 0,
+      "boss": 1,
+      "chamfer": 0,
+      "channel": 0,
+      "circular_blind_step": 0,
+      "countersink": 0,
+      "edge_open_circular_pocket": 0,
+      "edge_open_prismatic_recess": 0,
+      "fillet": 0,
+      "flat": 0,
+      "groove": 0,
+      "gusset_rib": 2,
+      "hole": 3,
+      "hole_pattern": 0,
+      "paired_ramp_step": 0,
+      "passage": 0,
+      "plate": 2,
+      "pocket": 0,
+      "prismatic_pocket": 0,
+      "rectangular_blind_slot": 0,
+      "round_bottom_blind_slot": 0,
+      "slot": 1,
+      "step": 0,
+      "through_step": 0
+    },
+    "individual": {
+      "recognise_angled_steps": [],
+      "recognise_blends": [],
+      "recognise_bosses": [
+        {
+          "_type": "BossRecord",
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "diameter": 20.0,
+          "height": 12.0,
+          "location": [
+            0.0,
+            3.0,
+            20.0
+          ]
+        }
+      ],
+      "recognise_chamfers": [],
+      "recognise_channels": [],
+      "recognise_circular_blind_steps": [],
+      "recognise_countersinks": [],
+      "recognise_double_d_bores": [],
+      "recognise_face_levels": [
+        {
+          "_type": "FaceLevel",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            60872.7432785,
+            19623.5193024
+          ],
+          "x_span": [
+            -40.0,
+            40.0
+          ],
+          "y_span": [
+            -25.0,
+            25.0
+          ],
+          "z": 0.0
+        },
+        {
+          "_type": "FaceLevel",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            60872.7432785,
+            19623.5193024
+          ],
+          "x_span": [
+            -40.0,
+            40.0
+          ],
+          "y_span": [
+            -25.0,
+            17.0
+          ],
+          "z": 8.0
+        },
+        {
+          "_type": "FaceLevel",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            60872.7432785,
+            19623.5193024
+          ],
+          "x_span": [
+            -10.0,
+            10.0
+          ],
+          "y_span": [
+            -7.0,
+            13.0
+          ],
+          "z": 20.0
+        },
+        {
+          "_type": "FaceLevel",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            60872.7432785,
+            19623.5193024
+          ],
+          "x_span": [
+            -9.0,
+            9.0
+          ],
+          "y_span": [
+            17.0,
+            25.0
+          ],
+          "z": 28.0
+        },
+        {
+          "_type": "FaceLevel",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            60872.7432785,
+            19623.5193024
+          ],
+          "x_span": [
+            -9.0,
+            9.0
+          ],
+          "y_span": [
+            17.0,
+            25.0
+          ],
+          "z": 36.0
+        },
+        {
+          "_type": "FaceLevel",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            60872.7432785,
+            19623.5193024
+          ],
+          "x_span": [
+            -40.0,
+            40.0
+          ],
+          "y_span": [
+            17.0,
+            25.0
+          ],
+          "z": 48.0
+        }
+      ],
+      "recognise_fillets": [],
+      "recognise_flats": [],
+      "recognise_grooves": [],
+      "recognise_gusset_rib_patterns": [],
+      "recognise_gusset_ribs": [
+        {
+          "_type": "GussetRib",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            60872.7432785,
+            19623.5193024
+          ],
+          "directions": [
+            -1,
+            1
+          ],
+          "legs": [
+            22.0,
+            26.0
+          ],
+          "supports": [
+            [
+              "y",
+              17.0
+            ],
+            [
+              "z",
+              8.0
+            ]
+          ],
+          "thickness_axis": "x",
+          "thickness_bounds": [
+            -38.0,
+            -32.0
+          ]
+        },
+        {
+          "_type": "GussetRib",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            60872.7432785,
+            19623.5193024
+          ],
+          "directions": [
+            -1,
+            1
+          ],
+          "legs": [
+            22.0,
+            26.0
+          ],
+          "supports": [
+            [
+              "y",
+              17.0
+            ],
+            [
+              "z",
+              8.0
+            ]
+          ],
+          "thickness_axis": "x",
+          "thickness_bounds": [
+            20.0,
+            26.0
+          ]
+        }
+      ],
+      "recognise_hole_patterns": [],
+      "recognise_holes": [
+        {
+          "_type": "HoleRecord",
+          "axis": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "bottom": "through",
+          "cbore": null,
+          "csink": null,
+          "depth": 8.0,
+          "diameter": 8.0,
+          "location": [
+            -25.0,
+            -13.0,
+            8.0
+          ],
+          "spotface": null
+        },
+        {
+          "_type": "HoleRecord",
+          "axis": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "bottom": "through",
+          "cbore": null,
+          "csink": null,
+          "depth": 8.0,
+          "diameter": 8.0,
+          "location": [
+            25.0,
+            -13.0,
+            8.0
+          ],
+          "spotface": null
+        },
+        {
+          "_type": "HoleRecord",
+          "axis": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "bottom": "through",
+          "cbore": null,
+          "csink": null,
+          "depth": 20.0,
+          "diameter": 10.0,
+          "location": [
+            0.0,
+            3.0,
+            20.0
+          ],
+          "spotface": null
+        }
+      ],
+      "recognise_paired_ramp_steps": [],
+      "recognise_passages": [],
+      "recognise_plates": [
+        {
+          "_type": "Plate",
+          "axis": "y",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            60872.7432785,
+            19623.5193024
+          ],
+          "hi": 25.0,
+          "lo": 17.0,
+          "u": 0.29529287,
+          "v": 25.67644202
+        },
+        {
+          "_type": "Plate",
+          "axis": "z",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            60872.7432785,
+            19623.5193024
+          ],
+          "hi": 8.0,
+          "lo": 0.0,
+          "u": 0.24360839,
+          "v": -2.08978664
+        }
+      ],
+      "recognise_pocket_patterns": [],
+      "recognise_pockets": [],
+      "recognise_polygonal_bosses": [],
+      "recognise_polygonal_stock": [],
+      "recognise_prismatic_pockets": [],
+      "recognise_rectangular_blind_slots": [],
+      "recognise_rectangular_pads": [],
+      "recognise_repeating_radial_profiles": [],
+      "recognise_risers": [
+        {
+          "_type": "RiserEvidence",
+          "axis": "y",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            60872.7432785,
+            19623.5193024
+          ],
+          "body_levels": [
+            {
+              "_type": "FaceLevel",
+              "body_key": [
+                -40.0,
+                -25.0,
+                0.0,
+                40.0,
+                25.0,
+                48.0,
+                60872.7432785,
+                19623.5193024
+              ],
+              "x_span": [
+                -40.0,
+                40.0
+              ],
+              "y_span": [
+                -25.0,
+                17.0
+              ],
+              "z": 8.0
+            },
+            {
+              "_type": "FaceLevel",
+              "body_key": [
+                -40.0,
+                -25.0,
+                0.0,
+                40.0,
+                25.0,
+                48.0,
+                60872.7432785,
+                19623.5193024
+              ],
+              "x_span": [
+                -10.0,
+                10.0
+              ],
+              "y_span": [
+                -7.0,
+                13.0
+              ],
+              "z": 20.0
+            },
+            {
+              "_type": "FaceLevel",
+              "body_key": [
+                -40.0,
+                -25.0,
+                0.0,
+                40.0,
+                25.0,
+                48.0,
+                60872.7432785,
+                19623.5193024
+              ],
+              "x_span": [
+                -9.0,
+                9.0
+              ],
+              "y_span": [
+                17.0,
+                25.0
+              ],
+              "z": 28.0
+            },
+            {
+              "_type": "FaceLevel",
+              "body_key": [
+                -40.0,
+                -25.0,
+                0.0,
+                40.0,
+                25.0,
+                48.0,
+                60872.7432785,
+                19623.5193024
+              ],
+              "x_span": [
+                -9.0,
+                9.0
+              ],
+              "y_span": [
+                17.0,
+                25.0
+              ],
+              "z": 36.0
+            }
+          ],
+          "hi_at_envelope": true,
+          "lo_at_envelope": false,
+          "other_axis": "x",
+          "other_positions": [],
+          "positions": [
+            17.0
+          ],
+          "tol": 0.5,
+          "vertical": true,
+          "z_hi": 48.0,
+          "z_lo": 8.0
+        }
+      ],
+      "recognise_round_bottom_blind_slots": [],
+      "recognise_slot_patterns": [],
+      "recognise_slots": [
+        {
+          "_type": "Slot",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            60872.7432785,
+            19623.5193024
+          ],
+          "d_hi": 25.0,
+          "d_lo": 17.0,
+          "hi": 13.0,
+          "length": 26.0,
+          "lo": -13.0,
+          "long_axis": "x",
+          "w_center": 32.0,
+          "width": 8.0,
+          "width_axis": "z"
+        }
+      ],
+      "recognise_through_steps": [],
+      "recognise_turned_steps": []
+    },
+    "substrates": {
+      "analyse_cylinders": [
+        [
+          {
+            "axis": "z",
+            "axis_xyz": [
+              -25.0,
+              -13.0,
+              -1.0
+            ],
+            "diameter": 8.0,
+            "dir_xyz": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "external": false,
+            "s_hi": 8.0,
+            "s_lo": 0.0,
+            "u_extent": 6.28318531
+          },
+          {
+            "axis": "z",
+            "axis_xyz": [
+              25.0,
+              -13.0,
+              -1.0
+            ],
+            "diameter": 8.0,
+            "dir_xyz": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "external": false,
+            "s_hi": 8.0,
+            "s_lo": 0.0,
+            "u_extent": 6.28318531
+          },
+          {
+            "axis": "z",
+            "axis_xyz": [
+              0.0,
+              3.0,
+              8.0
+            ],
+            "diameter": 20.0,
+            "dir_xyz": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "external": true,
+            "s_hi": 20.0,
+            "s_lo": 8.0,
+            "u_extent": 6.28318531
+          },
+          {
+            "axis": "z",
+            "axis_xyz": [
+              0.0,
+              3.0,
+              -1.0
+            ],
+            "diameter": 10.0,
+            "dir_xyz": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "external": false,
+            "s_hi": 20.0,
+            "s_lo": 0.0,
+            "u_extent": 6.28318531
+          }
+        ],
+        [
+          {
+            "axis": "y",
+            "axis_xyz": [
+              9.0,
+              31.0,
+              32.0
+            ],
+            "diameter": 8.0,
+            "dir_xyz": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "external": false,
+            "s_hi": 25.0,
+            "s_lo": 17.0,
+            "u_extent": 3.14159265
+          },
+          {
+            "axis": "y",
+            "axis_xyz": [
+              -9.0,
+              31.0,
+              32.0
+            ],
+            "diameter": 8.0,
+            "dir_xyz": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "external": false,
+            "s_hi": 25.0,
+            "s_lo": 17.0,
+            "u_extent": 3.14159265
+          }
+        ]
+      ],
+      "feature_diameters": [
+        8.0,
+        10.0,
+        20.0
+      ],
+      "full_cylinders": [
+        [
+          {
+            "axis": "z",
+            "axis_xyz": [
+              -25.0,
+              -13.0,
+              -1.0
+            ],
+            "diameter": 8.0,
+            "dir_xyz": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "external": false,
+            "s_hi": 8.0,
+            "s_lo": 0.0,
+            "u_extent": 6.28318531
+          },
+          {
+            "axis": "z",
+            "axis_xyz": [
+              25.0,
+              -13.0,
+              -1.0
+            ],
+            "diameter": 8.0,
+            "dir_xyz": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "external": false,
+            "s_hi": 8.0,
+            "s_lo": 0.0,
+            "u_extent": 6.28318531
+          },
+          {
+            "axis": "z",
+            "axis_xyz": [
+              0.0,
+              3.0,
+              8.0
+            ],
+            "diameter": 20.0,
+            "dir_xyz": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "external": true,
+            "s_hi": 20.0,
+            "s_lo": 8.0,
+            "u_extent": 6.28318531
+          },
+          {
+            "axis": "z",
+            "axis_xyz": [
+              0.0,
+              3.0,
+              -1.0
+            ],
+            "diameter": 10.0,
+            "dir_xyz": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "external": false,
+            "s_hi": 20.0,
+            "s_lo": 0.0,
+            "u_extent": 6.28318531
+          }
+        ],
+        []
+      ],
+      "step_level_records": [
+        {
+          "_type": "FaceLevel",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            60872.7432785,
+            19623.5193024
+          ],
+          "x_span": [
+            -40.0,
+            40.0
+          ],
+          "y_span": [
+            -25.0,
+            17.0
+          ],
+          "z": 8.0
+        },
+        {
+          "_type": "FaceLevel",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            60872.7432785,
+            19623.5193024
+          ],
+          "x_span": [
+            -10.0,
+            10.0
+          ],
+          "y_span": [
+            -7.0,
+            13.0
+          ],
+          "z": 20.0
+        },
+        {
+          "_type": "FaceLevel",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            60872.7432785,
+            19623.5193024
+          ],
+          "x_span": [
+            -9.0,
+            9.0
+          ],
+          "y_span": [
+            17.0,
+            25.0
+          ],
+          "z": 28.0
+        },
+        {
+          "_type": "FaceLevel",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            60872.7432785,
+            19623.5193024
+          ],
+          "x_span": [
+            -9.0,
+            9.0
+          ],
+          "y_span": [
+            17.0,
+            25.0
+          ],
+          "z": 36.0
+        }
+      ]
+    }
+  }
+}
