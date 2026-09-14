@@ -55,3 +55,26 @@ def parse_version(value: object, context: str, *, error: type[Exception]) -> tup
         raise error(f"{context} must be a semantic package version")
     major, minor, patch = match.groups()
     return int(major), int(minor), int(patch)
+
+
+def check_object(
+    value: object,
+    required: set[str],
+    context: str,
+    *,
+    error: type[Exception],
+) -> dict[str, Any]:
+    """Return *value* if it is an object carrying exactly the *required* fields.
+
+    The two manifests ask this of nested objects a dozen times between them, always
+    in the same three steps and always with these messages: reject a non-object,
+    reject unknown fields, reject missing ones.  Sites that need a different message
+    or a subset rule keep their own spelling rather than parameterising this one.
+    """
+
+    if not isinstance(value, dict):
+        raise error(f"{context} must be an object")
+    check_keys(value, required, context, error=error)
+    if set(value) != required:
+        raise error(f"{context} is missing required fields")
+    return value

@@ -42,6 +42,7 @@ from quiddity._effective_surfaces import (
     RefusedSurfaceFact as _RefusedSurfaceFact,
 )
 from quiddity._manifest import check_keys as _check_keys
+from quiddity._manifest import check_object as _check_object
 from quiddity._manifest import parse_version as _parse_version
 from quiddity._typing import FaceLike
 from quiddity.countersinks import cone_rims
@@ -216,6 +217,230 @@ def inspect_face(face: FaceLike) -> FaceInspection:
 
 _keys = partial(_check_keys, error=InspectionApiManifestError)
 _version = partial(_parse_version, error=InspectionApiManifestError)
+_object = partial(_check_object, error=InspectionApiManifestError)
+
+
+def _validate_package(package: object) -> tuple[int, int, int]:
+    """Return the package version the document claims to have been produced by."""
+
+    if not isinstance(package, dict):
+        raise InspectionApiManifestError("package must be an object")
+    _keys(package, {"name", "version"}, "package")
+    if set(package) != {"name", "version"} or package["name"] != "quiddity":
+        raise InspectionApiManifestError("package identity must be quiddity with a version")
+    return _version(package["version"], "package.version")
+
+
+def _validate_surface_parameters(surface_parameters: object) -> None:
+    """Check the parameter layout published for each of the four analytic surface kinds."""
+
+    if not isinstance(surface_parameters, dict) or set(surface_parameters) != _PARAMETER_KINDS:
+        raise InspectionApiManifestError(
+            "api.surface_parameters must define the four supported surface kinds"
+        )
+    for surface_kind, layout in surface_parameters.items():
+        context = f"api.surface_parameters.{surface_kind}"
+        if not isinstance(layout, list) or not layout:
+            raise InspectionApiManifestError(f"{context} must be a non-empty array")
+        parameter_names: list[str] = []
+        for index, parameter in enumerate(layout):
+            item_context = f"{context}[{index}]"
+            _object(parameter, {"name", "unit"}, item_context)
+            parameter_name = parameter["name"]
+            if not isinstance(parameter_name, str) or not _SYMBOL.fullmatch(parameter_name):
+                raise InspectionApiManifestError(f"{item_context}.name is invalid")
+            if not isinstance(parameter["unit"], str) or parameter["unit"] not in _PARAMETER_UNITS:
+                raise InspectionApiManifestError(f"{item_context}.unit is invalid")
+            parameter_names.append(parameter_name)
+        if len(parameter_names) != len(set(parameter_names)):
+            raise InspectionApiManifestError(f"{context} names must be unique")
+
+
+def _validate_dataclass_contract(contract: dict[str, Any], context: str) -> None:
+    fields = contract["fields"]
+    if (
+        not isinstance(fields, list)
+        or not fields
+        or type(contract["frozen"]) is not bool
+        or type(contract["slots"]) is not bool
+    ):
+        raise InspectionApiManifestError(f"{context}.contract is invalid")
+    field_names: list[str] = []
+    for field_index, field in enumerate(fields):
+        field_context = f"{context}.contract.fields[{field_index}]"
+        _object(field, {"name", "type"}, field_context)
+        if (
+            not isinstance(field["name"], str)
+            or not _SYMBOL.fullmatch(field["name"])
+            or not isinstance(field["type"], str)
+            or not field["type"]
+        ):
+            raise InspectionApiManifestError(f"{field_context} is invalid")
+        field_names.append(field["name"])
+    if len(field_names) != len(set(field_names)):
+        raise InspectionApiManifestError(f"{context}.contract field names must be unique")
+
+
+def _validate_enum_contract(contract: dict[str, Any], context: str) -> None:
+    members = contract["members"]
+    if not isinstance(members, list) or not members:
+        raise InspectionApiManifestError(f"{context}.contract.members must be a non-empty array")
+    member_names: list[str] = []
+    member_values: list[str] = []
+    for member_index, member in enumerate(members):
+        member_context = f"{context}.contract.members[{member_index}]"
+        _object(member, {"name", "value"}, member_context)
+        if (
+            not isinstance(member["name"], str)
+            or not _SYMBOL.fullmatch(member["name"])
+            or not isinstance(member["value"], str)
+            or not member["value"]
+        ):
+            raise InspectionApiManifestError(f"{member_context} is invalid")
+        member_names.append(member["name"])
+        member_values.append(member["value"])
+    if len(member_names) != len(set(member_names)) or len(member_values) != len(set(member_values)):
+        raise InspectionApiManifestError(f"{context}.contract enum names and values must be unique")
+
+
+def _validate_exception_contract(contract: dict[str, Any], context: str) -> None:
+    if not isinstance(contract["base"], str) or not contract["base"]:
+        raise InspectionApiManifestError(f"{context}.contract.base is invalid")
+    attributes = contract["attributes"]
+    if not isinstance(attributes, list) or not attributes:
+        raise InspectionApiManifestError(f"{context}.contract.attributes must be a non-empty array")
+    attribute_names: list[str] = []
+    for attribute_index, attribute in enumerate(attributes):
+        attribute_context = f"{context}.contract.attributes[{attribute_index}]"
+        _object(attribute, {"name", "type", "values"}, attribute_context)
+        values = attribute["values"]
+        if (
+            not isinstance(attribute["name"], str)
+            or not _SYMBOL.fullmatch(attribute["name"])
+            or not isinstance(attribute["type"], str)
+            or not attribute["type"]
+            or not isinstance(values, list)
+            or not values
+            or not all(isinstance(value, str) and value for value in values)
+            or len(values) != len(set(values))
+        ):
+            raise InspectionApiManifestError(f"{attribute_context} is invalid")
+        attribute_names.append(attribute["name"])
+    if len(attribute_names) != len(set(attribute_names)):
+        raise InspectionApiManifestError(f"{context}.contract attribute names must be unique")
+
+
+def _validate_function_contract(contract: dict[str, Any], context: str) -> None:
+    if not isinstance(contract["signature"], str) or not contract["signature"]:
+        raise InspectionApiManifestError(f"{context}.contract.signature is invalid")
+    if "returns" not in contract:
+        return
+    returns = contract["returns"]
+    if not isinstance(returns, dict):
+        raise InspectionApiManifestError(f"{context}.contract.returns must be an object")
+    _keys(returns, {"kind", "members"}, f"{context}.contract.returns")
+    if set(returns) != {"kind", "members"} or returns["kind"] != "tuple":
+        raise InspectionApiManifestError(f"{context}.contract.returns must define a tuple")
+    members = returns["members"]
+    if not isinstance(members, list) or not members:
+        raise InspectionApiManifestError(
+            f"{context}.contract.returns.members must be a non-empty array"
+        )
+    return_member_names: list[str] = []
+    for member_index, member in enumerate(members):
+        member_context = f"{context}.contract.returns.members[{member_index}]"
+        _object(member, {"name", "type", "unit", "values"}, member_context)
+        unit = member["unit"]
+        values = member["values"]
+        if (
+            not isinstance(member["name"], str)
+            or not _SYMBOL.fullmatch(member["name"])
+            or not isinstance(member["type"], str)
+            or not member["type"]
+            or (unit is not None and unit not in _RETURN_UNITS)
+            or (
+                values is not None
+                and (
+                    not isinstance(values, list)
+                    or not values
+                    or not all(isinstance(value, str) and value for value in values)
+                    or len(values) != len(set(values))
+                )
+            )
+        ):
+            raise InspectionApiManifestError(f"{member_context} is invalid")
+        return_member_names.append(member["name"])
+    if len(return_member_names) != len(set(return_member_names)):
+        raise InspectionApiManifestError(f"{context}.contract return member names must be unique")
+
+
+def _validate_contract(symbol: dict[str, Any], name: str, context: str) -> None:
+    """Check the per-kind contract body, which is the half of a symbol that varies."""
+
+    kind = symbol["kind"]
+    contract = symbol["contract"]
+    if not isinstance(contract, dict) or not contract:
+        raise InspectionApiManifestError(f"{context}.contract must be a non-empty object")
+    expected_contract = {
+        "dataclass": {"fields", "frozen", "slots"},
+        "enum": {"members"},
+        "exception": {"attributes", "base"},
+        "function": ({"returns", "signature"} if name == "read_double_d_tool" else {"signature"}),
+        "type-alias": {"definition"},
+    }[kind]
+    _keys(contract, expected_contract, f"{context}.contract")
+    if set(contract) != expected_contract:
+        raise InspectionApiManifestError(f"{context}.contract is incomplete")
+    if kind == "dataclass":
+        _validate_dataclass_contract(contract, context)
+    elif kind == "enum":
+        _validate_enum_contract(contract, context)
+    elif kind == "exception":
+        _validate_exception_contract(contract, context)
+    elif kind == "function":
+        _validate_function_contract(contract, context)
+    else:
+        (contract_value,) = contract.values()
+        if not isinstance(contract_value, str) or not contract_value:
+            raise InspectionApiManifestError(f"{context}.contract value is invalid")
+
+
+def _validate_symbol(
+    symbol: object, index: int, package_version: tuple[int, int, int]
+) -> tuple[str, str, list[str]]:
+    """Return the ``(name, qualified_name, aliases)`` of one validated symbol entry."""
+
+    context = f"api.symbols[{index}]"
+    symbol = _object(
+        symbol,
+        {"aliases", "contract", "introduced_in", "kind", "name", "qualified_name"},
+        context,
+    )
+    name = symbol["name"]
+    if not isinstance(name, str) or not _SYMBOL.fullmatch(name):
+        raise InspectionApiManifestError(f"{context}.name is invalid")
+    if symbol["qualified_name"] != f"{_INSPECTION_NAMESPACE}.{name}":
+        raise InspectionApiManifestError(f"{context}.qualified_name is invalid")
+    kind = symbol["kind"]
+    if not isinstance(kind, str) or kind not in _KINDS:
+        raise InspectionApiManifestError(f"{context}.kind is invalid")
+    introduced = _version(symbol["introduced_in"], f"{context}.introduced_in")
+    if introduced > package_version:
+        raise InspectionApiManifestError(f"{context} is introduced after this package")
+    aliases = symbol["aliases"]
+    if (
+        not isinstance(aliases, list)
+        or not all(
+            isinstance(alias, str)
+            and _QUALIFIED.fullmatch(alias)
+            and alias != symbol["qualified_name"]
+            for alias in aliases
+        )
+        or aliases != sorted(set(aliases))
+    ):
+        raise InspectionApiManifestError(f"{context}.aliases is invalid")
+    _validate_contract(symbol, name, context)
+    return name, symbol["qualified_name"], aliases
 
 
 def validate_inspection_api_manifest(manifest: object) -> None:
@@ -238,13 +463,7 @@ def validate_inspection_api_manifest(manifest: object) -> None:
             f"unsupported inspection format version {manifest['format_version']!r}"
         )
 
-    package = manifest["package"]
-    if not isinstance(package, dict):
-        raise InspectionApiManifestError("package must be an object")
-    _keys(package, {"name", "version"}, "package")
-    if set(package) != {"name", "version"} or package["name"] != "quiddity":
-        raise InspectionApiManifestError("package identity must be quiddity with a version")
-    package_version = _version(package["version"], "package.version")
+    package_version = _validate_package(manifest["package"])
 
     api = manifest["api"]
     if not isinstance(api, dict):
@@ -257,31 +476,8 @@ def validate_inspection_api_manifest(manifest: object) -> None:
         raise InspectionApiManifestError(f"unsupported inspection API major {api['major']!r}")
     if api["namespace"] != _INSPECTION_NAMESPACE:
         raise InspectionApiManifestError("inspection API namespace is invalid")
-    surface_parameters = api["surface_parameters"]
-    if not isinstance(surface_parameters, dict) or set(surface_parameters) != _PARAMETER_KINDS:
-        raise InspectionApiManifestError(
-            "api.surface_parameters must define the four supported surface kinds"
-        )
-    for surface_kind, layout in surface_parameters.items():
-        context = f"api.surface_parameters.{surface_kind}"
-        if not isinstance(layout, list) or not layout:
-            raise InspectionApiManifestError(f"{context} must be a non-empty array")
-        parameter_names: list[str] = []
-        for index, parameter in enumerate(layout):
-            item_context = f"{context}[{index}]"
-            if not isinstance(parameter, dict):
-                raise InspectionApiManifestError(f"{item_context} must be an object")
-            _keys(parameter, {"name", "unit"}, item_context)
-            if set(parameter) != {"name", "unit"}:
-                raise InspectionApiManifestError(f"{item_context} is missing required fields")
-            parameter_name = parameter["name"]
-            if not isinstance(parameter_name, str) or not _SYMBOL.fullmatch(parameter_name):
-                raise InspectionApiManifestError(f"{item_context}.name is invalid")
-            if not isinstance(parameter["unit"], str) or parameter["unit"] not in _PARAMETER_UNITS:
-                raise InspectionApiManifestError(f"{item_context}.unit is invalid")
-            parameter_names.append(parameter_name)
-        if len(parameter_names) != len(set(parameter_names)):
-            raise InspectionApiManifestError(f"{context} names must be unique")
+    _validate_surface_parameters(api["surface_parameters"])
+
     symbols = api["symbols"]
     if not isinstance(symbols, list) or not symbols:
         raise InspectionApiManifestError("api.symbols must be a non-empty array")
@@ -290,205 +486,10 @@ def validate_inspection_api_manifest(manifest: object) -> None:
     qualified_names: list[str] = []
     all_aliases: list[str] = []
     for index, symbol in enumerate(symbols):
-        context = f"api.symbols[{index}]"
-        if not isinstance(symbol, dict):
-            raise InspectionApiManifestError(f"{context} must be an object")
-        required = {
-            "aliases",
-            "contract",
-            "introduced_in",
-            "kind",
-            "name",
-            "qualified_name",
-        }
-        _keys(symbol, required, context)
-        if set(symbol) != required:
-            raise InspectionApiManifestError(f"{context} is missing required fields")
-        name = symbol["name"]
-        if not isinstance(name, str) or not _SYMBOL.fullmatch(name):
-            raise InspectionApiManifestError(f"{context}.name is invalid")
+        name, qualified_name, aliases = _validate_symbol(symbol, index, package_version)
         names.append(name)
-        if symbol["qualified_name"] != f"{_INSPECTION_NAMESPACE}.{name}":
-            raise InspectionApiManifestError(f"{context}.qualified_name is invalid")
-        qualified_names.append(symbol["qualified_name"])
-        kind = symbol["kind"]
-        if not isinstance(kind, str) or kind not in _KINDS:
-            raise InspectionApiManifestError(f"{context}.kind is invalid")
-        introduced = _version(symbol["introduced_in"], f"{context}.introduced_in")
-        if introduced > package_version:
-            raise InspectionApiManifestError(f"{context} is introduced after this package")
-        aliases = symbol["aliases"]
-        if (
-            not isinstance(aliases, list)
-            or not all(
-                isinstance(alias, str)
-                and _QUALIFIED.fullmatch(alias)
-                and alias != symbol["qualified_name"]
-                for alias in aliases
-            )
-            or aliases != sorted(set(aliases))
-        ):
-            raise InspectionApiManifestError(f"{context}.aliases is invalid")
+        qualified_names.append(qualified_name)
         all_aliases.extend(aliases)
-        contract = symbol["contract"]
-        if not isinstance(contract, dict) or not contract:
-            raise InspectionApiManifestError(f"{context}.contract must be a non-empty object")
-        expected_contract = {
-            "dataclass": {"fields", "frozen", "slots"},
-            "enum": {"members"},
-            "exception": {"attributes", "base"},
-            "function": (
-                {"returns", "signature"} if name == "read_double_d_tool" else {"signature"}
-            ),
-            "type-alias": {"definition"},
-        }[kind]
-        _keys(contract, expected_contract, f"{context}.contract")
-        if set(contract) != expected_contract:
-            raise InspectionApiManifestError(f"{context}.contract is incomplete")
-        if kind == "dataclass":
-            fields = contract["fields"]
-            if (
-                not isinstance(fields, list)
-                or not fields
-                or type(contract["frozen"]) is not bool
-                or type(contract["slots"]) is not bool
-            ):
-                raise InspectionApiManifestError(f"{context}.contract is invalid")
-            field_names: list[str] = []
-            for field_index, field in enumerate(fields):
-                field_context = f"{context}.contract.fields[{field_index}]"
-                if not isinstance(field, dict):
-                    raise InspectionApiManifestError(f"{field_context} must be an object")
-                _keys(field, {"name", "type"}, field_context)
-                if set(field) != {"name", "type"}:
-                    raise InspectionApiManifestError(f"{field_context} is missing required fields")
-                if (
-                    not isinstance(field["name"], str)
-                    or not _SYMBOL.fullmatch(field["name"])
-                    or not isinstance(field["type"], str)
-                    or not field["type"]
-                ):
-                    raise InspectionApiManifestError(f"{field_context} is invalid")
-                field_names.append(field["name"])
-            if len(field_names) != len(set(field_names)):
-                raise InspectionApiManifestError(f"{context}.contract field names must be unique")
-        elif kind == "enum":
-            members = contract["members"]
-            if not isinstance(members, list) or not members:
-                raise InspectionApiManifestError(
-                    f"{context}.contract.members must be a non-empty array"
-                )
-            member_names: list[str] = []
-            member_values: list[str] = []
-            for member_index, member in enumerate(members):
-                member_context = f"{context}.contract.members[{member_index}]"
-                if not isinstance(member, dict):
-                    raise InspectionApiManifestError(f"{member_context} must be an object")
-                _keys(member, {"name", "value"}, member_context)
-                if set(member) != {"name", "value"}:
-                    raise InspectionApiManifestError(f"{member_context} is missing required fields")
-                if (
-                    not isinstance(member["name"], str)
-                    or not _SYMBOL.fullmatch(member["name"])
-                    or not isinstance(member["value"], str)
-                    or not member["value"]
-                ):
-                    raise InspectionApiManifestError(f"{member_context} is invalid")
-                member_names.append(member["name"])
-                member_values.append(member["value"])
-            if len(member_names) != len(set(member_names)) or len(member_values) != len(
-                set(member_values)
-            ):
-                raise InspectionApiManifestError(
-                    f"{context}.contract enum names and values must be unique"
-                )
-        elif kind == "exception":
-            if not isinstance(contract["base"], str) or not contract["base"]:
-                raise InspectionApiManifestError(f"{context}.contract.base is invalid")
-            attributes = contract["attributes"]
-            if not isinstance(attributes, list) or not attributes:
-                raise InspectionApiManifestError(
-                    f"{context}.contract.attributes must be a non-empty array"
-                )
-            attribute_names: list[str] = []
-            for attribute_index, attribute in enumerate(attributes):
-                attribute_context = f"{context}.contract.attributes[{attribute_index}]"
-                if not isinstance(attribute, dict):
-                    raise InspectionApiManifestError(f"{attribute_context} must be an object")
-                _keys(attribute, {"name", "type", "values"}, attribute_context)
-                if set(attribute) != {"name", "type", "values"}:
-                    raise InspectionApiManifestError(
-                        f"{attribute_context} is missing required fields"
-                    )
-                values = attribute["values"]
-                if (
-                    not isinstance(attribute["name"], str)
-                    or not _SYMBOL.fullmatch(attribute["name"])
-                    or not isinstance(attribute["type"], str)
-                    or not attribute["type"]
-                    or not isinstance(values, list)
-                    or not values
-                    or not all(isinstance(value, str) and value for value in values)
-                    or len(values) != len(set(values))
-                ):
-                    raise InspectionApiManifestError(f"{attribute_context} is invalid")
-                attribute_names.append(attribute["name"])
-            if len(attribute_names) != len(set(attribute_names)):
-                raise InspectionApiManifestError(
-                    f"{context}.contract attribute names must be unique"
-                )
-        elif kind == "function":
-            if not isinstance(contract["signature"], str) or not contract["signature"]:
-                raise InspectionApiManifestError(f"{context}.contract.signature is invalid")
-            if "returns" not in contract:
-                continue
-            returns = contract["returns"]
-            if not isinstance(returns, dict):
-                raise InspectionApiManifestError(f"{context}.contract.returns must be an object")
-            _keys(returns, {"kind", "members"}, f"{context}.contract.returns")
-            if set(returns) != {"kind", "members"} or returns["kind"] != "tuple":
-                raise InspectionApiManifestError(f"{context}.contract.returns must define a tuple")
-            members = returns["members"]
-            if not isinstance(members, list) or not members:
-                raise InspectionApiManifestError(
-                    f"{context}.contract.returns.members must be a non-empty array"
-                )
-            return_member_names: list[str] = []
-            for member_index, member in enumerate(members):
-                member_context = f"{context}.contract.returns.members[{member_index}]"
-                if not isinstance(member, dict):
-                    raise InspectionApiManifestError(f"{member_context} must be an object")
-                _keys(member, {"name", "type", "unit", "values"}, member_context)
-                if set(member) != {"name", "type", "unit", "values"}:
-                    raise InspectionApiManifestError(f"{member_context} is missing required fields")
-                unit = member["unit"]
-                values = member["values"]
-                if (
-                    not isinstance(member["name"], str)
-                    or not _SYMBOL.fullmatch(member["name"])
-                    or not isinstance(member["type"], str)
-                    or not member["type"]
-                    or (unit is not None and unit not in _RETURN_UNITS)
-                    or (
-                        values is not None
-                        and (
-                            not isinstance(values, list)
-                            or not values
-                            or not all(isinstance(value, str) and value for value in values)
-                            or len(values) != len(set(values))
-                        )
-                    )
-                ):
-                    raise InspectionApiManifestError(f"{member_context} is invalid")
-                return_member_names.append(member["name"])
-            if len(return_member_names) != len(set(return_member_names)):
-                raise InspectionApiManifestError(
-                    f"{context}.contract return member names must be unique"
-                )
-        else:
-            (contract_value,) = contract.values()
-            if not isinstance(contract_value, str) or not contract_value:
-                raise InspectionApiManifestError(f"{context}.contract value is invalid")
     if names != sorted(names) or len(names) != len(set(names)):
         raise InspectionApiManifestError("inspection API symbols must be unique and name-sorted")
     if len(all_aliases) != len(set(all_aliases)) or set(all_aliases) & set(qualified_names):
