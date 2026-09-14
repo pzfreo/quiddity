@@ -14,6 +14,7 @@ from typing import Any, TypeAlias, cast
 
 from quiddity import __version__
 from quiddity._manifest import check_keys as _check_keys
+from quiddity._manifest import check_object as _check_object
 from quiddity._manifest import parse_version as _parse_version
 
 CAPABILITY_FORMAT = "quiddity-capabilities"
@@ -33,6 +34,7 @@ class CapabilityManifestError(ValueError):
 
 _keys = partial(_check_keys, error=CapabilityManifestError)
 _version = partial(_parse_version, error=CapabilityManifestError)
+_object = partial(_check_object, error=CapabilityManifestError)
 
 
 def _paths(value: object, context: str, *, allow_empty: bool = False) -> None:
@@ -109,22 +111,11 @@ def _validate_aliases(
     replacements: dict[tuple[str, str], str] = {}
     for index, alias in enumerate(aliases):
         context = f"aliases[{index}]"
-        if not isinstance(alias, dict):
-            raise CapabilityManifestError(f"{context} must be an object")
-        _keys(
+        alias = _object(
             alias,
             {"deprecated_in", "kind", "old", "rationale", "remove_in", "replacement"},
             context,
         )
-        if set(alias) != {
-            "deprecated_in",
-            "kind",
-            "old",
-            "rationale",
-            "remove_in",
-            "replacement",
-        }:
-            raise CapabilityManifestError(f"{context} is missing required fields")
         if alias.get("kind") not in {"family", "record"}:
             raise CapabilityManifestError(f"{context}.kind must be family or record")
         if not all(isinstance(alias.get(key), str) and alias[key] for key in alias):
@@ -215,6 +206,156 @@ def _validate_record(record: object, family_id: str, index: int) -> str:
     return name
 
 
+def _validate_package(package: object) -> tuple[int, int, int]:
+    """Return the package version the manifest claims to describe."""
+
+    if not isinstance(package, dict):
+        raise CapabilityManifestError("package must be an object")
+    _keys(package, {"name", "version"}, "package")
+    if set(package) != {"name", "version"} or package["name"] != "quiddity":
+        raise CapabilityManifestError("package identity must be quiddity with a version")
+    if not isinstance(package["version"], str) or not package["version"]:
+        raise CapabilityManifestError("package.version must be a non-empty string")
+    return _version(package["version"], "package.version")
+
+
+def _validate_recogniser(recogniser: object, family_id: str) -> str:
+    """Return the public entry point of one validated recogniser entry."""
+
+    if not isinstance(recogniser, dict):
+        raise CapabilityManifestError(f"family {family_id!r} recogniser must be an object")
+    _keys(
+        recogniser,
+        {"entry_point", "kind", "ledger_state", "remove_in", "replacement", "role"},
+        f"family {family_id!r} recogniser",
+    )
+    base_keys = {"entry_point", "kind", "role"}
+    compatibility_keys = {"ledger_state", "remove_in", "replacement"}
+    expected_keys = (
+        base_keys | compatibility_keys if recogniser.get("role") == "compatibility" else base_keys
+    )
+    if set(recogniser) != expected_keys or recogniser["kind"] not in {"derived", "part"}:
+        raise CapabilityManifestError(f"family {family_id!r} recogniser is invalid")
+    if recogniser["role"] not in {"compatibility", "derived", "physical"}:
+        raise CapabilityManifestError(f"family {family_id!r} recogniser role is invalid")
+    if recogniser["role"] == "compatibility":
+        if recogniser["ledger_state"] != "unavailable":
+            raise CapabilityManifestError(
+                f"family {family_id!r} compatibility ledger state is invalid"
+            )
+        _version(recogniser["remove_in"], f"family {family_id!r} remove_in")
+        if not (
+            isinstance(recogniser["replacement"], str)
+            and recogniser["replacement"].startswith("quiddity.recognise_")
+        ):
+            raise CapabilityManifestError(
+                f"family {family_id!r} compatibility replacement is invalid"
+            )
+    entry = recogniser["entry_point"]
+    if not isinstance(entry, str) or not entry.startswith("quiddity.recognise_"):
+        raise CapabilityManifestError(f"family {family_id!r} entry point is not public")
+    return entry
+
+
+def _validate_census(family: dict[str, Any], family_id: str) -> None:
+    """Check the census key and output, which a family may decline together but not apart."""
+
+    if family["census_name"] is None:
+        if not isinstance(family.get("census_rationale"), str) or not family["census_rationale"]:
+            raise CapabilityManifestError(f"family {family_id!r} needs census_rationale")
+        if family["census_output"] is not None:
+            raise CapabilityManifestError(f"family {family_id!r} has census output without key")
+    elif not isinstance(family["census_name"], str) or not family["census_name"]:
+        raise CapabilityManifestError(f"family {family_id!r}.census_name is invalid")
+    elif not isinstance(family["census_output"], str) or not family["census_output"].startswith(
+        "RecognitionResult."
+    ):
+        raise CapabilityManifestError(f"family {family_id!r}.census_output is invalid")
+
+
+_FAMILY_FIELDS = {
+    "census_name",
+    "census_output",
+    "census_rationale",
+    "documentation",
+    "golden_evidence",
+    "id",
+    "introduced_in",
+    "rationale",
+    "recognisers",
+    "records",
+    "status",
+    "test_evidence",
+}
+
+
+def _validate_family(
+    family: object, index: int, package_version: tuple[int, int, int]
+) -> tuple[str, list[str], list[str]]:
+    """Return the ``(id, entry_points, record_names)`` of one validated family entry."""
+
+    context = f"families[{index}]"
+    if not isinstance(family, dict):
+        raise CapabilityManifestError(f"{context} must be an object")
+    _keys(family, _FAMILY_FIELDS, context)
+    # `rationale` and `census_rationale` are required only of the families that decline
+    # runtime support or a census key, so this is a subset rule rather than an equality.
+    if not _FAMILY_FIELDS - {"census_rationale", "rationale"} <= family.keys():
+        raise CapabilityManifestError(f"{context} is missing required fields")
+    family_id = family["id"]
+    if not isinstance(family_id, str) or not _FAMILY_ID.fullmatch(family_id):
+        raise CapabilityManifestError(f"{context}.id is invalid")
+    status = family["status"]
+    if status not in _STATUSES:
+        raise CapabilityManifestError(f"family {family_id!r} has unknown status {status!r}")
+    introduced = _version(family["introduced_in"], f"family {family_id!r}.introduced_in")
+    if introduced > package_version:
+        raise CapabilityManifestError(f"family {family_id!r} is introduced after this package")
+
+    recognisers = family["recognisers"]
+    records = family["records"]
+    if not isinstance(recognisers, list):
+        raise CapabilityManifestError(f"family {family_id!r}.recognisers must be an array")
+    if not isinstance(records, list):
+        raise CapabilityManifestError(f"family {family_id!r}.records must be an array")
+    if status == "supported" and (not recognisers or not records):
+        raise CapabilityManifestError(f"supported family {family_id!r} needs runtime entries")
+    if status != "supported":
+        if recognisers or records or family["golden_evidence"]:
+            raise CapabilityManifestError(f"reserved family {family_id!r} claims runtime support")
+        if not isinstance(family.get("rationale"), str) or not family["rationale"]:
+            raise CapabilityManifestError(f"reserved family {family_id!r} needs rationale")
+
+    family_entries = [_validate_recogniser(recogniser, family_id) for recogniser in recognisers]
+    if family_entries != sorted(family_entries):
+        raise CapabilityManifestError(f"family {family_id!r} recognisers are not sorted")
+    family_records = [_validate_record(record, family_id, i) for i, record in enumerate(records)]
+    if family_records != sorted(family_records):
+        raise CapabilityManifestError(f"family {family_id!r} records are not sorted")
+
+    _validate_census(family, family_id)
+    for key in ("documentation", "golden_evidence", "test_evidence"):
+        _paths(family[key], f"family {family_id!r}.{key}", allow_empty=status != "supported")
+    return family_id, family_entries, family_records
+
+
+def _validate_record_references(families: list[Any], published_records: set[str]) -> None:
+    """Check that every ``record:`` token in a field type names a published record."""
+
+    for family in families:
+        for record in family["records"]:
+            for field_name, field in record["fields"].items():
+                # The grammar was validated above. Tokens remain visible inside any
+                # supported list, fixed tuple or union nesting.
+                references = set(re.findall(r"record:([A-Z][A-Za-z0-9]*)", field["type"]))
+                missing = sorted(references - published_records)
+                if missing:
+                    raise CapabilityManifestError(
+                        f"family {family['id']!r} record {record['name']!r}.{field_name} "
+                        f"references unpublished records: {', '.join(missing)}"
+                    )
+
+
 def validate_capability_manifest(manifest: object) -> None:
     """Validate format-2 document structure without trusting its capability claims.
 
@@ -237,159 +378,30 @@ def validate_capability_manifest(manifest: object) -> None:
         raise CapabilityManifestError(
             f"unsupported capability format version {manifest['format_version']!r}"
         )
-    package = manifest["package"]
-    if not isinstance(package, dict):
-        raise CapabilityManifestError("package must be an object")
-    _keys(package, {"name", "version"}, "package")
-    if set(package) != {"name", "version"} or package["name"] != "quiddity":
-        raise CapabilityManifestError("package identity must be quiddity with a version")
-    if not isinstance(package["version"], str) or not package["version"]:
-        raise CapabilityManifestError("package.version must be a non-empty string")
-    package_version = _version(package["version"], "package.version")
+
+    package_version = _validate_package(manifest["package"])
+
     families = manifest["families"]
     if not isinstance(families, list) or not families:
         raise CapabilityManifestError("families must be a non-empty array")
-    ids = []
-    record_names = []
-    entry_points = []
-    family_allowed = {
-        "census_name",
-        "census_output",
-        "census_rationale",
-        "documentation",
-        "golden_evidence",
-        "id",
-        "introduced_in",
-        "rationale",
-        "recognisers",
-        "records",
-        "status",
-        "test_evidence",
-    }
+
+    ids: list[str] = []
+    record_names: list[str] = []
+    entry_points: list[str] = []
     for index, family in enumerate(families):
-        context = f"families[{index}]"
-        if not isinstance(family, dict):
-            raise CapabilityManifestError(f"{context} must be an object")
-        _keys(family, family_allowed, context)
-        required = family_allowed - {"census_rationale", "rationale"}
-        if not required <= family.keys():
-            raise CapabilityManifestError(f"{context} is missing required fields")
-        family_id = family["id"]
-        if not isinstance(family_id, str) or not _FAMILY_ID.fullmatch(family_id):
-            raise CapabilityManifestError(f"{context}.id is invalid")
+        family_id, family_entries, family_records = _validate_family(family, index, package_version)
         ids.append(family_id)
-        status = family["status"]
-        if status not in _STATUSES:
-            raise CapabilityManifestError(f"family {family_id!r} has unknown status {status!r}")
-        introduced = _version(family["introduced_in"], f"family {family_id!r}.introduced_in")
-        if introduced > package_version:
-            raise CapabilityManifestError(f"family {family_id!r} is introduced after this package")
-        recognisers = family["recognisers"]
-        records = family["records"]
-        if not isinstance(recognisers, list):
-            raise CapabilityManifestError(f"family {family_id!r}.recognisers must be an array")
-        if not isinstance(records, list):
-            raise CapabilityManifestError(f"family {family_id!r}.records must be an array")
-        if status == "supported" and (not recognisers or not records):
-            raise CapabilityManifestError(f"supported family {family_id!r} needs runtime entries")
-        if status != "supported":
-            if recognisers or records or family["golden_evidence"]:
-                raise CapabilityManifestError(
-                    f"reserved family {family_id!r} claims runtime support"
-                )
-            if not isinstance(family.get("rationale"), str) or not family["rationale"]:
-                raise CapabilityManifestError(f"reserved family {family_id!r} needs rationale")
-        family_entries = []
-        for recogniser in recognisers:
-            if not isinstance(recogniser, dict):
-                raise CapabilityManifestError(f"family {family_id!r} recogniser must be an object")
-            _keys(
-                recogniser,
-                {
-                    "entry_point",
-                    "kind",
-                    "ledger_state",
-                    "remove_in",
-                    "replacement",
-                    "role",
-                },
-                f"family {family_id!r} recogniser",
-            )
-            base_keys = {"entry_point", "kind", "role"}
-            compatibility_keys = {"ledger_state", "remove_in", "replacement"}
-            expected_keys = (
-                base_keys | compatibility_keys
-                if recogniser.get("role") == "compatibility"
-                else base_keys
-            )
-            if set(recogniser) != expected_keys or recogniser["kind"] not in {
-                "derived",
-                "part",
-            }:
-                raise CapabilityManifestError(f"family {family_id!r} recogniser is invalid")
-            if recogniser["role"] not in {"compatibility", "derived", "physical"}:
-                raise CapabilityManifestError(f"family {family_id!r} recogniser role is invalid")
-            if recogniser["role"] == "compatibility":
-                if recogniser["ledger_state"] != "unavailable":
-                    raise CapabilityManifestError(
-                        f"family {family_id!r} compatibility ledger state is invalid"
-                    )
-                _version(recogniser["remove_in"], f"family {family_id!r} remove_in")
-                if not (
-                    isinstance(recogniser["replacement"], str)
-                    and recogniser["replacement"].startswith("quiddity.recognise_")
-                ):
-                    raise CapabilityManifestError(
-                        f"family {family_id!r} compatibility replacement is invalid"
-                    )
-            entry = recogniser["entry_point"]
-            if not isinstance(entry, str) or not entry.startswith("quiddity.recognise_"):
-                raise CapabilityManifestError(f"family {family_id!r} entry point is not public")
-            family_entries.append(entry)
-            entry_points.append(entry)
-        if family_entries != sorted(family_entries):
-            raise CapabilityManifestError(f"family {family_id!r} recognisers are not sorted")
-        family_records = [
-            _validate_record(record, family_id, i) for i, record in enumerate(records)
-        ]
-        if family_records != sorted(family_records):
-            raise CapabilityManifestError(f"family {family_id!r} records are not sorted")
+        entry_points.extend(family_entries)
         record_names.extend(family_records)
-        if family["census_name"] is None:
-            if (
-                not isinstance(family.get("census_rationale"), str)
-                or not family["census_rationale"]
-            ):
-                raise CapabilityManifestError(f"family {family_id!r} needs census_rationale")
-            if family["census_output"] is not None:
-                raise CapabilityManifestError(f"family {family_id!r} has census output without key")
-        elif not isinstance(family["census_name"], str) or not family["census_name"]:
-            raise CapabilityManifestError(f"family {family_id!r}.census_name is invalid")
-        elif not isinstance(family["census_output"], str) or not family["census_output"].startswith(
-            "RecognitionResult."
-        ):
-            raise CapabilityManifestError(f"family {family_id!r}.census_output is invalid")
-        for key in ("documentation", "golden_evidence", "test_evidence"):
-            _paths(family[key], f"family {family_id!r}.{key}", allow_empty=status != "supported")
+
     if ids != sorted(ids) or len(ids) != len(set(ids)):
         raise CapabilityManifestError("family IDs must be unique and sorted")
     if len(record_names) != len(set(record_names)):
         raise CapabilityManifestError("record names must have exactly one primary family")
     if len(entry_points) != len(set(entry_points)):
         raise CapabilityManifestError("recognisers must belong to exactly one family")
-    published_records = set(record_names)
-    for family in families:
-        for record in family["records"]:
-            for field_name, field in record["fields"].items():
-                # The grammar was validated above. Tokens remain visible inside any
-                # supported list, fixed tuple or union nesting.
-                references = set(re.findall(r"record:([A-Z][A-Za-z0-9]*)", field["type"]))
-                missing = sorted(references - published_records)
-                if missing:
-                    raise CapabilityManifestError(
-                        f"family {family['id']!r} record {record['name']!r}.{field_name} "
-                        f"references unpublished records: {', '.join(missing)}"
-                    )
+
+    _validate_record_references(families, set(record_names))
     _validate_aliases(manifest["aliases"], set(ids), set(record_names), package_version)
 
 
