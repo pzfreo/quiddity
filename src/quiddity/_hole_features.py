@@ -49,7 +49,7 @@ from quiddity._effective_surfaces import (
     effective_faces_for_graph,
     effective_faces_for_part,
 )
-from quiddity._geometry import _unit, length_tol, quantise
+from quiddity._geometry import dot, length_tol, quantise, without_negative_zero
 from quiddity._record import Record
 from quiddity._typing import CylinderEvidence, CylinderInventory, FaceLike, Part, Vector3
 from quiddity.countersinks import CounterSink, countersink_matches_hole
@@ -81,10 +81,6 @@ _full_cyls = full_cylinders
 _SAME_DIAMETER_FRAC = 1e-4
 #: Smallest diameter the proportional test will divide by; see `_same_diameter`.
 _DIAMETER_FLOOR = 1e-9
-
-
-def _dot(left: tuple[float, float, float], right: tuple[float, float, float]) -> float:
-    return math.fsum(a * b for a, b in zip(left, right, strict=True))
 
 
 class _LazyPartSurfaceQuery:
@@ -434,10 +430,10 @@ def _classify_end_uncached(
         else:
             normal = None
         if normal is not None:
-            dot = _dot(normal, (dx, dy, dz)) * e_sign
-            if dot < -0.5:
+            alignment = dot(normal, (dx, dy, dz)) * e_sign
+            if alignment < -0.5:
                 return classified("flat", partner)
-            if dot > 0.5:
+            if alignment > 0.5:
                 return classified("open", partner)
         if kind == GeomAbs_Sphere:
             # Convex (material inside the sphere): the bore exits through a
@@ -538,7 +534,7 @@ def _merge_stacks(
             # containment of both endpoints proves containment of the interval.
             # This supplements source topology; exterior air alone proves nothing.
             for point in endpoints:
-                axial = _dot(point, interruption["dir_xyz"])
+                axial = dot(point, interruption["dir_xyz"])
                 centre = _axis_point(interruption, axial)
                 if not (
                     interruption["s_lo"] - tolerance <= axial <= interruption["s_hi"] + tolerance
@@ -824,7 +820,7 @@ def _discover_holes(
         # bottom relief groove — but not a through hole's far-side steps.
         depth = _bore_depth(stack, bore, bottom=bottom, from_hi=from_hi)
         record = HoleRecord(
-            axis=_unit(tuple(-c for c in d) if from_hi else d),
+            axis=without_negative_zero(tuple(-c for c in d) if from_hi else d),
             location=_canonical_hole_axis_point(opening_seg, opening_s),
             diameter=bore["diameter"],
             depth=round(depth.depth, 2),
@@ -981,7 +977,7 @@ def _discover_bosses(
         proposals.append(
             _BossProposal(
                 BossRecord(
-                    axis=_unit(d if from_hi else tuple(-c for c in d)),
+                    axis=without_negative_zero(d if from_hi else tuple(-c for c in d)),
                     location=_axis_point(seg, seg["s_hi"] if from_hi else seg["s_lo"]),
                     diameter=seg["diameter"],
                     height=round(seg["s_hi"] - seg["s_lo"], 2),

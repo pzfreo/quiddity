@@ -3,9 +3,8 @@
 
 import ast
 import importlib
-import inspect
-import textwrap
 import typing
+from dataclasses import fields
 from pathlib import Path
 
 import quiddity as recognition
@@ -85,8 +84,8 @@ def test_cross_run_correspondence_is_absent() -> None:
 
 
 MODULE_SEAM_EDGES = {
-    "_outer_profile": {"_record"},
-    "_outer_profile_geometry": {"_adjacency", "_outer_profile", "_typing"},
+    "_outer_profile": {"_geometry", "_record"},
+    "_outer_profile_geometry": {"_adjacency", "_geometry", "_outer_profile", "_typing"},
     "_corner_section": {"_adjacency", "_section_passages", "_sections", "_volume_probe"},
     "_open_channel_section": {
         "_adjacency",
@@ -276,6 +275,7 @@ MODULE_SEAM_EDGES = {
     "_section_passages": {
         "_adjacency",
         "_entry_treatments",
+        "_geometry",
         "_sections",
         "_typing",
         "_volume_probe",
@@ -456,9 +456,10 @@ MODULE_SEAM_EDGES = {
         "_typing",
         "passages",
     },
-    # Epic 0004's private geometry values are a stdlib-only leaf. The adapter names exactly the
-    # two polygonal records whose legacy values round-trip; production recognition does not use it.
-    "_sections": set(),
+    # Epic 0004's private geometry values sit just above `_geometry`, for the shared direction
+    # primitives and nothing else. The adapter names exactly the two polygonal records whose
+    # legacy values round-trip; production recognition does not use it.
+    "_sections": {"_geometry"},
     "_section_adapters": {"_sections", "_section_recess", "passages", "prismatic_pockets"},
     # Effective analytic facts sit above original graph identity and below run orchestration.
     "_effective_surfaces": {"_adjacency", "_analytic_surfaces", "_geometry", "_typing"},
@@ -1038,40 +1039,43 @@ def test_private_section_adapters_are_only_used_by_the_unified_projection() -> N
     assert importers == ["result.py"]
 
 
-def test_projection_family_bindings_match_the_registry() -> None:
-    module = importlib.import_module("quiddity.result")
-    source = inspect.getsource(module._project_result)
-    tree = ast.parse(textwrap.dedent(source))
-    result_call = next(
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "_LegacyRecognitionResult"
-    )
-    projected: dict[str, str] = {}
-    for keyword in result_call.keywords:
-        families = {
-            node.attr
-            for node in ast.walk(keyword.value)
-            if isinstance(node, ast.Attribute)
-            and isinstance(node.value, ast.Name)
-            and node.value.id == "FamilyId"
-        }
-        if families:
-            assert len(families) == 1, keyword.arg
-            projected[typing.cast(str, keyword.arg)] = families.pop()
+def test_every_result_field_is_registry_owned_or_a_reviewed_exception() -> None:
+    """The aggregate's fields and the registry's must not drift apart.
+
+    `_project_result` builds its keywords from `PHYSICAL_DEFINITIONS` and `DERIVED_DEFINITIONS`,
+    so a field bound to the wrong family is no longer expressible -- the binding this test used
+    to check by parsing the constructor call is now true by construction. What replaces it is
+    the drift the derivation cannot catch on its own: a definition whose `result_field` has no
+    dataclass field splats into a `TypeError` at recognition time, and a dataclass field with no
+    definition is silently never populated. Both are test failures here instead.
+    """
 
     registry = importlib.import_module("quiddity._registry")
-    expected = {
-        definition.result_field: definition.family.name
-        for definition in registry.PHYSICAL_DEFINITIONS
+    result = importlib.import_module("quiddity.result")
+
+    registry_owned = {
+        definition.result_field
+        for definition in (*registry.PHYSICAL_DEFINITIONS, *registry.DERIVED_DEFINITIONS)
     }
-    # ADR 0019 intentionally converges multiple independently discovered physical families into
-    # this one public result field; its native binding is therefore not visible in the constructor
-    # expression inspected above.
-    expected.pop("section_recesses")
-    assert projected == expected
+    #: Aggregate fields that no definition owns, each with the reason it is passed explicitly.
+    #: `section_recesses` is not here: it has a physical family, and only its *value* is
+    #: assembled in `_project_result` rather than read straight from that family.
+    reviewed_exceptions = {
+        # The run's cylinder substrate, computed before discovery and shared by every family.
+        "cylinders",
+        # A property of the part, not a recognised occurrence.
+        "rotational",
+        # Both are derived from the assembled Section Recesses, not from a declared family.
+        "section_recess_refusals",
+        "section_recess_patterns",
+    }
+    declared = {field.name for field in fields(result._LegacyRecognitionResult)}
+
+    assert registry_owned - declared == set(), "definition whose result_field has no result field"
+    assert declared - registry_owned == reviewed_exceptions, (
+        "a result field gained or lost its definition; add it to the registry, or to the "
+        "reviewed exceptions above with the reason no family can own it"
+    )
 
 
 def test_residual_reducer_cannot_rediscover_or_mutate_geometry() -> None:

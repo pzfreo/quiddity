@@ -460,7 +460,7 @@ def test_invalid_hand_built_pocket_open_sign_fails_closed() -> None:
 @pytest.mark.parametrize(
     "operation, message",
     [
-        (lambda: LocalFrame.canonical((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)), "nonzero"),
+        (lambda: LocalFrame.canonical((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)), "degenerate"),
         (
             lambda: LocalFrame(
                 (math.inf, 0.0, 0.0),

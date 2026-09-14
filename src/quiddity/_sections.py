@@ -13,6 +13,8 @@ import math
 from dataclasses import dataclass
 from typing import TypeAlias
 
+from quiddity._geometry import cross, dot, unit
+
 Vector2: TypeAlias = tuple[float, float]
 Vector3: TypeAlias = tuple[float, float, float]
 
@@ -24,25 +26,6 @@ _BULGE_DIGITS = 12
 
 def _finite(values: tuple[float, ...]) -> bool:
     return all(math.isfinite(value) for value in values)
-
-
-def _dot(a: Vector3, b: Vector3) -> float:
-    return sum(x * y for x, y in zip(a, b, strict=True))
-
-
-def _cross(a: Vector3, b: Vector3) -> Vector3:
-    return (
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    )
-
-
-def _unit(value: Vector3) -> Vector3:
-    length = math.sqrt(_dot(value, value))
-    if not math.isfinite(length) or length <= _EPS:
-        raise ValueError("frame direction must be finite and nonzero")
-    return tuple(component / length for component in value)  # type: ignore[return-value]
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,14 +41,14 @@ class LocalFrame:
         if not _finite(self.origin + self.run + self.u + self.v):
             raise ValueError("frame values must be finite")
         for direction in (self.run, self.u, self.v):
-            if not math.isclose(_dot(direction, direction), 1.0, abs_tol=_EPS):
+            if not math.isclose(dot(direction, direction), 1.0, abs_tol=_EPS):
                 raise ValueError("frame directions must be unit length")
         if any(
-            abs(_dot(a, b)) > _EPS
+            abs(dot(a, b)) > _EPS
             for a, b in ((self.run, self.u), (self.run, self.v), (self.u, self.v))
         ):
             raise ValueError("frame directions must be orthogonal")
-        if any(abs(a - b) > _EPS for a, b in zip(_cross(self.run, self.u), self.v, strict=True)):
+        if any(abs(a - b) > _EPS for a, b in zip(cross(self.run, self.u), self.v, strict=True)):
             raise ValueError("frame must be right handed: run cross u equals v")
 
     @classmethod
@@ -83,7 +66,7 @@ class LocalFrame:
             raise ValueError("axis must be 'x', 'y', or 'z'") from exc
         if not _finite(centroid):
             raise ValueError("centroid must be finite")
-        along = _dot(centroid, run)
+        along = dot(centroid, run)
         origin = tuple(centroid[i] - along * run[i] for i in range(3))
         return cls(origin=origin, run=run, u=u, v=v)  # type: ignore[arg-type]
 
@@ -91,7 +74,7 @@ class LocalFrame:
     def canonical(cls, run: Vector3, centroid: Vector3) -> LocalFrame:
         """Construct the deterministic free-axis frame described by epic 0004."""
 
-        direction = _unit(run)
+        direction = unit(run)
         serialized_direction = tuple(_round_clean(value, 6) for value in direction)
         components = tuple(abs(value) for value in serialized_direction)
         peak = max(components)
@@ -104,12 +87,12 @@ class LocalFrame:
             (1.0, 0.0, 0.0),  # z -> x
         )
         seed = seeds[dominant]
-        projection = tuple(seed[i] - _dot(seed, direction) * direction[i] for i in range(3))
-        u = _unit(projection)  # type: ignore[arg-type]
-        v = _cross(direction, u)
+        projection = tuple(seed[i] - dot(seed, direction) * direction[i] for i in range(3))
+        u = unit(projection)
+        v = cross(direction, u)
         if not _finite(centroid):
             raise ValueError("centroid must be finite")
-        along = _dot(centroid, direction)
+        along = dot(centroid, direction)
         origin = tuple(centroid[i] - along * direction[i] for i in range(3))
         return cls(origin=origin, run=direction, u=u, v=v)  # type: ignore[arg-type]
 
@@ -669,7 +652,7 @@ def _validate_occurrence_value(occurrence: SectionOccurrence) -> None:
         raise ValueError("run interval must be finite and increasing")
     if math.hypot(*occurrence.section.centroid) > _EPS:
         raise ValueError("section occurrence requires an origin-centred intrinsic section")
-    if abs(_dot(occurrence.frame.origin, occurrence.frame.run)) > _EPS:
+    if abs(dot(occurrence.frame.origin, occurrence.frame.run)) > _EPS:
         raise ValueError("section occurrence frame origin must be perpendicular to its run")
 
 
@@ -717,25 +700,25 @@ def occurrence_geometry_dict(
     projected_frame = LocalFrame.canonical(projected_run, (0.0, 0.0, 0.0))
     if (
         any(
-            abs(math.sqrt(_dot(vector, vector)) - 1.0) > 1e-6
+            abs(math.sqrt(dot(vector, vector)) - 1.0) > 1e-6
             for vector in (projected_run, projected_u, projected_v)
         )
         or any(
-            abs(_dot(left, right)) > 2e-6
+            abs(dot(left, right)) > 2e-6
             for left, right in (
                 (projected_run, projected_u),
                 (projected_run, projected_v),
                 (projected_u, projected_v),
             )
         )
-        or math.dist(_cross(projected_run, projected_u), projected_v) > 3e-6
+        or math.dist(cross(projected_run, projected_u), projected_v) > 3e-6
         or math.dist(projected_run, projected_frame.run) > 1e-6
         or math.dist(projected_u, projected_frame.u) > 3e-6
         or math.dist(projected_v, projected_frame.v) > 3e-6
     ):
         raise ValueError("serialized frame exceeds its canonical validation tolerances")
-    perpendicular_bound = 0.000868 + 1e-6 * math.sqrt(_dot(projected_origin, projected_origin))
-    if abs(_dot(projected_origin, projected_run)) > perpendicular_bound:
+    perpendicular_bound = 0.000868 + 1e-6 * math.sqrt(dot(projected_origin, projected_origin))
+    if abs(dot(projected_origin, projected_run)) > perpendicular_bound:
         raise ValueError("serialized frame origin exceeds its perpendicularity tolerance")
     projected_section = PlanarSection(
         tuple(

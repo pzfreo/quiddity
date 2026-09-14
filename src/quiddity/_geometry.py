@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2024-2026 Paul Fremantle
-"""Internal shared axis and length conventions used by recognition records and patterns.
+"""Internal shared axis, direction and length conventions used across recognition.
 
-Two things live here because every recogniser needs them and none owns them: the stable
-dominant-axis convention, and the length-tolerance form of ADR 0008.
+Three things live here because every recogniser needs them and none owns them: the stable
+dominant-axis convention, the direction primitives below, and the length-tolerance form of
+ADR 0008.
 """
 
 from __future__ import annotations
@@ -71,8 +72,76 @@ INTERIOR_PROBE_FRAC = 0.05
 SMOOTH_ARC_GAP = 1e-9
 
 
-def _unit(v: Sequence[float]) -> tuple[float, float, float]:
-    """Normalise negative zeros out of a direction 3-vector.
+#: A direction whose Euclidean norm is at or below this cannot be normalised: dividing by it
+#: amplifies float noise into a direction that is itself noise. Dimensionless, so it never
+#: scales with the part (ADR 0008), and like :data:`SMOOTH_ARC_GAP` it sits three orders above
+#: float noise rather than at it.
+#:
+#: The four copies this replaces refused at ``0.0``, ``1e-9`` and ``1e-12`` (twice), so the same
+#: question -- "is this direction real?" -- had three different answers depending on which module
+#: asked it. A residual this small only arises when the inputs were already parallel to within
+#: float noise, which is the case every caller wants refused.
+DIRECTION_NORM_EPS = 1e-9
+
+
+def dot(left: Sequence[float], right: Sequence[float]) -> float:
+    """Return the exactly-rounded dot product of two equal-length vectors.
+
+    ``math.fsum`` rather than the builtin ``sum``: fsum is correctly rounded on every
+    supported interpreter, while ``sum`` summed naively on 3.10 and 3.11 and only gained
+    Neumaier compensation in 3.12. The copies replaced here were split between the two, so how
+    accurately a cancelling comparison was made depended both on which module owned the helper
+    and on which Python was running it. This package pins byte-exact goldens across a 3.10 to
+    3.14 CI matrix, so that second dependency is the one worth removing.
+    """
+
+    return math.fsum(a * b for a, b in zip(left, right, strict=True))
+
+
+def cross(left: Vector3, right: Vector3) -> Vector3:
+    """Return the right-handed cross product of two 3-vectors."""
+
+    return (
+        left[1] * right[2] - left[2] * right[1],
+        left[2] * right[0] - left[0] * right[2],
+        left[0] * right[1] - left[1] * right[0],
+    )
+
+
+def unit(value: Sequence[float]) -> Vector3:
+    """Return ``value`` normalised, refusing a nonfinite or degenerate direction."""
+
+    normalised = unit_or_none(value)
+    if normalised is None:
+        raise ValueError("direction is nonfinite or degenerate")
+    return normalised
+
+
+def unit_or_none(value: Sequence[float]) -> Vector3 | None:
+    """Return ``value`` normalised, or ``None`` when it is nonfinite or degenerate.
+
+    The refusing and the ``None``-returning spellings are both kept because the callers
+    genuinely differ: a frame constructor treats a degenerate direction as a programming error,
+    while section geometry treats it as one more candidate that did not prove out.
+    """
+
+    components = tuple(float(component) for component in value)
+    # `math.hypot`, not `sqrt(dot(v, v))`: squaring a component near the float ceiling
+    # overflows to infinity and would refuse a direction that is perfectly representable.
+    # hypot scales to avoid that, and one of the four copies replaced here already used it.
+    norm = math.hypot(*components)
+    if not math.isfinite(norm) or norm <= DIRECTION_NORM_EPS:
+        return None
+    x, y, z = (component / norm for component in components)
+    return (x, y, z)
+
+
+def without_negative_zero(v: Sequence[float]) -> Vector3:
+    """Return a direction 3-vector with negative zeros normalised away.
+
+    This does not scale the vector -- it only removes the ``-0.0`` that a record axis must not
+    carry. It was called ``_unit`` while four unrelated modules used that name for genuine
+    normalisation, so the name now says which of the two it is.
 
     Unpacked rather than built by comprehension so the return type is the three floats a record
     axis actually requires. Every caller passes a direction, so a different length is a

@@ -6,7 +6,7 @@ import math
 from collections.abc import Callable, Sequence
 from typing import TypeVar
 
-from quiddity._geometry import _unit, length_tol, plane_axes
+from quiddity._geometry import dot, length_tol, plane_axes, unit_or_none, without_negative_zero
 
 #: The record type a caller's ``make`` builds. This module owns the collinearity, pitch and
 #: lattice geometry and nothing about what a pattern record *is* — holes, pockets and slots each
@@ -23,12 +23,17 @@ def _pattern_tol(nominal: float) -> float:
 
 
 def _project_out(w, *directions) -> tuple[float, ...] | None:
-    """Remove every orthogonal unit *direction* from *w*, then renormalise."""
+    """Remove every orthogonal unit *direction* from *w*, then renormalise.
+
+    The ``| None`` is the collapse case. It used to be unreachable for the wrong reason: the
+    final division was unguarded, so a collapsed residual raised ``ZeroDivisionError`` rather
+    than returning ``None``, and the caller's ``assert ... is not None`` could never fire.
+    Normalising through the shared primitive makes the declared contract true.
+    """
     for d in directions:
-        k = sum(p * q for p, q in zip(w, d, strict=True))
+        k = dot(w, d)
         w = tuple(p - k * q for p, q in zip(w, d, strict=True))
-    n = math.hypot(*w)
-    return tuple(c / n for c in w)
+    return unit_or_none(w)
 
 
 def _plane_uv(axis) -> tuple[tuple[float, ...], tuple[float, ...]]:
@@ -119,7 +124,7 @@ def _as_linear_array(
     return make(
         tuple(h for _, h in ordered),
         round(pitch, 2),
-        _unit(tuple(c / norm for c in d)),
+        without_negative_zero(tuple(c / norm for c in d)),
     )
 
 

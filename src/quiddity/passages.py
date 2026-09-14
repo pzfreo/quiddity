@@ -64,6 +64,7 @@ from quiddity._adjacency import (
 )
 from quiddity._candidates import EvidenceSink, FamilyId
 from quiddity._claims import ClaimLedger, EvidenceWriter
+from quiddity._geometry import cross, dot, unit
 from quiddity._passage_compat import (
     PassageCompatibilityView,
     PrincipalProjection,
@@ -167,27 +168,6 @@ def _numbers(value: object, size: int, *, name: str) -> tuple[float, ...]:
     return tuple(0.0 if item == 0.0 else item for item in result)
 
 
-def _dot(left: tuple[float, float, float], right: tuple[float, float, float]) -> float:
-    return sum(a * b for a, b in zip(left, right, strict=True))
-
-
-def _cross(
-    left: tuple[float, float, float], right: tuple[float, float, float]
-) -> tuple[float, float, float]:
-    return (
-        left[1] * right[2] - left[2] * right[1],
-        left[2] * right[0] - left[0] * right[2],
-        left[0] * right[1] - left[1] * right[0],
-    )
-
-
-def _unit(value: tuple[float, float, float]) -> tuple[float, float, float]:
-    length = math.sqrt(_dot(value, value))
-    if not math.isfinite(length) or length == 0.0:
-        raise ValueError("frame direction must be finite and nonzero")
-    return tuple(component / length for component in value)  # type: ignore[return-value]
-
-
 def _serialized(values: tuple[float, ...], digits: int, *, name: str) -> None:
     if any(value != round(value, digits) for value in values):
         raise ValueError(f"{name} must use at most {digits} decimal places")
@@ -212,33 +192,33 @@ class PassageFrame(Record):
             _serialized(direction, 6, name=name)
         for direction in (run, u, v):
             # The extra 1e-12 only absorbs binary evaluation of the closed decimal boundary.
-            if abs(math.sqrt(_dot(direction, direction)) - 1.0) > 1e-6 + 1e-12:
+            if abs(math.sqrt(dot(direction, direction)) - 1.0) > 1e-6 + 1e-12:
                 raise ValueError("frame directions must be unit length")
-        if any(abs(_dot(a, b)) > 2e-6 for a, b in ((run, u), (run, v), (u, v))):
+        if any(abs(dot(a, b)) > 2e-6 for a, b in ((run, u), (run, v), (u, v))):
             raise ValueError("frame directions must be orthogonal")
-        if max(abs(a - b) for a, b in zip(_cross(run, u), v, strict=True)) > 3e-6:
+        if max(abs(a - b) for a, b in zip(cross(run, u), v, strict=True)) > 3e-6:
             raise ValueError("frame must be right handed")
         rounded = tuple(round(abs(value), 6) for value in run)
         peak = max(rounded)
         dominant = next(index for index in (2, 1, 0) if rounded[index] == peak)
         if run[dominant] < -3e-6:
             raise ValueError("frame run direction is not in the canonical gauge")
-        normalized_run = _unit(run)
+        normalized_run = unit(run)
         seeds = ((0.0, 1.0, 0.0), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0))
         seed = seeds[dominant]
-        expected_u = _unit(
+        expected_u = unit(
             tuple(
-                seed[index] - _dot(seed, normalized_run) * normalized_run[index]
+                seed[index] - dot(seed, normalized_run) * normalized_run[index]
                 for index in range(3)
-            )  # type: ignore[arg-type]
+            )
         )
-        expected_v = _cross(normalized_run, expected_u)
+        expected_v = cross(normalized_run, expected_u)
         if any(
             math.dist(actual, expected) > 3e-6
             for actual, expected in ((u, expected_u), (v, expected_v))
         ):
             raise ValueError("frame in-plane basis is not canonical")
-        if abs(_dot(origin, run)) > 8e-4:
+        if abs(dot(origin, run)) > 8e-4:
             raise ValueError("frame origin must be perpendicular to its run")
         object.__setattr__(self, "origin", origin)
         object.__setattr__(self, "run", run)

@@ -8,6 +8,7 @@ from build123d import Box, Pos, Rot
 
 from quiddity._adjacency import FaceGraph, SolidRef
 from quiddity._claims import ClaimLedger
+from quiddity._geometry import unit
 from quiddity._passage_compat import (
     PassageCompatibilityView,
     _canonical_section,
@@ -37,7 +38,6 @@ from quiddity.passages import (
     _legacy_projection,
     _proposal_legacy_projection,
     _same_legacy_passage_geometry,
-    _unit,
     recognise_passages,
 )
 
@@ -336,8 +336,8 @@ def test_compatibility_projection_closed_absence_and_construction() -> None:
 
 
 def test_private_projection_and_unit_refusal_branches() -> None:
-    with pytest.raises(ValueError, match="nonzero"):
-        _unit((0.0, 0.0, 0.0))
+    with pytest.raises(ValueError, match="degenerate"):
+        unit((0.0, 0.0, 0.0))
     record = SectionPassage(_frame(), (0.0, 10.0), _section(), PassageEnds(False, False))
     assert _legacy_projection(record) is not None
     curved = SectionPassage(_frame(), (0.0, 10.0), _section(), PassageEnds(False, False))

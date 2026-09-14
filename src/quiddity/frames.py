@@ -23,6 +23,7 @@ from OCP.GProp import GProp_GProps
 from OCP.TopoDS import TopoDS_Shape
 
 from quiddity._cylinder_substrate import analyse_cylinders
+from quiddity._geometry import cross, dot, unit
 from quiddity._typing import FaceLike, FrozenCylinderInventory, Part, Vector3
 from quiddity.evidence import (
     FaceRef,
@@ -92,19 +93,19 @@ class PartFrame:
         if not all(math.isfinite(value) for vector in vectors for value in vector):
             raise ValueError("frame values must be finite")
         for axis in (self.x, self.y, self.z):
-            if not math.isclose(_dot(axis, axis), 1.0, rel_tol=0.0, abs_tol=2e-9):
+            if not math.isclose(dot(axis, axis), 1.0, rel_tol=0.0, abs_tol=2e-9):
                 raise ValueError("frame directions must be unit length")
         if any(
-            abs(_dot(left, right)) > 2e-9
+            abs(dot(left, right)) > 2e-9
             for left, right in ((self.x, self.y), (self.x, self.z), (self.y, self.z))
         ):
             raise ValueError("frame directions must be orthogonal")
-        if _dot(_cross(self.x, self.y), self.z) < 1.0 - 2e-9:
+        if dot(cross(self.x, self.y), self.z) < 1.0 - 2e-9:
             raise ValueError("frame must be right handed")
 
     def to_local(self, point: Vector3) -> Vector3:
         relative = tuple(point[index] - self.origin[index] for index in range(3))
-        return cast(Vector3, tuple(_dot(relative, axis) for axis in (self.x, self.y, self.z)))
+        return cast(Vector3, tuple(dot(relative, axis) for axis in (self.x, self.y, self.z)))
 
     def to_world(self, point: Vector3) -> Vector3:
         return cast(
@@ -244,26 +245,6 @@ class _DirectionClass:
         return cast(Vector3, tuple(sign * value for value in self.direction)), True
 
 
-def _dot(left, right) -> float:
-    return sum(float(a) * float(b) for a, b in zip(left, right, strict=True))
-
-
-def _cross(left: Vector3, right: Vector3) -> Vector3:
-    return (
-        left[1] * right[2] - left[2] * right[1],
-        left[2] * right[0] - left[0] * right[2],
-        left[0] * right[1] - left[1] * right[0],
-    )
-
-
-def _unit(vector) -> Vector3:
-    values = tuple(float(value) for value in vector)
-    norm = math.hypot(*values)
-    if not math.isfinite(norm) or norm <= _COMPONENT_EPS:
-        raise ValueError("direction is nonfinite or degenerate")
-    return cast(Vector3, tuple(value / norm for value in values))
-
-
 def _canonical_sign(vector: Vector3) -> Vector3:
     pivot = max(range(3), key=lambda index: (abs(vector[index]), index))
     sign = -1.0 if vector[pivot] < 0.0 else 1.0
@@ -318,7 +299,7 @@ def infer_part_frame(part: Part) -> FrameInference:
                 raw = tuple(float(value) for value in surface.Cylinder().Axis().Direction().Coord())
             else:
                 continue
-            direction = _canonical_sign(_unit(raw))
+            direction = _canonical_sign(unit(raw))
             props = GProp_GProps()
             BRepGProp.SurfaceProperties_s(face.wrapped, props)
             area = float(props.Mass())
@@ -326,12 +307,10 @@ def infer_part_frame(part: Part) -> FrameInference:
             face_centre = cast(Vector3, tuple(float(value) for value in centre.Coord()))
             if not math.isfinite(area) or not all(math.isfinite(value) for value in face_centre):
                 return RefusedPartFrame(FrameRefusalReason.NONFINITE_GEOMETRY)
-            offset = _dot(
-                tuple(face_centre[index] - origin[index] for index in range(3)), direction
-            )
+            offset = dot(tuple(face_centre[index] - origin[index] for index in range(3)), direction)
             for direction_class in classes:
-                if abs(_dot(direction, direction_class.direction)) >= _PARALLEL_COS:
-                    if _dot(direction, direction_class.direction) < 0.0:
+                if abs(dot(direction, direction_class.direction)) >= _PARALLEL_COS:
+                    if dot(direction, direction_class.direction) < 0.0:
                         offset = -offset
                     direction_class.area += area
                     direction_class.face_areas.append(area)
@@ -347,12 +326,12 @@ def infer_part_frame(part: Part) -> FrameInference:
         for second_class in ranked[first_index + 1 :]:
             first, first_signed = first_class.oriented()
             second, second_signed = second_class.oriented()
-            if abs(_dot(first, second)) > _ORTHOGONAL_COS:
+            if abs(dot(first, second)) > _ORTHOGONAL_COS:
                 continue
-            y = _unit(tuple(second[i] - _dot(first, second) * first[i] for i in range(3)))
+            y = unit(tuple(second[i] - dot(first, second) * first[i] for i in range(3)))
             x = _clean(first)
             y = _clean(y)
-            z = _clean(_unit(_cross(x, y)))
+            z = _clean(unit(cross(x, y)))
             # Any equal-ranked direction class leaves a possible axis interchange. Be
             # conservative even when the tied class was not selected for this representative:
             # FULL promises that the complete ordered basis, not merely its first axis, is
@@ -370,11 +349,11 @@ def infer_part_frame(part: Part) -> FrameInference:
         x, _ = ranked[0].oriented()
         seed = min(
             ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
-            key=lambda candidate: abs(_dot(x, candidate)),
+            key=lambda candidate: abs(dot(x, candidate)),
         )
-        y = _unit(tuple(seed[i] - _dot(x, seed) * x[i] for i in range(3)))
+        y = unit(tuple(seed[i] - dot(x, seed) * x[i] for i in range(3)))
         x, y = _clean(x), _clean(y)
-        z = _clean(_unit(_cross(x, y)))
+        z = _clean(unit(cross(x, y)))
         return PartFrame(origin, x, y, z, FrameGauge.AXIAL)
     return RefusedPartFrame(FrameRefusalReason.NO_ANALYTIC_DIRECTION)
 
@@ -383,7 +362,7 @@ def _normalization_location(frame: PartFrame) -> Location:
     transform = gp_Trsf()
     axes = (frame.x, frame.y, frame.z)
     values = tuple(component for axis in axes for component in axis)
-    offsets = tuple(-_dot(axis, frame.origin) for axis in axes)
+    offsets = tuple(-dot(axis, frame.origin) for axis in axes)
     transform.SetValues(
         values[0],
         values[1],

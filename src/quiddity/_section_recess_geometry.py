@@ -19,7 +19,7 @@ from quiddity._cylindrical_passages import CylindricalPassageProof, cylindrical_
 from quiddity._cylindrical_pockets import CylindricalPocketProof, cylindrical_pocket_proofs
 from quiddity._cylindrical_seats import CylindricalSeatProof, cylindrical_seat_proofs
 from quiddity._effective_surfaces import EffectiveSurfaceQuery
-from quiddity._geometry import length_tol
+from quiddity._geometry import dot, length_tol, unit_or_none
 from quiddity._plane_envelope_passages import (
     PlaneEnvelopePassageProof,
     plane_envelope_passage_proofs,
@@ -64,10 +64,6 @@ class _Candidate:
     geometry: SectionRecessGeometry
     section_shape: str
     feature_kind: str = "pocket"
-
-
-def _dot(left: Vector3, right: Vector3) -> float:
-    return sum(a * b for a, b in zip(left, right, strict=True))
 
 
 def has_physical_planar_floor(
@@ -115,13 +111,8 @@ def _scale(vector: Vector3, factor: float) -> Vector3:
     return cast(Vector3, tuple(value * factor for value in vector))
 
 
-def _unit(vector: Vector3) -> Vector3 | None:
-    norm = math.sqrt(_dot(vector, vector))
-    return None if norm <= 1e-12 else cast(Vector3, tuple(value / norm for value in vector))
-
-
 def _canonical(vector: Vector3) -> Vector3:
-    normalized = _unit(vector)
+    normalized = unit_or_none(vector)
     if normalized is None:
         raise ValueError("direction must be nonzero")
     value = normalized
@@ -132,7 +123,7 @@ def _canonical(vector: Vector3) -> Vector3:
 
 
 def _parallel(left: Vector3, right: Vector3) -> bool:
-    return abs(abs(_dot(left, right)) - 1.0) <= _DIRECTION_TOL
+    return abs(abs(dot(left, right)) - 1.0) <= _DIRECTION_TOL
 
 
 def _point(value: object) -> Vector3:
@@ -168,7 +159,7 @@ def _node_interval(
         for vertex in graph.face(node).vertices():
             position = vertex.center()
             point = (float(position.X), float(position.Y), float(position.Z))
-            values.append(_dot(point, direction))
+            values.append(dot(point, direction))
     except (AttributeError, RuntimeError, TypeError, ValueError):
         return None
     return (min(values), max(values)) if values else None
@@ -176,7 +167,7 @@ def _node_interval(
 
 def _project(point: Vector3, frame: LocalFrame) -> Vector2:
     relative = _subtract(point, frame.origin)
-    return (_dot(relative, frame.u), _dot(relative, frame.v))
+    return (dot(relative, frame.u), dot(relative, frame.v))
 
 
 def _polygonal_section(
@@ -310,8 +301,8 @@ def _obround_prism(
 ) -> Solid:
     """Exact line/semicircle probe, before publication rounding (not a chord polygon)."""
     along = _subtract(second, first)
-    along = _subtract(along, _scale(depth, _dot(along, depth)))
-    direction = _unit(along)
+    along = _subtract(along, _scale(depth, dot(along, depth)))
+    direction = unit_or_none(along)
     if direction is None or high <= low:
         raise ValueError("obround probe requires distinct centres and increasing bounds")
     width = (
@@ -323,7 +314,7 @@ def _obround_prism(
     def point(center: Vector3, offset: Vector3, sign: float) -> Vector:
         return Vector(
             *(
-                center[i] + depth[i] * (low - _dot(center, depth)) + sign * radius * offset[i]
+                center[i] + depth[i] * (low - dot(center, depth)) + sign * radius * offset[i]
                 for i in range(3)
             )
         )
@@ -365,8 +356,8 @@ def _one_obround_candidate(graph: FaceGraph, floor: FaceNode) -> _Candidate | No
     ):
         return None
     long = _subtract(second[2], first[2])
-    long = _subtract(long, _scale(depth, _dot(long, depth)))
-    long_direction = _unit(long)
+    long = _subtract(long, _scale(depth, dot(long, depth)))
+    long_direction = unit_or_none(long)
     if long_direction is None:
         return None
     width_direction = _canonical(
@@ -383,7 +374,7 @@ def _one_obround_candidate(graph: FaceGraph, floor: FaceNode) -> _Candidate | No
     if (
         not _parallel(normals[0], normals[1])
         or any(not _parallel(normal, width_direction) for normal in normals)
-        or any(abs(_dot(normal, depth)) > _DIRECTION_TOL for normal in normals)
+        or any(abs(dot(normal, depth)) > _DIRECTION_TOL for normal in normals)
     ):
         return None
     if not all(graph.arc(cylinder, side) == "smooth" for cylinder in cylinders for side in sides):
@@ -506,8 +497,7 @@ def _one_polygonal_candidate(graph: FaceGraph, floor: FaceNode) -> _Candidate | 
         if graph.arc(floor, node) == "concave" and graph.is_planar(node)
     )
     if len(walls) < 3 or any(
-        (wall_normal := graph.normal(wall)) is None
-        or abs(_dot(wall_normal, depth)) > _DIRECTION_TOL
+        (wall_normal := graph.normal(wall)) is None or abs(dot(wall_normal, depth)) > _DIRECTION_TOL
         for wall in walls
     ):
         return None
@@ -688,7 +678,7 @@ def _one_mixed_candidate(graph: FaceGraph, floor: FaceNode) -> _Candidate | None
             return None
         low = min(span[0] for span in spans if span is not None)
         high = max(span[1] for span in spans if span is not None)
-        floor_at = _dot((source.center().X, source.center().Y, source.center().Z), depth)
+        floor_at = dot((source.center().X, source.center().Y, source.center().Z), depth)
         tolerance = 1e-6
         if high - low <= 2 * tolerance:
             return None
@@ -774,8 +764,8 @@ def _cylindrical_candidate(graph: FaceGraph, proof: CylindricalPocketProof) -> _
         raise ValueError("cylindrical pocket floor must preserve one polygon")
     section, centre = reading
     frame = LocalFrame.canonical(base.run, centre)
-    floor_at = _dot(tuple(graph.face(proof.floor).center()), frame.run)
-    sign = 1 if _dot(proof.run, frame.run) > 0 else -1
+    floor_at = dot(tuple(graph.face(proof.floor).center()), frame.run)
+    sign = 1 if dot(proof.run, frame.run) > 0 else -1
     geometry = _cylindrical_geometry(proof, frame, section, floor_at, sign, int(sign > 0))
     defining = tuple(sorted(n.index for n in proof.walls))
     return _Candidate(
@@ -800,7 +790,7 @@ def cylindrical_channel_geometry(proof: CylindricalChannelProof) -> SectionReces
         point = list(centre)
         point[d], point[w] = proof.bounds[d][di], proof.bounds[w][wi]
         relative = _subtract(cast(Vector3, tuple(point)), frame.origin)
-        corners.append(SectionVertex((_dot(relative, frame.u), _dot(relative, frame.v))))
+        corners.append(SectionVertex((dot(relative, frame.u), dot(relative, frame.v))))
     section = PlanarSection(tuple(corners))
     mouth = proof.bounds[d][1 if proof.open_sign == 1 else 0]
     points = tuple(vertex.point for vertex in section.boundary)
@@ -873,9 +863,9 @@ def _plane_envelope_geometry(proof: PlaneEnvelopePassageProof) -> SectionRecessG
     displacement += max(abs(p[0]) for p in raw_points) * math.dist(frame.u, public_frame.u)
     displacement += max(abs(p[1]) for p in raw_points) * math.dist(frame.v, public_frame.v)
     displacement += height_bound * math.dist(frame.run, public_frame.run)
-    displacement += dx * math.sqrt(_dot(public_frame.u, public_frame.u))
-    displacement += dy * math.sqrt(_dot(public_frame.v, public_frame.v))
-    displacement += height_error * math.sqrt(_dot(public_frame.run, public_frame.run))
+    displacement += dx * math.sqrt(dot(public_frame.u, public_frame.u))
+    displacement += dy * math.sqrt(dot(public_frame.v, public_frame.v))
+    displacement += height_error * math.sqrt(dot(public_frame.run, public_frame.run))
     if displacement > 0.002:
         raise ValueError("plane envelope projection exceeds whole-occurrence displacement bound")
     return geometry
@@ -898,13 +888,13 @@ def _cylindrical_geometry(
     identified absent edge is removed before publishing the physical profile.
     """
     relative = _subtract(proof.axis_point, frame.origin)
-    axis = (_dot(proof.axis_direction, frame.u), _dot(proof.axis_direction, frame.v))
+    axis = (dot(proof.axis_direction, frame.u), dot(proof.axis_direction, frame.v))
     norm = math.hypot(*axis)
     axis = (axis[0] / norm, axis[1] / norm)
     dominant = max(range(2), key=lambda i: (abs(axis[i]), i))
     if axis[dominant] < 0:
         axis = (-axis[0], -axis[1])
-    cx, cy, cz = _dot(relative, frame.u), _dot(relative, frame.v), _dot(relative, frame.run)
+    cx, cy, cz = dot(relative, frame.u), dot(relative, frame.v), dot(relative, frame.run)
     native_cx, native_cy = cx, cy
     along = cx * axis[0] + cy * axis[1]
     cx, cy = cx - along * axis[0], cy - along * axis[1]
@@ -912,7 +902,7 @@ def _cylindrical_geometry(
     # Exact tilted-cylinder roots add an axial linear term and divide the
     # radial root by the in-plane axis norm. Bound that source-model change.
     source_tilt_error = (
-        abs(_dot(proof.axis_direction, frame.run))
+        abs(dot(proof.axis_direction, frame.run))
         / norm
         * max(abs(axis[0] * (p[0] - native_cx) + axis[1] * (p[1] - native_cy)) for p in raw_points)
         + abs(1 / norm - 1) * proof.radius
@@ -986,9 +976,9 @@ def _cylindrical_geometry(
     floor_error = abs(floor_at - round(floor_at, 3))
     displacement = math.dist(frame.origin, projected.frame.origin)
     uu, vv, uv = (
-        _dot(projected.frame.u, projected.frame.u),
-        _dot(projected.frame.v, projected.frame.v),
-        _dot(projected.frame.u, projected.frame.v),
+        dot(projected.frame.u, projected.frame.u),
+        dot(projected.frame.v, projected.frame.v),
+        dot(projected.frame.u, projected.frame.v),
     )
     # Largest singular value of the two serialized basis columns. This preserves
     # their near-orthogonality instead of adding perpendicular errors linearly.
@@ -999,7 +989,7 @@ def _cylindrical_geometry(
     displacement += math.dist(frame.run, projected.frame.run) * (
         max(abs(t) for t in envelope) + source_tilt_error
     )
-    displacement += math.sqrt(_dot(projected.frame.run, projected.frame.run)) * max(
+    displacement += math.sqrt(dot(projected.frame.run, projected.frame.run)) * max(
         height_error, floor_error
     )
     if displacement > 0.002:
@@ -1061,7 +1051,7 @@ def _seat_geometry(seat: CylindricalSeatProof) -> SectionRecessGeometry:
     displacement += max(abs(t) for t in seat.run_interval) * math.dist(raw.run, frame.run)
     displacement += max(
         abs(a - b) for a, b in zip(seat.run_interval, interval, strict=True)
-    ) * math.sqrt(_dot(frame.run, frame.run))
+    ) * math.sqrt(dot(frame.run, frame.run))
     displacement += extent * (math.dist(raw.u, frame.u) + math.dist(raw.v, frame.v))
     displacement += arc_error * (1 + 3e-6)
     if displacement > 0.002:

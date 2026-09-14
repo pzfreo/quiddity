@@ -24,11 +24,11 @@ sys.path.insert(0, str(ROOT))
 from quiddity._adjacency import FaceGraph, FaceNode  # noqa: E402
 from quiddity._candidates import FamilyId  # noqa: E402
 from quiddity._dispositions import Outcome  # noqa: E402
+from quiddity._geometry import dot  # noqa: E402
 from quiddity._section_passages import (  # noqa: E402
     _DIRECTION_TOL,
     _INTERVAL_TOL,
     _canonical_run,
-    _dot,
     _face_interval,
     _ordered_cycle,
     _pair_line,
@@ -136,7 +136,7 @@ def _probe_run(
         for node in members
         if graph.is_planar(node)
         and (normal := graph.normal(node)) is not None
-        and abs(_dot(normal, base.run)) <= _DIRECTION_TOL
+        and abs(dot(normal, base.run)) <= _DIRECTION_TOL
     )
     if len(walls) != len(members):
         return _failed(1, run=base.run, planar_walls=len(walls))

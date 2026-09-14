@@ -1,10 +1,22 @@
 """Policy-neutral primitives retain fragments and leave proof decisions to callers."""
 
+import ast
+from fractions import Fraction
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from build123d import Box, Compound, Pos
 
+import quiddity
+from quiddity._geometry import (
+    DIRECTION_NORM_EPS,
+    cross,
+    dot,
+    unit,
+    unit_or_none,
+    without_negative_zero,
+)
 from quiddity._volume_probe import intersection_volume, material_fraction
 from quiddity._wire_seed import wire_seed
 
@@ -88,3 +100,103 @@ def test_recognisers_share_the_same_seed_and_fraction_implementations():
     # the part's solids; pinned here so the copies cannot quietly return and miss that.
     assert edge_open_prismatic_recesses._material_fraction is material_fraction
     assert edge_open_circular_recesses._material_fraction is material_fraction
+
+
+def test_dot_is_exactly_rounded_when_the_products_cancel():
+    """`dot` uses `math.fsum`, so its result is the correctly rounded exact sum.
+
+    Naive left-to-right summation is what six of the nine replaced copies did, and what
+    CPython's builtin `sum` still does on 3.10 and 3.11 -- 3.12 gave it Neumaier compensation,
+    which closes most of the gap but is not the same guarantee. The exact value is computed
+    here with `Fraction`, so the property is checked directly rather than against whichever
+    `sum` the running interpreter happens to provide.
+    """
+
+    left = (1e100, 1.0, -1e100)
+    right = (1.0, 1.0, 1.0)
+    exact = float(sum(Fraction(a) * Fraction(b) for a, b in zip(left, right, strict=True)))
+    assert dot(left, right) == exact == 1.0
+
+    naive = 0.0
+    for a, b in zip(left, right, strict=True):
+        naive += a * b
+    assert naive == 0.0, "the case must actually separate naive summation from fsum"
+
+
+def test_cross_is_right_handed():
+    assert cross((1.0, 0.0, 0.0), (0.0, 1.0, 0.0)) == (0.0, 0.0, 1.0)
+    assert cross((0.0, 1.0, 0.0), (1.0, 0.0, 0.0)) == (0.0, 0.0, -1.0)
+
+
+@pytest.mark.parametrize(
+    "vector",
+    [
+        (0.0, 0.0, 0.0),
+        (DIRECTION_NORM_EPS, 0.0, 0.0),
+        (float("nan"), 0.0, 0.0),
+        (float("inf"), 0.0, 0.0),
+    ],
+)
+def test_degenerate_and_nonfinite_directions_are_refused(vector):
+    """One threshold, both spellings. The four copies replaced here disagreed: they refused at
+    0.0, at 1e-9 and at 1e-12 (twice), so the same question had three different answers."""
+
+    assert unit_or_none(vector) is None
+    with pytest.raises(ValueError):
+        unit(vector)
+
+
+def test_a_direction_just_above_the_threshold_still_normalises():
+    normalised = unit((DIRECTION_NORM_EPS * 2.0, 0.0, 0.0))
+    assert normalised == (1.0, 0.0, 0.0)
+
+
+def test_a_direction_near_the_float_ceiling_is_not_mistaken_for_nonfinite():
+    """The norm uses `math.hypot`, so squaring a huge component cannot overflow to infinity.
+
+    `sqrt(dot(v, v))` returns `inf` here and would refuse a direction that is perfectly
+    representable. One of the four copies replaced by `unit` already used hypot, so this
+    pins behaviour that would otherwise have been quietly lost in the consolidation.
+    """
+
+    assert unit((1e200, 1e200, 0.0)) == pytest.approx((2**-0.5, 2**-0.5, 0.0))
+
+
+def test_normalisation_and_negative_zero_removal_stay_distinct_operations():
+    """`without_negative_zero` was itself called `_unit` while four modules used that name for
+    genuine normalisation. It scales nothing; pinned so the two cannot merge by name again."""
+
+    assert without_negative_zero((-0.0, 3.0, -0.0)) == (0.0, 3.0, 0.0)
+    assert unit((0.0, 3.0, 0.0)) == (0.0, 1.0, 0.0)
+
+
+def test_no_module_carries_its_own_direction_primitive():
+    """`_dot` appeared in nine modules, `_cross` in five and `_unit` in four. Pinned by name so
+    the copies cannot quietly return and re-diverge.
+
+    By name only, deliberately. A one-off sweep for functions that divide a vector by its own
+    norm under some other name found three more, and the judgement on each was different:
+
+    * `_cylinder_substrate._normalised` guarded a dimensionless sine with `COORD_FLOOR`, a
+      coordinate band in model units. Folded into `unit_or_none` in this change.
+    * `_pattern_geometry._project_out` divided by the norm with no guard at all, so its
+      declared `| None` and its caller's `assert ... is not None` were both dead. Folded in.
+    * `_outer_profile._tangent` normalises by the arc's radius, so its guard is a LENGTH and
+      must not borrow the dimensionless epsilon (ADR 0008). Correctly left alone.
+
+    A standing shape detector was tried and dropped: distinguishing those from `_sections._arc`
+    (divides by a chord to place a centre) and `_effective_surfaces.recovery_nominal` (a
+    controlling length from area over perimeter) needed enough AST analysis and enough
+    exemptions that it would have been switched off rather than obeyed. The sweep is a thing to
+    re-run when it is worth running, not a gate to maintain.
+    """
+
+    package = Path(quiddity.__file__).parent
+    for path in package.glob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        local = {
+            node.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef) and node.name in {"_dot", "_cross", "_unit"}
+        }
+        assert not local, f"{path.name} redefines {sorted(local)}"

@@ -23,7 +23,15 @@ from quiddity._effective_surfaces import (
     effective_faces_for_graph,
     recovery_tolerance,
 )
-from quiddity._geometry import COORD_FLOOR, _axis_letter_of, length_tol, quantise
+from quiddity._geometry import (
+    COORD_FLOOR,
+    _axis_letter_of,
+    cross,
+    dot,
+    length_tol,
+    quantise,
+    unit_or_none,
+)
 from quiddity._typing import CylinderEvidence, CylinderInventory, Part
 
 #: Whatever record type the caller groups. _merge_runs cares only about ``s_lo``/``s_hi`` and the
@@ -55,25 +63,20 @@ def _canonical_vector(
     return tuple(_canonical_component(value, direction=direction) for value in vector)  # type: ignore[return-value]
 
 
-def _dot(left: tuple[float, float, float], right: tuple[float, float, float]) -> float:
-    return math.fsum(a * b for a, b in zip(left, right, strict=True))
-
-
-def _cross(
-    left: tuple[float, float, float], right: tuple[float, float, float]
-) -> tuple[float, float, float]:
-    return (
-        left[1] * right[2] - left[2] * right[1],
-        left[2] * right[0] - left[0] * right[2],
-        left[0] * right[1] - left[1] * right[0],
-    )
-
-
 def _normalised(vector: tuple[float, float, float]) -> tuple[float, float, float]:
-    magnitude = math.sqrt(_dot(vector, vector))
-    if not math.isfinite(magnitude) or magnitude <= COORD_FLOOR:
+    """Normalise one axis-basis vector, keeping this family's own refusal wording.
+
+    A sixth spelling of `unit` that the name-based consolidation would have missed. Its guard
+    was `COORD_FLOOR`, a coordinate band in model units, but both call sites pass the cross
+    product of two unit vectors -- a dimensionless sine, never a length. Mixing the two is what
+    the naming convention in `_geometry` exists to prevent, so the guard is now the
+    dimensionless `DIRECTION_NORM_EPS` that every other direction refusal uses.
+    """
+
+    normalised = unit_or_none(vector)
+    if normalised is None:
         raise ValueError("recovered cylinder axis basis is degenerate")
-    return tuple(component / magnitude for component in vector)  # type: ignore[return-value]
+    return normalised
 
 
 def _axis_basis(
@@ -81,10 +84,10 @@ def _axis_basis(
 ) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
     seed = min(
         ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
-        key=lambda candidate: abs(_dot(direction, candidate)),
+        key=lambda candidate: abs(dot(direction, candidate)),
     )
-    across = _normalised(_cross(direction, seed))
-    return across, _normalised(_cross(direction, across))
+    across = _normalised(cross(direction, seed))
+    return across, _normalised(cross(direction, across))
 
 
 def _recovered_axis_bounds(
@@ -160,15 +163,15 @@ def _recovered_angular_lower_bound(
                     point.Y - axis_point[1],
                     point.Z - axis_point[2],
                 )
-                along = _dot(relative, direction)
+                along = dot(relative, direction)
                 radial = tuple(
                     coordinate - along * axis
                     for coordinate, axis in zip(relative, direction, strict=True)
                 )
-                magnitude = math.sqrt(_dot(radial, radial))
+                magnitude = math.sqrt(dot(radial, radial))
                 if not math.isfinite(magnitude) or abs(magnitude - radius) > radial_tolerance:
                     return None
-                angles.append(math.atan2(_dot(radial, up), _dot(radial, across)) % (2.0 * math.pi))
+                angles.append(math.atan2(dot(radial, up), dot(radial, across)) % (2.0 * math.pi))
         if len(angles) < 2:
             return None
         ordered = sorted(set(angles))
