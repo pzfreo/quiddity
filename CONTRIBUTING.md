@@ -39,7 +39,7 @@ uv run pytest -n 2 -m "not slow"
 ```
 
 The command above is the fast edit/test tier. It excludes measured expensive whole-inventory,
-corpus, transformation, packaging and correspondence modules and uses two worker processes. Run
+corpus, transformation and packaging modules and uses two worker processes. Run
 the complete coverage-free suite with `uv run pytest`, or only the expensive tier with
 `uv run pytest -m slow`.
 

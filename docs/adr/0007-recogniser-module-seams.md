@@ -430,6 +430,12 @@ Issue #236 makes `_recess_features._discover_pockets` the sole private writer-en
 adapter. The public compatibility facade and `_registry` are its only writer callers. Proposal,
 reduction and cap modules remain neutral identity carriers and do not read evidence or siblings.
 
+**Withdrawn as implementation (2026-09-14).** The three F6 seam paragraphs below describe
+`_body_geometry`, `_correspondence`, `_correspondence_match` and `_correspondence_partition`,
+all removed with the F6 matcher; see the F6 withdrawal amendment in ADR 0003.
+`test_internal_module_seams_match_adr_0007` no longer carries their entries. The text is retained
+as the seam design for any future attempt, not as a current contract.
+
 F6a adds `_body_geometry` below records/policy and `_correspondence` above the completed immutable
 inventory. The lower leaf may read bounded analytic kernel facts but imports no recogniser,
 Candidate, evidence, registry, reconciliation or result module. The upper module may read only its

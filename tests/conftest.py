@@ -26,8 +26,6 @@ import pytest
 SLOW_MODULES = frozenset(
     {
         "test_blend_boundary_sweep.py",
-        "test_correspondence_match.py",
-        "test_correspondence_snapshot.py",
         "test_experimental_frame.py",
         "test_mfcadpp_corpus.py",
         "test_mfcadpp_holdout.py",

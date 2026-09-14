@@ -78,8 +78,9 @@ a point on the untrimmed underlying surface; inner wires and concave outer wires
 The old `experimental_geometry.inspect_face` and surface-value names are exact-object aliases, as
 are the existing root or family-module paths for the other four reads. New code should use the
 inspection namespace. This graduation does not publish `GeometryGraph`, adjacency, blend collapse,
-sections, correspondence, Candidate identity, registry, or reconciliation. Those remain private
-or experimental.
+sections, Candidate identity, registry, or reconciliation. Those remain private
+or experimental. Cross-run correspondence is not offered at all: the F6 matcher was removed
+because it reached no consumer. See [ADR 0003](adr/0003-one-recognition-result-and-explicit-reconciliation.md).
 
 ## Within-run recognition evidence API
 

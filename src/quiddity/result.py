@@ -13,7 +13,7 @@ from __future__ import annotations
 import math
 import warnings
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass, field, fields, replace
+from dataclasses import dataclass, fields, replace
 from enum import Enum
 from types import MappingProxyType
 from typing import TypeVar, cast
@@ -21,7 +21,6 @@ from typing import TypeVar, cast
 from quiddity._candidates import Candidate, CandidateSet, EvidenceIndex, FamilyId
 from quiddity._claims import ClaimLedger
 from quiddity._corner_section import prove_corner_section
-from quiddity._correspondence import _CorrespondenceSnapshotAuthority
 from quiddity._cylindrical_channels import prove_cylindrical_channel
 from quiddity._diagnostics import ResidualDiagnostic, diagnose_residuals
 from quiddity._dispositions import (
@@ -271,7 +270,6 @@ class InventoryProduct:
     derived: DerivedInventory
     result: RecognitionResult
     _legacy_result: _LegacyRecognitionResult
-    _correspondence_authority: object | None = field(default=None, repr=False, compare=False)
 
     @property
     def accepted(self) -> CandidateInventory:
@@ -553,8 +551,7 @@ def _take_inventory(
         ),
     )
     result = _project_result(context, accepted, derived, evidence)
-    correspondence = _CorrespondenceSnapshotAuthority()
-    product = InventoryProduct(
+    return InventoryProduct(
         context=context,
         evidence=evidence,
         physical=physical,
@@ -565,10 +562,7 @@ def _take_inventory(
             **{item.name: getattr(result, item.name) for item in fields(RecognitionResult)}
         ),
         _legacy_result=result,
-        _correspondence_authority=correspondence,
     )
-    correspondence.bind(product)
-    return product
 
 
 def _discover_all(

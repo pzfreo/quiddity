@@ -194,6 +194,10 @@ issued valid solid before projecting immutable geometry summaries. It cannot iss
 mutate evidence, invoke discovery/reconciliation, or expose FaceNode/SolidRef/kernel handles. Equal
 descriptor values preserve multiplicity and are compatibility evidence, never identity.
 
+**Withdrawn as implementation (2026-09-14).** The schema-three boundary graph and the body
+descriptor it extends were removed with the F6 matcher they existed for; see the F6 withdrawal
+amendment in ADR 0003. The paragraph below is retained as the design record.
+
 Schema three adds a private material-oriented boundary graph for correspondence only. Graph-global
 vertices and analytic curves, face-local parameterized half-edge cycles, and complete two-sided
 incidence are derived from exact graph topology and bounded pcurve authority before run handles are

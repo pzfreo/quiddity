@@ -3,8 +3,8 @@
 """Supported geometry reads shared by declared and recognised features.
 
 This is the deliberately narrow F7 API from ADR 0010.  It publishes only the five
-consumer-proven inspection operations; graph identity, adjacency, blend collapse,
-recognition evidence and correspondence remain private or experimental.
+consumer-proven inspection operations; graph identity, adjacency, blend collapse
+and recognition evidence remain private or experimental.
 
 ``experimental_geometry.inspect_face`` remains an identity-preserving compatibility
 alias.  New consumers should import the supported names from this module.

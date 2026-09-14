@@ -79,7 +79,7 @@ exclude = ["/tests/corpus"]
 addopts = "-ra --strict-markers"
 testpaths = ["tests"]
 markers = [
-    "slow: expensive whole-inventory, corpus, transformation, packaging, or correspondence evidence",
+    "slow: expensive whole-inventory, corpus, transformation, or packaging evidence",
 ]
 # `tests` is a package (`tests/golden/__init__.py`), so a golden fixture's
 # `from tests.golden._common import ...` needs the repo root importable. Without this it worked

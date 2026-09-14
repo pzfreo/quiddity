@@ -55,11 +55,33 @@ PUBLIC_MODULES = {
 }
 
 
-def test_correspondence_matcher_remains_private_and_result_neutral() -> None:
+def test_cross_run_correspondence_is_absent() -> None:
+    """The F6 matcher was removed; nothing may reintroduce it without a consumer and an ADR."""
+
     assert not hasattr(recognition, "correspondence_changes")
     assert not hasattr(recognition, "CorrespondenceResult")
-    result_source = (PACKAGE / "result.py").read_text()
-    assert "_correspondence_match" not in result_source
+    withdrawn = {
+        "_body_geometry",
+        "_correspondence",
+        "_correspondence_match",
+        "_correspondence_partition",
+    }
+    for name in withdrawn:
+        assert not (PACKAGE / f"{name}.py").exists()
+    # Match imported module names, not a substring: `_face_correspondence` is an ordinary
+    # helper name elsewhere in the repo and must not trip this guard. Every spelling counts --
+    # `from quiddity._correspondence import x`, `from quiddity import _correspondence` (the
+    # withdrawn name is then an alias, not the module path) and `import a, _correspondence`.
+    for path in PACKAGE.glob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.Import, ast.ImportFrom)):
+                continue
+            names = {alias.name.split(".")[-1] for alias in node.names}
+            if isinstance(node, ast.ImportFrom) and node.module:
+                names.update(node.module.split("."))
+            found = names & withdrawn
+            assert not found, f"{path.name} imports {sorted(found)}"
 
 
 MODULE_SEAM_EDGES = {
@@ -88,10 +110,8 @@ MODULE_SEAM_EDGES = {
     # asks a solid for its box, validity, volume or area.
     "_solid_properties": {"_typing"},
     "_analytic_surfaces": {"_geometry"},
-    "_body_geometry": set(),
     "_adjacency": {
         "_analytic_surfaces",
-        "_body_geometry",
         "_geometry",
         "_solid_properties",
         "_typing",
@@ -190,23 +210,6 @@ MODULE_SEAM_EDGES = {
         "round_bottom_slots",
     },
     "_candidates": {"_adjacency", "_effective_surfaces", "_passage_compat"},
-    "_correspondence": {
-        "_adjacency",
-        "_body_geometry",
-        "_candidates",
-        "_dispositions",
-        "_run",
-        "repeating_profiles",
-    },
-    # F6b is a private, optional consumer of issuer-validated F6a snapshots. It may use the
-    # immutable descriptor grammar/tolerances, but must never reach recognition orchestration,
-    # candidates, evidence, reconciliation, or public results.
-    "_correspondence_partition": {"_body_geometry"},
-    "_correspondence_match": {
-        "_body_geometry",
-        "_correspondence",
-        "_correspondence_partition",
-    },
     "_dispositions": {"_candidates"},
     "_diagnostics": {"_candidates", "_dispositions", "chamfers"},
     "_claims": {"_adjacency", "_candidates", "_effective_surfaces"},
