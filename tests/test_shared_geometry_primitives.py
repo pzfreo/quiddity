@@ -1,6 +1,7 @@
 """Policy-neutral primitives retain fragments and leave proof decisions to callers."""
 
 import ast
+from fractions import Fraction
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -101,18 +102,25 @@ def test_recognisers_share_the_same_seed_and_fraction_implementations():
     assert edge_open_circular_recesses._material_fraction is material_fraction
 
 
-def test_dot_is_exactly_rounded_where_the_builtin_sum_is_not():
-    """`dot` uses `math.fsum`, which matters exactly where a dot product cancels.
+def test_dot_is_exactly_rounded_when_the_products_cancel():
+    """`dot` uses `math.fsum`, so its result is the correctly rounded exact sum.
 
-    Three of the nine copies this replaced already used fsum and six used the builtin, so the
-    accuracy of a comparison depended on which module owned the helper. This is a case that
-    separates them: left-to-right summation keeps the cancellation error, fsum does not.
+    Naive left-to-right summation is what six of the nine replaced copies did, and what
+    CPython's builtin `sum` still does on 3.10 and 3.11 -- 3.12 gave it Neumaier compensation,
+    which closes most of the gap but is not the same guarantee. The exact value is computed
+    here with `Fraction`, so the property is checked directly rather than against whichever
+    `sum` the running interpreter happens to provide.
     """
 
-    left = (1.0, 1e100, 1.0)
+    left = (1e100, 1.0, -1e100)
     right = (1.0, 1.0, 1.0)
-    assert sum(a * b for a, b in zip(left, right, strict=True)) == 1e100
-    assert dot(left, right) == 1e100 + 2.0
+    exact = float(sum(Fraction(a) * Fraction(b) for a, b in zip(left, right, strict=True)))
+    assert dot(left, right) == exact == 1.0
+
+    naive = 0.0
+    for a, b in zip(left, right, strict=True):
+        naive += a * b
+    assert naive == 0.0, "the case must actually separate naive summation from fsum"
 
 
 def test_cross_is_right_handed():
@@ -143,6 +151,17 @@ def test_a_direction_just_above_the_threshold_still_normalises():
     assert normalised == (1.0, 0.0, 0.0)
 
 
+def test_a_direction_near_the_float_ceiling_is_not_mistaken_for_nonfinite():
+    """The norm uses `math.hypot`, so squaring a huge component cannot overflow to infinity.
+
+    `sqrt(dot(v, v))` returns `inf` here and would refuse a direction that is perfectly
+    representable. One of the four copies replaced by `unit` already used hypot, so this
+    pins behaviour that would otherwise have been quietly lost in the consolidation.
+    """
+
+    assert unit((1e200, 1e200, 0.0)) == pytest.approx((2**-0.5, 2**-0.5, 0.0))
+
+
 def test_normalisation_and_negative_zero_removal_stay_distinct_operations():
     """`without_negative_zero` was itself called `_unit` while four modules used that name for
     genuine normalisation. It scales nothing; pinned so the two cannot merge by name again."""
@@ -152,16 +171,32 @@ def test_normalisation_and_negative_zero_removal_stay_distinct_operations():
 
 
 def test_no_module_carries_its_own_direction_primitive():
-    """`_dot` appeared in nine modules, `_cross` in five and `_unit` in four. Pinned so the
-    copies cannot quietly return and re-diverge."""
+    """`_dot` appeared in nine modules, `_cross` in five and `_unit` in four. Pinned by name so
+    the copies cannot quietly return and re-diverge.
+
+    By name only, deliberately. A one-off sweep for functions that divide a vector by its own
+    norm under some other name found three more, and the judgement on each was different:
+
+    * `_cylinder_substrate._normalised` guarded a dimensionless sine with `COORD_FLOOR`, a
+      coordinate band in model units. Folded into `unit_or_none` in this change.
+    * `_pattern_geometry._project_out` divided by the norm with no guard at all, so its
+      declared `| None` and its caller's `assert ... is not None` were both dead. Folded in.
+    * `_outer_profile._tangent` normalises by the arc's radius, so its guard is a LENGTH and
+      must not borrow the dimensionless epsilon (ADR 0008). Correctly left alone.
+
+    A standing shape detector was tried and dropped: distinguishing those from `_sections._arc`
+    (divides by a chord to place a centre) and `_effective_surfaces.recovery_nominal` (a
+    controlling length from area over perimeter) needed enough AST analysis and enough
+    exemptions that it would have been switched off rather than obeyed. The sweep is a thing to
+    re-run when it is worth running, not a gate to maintain.
+    """
 
     package = Path(quiddity.__file__).parent
     for path in package.glob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         local = {
             node.name
-            for node in tree.body
-            if isinstance(node, ast.FunctionDef)
-            and node.name in {"_dot", "_cross", "_unit"}
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef) and node.name in {"_dot", "_cross", "_unit"}
         }
         assert not local, f"{path.name} redefines {sorted(local)}"

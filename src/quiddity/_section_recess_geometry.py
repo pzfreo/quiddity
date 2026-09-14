@@ -497,8 +497,7 @@ def _one_polygonal_candidate(graph: FaceGraph, floor: FaceNode) -> _Candidate | 
         if graph.arc(floor, node) == "concave" and graph.is_planar(node)
     )
     if len(walls) < 3 or any(
-        (wall_normal := graph.normal(wall)) is None
-        or abs(dot(wall_normal, depth)) > _DIRECTION_TOL
+        (wall_normal := graph.normal(wall)) is None or abs(dot(wall_normal, depth)) > _DIRECTION_TOL
         for wall in walls
     ):
         return None

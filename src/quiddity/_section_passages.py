@@ -127,8 +127,7 @@ def _pair_line(
         except (AttributeError, RuntimeError, TypeError, ValueError):
             return None
         projected = tuple(
-            (dot(point, frame.u), dot(point, frame.v), dot(point, frame.run))
-            for point in endpoints
+            (dot(point, frame.u), dot(point, frame.v), dot(point, frame.run)) for point in endpoints
         )
         samples.extend(projected)
         segments.append(tuple(sorted((projected[0][2], projected[1][2]))))  # type: ignore[arg-type]
@@ -220,8 +219,7 @@ def _line_section(wire: Wire, base: LocalFrame) -> tuple[PlanarSection, Vector3]
             return None
         raw = PlanarSection(
             tuple(
-                SectionVertex((dot(point, base.u), dot(point, base.v)))
-                for point in ordered_points
+                SectionVertex((dot(point, base.u), dot(point, base.v))) for point in ordered_points
             )
         )
         centre = raw.centroid

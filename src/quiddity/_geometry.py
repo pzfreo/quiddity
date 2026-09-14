@@ -87,10 +87,12 @@ DIRECTION_NORM_EPS = 1e-9
 def dot(left: Sequence[float], right: Sequence[float]) -> float:
     """Return the exactly-rounded dot product of two equal-length vectors.
 
-    ``math.fsum`` rather than the builtin ``sum``: a dot product of near-perpendicular
-    directions cancels, and left-to-right summation keeps the cancellation error while fsum
-    does not. Three of the nine copies this replaces already used fsum and six did not, which
-    made the accuracy of a comparison depend on which module happened to own the helper.
+    ``math.fsum`` rather than the builtin ``sum``: fsum is correctly rounded on every
+    supported interpreter, while ``sum`` summed naively on 3.10 and 3.11 and only gained
+    Neumaier compensation in 3.12. The copies replaced here were split between the two, so how
+    accurately a cancelling comparison was made depended both on which module owned the helper
+    and on which Python was running it. This package pins byte-exact goldens across a 3.10 to
+    3.14 CI matrix, so that second dependency is the one worth removing.
     """
 
     return math.fsum(a * b for a, b in zip(left, right, strict=True))
@@ -111,7 +113,7 @@ def unit(value: Sequence[float]) -> Vector3:
 
     normalised = unit_or_none(value)
     if normalised is None:
-        raise ValueError("direction must be finite and nonzero")
+        raise ValueError("direction is nonfinite or degenerate")
     return normalised
 
 
@@ -124,7 +126,10 @@ def unit_or_none(value: Sequence[float]) -> Vector3 | None:
     """
 
     components = tuple(float(component) for component in value)
-    norm = math.sqrt(dot(components, components))
+    # `math.hypot`, not `sqrt(dot(v, v))`: squaring a component near the float ceiling
+    # overflows to infinity and would refuse a direction that is perfectly representable.
+    # hypot scales to avoid that, and one of the four copies replaced here already used it.
+    norm = math.hypot(*components)
     if not math.isfinite(norm) or norm <= DIRECTION_NORM_EPS:
         return None
     x, y, z = (component / norm for component in components)

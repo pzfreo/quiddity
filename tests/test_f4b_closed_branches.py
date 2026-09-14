@@ -336,7 +336,7 @@ def test_compatibility_projection_closed_absence_and_construction() -> None:
 
 
 def test_private_projection_and_unit_refusal_branches() -> None:
-    with pytest.raises(ValueError, match="nonzero"):
+    with pytest.raises(ValueError, match="degenerate"):
         unit((0.0, 0.0, 0.0))
     record = SectionPassage(_frame(), (0.0, 10.0), _section(), PassageEnds(False, False))
     assert _legacy_projection(record) is not None

@@ -307,9 +307,7 @@ def infer_part_frame(part: Part) -> FrameInference:
             face_centre = cast(Vector3, tuple(float(value) for value in centre.Coord()))
             if not math.isfinite(area) or not all(math.isfinite(value) for value in face_centre):
                 return RefusedPartFrame(FrameRefusalReason.NONFINITE_GEOMETRY)
-            offset = dot(
-                tuple(face_centre[index] - origin[index] for index in range(3)), direction
-            )
+            offset = dot(tuple(face_centre[index] - origin[index] for index in range(3)), direction)
             for direction_class in classes:
                 if abs(dot(direction, direction_class.direction)) >= _PARALLEL_COS:
                     if dot(direction, direction_class.direction) < 0.0:

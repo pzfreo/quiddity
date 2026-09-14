@@ -33,7 +33,8 @@ three layers green when changing public types.
 
 ```bash
 uv sync --dev
-uv run ruff check .
+uv run ruff check . scripts/update-recogniser-version
+uv run ruff format --check . scripts/update-recogniser-version
 uv run mypy
 uv run pytest -n 2 -m "not slow"
 ```

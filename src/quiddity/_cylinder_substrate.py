@@ -23,7 +23,15 @@ from quiddity._effective_surfaces import (
     effective_faces_for_graph,
     recovery_tolerance,
 )
-from quiddity._geometry import COORD_FLOOR, _axis_letter_of, cross, dot, length_tol, quantise
+from quiddity._geometry import (
+    COORD_FLOOR,
+    _axis_letter_of,
+    cross,
+    dot,
+    length_tol,
+    quantise,
+    unit_or_none,
+)
 from quiddity._typing import CylinderEvidence, CylinderInventory, Part
 
 #: Whatever record type the caller groups. _merge_runs cares only about ``s_lo``/``s_hi`` and the
@@ -56,10 +64,19 @@ def _canonical_vector(
 
 
 def _normalised(vector: tuple[float, float, float]) -> tuple[float, float, float]:
-    magnitude = math.sqrt(dot(vector, vector))
-    if not math.isfinite(magnitude) or magnitude <= COORD_FLOOR:
+    """Normalise one axis-basis vector, keeping this family's own refusal wording.
+
+    A sixth spelling of `unit` that the name-based consolidation would have missed. Its guard
+    was `COORD_FLOOR`, a coordinate band in model units, but both call sites pass the cross
+    product of two unit vectors -- a dimensionless sine, never a length. Mixing the two is what
+    the naming convention in `_geometry` exists to prevent, so the guard is now the
+    dimensionless `DIRECTION_NORM_EPS` that every other direction refusal uses.
+    """
+
+    normalised = unit_or_none(vector)
+    if normalised is None:
         raise ValueError("recovered cylinder axis basis is degenerate")
-    return tuple(component / magnitude for component in vector)  # type: ignore[return-value]
+    return normalised
 
 
 def _axis_basis(
