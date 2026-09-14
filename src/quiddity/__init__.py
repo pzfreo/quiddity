@@ -143,6 +143,13 @@ from quiddity.frames import (
     prepare_framed_part,
 )
 from quiddity.grooves import Groove, floor_face_anchor, recognise_grooves
+from quiddity.gussets import (
+    GussetRib,
+    GussetRibArray,
+    GussetRibMirrorPair,
+    recognise_gusset_rib_patterns,
+    recognise_gusset_ribs,
+)
 from quiddity.levels import (
     STEP_LADDER_BOUNDARY_MARGIN,
     FaceLevel,
@@ -300,6 +307,9 @@ __all__ = [
     "RecognitionReport",
     "ReconciliationReason",
     "Groove",
+    "GussetRib",
+    "GussetRibArray",
+    "GussetRibMirrorPair",
     "BossRecord",
     "CounterBore",
     "CounterSink",
@@ -367,6 +377,8 @@ __all__ = [
     "recognise_fillets",
     "recognise_flats",
     "recognise_grooves",
+    "recognise_gusset_ribs",
+    "recognise_gusset_rib_patterns",
     "recognise_countersinks",
     "recognise_double_d_bores",
     "recognise_hole_patterns",

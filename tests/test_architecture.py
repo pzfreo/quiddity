@@ -32,6 +32,7 @@ PUBLIC_MODULES = {
     "flats",
     "frames",
     "grooves",
+    "gussets",
     "inspection",
     "levels",
     "oriented_slots",
@@ -126,6 +127,16 @@ MODULE_SEAM_EDGES = {
         "_candidates",
         "_claims",
         "_geometry",
+        "_record",
+        "_typing",
+    },
+    "gussets": {
+        "_adjacency",
+        "_body_identity",
+        "_candidates",
+        "_claims",
+        "_geometry",
+        "_pattern_geometry",
         "_record",
         "_typing",
     },
@@ -412,6 +423,7 @@ MODULE_SEAM_EDGES = {
         "fillets",
         "flats",
         "grooves",
+        "gussets",
         "levels",
         "oriented_slots",
         "pads",
@@ -503,6 +515,10 @@ MODULE_SEAM_EDGES = {
 }
 
 ARC_READER_SITES = {
+    "src/quiddity/gussets:_cap:arc:1": "exact-nonsmooth",
+    "src/quiddity/gussets:_cap:arc:2": "exact-nonsmooth",
+    "src/quiddity/gussets:_cap:arc:3": "legacy-contract",
+    "src/quiddity/gussets:_cap:arc:4": "legacy-contract",
     "src/quiddity/edge_open_circular_recesses:_ordered_chain:arc:1": ("legacy-contract"),
     **{
         f"src/quiddity/edge_open_circular_recesses:"

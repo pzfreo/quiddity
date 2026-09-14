@@ -570,6 +570,7 @@ def test_10060_legacy_false_positive_is_omitted_with_only_the_named_census_narro
         "passage": 1,
         "chamfer": 0,
         "angled_step": 0,
+        "gusset_rib": 0,
         # The second independently proved pair has a subdivided planar terminal; #364 makes
         # that B-Rep presentation variant part of the same physical contract.
         "paired_ramp_step": 2,

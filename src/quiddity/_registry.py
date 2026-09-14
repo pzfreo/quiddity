@@ -62,6 +62,13 @@ from quiddity.edge_open_prismatic_recesses import (
 from quiddity.fillets import Fillet, _discover_fillets
 from quiddity.flats import Flat, _discover_flats
 from quiddity.grooves import Groove, recognise_grooves
+from quiddity.gussets import (
+    GussetRib,
+    GussetRibArray,
+    GussetRibMirrorPair,
+    _discover_gusset_ribs,
+    recognise_gusset_rib_patterns,
+)
 from quiddity.levels import (
     FaceLevel,
     RiserEvidence,
@@ -180,6 +187,7 @@ class DerivedId(Enum):
     SLOT_PATTERNS = "slot_patterns"
     ORIENTED_SLOT_PATTERNS = "oriented_slot_patterns"
     POCKET_PATTERNS = "pocket_patterns"
+    GUSSET_RIB_PATTERNS = "gusset_rib_patterns"
     PASSAGES_COMPAT = "passages_compat"
 
 
@@ -466,6 +474,10 @@ def _oriented_slot_patterns(inputs: AcceptedInputs) -> list[object]:
 
 def _pocket_patterns(inputs: AcceptedInputs) -> list[object]:
     return list(recognise_pocket_patterns(inputs.records(FamilyId.POCKETS, Pocket)))
+
+
+def _gusset_rib_patterns(inputs: AcceptedInputs) -> list[object]:
+    return list(recognise_gusset_rib_patterns(inputs.records(FamilyId.GUSSET_RIBS, GussetRib)))
 
 
 def _passages_compat(
@@ -900,6 +912,28 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         ),
     ),
     PhysicalDefinition(
+        FamilyId.GUSSET_RIBS,
+        (GussetRib,),
+        "gusset_ribs",
+        "recognise_gusset_ribs",
+        (),
+        prismatic,
+        _simple(
+            lambda s: list(
+                _discover_gusset_ribs(
+                    s.context.part,
+                    graph=s.context.graph,
+                    face_edges=s.context.face_edges,
+                    sink=s.writer.sink,
+                )
+            )
+        ),
+        Counted("gusset_rib"),
+        FullyAttributed(
+            "every returned gusset rib claims both end caps, its slant and edge blends"
+        ),
+    ),
+    PhysicalDefinition(
         FamilyId.THROUGH_STEPS,
         (ThroughStep,),
         "through_steps",
@@ -1057,6 +1091,15 @@ DERIVED_DEFINITIONS: tuple[DerivedDefinition, ...] = (
         (FamilyId.POCKETS,),
         _pocket_patterns,
         NotCounted("not a distinct census key"),
+    ),
+    DerivedDefinition(
+        DerivedId.GUSSET_RIB_PATTERNS,
+        (GussetRibArray, GussetRibMirrorPair),
+        "gusset_rib_patterns",
+        "recognise_gusset_rib_patterns",
+        (FamilyId.GUSSET_RIBS,),
+        _gusset_rib_patterns,
+        NotCounted("a relation among already counted gusset ribs"),
     ),
     DerivedDefinition(
         DerivedId.PASSAGES_COMPAT,

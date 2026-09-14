@@ -325,6 +325,114 @@
         }
       }
     },
+    "gusset_rib_patterns": {
+      "baseline_records": 4,
+      "rotations": {
+        "X30": {
+          "absent": 4,
+          "absent_by_family": {
+            "gusset_rib": 2,
+            "plate": 2
+          },
+          "baseline_records": 4,
+          "introduced": 0,
+          "introduced_by_family": {},
+          "reclassified": 0,
+          "retained_same_family": 0,
+          "same_family": {},
+          "transitions": {}
+        },
+        "X90": {
+          "absent": 0,
+          "absent_by_family": {},
+          "baseline_records": 4,
+          "introduced": 0,
+          "introduced_by_family": {},
+          "reclassified": 0,
+          "retained_same_family": 4,
+          "same_family": {
+            "gusset_rib": 2,
+            "plate": 2
+          },
+          "transitions": {}
+        },
+        "Z30": {
+          "absent": 3,
+          "absent_by_family": {
+            "gusset_rib": 2,
+            "plate": 1
+          },
+          "baseline_records": 4,
+          "introduced": 0,
+          "introduced_by_family": {},
+          "reclassified": 0,
+          "retained_same_family": 1,
+          "same_family": {
+            "plate": 1
+          },
+          "transitions": {}
+        }
+      }
+    },
+    "gusset_ribs": {
+      "baseline_records": 9,
+      "rotations": {
+        "X30": {
+          "absent": 5,
+          "absent_by_family": {
+            "gusset_rib": 2,
+            "plate": 2,
+            "slot": 1
+          },
+          "baseline_records": 9,
+          "introduced": 0,
+          "introduced_by_family": {},
+          "reclassified": 0,
+          "retained_same_family": 4,
+          "same_family": {
+            "boss": 1,
+            "hole": 3
+          },
+          "transitions": {}
+        },
+        "X90": {
+          "absent": 0,
+          "absent_by_family": {},
+          "baseline_records": 9,
+          "introduced": 0,
+          "introduced_by_family": {},
+          "reclassified": 0,
+          "retained_same_family": 9,
+          "same_family": {
+            "boss": 1,
+            "gusset_rib": 2,
+            "hole": 3,
+            "plate": 2,
+            "slot": 1
+          },
+          "transitions": {}
+        },
+        "Z30": {
+          "absent": 4,
+          "absent_by_family": {
+            "gusset_rib": 2,
+            "plate": 1,
+            "slot": 1
+          },
+          "baseline_records": 9,
+          "introduced": 0,
+          "introduced_by_family": {},
+          "reclassified": 0,
+          "retained_same_family": 5,
+          "same_family": {
+            "boss": 1,
+            "hole": 3,
+            "plate": 1
+          },
+          "transitions": {}
+        }
+      }
+    },
     "hexagonal_passage": {
       "baseline_records": 1,
       "rotations": {
@@ -1377,25 +1485,25 @@
   "schema": 1,
   "totals": {
     "X30": {
-      "absent": 40,
-      "baseline_records": 100,
+      "absent": 49,
+      "baseline_records": 113,
       "introduced": 0,
       "reclassified": 11,
-      "retained_same_family": 49
+      "retained_same_family": 53
     },
     "X90": {
       "absent": 0,
-      "baseline_records": 100,
+      "baseline_records": 113,
       "introduced": 0,
       "reclassified": 0,
-      "retained_same_family": 100
+      "retained_same_family": 113
     },
     "Z30": {
-      "absent": 27,
-      "baseline_records": 100,
+      "absent": 34,
+      "baseline_records": 113,
       "introduced": 0,
       "reclassified": 18,
-      "retained_same_family": 55
+      "retained_same_family": 61
     }
   }
 }

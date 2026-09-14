@@ -365,6 +365,7 @@ def test_physical_roster_matches_every_nonlegacy_family_and_result_field() -> No
         "slot_patterns",
         "oriented_slot_patterns",
         "pocket_patterns",
+        "gusset_rib_patterns",
         "passages",
     }
     assert {definition.result_field for definition in result_module.PHYSICAL_DEFINITIONS} == (

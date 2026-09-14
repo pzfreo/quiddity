@@ -33,6 +33,25 @@ FAMILIES = {
         "introduced": "0.2.0",
         "tests": ["tests/test_angled_steps.py"],
     },
+    "gusset-ribs": {
+        "recognisers": [("recognise_gusset_ribs", "part")],
+        "records": [("GussetRib", "output", ["RecognitionResult.gusset_ribs"])],
+        "census": "gusset_rib",
+        "goldens": ["gusset_ribs"],
+        "introduced": "0.2.10",
+        "tests": ["tests/test_gussets.py"],
+    },
+    "gusset-rib-patterns": {
+        "recognisers": [("recognise_gusset_rib_patterns", "derived")],
+        "records": [
+            ("GussetRibArray", "output", ["RecognitionResult.gusset_rib_patterns"]),
+            ("GussetRibMirrorPair", "output", ["RecognitionResult.gusset_rib_patterns"]),
+        ],
+        "census": None,
+        "goldens": ["gusset_rib_patterns"],
+        "introduced": "0.2.10",
+        "tests": ["tests/test_gussets.py"],
+    },
     "section-recesses": {
         "recognisers": [("recognise_section_recesses", "part")],
         "records": [

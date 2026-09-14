@@ -57,6 +57,7 @@ _LEGACY_CENSUS_BINDINGS: tuple[tuple[str, str], ...] = (
     ("passage", "section_passages"),
     ("chamfer", "chamfers"),
     ("angled_step", "angled_steps"),
+    ("gusset_rib", "gusset_ribs"),
     ("paired_ramp_step", "paired_ramp_steps"),
     ("through_step", "through_steps"),
     ("circular_blind_step", "circular_blind_steps"),

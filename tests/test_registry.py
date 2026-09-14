@@ -41,8 +41,8 @@ from quiddity.result import MIGRATED, PHYSICAL_FAMILIES, _take_inventory
 
 
 def test_registry_is_the_closed_ordered_internal_roster() -> None:
-    assert len(PHYSICAL_DEFINITIONS) == 32
-    assert len(DERIVED_DEFINITIONS) == 5
+    assert len(PHYSICAL_DEFINITIONS) == 33
+    assert len(DERIVED_DEFINITIONS) == 6
     assert tuple(item.family for item in PHYSICAL_DEFINITIONS) == PHYSICAL_FAMILIES
     assert set(PHYSICAL_FAMILIES) == set(FamilyId) - {FamilyId.LEGACY}
     assert tuple(item.identifier for item in DERIVED_DEFINITIONS) == tuple(DerivedId)
@@ -59,6 +59,7 @@ def test_registry_is_the_closed_ordered_internal_roster() -> None:
         FamilyId.PASSAGES,
         FamilyId.ORIENTED_SLOTS,
         FamilyId.GROOVES,
+        FamilyId.GUSSET_RIBS,
         FamilyId.TURNED_STEPS,
         FamilyId.CHAMFERS,
         FamilyId.ANGLED_STEPS,
@@ -116,6 +117,7 @@ def test_registry_is_the_closed_ordered_internal_roster() -> None:
         FamilyId.CHAMFERS,
         FamilyId.ANGLED_STEPS,
         FamilyId.PAIRED_RAMP_STEPS,
+        FamilyId.GUSSET_RIBS,
         FamilyId.THROUGH_STEPS,
         FamilyId.CIRCULAR_BLIND_STEPS,
         FamilyId.PASSAGES,
@@ -191,6 +193,7 @@ def test_registry_dependencies_are_explicit_and_restricted() -> None:
         DerivedId.SLOT_PATTERNS: (FamilyId.SLOTS,),
         DerivedId.ORIENTED_SLOT_PATTERNS: (FamilyId.ORIENTED_SLOTS,),
         DerivedId.POCKET_PATTERNS: (FamilyId.POCKETS,),
+        DerivedId.GUSSET_RIB_PATTERNS: (FamilyId.GUSSET_RIBS,),
         DerivedId.PASSAGES_COMPAT: (FamilyId.PASSAGES,),
     }
     ledger = ClaimLedger(FaceGraph(Box(2, 2, 2)), definitions=PHYSICAL_DEFINITIONS)

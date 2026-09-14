@@ -750,6 +750,149 @@
       ]
     },
     {
+      "census_name": null,
+      "census_output": null,
+      "census_rationale": "Geometry evidence is deliberately absent from the feature census; the census is not a completeness denominator.",
+      "documentation": [
+        "docs/capabilities.md#proven-recognition-capability"
+      ],
+      "golden_evidence": [
+        "tests/golden/gusset_rib_patterns/expected.json"
+      ],
+      "id": "gusset-rib-patterns",
+      "introduced_in": "0.2.10",
+      "recognisers": [
+        {
+          "entry_point": "quiddity.recognise_gusset_rib_patterns",
+          "kind": "derived",
+          "role": "derived"
+        }
+      ],
+      "records": [
+        {
+          "aggregate_membership": [
+            "RecognitionResult.gusset_rib_patterns"
+          ],
+          "fields": {
+            "axis": {
+              "required": true,
+              "type": "str",
+              "units": "none"
+            },
+            "pitch": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "ribs": {
+              "required": true,
+              "type": "list[record:GussetRib]",
+              "units": "none"
+            }
+          },
+          "name": "GussetRibArray",
+          "qualified_name": "quiddity.GussetRibArray",
+          "role": "output",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [
+            "RecognitionResult.gusset_rib_patterns"
+          ],
+          "fields": {
+            "mirror_plane": {
+              "required": true,
+              "type": "list[float|str]",
+              "units": "mm"
+            },
+            "ribs": {
+              "required": true,
+              "type": "tuple[record:GussetRib,2]",
+              "units": "mm"
+            }
+          },
+          "name": "GussetRibMirrorPair",
+          "qualified_name": "quiddity.GussetRibMirrorPair",
+          "role": "output",
+          "schema_version": 1
+        }
+      ],
+      "status": "supported",
+      "test_evidence": [
+        "tests/test_capability_claims.py",
+        "tests/test_gussets.py",
+        "tests/test_recogniser_contract.py"
+      ]
+    },
+    {
+      "census_name": "gusset_rib",
+      "census_output": "RecognitionResult.gusset_ribs",
+      "documentation": [
+        "docs/capabilities.md#proven-recognition-capability"
+      ],
+      "golden_evidence": [
+        "tests/golden/gusset_ribs/expected.json"
+      ],
+      "id": "gusset-ribs",
+      "introduced_in": "0.2.10",
+      "recognisers": [
+        {
+          "entry_point": "quiddity.recognise_gusset_ribs",
+          "kind": "part",
+          "role": "physical"
+        }
+      ],
+      "records": [
+        {
+          "aggregate_membership": [
+            "RecognitionResult.gusset_ribs"
+          ],
+          "fields": {
+            "body_key": {
+              "required": false,
+              "type": "list[float]|null",
+              "units": "none"
+            },
+            "directions": {
+              "required": true,
+              "type": "tuple[int,2]",
+              "units": "mm"
+            },
+            "legs": {
+              "required": true,
+              "type": "tuple[float,2]",
+              "units": "mm"
+            },
+            "supports": {
+              "required": true,
+              "type": "tuple[list[float|str],2]",
+              "units": "mm"
+            },
+            "thickness_axis": {
+              "required": true,
+              "type": "str",
+              "units": "none"
+            },
+            "thickness_bounds": {
+              "required": true,
+              "type": "tuple[float,2]",
+              "units": "mm"
+            }
+          },
+          "name": "GussetRib",
+          "qualified_name": "quiddity.GussetRib",
+          "role": "output",
+          "schema_version": 1
+        }
+      ],
+      "status": "supported",
+      "test_evidence": [
+        "tests/test_capability_claims.py",
+        "tests/test_gussets.py",
+        "tests/test_recogniser_contract.py"
+      ]
+    },
+    {
       "census_name": "hole_pattern",
       "census_output": "RecognitionResult.hole_patterns",
       "documentation": [

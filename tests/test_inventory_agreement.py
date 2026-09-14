@@ -21,8 +21,8 @@ produces a wrong number silently. So the property is kept rather than retired as
 
 **It is no longer checked over the whole vendored corpus.** The mapping is a property of the two
 inventories, not of any part: a key wired to the wrong field is wrong on *every* part that
-carries the family, so the evidence only has to make each family appear once. Measured, the 30
-golden fixtures already do — every one of the sixteen `SHARED` families is populated by at least
+carries the family, so the evidence only has to make each family appear once. Measured, the 32
+golden fixtures already do — every one of the seventeen `SHARED` families is populated by at least
 one of them (`section_recess` by eight, `hole` by seven, `boss`, `blend` and `plate` by four
 each, `slot`, `chamfer` and `through_step` by two, the rest by one). Reading all 87 vendored
 parts added 188 seconds serially at the series' branch point, and 65 s once run-scoped caching
@@ -74,6 +74,7 @@ SHARED = {
     "groove": "grooves",
     "chamfer": "chamfers",
     "angled_step": "angled_steps",
+    "gusset_rib": "gusset_ribs",
     "paired_ramp_step": "paired_ramp_steps",
     "through_step": "through_steps",
     "circular_blind_step": "circular_blind_steps",
@@ -96,7 +97,7 @@ def _disagreements(part):
 
 @pytest.mark.parametrize("fixture", sorted(p.parent.name for p in GOLDEN.glob("*/fixture.py")))
 def test_the_two_inventories_agree_on_every_golden(fixture):
-    """Every synthetic part, one family at a time, so a failure names the family."""
+    """Every synthetic part, so a failure names its fixture and mismatched family."""
 
     part = load_fixture(GOLDEN / fixture / "fixture.py").build_fixture()
     assert _disagreements(part) == {}
@@ -152,6 +153,7 @@ RESULT_ONLY = {
     "slot_patterns": "census counts hole patterns only",
     "oriented_slot_patterns": "census counts hole patterns only",
     "section_recess_patterns": "census counts hole patterns only",
+    "gusset_rib_patterns": "a relation among already counted gusset ribs",
     "section_recess_refusals": "evidence without reconstructible geometry is not an occurrence",
     # Families with no census key at all. Each is a gap rather than a decision, and naming
     # them here is what makes that visible.

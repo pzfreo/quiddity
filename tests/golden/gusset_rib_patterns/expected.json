@@ -1,0 +1,844 @@
+{
+  "canonicalizer_version": 1,
+  "fixture": "gusset_rib_patterns",
+  "provenance": {
+    "creator": "Paul Fremantle",
+    "license": "Apache-2.0",
+    "source_path": "tests/test_gussets.py",
+    "source_repository": "https://github.com/pzfreo/b123d-recognisers.git"
+  },
+  "recognition": {
+    "aggregate": {
+      "prismatic": {
+        "_type": "RecognitionResult",
+        "angled_steps": [],
+        "blends": [],
+        "bosses": [],
+        "chamfers": [],
+        "channels": [],
+        "circular_blind_steps": [],
+        "countersinks": [],
+        "cylinders": [
+          [],
+          []
+        ],
+        "double_d_bores": [],
+        "edge_open_circular_pockets": [],
+        "edge_open_prismatic_recesses": [],
+        "fillets": [],
+        "flats": [],
+        "grooves": [],
+        "gusset_rib_patterns": [
+          {
+            "_type": "GussetRibMirrorPair",
+            "mirror_plane": [
+              "x",
+              0.0
+            ],
+            "ribs": [
+              {
+                "_type": "GussetRib",
+                "body_key": [
+                  -40.0,
+                  -25.0,
+                  0.0,
+                  40.0,
+                  25.0,
+                  48.0,
+                  61032.0,
+                  18096.7052728
+                ],
+                "directions": [
+                  -1,
+                  1
+                ],
+                "legs": [
+                  22.0,
+                  26.0
+                ],
+                "supports": [
+                  [
+                    "y",
+                    17.0
+                  ],
+                  [
+                    "z",
+                    8.0
+                  ]
+                ],
+                "thickness_axis": "x",
+                "thickness_bounds": [
+                  -32.0,
+                  -26.0
+                ]
+              },
+              {
+                "_type": "GussetRib",
+                "body_key": [
+                  -40.0,
+                  -25.0,
+                  0.0,
+                  40.0,
+                  25.0,
+                  48.0,
+                  61032.0,
+                  18096.7052728
+                ],
+                "directions": [
+                  -1,
+                  1
+                ],
+                "legs": [
+                  22.0,
+                  26.0
+                ],
+                "supports": [
+                  [
+                    "y",
+                    17.0
+                  ],
+                  [
+                    "z",
+                    8.0
+                  ]
+                ],
+                "thickness_axis": "x",
+                "thickness_bounds": [
+                  26.0,
+                  32.0
+                ]
+              }
+            ]
+          }
+        ],
+        "gusset_ribs": [
+          {
+            "_type": "GussetRib",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              61032.0,
+              18096.7052728
+            ],
+            "directions": [
+              -1,
+              1
+            ],
+            "legs": [
+              22.0,
+              26.0
+            ],
+            "supports": [
+              [
+                "y",
+                17.0
+              ],
+              [
+                "z",
+                8.0
+              ]
+            ],
+            "thickness_axis": "x",
+            "thickness_bounds": [
+              -32.0,
+              -26.0
+            ]
+          },
+          {
+            "_type": "GussetRib",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              61032.0,
+              18096.7052728
+            ],
+            "directions": [
+              -1,
+              1
+            ],
+            "legs": [
+              22.0,
+              26.0
+            ],
+            "supports": [
+              [
+                "y",
+                17.0
+              ],
+              [
+                "z",
+                8.0
+              ]
+            ],
+            "thickness_axis": "x",
+            "thickness_bounds": [
+              26.0,
+              32.0
+            ]
+          }
+        ],
+        "hole_patterns": [],
+        "holes": [],
+        "pads": [],
+        "paired_ramp_steps": [],
+        "passages": [],
+        "plates": [
+          {
+            "_type": "Plate",
+            "axis": "y",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              61032.0,
+              18096.7052728
+            ],
+            "hi": 25.0,
+            "lo": 17.0,
+            "u": 0.0,
+            "v": 26.04161712
+          },
+          {
+            "_type": "Plate",
+            "axis": "z",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              61032.0,
+              18096.7052728
+            ],
+            "hi": 8.0,
+            "lo": 0.0,
+            "u": 0.0,
+            "v": -2.11724915
+          }
+        ],
+        "pocket_patterns": [],
+        "pockets": [],
+        "polygonal_bosses": [],
+        "polygonal_stock": [],
+        "prismatic_pockets": [],
+        "rectangular_blind_slots": [],
+        "repeating_radial_profiles": [],
+        "risers": [
+          {
+            "_type": "RiserEvidence",
+            "axis": "y",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              61032.0,
+              18096.7052728
+            ],
+            "body_levels": [
+              {
+                "_type": "FaceLevel",
+                "body_key": [
+                  -40.0,
+                  -25.0,
+                  0.0,
+                  40.0,
+                  25.0,
+                  48.0,
+                  61032.0,
+                  18096.7052728
+                ],
+                "x_span": [
+                  -40.0,
+                  40.0
+                ],
+                "y_span": [
+                  -25.0,
+                  17.0
+                ],
+                "z": 8.0
+              }
+            ],
+            "hi_at_envelope": true,
+            "lo_at_envelope": false,
+            "other_axis": "x",
+            "other_positions": [],
+            "positions": [
+              17.0
+            ],
+            "tol": 0.5,
+            "vertical": true,
+            "z_hi": 48.0,
+            "z_lo": 8.0
+          }
+        ],
+        "rotational": false,
+        "round_bottom_blind_slots": [],
+        "slot_patterns": [],
+        "slots": [],
+        "step_levels": [
+          {
+            "_type": "FaceLevel",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              61032.0,
+              18096.7052728
+            ],
+            "x_span": [
+              -40.0,
+              40.0
+            ],
+            "y_span": [
+              -25.0,
+              17.0
+            ],
+            "z": 8.0
+          }
+        ],
+        "through_steps": [],
+        "turned_steps": []
+      },
+      "rotational": {
+        "_type": "RecognitionResult",
+        "angled_steps": [],
+        "blends": [],
+        "bosses": [],
+        "chamfers": [],
+        "channels": [],
+        "circular_blind_steps": [],
+        "countersinks": [],
+        "cylinders": [
+          [],
+          []
+        ],
+        "double_d_bores": [],
+        "edge_open_circular_pockets": [],
+        "edge_open_prismatic_recesses": [],
+        "fillets": [],
+        "flats": [],
+        "grooves": [],
+        "gusset_rib_patterns": [],
+        "gusset_ribs": [],
+        "hole_patterns": [],
+        "holes": [],
+        "pads": [],
+        "paired_ramp_steps": [],
+        "passages": [],
+        "plates": [],
+        "pocket_patterns": [],
+        "pockets": [],
+        "polygonal_bosses": [],
+        "polygonal_stock": [],
+        "prismatic_pockets": [],
+        "rectangular_blind_slots": [],
+        "repeating_radial_profiles": [],
+        "risers": [
+          {
+            "_type": "RiserEvidence",
+            "axis": "y",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              61032.0,
+              18096.7052728
+            ],
+            "body_levels": [
+              {
+                "_type": "FaceLevel",
+                "body_key": [
+                  -40.0,
+                  -25.0,
+                  0.0,
+                  40.0,
+                  25.0,
+                  48.0,
+                  61032.0,
+                  18096.7052728
+                ],
+                "x_span": [
+                  -40.0,
+                  40.0
+                ],
+                "y_span": [
+                  -25.0,
+                  17.0
+                ],
+                "z": 8.0
+              }
+            ],
+            "hi_at_envelope": true,
+            "lo_at_envelope": false,
+            "other_axis": "x",
+            "other_positions": [],
+            "positions": [
+              17.0
+            ],
+            "tol": 0.5,
+            "vertical": true,
+            "z_hi": 48.0,
+            "z_lo": 8.0
+          }
+        ],
+        "rotational": true,
+        "round_bottom_blind_slots": [],
+        "slot_patterns": [],
+        "slots": [],
+        "step_levels": [
+          {
+            "_type": "FaceLevel",
+            "body_key": [
+              -40.0,
+              -25.0,
+              0.0,
+              40.0,
+              25.0,
+              48.0,
+              61032.0,
+              18096.7052728
+            ],
+            "x_span": [
+              -40.0,
+              40.0
+            ],
+            "y_span": [
+              -25.0,
+              17.0
+            ],
+            "z": 8.0
+          }
+        ],
+        "through_steps": [],
+        "turned_steps": []
+      }
+    },
+    "feature_census": {
+      "angled_step": 0,
+      "blend": 0,
+      "boss": 0,
+      "chamfer": 0,
+      "channel": 0,
+      "circular_blind_step": 0,
+      "countersink": 0,
+      "edge_open_circular_pocket": 0,
+      "edge_open_prismatic_recess": 0,
+      "fillet": 0,
+      "flat": 0,
+      "groove": 0,
+      "gusset_rib": 2,
+      "hole": 0,
+      "hole_pattern": 0,
+      "paired_ramp_step": 0,
+      "passage": 0,
+      "plate": 2,
+      "pocket": 0,
+      "prismatic_pocket": 0,
+      "rectangular_blind_slot": 0,
+      "round_bottom_blind_slot": 0,
+      "slot": 0,
+      "step": 0,
+      "through_step": 0
+    },
+    "individual": {
+      "recognise_angled_steps": [],
+      "recognise_blends": [],
+      "recognise_bosses": [],
+      "recognise_chamfers": [],
+      "recognise_channels": [],
+      "recognise_circular_blind_steps": [],
+      "recognise_countersinks": [],
+      "recognise_double_d_bores": [],
+      "recognise_face_levels": [
+        {
+          "_type": "FaceLevel",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            61032.0,
+            18096.7052728
+          ],
+          "x_span": [
+            -40.0,
+            40.0
+          ],
+          "y_span": [
+            -25.0,
+            25.0
+          ],
+          "z": 0.0
+        },
+        {
+          "_type": "FaceLevel",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            61032.0,
+            18096.7052728
+          ],
+          "x_span": [
+            -40.0,
+            40.0
+          ],
+          "y_span": [
+            -25.0,
+            17.0
+          ],
+          "z": 8.0
+        },
+        {
+          "_type": "FaceLevel",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            61032.0,
+            18096.7052728
+          ],
+          "x_span": [
+            -40.0,
+            40.0
+          ],
+          "y_span": [
+            17.0,
+            25.0
+          ],
+          "z": 48.0
+        }
+      ],
+      "recognise_fillets": [],
+      "recognise_flats": [],
+      "recognise_grooves": [],
+      "recognise_gusset_rib_patterns": [
+        {
+          "_type": "GussetRibMirrorPair",
+          "mirror_plane": [
+            "x",
+            0.0
+          ],
+          "ribs": [
+            {
+              "_type": "GussetRib",
+              "body_key": [
+                -40.0,
+                -25.0,
+                0.0,
+                40.0,
+                25.0,
+                48.0,
+                61032.0,
+                18096.7052728
+              ],
+              "directions": [
+                -1,
+                1
+              ],
+              "legs": [
+                22.0,
+                26.0
+              ],
+              "supports": [
+                [
+                  "y",
+                  17.0
+                ],
+                [
+                  "z",
+                  8.0
+                ]
+              ],
+              "thickness_axis": "x",
+              "thickness_bounds": [
+                -32.0,
+                -26.0
+              ]
+            },
+            {
+              "_type": "GussetRib",
+              "body_key": [
+                -40.0,
+                -25.0,
+                0.0,
+                40.0,
+                25.0,
+                48.0,
+                61032.0,
+                18096.7052728
+              ],
+              "directions": [
+                -1,
+                1
+              ],
+              "legs": [
+                22.0,
+                26.0
+              ],
+              "supports": [
+                [
+                  "y",
+                  17.0
+                ],
+                [
+                  "z",
+                  8.0
+                ]
+              ],
+              "thickness_axis": "x",
+              "thickness_bounds": [
+                26.0,
+                32.0
+              ]
+            }
+          ]
+        }
+      ],
+      "recognise_gusset_ribs": [
+        {
+          "_type": "GussetRib",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            61032.0,
+            18096.7052728
+          ],
+          "directions": [
+            -1,
+            1
+          ],
+          "legs": [
+            22.0,
+            26.0
+          ],
+          "supports": [
+            [
+              "y",
+              17.0
+            ],
+            [
+              "z",
+              8.0
+            ]
+          ],
+          "thickness_axis": "x",
+          "thickness_bounds": [
+            -32.0,
+            -26.0
+          ]
+        },
+        {
+          "_type": "GussetRib",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            61032.0,
+            18096.7052728
+          ],
+          "directions": [
+            -1,
+            1
+          ],
+          "legs": [
+            22.0,
+            26.0
+          ],
+          "supports": [
+            [
+              "y",
+              17.0
+            ],
+            [
+              "z",
+              8.0
+            ]
+          ],
+          "thickness_axis": "x",
+          "thickness_bounds": [
+            26.0,
+            32.0
+          ]
+        }
+      ],
+      "recognise_hole_patterns": [],
+      "recognise_holes": [],
+      "recognise_paired_ramp_steps": [],
+      "recognise_passages": [],
+      "recognise_plates": [
+        {
+          "_type": "Plate",
+          "axis": "y",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            61032.0,
+            18096.7052728
+          ],
+          "hi": 25.0,
+          "lo": 17.0,
+          "u": 0.0,
+          "v": 26.04161712
+        },
+        {
+          "_type": "Plate",
+          "axis": "z",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            61032.0,
+            18096.7052728
+          ],
+          "hi": 8.0,
+          "lo": 0.0,
+          "u": 0.0,
+          "v": -2.11724915
+        }
+      ],
+      "recognise_pocket_patterns": [],
+      "recognise_pockets": [],
+      "recognise_polygonal_bosses": [],
+      "recognise_polygonal_stock": [],
+      "recognise_prismatic_pockets": [],
+      "recognise_rectangular_blind_slots": [],
+      "recognise_rectangular_pads": [],
+      "recognise_repeating_radial_profiles": [],
+      "recognise_risers": [
+        {
+          "_type": "RiserEvidence",
+          "axis": "y",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            61032.0,
+            18096.7052728
+          ],
+          "body_levels": [
+            {
+              "_type": "FaceLevel",
+              "body_key": [
+                -40.0,
+                -25.0,
+                0.0,
+                40.0,
+                25.0,
+                48.0,
+                61032.0,
+                18096.7052728
+              ],
+              "x_span": [
+                -40.0,
+                40.0
+              ],
+              "y_span": [
+                -25.0,
+                17.0
+              ],
+              "z": 8.0
+            }
+          ],
+          "hi_at_envelope": true,
+          "lo_at_envelope": false,
+          "other_axis": "x",
+          "other_positions": [],
+          "positions": [
+            17.0
+          ],
+          "tol": 0.5,
+          "vertical": true,
+          "z_hi": 48.0,
+          "z_lo": 8.0
+        }
+      ],
+      "recognise_round_bottom_blind_slots": [],
+      "recognise_slot_patterns": [],
+      "recognise_slots": [],
+      "recognise_through_steps": [],
+      "recognise_turned_steps": []
+    },
+    "substrates": {
+      "analyse_cylinders": [
+        [],
+        []
+      ],
+      "feature_diameters": [],
+      "full_cylinders": [
+        [],
+        []
+      ],
+      "step_level_records": [
+        {
+          "_type": "FaceLevel",
+          "body_key": [
+            -40.0,
+            -25.0,
+            0.0,
+            40.0,
+            25.0,
+            48.0,
+            61032.0,
+            18096.7052728
+          ],
+          "x_span": [
+            -40.0,
+            40.0
+          ],
+          "y_span": [
+            -25.0,
+            17.0
+          ],
+          "z": 8.0
+        }
+      ]
+    }
+  }
+}
