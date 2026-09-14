@@ -13,6 +13,7 @@ from build123d import Face, Solid, Vector, Wire
 
 from quiddity._adjacency import FaceGraph, FaceNode, SolidRef, connected_components
 from quiddity._entry_treatments import prove_entry_treatments
+from quiddity._geometry import dot
 from quiddity._sections import (
     BodyRef,
     BodyRefIssuer,
@@ -83,10 +84,6 @@ class _BodyAdapter:
         validate_occurrence(occurrence, body_refs=self._issuer)
 
 
-def _dot(left: Vector3, right: Vector3) -> float:
-    return sum(a * b for a, b in zip(left, right, strict=True))
-
-
 def _point(value: object) -> Vector3:
     return (float(value.X), float(value.Y), float(value.Z))  # type: ignore[attr-defined]
 
@@ -103,7 +100,7 @@ def _canonical_run(edge: object) -> Vector3 | None:
 
 
 def _parallel(left: Vector3, right: Vector3) -> bool:
-    return abs(abs(_dot(left, right)) - 1.0) <= _DIRECTION_TOL
+    return abs(abs(dot(left, right)) - 1.0) <= _DIRECTION_TOL
 
 
 def _parallel_pair_candidates(
@@ -130,7 +127,7 @@ def _pair_line(
         except (AttributeError, RuntimeError, TypeError, ValueError):
             return None
         projected = tuple(
-            (_dot(point, frame.u), _dot(point, frame.v), _dot(point, frame.run))
+            (dot(point, frame.u), dot(point, frame.v), dot(point, frame.run))
             for point in endpoints
         )
         samples.extend(projected)
@@ -151,7 +148,7 @@ def _pair_line(
 
 def _face_interval(graph: FaceGraph, node: FaceNode, run: Vector3) -> tuple[float, float] | None:
     try:
-        values = tuple(_dot(_point(vertex), run) for vertex in graph.face(node).vertices())
+        values = tuple(dot(_point(vertex), run) for vertex in graph.face(node).vertices())
     except (AttributeError, RuntimeError, TypeError, ValueError):
         return None
     return (min(values), max(values)) if values else None
@@ -223,7 +220,7 @@ def _line_section(wire: Wire, base: LocalFrame) -> tuple[PlanarSection, Vector3]
             return None
         raw = PlanarSection(
             tuple(
-                SectionVertex((_dot(point, base.u), _dot(point, base.v)))
+                SectionVertex((dot(point, base.u), dot(point, base.v)))
                 for point in ordered_points
             )
         )
@@ -273,7 +270,7 @@ def _wall_run(graph: FaceGraph, region: frozenset[FaceNode]) -> Vector3 | None:
     if any(not _parallel(candidate, run) for candidate in runs):
         return None
     if any(
-        (normal := graph.normal(node)) is None or abs(_dot(normal, run)) > _DIRECTION_TOL
+        (normal := graph.normal(node)) is None or abs(dot(normal, run)) > _DIRECTION_TOL
         for node in region
     ):
         return None
@@ -285,7 +282,7 @@ def _termination_plane(
 ) -> tuple[float, tuple[float, float]] | None:
     """Express one planar mouth as ``t = at + du*x + dv*y`` in *frame*."""
 
-    along = _dot(normal, frame.run)
+    along = dot(normal, frame.run)
     if abs(along) <= _DIRECTION_TOL:
         return None
     try:
@@ -293,8 +290,8 @@ def _termination_plane(
     except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
         return None
     delta = cast(Vector3, tuple(point[i] - frame.origin[i] for i in range(3)))
-    at = _dot(normal, delta) / along
-    gradient = (-_dot(normal, frame.u) / along, -_dot(normal, frame.v) / along)
+    at = dot(normal, delta) / along
+    gradient = (-dot(normal, frame.u) / along, -dot(normal, frame.v) / along)
     if not all(math.isfinite(value) for value in (at, *gradient)):
         return None
     return at, gradient
@@ -399,7 +396,7 @@ def _treated_entry_proposals(
             base = LocalFrame.canonical(normal, (0.0, 0.0, 0.0))
             if any(
                 (wall_normal := graph.normal(node)) is None
-                or abs(_dot(wall_normal, base.run)) > _DIRECTION_TOL
+                or abs(dot(wall_normal, base.run)) > _DIRECTION_TOL
                 for node in seed
             ):
                 continue
@@ -408,7 +405,7 @@ def _treated_entry_proposals(
                 continue
             section, centre = reading
             frame = LocalFrame.canonical(base.run, centre)
-            at = _dot(_point(wire.vertices()[0]), frame.run)
+            at = dot(_point(wire.vertices()[0]), frame.run)
             spans = tuple(_face_interval(graph, node, frame.run) for node in seed)
             if any(span is None for span in spans):
                 continue
@@ -464,7 +461,7 @@ def _enclosure_proposals(graph: FaceGraph, bodies: _BodyAdapter) -> tuple[Sectio
         if first_normal is None or second_normal is None or solid is None:
             continue
         parallel_mouths = _parallel(first_normal, second_normal)
-        if parallel_mouths and _dot(first_normal, second_normal) > 0.0:
+        if parallel_mouths and dot(first_normal, second_normal) > 0.0:
             continue
         run = _wall_run(graph, region)
         # Parallel stock faces need not be perpendicular to the passage. Their
@@ -524,8 +521,8 @@ def _enclosure_proposals(graph: FaceGraph, bodies: _BodyAdapter) -> tuple[Sectio
         interval = tuple(
             sorted(
                 (
-                    _dot(_point(first_wire.vertices()[0]), frame.run),
-                    _dot(_point(second_wire.vertices()[0]), frame.run),
+                    dot(_point(first_wire.vertices()[0]), frame.run),
+                    dot(_point(second_wire.vertices()[0]), frame.run),
                 )
             )
         )
@@ -650,7 +647,7 @@ def _observed_planar_ring_ends(
                 if not graph.is_planar(neighbour):
                     continue
                 normal = graph.normal(neighbour)
-                if normal is None or _dot(normal, run) * sign < 1 - _DIRECTION_TOL:
+                if normal is None or dot(normal, run) * sign < 1 - _DIRECTION_TOL:
                     continue
                 span = _face_interval(graph, neighbour, run)
                 if (
@@ -726,7 +723,7 @@ def section_ring_proposals(part: Part, graph: FaceGraph) -> tuple[SectionRingPro
             node
             for node in candidate_nodes
             if (normal := graph.normal(node)) is not None
-            and abs(_dot(normal, base.run)) <= _DIRECTION_TOL
+            and abs(dot(normal, base.run)) <= _DIRECTION_TOL
         )
         pair_lines: dict[frozenset[FaceNode], tuple[float, float, float, float]] = {}
         adjacency: dict[FaceNode, set[FaceNode]] = defaultdict(set)

@@ -12,6 +12,7 @@ from OCP.BRepTools import BRepTools_WireExplorer
 from OCP.TopExp import TopExp
 
 from quiddity._adjacency import FaceGraph, FaceNode
+from quiddity._geometry import cross, dot
 from quiddity._outer_profile import (
     OuterProfileRefusalReason as Reason,
 )
@@ -21,8 +22,6 @@ from quiddity._outer_profile import (
     ProfileArc,
     ProfileLine,
     RefusedPlanarOuterProfile,
-    _cross,
-    _dot,
     _sub,
     _turns,
 )
@@ -83,7 +82,7 @@ def _read_profile(
             return RefusedPlanarOuterProfile(Reason.INVALID_BOUNDARY)
         midpoint: Point3 = tuple(edge.position_at(0.5))
         if any(
-            abs(_dot(_sub(point, origin), normal)) > _POSITION_TOL
+            abs(dot(_sub(point, origin), normal)) > _POSITION_TOL
             for point in (start, end, midpoint)
         ):
             return RefusedPlanarOuterProfile(Reason.INVALID_BOUNDARY)
@@ -101,7 +100,7 @@ def _read_profile(
             supports.append(line)
         else:
             center: Point3 = tuple(edge.arc_center)
-            sense = _dot(_cross(_sub(start, center), _sub(midpoint, center)), normal)
+            sense = dot(cross(_sub(start, center), _sub(midpoint, center)), normal)
             if sense == 0:
                 return RefusedPlanarOuterProfile(Reason.INVALID_BOUNDARY)
             supports.append(

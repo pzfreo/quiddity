@@ -6,7 +6,7 @@ import math
 from collections.abc import Callable, Sequence
 from typing import TypeVar
 
-from quiddity._geometry import _unit, length_tol, plane_axes
+from quiddity._geometry import length_tol, plane_axes, without_negative_zero
 
 #: The record type a caller's ``make`` builds. This module owns the collinearity, pitch and
 #: lattice geometry and nothing about what a pattern record *is* — holes, pockets and slots each
@@ -119,7 +119,7 @@ def _as_linear_array(
     return make(
         tuple(h for _, h in ordered),
         round(pitch, 2),
-        _unit(tuple(c / norm for c in d)),
+        without_negative_zero(tuple(c / norm for c in d)),
     )
 
 

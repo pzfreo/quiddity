@@ -85,8 +85,8 @@ def test_cross_run_correspondence_is_absent() -> None:
 
 
 MODULE_SEAM_EDGES = {
-    "_outer_profile": {"_record"},
-    "_outer_profile_geometry": {"_adjacency", "_outer_profile", "_typing"},
+    "_outer_profile": {"_geometry", "_record"},
+    "_outer_profile_geometry": {"_adjacency", "_geometry", "_outer_profile", "_typing"},
     "_corner_section": {"_adjacency", "_section_passages", "_sections", "_volume_probe"},
     "_open_channel_section": {
         "_adjacency",
@@ -276,6 +276,7 @@ MODULE_SEAM_EDGES = {
     "_section_passages": {
         "_adjacency",
         "_entry_treatments",
+        "_geometry",
         "_sections",
         "_typing",
         "_volume_probe",
@@ -456,9 +457,10 @@ MODULE_SEAM_EDGES = {
         "_typing",
         "passages",
     },
-    # Epic 0004's private geometry values are a stdlib-only leaf. The adapter names exactly the
-    # two polygonal records whose legacy values round-trip; production recognition does not use it.
-    "_sections": set(),
+    # Epic 0004's private geometry values sit just above `_geometry`, for the shared direction
+    # primitives and nothing else. The adapter names exactly the two polygonal records whose
+    # legacy values round-trip; production recognition does not use it.
+    "_sections": {"_geometry"},
     "_section_adapters": {"_sections", "_section_recess", "passages", "prismatic_pockets"},
     # Effective analytic facts sit above original graph identity and below run orchestration.
     "_effective_surfaces": {"_adjacency", "_analytic_surfaces", "_geometry", "_typing"},

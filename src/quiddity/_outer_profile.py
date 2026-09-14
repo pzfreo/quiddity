@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Literal
 
+from quiddity._geometry import cross, dot
 from quiddity._record import Record
 
 Point3 = tuple[float, float, float]
@@ -18,19 +19,11 @@ def _sub(a: Point3, b: Point3) -> Point3:
     return tuple(x - y for x, y in zip(a, b, strict=True))  # type: ignore[return-value]
 
 
-def _dot(a: Point3, b: Point3) -> float:
-    return math.fsum(x * y for x, y in zip(a, b, strict=True))
-
-
-def _cross(a: Point3, b: Point3) -> Point3:
-    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
-
-
 def _tangent(support: ProfileLine | ProfileArc, normal: Point3, *, end: bool) -> Point3:
     if isinstance(support, ProfileLine):
         return support.direction
     radius = _sub(support.end if end else support.start, support.center)
-    tangent = _cross(normal, radius)
+    tangent = cross(normal, radius)
     length = math.hypot(*tangent)
     if length == 0:
         raise ValueError("profile arc must have a nonzero in-plane tangent")
@@ -42,7 +35,7 @@ def _turns(supports, normal: Point3) -> list[float]:
     for at, support in enumerate(supports):
         before = _tangent(support, normal, end=True)
         after = _tangent(supports[(at + 1) % len(supports)], normal, end=False)
-        turns.append(math.atan2(_dot(_cross(before, after), normal), _dot(before, after)))
+        turns.append(math.atan2(dot(cross(before, after), normal), dot(before, after)))
     return turns
 
 
@@ -140,7 +133,7 @@ class PlanarOuterProfile(Record):
                     for point in (support.start, support.end)
                 ):
                     raise ValueError("arc endpoints must lie on the declared circle")
-                crossed = _cross(self.normal, radial)
+                crossed = cross(self.normal, radial)
                 reconstructed = tuple(
                     support.center[i]
                     + math.cos(support.sweep) * radial[i]
@@ -149,7 +142,7 @@ class PlanarOuterProfile(Record):
                 )
                 if math.dist(reconstructed, support.end) > 1e-6:
                     raise ValueError("arc sweep must reconstruct its directed endpoint")
-            if any(abs(_dot(_sub(point, self.origin), self.normal)) > 1e-6 for point in points):
+            if any(abs(dot(_sub(point, self.origin), self.normal)) > 1e-6 for point in points):
                 raise ValueError("profile supports must lie on the supporting plane")
         turns = _turns(self.supports, self.normal)
         winding = math.fsum(turns) + math.fsum(

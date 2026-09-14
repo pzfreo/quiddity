@@ -18,11 +18,11 @@ ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
 from quiddity._adjacency import FaceGraph, FaceNode  # noqa: E402
+from quiddity._geometry import dot  # noqa: E402
 from quiddity._section_passages import (  # noqa: E402
     _COORD_FLOOR,
     _INTERVAL_TOL,
     _BodyAdapter,
-    _dot,
     _enclosure_proposals,
     _line_section,
     _mouth_regions,
@@ -127,7 +127,7 @@ def _classify_region(
             if region in final_fallback_regions
             else "duplicate_or_existing_cycle"
         )
-    if _dot(first_normal, second_normal) > 0.0:
+    if dot(first_normal, second_normal) > 0.0:
         return "opposed_openings_or_solid"
     base = LocalFrame.canonical(first_normal, (0.0, 0.0, 0.0))
     first = _line_section(first_wire, base)
@@ -141,8 +141,8 @@ def _classify_region(
     interval = tuple(
         sorted(
             (
-                _dot(_point(first_wire.vertices()[0]), frame.run),
-                _dot(_point(second_wire.vertices()[0]), frame.run),
+                dot(_point(first_wire.vertices()[0]), frame.run),
+                dot(_point(second_wire.vertices()[0]), frame.run),
             )
         )
     )

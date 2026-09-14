@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from quiddity._adjacency import FaceGraph, FaceNode, SolidRef
 from quiddity._candidates import EvidenceSink, FamilyId
 from quiddity._claims import ClaimLedger, EvidenceWriter
-from quiddity._geometry import AXIS_ALIGNED_COS, body_signature
+from quiddity._geometry import AXIS_ALIGNED_COS, body_signature, dot
 from quiddity._pattern_geometry import _linear_array_candidates, _plane_uv, _rect_grid
 from quiddity._record import Record
 from quiddity._section_passages import SectionRingProposal, section_ring_proposals
@@ -28,12 +28,8 @@ _SERIALIZATION_QUANTUM = 1e-3
 _VECTOR_ERROR = 4.0 * _SERIALIZATION_QUANTUM
 
 
-def _dot(left: tuple[float, ...], right: tuple[float, ...]) -> float:
-    return sum(a * b for a, b in zip(left, right, strict=True))
-
-
 def _length(vector: tuple[float, ...]) -> float:
-    return math.sqrt(_dot(vector, vector))
+    return math.sqrt(dot(vector, vector))
 
 
 def _canonical_direction(vector: Vector3) -> Vector3:
@@ -127,7 +123,7 @@ def _rectangle(source: SectionPassage) -> tuple[Vector3, Vector3, float, float] 
     ):
         return None
     orthogonal_error = _VECTOR_ERROR / min(lengths[0], lengths[1])
-    if abs(_dot(edges[0], edges[1]) / (lengths[0] * lengths[1])) > orthogonal_error:
+    if abs(dot(edges[0], edges[1]) / (lengths[0] * lengths[1])) > orthogonal_error:
         return None
     if abs(lengths[0] - lengths[1]) <= _VECTOR_ERROR:
         return None
@@ -218,7 +214,7 @@ def recognise_oriented_slots(
 
 
 def _pattern_key(slot: OrientedSlot) -> tuple[object, ...]:
-    depth_plane = round(_dot(slot.center, slot.source.frame.run), 3)
+    depth_plane = round(dot(slot.center, slot.source.frame.run), 3)
     return (
         slot.width_direction,
         slot.long_direction,
