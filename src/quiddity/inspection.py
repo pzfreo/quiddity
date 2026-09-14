@@ -374,9 +374,10 @@ def _validate_function_contract(contract: dict[str, Any], context: str) -> None:
         raise InspectionApiManifestError(f"{context}.contract return member names must be unique")
 
 
-def _validate_contract(symbol: dict[str, Any], name: str, context: str) -> None:
+def _validate_contract(symbol: dict[str, Any], context: str) -> None:
     """Check the per-kind contract body, which is the half of a symbol that varies."""
 
+    name = symbol["name"]
     kind = symbol["kind"]
     contract = symbol["contract"]
     if not isinstance(contract, dict) or not contract:
@@ -439,7 +440,7 @@ def _validate_symbol(
         or aliases != sorted(set(aliases))
     ):
         raise InspectionApiManifestError(f"{context}.aliases is invalid")
-    _validate_contract(symbol, name, context)
+    _validate_contract(symbol, context)
     return name, symbol["qualified_name"], aliases
 
 
