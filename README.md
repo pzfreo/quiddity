@@ -139,8 +139,9 @@ in or on the selected face's actual trim, including faces with holes or concave 
 The namespace also groups the four consumer-proven family reads: `classify_bevel` /
 `BevelReject`, `cone_rims`, `read_double_d_tool`, and `floor_face_anchor`. Existing root,
 family-module, and `experimental_geometry.inspect_face` imports remain exact-object compatibility
-aliases. `GeometryGraph`, adjacency, blend collapse, correspondence, Candidate identity, and
-reconciliation are not part of this supported inspection API. The separate run-local evidence
+aliases. `GeometryGraph`, adjacency, blend collapse, Candidate identity, and
+reconciliation are not part of this supported inspection API, and cross-run correspondence is
+not offered at all. The separate run-local evidence
 view below exposes only opaque accepted-feature and caller-face references.
 
 `inspection_api_manifest()` returns the separately versioned, installed-wheel contract for this

@@ -112,10 +112,6 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "base graph caches original surface/topology facts; it cannot import this layer",
     ),
-    "_body_geometry": (
-        SurfaceReaderDisposition.RAW_TOPOLOGY,
-        "private F6 descriptor serializes graph-authorized original analytic boundaries",
-    ),
     "angled_steps": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "edge geom_type validates a split terminal boundary, not a face surface",
@@ -587,42 +583,6 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
     "_adjacency:axis_aligned_axis:adaptor:1": (
         SurfaceReaderDisposition.PENDING_MIGRATION,
         "primitive-axis query",
-    ),
-    "_body_geometry:_edge_geometry:geom_type:1": (
-        SurfaceReaderDisposition.RAW_TOPOLOGY,
-        "F6 bounded analytic edge-kind label",
-    ),
-    "_body_geometry:_edge_geometry:geom_type:2": (
-        SurfaceReaderDisposition.RAW_TOPOLOGY,
-        "F6 bounded line grammar gate",
-    ),
-    "_body_geometry:_edge_geometry:geom_type:3": (
-        SurfaceReaderDisposition.RAW_TOPOLOGY,
-        "F6 bounded circle grammar gate",
-    ),
-    "_body_geometry:_edge_geometry:geom_type:4": (
-        SurfaceReaderDisposition.RAW_TOPOLOGY,
-        "F6 circle-radius projection gate",
-    ),
-    "_body_geometry:matching_boundary_for_solid:adaptor:1": (
-        SurfaceReaderDisposition.RAW_TOPOLOGY,
-        "F6 schema-three canonical cylinder pcurve gauge",
-    ),
-    "_body_geometry:_face_geometry:adaptor:1": (
-        SurfaceReaderDisposition.RAW_TOPOLOGY,
-        "F6 graph-authorized plane/cylinder parameter projection",
-    ),
-    "_body_geometry:_face_geometry:geom_type:1": (
-        SurfaceReaderDisposition.RAW_TOPOLOGY,
-        "F6 bounded plane grammar gate",
-    ),
-    "_body_geometry:_face_geometry:geom_type:2": (
-        SurfaceReaderDisposition.RAW_TOPOLOGY,
-        "F6 bounded cylinder grammar gate",
-    ),
-    "_body_geometry:_face_geometry:geom_type:3": (
-        SurfaceReaderDisposition.RAW_TOPOLOGY,
-        "F6 unsupported-surface refusal label",
     ),
     "_section_passages:_canonical_run:geom_type:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,

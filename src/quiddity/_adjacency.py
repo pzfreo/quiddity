@@ -44,13 +44,6 @@ from quiddity._analytic_surfaces import (
     native_primitive,
     validated_parameters,
 )
-from quiddity._body_geometry import (
-    BodyGeometryDescriptor,
-    FaceGeometry,
-    MatchingBoundaryGraph,
-    describe_solid,
-    matching_boundary_for_solid,
-)
 from quiddity._geometry import AXIS_ALIGNED_COS, SMOOTH_ARC_GAP, length_tol
 from quiddity._solid_properties import SolidProperties
 from quiddity._typing import EdgeLike, FaceLike
@@ -179,32 +172,6 @@ class SolidRef:
     ordinal: int
 
 
-class BodyGeometryAuthorityError(ValueError):
-    """A solid reference is foreign, stale, copied, or no longer graph-authorized."""
-
-
-@dataclass(frozen=True, slots=True)
-class BodyGeometryFact:
-    """One graph-authorized run-local body fact with a handle-free descriptor."""
-
-    _solid: SolidRef
-    descriptor: BodyGeometryDescriptor
-    _faces: tuple[tuple[FaceNode, FaceGeometry], ...]
-    _matching_faces: tuple[tuple[FaceNode, object], ...]
-
-    def _defining_face(self, node: FaceNode) -> FaceGeometry:
-        for issued, geometry in self._faces:
-            if issued is node:
-                return geometry
-        raise BodyGeometryAuthorityError("face node is not part of this graph-authorized body fact")
-
-    def _matching_face(self, node: FaceNode) -> object:
-        for issued, geometry in self._matching_faces:
-            if issued is node:
-                return geometry
-        raise BodyGeometryAuthorityError("face node is not part of this matching body fact")
-
-
 @dataclass(frozen=True, eq=False, slots=True)
 class EdgeOccurrenceRef:
     """One exact oriented edge occurrence in one original face wire traversal."""
@@ -261,10 +228,6 @@ class FaceGraphQuery(Protocol):
     def common_valid_solid(self, nodes: Iterable[FaceNode]) -> SolidRef | None: ...
 
     def solid_shape(self, solid: SolidRef) -> Solid: ...
-
-    def body_geometry(self, solid: SolidRef) -> BodyGeometryFact: ...
-
-    def matching_boundary(self, solid: SolidRef) -> MatchingBoundaryGraph: ...
 
 
 class FaceGraph:
@@ -323,7 +286,6 @@ class FaceGraph:
         self._solid_refs: tuple[SolidRef, ...] | None = None
         self._issued_solid_refs: dict[SolidRef, int] = {}
         self._solids: tuple | None = None
-        self._body_geometry: dict[SolidRef, BodyGeometryFact] = {}
         self._edge_occurrences: dict[FaceNode, tuple[EdgeOccurrenceRef, ...]] = {}
         self._issued_edge_occurrences: dict[EdgeOccurrenceRef, tuple] = {}
         self._shared_occurrences: dict[tuple[int, int], tuple[SharedEdgeOccurrenceRef, ...]] = {}
@@ -701,74 +663,6 @@ class FaceGraph:
         if self._issued_solid_refs.get(solid) != solid.ordinal:
             raise ValueError("solid reference changed after issuance")
         return solid
-
-    def body_geometry(self, solid: SolidRef) -> BodyGeometryFact:
-        """Return the complete supported descriptor for one exact graph-issued solid."""
-
-        self._build_solid_ownership()
-        issued = self._issued_solid_refs.get(solid)
-        if issued is None or issued != solid.ordinal:
-            raise BodyGeometryAuthorityError("solid reference was not issued by this graph")
-        assert self._solid_refs is not None
-        assert self._solids is not None
-        assert self._closed_solids is not None
-        if not (0 <= issued < len(self._solid_refs)) or self._solid_refs[issued] is not solid:
-            raise BodyGeometryAuthorityError("solid reference identity changed after issuance")
-        if issued not in self._closed_solids:
-            raise BodyGeometryAuthorityError(
-                "solid reference no longer maps to a valid closed solid"
-            )
-        cached = self._body_geometry.get(solid)
-        if cached is not None:
-            return cached
-        described = describe_solid(self._solids[issued])
-        face_facts: list[tuple[FaceNode, FaceGeometry]] = []
-        matching_face_facts: list[tuple[FaceNode, object]] = []
-        for face, geometry, face_build in zip(
-            described.faces, described.face_geometry, described.face_builds, strict=True
-        ):
-            node = self.node_of(face)
-            if node is None:
-                raise BodyGeometryAuthorityError("described solid face is not owned by this graph")
-            face_facts.append((node, geometry))
-            matching_face_facts.append((node, face_build))
-        fact = BodyGeometryFact(
-            solid, described.descriptor, tuple(face_facts), tuple(matching_face_facts)
-        )
-        self._body_geometry[solid] = fact
-        return fact
-
-    def matching_boundary(self, solid: SolidRef) -> MatchingBoundaryGraph:
-        """Return the lazy schema-three graph for one exact graph-issued solid."""
-
-        self._build_solid_ownership()
-        issued = self._issued_solid_refs.get(solid)
-        assert self._solid_refs is not None
-        assert self._solids is not None
-        assert self._closed_solids is not None
-        if (
-            issued is None
-            or issued != solid.ordinal
-            or not 0 <= issued < len(self._solid_refs)
-            or self._solid_refs[issued] is not solid
-            or issued not in self._closed_solids
-        ):
-            raise BodyGeometryAuthorityError(
-                "matching boundary solid reference is no longer graph-authorized"
-            )
-        fact = self._body_geometry.get(solid)
-        if fact is None:
-            fact = self.body_geometry(solid)
-        if fact._solid is not solid:
-            raise BodyGeometryAuthorityError("matching boundary lost its graph-issued solid")
-        solid_shape = self._solids[issued]
-        matching_builds = []
-        for face in solid_shape.faces():
-            node = self.node_of(face)
-            if node is None:
-                raise BodyGeometryAuthorityError("matching solid face is not graph-owned")
-            matching_builds.append(fact._matching_face(node))
-        return matching_boundary_for_solid(solid_shape, fact.descriptor, tuple(matching_builds))
 
     def solid_shape(self, solid: SolidRef) -> Solid:
         """Return the borrowed exact solid for an issuer-owned reference.

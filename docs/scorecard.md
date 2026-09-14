@@ -366,8 +366,10 @@ and non-manifold input is out of scope), and the `"smooth"` literal does not lea
 
 **Persistent feature identity — green, as a layer.** Records-are-values means identity cannot
 live inside records, but ADR 0004 already concluded face indices are not persistent identity
-anyway. Cross-run correspondence — fingerprint-matching quantised records between runs — is a
-sidecar consistent with the recognition-versus-policy split. Not blocked; just not free.
+anyway. Cross-run correspondence — fingerprint-matching quantised records between runs — would be
+a sidecar consistent with the recognition-versus-policy split. The F6 attempt at it was removed in
+2026-09 having reached no consumer, so the gap is open rather than half-closed: not blocked, but
+not started either. See the F6 withdrawal amendment in ADR 0003.
 
 **Oblique axes — the real one, in two layers of different health.** The *machinery* is
 axis-agnostic: `FaceGraph` arcs are classified from surface normals, not world axes, and
@@ -414,12 +416,12 @@ the epic was drafted:
 | Dimension | Pre-epic | Current | Driver |
 | --- | :---: | :---: | --- |
 | Geometric generality | D+ | **D+** | F1 recovery has 0 of 64 recogniser reader sites migrated; F4b fixes whole-part presentation, not internally oblique features; F3b adds one bounded blend consumer with no matching external holdout population |
-| Architecture | B+ | **B+** | The private substrate is stronger, but F7 is not published and F6 has no external consumer; a consumer-proven narrow facade remains the exit gate |
+| Architecture | B+ | **B+** | The private substrate is stronger, but F7 is not published and the F6 correspondence attempt was withdrawn for want of a consumer; a consumer-proven narrow facade remains the exit gate |
 | Feature coverage | C+ | **C+** | Existing families gained stronger evidence and selected bounded variants, but the large B-spline and internal-obliquity recall gaps remain |
 | Feature-interaction handling | B− | **B** | F5 closes 20 families as `FullyAttributed`; Step Levels and Risers remain structurally `IncompleteAttribution`, and interaction rules still need observed overlaps and separate review |
 | Validation honesty | A | **A** | Already at ceiling; F0's MFTRCAD scanning and sealed draws extend the lead |
 | Determinism & explainability | A | **A** | Maintained by construction — byte-identical goldens gate every neutral change |
-| Parametric record quality | A | **A** | Section records are richer; F6 correspondence stays a private diagnostic, so the persistent-ID gap only half-closes |
+| Parametric record quality | A | **A** | Section records are richer; the F6 correspondence attempt was withdrawn, so the persistent-ID gap stays fully open |
 | Engineering quality | A− | **A−** | Still alpha, still bus factor one; the two-independent-reviews process tightens dependence on scarce reviewer attention |
 | Performance | C+ | **C+** | The composite is gated, and the census overrun recorded here (134.165s against a 109.651s ceiling) has since been closed by two rounds of performance work and a re-baseline to 11.990s; parallelism is still out of scope |
 | Ecosystem reach | C | **C** | No recogniser consumes recovered surfaces and F7 is not public; Draftwright must first prove the smallest useful installed-wheel facade |

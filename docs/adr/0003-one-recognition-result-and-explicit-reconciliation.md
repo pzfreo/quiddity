@@ -325,6 +325,29 @@ or witness becomes one `AMBIGUOUS` component; no tuple position, object identity
 distance establishes correspondence. F6b1 emits no split/merge claim and changes no recognition,
 disposition, result, registry, census, capability, or manifest state.
 
+## Amendment (F6 correspondence withdrawn, 2026-09-14)
+
+The two amendments above are withdrawn as implementation. `_correspondence`,
+`_correspondence_match`, `_correspondence_partition` and the schema-three `_body_geometry`
+boundary grammar are removed, along with `FaceGraph.body_geometry` and
+`FaceGraph.matching_boundary`, whose only callers they were. Nothing in the package or its
+public surface consumed them: the matcher had no `src` importer, and `_take_inventory`
+constructed and bound a snapshot authority on every run whose only reader was the matcher.
+
+The requirement they addressed is unchanged and still unmet. Accepted records carry run-local
+Candidate identity only, so an editing consumer cannot yet say that an occurrence in one run is
+the occurrence it edited in another. The reasoning above — that a persistent identity must be
+re-proved geometrically rather than minted from traversal order, that ambiguity must fail
+closed, and that no tuple position, object identity, hash or nearest distance may establish
+correspondence — remains the accepted design for whatever meets it next.
+
+What removal records is a scope judgement, not a reversal. The delivered matcher covered one
+family, `REPEATING_RADIAL_PROFILES`, itself `NotCounted("correspondence evidence is not a
+distinct feature")`, and the per-occurrence snapshot was written against that family's shape.
+Whether the approach generalises to holes or pockets was never established, so the cost was
+being carried without the evidence that would justify it. Reintroduction needs a named
+downstream consumer, a compatibility declaration, and this ADR amended again.
+
 ## Amendment (Slot curved-depth closure, issue #353)
 
 Slot discovery must prove that both ends of its selected depth axis remain open. A deep obround

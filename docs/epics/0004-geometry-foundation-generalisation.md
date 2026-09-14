@@ -1149,6 +1149,10 @@ reviewed structural exclusion or blocker, not a placeholder.
 
 ### F6 — Persistent cross-run feature correspondence
 
+> **Removed 2026-09-14.** F6a and F6b shipped for `REPEATING_RADIAL_PROFILES` and reached no
+> consumer; the implementation was deleted. The contract below stays as the design record for
+> any future attempt. See the F6 withdrawal amendment in ADR 0003.
+
 Add an optional sidecar that matches accepted records between recognition runs without changing
 record equality or Candidate identity.
 
