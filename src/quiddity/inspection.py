@@ -18,6 +18,7 @@ import math
 import re
 from dataclasses import dataclass
 from enum import Enum
+from functools import partial
 from importlib.resources import files
 from itertools import product
 from typing import Any, TypeAlias, cast
@@ -40,6 +41,7 @@ from quiddity._effective_surfaces import (
 from quiddity._effective_surfaces import (
     RefusedSurfaceFact as _RefusedSurfaceFact,
 )
+from quiddity._manifest import check_keys, parse_version
 from quiddity._typing import FaceLike
 from quiddity.countersinks import cone_rims
 from quiddity.grooves import floor_face_anchor
@@ -49,7 +51,6 @@ INSPECTION_API_FORMAT = "quiddity-inspection-api"
 INSPECTION_API_FORMAT_VERSION = 1
 _INSPECTION_API_MAJOR = 1
 _INSPECTION_NAMESPACE = "quiddity.inspection"
-_VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:[.+-][A-Za-z0-9.-]+)?$")
 _SYMBOL = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
 _QUALIFIED = re.compile(r"^quiddity(?:\.[A-Za-z][A-Za-z0-9_]*)+$")
 _KINDS = {"dataclass", "enum", "exception", "function", "type-alias"}
@@ -212,16 +213,8 @@ def inspect_face(face: FaceLike) -> FaceInspection:
     return FaceInspection(surface, anchor)
 
 
-def _keys(value: dict[str, Any], allowed: set[str], context: str) -> None:
-    unknown = sorted(set(value) - allowed)
-    if unknown:
-        raise InspectionApiManifestError(f"{context} has unknown fields: {', '.join(unknown)}")
-
-
-def _version(value: object, context: str) -> tuple[int, int, int]:
-    if not isinstance(value, str) or not (match := _VERSION.fullmatch(value)):
-        raise InspectionApiManifestError(f"{context} must be a semantic package version")
-    return cast(tuple[int, int, int], tuple(int(item) for item in match.groups()))
+_keys = partial(check_keys, error=InspectionApiManifestError)
+_version = partial(parse_version, error=InspectionApiManifestError)
 
 
 def validate_inspection_api_manifest(manifest: object) -> None:

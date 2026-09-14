@@ -481,6 +481,7 @@ MODULE_SEAM_EDGES = {
         "_adjacency",
         "_bevel",
         "_effective_surfaces",
+        "_manifest",
         "_typing",
         "countersinks",
         "grooves",

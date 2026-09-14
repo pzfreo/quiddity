@@ -8,10 +8,12 @@ import argparse
 import copy
 import json
 import re
+from functools import partial
 from importlib.resources import files
 from typing import Any, TypeAlias, cast
 
 from quiddity import __version__
+from quiddity._manifest import check_keys, parse_version
 
 CAPABILITY_FORMAT = "quiddity-capabilities"
 CAPABILITY_FORMAT_VERSION = 2
@@ -22,17 +24,14 @@ _ROLES = {"aggregate", "evidence", "nested", "output", "projection"}
 _STATUSES = {"deferred", "supported", "unsupported"}
 _UNITS = {"deg", "mm", "none", "rad", "unit-vector"}
 _RECORD_TYPE = re.compile(r"^record:[A-Z][A-Za-z0-9]*$")
-_VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:[.+-][A-Za-z0-9.-]+)?$")
 
 
 class CapabilityManifestError(ValueError):
     """The installed manifest is missing, stale, or uses an unsupported format."""
 
 
-def _keys(value: dict[str, Any], allowed: set[str], context: str) -> None:
-    unknown = sorted(set(value) - allowed)
-    if unknown:
-        raise CapabilityManifestError(f"{context} has unknown fields: {', '.join(unknown)}")
+_keys = partial(check_keys, error=CapabilityManifestError)
+_version = partial(parse_version, error=CapabilityManifestError)
 
 
 def _paths(value: object, context: str, *, allow_empty: bool = False) -> None:
@@ -49,13 +48,6 @@ def _paths(value: object, context: str, *, allow_empty: bool = False) -> None:
             raise CapabilityManifestError(f"{context} contains an invalid source-relative path")
     if value != sorted(set(value)):
         raise CapabilityManifestError(f"{context} must contain unique, sorted paths")
-
-
-def _version(value: object, context: str) -> tuple[int, int, int]:
-    if not isinstance(value, str) or not (match := _VERSION.fullmatch(value)):
-        raise CapabilityManifestError(f"{context} must be a semantic package version")
-    major, minor, patch = match.groups()
-    return int(major), int(minor), int(patch)
 
 
 def _split_union(value: str) -> list[str]:

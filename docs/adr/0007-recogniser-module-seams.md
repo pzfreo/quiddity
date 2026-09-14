@@ -645,3 +645,21 @@ ADR0025 records the bounded new evidence inspection. `_outer_profile` is a value
 to inspect exact native wires on the existing run. `evidence` may import both for this one
 lazy, source-bound operation. No recognition, Candidate, reconciliation or result dependency
 is permitted in either profile module. The architecture and raw-reader rosters enforce it.
+
+## Amendment (shared manifest validation leaf, issue #610)
+
+`_manifest` is a value leaf over the standard library alone: it imports nothing from the package
+and nothing may import it except the two modules that publish a JSON manifest. `inspection` may
+import it; `capabilities` already sits outside the enforced seam table and gains no other edge.
+
+It holds the checks both manifest validators had duplicated -- the unknown-field check, the
+semantic-version parse and the version pattern itself. Callers bind their own error type, so
+`CapabilityManifestError` and `InspectionApiManifestError` remain distinct and every message is
+unchanged. This is the argument `_geometry` records for the direction primitives applied to the
+other place the package had grown two copies of one question: the cost of a duplicated helper is
+not the repeated lines, it is that the copies may drift. Two spellings of "parse a package
+version" already existed.
+
+No public symbol, manifest field, error type or message changed. `_manifest` owns no document
+shape and no recognition, Candidate or registry dependency; a document's *shape* stays with the
+module that publishes it.
