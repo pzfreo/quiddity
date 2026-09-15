@@ -222,8 +222,12 @@ DEFINITION = PhysicalDefinition(
 ```
 
 A declaration names its entry point by reference so a rename fails at import, and carries its own
-`ManifestEvidence`, so the capability manifest tool needs no `EVIDENCE` entry for it. A family with
-non-output records still needs its `EXTRA_RECORDS` entry there (#628). `introduced` defaults to the
+`ManifestEvidence`, so the capability manifest tool needs no `EVIDENCE` entry for it, and none
+either for the `EXTRA_RECORDS` of a family whose records go beyond its output: name those in
+`ManifestEvidence(extra_records=...)`, in the same `(name, role, membership)` shape. The tool
+refuses a declared family that also has an entry in either table. It still holds
+`NO_MEMBERSHIP_RATIONALE` and `RECORD_SCHEMA_VERSIONS`, which a declaration cannot yet carry
+(#632). `introduced` defaults to the
 first release; set it only for a family added later. Name `tests` only where a test file is the
 evidence a consumer should read; a family whose goldens carry that weight names none, as
 `flats.py` and `grooves.py` do. A family whose entry point the package does not export has no
@@ -304,9 +308,9 @@ uv run python tools/generate_capability_manifest.py --write
 
 Measured on the gussets family (issue #602): sixteen files, now eleven, plus the module itself,
 its fixtures and the goldens in the next section. A family that declares itself (`DEFINITION`
-with its `ManifestEvidence`) needs no `EVIDENCE` entry in the manifest tool; a family still
-described in the registry does. Either kind still needs an `EXTRA_RECORDS` entry there for
-any non-output record. A site that only restates what the registry already knows is a candidate for
+with its `ManifestEvidence`) needs neither an `EVIDENCE` nor an `EXTRA_RECORDS` entry in the
+manifest tool; a family still described in the registry needs both. A site that only restates
+what the registry already knows is a candidate for
 derivation; the three remaining test files in row 9 are deliberate pins, not restatements.
 A site that is a public contract stays, and its check is what makes forgetting it visible. See
 [ADR 0005](adr/0005-versioned-cross-repository-capability-contract.md).

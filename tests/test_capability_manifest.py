@@ -272,8 +272,14 @@ def test_generator_refuses_a_declared_family_that_also_has_an_evidence_entry(mon
         tool._registry_families()
 
 
-def _tool_with_declared_extra(extra: tuple[str, str, tuple[str, ...]], monkeypatch):
-    """Load the generator and give its first declared exported family *extra*, returning both."""
+def _tool_with_declared_extra(
+    extra: tuple[str, str, tuple[str, ...]], monkeypatch: pytest.MonkeyPatch
+) -> tuple[types.ModuleType, str]:
+    """Load the generator and give `flats` -- declared, exported, no extras of its own -- *extra*.
+
+    Named rather than taken by registry order, so that the family migrating its own extras later
+    does not quietly move what these tests exercise.
+    """
 
     spec = importlib.util.spec_from_file_location(
         "generate_capability_manifest", ROOT / "tools" / "generate_capability_manifest.py"
@@ -285,7 +291,7 @@ def _tool_with_declared_extra(extra: tuple[str, str, tuple[str, ...]], monkeypat
     index, declared = next(
         (index, definition)
         for index, definition in enumerate(tool.PHYSICAL_DEFINITIONS)
-        if definition.evidence is not None and definition.public_entrypoint in recognition.__all__
+        if definition.public_entrypoint == "recognise_flats"
     )
     # `PhysicalDefinition` is frozen, so the tuple is rebuilt rather than the definition mutated.
     amended = dataclasses.replace(
@@ -296,6 +302,9 @@ def _tool_with_declared_extra(extra: tuple[str, str, tuple[str, ...]], monkeypat
         "PHYSICAL_DEFINITIONS",
         tool.PHYSICAL_DEFINITIONS[:index] + (amended,) + tool.PHYSICAL_DEFINITIONS[index + 1 :],
     )
+    # `build_manifest` reads the module-level `FAMILIES`, fixed at import, so it is recomputed
+    # here rather than left describing the registry as it was before the patch.
+    monkeypatch.setattr(tool, "FAMILIES", tool._registry_families())
     return tool, tool._family_id(declared.public_entrypoint)
 
 
@@ -311,13 +320,39 @@ def test_generator_refuses_a_declared_family_that_also_has_an_extra_records_entr
         tool._registry_families()
 
 
-def test_declared_extra_records_reach_the_manifest_like_a_tool_entry(monkeypatch) -> None:
-    """A declared extra is published exactly as the tool's own table would have published it."""
+def test_a_declared_extra_record_is_published_like_a_tool_entry(monkeypatch) -> None:
+    """A declared extra reaches the built manifest exactly as the tool's own table would."""
 
-    extra = ("SomeNested", "projection", ("RecognitionResult.elsewhere",))
+    # A real record type, because `build_manifest` resolves each published name off the package
+    # to read its fields. That is also why a declaration cannot invent records the package lacks.
+    extra = ("CircularBlendPath", "nested", ("RecognitionResult.blends.path",))
     tool, family_id = _tool_with_declared_extra(extra, monkeypatch)
-    records = tool._registry_families()[family_id]["records"]
-    assert ("SomeNested", "projection", ["RecognitionResult.elsewhere"]) in records
+    families = tool.build_manifest()["families"]
+    published = next(family for family in families if family["id"] == family_id)["records"]
+    assert [record for record in published if record["name"] == "CircularBlendPath"] == [
+        record
+        for family in families
+        if family["id"] == "blends"
+        for record in family["records"]
+        if record["name"] == "CircularBlendPath"
+    ]
+
+
+def test_a_declared_extra_replaces_rather_than_duplicates_the_output_record_it_shadows(
+    monkeypatch,
+) -> None:
+    """`countersinks` publishes its own record under two result fields, and must do so once.
+
+    The generated output entry is suppressed by name, so a declared extra sharing a record type's
+    name has to reach the same `overridden` set the tool's table feeds.
+    """
+
+    extra = ("Flat", "output", ("RecognitionResult.flats", "RecognitionResult.elsewhere"))
+    tool, family_id = _tool_with_declared_extra(extra, monkeypatch)
+    flats = [
+        record for record in tool._registry_families()[family_id]["records"] if record[0] == "Flat"
+    ]
+    assert flats == [("Flat", "output", ["RecognitionResult.flats", "RecognitionResult.elsewhere"])]
 
 
 def test_committed_manifest_is_the_deterministic_generator_output() -> None:
