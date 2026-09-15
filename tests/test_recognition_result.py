@@ -68,6 +68,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity.paired_ramp_steps as paired_ramp_steps_module
     import quiddity.plates as plates_module
     import quiddity.result as result_module
+    import quiddity.through_steps as through_steps_module
     from quiddity._candidates import EvidenceIndex
 
     calls: dict[str, int] = {}
@@ -183,7 +184,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
         counted("paired_ramp_steps", []),
     )
     monkeypatch.setattr(
-        registry_module,
+        through_steps_module,
         "recognise_through_steps",
         counted("through_steps", []),
     )

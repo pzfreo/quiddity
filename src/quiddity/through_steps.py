@@ -19,8 +19,16 @@ from build123d import GeomType, Wire
 
 from quiddity._adjacency import FaceGraph, FaceNode, axis_aligned_axis
 from quiddity._body_identity import BodyKey, unambiguous_body_keys
-from quiddity._candidates import EvidenceSink, FamilyId
+from quiddity._candidates import CompletedInputs, EvidenceSink, FamilyId
 from quiddity._claims import ClaimLedger, EvidenceWriter
+from quiddity._definitions import (
+    Counted,
+    DiscoveryServices,
+    FullyAttributed,
+    ManifestEvidence,
+    PhysicalDefinition,
+    prismatic,
+)
 from quiddity._geometry import COORD_FLOOR, SMOOTH_ARC_GAP
 from quiddity._record import Record
 from quiddity._typing import Part
@@ -396,3 +404,26 @@ def recognise_through_steps(
         for record, nodes in proposals:
             sink.propose(FamilyId.THROUGH_STEPS, record, defining=nodes)
     return [record for record, _nodes in proposals]
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(recognise_through_steps(services.context.part, ledger=services.writer))
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.THROUGH_STEPS,
+    record_types=(ThroughStep,),
+    result_field="through_steps",
+    public_entrypoint=recognise_through_steps.__name__,
+    dependencies=(),
+    applicable=prismatic,
+    discover=_discover,
+    census=Counted("through_step"),
+    attribution=FullyAttributed("every returned through step claims both rectangular wall regions"),
+    evidence=ManifestEvidence(
+        goldens=("rectangular_through_step",),
+        tests=("tests/test_through_steps.py",),
+    ),
+)
