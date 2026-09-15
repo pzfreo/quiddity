@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import ast
 import copy
 import math
-from pathlib import Path
 
 import pytest
 from build123d import (
@@ -30,6 +28,7 @@ from quiddity._claims import ClaimLedger
 from quiddity._cylinder_substrate import analyse_cylinders
 from quiddity._geometry import _axis_line_coordinates, _canonical_axis_direction
 from quiddity.flats import _discover_flats
+from tests.route_pins import assert_core_route_is_closed
 
 _CENTRE = (Align.CENTER, Align.CENTER, Align.CENTER)
 
@@ -230,70 +229,18 @@ def test_flat_writer_from_another_graph_refuses_without_publication() -> None:
     assert foreign.candidate_set(FamilyId.FLATS).candidates == ()
 
 
-def _callee_name(func: ast.expr) -> str | None:
-    if isinstance(func, ast.Name):
-        return func.id
-    if isinstance(func, ast.Attribute):
-        return func.attr
-    return None
-
-
 def test_the_declaration_is_the_only_production_writer_enabled_flat_caller() -> None:
-    package = Path(__file__).parents[1] / "src" / "quiddity"
-    importers = set()
-    for path in package.glob("*.py"):
-        if path.name == "flats.py":
-            continue
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        direct = any(
-            isinstance(node, ast.ImportFrom)
-            and node.module == "quiddity.flats"
-            and any(alias.name == "_discover_flats" for alias in node.names)
-            for node in ast.walk(tree)
-        )
-        qualified = any(
-            isinstance(node, ast.Attribute) and node.attr == "_discover_flats"
-            for node in ast.walk(tree)
-        )
-        if direct or qualified:
-            importers.add(path.name)
-    # The declared adapter reaches the core from inside the family module, so no other module
-    # names it at all. The route stays closed by the same argument as before.
-    assert importers == set()
-
-    # Two call sites, both here: the declared adapter and the public entry point. A third route
-    # into the writer-enabled core would be invisible to the sweep above, which skips this file.
-    call_sites = []
-    for path in package.glob("*.py"):
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"), filename=str(path))):
-            if isinstance(node, ast.Call) and _callee_name(node.func) == "_discover_flats":
-                call_sites.append(path.name)
-    assert call_sites == ["flats.py", "flats.py"]
-
-    tree = ast.parse((package / "flats.py").read_text(encoding="utf-8"))
-    declared = next(
-        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_discover"
+    assert_core_route_is_closed(
+        module="flats",
+        core="_discover_flats",
+        entrypoint="recognise_flats",
+        handed_over={
+            "writer": "services.writer",
+            "cyls": "services.cylinders",
+            "face_edges": "services.context.face_edges",
+        },
+        withheld=("writer",),
     )
-    call = next(
-        node
-        for node in ast.walk(declared)
-        if isinstance(node, ast.Call) and _callee_name(node.func) == "_discover_flats"
-    )
-    writer = next(keyword.value for keyword in call.keywords if keyword.arg == "writer")
-    assert isinstance(writer, ast.Attribute) and writer.attr == "writer"
-    assert isinstance(writer.value, ast.Name) and writer.value.id == "services"
-
-    public = next(
-        node
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef) and node.name == "recognise_flats"
-    )
-    public_call = next(
-        node
-        for node in ast.walk(public)
-        if isinstance(node, ast.Call) and _callee_name(node.func) == "_discover_flats"
-    )
-    assert not any(keyword.arg == "writer" for keyword in public_call.keywords)
 
 
 @pytest.mark.parametrize(

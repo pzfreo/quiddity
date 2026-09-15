@@ -34,6 +34,7 @@ from quiddity.polygonal_bosses import PolygonalStock, _discover_polygonal_stock
 from quiddity.result import _take_inventory
 from tests.golden._common import hex_prism
 from tests.golden.polygonal_stock.fixture import build_fixture
+from tests.route_pins import assert_core_route_is_closed
 
 ROOT = Path(__file__).parents[1]
 
@@ -678,29 +679,9 @@ def test_terminal_status_identity_and_not_counted_census_are_truthful() -> None:
 
 def test_private_core_constructor_and_cap_identity_paths_are_closed() -> None:
     package = ROOT / "src/quiddity"
-    core_sites = []
     constructors = []
     for path in package.glob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        direct_aliases = (
-            {"_discover_polygonal_stock"} if path.name == "polygonal_bosses.py" else set()
-        )
-        module_aliases = set()
-        for statement in ast.walk(tree):
-            if isinstance(statement, ast.ImportFrom) and statement.module == (
-                "quiddity.polygonal_bosses"
-            ):
-                direct_aliases.update(
-                    alias.asname or alias.name
-                    for alias in statement.names
-                    if alias.name == "_discover_polygonal_stock"
-                )
-            elif isinstance(statement, ast.Import):
-                module_aliases.update(
-                    alias.asname or alias.name
-                    for alias in statement.names
-                    if alias.name == "quiddity.polygonal_bosses"
-                )
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
@@ -710,58 +691,24 @@ def test_private_core_constructor_and_cap_identity_paths_are_closed() -> None:
                 name = node.func.attr
             else:
                 name = ""
-            calls_core = (isinstance(node.func, ast.Name) and node.func.id in direct_aliases) or (
-                isinstance(node.func, ast.Attribute)
-                and node.func.attr == "_discover_polygonal_stock"
-                and isinstance(node.func.value, ast.Name)
-                and node.func.value.id in module_aliases
-            )
-            if calls_core:
-                core_sites.append((path.name, node))
             if name == "PolygonalStock":
                 constructors.append((path.name, node))
-    # Two sites, both in the family module: the declaration, which hands the run's writer
-    # through, and the public entry point, which must not.
-    assert [path for path, _call in core_sites] == ["polygonal_bosses.py", "polygonal_bosses.py"]
-    # No module outside the family names the core at all -- not by import, not as an attribute.
-    # A call sweep alone misses both, because either can be rebound and called under a new name.
-    assert not [
-        path.name
-        for path in (ROOT / "src/quiddity").glob("*.py")
-        if path.name != "polygonal_bosses.py"
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
-        if (isinstance(node, ast.Attribute) and node.attr == "_discover_polygonal_stock")
-        or (
-            isinstance(node, ast.ImportFrom)
-            and node.module == "quiddity.polygonal_bosses"
-            and any(alias.name == "_discover_polygonal_stock" for alias in node.names)
-        )
-    ]
-    module_tree = ast.parse((ROOT / "src/quiddity/polygonal_bosses.py").read_text("utf-8"))
-    declared, public = (
-        next(
-            node
-            for node in module_tree.body
-            if isinstance(node, ast.FunctionDef) and node.name == name
-        )
-        for name in ("_discover_stock_family", "recognise_polygonal_stock")
+    assert_core_route_is_closed(
+        module="polygonal_bosses",
+        core="_discover_polygonal_stock",
+        declaration="_discover_stock_family",
+        entrypoint="recognise_polygonal_stock",
+        handed_over={"writer": "services.writer", "graph": "services.context.geometry"},
+        withheld=("writer",),
     )
-    declared_call = next(
+
+    # What the public entry point forwards is this family's own business, not the shared pin's.
+    module_tree = ast.parse((package / "polygonal_bosses.py").read_text(encoding="utf-8"))
+    public = next(
         node
-        for node in ast.walk(declared)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "_discover_polygonal_stock"
+        for node in module_tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "recognise_polygonal_stock"
     )
-    keywords = {keyword.arg: keyword.value for keyword in declared_call.keywords}
-    assert isinstance(keywords["writer"], ast.Attribute) and keywords["writer"].attr == "writer"
-    assert isinstance(keywords["writer"].value, ast.Name)
-    assert keywords["writer"].value.id == "services"
-    assert isinstance(keywords["graph"], ast.Attribute) and keywords["graph"].attr == "geometry"
-    assert isinstance(keywords["graph"].value, ast.Attribute)
-    assert keywords["graph"].value.attr == "context"
-    assert isinstance(keywords["graph"].value.value, ast.Name)
-    assert keywords["graph"].value.value.id == "services"
     public_call = next(
         node
         for node in ast.walk(public)
@@ -769,7 +716,6 @@ def test_private_core_constructor_and_cap_identity_paths_are_closed() -> None:
         and isinstance(node.func, ast.Name)
         and node.func.id == "_discover_polygonal_stock"
     )
-    assert all(keyword.arg != "writer" for keyword in public_call.keywords)
     public_keywords = {keyword.arg: keyword.value for keyword in public_call.keywords}
     assert isinstance(public_keywords["graph"], ast.Name)
     assert public_keywords["graph"].id == "graph"

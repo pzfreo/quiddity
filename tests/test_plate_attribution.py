@@ -43,6 +43,7 @@ from quiddity._run import start
 from quiddity.plates import Plate, _discover_plates, _PlateAttributionError
 from quiddity.result import _discover_all, _take_inventory
 from tests.golden.plates_pads_levels_and_slanted_steps.fixture import build_fixture
+from tests.route_pins import assert_core_route_is_closed
 
 ROOT = Path(__file__).parents[1]
 
@@ -711,27 +712,8 @@ def test_empty_completed_turned_roster_does_not_veto_plate_solids() -> None:
     assert product.result.plates
 
 
-def test_plate_private_core_and_declared_route_are_closed() -> None:
-    module = (ROOT / "src/quiddity/plates.py").read_text(encoding="utf-8")
-    tree = ast.parse(module)
-    plates = next(
-        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_discover"
-    )
-    calls = [node for node in ast.walk(plates) if isinstance(node, ast.Call)]
-    discover = next(
-        call
-        for call in calls
-        if isinstance(call.func, ast.Name) and call.func.id == "_discover_plates"
-    )
-    writer = {keyword.arg: keyword.value for keyword in discover.keywords}["writer"]
-    assert isinstance(writer, ast.Attribute) and writer.attr == "writer"
-    keywords = {keyword.arg: keyword.value for keyword in discover.keywords}
-    assert "excluded_solids" in keywords
-
-
 def test_plate_import_constructor_and_capability_rosters_are_closed() -> None:
     package = ROOT / "src/quiddity"
-    core_sites: list[tuple[str, ast.Call]] = []
     constructors: list[tuple[str, ast.Call]] = []
     proposal_sites: list[tuple[str, ast.Call]] = []
     prohibited = {
@@ -754,44 +736,18 @@ def test_plate_import_constructor_and_capability_rosters_are_closed() -> None:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for qualified, call in _qualified_calls(tree):
             leaf = qualified.rsplit(".", 1)[-1]
-            if leaf == "_discover_plates":
-                core_sites.append((path.name, call))
             if leaf == "Plate":
                 constructors.append((path.name, call))
             if leaf == "_PlateProposal":
                 proposal_sites.append((path.name, call))
 
-    # Two sites, both in the family module: the declared adapter, which hands the run's writer
-    # through, and the public entry point, which must not.
-    assert [path for path, _call in core_sites] == ["plates.py", "plates.py"]
-    declared = next(
-        node
-        for node in plate_tree.body
-        if isinstance(node, ast.FunctionDef) and node.name == "_discover"
+    assert_core_route_is_closed(
+        module="plates",
+        core="_discover_plates",
+        entrypoint="recognise_plates",
+        handed_over={"writer": "services.writer", "excluded_solids": "turned_solids"},
+        withheld=("writer",),
     )
-    declared_call = next(
-        call
-        for call in ast.walk(declared)
-        if isinstance(call, ast.Call)
-        and isinstance(call.func, ast.Name)
-        and call.func.id == "_discover_plates"
-    )
-    writer = next(keyword.value for keyword in declared_call.keywords if keyword.arg == "writer")
-    assert isinstance(writer, ast.Attribute) and writer.attr == "writer"
-    assert isinstance(writer.value, ast.Name) and writer.value.id == "services"
-    public = next(
-        node
-        for node in plate_tree.body
-        if isinstance(node, ast.FunctionDef) and node.name == "recognise_plates"
-    )
-    public_call = next(
-        call
-        for call in ast.walk(public)
-        if isinstance(call, ast.Call)
-        and isinstance(call.func, ast.Name)
-        and call.func.id == "_discover_plates"
-    )
-    assert all(keyword.arg != "writer" for keyword in public_call.keywords)
     assert [(path, len(call.args)) for path, call in constructors] == [("plates.py", 0)]
     assert [(path, len(call.args)) for path, call in proposal_sites] == [("plates.py", 3)]
 
