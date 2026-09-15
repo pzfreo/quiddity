@@ -21,8 +21,16 @@ from OCP.Standard import Standard_ConstructionError, Standard_DomainError, Stand
 from OCP.StdFail import StdFail_NotDone
 
 from quiddity._adjacency import FaceEdges, edge_face_map
-from quiddity._candidates import FamilyId
+from quiddity._candidates import CompletedInputs, FamilyId
 from quiddity._claims import EvidenceWriter
+from quiddity._definitions import (
+    DiscoveryServices,
+    FullyAttributed,
+    ManifestEvidence,
+    NotCounted,
+    PhysicalDefinition,
+    always,
+)
 from quiddity._geometry import part_scale
 from quiddity._record import Record
 from quiddity._solid_properties import (
@@ -786,3 +794,31 @@ def read_double_d_tool(
         "double_d_bore(object) needs one constant extrusion of a two-chord, "
         "common-circle double-D profile"
     )
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(
+        _discover_double_d_bores(
+            services.context.part,
+            face_edges=services.context.face_edges,
+            writer=services.writer,
+        )
+    )
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.DOUBLE_D_BORES,
+    record_types=(DoubleDBore,),
+    result_field="double_d_bores",
+    public_entrypoint=recognise_double_d_bores.__name__,
+    dependencies=(),
+    applicable=always,
+    discover=_discover,
+    census=NotCounted("not a distinct census key"),
+    attribution=FullyAttributed(
+        "every returned Double-D bore claims its complete original lateral wall faces"
+    ),
+    evidence=ManifestEvidence(goldens=("double_d_bore",)),
+)

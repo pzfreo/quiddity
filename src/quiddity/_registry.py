@@ -24,6 +24,7 @@ from quiddity import (
     gussets,
     paired_ramp_steps,
     plates,
+    profiled_bores,
     through_steps,
 )
 from quiddity._candidates import (
@@ -105,7 +106,6 @@ from quiddity.polygonal_bosses import (
     _discover_polygonal_stock,
 )
 from quiddity.prismatic_pockets import PrismaticPocket, recognise_prismatic_pockets
-from quiddity.profiled_bores import DoubleDBore, _discover_double_d_bores
 from quiddity.rectangular_blind_slots import (
     RectangularBlindSlot,
     recognise_rectangular_blind_slots,
@@ -370,27 +370,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
             "every returned Hole claims its complete original cylindrical occurrence faces"
         ),
     ),
-    PhysicalDefinition(
-        FamilyId.DOUBLE_D_BORES,
-        (DoubleDBore,),
-        "double_d_bores",
-        "recognise_double_d_bores",
-        (),
-        always,
-        simple(
-            lambda s: list(
-                _discover_double_d_bores(
-                    s.context.part,
-                    face_edges=s.context.face_edges,
-                    writer=s.writer,
-                )
-            )
-        ),
-        NotCounted("not a distinct census key"),
-        FullyAttributed(
-            "every returned Double-D bore claims its complete original lateral wall faces"
-        ),
-    ),
+    profiled_bores.DEFINITION,
     PhysicalDefinition(
         FamilyId.BOSSES,
         (BossRecord,),

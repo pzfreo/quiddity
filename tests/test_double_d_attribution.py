@@ -1066,9 +1066,8 @@ def test_foreign_writer_refuses_before_publication() -> None:
     assert foreign.candidate_set_for(FamilyId.DOUBLE_D_BORES, ()).candidates == ()
 
 
-def test_only_registry_may_call_writer_enabled_core() -> None:
+def test_only_the_declaration_may_call_writer_enabled_core() -> None:
     root = Path(__file__).parents[1]
-    sites: list[tuple[str, bool]] = []
     importers: list[str] = []
     for path in (root / "src").rglob("*.py"):
         if path.name == "profiled_bores.py":
@@ -1081,19 +1080,32 @@ def test_only_registry_may_call_writer_enabled_core() -> None:
             for node in ast.walk(tree)
         ):
             importers.append(path.name)
-        for qualified, node in _qualified_calls(tree):
-            if qualified == "quiddity.profiled_bores._discover_double_d_bores":
+    # The declared adapter reaches the core from inside the family module, so no other module
+    # names it at all. The route stays closed by the same argument as before.
+    assert importers == []
+
+    # Two call sites, both here: the declared adapter and the public entry point. A third route
+    # into the writer-enabled core would be invisible to the sweep above, which skips this file.
+    sites: list[tuple[str, bool]] = []
+    for path in (root / "src").rglob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if not isinstance(node, ast.Call):
+                continue
+            callee = node.func.attr if isinstance(node.func, ast.Attribute) else None
+            if isinstance(node.func, ast.Name):
+                callee = node.func.id
+            if callee == "_discover_double_d_bores":
                 sites.append(
                     (
                         path.name,
                         any(
-                            keyword.arg == "writer" and ast.unparse(keyword.value) == "s.writer"
+                            keyword.arg == "writer"
+                            and ast.unparse(keyword.value) == "services.writer"
                             for keyword in node.keywords
                         ),
                     )
                 )
-    assert importers == ["_registry.py"]
-    assert sites == [("_registry.py", True)]
+    assert sites == [("profiled_bores.py", False), ("profiled_bores.py", True)]
 
 
 def test_constructor_and_void_prism_path_roster_is_closed() -> None:
