@@ -617,10 +617,12 @@ MODULE_SEAM_EDGES = {
         "_body_identity",
         "_candidates",
         "_claims",
+        "_definitions",
         "_geometry",
         "_record",
         "_solid_properties",
         "_typing",
+        "turned",
     },
     "prismatic_pockets": {
         "_adjacency",

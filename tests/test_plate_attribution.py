@@ -711,11 +711,11 @@ def test_empty_completed_turned_roster_does_not_veto_plate_solids() -> None:
     assert product.result.plates
 
 
-def test_plate_private_core_and_registry_route_are_closed() -> None:
-    registry = (ROOT / "src/quiddity/_registry.py").read_text(encoding="utf-8")
-    tree = ast.parse(registry)
+def test_plate_private_core_and_declared_route_are_closed() -> None:
+    module = (ROOT / "src/quiddity/plates.py").read_text(encoding="utf-8")
+    tree = ast.parse(module)
     plates = next(
-        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_plates"
+        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_discover"
     )
     calls = [node for node in ast.walk(plates) if isinstance(node, ast.Call)]
     discover = next(
@@ -761,10 +761,22 @@ def test_plate_import_constructor_and_capability_rosters_are_closed() -> None:
             if leaf == "_PlateProposal":
                 proposal_sites.append((path.name, call))
 
-    assert {path for path, _call in core_sites} == {"plates.py", "_registry.py"}
-    assert sum(path == "_registry.py" for path, _call in core_sites) == 1
-    registry_call = next(call for path, call in core_sites if path == "_registry.py")
-    writer = next(keyword.value for keyword in registry_call.keywords if keyword.arg == "writer")
+    # Two sites, both in the family module: the declared adapter, which hands the run's writer
+    # through, and the public entry point, which must not.
+    assert [path for path, _call in core_sites] == ["plates.py", "plates.py"]
+    declared = next(
+        node
+        for node in plate_tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "_discover"
+    )
+    declared_call = next(
+        call
+        for call in ast.walk(declared)
+        if isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Name)
+        and call.func.id == "_discover_plates"
+    )
+    writer = next(keyword.value for keyword in declared_call.keywords if keyword.arg == "writer")
     assert isinstance(writer, ast.Attribute) and writer.attr == "writer"
     assert isinstance(writer.value, ast.Name) and writer.value.id == "services"
     public = next(
@@ -812,10 +824,10 @@ def test_plate_import_constructor_and_capability_rosters_are_closed() -> None:
     )
 
 
-def test_registry_uses_restricted_turned_occurrences_for_body_local_plate_veto() -> None:
-    tree = ast.parse((ROOT / "src/quiddity/_registry.py").read_text(encoding="utf-8"))
+def test_declaration_uses_restricted_turned_occurrences_for_body_local_plate_veto() -> None:
+    tree = ast.parse((ROOT / "src/quiddity/plates.py").read_text(encoding="utf-8"))
     function = next(
-        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_plates"
+        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_discover"
     )
     assert not any(isinstance(node, ast.Try) for node in ast.walk(function))
     calls = _qualified_calls(function)

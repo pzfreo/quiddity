@@ -46,8 +46,16 @@ from OCP.GProp import GProp_GProps
 
 from quiddity._adjacency import FaceNode, SolidRef
 from quiddity._body_identity import unambiguous_body_keys
-from quiddity._candidates import FamilyId
+from quiddity._candidates import CompletedInputs, FamilyId
 from quiddity._claims import EvidenceWriter
+from quiddity._definitions import (
+    Counted,
+    DiscoveryServices,
+    FullyAttributed,
+    ManifestEvidence,
+    PhysicalDefinition,
+    always,
+)
 from quiddity._geometry import (
     AXIS_ALIGNED_COS,
     clears_threshold,
@@ -60,6 +68,7 @@ from quiddity._solid_properties import (
     solid_properties,
 )
 from quiddity._typing import Part
+from quiddity.turned import TurnedStep
 
 #: **A minimum-evidence threshold, not a tolerance — deliberately absolute (ADR 0008).**
 #: Scaling it to the part makes a feature's existence depend on what surrounds it, so a small
@@ -471,3 +480,40 @@ def _discover_plates(
         for record, nodes in pending:
             writer.add_defining(record, nodes, family=FamilyId.PLATES)
     return [proposal.record for proposal in uniq]
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    turned_solids = frozenset(
+        solid
+        for occurrence in inputs.occurrences(FamilyId.TURNED_STEPS, TurnedStep)
+        if (solid := occurrence.solid()) is not None
+    )
+    if services.context.rotational and not turned_solids:
+        return []
+    return list(
+        _discover_plates(
+            services.context.part,
+            writer=services.writer,
+            excluded_solids=turned_solids,
+        )
+    )
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.PLATES,
+    record_types=(Plate,),
+    result_field="plates",
+    public_entrypoint=recognise_plates.__name__,
+    dependencies=(FamilyId.TURNED_STEPS,),
+    applicable=always,
+    discover=_discover,
+    census=Counted("plate"),
+    attribution=FullyAttributed(
+        "every returned Plate claims its complete low/high planar face groups"
+    ),
+    evidence=ManifestEvidence(
+        goldens=("plates_pads_levels_and_slanted_steps",),
+        tests=("tests/test_channel_plate_body_identity.py",),
+    ),
+)

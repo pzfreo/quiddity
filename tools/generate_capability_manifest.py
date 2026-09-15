@@ -82,10 +82,6 @@ EVIDENCE: dict[str, dict[str, object]] = {
     "grooves": {"goldens": ["turned_steps_and_grooves"]},
     "hole-patterns": {"goldens": ["bolt_circle_and_rectangular_grid"]},
     "holes": {"goldens": ["simple_through_hole", "counterbored_and_countersunk_holes"]},
-    "plates": {
-        "goldens": ["plates_pads_levels_and_slanted_steps"],
-        "tests": ["tests/test_channel_plate_body_identity.py"],
-    },
     "polygonal-bosses": {"goldens": ["polygonal_boss"]},
     "polygonal-stock": {"goldens": ["polygonal_stock"]},
     "rectangular-pads": {

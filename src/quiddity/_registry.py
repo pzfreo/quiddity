@@ -14,7 +14,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Protocol, TypeAlias
 
-from quiddity import gussets
+from quiddity import gussets, plates
 from quiddity._candidates import (
     Candidate,
     CandidateSet,
@@ -97,7 +97,6 @@ from quiddity.passages import (
     SectionPassage,
     recognise_section_passages,
 )
-from quiddity.plates import Plate, _discover_plates
 from quiddity.polygonal_bosses import (
     PolygonalBoss,
     PolygonalStock,
@@ -269,23 +268,6 @@ def _holes(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]
             writer=services.writer,
             predecessor_occurrences=occurrences,
             face_surfaces=services.context.face_surfaces,
-        )
-    )
-
-
-def _plates(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
-    turned_solids = frozenset(
-        solid
-        for occurrence in inputs.occurrences(FamilyId.TURNED_STEPS, TurnedStep)
-        if (solid := occurrence.solid()) is not None
-    )
-    if services.context.rotational and not turned_solids:
-        return []
-    return list(
-        _discover_plates(
-            services.context.part,
-            writer=services.writer,
-            excluded_solids=turned_solids,
         )
     )
 
@@ -891,17 +873,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         Counted("fillet"),
         FullyAttributed("every returned fillet claims its original curved blend face"),
     ),
-    PhysicalDefinition(
-        FamilyId.PLATES,
-        (Plate,),
-        "plates",
-        "recognise_plates",
-        (FamilyId.TURNED_STEPS,),
-        always,
-        _plates,
-        Counted("plate"),
-        FullyAttributed("every returned Plate claims its complete low/high planar face groups"),
-    ),
+    plates.DEFINITION,
 )
 
 
