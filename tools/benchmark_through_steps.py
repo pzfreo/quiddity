@@ -33,18 +33,20 @@ def _summary(values: list[float]) -> dict[str, float]:
 
 
 def _run_case(part: Any, enabled: bool) -> tuple[Any, float]:
-    import quiddity._registry as registry
+    import quiddity.through_steps as family
     from quiddity.result import _take_inventory
 
-    original = registry.recognise_through_steps
+    # The declaration resolves its entry point in the family module at call time, so that is
+    # where the benchmark disables it; the registry no longer holds the name.
+    original = family.recognise_through_steps
     if not enabled:
-        registry.recognise_through_steps = lambda *_args, **_kwargs: []
+        family.recognise_through_steps = lambda *_args, **_kwargs: []
     try:
         started = time.perf_counter()
         result = _take_inventory(part).result
         return result, time.perf_counter() - started
     finally:
-        registry.recognise_through_steps = original
+        family.recognise_through_steps = original
 
 
 def _measure(parts: list[tuple[str, Any]]) -> dict[str, Any]:

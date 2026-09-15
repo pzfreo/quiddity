@@ -33,18 +33,20 @@ def _summary(values: list[float]) -> dict[str, float]:
 
 
 def _run_case(part: Any, enabled: bool) -> tuple[Any, float]:
-    import quiddity._registry as registry
+    import quiddity.circular_blind_steps as family
     from quiddity.result import _take_inventory
 
-    original = registry._discover_circular_blind_steps
+    # The declaration resolves the core in the family module at call time, so that is where the
+    # benchmark disables it; the registry no longer holds the name.
+    original = family._discover_circular_blind_steps
     if not enabled:
-        registry._discover_circular_blind_steps = lambda *_args, **_kwargs: []
+        family._discover_circular_blind_steps = lambda *_args, **_kwargs: []
     try:
         started = time.perf_counter()
         product = _take_inventory(part)
         return product, time.perf_counter() - started
     finally:
-        registry._discover_circular_blind_steps = original
+        family._discover_circular_blind_steps = original
 
 
 def _measure(parts: list[tuple[str, Any]]) -> dict[str, Any]:
