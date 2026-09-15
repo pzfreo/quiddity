@@ -229,8 +229,9 @@ evidence a consumer should read; a family whose goldens carry that weight names 
 `flats.py` and `grooves.py` do.
 
 `DEFINITION` is the name only where the module declares one family. A module declaring several
-names each after its family instead, as `polygonal_bosses.py` does with `BOSSES` and `STOCK`, so
-that the registry line says which one it is placing.
+families names each declaration after its family instead, as `polygonal_bosses.py` does with
+`BOSSES` and `STOCK`, so that the registry line says which one it is placing. Their adapters need
+distinct names too, and the name must not collide with another family's private core.
 
 `_discover` may call either the public entry point or the module's private core. Call the core when
 the adapter must hand over something the public signature does not accept: the write capability in
@@ -278,7 +279,7 @@ present at every site.
 | # | Site | Add | Checked by |
 | --- | --- | --- | --- |
 | 1 | `src/quiddity/_candidates.py` | the `FamilyId` member, and a `DerivedId` member for a pattern | `tests/test_registry.py` |
-| 2 | `src/quiddity/_registry.py` | one line placing the module's `DEFINITION` (and `PATTERNS`) in execution order; the declaration itself lives in the family module, see `gussets.py`, or `plates.py` for a family with a predecessor | the registry validator |
+| 2 | `src/quiddity/_registry.py` | one line placing each of the module's declarations (`DEFINITION`, `PATTERNS`, or one name per family where there are several) in execution order; the declaration itself lives in the family module, see `gussets.py`, or `plates.py` for a family with a predecessor | the registry validator |
 | 3 | `src/quiddity/result.py` | the typed result field; the projection is derived from the registry | `test_every_result_field_is_registry_owned_or_a_reviewed_exception` |
 | 4 | `src/quiddity/__init__.py` | the import and the `__all__` entry | `test_every_defined_public_recogniser_is_exported_and_snapshotted` |
 | 5 | `src/quiddity/census.py` | the census binding, or nothing when the family is `NotCounted` | `validate_census_contract` at import, and `tests/test_registry.py` |

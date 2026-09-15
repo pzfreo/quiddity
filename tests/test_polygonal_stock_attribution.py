@@ -686,7 +686,7 @@ def test_private_core_constructor_and_cap_identity_paths_are_closed() -> None:
             {"_discover_polygonal_stock"} if path.name == "polygonal_bosses.py" else set()
         )
         module_aliases = set()
-        for statement in tree.body:
+        for statement in ast.walk(tree):
             if isinstance(statement, ast.ImportFrom) and statement.module == (
                 "quiddity.polygonal_bosses"
             ):
@@ -737,7 +737,7 @@ def test_private_core_constructor_and_cap_identity_paths_are_closed() -> None:
             for node in module_tree.body
             if isinstance(node, ast.FunctionDef) and node.name == name
         )
-        for name in ("_discover_stock", "recognise_polygonal_stock")
+        for name in ("_discover_stock_family", "recognise_polygonal_stock")
     )
     declared_call = next(
         node
@@ -792,15 +792,22 @@ def test_private_core_constructor_and_cap_identity_paths_are_closed() -> None:
         "reconcile",
     }
     # The declarations at the module tail name their own attribution, so `FullyAttributed` is
-    # imported and used there; nothing the recogniser actually runs may reach for it.
-    in_functions = {
-        name.id
-        for function in ast.walk(tree)
-        if isinstance(function, ast.FunctionDef)
-        for name in ast.walk(function)
-        if isinstance(name, ast.Name)
+    # imported and used there. Exempt those two assignments and nothing else: the sweep stays
+    # whole-module, so nothing the recogniser actually runs may reach for it.
+    exempt = {
+        id(node)
+        for statement in tree.body
+        if isinstance(statement, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id in {"BOSSES", "STOCK"}
+            for target in statement.targets
+        )
+        for node in ast.walk(statement)
     }
-    assert not (in_functions & prohibited)
+    referenced = {
+        node.id for node in ast.walk(tree) if isinstance(node, ast.Name) and id(node) not in exempt
+    }
+    assert not (referenced & prohibited)
     imported = {
         alias.name
         for node in ast.walk(tree)
