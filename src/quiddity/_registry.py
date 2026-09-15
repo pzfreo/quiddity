@@ -18,6 +18,7 @@ from quiddity import (
     angled_steps,
     chamfers,
     circular_blind_steps,
+    edge_open_circular_recesses,
     fillets,
     flats,
     grooves,
@@ -71,10 +72,6 @@ from quiddity._section_recess import SectionRecess
 from quiddity._section_recess_discovery import discover_section_recesses
 from quiddity.blends import Blend, _discover_blends
 from quiddity.countersinks import CounterSink, _discover_countersinks
-from quiddity.edge_open_circular_recesses import (
-    EdgeOpenCircularPocket,
-    recognise_edge_open_circular_pockets,
-)
 from quiddity.edge_open_prismatic_recesses import (
     EdgeOpenPrismaticRecess,
     recognise_edge_open_prismatic_recesses,
@@ -437,23 +434,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         FullyAttributed("every returned Pocket owns its selected walls, corner floor, or caps"),
     ),
     prismatic_pockets.DEFINITION,
-    PhysicalDefinition(
-        FamilyId.EDGE_OPEN_CIRCULAR_POCKETS,
-        (EdgeOpenCircularPocket,),
-        "edge_open_circular_pockets",
-        "recognise_edge_open_circular_pockets",
-        (),
-        always,
-        simple(
-            lambda s: list(
-                recognise_edge_open_circular_pockets(
-                    s.context.part, ledger=s.writer, face_edges=s.context.face_edges
-                )
-            )
-        ),
-        NotCounted("Counted once through the unified section_recess projection"),
-        FullyAttributed("every returned open circular pocket claims its physical wall chain"),
-    ),
+    edge_open_circular_recesses.DEFINITION,
     PhysicalDefinition(
         FamilyId.EDGE_OPEN_PRISMATIC_RECESSES,
         (EdgeOpenPrismaticRecess,),
