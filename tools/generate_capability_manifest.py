@@ -29,7 +29,6 @@ TARGET = ROOT / "src" / "quiddity" / "capabilities.json"
 # evidence a family publishes, and the records that are not its registry output. A new
 # family sets `introduced`; the default is the first release of this distribution.
 EVIDENCE: dict[str, dict[str, object]] = {
-    "angled-steps": {"goldens": ["angled_blind_step"], "tests": ["tests/test_angled_steps.py"]},
     "section-recesses": {
         "golden_paths": [
             "tests/section_recess_expected.json",

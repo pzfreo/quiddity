@@ -62,6 +62,7 @@ def test_projection_rejects_a_record_from_the_wrong_family_contract():
 def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity._registry as registry_module
     import quiddity._run as run_module
+    import quiddity.angled_steps as angled_steps_module
     import quiddity.chamfers as chamfers_module
     import quiddity.gussets as gussets_module
     import quiddity.plates as plates_module
@@ -174,7 +175,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     monkeypatch.setattr(registry_module, "_discover_step_levels", counted("step_levels", levels))
     monkeypatch.setattr(registry_module, "_discover_risers", counted("risers", []))
     monkeypatch.setattr(chamfers_module, "recognise_chamfers", counted("chamfers", []))
-    monkeypatch.setattr(registry_module, "recognise_angled_steps", counted("angled_steps", []))
+    monkeypatch.setattr(angled_steps_module, "recognise_angled_steps", counted("angled_steps", []))
     monkeypatch.setattr(
         registry_module,
         "recognise_paired_ramp_steps",

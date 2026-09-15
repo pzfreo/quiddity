@@ -96,10 +96,19 @@ from quiddity._bevel import (
     material_beyond_corner,
 )
 from quiddity._candidates import (
+    CompletedInputs,
     EvidenceSink,
     FamilyId,
 )
 from quiddity._claims import ClaimLedger, EvidenceWriter
+from quiddity._definitions import (
+    Counted,
+    DiscoveryServices,
+    FullyAttributed,
+    ManifestEvidence,
+    PhysicalDefinition,
+    prismatic,
+)
 from quiddity._geometry import SMOOTH_ARC_GAP
 from quiddity._record import Record
 from quiddity._solid_properties import solid_properties
@@ -296,3 +305,32 @@ def _discover_angled_steps(
                 ],
             )
     return [step for step, _face, _terminals in out]
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(
+        recognise_angled_steps(
+            services.context.part,
+            ledger=services.writer,
+            face_edges=services.context.face_edges,
+        )
+    )
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.ANGLED_STEPS,
+    record_types=(AngledStep,),
+    result_field="angled_steps",
+    public_entrypoint=recognise_angled_steps.__name__,
+    dependencies=(),
+    applicable=prismatic,
+    discover=_discover,
+    census=Counted("angled_step"),
+    attribution=FullyAttributed("every returned angled step claims its defining slant face"),
+    evidence=ManifestEvidence(
+        goldens=("angled_blind_step",),
+        tests=("tests/test_angled_steps.py",),
+    ),
+)

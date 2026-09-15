@@ -14,7 +14,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Protocol, TypeAlias
 
-from quiddity import chamfers, gussets, plates
+from quiddity import angled_steps, chamfers, gussets, plates
 from quiddity._candidates import (
     Candidate,
     CandidateSet,
@@ -53,7 +53,6 @@ from quiddity._recess_features import (
 )
 from quiddity._section_recess import SectionRecess
 from quiddity._section_recess_discovery import discover_section_recesses
-from quiddity.angled_steps import AngledStep, recognise_angled_steps
 from quiddity.blends import Blend, _discover_blends
 from quiddity.circular_blind_steps import (
     CircularBlindStep,
@@ -713,23 +712,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         FullyAttributed("every returned RiserEvidence owns all producing faces on one valid solid"),
     ),
     chamfers.DEFINITION,
-    PhysicalDefinition(
-        FamilyId.ANGLED_STEPS,
-        (AngledStep,),
-        "angled_steps",
-        "recognise_angled_steps",
-        (),
-        prismatic,
-        simple(
-            lambda s: list(
-                recognise_angled_steps(
-                    s.context.part, ledger=s.writer, face_edges=s.context.face_edges
-                )
-            )
-        ),
-        Counted("angled_step"),
-        FullyAttributed("every returned angled step claims its defining slant face"),
-    ),
+    angled_steps.DEFINITION,
     PhysicalDefinition(
         FamilyId.PAIRED_RAMP_STEPS,
         (PairedRampStep,),
