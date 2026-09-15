@@ -22,68 +22,26 @@ from quiddity._record import Record
 ROOT = Path(__file__).parents[1]
 TARGET = ROOT / "src" / "quiddity" / "capabilities.json"
 
-FAMILIES = {
-    # Quiddity 0.2.0 is the second alpha and starts this distribution's version history.
-    # All inherited families arrive together; future additions can override `introduced`.
-    "angled-steps": {
-        "recognisers": [("recognise_angled_steps", "part")],
-        "records": [("AngledStep", "output", ["RecognitionResult.angled_steps"])],
-        "census": "angled_step",
-        "goldens": ["angled_blind_step"],
-        "introduced": "0.2.0",
-        "tests": ["tests/test_angled_steps.py"],
-    },
+# Recognisers, output records, aggregate membership and census keys are derived from the
+# registry below. What stays by hand is what ADR 0005 makes a deliberate contract: the
+# evidence a family publishes, and the records that are not its registry output.
+EVIDENCE: dict[str, dict[str, object]] = {
+    "angled-steps": {"goldens": ["angled_blind_step"], "tests": ["tests/test_angled_steps.py"]},
     "gusset-ribs": {
-        "recognisers": [("recognise_gusset_ribs", "part")],
-        "records": [("GussetRib", "output", ["RecognitionResult.gusset_ribs"])],
-        "census": "gusset_rib",
         "goldens": ["gusset_ribs"],
-        "introduced": "0.2.10",
         "tests": ["tests/test_gussets.py"],
+        "introduced": "0.2.10",
     },
     "gusset-rib-patterns": {
-        "recognisers": [("recognise_gusset_rib_patterns", "derived")],
-        "records": [
-            ("GussetRibArray", "output", ["RecognitionResult.gusset_rib_patterns"]),
-            ("GussetRibMirrorPair", "output", ["RecognitionResult.gusset_rib_patterns"]),
-        ],
-        "census": None,
         "goldens": ["gusset_rib_patterns"],
-        "introduced": "0.2.10",
         "tests": ["tests/test_gussets.py"],
+        "introduced": "0.2.10",
     },
     "section-recesses": {
-        "recognisers": [("recognise_section_recesses", "part")],
-        "records": [
-            ("ClosedSectionProfile", "nested", []),
-            ("CylindricalEndSurface", "nested", []),
-            ("PlanarEndSurface", "nested", []),
-            ("PlanarEndTerm", "nested", []),
-            ("PlanarEnvelopeEndSurface", "nested", []),
-            ("OpenSectionProfile", "nested", []),
-            ("SectionEnd", "nested", []),
-            ("SectionRecess", "output", ["RecognitionResult.section_recesses"]),
-            ("SectionRecessBodyRef", "nested", []),
-            ("SectionRecessClassification", "nested", []),
-            ("SectionRecessDocument", "aggregate", []),
-            ("SectionRecessEnds", "nested", []),
-            ("SectionRecessEvidence", "nested", []),
-            ("SectionRecessFaceRef", "nested", []),
-            ("SectionRecessGeometry", "nested", []),
-            ("PassageFrame", "nested", []),
-            ("PassageSection", "nested", []),
-            ("PassageSectionVertex", "nested", []),
-            ("SectionRecessRefusal", "projection", ["RecognitionResult.section_recess_refusals"]),
-            ("SectionRecessArray", "projection", ["RecognitionResult.section_recess_patterns"]),
-            ("SectionRecessGrid", "projection", ["RecognitionResult.section_recess_patterns"]),
-        ],
-        "census": "section_recess",
-        "goldens": [],
         "golden_paths": [
             "tests/section_recess_expected.json",
             "tests/section_recess_geometry_expected.json",
         ],
-        "introduced": "0.2.0",
         "tests": [
             "tests/test_section_recesses.py",
             "tests/test_section_recess_geometry_golden.py",
@@ -95,149 +53,49 @@ FAMILIES = {
         ],
     },
     "paired-ramp-steps": {
-        "recognisers": [("recognise_paired_ramp_steps", "part")],
-        "records": [("PairedRampStep", "output", ["RecognitionResult.paired_ramp_steps"])],
-        "census": "paired_ramp_step",
         "goldens": ["paired_ramp_step"],
-        "introduced": "0.2.0",
         "tests": ["tests/test_paired_ramp_steps.py"],
     },
     "through-steps": {
-        "recognisers": [("recognise_through_steps", "part")],
-        "records": [("ThroughStep", "output", ["RecognitionResult.through_steps"])],
-        "census": "through_step",
         "goldens": ["rectangular_through_step"],
-        "introduced": "0.2.0",
         "tests": ["tests/test_through_steps.py"],
     },
     "circular-blind-steps": {
-        "recognisers": [("recognise_circular_blind_steps", "part")],
-        "records": [("CircularBlindStep", "output", ["RecognitionResult.circular_blind_steps"])],
-        "census": "circular_blind_step",
         "goldens": ["circular_blind_step"],
-        "introduced": "0.2.0",
         "tests": ["tests/test_circular_blind_steps.py"],
     },
-    "bosses": {
-        "recognisers": [("recognise_bosses", "part")],
-        "records": [("BossRecord", "output", ["RecognitionResult.bosses"])],
-        "census": "boss",
-        "goldens": ["simple_through_hole", "turned_steps_and_grooves"],
-    },
+    "bosses": {"goldens": ["simple_through_hole", "turned_steps_and_grooves"]},
     "blends": {
-        "recognisers": [("recognise_blends", "part")],
-        "records": [
-            ("Blend", "output", ["RecognitionResult.blends"]),
-            ("CircularBlendPath", "nested", ["RecognitionResult.blends.path"]),
-            ("StraightBlendPath", "nested", ["RecognitionResult.blends.path"]),
-        ],
-        "census": "blend",
         "goldens": [
             "small_convex_blends",
             "toroidal_blend_compound",
             "toroidal_blend_internal",
             "toroidal_blends_turned",
         ],
-        "introduced": "0.2.0",
         "tests": ["tests/test_blends.py", "tests/test_blend_view.py"],
     },
     "chamfers": {
-        "recognisers": [("recognise_chamfers", "part")],
-        "records": [("Chamfer", "output", ["RecognitionResult.chamfers"])],
-        "census": "chamfer",
         "goldens": ["chamfers_fillets_and_flats"],
         "tests": ["tests/test_turned_chamfers.py"],
     },
-    "countersinks": {
-        "recognisers": [("recognise_countersinks", "part")],
-        "records": [
-            (
-                "CounterSink",
-                "output",
-                ["RecognitionResult.countersinks", "RecognitionResult.holes.csink"],
-            )
-        ],
-        "census": "countersink",
-        "goldens": ["counterbored_and_countersunk_holes"],
-    },
-    "double-d-bores": {
-        "recognisers": [("recognise_double_d_bores", "part")],
-        "records": [("DoubleDBore", "output", ["RecognitionResult.double_d_bores"])],
-        "census": None,
-        "goldens": ["double_d_bore"],
-    },
-    "face-levels": {
-        "recognisers": [("recognise_face_levels", "part")],
-        "records": [("FaceLevel", "evidence", ["RecognitionResult.step_levels"])],
-        "census": None,
-        "goldens": ["plates_pads_levels_and_slanted_steps", "slanted_steps"],
-    },
+    "countersinks": {"goldens": ["counterbored_and_countersunk_holes"]},
+    "double-d-bores": {"goldens": ["double_d_bore"]},
+    "face-levels": {"goldens": ["plates_pads_levels_and_slanted_steps", "slanted_steps"]},
     "fillets": {
-        "recognisers": [("recognise_fillets", "part")],
-        "records": [("Fillet", "output", ["RecognitionResult.fillets"])],
-        "census": "fillet",
         "goldens": ["chamfers_fillets_and_flats"],
         "tests": ["tests/test_turned_chamfers.py"],
     },
-    "flats": {
-        "recognisers": [("recognise_flats", "part")],
-        "records": [("Flat", "output", ["RecognitionResult.flats"])],
-        "census": "flat",
-        "goldens": ["chamfers_fillets_and_flats"],
-    },
-    "grooves": {
-        "recognisers": [("recognise_grooves", "part")],
-        "records": [("Groove", "output", ["RecognitionResult.grooves"])],
-        "census": "groove",
-        "goldens": ["turned_steps_and_grooves"],
-    },
-    "hole-patterns": {
-        "recognisers": [("recognise_hole_patterns", "derived")],
-        "records": [
-            ("BoltCircle", "output", ["RecognitionResult.hole_patterns"]),
-            ("LinearArray", "output", ["RecognitionResult.hole_patterns"]),
-            ("RectGrid", "output", ["RecognitionResult.hole_patterns"]),
-        ],
-        "census": "hole_pattern",
-        "goldens": ["bolt_circle_and_rectangular_grid"],
-    },
-    "holes": {
-        "recognisers": [("recognise_holes", "part")],
-        "records": [
-            (
-                "CounterBore",
-                "nested",
-                ["RecognitionResult.holes.cbore", "RecognitionResult.holes.spotface"],
-            ),
-            ("HoleRecord", "output", ["RecognitionResult.holes"]),
-            ("HoleSpec", "evidence", []),
-        ],
-        "census": "hole",
-        "goldens": ["simple_through_hole", "counterbored_and_countersunk_holes"],
-    },
+    "flats": {"goldens": ["chamfers_fillets_and_flats"]},
+    "grooves": {"goldens": ["turned_steps_and_grooves"]},
+    "hole-patterns": {"goldens": ["bolt_circle_and_rectangular_grid"]},
+    "holes": {"goldens": ["simple_through_hole", "counterbored_and_countersunk_holes"]},
     "plates": {
-        "recognisers": [("recognise_plates", "part")],
-        "records": [("Plate", "output", ["RecognitionResult.plates"])],
-        "census": "plate",
         "goldens": ["plates_pads_levels_and_slanted_steps"],
         "tests": ["tests/test_channel_plate_body_identity.py"],
     },
-    "polygonal-bosses": {
-        "recognisers": [("recognise_polygonal_bosses", "part")],
-        "records": [("PolygonalBoss", "output", ["RecognitionResult.polygonal_bosses"])],
-        "census": None,
-        "goldens": ["polygonal_boss"],
-    },
-    "polygonal-stock": {
-        "recognisers": [("recognise_polygonal_stock", "part")],
-        "records": [("PolygonalStock", "output", ["RecognitionResult.polygonal_stock"])],
-        "census": None,
-        "goldens": ["polygonal_stock"],
-    },
+    "polygonal-bosses": {"goldens": ["polygonal_boss"]},
+    "polygonal-stock": {"goldens": ["polygonal_stock"]},
     "rectangular-pads": {
-        "recognisers": [("recognise_rectangular_pads", "part")],
-        "records": [("RaisedPad", "output", ["RecognitionResult.pads"])],
-        "census": None,
         "goldens": ["plates_pads_levels_and_slanted_steps"],
         "tests": [
             "docs/benchmarks/nurbs-conversion-sweep.json",
@@ -245,86 +103,123 @@ FAMILIES = {
             "tests/test_pad_attribution.py",
         ],
     },
-    "repeating-radial-profiles": {
-        "recognisers": [("recognise_repeating_radial_profiles", "part")],
-        "records": [
-            (
-                "RepeatingRadialProfile",
-                "evidence",
-                ["RecognitionResult.repeating_radial_profiles"],
-            )
-        ],
-        "census": None,
-        "goldens": ["repeating_radial_profile", "traversal_order"],
-    },
-    "risers": {
-        "recognisers": [("recognise_risers", "part")],
-        "records": [
-            ("RiserEvidence", "evidence", ["RecognitionResult.risers"]),
-            ("StepShoulder", "projection", []),
-        ],
-        "census": None,
-        "goldens": ["plates_pads_levels_and_slanted_steps", "slanted_steps"],
-    },
-    "slot-patterns": {
-        "recognisers": [("recognise_slot_patterns", "derived")],
-        "records": [
-            ("SlotArray", "output", ["RecognitionResult.slot_patterns"]),
-            ("SlotGrid", "output", ["RecognitionResult.slot_patterns"]),
-        ],
-        "census": None,
-        "goldens": ["straight_and_obround_slots"],
-    },
+    "repeating-radial-profiles": {"goldens": ["repeating_radial_profile", "traversal_order"]},
+    "risers": {"goldens": ["plates_pads_levels_and_slanted_steps", "slanted_steps"]},
+    "slot-patterns": {"goldens": ["straight_and_obround_slots"]},
     "oriented-slots": {
-        "recognisers": [("recognise_oriented_slots", "part")],
-        "records": [
-            ("OrientedSlot", "output", ["RecognitionResult.oriented_slots"]),
-            ("PassageEnds", "nested", []),
-            ("SectionPassage", "nested", []),
-        ],
-        "census": "oriented_slot",
-        "goldens": [],
         "golden_paths": ["tests/golden/oriented_slots/contract.json"],
-        "introduced": "0.2.0",
         "tests": ["tests/test_oriented_slots.py"],
     },
     "oriented-slot-patterns": {
-        "recognisers": [("recognise_oriented_slot_patterns", "derived")],
-        "records": [
-            (
-                "OrientedSlotArray",
-                "output",
-                ["RecognitionResult.oriented_slot_patterns"],
-            ),
-            (
-                "OrientedSlotGrid",
-                "output",
-                ["RecognitionResult.oriented_slot_patterns"],
-            ),
-        ],
-        "census": None,
-        "goldens": [],
         "golden_paths": ["tests/golden/oriented_slots/contract.json"],
-        "introduced": "0.2.0",
         "tests": ["tests/test_oriented_slots.py"],
     },
-    "slots": {
-        "recognisers": [("recognise_slots", "part")],
-        "records": [("Slot", "output", ["RecognitionResult.slots"])],
-        "census": "slot",
-        "goldens": ["straight_and_obround_slots"],
-    },
-    "turned-steps": {
-        "recognisers": [("recognise_turned_steps", "part")],
-        "records": [
-            ("TurnedProfile", "aggregate", []),
-            ("TurnedProfileKey", "nested", []),
-            ("TurnedStep", "output", ["RecognitionResult.turned_steps"]),
-        ],
-        "census": "step",
-        "goldens": ["turned_steps_and_grooves"],
-    },
+    "slots": {"goldens": ["straight_and_obround_slots"]},
+    "turned-steps": {"goldens": ["turned_steps_and_grooves"]},
 }
+
+# Records a family publishes beyond its registry output records: nested values, evidence
+# records, consumer aggregates and projections, with their roles and aggregate membership.
+EXTRA_RECORDS: dict[str, list[tuple[str, str, list[str]]]] = {
+    "section-recesses": [
+        ("ClosedSectionProfile", "nested", []),
+        ("CylindricalEndSurface", "nested", []),
+        ("OpenSectionProfile", "nested", []),
+        ("PassageFrame", "nested", []),
+        ("PassageSection", "nested", []),
+        ("PassageSectionVertex", "nested", []),
+        ("PlanarEndSurface", "nested", []),
+        ("PlanarEndTerm", "nested", []),
+        ("PlanarEnvelopeEndSurface", "nested", []),
+        ("SectionEnd", "nested", []),
+        ("SectionRecessArray", "projection", ["RecognitionResult.section_recess_patterns"]),
+        ("SectionRecessBodyRef", "nested", []),
+        ("SectionRecessClassification", "nested", []),
+        ("SectionRecessDocument", "aggregate", []),
+        ("SectionRecessEnds", "nested", []),
+        ("SectionRecessEvidence", "nested", []),
+        ("SectionRecessFaceRef", "nested", []),
+        ("SectionRecessGeometry", "nested", []),
+        ("SectionRecessGrid", "projection", ["RecognitionResult.section_recess_patterns"]),
+        ("SectionRecessRefusal", "projection", ["RecognitionResult.section_recess_refusals"]),
+    ],
+    "blends": [
+        ("CircularBlendPath", "nested", ["RecognitionResult.blends.path"]),
+        ("StraightBlendPath", "nested", ["RecognitionResult.blends.path"]),
+    ],
+    "countersinks": [
+        (
+            "CounterSink",
+            "output",
+            ["RecognitionResult.countersinks", "RecognitionResult.holes.csink"],
+        ),
+    ],
+    "face-levels": [
+        ("FaceLevel", "evidence", ["RecognitionResult.step_levels"]),
+    ],
+    "holes": [
+        (
+            "CounterBore",
+            "nested",
+            ["RecognitionResult.holes.cbore", "RecognitionResult.holes.spotface"],
+        ),
+        ("HoleSpec", "evidence", []),
+    ],
+    "repeating-radial-profiles": [
+        ("RepeatingRadialProfile", "evidence", ["RecognitionResult.repeating_radial_profiles"]),
+    ],
+    "risers": [
+        ("RiserEvidence", "evidence", ["RecognitionResult.risers"]),
+        ("StepShoulder", "projection", []),
+    ],
+    "oriented-slots": [
+        ("PassageEnds", "nested", []),
+        ("SectionPassage", "nested", []),
+    ],
+    "turned-steps": [
+        ("TurnedProfile", "aggregate", []),
+        ("TurnedProfileKey", "nested", []),
+    ],
+}
+
+
+def _family_id(entrypoint: str) -> str:
+    return entrypoint.removeprefix("recognise_").replace("_", "-")
+
+
+def _registry_families() -> dict[str, dict[str, object]]:
+    """One FAMILIES entry per registry definition whose entry point the package exports."""
+
+    from quiddity._registry import DERIVED_DEFINITIONS, PHYSICAL_DEFINITIONS, Counted
+
+    exported = set(recognition.__all__)
+    families: dict[str, dict[str, object]] = {}
+    for definition in (*PHYSICAL_DEFINITIONS, *DERIVED_DEFINITIONS):
+        entrypoint = definition.public_entrypoint
+        if entrypoint not in exported:
+            continue
+        family_id = _family_id(entrypoint)
+        if family_id not in EVIDENCE:
+            raise KeyError(f"{family_id} is in the registry but has no EVIDENCE entry")
+        kind = "derived" if definition in DERIVED_DEFINITIONS else "part"
+        extra = EXTRA_RECORDS.get(family_id, [])
+        overridden = {name for name, _role, _membership in extra}
+        records = [
+            (record.__name__, "output", [f"RecognitionResult.{definition.result_field}"])
+            for record in definition.record_types
+            if record.__name__ not in overridden
+        ] + list(extra)
+        census = definition.census.key if isinstance(definition.census, Counted) else None
+        families[family_id] = {
+            "recognisers": [(entrypoint, kind)],
+            "records": records,
+            "census": census,
+            **EVIDENCE[family_id],
+        }
+    return families
+
+
+FAMILIES = _registry_families()
 
 RECORD_SCHEMA_VERSIONS = {
     "SectionEnd": 2,
@@ -519,7 +414,7 @@ def build_manifest() -> dict[str, object]:
             "census_output": census_output,
             "documentation": ["docs/capabilities.md#proven-recognition-capability"],
             "golden_evidence": sorted(
-                [f"tests/golden/{name}/expected.json" for name in spec["goldens"]]
+                [f"tests/golden/{name}/expected.json" for name in spec.get("goldens", [])]
                 + spec.get("golden_paths", [])
             ),
             "id": family_id,
