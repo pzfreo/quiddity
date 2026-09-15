@@ -216,24 +216,27 @@ the closed registry validator; an arbitrary lambda is rejected.
 Do not import `_registry` from a family module. The dependency direction is registry → family.
 See [ADR 0007](adr/0007-recogniser-module-seams.md).
 
-## 7. Wire the public aggregate deliberately
+## 7. Register the family at every site
 
-Add the record tuple to `RecognitionResult` and map it in `_project_result` using `_records`:
+The framework derives what it can from the registry: the aggregate projection, the manifest's
+record schemas, and the tests that compare each public surface with the registry. What remains is
+a fixed list of hand edits. Each is a deliberate contract with its own check, and
+`tests/test_adding_a_recogniser.py` keeps this table, its count and its coverage honest: every
+path below must exist, the number of files is pinned, and every exported family must be
+present at every site.
 
-```python
-example_features: tuple[ExampleFeature, ...]
-
-# In _project_result:
-example_features = tuple(_records(accepted, FamilyId.EXAMPLE_FEATURES, ExampleFeature))
-```
-
-Then update the independent public surfaces:
-
-- import and `__all__` in `quiddity/__init__.py`;
-- the manual capability metadata in `tools/generate_capability_manifest.py`;
-- `docs/capabilities.md` with the supported and excluded geometry;
-- census binding, or an explicit `NotCounted` reason;
-- snapshot/per-face tooling when it enumerates aggregate fields.
+| # | Site | Add | Checked by |
+| --- | --- | --- | --- |
+| 1 | `src/quiddity/_candidates.py` | the `FamilyId` member | `tests/test_registry.py` |
+| 2 | `src/quiddity/_registry.py` | the `PhysicalDefinition`, and a `DerivedDefinition` for a pattern | the registry validator |
+| 3 | `src/quiddity/result.py` | the typed result field; the projection is derived from the registry | `test_every_result_field_is_registry_owned_or_a_reviewed_exception` |
+| 4 | `src/quiddity/__init__.py` | the import and the `__all__` entry | `test_every_defined_public_recogniser_is_exported_and_snapshotted` |
+| 5 | `src/quiddity/census.py` | the census binding, or nothing when the family is `NotCounted` | `validate_census_contract` at import, and `tests/test_registry.py` |
+| 6 | `src/quiddity/_effective_surfaces.py` | a `SURFACE_READER_ROSTER` entry for the module and one `SURFACE_READER_SITES` entry per raw surface read | `test_effective_surface_reader_roster_covers_every_raw_classification` |
+| 7 | `tests/test_architecture.py` | `PUBLIC_MODULES`, the module's seam entry, the module in the `_registry` and `result` seam sets, and its arc-reader sites | that file's own tests |
+| 8 | `tools/generate_capability_manifest.py` | the family's `EVIDENCE` entry (goldens, tests, version), and an `EXTRA_RECORDS` entry for any nested, evidence, aggregate or projection record or a non-default role or membership; then regenerate `capabilities.json`. The entry point, its kind, the output record, its aggregate field and the census key come from the registry | `--check` in `tests/test_capability_manifest.py` |
+| 9 | `docs/capabilities.md` | the recogniser row and one row per record | `tests/test_capability_claims.py` |
+| 10 | `tests/test_golden_data.py`, `tests/test_golden_fixtures.py`, `tests/test_inventory_agreement.py`, `tests/test_recognition_result.py`, `tests/test_registry.py`, `tests/test_mfcadpp_corpus.py` | the family in each file's hand-kept roster: public recognisers, expected fixtures, shared and result-only census keys, derived fields, registry order, and the corpus census | those files' own tests, which fail on the new family until edited |
 
 Regenerate, do not hand-edit, the committed capability manifest:
 
@@ -241,9 +244,10 @@ Regenerate, do not hand-edit, the committed capability manifest:
 uv run python tools/generate_capability_manifest.py --write
 ```
 
-Public exports, result fields, registry metadata, record annotations, capability metadata, census
-bindings, and archive contents intentionally remain separate contracts. Tests compare them so a
-forgotten integration step fails visibly. See
+Measured on the gussets family (issue #602): sixteen files, now fifteen, plus the module itself,
+its fixtures and the goldens in the next section. A site that only restates what the registry
+already knows is a candidate for derivation; row 10 is six of them. A site that is a public
+contract stays, and its check is what makes forgetting it visible. See
 [ADR 0005](adr/0005-versioned-cross-repository-capability-contract.md).
 
 ## 8. Extend the semantic goldens deliberately
@@ -259,8 +263,8 @@ There are two different sources of golden data:
 
 For a package-originated family:
 
-1. add its recogniser name to the explicit package-originated list in
-   `tools/recognition_snapshot.py`;
+1. nothing in `tools/recognition_snapshot.py`, which finds the family from the exports, unless
+   the family belongs in its `post_baseline` set because the legacy snapshot must not show it;
 2. add its `individual` result and aggregate field to every `tests/golden/*/expected.json`;
 3. if it is `Counted`, add its census key to every expected census object;
 4. add a dedicated fixture whose geometry positively proves the new record when the existing
