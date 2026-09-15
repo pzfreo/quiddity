@@ -1213,12 +1213,16 @@ def _edge_open_circular_recess(
 #:
 #: A family listed here is collected *and* unioned. The explicit form needed both edits
 #: and silently dropped every record of the family if only the first was made.
-_CONVERGING_FAMILIES: tuple[tuple[FamilyId, type[Any], _RecessProjector], ...] = (
-    (FamilyId.PASSAGES, SectionPassage, _section_passage_recess),
-    (FamilyId.EDGE_OPEN_PRISMATIC_RECESSES, EdgeOpenPrismaticRecess, _edge_open_prismatic_recess),
-    (FamilyId.EDGE_OPEN_CIRCULAR_POCKETS, EdgeOpenCircularPocket, _edge_open_circular_recess),
-    (FamilyId.RECTANGULAR_BLIND_SLOTS, RectangularBlindSlot, _rectangular_blind_slot_recess),
-    (FamilyId.ROUND_BOTTOM_BLIND_SLOTS, RoundBottomBlindSlot, _round_bottom_blind_slot_recess),
+#:
+#: Record types are read from `PhysicalDefinition`, not restated: it declares a tuple
+#: because nothing requires a family to have exactly one type, so a family that gained a
+#: second would keep projecting and start raising here.
+_CONVERGING_FAMILIES: tuple[tuple[FamilyId, _RecessProjector], ...] = (
+    (FamilyId.PASSAGES, _section_passage_recess),
+    (FamilyId.EDGE_OPEN_PRISMATIC_RECESSES, _edge_open_prismatic_recess),
+    (FamilyId.EDGE_OPEN_CIRCULAR_POCKETS, _edge_open_circular_recess),
+    (FamilyId.RECTANGULAR_BLIND_SLOTS, _rectangular_blind_slot_recess),
+    (FamilyId.ROUND_BOTTOM_BLIND_SLOTS, _round_bottom_blind_slot_recess),
 )
 
 
@@ -1521,9 +1525,9 @@ def _project_result(
     )
     uniform_recesses = tuple(
         recess
-        for family, record_type, projector in _CONVERGING_FAMILIES
+        for family, projector in _CONVERGING_FAMILIES
         for recess in _project_recess_records(
-            _records(accepted, family, record_type),
+            _records(accepted, family, _PHYSICAL_BY_FAMILY[family].record_types),
             projector,
             context=context,
             evidence=evidence,
