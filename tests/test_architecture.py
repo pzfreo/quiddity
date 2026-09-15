@@ -540,6 +540,7 @@ MODULE_SEAM_EDGES = {
         "_bevel",
         "_candidates",
         "_claims",
+        "_definitions",
         "_geometry",
         "_record",
         "_solid_properties",

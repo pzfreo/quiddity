@@ -177,28 +177,53 @@ When using tolerances, choose the smallest local nominal that controls the compa
 `length_tol`. Keep dimensionless tolerances dimensionless. A minimum feature size is a deliberate
 manufacturing threshold, not a tolerance, and needs separate justification under ADR 0008.
 
-## 6. Add the family to the closed registry
+## 6. Declare the family, and list it in the closed registry
 
-Every physical aggregate family has one `FamilyId` and one ordered `PhysicalDefinition` in
-`_registry.py`.
+Every physical aggregate family has one `FamilyId` and one ordered `PhysicalDefinition`. The
+declaration lives at the tail of the family module, beside the code it describes; `_registry.py`
+lists it in execution order and validates it. See `gussets.py`, or `plates.py` for a family with a
+completed predecessor.
 
 ```python
-class FamilyId(Enum):
-    EXAMPLE_FEATURES = "example_features"
+# in example_features.py
+from quiddity._candidates import CompletedInputs
+from quiddity._definitions import (
+    Counted,
+    DiscoveryServices,
+    FullyAttributed,
+    ManifestEvidence,
+    PhysicalDefinition,
+    always,
+)
 
 
-PhysicalDefinition(
-    FamilyId.EXAMPLE_FEATURES,
-    (ExampleFeature,),
-    "example_features",
-    "recognise_example_features",
-    (),  # completed physical dependencies
-    always,  # discovery applicability
-    _example_adapter,  # aggregate discovery adapter
-    Counted("example"),  # or NotCounted("reason")
-    projected=always,  # public projection applicability
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(recognise_example_features(services.context.part, ledger=services.writer))
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.EXAMPLE_FEATURES,
+    record_types=(ExampleFeature,),
+    result_field="example_features",
+    public_entrypoint=recognise_example_features.__name__,
+    dependencies=(),  # completed physical families this one reads
+    applicable=always,  # discovery applicability
+    discover=_discover,
+    census=Counted("example"),  # or NotCounted("reason")
+    attribution=FullyAttributed("what every returned record claims"),
+    evidence=ManifestEvidence(goldens=("example_features",), tests=("tests/test_example.py",)),
 )
 ```
+
+```python
+# in _registry.py, in execution order
+    example_features.DEFINITION,
+```
+
+A declaration names its entry point by reference so a rename fails at import, and carries its own
+`ManifestEvidence`, so the capability manifest tool needs no `EVIDENCE` entry for it. A family with
+non-output records still needs its `EXTRA_RECORDS` entry there (#628).
 
 The registry owns orchestration metadata, not geometry:
 
