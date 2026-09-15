@@ -15,7 +15,15 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, TypeVar, cast
 
-from quiddity._candidates import FamilyId
+from quiddity._candidates import CompletedInputs, FamilyId
+from quiddity._definitions import (
+    DiscoveryServices,
+    FullyAttributed,
+    ManifestEvidence,
+    NotCounted,
+    PhysicalDefinition,
+    always,
+)
 from quiddity._geometry import AXIS_ALIGNED_COS
 from quiddity._geometry_evidence import GeometryEvidenceBridge
 from quiddity._record import Record
@@ -908,3 +916,57 @@ def _discover_polygonal_stock(
     for record, refs in pending:
         bridge.add_defining(record, refs, family=FamilyId.POLYGONAL_STOCK)
     return records
+
+
+# What this module's two families declare about themselves; `_registry` decides where they run.
+def _discover_boss_family(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(
+        _discover_polygonal_bosses(
+            services.context.part,
+            graph=services.context.geometry,
+            writer=services.writer,
+        )
+    )
+
+
+def _discover_stock_family(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(
+        _discover_polygonal_stock(
+            services.context.part,
+            graph=services.context.geometry,
+            writer=services.writer,
+        )
+    )
+
+
+# A module with more than one family names each declaration after its family, not `DEFINITION`,
+# so that the registry line says which one it is placing.
+BOSSES = PhysicalDefinition(
+    family=FamilyId.POLYGONAL_BOSSES,
+    record_types=(PolygonalBoss,),
+    result_field="polygonal_bosses",
+    public_entrypoint=recognise_polygonal_bosses.__name__,
+    dependencies=(),
+    applicable=always,
+    discover=_discover_boss_family,
+    census=NotCounted("not a distinct census key"),
+    attribution=FullyAttributed("every returned Polygonal Boss claims its six original side faces"),
+    evidence=ManifestEvidence(goldens=("polygonal_boss",)),
+)
+
+STOCK = PhysicalDefinition(
+    family=FamilyId.POLYGONAL_STOCK,
+    record_types=(PolygonalStock,),
+    result_field="polygonal_stock",
+    public_entrypoint=recognise_polygonal_stock.__name__,
+    dependencies=(),
+    applicable=always,
+    discover=_discover_stock_family,
+    census=NotCounted("stock context is not a machined feature"),
+    attribution=FullyAttributed(
+        "every returned Polygonal Stock owns its complete eight-face boundary"
+    ),
+    evidence=ManifestEvidence(goldens=("polygonal_stock",)),
+)

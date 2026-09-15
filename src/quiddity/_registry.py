@@ -24,6 +24,7 @@ from quiddity import (
     gussets,
     paired_ramp_steps,
     plates,
+    polygonal_bosses,
     profiled_bores,
     through_steps,
 )
@@ -98,12 +99,6 @@ from quiddity.passages import (
     Passage,
     SectionPassage,
     recognise_section_passages,
-)
-from quiddity.polygonal_bosses import (
-    PolygonalBoss,
-    PolygonalStock,
-    _discover_polygonal_bosses,
-    _discover_polygonal_stock,
 )
 from quiddity.prismatic_pockets import PrismaticPocket, recognise_prismatic_pockets
 from quiddity.rectangular_blind_slots import (
@@ -392,44 +387,8 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         Counted("boss"),
         FullyAttributed("every returned boss claims its original external segment faces"),
     ),
-    PhysicalDefinition(
-        FamilyId.POLYGONAL_BOSSES,
-        (PolygonalBoss,),
-        "polygonal_bosses",
-        "recognise_polygonal_bosses",
-        (),
-        always,
-        simple(
-            lambda s: list(
-                _discover_polygonal_bosses(
-                    s.context.part,
-                    graph=s.context.geometry,
-                    writer=s.writer,
-                )
-            )
-        ),
-        NotCounted("not a distinct census key"),
-        FullyAttributed("every returned Polygonal Boss claims its six original side faces"),
-    ),
-    PhysicalDefinition(
-        FamilyId.POLYGONAL_STOCK,
-        (PolygonalStock,),
-        "polygonal_stock",
-        "recognise_polygonal_stock",
-        (),
-        always,
-        simple(
-            lambda s: list(
-                _discover_polygonal_stock(
-                    s.context.part,
-                    graph=s.context.geometry,
-                    writer=s.writer,
-                )
-            )
-        ),
-        NotCounted("stock context is not a machined feature"),
-        FullyAttributed("every returned Polygonal Stock owns its complete eight-face boundary"),
-    ),
+    polygonal_bosses.BOSSES,
+    polygonal_bosses.STOCK,
     PhysicalDefinition(
         FamilyId.CHANNELS,
         (Channel,),
