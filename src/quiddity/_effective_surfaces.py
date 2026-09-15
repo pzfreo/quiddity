@@ -163,7 +163,7 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.TORUS_DEFERRED,
         "toroidal fillets are outside the four-primitive F1 seam",
     ),
-    "inspection": (
+    "_surface_facts": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "supported F7 inspection owns its bounded trimmed-surface anchor projection",
     ),
@@ -612,7 +612,7 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "Original planar stock faces establish both untreated ring mouths.",
     ),
-    "inspection:_surface_anchor:adaptor:1": (
+    "_surface_facts:_surface_anchor:adaptor:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "bounded inspection anchor over the same graph-owned original face",
     ),

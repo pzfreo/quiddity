@@ -4,9 +4,7 @@
 
 A leaf below every family module. It names the shapes a declaration takes and nothing about
 execution: the registry (`_registry`) is still the one ordered literal that says which families
-run and in what order, and it validates every declaration it lists. The run context is typed
-structurally here because the concrete `RecognitionContext` sits above the families in the
-import graph; a family module must never reach it.
+run and in what order, and it validates every declaration it lists.
 """
 
 from __future__ import annotations
@@ -14,13 +12,12 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Protocol, TypeAlias, TypeVar, cast
+from typing import TypeAlias, TypeVar, cast
 
-from quiddity._adjacency import FaceEdges, FaceGraph
 from quiddity._candidates import CompletedInputs, DerivedId, FamilyId
 from quiddity._claims import EvidenceWriter
-from quiddity._effective_surfaces import EffectiveFaceSurfaceQuery
-from quiddity._typing import CylinderInventory, Part
+from quiddity._run import RecognitionContext
+from quiddity._typing import CylinderInventory
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,35 +55,11 @@ class IncompleteAttribution:
 AttributionSpec: TypeAlias = FullyAttributed | IncompleteAttribution
 
 
-class RunFacts(Protocol):
-    """The neutral run context as a family adapter may read it.
-
-    `RecognitionContext` satisfies this structurally. The geometry graph and the F3b surface
-    index are left untyped: one sits above the families, the other is a guarded name only
-    reviewed modules may spell. An adapter that needs either annotates the one call site.
-    """
-
-    @property
-    def part(self) -> Part: ...
-    @property
-    def graph(self) -> FaceGraph: ...
-    @property
-    def face_edges(self) -> FaceEdges: ...
-    @property
-    def rotational(self) -> bool: ...
-    @property
-    def surfaces(self) -> object: ...
-    @property
-    def face_surfaces(self) -> EffectiveFaceSurfaceQuery: ...
-    @property
-    def geometry(self) -> object: ...
-
-
 @dataclass(frozen=True, slots=True)
 class DiscoveryServices:
     """Run facts and the sole write capability available to registry adapters."""
 
-    context: RunFacts
+    context: RecognitionContext
     writer: EvidenceWriter
     cylinders: CylinderInventory
 
@@ -122,16 +95,16 @@ class AcceptedInputs:
 
 
 PhysicalDiscoverer: TypeAlias = Callable[[DiscoveryServices, CompletedInputs], list[object]]
-Applicability: TypeAlias = Callable[[RunFacts], bool]
+Applicability: TypeAlias = Callable[[RecognitionContext], bool]
 DerivedDiscoverer: TypeAlias = Callable[[AcceptedInputs], list[object]]
 
 
-def always(context: RunFacts) -> bool:
+def always(context: RecognitionContext) -> bool:
     del context
     return True
 
 
-def prismatic(context: RunFacts) -> bool:
+def prismatic(context: RecognitionContext) -> bool:
     return not context.rotational
 
 

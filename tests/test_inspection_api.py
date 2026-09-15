@@ -35,6 +35,7 @@ from OCP.TopAbs import TopAbs_OUT
 import quiddity as recognition
 import quiddity.experimental_geometry as experimental
 import quiddity.inspection as inspection
+from quiddity import _surface_facts
 
 ROOT = Path(__file__).parents[1]
 MANIFEST = ROOT / "src" / "quiddity" / "inspection_api.json"
@@ -525,7 +526,7 @@ def test_inspection_anchor_falls_back_to_a_proved_outer_boundary(monkeypatch) ->
         def State(self):
             return TopAbs_OUT
 
-    monkeypatch.setattr(inspection, "_BRepClass_FaceClassifier", OutsideClassifier)
+    monkeypatch.setattr(_surface_facts, "_BRepClass_FaceClassifier", OutsideClassifier)
     face = max(Box(7, 9, 11).faces().filter_by(GeomType.PLANE), key=lambda item: item.center().Z)
 
     anchor = inspection.inspect_face(face).anchor
@@ -552,7 +553,7 @@ def test_inspection_omits_anchor_when_surface_bounds_are_invalid(monkeypatch) ->
             return 1.0
 
     face = Cylinder(3, 8).faces().filter_by(GeomType.CYLINDER)[0]
-    monkeypatch.setattr(inspection, "_BRepAdaptor_Surface", InvalidBounds)
+    monkeypatch.setattr(_surface_facts, "_BRepAdaptor_Surface", InvalidBounds)
 
     assert inspection.inspect_face(face).anchor is None
 

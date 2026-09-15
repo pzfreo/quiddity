@@ -88,7 +88,7 @@ MODULE_SEAM_EDGES = {
     "_manifest": set(),
     # What a family declares about itself (ADR 0003/0007): a leaf below every family module,
     # so it must never reach `_run`.
-    "_definitions": {"_adjacency", "_candidates", "_claims", "_effective_surfaces", "_typing"},
+    "_definitions": {"_adjacency", "_candidates", "_claims", "_run", "_typing"},
     "_outer_profile": {"_geometry", "_record"},
     "_outer_profile_geometry": {"_adjacency", "_geometry", "_outer_profile", "_typing"},
     "_corner_section": {"_adjacency", "_section_passages", "_sections", "_volume_probe"},
@@ -479,9 +479,12 @@ MODULE_SEAM_EDGES = {
         "_analytic_surfaces",
         "_blend_view",
         "_effective_surfaces",
+        "_surface_facts",
         "_typing",
-        "inspection",
     },
+    # The analytic surface-fact core, below every family, so the geometry facade and the run
+    # context never reach a family through the inspection facade's declared-feature readers.
+    "_surface_facts": {"_adjacency", "_effective_surfaces", "_typing"},
     # Supported F7 declaration-inspection surface. It projects the neutral analytic
     # substrate and re-exports only the four independently proven family readers.
     "inspection": {
@@ -489,6 +492,7 @@ MODULE_SEAM_EDGES = {
         "_bevel",
         "_effective_surfaces",
         "_manifest",
+        "_surface_facts",
         "_typing",
         "countersinks",
         "grooves",
@@ -1683,6 +1687,7 @@ def test_f3b_blend_index_and_view_have_only_reviewed_production_call_sites() -> 
         "blends.py",
         "experimental_geometry.py",
         "inspection.py",
+        "_surface_facts.py",
         "_run.py",
         "_blend_view.py",
         "_effective_surfaces.py",
@@ -1706,7 +1711,7 @@ def test_f3b_blend_index_and_view_have_only_reviewed_production_call_sites() -> 
         ("experimental_geometry.py", "BlendCollapseIndex.view"),
         ("experimental_geometry.py", "CollapsedGraphView.expand_arc"),
         ("experimental_geometry.py", "EffectiveSurfaceIndex"),
-        ("inspection.py", "EffectiveSurfaceIndex"),
+        ("_surface_facts.py", "EffectiveSurfaceIndex"),
         ("_run.py", "EffectiveSurfaceIndex"),
     }
     mutation_imports = """

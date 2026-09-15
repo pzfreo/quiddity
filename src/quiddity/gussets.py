@@ -20,19 +20,19 @@ from quiddity._adjacency import (
     neighbours,
 )
 from quiddity._body_identity import unambiguous_body_keys
-from quiddity._candidates import EvidenceSink, FamilyId
+from quiddity._candidates import CompletedInputs, EvidenceSink, FamilyId
 from quiddity._claims import ClaimLedger, EvidenceWriter
 from quiddity._definitions import (
     AcceptedInputs,
     Counted,
     DerivedDefinition,
     DerivedId,
+    DiscoveryServices,
     Evidence,
     FullyAttributed,
     NotCounted,
     PhysicalDefinition,
     prismatic,
-    simple,
 )
 from quiddity._geometry import length_tol
 from quiddity._pattern_geometry import _pattern_tol
@@ -401,25 +401,30 @@ def recognise_gusset_rib_patterns(
 
 
 # What this family declares about itself; `_registry` decides where it runs.
-DEFINITION = PhysicalDefinition(
-    FamilyId.GUSSET_RIBS,
-    (GussetRib,),
-    "gusset_ribs",
-    "recognise_gusset_ribs",
-    (),
-    prismatic,
-    simple(
-        lambda s: list(
-            _discover_gusset_ribs(
-                s.context.part,
-                graph=s.context.graph,
-                face_edges=s.context.face_edges,
-                sink=s.writer.sink,
-            )
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(
+        _discover_gusset_ribs(
+            services.context.part,
+            graph=services.context.graph,
+            face_edges=services.context.face_edges,
+            sink=services.writer.sink,
         )
+    )
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.GUSSET_RIBS,
+    record_types=(GussetRib,),
+    result_field="gusset_ribs",
+    public_entrypoint="recognise_gusset_ribs",
+    dependencies=(),
+    applicable=prismatic,
+    discover=_discover,
+    census=Counted("gusset_rib"),
+    attribution=FullyAttributed(
+        "every returned gusset rib claims both end caps, its slant and edge blends"
     ),
-    Counted("gusset_rib"),
-    FullyAttributed("every returned gusset rib claims both end caps, its slant and edge blends"),
     evidence=Evidence(
         goldens=("gusset_ribs",), tests=("tests/test_gussets.py",), introduced="0.2.10"
     ),
@@ -431,13 +436,13 @@ def _derive_patterns(inputs: AcceptedInputs) -> list[object]:
 
 
 PATTERNS = DerivedDefinition(
-    DerivedId.GUSSET_RIB_PATTERNS,
-    (GussetRibArray, GussetRibMirrorPair),
-    "gusset_rib_patterns",
-    "recognise_gusset_rib_patterns",
-    (FamilyId.GUSSET_RIBS,),
-    _derive_patterns,
-    NotCounted("a relation among already counted gusset ribs"),
+    identifier=DerivedId.GUSSET_RIB_PATTERNS,
+    record_types=(GussetRibArray, GussetRibMirrorPair),
+    result_field="gusset_rib_patterns",
+    public_entrypoint="recognise_gusset_rib_patterns",
+    sources=(FamilyId.GUSSET_RIBS,),
+    derive=_derive_patterns,
+    census=NotCounted("a relation among already counted gusset ribs"),
     evidence=Evidence(
         goldens=("gusset_rib_patterns",), tests=("tests/test_gussets.py",), introduced="0.2.10"
     ),

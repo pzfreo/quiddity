@@ -443,7 +443,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
             lambda s: list(
                 _discover_polygonal_bosses(
                     s.context.part,
-                    graph=s.context.geometry,  # type: ignore[arg-type]
+                    graph=s.context.geometry,
                     writer=s.writer,
                 )
             )
@@ -462,7 +462,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
             lambda s: list(
                 _discover_polygonal_stock(
                     s.context.part,
-                    graph=s.context.geometry,  # type: ignore[arg-type]
+                    graph=s.context.geometry,
                     writer=s.writer,
                 )
             )
@@ -645,7 +645,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
             lambda s: list(
                 discover_section_recesses(
                     writer=s.writer,
-                    surfaces=s.context.surfaces,  # type: ignore[arg-type]
+                    surfaces=s.context.surfaces,
                 )
             )
         ),
@@ -667,9 +667,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
                     s.context.part,
                     writer=s.writer,
                     face_surfaces=s.context.face_surfaces,
-                    # The geometry graph's module sits above the families, so the
-                    # declaration leaf types it as object (see `_definitions.RunFacts`).
-                    geometry=s.context.geometry,  # type: ignore[arg-type]
+                    geometry=s.context.geometry,
                 )
             )
         ),
@@ -864,7 +862,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
                 _discover_blends(
                     s.context.part,
                     graph=s.context.graph,
-                    surfaces=s.context.surfaces,  # type: ignore[arg-type]
+                    surfaces=s.context.surfaces,
                     writer=s.writer,
                 )
             )
