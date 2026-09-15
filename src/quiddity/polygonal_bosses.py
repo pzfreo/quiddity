@@ -919,8 +919,7 @@ def _discover_polygonal_stock(
 
 
 # What this module's two families declare about themselves; `_registry` decides where they run.
-# A module with more than one family names each declaration after its family, not `DEFINITION`.
-def _discover_bosses(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+def _discover_boss_family(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
     del inputs  # no completed predecessors
     return list(
         _discover_polygonal_bosses(
@@ -931,7 +930,7 @@ def _discover_bosses(services: DiscoveryServices, inputs: CompletedInputs) -> li
     )
 
 
-def _discover_stock(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+def _discover_stock_family(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
     del inputs  # no completed predecessors
     return list(
         _discover_polygonal_stock(
@@ -942,6 +941,8 @@ def _discover_stock(services: DiscoveryServices, inputs: CompletedInputs) -> lis
     )
 
 
+# A module with more than one family names each declaration after its family, not `DEFINITION`,
+# so that the registry line says which one it is placing.
 BOSSES = PhysicalDefinition(
     family=FamilyId.POLYGONAL_BOSSES,
     record_types=(PolygonalBoss,),
@@ -949,7 +950,7 @@ BOSSES = PhysicalDefinition(
     public_entrypoint=recognise_polygonal_bosses.__name__,
     dependencies=(),
     applicable=always,
-    discover=_discover_bosses,
+    discover=_discover_boss_family,
     census=NotCounted("not a distinct census key"),
     attribution=FullyAttributed("every returned Polygonal Boss claims its six original side faces"),
     evidence=ManifestEvidence(goldens=("polygonal_boss",)),
@@ -962,7 +963,7 @@ STOCK = PhysicalDefinition(
     public_entrypoint=recognise_polygonal_stock.__name__,
     dependencies=(),
     applicable=always,
-    discover=_discover_stock,
+    discover=_discover_stock_family,
     census=NotCounted("stock context is not a machined feature"),
     attribution=FullyAttributed(
         "every returned Polygonal Stock owns its complete eight-face boundary"

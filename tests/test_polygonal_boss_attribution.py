@@ -1148,7 +1148,7 @@ def test_private_core_has_one_declared_writer_caller_and_one_boss_constructor() 
             for node in module_tree.body
             if isinstance(node, ast.FunctionDef) and node.name == name
         )
-        for name in ("_discover_bosses", "recognise_polygonal_bosses")
+        for name in ("_discover_boss_family", "recognise_polygonal_bosses")
     )
     declared_call = next(
         node
