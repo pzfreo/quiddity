@@ -16,7 +16,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, fields, replace
 from enum import Enum
 from types import MappingProxyType
-from typing import TypeVar, cast
+from typing import Any, Protocol, TypeVar, cast
 
 from quiddity._candidates import Candidate, CandidateSet, EvidenceIndex, FamilyId
 from quiddity._claims import ClaimLedger
@@ -1200,6 +1200,28 @@ def _edge_open_circular_recess(
     )
 
 
+#: The families that converge on the unified recess view (ADR 0019) by the same route:
+#: take every accepted record of the family and hand it to one projector. Order is part
+#: of the contract -- `_unique_section_recesses` keeps the first of any duplicate pair,
+#: and these sit between the two families that need more than a projector, so the
+#: sequence below continues the one `_project_result` builds around it.
+#:
+#: The two exceptions stay spelled out there. Prismatic pockets are filtered against the
+#: regions a native recess already covers before projection, and corner pockets take a
+#: different route entirely: they read from two legacy families at once and record the
+#: regions they projected so refusals can tell a declined candidate from an absent one.
+#:
+#: A family listed here is collected *and* unioned. The explicit form needed both edits
+#: and silently dropped every record of the family if only the first was made.
+_CONVERGING_FAMILIES: tuple[tuple[FamilyId, type[Any], _RecessProjector], ...] = (
+    (FamilyId.PASSAGES, SectionPassage, _section_passage_recess),
+    (FamilyId.EDGE_OPEN_PRISMATIC_RECESSES, EdgeOpenPrismaticRecess, _edge_open_prismatic_recess),
+    (FamilyId.EDGE_OPEN_CIRCULAR_POCKETS, EdgeOpenCircularPocket, _edge_open_circular_recess),
+    (FamilyId.RECTANGULAR_BLIND_SLOTS, RectangularBlindSlot, _rectangular_blind_slot_recess),
+    (FamilyId.ROUND_BOTTOM_BLIND_SLOTS, RoundBottomBlindSlot, _round_bottom_blind_slot_recess),
+)
+
+
 def _unique_section_recesses(records: Iterable[SectionRecess]) -> tuple[SectionRecess, ...]:
     """Prefer the first truthful projection of one body-local physical face region."""
 
@@ -1440,7 +1462,26 @@ def _section_patterns(patterns, recesses, context, evidence, projected_regions=N
     return tuple(allocated)
 
 
-def _project_recess_records(records, projector, *, context, evidence):
+class _RecessProjector(Protocol):
+    """Translate one accepted family record into the unified recess view, or decline."""
+
+    def __call__(
+        self,
+        record: Any,
+        *,
+        context: RecognitionContext,
+        evidence: EvidenceIndex,
+        index: int,
+    ) -> SectionRecess | None: ...
+
+
+def _project_recess_records(
+    records: Iterable[Any],
+    projector: _RecessProjector,
+    *,
+    context: RecognitionContext,
+    evidence: EvidenceIndex,
+) -> tuple[SectionRecess, ...]:
     """Keep accepted evidence available when a single public value cannot be issued."""
 
     projected = []
@@ -1478,35 +1519,15 @@ def _project_result(
     prismatic_recesses = _project_recess_records(
         uncovered_prismatic, _prismatic_pocket_recess, context=context, evidence=evidence
     )
-    passage_recesses = _project_recess_records(
-        _records(accepted, FamilyId.PASSAGES, SectionPassage),
-        _section_passage_recess,
-        context=context,
-        evidence=evidence,
-    )
-    open_prismatic_recesses = _project_recess_records(
-        _records(accepted, FamilyId.EDGE_OPEN_PRISMATIC_RECESSES, EdgeOpenPrismaticRecess),
-        _edge_open_prismatic_recess,
-        context=context,
-        evidence=evidence,
-    )
-    open_circular_recesses = _project_recess_records(
-        _records(accepted, FamilyId.EDGE_OPEN_CIRCULAR_POCKETS, EdgeOpenCircularPocket),
-        _edge_open_circular_recess,
-        context=context,
-        evidence=evidence,
-    )
-    rectangular_blind_recesses = _project_recess_records(
-        _records(accepted, FamilyId.RECTANGULAR_BLIND_SLOTS, RectangularBlindSlot),
-        _rectangular_blind_slot_recess,
-        context=context,
-        evidence=evidence,
-    )
-    round_bottom_recesses = _project_recess_records(
-        _records(accepted, FamilyId.ROUND_BOTTOM_BLIND_SLOTS, RoundBottomBlindSlot),
-        _round_bottom_blind_slot_recess,
-        context=context,
-        evidence=evidence,
+    uniform_recesses = tuple(
+        recess
+        for family, record_type, projector in _CONVERGING_FAMILIES
+        for recess in _project_recess_records(
+            _records(accepted, family, record_type),
+            projector,
+            context=context,
+            evidence=evidence,
+        )
     )
     legacy_candidates: tuple[Pocket | Channel, ...] = (
         *_records(accepted, FamilyId.POCKETS, Pocket),
@@ -1528,11 +1549,7 @@ def _project_result(
         (
             *native_section_recesses,
             *prismatic_recesses,
-            *passage_recesses,
-            *open_prismatic_recesses,
-            *open_circular_recesses,
-            *rectangular_blind_recesses,
-            *round_bottom_recesses,
+            *uniform_recesses,
             *corner_recesses,
         )
     )
