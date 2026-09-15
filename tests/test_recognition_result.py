@@ -65,6 +65,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity.angled_steps as angled_steps_module
     import quiddity.chamfers as chamfers_module
     import quiddity.circular_blind_steps as circular_blind_steps_module
+    import quiddity.fillets as fillets_module
     import quiddity.gussets as gussets_module
     import quiddity.paired_ramp_steps as paired_ramp_steps_module
     import quiddity.plates as plates_module
@@ -265,7 +266,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
         return ()
 
     monkeypatch.setattr(result_module, "diagnose_residuals", fake_diagnostics)
-    monkeypatch.setattr(registry_module, "_discover_fillets", counted("fillets", []))
+    monkeypatch.setattr(fillets_module, "_discover_fillets", counted("fillets", []))
     # A declared family is patched where it lives; the registry no longer imports its core.
     monkeypatch.setattr(plates_module, "_discover_plates", counted("plates", []))
     monkeypatch.setattr(gussets_module, "_discover_gusset_ribs", counted("gusset_ribs", []))

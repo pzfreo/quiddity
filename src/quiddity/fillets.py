@@ -49,8 +49,16 @@ from quiddity._adjacency import (
     neighbours,
 )
 from quiddity._bevel import convex_bevel
-from quiddity._candidates import FamilyId
+from quiddity._candidates import CompletedInputs, FamilyId
 from quiddity._claims import EvidenceWriter
+from quiddity._definitions import (
+    Counted,
+    DiscoveryServices,
+    FullyAttributed,
+    ManifestEvidence,
+    PhysicalDefinition,
+    always,
+)
 from quiddity._features import analyse_cylinders
 from quiddity._geometry import AXIS_ALIGNED_COS, _coaxial_axis_lines, length_tol
 from quiddity._record import Record
@@ -310,3 +318,36 @@ def _discover_fillets(
         for record, node, _consulted in pending:
             writer.sink.propose(FamilyId.FILLETS, record, defining=(node,))
     return [proposal.record for proposal in out]
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(
+        _discover_fillets(
+            services.context.part,
+            min_radius=None,
+            max_radius_frac=0.45,
+            cyls=services.cylinders,
+            face_edges=services.context.face_edges,
+            include_cylindrical=not services.context.rotational,
+            writer=services.writer,
+        )
+    )
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.FILLETS,
+    record_types=(Fillet,),
+    result_field="fillets",
+    public_entrypoint=recognise_fillets.__name__,
+    dependencies=(),
+    applicable=always,
+    discover=_discover,
+    census=Counted("fillet"),
+    attribution=FullyAttributed("every returned fillet claims its original curved blend face"),
+    evidence=ManifestEvidence(
+        goldens=("chamfers_fillets_and_flats",),
+        tests=("tests/test_turned_chamfers.py",),
+    ),
+)

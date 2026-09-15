@@ -18,6 +18,7 @@ from quiddity import (
     angled_steps,
     chamfers,
     circular_blind_steps,
+    fillets,
     gussets,
     paired_ramp_steps,
     plates,
@@ -71,7 +72,6 @@ from quiddity.edge_open_prismatic_recesses import (
     EdgeOpenPrismaticRecess,
     recognise_edge_open_prismatic_recesses,
 )
-from quiddity.fillets import Fillet, _discover_fillets
 from quiddity.flats import Flat, _discover_flats
 from quiddity.grooves import Groove, recognise_grooves
 from quiddity.levels import (
@@ -770,29 +770,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         Counted("blend"),
         FullyAttributed("every returned Blend owns every original cylindrical chain patch"),
     ),
-    PhysicalDefinition(
-        FamilyId.FILLETS,
-        (Fillet,),
-        "fillets",
-        "recognise_fillets",
-        (),
-        always,
-        simple(
-            lambda s: list(
-                _discover_fillets(
-                    s.context.part,
-                    min_radius=None,
-                    max_radius_frac=0.45,
-                    cyls=s.cylinders,
-                    face_edges=s.context.face_edges,
-                    include_cylindrical=not s.context.rotational,
-                    writer=s.writer,
-                )
-            )
-        ),
-        Counted("fillet"),
-        FullyAttributed("every returned fillet claims its original curved blend face"),
-    ),
+    fillets.DEFINITION,
     plates.DEFINITION,
 )
 
