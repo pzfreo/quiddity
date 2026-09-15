@@ -161,7 +161,7 @@ def test_a_curved_face_classifies_and_a_conical_one_does_too():
 
     A cone's normal differs everywhere on it, so an arc against one has to be read where the
     faces meet. A groove's conical lead-in is exactly this shape, and it is the geometry
-    ADR 0004's amendment is about seeing across.
+    ADR 0004 is about seeing across.
     """
 
     assert _arcs(_bore()) == {"convex": 14}
