@@ -7,8 +7,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from quiddity._adjacency import FaceGraph, FaceNode, axis_aligned_axis
-from quiddity._candidates import EvidenceSink, FamilyId
+from quiddity._candidates import CompletedInputs, EvidenceSink, FamilyId
 from quiddity._claims import ClaimLedger, EvidenceWriter
+from quiddity._definitions import (
+    DiscoveryServices,
+    FullyAttributed,
+    NotCounted,
+    PhysicalDefinition,
+    prismatic,
+)
 from quiddity._record import Record
 from quiddity._typing import Part
 from quiddity.round_bottom_slots import (
@@ -225,3 +232,26 @@ def recognise_rectangular_blind_slots(
         for record, nodes in found:
             sink.propose(FamilyId.RECTANGULAR_BLIND_SLOTS, record, defining=nodes)
     return [record for record, _nodes in found]
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(recognise_rectangular_blind_slots(services.context.part, ledger=services.writer))
+
+
+# The package does not export this entry point, so the capability manifest has no entry for the
+# family, and the declaration below names no evidence.
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.RECTANGULAR_BLIND_SLOTS,
+    record_types=(RectangularBlindSlot,),
+    result_field="rectangular_blind_slots",
+    public_entrypoint=recognise_rectangular_blind_slots.__name__,
+    dependencies=(),
+    applicable=prismatic,
+    discover=_discover,
+    census=NotCounted("Counted once through the unified section_recess projection"),
+    attribution=FullyAttributed(
+        "every returned rectangular blind slot owns its two sides, floor, and cap"
+    ),
+)

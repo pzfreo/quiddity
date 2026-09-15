@@ -226,7 +226,8 @@ A declaration names its entry point by reference so a rename fails at import, an
 non-output records still needs its `EXTRA_RECORDS` entry there (#628). `introduced` defaults to the
 first release; set it only for a family added later. Name `tests` only where a test file is the
 evidence a consumer should read; a family whose goldens carry that weight names none, as
-`flats.py` and `grooves.py` do.
+`flats.py` and `grooves.py` do. A family whose entry point the package does not export has no
+manifest entry at all, so it declares no evidence either, as `rectangular_blind_slots.py` shows.
 
 `DEFINITION` is the name only where the module declares one family. A module declaring several
 families names each declaration after its family instead, as `polygonal_bosses.py` does with
@@ -287,6 +288,13 @@ present at every site.
 | 7 | `tests/test_architecture.py` | `PUBLIC_MODULES`, the module's seam entry, the module in the `_registry` and `result` seam sets, and its arc-reader sites | that file's own tests |
 | 8 | `docs/capabilities.md` | the recogniser row and one row per record | `tests/test_capability_claims.py` |
 | 9 | `tests/test_golden_fixtures.py`, `tests/test_registry.py`, `tests/test_mfcadpp_corpus.py` | the family in each file's deliberate pin: the expected fixture list, the registry order, and the corpus census counts | those files' own tests, which fail on the new family until edited |
+
+None of those sites is what a **migration** breaks. A family that already exists may have a
+`tools/benchmark_<name>.py` beside it, and those disable the family by rebinding its entry point
+on `_registry` -- a handle the declaration takes away. Retarget it at the family module, which is
+where the declaration resolves the name at call time. Only the two slot benchmarks are covered by
+a test (`tests/test_blind_slot_benchmark_comparison.py`); the rest fail silently, so grep
+`tools/benchmark_*.py` for the name being moved.
 
 Regenerate, do not hand-edit, the committed capability manifest:
 
