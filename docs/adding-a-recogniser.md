@@ -223,7 +223,28 @@ DEFINITION = PhysicalDefinition(
 
 A declaration names its entry point by reference so a rename fails at import, and carries its own
 `ManifestEvidence`, so the capability manifest tool needs no `EVIDENCE` entry for it. A family with
-non-output records still needs its `EXTRA_RECORDS` entry there (#628).
+non-output records still needs its `EXTRA_RECORDS` entry there (#628). `introduced` defaults to the
+first release; set it only for a family added later. Name `tests` only where a test file is the
+evidence a consumer should read; a family whose goldens carry that weight names none, as
+`flats.py` and `grooves.py` do.
+
+`_discover` may call either the public entry point or the module's private core. Call the core when
+the adapter must hand over something the public signature does not accept: the write capability in
+`fillets.py` and `flats.py`, whose public surfaces take none; the run's shared effective surfaces in
+`circular_blind_steps.py`, whose public entry point would rebuild them; the completed-predecessor
+exclusion in `plates.py`, whose public surface takes no writer either. Otherwise call the public
+entry point, as `grooves.py` does. `gussets.py` predates this rule and routes through its core
+although its public entry point would serve; do not copy it. Pin a core route with a test, so that
+no other package module can reach the capability-enabled one — `fillets.py`, `flats.py` and
+`plates.py` do, and `flats.py` is the smallest.
+
+The core takes the capability under whatever handle it needs, and the handle decides what it can
+read. `services.writer.sink` proposes without reading the graph, which suffices where the core
+receives the graph as its own parameter, as `gussets.py` and `circular_blind_steps.py` do. Pass the
+whole `services.writer` where the core reaches the graph through it, as `fillets.py`, `flats.py`
+and `plates.py` do. The parameter name is the core's, not the framework's: `ledger` and `writer`
+both receive `services.writer`, `sink` the narrower `services.writer.sink`. Read the signature, not
+the name.
 
 The registry owns orchestration metadata, not geometry:
 
