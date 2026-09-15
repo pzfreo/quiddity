@@ -25,6 +25,9 @@ one coordinate. The terms add rather than taking a maximum, so a small feature's
 mattering. A negative nominal raises; a NaN nominal propagates and the candidate fails closed.
 `_geometry.part_scale(bbox)` is the reference length for gates with no smaller feature to hand.
 
+Four older sites in `profiled_bores` and `repeating_profiles` use `max(tol, scale * k)`; they
+keep that form, and the additive policy governs new and converted sites.
+
 **Nominal is the smallest geometry that decides the comparison, not the part.** A diameter match
 scales with that diameter; an axial gap between coaxial bands with their diameter; a coordinate
 merge with no local feature scales with `part_scale`. A 0.5 mm merge band is right for a 3 mm
@@ -54,16 +57,21 @@ maximum on its meaningful side; reconstruction noise on either side of a tie is 
 **Kernel floors are not allowances.** `_geometry.COORD_FLOOR` (1e-6 model units) is the smallest
 separation at which the package asks OCCT to distinguish coincident geometry, used to inset probes
 and compare coordinates of one topological boundary. A material test still requires exactly zero
-volume. Numerical conditioning (factoring a known shared root out of an intersection test) is
+volume; the separate 1% volume allowance exists only to merge already-recognised collinear slot
+arms and never admits a candidate. Numerical conditioning (factoring a known shared root out of an intersection test) is
 never a reason to widen a recognition or publication allowance.
 
 **Same-geometry certificates are tolerances at the local scale.** Analytic recovery requests
 `1e-6 * local + COORD_FLOOR` with `local = min(sqrt(A), 2A/P)` over the original face; native
 analytic equivalence and blend-chain equality use `1e-9 * local + COORD_FLOOR` and
-`1 - abs(dot) <= 1e-9` for axes; smooth-side curvature is normalised by a local length with a
-`1e-6` gap. World bounds, rounded records and fitted radii are forbidden authorities for these.
+`1 - abs(dot) <= 1e-9` for axes and `1e-9` radians for cone semi-angles; smooth-side curvature is
+normalised by a local length with a `1e-6` gap. Each local nominal is defined at its site
+(`_effective_surfaces`, `_adjacency`, `_blend_view`) from the original face's own area, perimeter
+or radius, excluding seams and degenerate edges, and refuses when not finite and positive. Those
+coefficients change only by amending this record, never by corpus measurement. World bounds,
+rounded records, fitted radii and kernel-handle identity are forbidden authorities for these.
 
-**Publication is separate from recognition.** Record rounding (`round(x, 3)`, `FLOAT_DIGITS`) is
+**Publication is separate from recognition.** Record rounding (`round(x, 3)` in projections) is
 the public record contract, not a tolerance, and never admits a candidate. Section publication
 reconstructs the occurrence from its serialised basis and refuses when any boundary point moves
 by more than 0.002 mm; that bound is a publication check, not a discovery allowance.
@@ -82,7 +90,8 @@ air. The dimensionless fractions themselves are unchanged by that scoping.
 
 ## Consequences
 
-Public `tol=` keywords default to `None` and resolve to the derived value; a float keeps its
-meaning. No record schema changed. Parts far from the fixture corpus's scale classify
+Public `tol=` keywords default to `None` and resolve to the family's constant: absolute where the
+gate is a minimum-evidence threshold, derived where it is a tolerance. A float keeps its meaning.
+Moving a gate is a behaviour change and the release note says so. No record schema changed. Parts far from the fixture corpus's scale classify
 differently, which is the point. Grep cannot tell a threshold from a tolerance; classifying a site
 means reading its comparison, which is why the site audit lives in an issue rather than here.

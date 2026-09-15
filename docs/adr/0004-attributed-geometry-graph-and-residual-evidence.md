@@ -18,10 +18,11 @@ graph over B-rep faces. This record adopts the pattern, not the runtime or its a
 
 **One immutable per-run face graph** (`FaceGraph` in `_adjacency`). Nodes are original faces,
 identified by run-local `FaceNode` handles. Arcs are shared boundaries carrying `ArcKind`
-(concave, convex, smooth) and, where proven, a `SmoothSide` material-side enrichment. Closed-solid
+(concave, convex, smooth, unknown) and, for smooth pairs, a `SmoothSide` of neutral, convex,
+concave or unproven. Closed-solid
 ownership is issued as `SolidRef`; `common_valid_solid(nodes)` is the one body-provenance proof,
-and every non-empty defining set must resolve to one valid solid before publication. Consumers
-query the graph; nothing mutates or substitutes it.
+and every non-empty, non-legacy defining set must resolve to one valid solid before publication
+and again from frozen evidence. Consumers query the graph; nothing mutates or substitutes it.
 
 **Named layers above the graph, all opt-in.**
 
@@ -29,10 +30,14 @@ query the graph; nothing mutates or substitutes it.
   refused analytic fact per original node. Recovered geometry is unoriented until a
   `MaterialSideCertificate` is proved by bounded solid probes on the exact original face; a
   canonical axis sign is never material-side evidence. Consumers receive a `SurfaceUse` that
-  retains the original node. Recovery is enabled only for the reviewed OCP/OCCT binding.
+  retains the original node. For a cylinder the certificate's radial sign, never its sample
+  vector, distinguishes an outer diameter from a bore. Recovery is enabled only for the reviewed
+  OCP/OCCT binding, and a family attaches recovered dependencies only after its own migration
+  is measured.
 - The blend-collapsed view (`_blend_view`) hides selected cylindrical blend faces from logical
   incidence. Every logical node expands to complete original provenance; the view cannot issue
-  Candidates, and its consumers are a reviewed roster.
+  Candidates, logical nodes never enter records or evidence, and its consumers are a reviewed
+  roster.
 - Seeing through a blend or across a split face is a **named query a recogniser asks for**, never a
   widened default adjacency. Making blended neighbours simply neighbours would move every family's
   answers at once, which the characterisation corpus forbids.

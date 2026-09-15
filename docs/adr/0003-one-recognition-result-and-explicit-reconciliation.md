@@ -19,12 +19,15 @@ cannot distinguish absence, ambiguity, rejection and unsupported topology.
 explanations, the evidence view, the section-recess document and the framed routes are
 projections of that one inventory. A view counts or filters; it never re-runs recognition. Where
 a view deliberately differs, the difference is a named rule over the shared inventory, such as
-`steps_that_are_not_grooves` in the census.
+`steps_that_are_not_grooves` in `_reconcile`, which the census consumes as `distinct_steps`.
 
-**One lifecycle.** The run derives its shared state once and owns it as one object (`_run`): face
-graph, cylinder scan, face-edge memo, claim ledger. It then completes every applicable physical
+**One lifecycle.** The run derives its neutral shared state once and owns it as one
+`RecognitionContext` (`_run`): face graph, cylinder scan, face-edge memo, surface index. Evidence
+is deliberately outside it; the ledger and candidates belong to the inventory phase in `result`.
+The run then completes every applicable physical
 family through the closed registry (`_registry`); binds each returned occurrence to exactly one
-family-scoped Candidate through a write-only `EvidenceSink`; seals evidence once into a read-only
+family-scoped Candidate through a write-only `EvidenceSink`, atomically per family, so a family
+whose validation fails publishes no partial prefix; seals evidence once into a read-only
 `EvidenceIndex`; reconciles; derives pattern records from accepted members; and projects. The seal
 rejects later proposals and a second seal.
 
@@ -37,10 +40,14 @@ an interpretation of it, and separating them keeps the graph immutable and reusa
 **Reconciliation is named policy.** The rules are the functions in `_reconcile.py`; they receive
 completed candidates and the frozen index, never a `Part`, a mutable ledger or a recogniser. Every
 physical candidate receives exactly one identity-preserving `Disposition`: accepted, or rejected
-with a closed reason from `ReconciliationReason` and the winning or compatible candidates in
-`related`. Overlapping claims are evidence, not a verdict: a pattern and its members both survive;
+with a closed private `ReasonCode`, projected publicly as `ReconciliationReason`, and the winning
+or compatible candidates in `related`. Which family wins each named conflict is stated in the
+rule's docstring in `_reconcile.py`. Overlapping claims are evidence, not a verdict: a pattern and its members both survive;
 a TurnedStep and a Groove describing one band both survive and only the census count corrects.
-Empty defining evidence proves neither containment nor compatibility.
+Empty defining evidence proves neither containment nor compatibility. Rules compare defining
+evidence; one rule, prismatic pockets against blind slots, also reads constituent membership, and
+any further such read is a reviewed change. The legacy `passages` projection is derived from
+accepted occurrences and never feeds reconciliation, census or evidence backward.
 
 **Identity.** Record identity is derived from geometry under documented tolerance, never from
 Python identity, kernel traversal order, labels or a solid enumeration index. Run-local handles
@@ -73,5 +80,7 @@ Consumer lifecycle caches are outside the result.
 ## Consequences
 
 Consumers receive one explainable feature universe. Adding a family means one registry entry and,
-where it overlaps an existing family, one named rule with evidence from both sides. Temporary
-partial results must say which families were not evaluated.
+where it overlaps an existing family, one named rule with evidence from both sides. Which
+families were evaluated for a run is published by the explanation report
+([ADR 0005](0005-versioned-cross-repository-capability-contract.md)); `RecognitionResult` itself
+carries no such field.

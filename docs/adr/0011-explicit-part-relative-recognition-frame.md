@@ -20,7 +20,7 @@ hiding normalisation inside the existing entry point would silently change what 
 ## Decision
 
 **An explicit, geometry-established frame.** `infer_part_frame` returns a right-handed
-`PartFrame(origin, x, y, z)` or a typed `RefusedPartFrame`. Inference is closed: `FrameGauge`
+`PartFrame(origin, x, y, z, gauge)` or a typed `RefusedPartFrame`. Inference is closed: `FrameGauge`
 records what geometry established (`FULL`, `ORTHOGONAL`, `AXIAL`); a remaining roll or axis
 assignment is a deterministic representative, never a semantic material axis. Refusal never
 falls back to raw recognition.
@@ -29,12 +29,13 @@ falls back to raw recognition.
 places the part by rigid `TopLoc` (changing evaluated coordinates without rebuilding topology) and
 scans cylinders once, returning a `PreparedFramedPart`. The consumer derives any local
 classification from that exact value and calls `recognise(rotational=...)`, `recognise_report()`
-or the evidence variant; each runs the one aggregate. The successful value owns the frame, the
-exact working shape and the `RecognitionResult`; every coordinate, record and axis letter in it is
-local to that frame. `build_framed_recognition_result` delegates through the prepared lifecycle.
+or the evidence variant; each runs the one aggregate and returns a `FramedRecognitionResult`
+owning the frame, the exact working shape and the `RecognitionResult`; every coordinate, record
+and axis letter in it is local to that frame. `build_framed_recognition_result` delegates through the prepared lifecycle.
 
 **The raw route is named.** `build_raw_recognition_result` operates in caller coordinates.
-`build_recognition_result` is its compatibility alias and will never silently become framed.
+`build_recognition_result` is its compatibility alias, scheduled for removal in 0.5.0, and will
+never silently become framed.
 
 **Families are covariant with the supplied frame; none reframes.** An `ORTHOGONAL` frame may map
 a physical direction to any local principal axis, so a family must not assume Z or resolve ties by
@@ -57,7 +58,7 @@ The 20-fixture golden inventory is invariant occurrence by occurrence under Z30,
 translation after independent inference (75/75). On the first 500 MFCAD++ test-split models all
 infer a full frame; framed X30-plus-translation retains all 2,750 baseline occurrences with one
 extra Slot fragment on one model, recorded as a bounded limitation. Inference and normalisation
-cost 3.7% of framed recognition time.
+cost 3.8% of framed recognition time.
 
 ## Enforced by
 
@@ -70,4 +71,4 @@ cost 3.7% of framed recognition time.
 Callers separate placement from recognition semantics without a free-axis record migration.
 Unconstrained roll is explicit gauge rather than a hidden axis. The cost is that every family
 migrating onto the framed route must be audited for a hidden Z or XYZ-order assumption, and that
-the raw alias must live until its removal is a release decision of its own.
+the raw alias must live until 0.5.0.

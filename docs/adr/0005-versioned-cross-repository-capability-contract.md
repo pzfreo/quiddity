@@ -28,7 +28,7 @@ consumer's workflow needed one analytic fact off one face.
 1. **Recognition.** The `recognise_*` entry points, public records, `RecognitionResult`, census
    and the framed routes. Contract: `capabilities.json` (`quiddity-capabilities`, format 2),
    returned by `capability_manifest()` and validated by `validate_capability_manifest`.
-2. **Explanations.** `build_recognition_report` and its raw and framed variants run the one
+2. **Explanations.** `build_raw_recognition_report` and its framed variant run the one
    aggregate and return the unchanged result beside one entry per closed physical family in
    registry order: evaluated or not-applicable, proposed/accepted/rejected counts, closed
    `ReconciliationReason` summaries, and residual diagnostics projected from frozen evidence.
@@ -36,8 +36,10 @@ consumer's workflow needed one analytic fact off one face.
    not that nothing was missed. Counts are detector candidates, not public occurrences, since
    accepted candidates can converge on one `SectionRecess`. `RecognitionResult` gains no field.
    The compatibility surface is the immutable Python types; there is no JSON form.
-3. **Inspection.** One closed analytic fact off one face so a declared feature and a detected one
-   agree. Contract: `inspection_api.json` (`quiddity-inspection-api`, format 1).
+   `build_recognition_report` is the raw compatibility alias, as for results.
+3. **Inspection.** The declared-feature roster: `inspect_face` plus the four declared-feature
+   reads (countersink rims, bevel classification, double-D tool, pocket floor anchor), each one
+   closed fact off one face so a declared feature and a detected one agree. Contract: `inspection_api.json` (`quiddity-inspection-api`, format 1).
 4. **Evidence.** A run-local read-only view over one completed run: opaque `FeatureRef` and
    `FaceRef`, each feature's record, defining faces and constituent faces (`defining` a required
    subset), and association coverage with explicit denominators. References compare by same-view
@@ -52,19 +54,23 @@ correspondence, withdrawn on 2026-09-14 for want of a consumer.
 
 **The capability manifest.** Families are named by permanent lower-case identifiers
 (`holes`, `hole-patterns`) that survive any rename of module, function or class; a rename is an
-alias with deprecation and removal versions. Every exported `recognise_*` and every exported
+alias with deprecation and removal versions, kept for at least one major-version cycle. Every exported `recognise_*` and every exported
 record appears exactly once under one owning family with: `status` (`supported`, `deferred`,
-`unsupported`), `introduced_in`, recognisers with `kind` and `role` (`physical`,
-`compatibility`, `derived`), records with a positive `schema_version` describing the serialised
-`to_dict()` contract, `census_name` and `census_output` or a rationale, and golden, test and
-documentation evidence paths that must exist in the source archive. Package CI derives the real
+`unsupported`), `introduced_in`, `recognisers` each with `kind` (`part`, `derived`) and `role`
+(`physical`, `compatibility`, `derived`), `records` each with a positive `schema_version`
+describing the serialised `to_dict()` contract and a record `role`, `census_name` and
+`census_output` or a `census_rationale`, and `golden_evidence`, `test_evidence` and
+`documentation` paths that must exist in the source archive. Package CI derives the real
 inventory independently and fails closed on anything unlisted, duplicated, stale or misordered;
-canonical expected data is input to that check, never rewritten by it.
+canonical expected data is input to that check, never rewritten by it. A wheel's manifest data
+is identical to the sdist's. A later format may grow only through a namespaced `extensions`
+object whose entries declare whether a reader may ignore them; unknown fields otherwise fail.
 
 **The consumer side is the consumer's.** A consumer keeps its own declaration pinning a package
 version range, manifest format and every record schema it reads, and validates it only against
 the installed package's public surface. Unknown families are never silently treated as
-geometry-only or mapped to a generic feature.
+geometry-only or mapped to a generic feature. The consumer-side states and their transition
+rules are the consumer's own record; this one governs package releases only.
 
 **Compatibility events.**
 
@@ -73,7 +79,7 @@ geometry-only or mapped to a generic feature.
 | Add a supported family, an optional record field, or a record `schema_version` | Package minor; consumer accepts explicitly before use |
 | Fix prose or an evidence path | Patch |
 | Required field, changed meaning/unit/type, removal, or identifier reuse | Next minor before 1.0, major after; alias and deprecation first where representable |
-| New `ReconciliationReason` value | Public enum addition with a private/public parity guard; not a schema or manifest event |
+| `ReconciliationReason` value added | Public enum addition with a private/public parity guard; not a schema or manifest event. Removing or changing a value is a compatibility event |
 | Any `format_version` increase | New schema major; readers reject until upgraded |
 
 Pre-1.0 is not permission for silent drift. One recorded exception: the free-axis Slot successor
@@ -81,10 +87,12 @@ shipped in a patch release by the owner's explicit override; its additive requir
 
 ## Enforced by
 
-- The three validators and their manifest tests; `tests/test_capability_claims.py`;
-  the consumer typing check in `tests/typing/`.
-- `tests/test_architecture.py`: every exported recogniser is defined, exported and snapshotted;
-  `experimental_geometry` absent from root exports; correspondence absent.
+- `validate_capability_manifest`, `validate_inspection_api_manifest` and the evidence manifest's
+  internal check, with their manifest tests; `tests/test_capability_claims.py`; the consumer
+  typing check in `tests/typing/`.
+- `tests/test_architecture.py`: every defined public recogniser is exported; correspondence
+  absent. `tests/test_experimental_geometry.py` and `tests/test_inspection_api.py` keep
+  `experimental_geometry` out of the root.
 - Evidence and explanation tests: forged, copied and cross-view references refuse;
   `defining ⊆ constituent`; the report's result is the same object as the plain run's.
 

@@ -18,45 +18,55 @@ reordered result, no new public import path.
 **Private implementation modules behind thin public facades.** Every module added since is
 private (`_name.py`) unless a reviewed public contract says otherwise. The public module roster is
 closed and listed as `PUBLIC_MODULES` in `tests/test_architecture.py`. A public family module
-re-exports from its private core with object identity, signature, serialisation and `__module__`
-preserved; it is never a second implementation.
+re-exports from its private core with object identity and `__module__` preserved; it is never a
+second implementation.
 
-**The seam table is the record.** The allowed dependency edges between private modules are the
-dictionary `MODULE_SEAM_EDGES` in `tests/test_architecture.py`, one entry per module with a
-comment where the reason is not obvious. This file no longer restates that table. Adding a module
-or an edge means adding it there in the same PR, and the review of that edge is the architecture
-review. An edge the table does not list fails the suite.
+**The seam table is the record.** The allowed dependency edges between modules are the
+dictionary `MODULE_SEAM_EDGES` in `tests/test_architecture.py`, with a comment where the reason
+is not obvious. This file no longer restates that table. Adding a module or an edge means adding
+it there in the same PR, and the review of that edge is the architecture review. For a listed
+module, an edge the table does not list fails the suite. The table is partial: 65 modules are
+listed and 27 are not, among them 14 public family modules (`levels`, `passages`, `plates`,
+`chamfers`, `turned` and others) and the top-level facades. An unlisted module is bound only by
+acyclicity and the rules below. Closing that gap is a listed-module-at-a-time review, not a
+decision this record has taken.
 
-**Layers, bottom up.** The table encodes an acyclic layering; the first five are strictly
-ordered by import depth, and a public facade sits wherever its inputs are:
+**Layers, bottom up.** The table is acyclic (`test_module_graph_is_acyclic`). The layers below
+are the intended reading of it, not a theorem: a few reviewed exceptions (a family facade
+importing `result` inside a function, `_run` reaching `experimental_geometry`) and the helper
+modules that sit between layers are recorded as comments in the table:
 
 1. Leaves: `_typing`, `_record`, `_manifest`, `_solid_properties`, `_geometry`.
 2. The graph: `_analytic_surfaces`, `_adjacency`.
 3. Shared substrates and evidence primitives that scan or probe once and publish no record:
    `_effective_surfaces`, `_blend_view`, `_cylinder_substrate`, `_volume_probe`, `_wire_seed`,
    `_support_patches`, and the run-local evidence types `_candidates`, `_claims`, `_dispositions`.
+   `experimental_geometry` sits here too: a public wrapper over the graph and surface index with
+   a reviewed consumer roster (`_run`, `_geometry_evidence`, `pads`, `polygonal_bosses`).
 4. Family cores and shared proofs (`_hole_features`, the `_recess_*`, `_section_*` and
    `_cylindrical_*` modules) and the public family modules over them.
 5. Orchestration: `_reconcile`, `_run`, `_registry`, `result`.
 6. Projections and facades: `census`, `explanations`, `evidence`, `inspection`, `capabilities`,
    `frames`, `document`, `step_io`, `cli`.
 
-A lower layer never imports a higher one. Interpretation depends on geometric fact; the reverse
-edge is what would make the graph mutable, so it stays absent.
+Interpretation depends on geometric fact; the reverse edge, a graph module importing a
+recogniser, is what would make the graph mutable, so it stays absent.
 
 **Rules the seams protect.**
 
 - One scan per run: shared inventories are computed in a substrate and injected downward, never
   duplicated in a family module. Recess families share one face inventory; pattern modules are
   record-agnostic and perform no topology scan.
-- Family modules interpret injected evidence and do not import sibling recognisers.
+- Family modules interpret injected evidence and never call a sibling recogniser; importing a
+  sibling's record type or helper is allowed.
 - The reconciler imports no discovery module and calls no recogniser.
 - Migrated discovery cores receive a write-only evidence sink, never an index they could read.
-- Some private modules have a reviewed consumer roster rather than an open edge: `_blend_view`,
-  `_manifest`, `_section_adapters`. A new consumer is a reviewed change to that roster.
-- Where a family's public values are not injective occurrence keys, as for Step Levels and Risers,
-  no writer seam is added: it would have to choose a source by traversal order or publish a
-  cross-solid defining set.
+- Some modules have a reviewed consumer roster rather than an open edge: `_blend_view`,
+  `_manifest`, `_section_adapters`, `experimental_geometry`. A new consumer is a reviewed change
+  to that roster.
+- Step Levels and Risers issue occurrences through the same writer seam as every other family.
+  Their public values are not injective occurrence keys, so the writer binds each occurrence to
+  its own body-local faces rather than rematching by value.
 
 ## Enforced by
 
