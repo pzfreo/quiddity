@@ -68,8 +68,16 @@ from quiddity._adjacency import (
     neighbours,
 )
 from quiddity._bevel import BevelReject, classify_bevel, convex_bevel
-from quiddity._candidates import FamilyId
+from quiddity._candidates import CompletedInputs, FamilyId
 from quiddity._claims import ClaimLedger, EvidenceWriter
+from quiddity._definitions import (
+    Counted,
+    DiscoveryServices,
+    FullyAttributed,
+    ManifestEvidence,
+    PhysicalDefinition,
+    always,
+)
 from quiddity._features import analyse_cylinders
 from quiddity._geometry import (
     AXIS_ALIGNED_COS,
@@ -293,3 +301,33 @@ def recognise_chamfers(
                 family=FamilyId.CHAMFERS,
             )
     return [chamfer for chamfer, _ in out]
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(
+        recognise_chamfers(
+            services.context.part,
+            cyls=services.cylinders,
+            ledger=services.writer,
+            face_edges=services.context.face_edges,
+            include_planar=not services.context.rotational,
+        )
+    )
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.CHAMFERS,
+    record_types=(Chamfer,),
+    result_field="chamfers",
+    public_entrypoint=recognise_chamfers.__name__,
+    dependencies=(),
+    applicable=always,
+    discover=_discover,
+    census=Counted("chamfer"),
+    attribution=FullyAttributed("every returned chamfer claims its defining bevel face"),
+    evidence=ManifestEvidence(
+        goldens=("chamfers_fillets_and_flats",), tests=("tests/test_turned_chamfers.py",)
+    ),
+)
