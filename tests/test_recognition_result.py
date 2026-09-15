@@ -66,6 +66,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity.chamfers as chamfers_module
     import quiddity.circular_blind_steps as circular_blind_steps_module
     import quiddity.fillets as fillets_module
+    import quiddity.flats as flats_module
     import quiddity.gussets as gussets_module
     import quiddity.paired_ramp_steps as paired_ramp_steps_module
     import quiddity.plates as plates_module
@@ -160,7 +161,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
         derived("oriented_slot_patterns", [], []),
     )
     monkeypatch.setattr(registry_module, "recognise_grooves", cyl_consumer("grooves", []))
-    monkeypatch.setattr(registry_module, "_discover_flats", cyl_consumer("flats", []))
+    monkeypatch.setattr(flats_module, "_discover_flats", cyl_consumer("flats", []))
     monkeypatch.setattr(registry_module, "_discover_pockets", counted("pockets", pockets))
     monkeypatch.setattr(
         registry_module, "recognise_section_passages", counted("passages", passages)

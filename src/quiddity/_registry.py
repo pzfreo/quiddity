@@ -19,6 +19,7 @@ from quiddity import (
     chamfers,
     circular_blind_steps,
     fillets,
+    flats,
     gussets,
     paired_ramp_steps,
     plates,
@@ -72,7 +73,6 @@ from quiddity.edge_open_prismatic_recesses import (
     EdgeOpenPrismaticRecess,
     recognise_edge_open_prismatic_recesses,
 )
-from quiddity.flats import Flat, _discover_flats
 from quiddity.grooves import Groove, recognise_grooves
 from quiddity.levels import (
     FaceLevel,
@@ -528,26 +528,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         Counted("groove"),
         FullyAttributed("every returned groove claims its defining groove faces"),
     ),
-    PhysicalDefinition(
-        FamilyId.FLATS,
-        (Flat,),
-        "flats",
-        "recognise_flats",
-        (),
-        always,
-        simple(
-            lambda s: list(
-                _discover_flats(
-                    s.context.part,
-                    cyls=s.cylinders,
-                    face_edges=s.context.face_edges,
-                    writer=s.writer,
-                )
-            )
-        ),
-        Counted("flat"),
-        FullyAttributed("every returned flat claims its defining planar truncation face"),
-    ),
+    flats.DEFINITION,
     PhysicalDefinition(
         FamilyId.POCKETS,
         (Pocket,),
