@@ -1066,34 +1066,70 @@ def test_foreign_writer_refuses_before_publication() -> None:
     assert foreign.candidate_set_for(FamilyId.DOUBLE_D_BORES, ()).candidates == ()
 
 
-def test_only_registry_may_call_writer_enabled_core() -> None:
-    root = Path(__file__).parents[1]
-    sites: list[tuple[str, bool]] = []
-    importers: list[str] = []
-    for path in (root / "src").rglob("*.py"):
+def _callee_name(func: ast.expr) -> str | None:
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return None
+
+
+def test_only_the_declaration_may_call_writer_enabled_core() -> None:
+    package = Path(__file__).parents[1] / "src" / "quiddity"
+    importers = set()
+    for path in package.glob("*.py"):
         if path.name == "profiled_bores.py":
             continue
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        if any(
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        direct = any(
             isinstance(node, ast.ImportFrom)
             and node.module == "quiddity.profiled_bores"
             and any(alias.name == "_discover_double_d_bores" for alias in node.names)
             for node in ast.walk(tree)
-        ):
-            importers.append(path.name)
-        for qualified, node in _qualified_calls(tree):
-            if qualified == "quiddity.profiled_bores._discover_double_d_bores":
-                sites.append(
-                    (
-                        path.name,
-                        any(
-                            keyword.arg == "writer" and ast.unparse(keyword.value) == "s.writer"
-                            for keyword in node.keywords
-                        ),
-                    )
-                )
-    assert importers == ["_registry.py"]
-    assert sites == [("_registry.py", True)]
+        )
+        qualified = any(
+            isinstance(node, ast.Attribute) and node.attr == "_discover_double_d_bores"
+            for node in ast.walk(tree)
+        )
+        if direct or qualified:
+            importers.add(path.name)
+    # The declared adapter reaches the core from inside the family module, so no other module
+    # names it at all. The route stays closed by the same argument as before.
+    assert importers == set()
+
+    # Two call sites, both here: the declared adapter and the public entry point. A third route
+    # into the writer-enabled core would be invisible to the sweep above, which skips this file.
+    call_sites = []
+    for path in package.glob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"), filename=str(path))):
+            if isinstance(node, ast.Call) and _callee_name(node.func) == "_discover_double_d_bores":
+                call_sites.append(path.name)
+    assert call_sites == ["profiled_bores.py", "profiled_bores.py"]
+
+    tree = ast.parse((package / "profiled_bores.py").read_text(encoding="utf-8"))
+    declared = next(
+        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_discover"
+    )
+    call = next(
+        node
+        for node in ast.walk(declared)
+        if isinstance(node, ast.Call) and _callee_name(node.func) == "_discover_double_d_bores"
+    )
+    writer = next(keyword.value for keyword in call.keywords if keyword.arg == "writer")
+    assert isinstance(writer, ast.Attribute) and writer.attr == "writer"
+    assert isinstance(writer.value, ast.Name) and writer.value.id == "services"
+
+    public = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "recognise_double_d_bores"
+    )
+    public_call = next(
+        node
+        for node in ast.walk(public)
+        if isinstance(node, ast.Call) and _callee_name(node.func) == "_discover_double_d_bores"
+    )
+    assert not any(keyword.arg == "writer" for keyword in public_call.keywords)
 
 
 def test_constructor_and_void_prism_path_roster_is_closed() -> None:

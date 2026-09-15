@@ -71,6 +71,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity.gussets as gussets_module
     import quiddity.paired_ramp_steps as paired_ramp_steps_module
     import quiddity.plates as plates_module
+    import quiddity.profiled_bores as profiled_bores_module
     import quiddity.result as result_module
     import quiddity.through_steps as through_steps_module
     from quiddity._candidates import EvidenceIndex
@@ -139,7 +140,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     )
     monkeypatch.setattr(registry_module, "_discover_holes", fake_holes)
     monkeypatch.setattr(
-        registry_module,
+        profiled_bores_module,
         "_discover_double_d_bores",
         counted("double_d_bores", []),
     )
