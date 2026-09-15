@@ -84,18 +84,27 @@ def assert_core_route_is_closed(
 ) -> None:
     """Assert only *module*'s *declaration* reaches *core* with the run's capabilities.
 
-    *handed_over* maps every keyword the declaration passes to the source text of the expression
-    it must pass, and it is exhaustive: a handle added later without being pinned fails here. That
-    matters in both directions -- dropping ``face_surfaces`` from the pads declaration is
-    type-valid and silently rebuilds a surface graph the run already has.
+    *handed_over* maps every keyword the declaration passes to the ``ast.unparse`` form of the
+    expression it must pass -- normal form, not the source text, so ``0.30`` is pinned as ``0.3``
+    and reformatting or parenthesising an expression does not fail. It is exhaustive: a handle
+    added later without being pinned fails here. That matters in both directions -- dropping
+    ``face_surfaces`` from the pads declaration is type-valid and silently rebuilds a surface
+    graph the run already has.
 
     *withheld* names what the public entry point must not pass, and has no default on purpose. It
-    is narrower than everything the declaration hands over, because an entry point may legitimately
-    forward its own parameters to the core -- ``recognise_flats`` passes ``cyls`` and ``face_edges``
+    must name keywords the declaration hands over, so that a typo cannot quietly assert nothing,
+    and is narrower than all of them, because an entry point may legitimately forward its own
+    parameters to the core -- ``recognise_flats`` passes ``cyls`` and ``face_edges``
     it was given. What it may never pass is the capability. A default would be wrong the moment a
     family spells that capability ``ledger`` or ``sink``, both of which this package uses, and it
     would be wrong *silently*: the check would pass while asserting nothing.
     """
+
+    # A `withheld` naming nothing the declaration passes would assert nothing at all, which is
+    # how this pin was wrong before: the check stays green and the route stays open.
+    assert withheld and set(withheld) <= set(handed_over), (
+        f"withheld={withheld} names nothing {declaration} hands over"
+    )
 
     filename = f"{module}.py"
 
