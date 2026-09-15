@@ -723,12 +723,19 @@ def test_private_core_constructor_and_cap_identity_paths_are_closed() -> None:
     # Two sites, both in the family module: the declaration, which hands the run's writer
     # through, and the public entry point, which must not.
     assert [path for path, _call in core_sites] == ["polygonal_bosses.py", "polygonal_bosses.py"]
+    # No module outside the family names the core at all -- not by import, not as an attribute.
+    # A call sweep alone misses both, because either can be rebound and called under a new name.
     assert not [
         path.name
         for path in (ROOT / "src/quiddity").glob("*.py")
         if path.name != "polygonal_bosses.py"
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
-        if isinstance(node, ast.Attribute) and node.attr == "_discover_polygonal_stock"
+        if (isinstance(node, ast.Attribute) and node.attr == "_discover_polygonal_stock")
+        or (
+            isinstance(node, ast.ImportFrom)
+            and node.module == "quiddity.polygonal_bosses"
+            and any(alias.name == "_discover_polygonal_stock" for alias in node.names)
+        )
     ]
     module_tree = ast.parse((ROOT / "src/quiddity/polygonal_bosses.py").read_text("utf-8"))
     declared, public = (
