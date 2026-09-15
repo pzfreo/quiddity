@@ -11,8 +11,15 @@ from itertools import pairwise
 from build123d import GeomType, Solid, Vector
 
 from quiddity._adjacency import FaceEdges, FaceGraph, FaceNode
-from quiddity._candidates import FamilyId
+from quiddity._candidates import CompletedInputs, FamilyId
 from quiddity._claims import ClaimLedger, EvidenceWriter
+from quiddity._definitions import (
+    DiscoveryServices,
+    FullyAttributed,
+    NotCounted,
+    PhysicalDefinition,
+    always,
+)
 from quiddity._geometry import AXIS_ZERO_COS
 from quiddity._record import Record
 from quiddity._rings import SPAN_EPS
@@ -434,3 +441,32 @@ def recognise_edge_open_circular_pockets(
                 constituent=(*walls, floor),
             )
     return [record for record, _walls, _floor in found]
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(
+        recognise_edge_open_circular_pockets(
+            services.context.part,
+            ledger=services.writer,
+            face_edges=services.context.face_edges,
+        )
+    )
+
+
+# The package does not export this entry point, so the capability manifest has no entry for the
+# family, and the declaration below names no evidence.
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.EDGE_OPEN_CIRCULAR_POCKETS,
+    record_types=(EdgeOpenCircularPocket,),
+    result_field="edge_open_circular_pockets",
+    public_entrypoint=recognise_edge_open_circular_pockets.__name__,
+    dependencies=(),
+    applicable=always,
+    discover=_discover,
+    census=NotCounted("Counted once through the unified section_recess projection"),
+    attribution=FullyAttributed(
+        "every returned open circular pocket claims its physical wall chain"
+    ),
+)
