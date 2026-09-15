@@ -673,6 +673,7 @@ MODULE_SEAM_EDGES = {
         "_candidates",
         "_claims",
         "_corner_section",
+        "_definitions",
         "_cylindrical_channels",
         "_diagnostics",
         "_dispositions",

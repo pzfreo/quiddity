@@ -19,6 +19,7 @@ from quiddity._candidates import (
     Candidate,
     CandidateSet,
     CompletedInputs,
+    DerivedId,
     EvidenceIndex,
     FamilyId,
 )
@@ -26,7 +27,6 @@ from quiddity._definitions import (
     AcceptedInputs,
     Counted,
     DerivedDefinition,
-    DerivedId,
     DiscoveryServices,
     FullyAttributed,
     IncompleteAttribution,
