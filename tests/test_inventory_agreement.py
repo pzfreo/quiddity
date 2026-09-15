@@ -15,14 +15,16 @@ nothing in the suite was looking.
 
 They now share one inventory — `_take_inventory` — so a disagreement of that kind can no longer
 be written. What remains for this file to guard is the *mapping*: the census names a kind, the
-inventory returns a field, and nothing but this checks that the census counts the field it means
-to. A key wired to the wrong family, or a family added to one side and not the other, still
-produces a wrong number silently. So the property is kept rather than retired as impossible.
+inventory returns a field, and a key wired to the wrong family still produces a wrong number
+silently. The map below is derived from the registry, so it is not an independent statement of
+that mapping; what makes it one is `census.py`, whose hand-kept bindings the registry is validated
+against at import, and the committed capability manifest, which names each family's census key.
+This file checks that the mapping those two agree on is the one the numbers actually follow.
 
 **It is no longer checked over the whole vendored corpus.** The mapping is a property of the two
 inventories, not of any part: a key wired to the wrong field is wrong on *every* part that
 carries the family, so the evidence only has to make each family appear once. Measured, the 32
-golden fixtures already do — every one of the seventeen `SHARED` families is populated by at least
+golden fixtures already do — every `SHARED` family is populated by at least
 one of them (`section_recess` by eight, `hole` by seven, `boss`, `blend` and `plate` by four
 each, `slot`, `chamfer` and `through_step` by two, the rest by one). Reading all 87 vendored
 parts added 188 seconds serially at the series' branch point, and 65 s once run-scoped caching
@@ -56,32 +58,20 @@ import pytest
 from build123d import import_step
 
 import quiddity as r
+from quiddity._registry import DERIVED_DEFINITIONS, PHYSICAL_DEFINITIONS, Counted, NotCounted
 from quiddity.census import feature_census
 from tests.golden._common import load_fixture
 
 GOLDEN = Path(__file__).parent / "golden"
 CORPUS = Path(__file__).parent / "corpus"
 
-#: Census key -> result field, for every family both inventories report. `step` is absent
-#: deliberately; see the module docstring.
+#: Census key -> result field, for every family both inventories report: every registry family
+#: that is `Counted`, less the two documented exceptions. `step` is a compatibility rule under
+#: ADR 0003 (both records survive, only the count is corrected) and `flat` is a substrate.
 SHARED = {
-    "section_recess": "section_recesses",
-    "hole": "holes",
-    "hole_pattern": "hole_patterns",
-    "boss": "bosses",
-    "slot": "slots",
-    "oriented_slot": "oriented_slots",
-    "groove": "grooves",
-    "chamfer": "chamfers",
-    "angled_step": "angled_steps",
-    "gusset_rib": "gusset_ribs",
-    "paired_ramp_step": "paired_ramp_steps",
-    "through_step": "through_steps",
-    "circular_blind_step": "circular_blind_steps",
-    "blend": "blends",
-    "fillet": "fillets",
-    "countersink": "countersinks",
-    "plate": "plates",
+    definition.census.key: definition.result_field
+    for definition in (*PHYSICAL_DEFINITIONS, *DERIVED_DEFINITIONS)
+    if isinstance(definition.census, Counted) and definition.census.key not in {"step", "flat"}
 }
 
 
@@ -135,56 +125,34 @@ def test_the_two_inventories_agree_on_the_screw_that_once_disagreed():
     assert _disagreements(part) == {}
 
 
-#: `RecognitionResult` fields the census deliberately does not count, and why. Written out
-#: rather than derived so that adding an aggregate family forces a decision here: is it a
-#: machined feature the census should count, or one of these?
+#: `RecognitionResult` fields the census deliberately does not count, and why. The decision is
+#: forced where the family is declared: every registry definition states `Counted` or
+#: `NotCounted(reason)`, and `validate_census_contract` refuses a registry that disagrees with
+#: the census. The fields below are the ones no registry definition owns.
 RESULT_ONLY = {
-    # Substrates and projections: evidence other recognisers consume, not features in their
-    # own right. The census docstring excludes these by design.
+    definition.result_field: definition.census.reason
+    for definition in (*PHYSICAL_DEFINITIONS, *DERIVED_DEFINITIONS)
+    if isinstance(definition.census, NotCounted)
+    # Registry families without a public result field: the converged recess detectors and the
+    # legacy-only derived families (`pocket_patterns`, `passages`).
+    and definition.result_field in r.RecognitionResult.__dataclass_fields__
+} | {
     "cylinders": "the shared cylinder scan",
     "flats": "substrate for turned features",
-    "step_levels": "substrate, and level derivation belongs to the model layer",
-    "risers": "substrate for the step ladder",
     "rotational": "a classification, not a record list",
-    # A compatibility rule under ADR 0003: both records survive, only the count is corrected.
     "turned_steps": "counted as `step` after `steps_that_are_not_grooves`",
-    # Pattern families: the census counts hole patterns and not these. A scope decision about
-    # what a distinct machined feature is, and one worth revisiting rather than inheriting.
-    "slot_patterns": "census counts hole patterns only",
-    "oriented_slot_patterns": "census counts hole patterns only",
     "section_recess_patterns": "census counts hole patterns only",
-    "gusset_rib_patterns": "a relation among already counted gusset ribs",
     "section_recess_refusals": "evidence without reconstructible geometry is not an occurrence",
-    # Families with no census key at all. Each is a gap rather than a decision, and naming
-    # them here is what makes that visible.
-    "double_d_bores": "no census key",
-    "pads": "no census key",
-    "polygonal_bosses": "no census key",
-    "polygonal_stock": "no census key",
-    "repeating_radial_profiles": "no census key",
 }
 
 
-def test_the_shared_map_still_covers_every_family_the_census_counts():
-    """A census key added without updating `SHARED` would be compared against nothing.
-
-    That is the failure mode this file exists to prevent, one level up.
-    """
-
-    counted = set(
-        feature_census(load_fixture(GOLDEN / "simple_through_hole" / "fixture.py").build_fixture())
-    )
-    # `step` and `flat` are the documented exceptions: a compatibility rule and a substrate.
-    assert counted - set(SHARED) == {"step", "flat"}
-
-
 def test_the_shared_map_still_covers_every_family_the_aggregate_reports():
-    """And the same in the other direction, which the first test cannot see.
+    """Every result field is either compared or excused by name.
 
-    A new `RecognitionResult` family omitted from the census would leave the two inventories
-    covering different sets while every comparison here still passed -- exactly the drift this
-    file claims to catch. The exclusions are the useful part: they make the current asymmetry
-    deliberate, and force a decision each time an aggregate family is added.
+    A registry family without a public field, or a field without a registry family, is refused
+    at import by `result.py`, so this cannot fail on its own; it is kept because `RESULT_ONLY`
+    is the one place the exclusions are written down with their reasons, and a new aggregate
+    field has to be excused here or compared above.
     """
 
     fields = {

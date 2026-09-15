@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import importlib.util
 import inspect
 import json
 import subprocess
@@ -256,6 +257,19 @@ def test_manifest_evidence_and_documentation_are_live_source_paths() -> None:
         for reference in family["golden_evidence"]:
             payload = json.loads((ROOT / reference).read_text(encoding="utf-8"))
             assert payload, f"{reference} is not canonical expected data"
+
+
+def test_generator_refuses_a_declared_family_that_also_has_an_evidence_entry(monkeypatch) -> None:
+    spec = importlib.util.spec_from_file_location(
+        "generate_capability_manifest", ROOT / "tools" / "generate_capability_manifest.py"
+    )
+    assert spec is not None and spec.loader is not None
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+    assert "gusset-ribs" not in tool.EVIDENCE
+    monkeypatch.setitem(tool.EVIDENCE, "gusset-ribs", {"tests": ["tests/test_gussets.py"]})
+    with pytest.raises(KeyError, match="declares its evidence"):
+        tool._registry_families()
 
 
 def test_committed_manifest_is_the_deterministic_generator_output() -> None:

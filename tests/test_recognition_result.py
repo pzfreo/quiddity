@@ -62,6 +62,8 @@ def test_projection_rejects_a_record_from_the_wrong_family_contract():
 def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity._registry as registry_module
     import quiddity._run as run_module
+    import quiddity.gussets as gussets_module
+    import quiddity.plates as plates_module
     import quiddity.result as result_module
     from quiddity._candidates import EvidenceIndex
 
@@ -259,7 +261,9 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
 
     monkeypatch.setattr(result_module, "diagnose_residuals", fake_diagnostics)
     monkeypatch.setattr(registry_module, "_discover_fillets", counted("fillets", []))
-    monkeypatch.setattr(registry_module, "_discover_plates", counted("plates", []))
+    # A declared family is patched where it lives; the registry no longer imports its core.
+    monkeypatch.setattr(plates_module, "_discover_plates", counted("plates", []))
+    monkeypatch.setattr(gussets_module, "_discover_gusset_ribs", counted("gusset_ribs", []))
 
     # A part rather than a bare object: the orchestrator now builds one face graph for the
     # families that record which faces they were built from, and an empty inventory is all this
@@ -308,6 +312,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
         "chamfers",
         "fillets",
         "plates",
+        "gusset_ribs",
     }
     assert set(calls) == expected
     assert set(calls.values()) == {1}
@@ -351,6 +356,8 @@ def test_aggregate_inventory_has_one_named_candidate_per_physical_output() -> No
 
 
 def test_physical_roster_matches_every_nonlegacy_family_and_result_field() -> None:
+    """`result.py` refuses these at import; this names the four fields no definition owns."""
+
     import quiddity.result as result_module
     from quiddity._candidates import FamilyId
 
@@ -361,13 +368,7 @@ def test_physical_roster_matches_every_nonlegacy_family_and_result_field() -> No
         "section_recess_patterns",
         "section_recess_refusals",
         "rotational",
-        "hole_patterns",
-        "slot_patterns",
-        "oriented_slot_patterns",
-        "pocket_patterns",
-        "gusset_rib_patterns",
-        "passages",
-    }
+    } | {definition.result_field for definition in result_module.DERIVED_DEFINITIONS}
     assert {definition.result_field for definition in result_module.PHYSICAL_DEFINITIONS} == (
         set(result_module._LegacyRecognitionResult.__dataclass_fields__) - nonphysical
     )

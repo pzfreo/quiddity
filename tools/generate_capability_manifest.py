@@ -17,6 +17,7 @@ import typing
 from pathlib import Path
 
 import quiddity as recognition
+from quiddity._definitions import FIRST_RELEASE
 from quiddity._record import Record
 from quiddity._registry import DERIVED_DEFINITIONS, PHYSICAL_DEFINITIONS, Counted
 
@@ -29,16 +30,6 @@ TARGET = ROOT / "src" / "quiddity" / "capabilities.json"
 # family sets `introduced`; the default is the first release of this distribution.
 EVIDENCE: dict[str, dict[str, object]] = {
     "angled-steps": {"goldens": ["angled_blind_step"], "tests": ["tests/test_angled_steps.py"]},
-    "gusset-ribs": {
-        "goldens": ["gusset_ribs"],
-        "tests": ["tests/test_gussets.py"],
-        "introduced": "0.2.10",
-    },
-    "gusset-rib-patterns": {
-        "goldens": ["gusset_rib_patterns"],
-        "tests": ["tests/test_gussets.py"],
-        "introduced": "0.2.10",
-    },
     "section-recesses": {
         "golden_paths": [
             "tests/section_recess_expected.json",
@@ -91,10 +82,6 @@ EVIDENCE: dict[str, dict[str, object]] = {
     "grooves": {"goldens": ["turned_steps_and_grooves"]},
     "hole-patterns": {"goldens": ["bolt_circle_and_rectangular_grid"]},
     "holes": {"goldens": ["simple_through_hole", "counterbored_and_countersunk_holes"]},
-    "plates": {
-        "goldens": ["plates_pads_levels_and_slanted_steps"],
-        "tests": ["tests/test_channel_plate_body_identity.py"],
-    },
     "polygonal-bosses": {"goldens": ["polygonal_boss"]},
     "polygonal-stock": {"goldens": ["polygonal_stock"]},
     "rectangular-pads": {
@@ -198,18 +185,33 @@ def _registry_families() -> dict[str, dict[str, object]]:
     exported = set(recognition.__all__)
     families: dict[str, dict[str, object]] = {}
     definitions = [
-        (d.public_entrypoint, "part", d.record_types, d.result_field, d.census)
+        (d.public_entrypoint, "part", d.record_types, d.result_field, d.census, d.evidence)
         for d in PHYSICAL_DEFINITIONS
     ] + [
-        (d.public_entrypoint, "derived", d.record_types, d.result_field, d.census)
+        (d.public_entrypoint, "derived", d.record_types, d.result_field, d.census, d.evidence)
         for d in DERIVED_DEFINITIONS
         if d.public_entrypoint is not None
     ]
-    for entrypoint, kind, record_types, result_field, census_spec in definitions:
+    for entrypoint, kind, record_types, result_field, census_spec, declared in definitions:
         if entrypoint not in exported:
             continue
         family_id = _family_id(entrypoint)
-        if family_id not in EVIDENCE:
+        if declared is not None:
+            if family_id in EVIDENCE:
+                raise KeyError(f"{family_id} declares its evidence; remove its EVIDENCE entry")
+            evidence: dict[str, object] = {
+                key: list(value) if isinstance(value, tuple) else value
+                for key, value in (
+                    ("goldens", declared.goldens),
+                    ("golden_paths", declared.golden_paths),
+                    ("tests", declared.tests),
+                    ("introduced", declared.introduced),
+                )
+                if value
+            }
+        elif family_id in EVIDENCE:
+            evidence = EVIDENCE[family_id]
+        else:
             raise KeyError(f"{family_id} is in the registry but has no EVIDENCE entry")
         extra = EXTRA_RECORDS.get(family_id, [])
         overridden = {name for name, _role, _membership in extra}
@@ -223,7 +225,7 @@ def _registry_families() -> dict[str, dict[str, object]]:
             "recognisers": [(entrypoint, kind)],
             "records": records,
             "census": census,
-            **EVIDENCE[family_id],
+            **evidence,
         }
     unknown = (set(EVIDENCE) | set(EXTRA_RECORDS)) - families.keys()
     if unknown:
@@ -430,7 +432,7 @@ def build_manifest() -> dict[str, object]:
                 + spec.get("golden_paths", [])
             ),
             "id": family_id,
-            "introduced_in": spec.get("introduced", "0.2.0"),
+            "introduced_in": spec.get("introduced", FIRST_RELEASE),
             "recognisers": [
                 (
                     {

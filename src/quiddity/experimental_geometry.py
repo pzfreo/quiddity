@@ -16,8 +16,7 @@ from typing import cast
 from quiddity._adjacency import ArcKind, FaceGraph, FaceNode, SmoothSide
 from quiddity._blend_view import BlendChain, BlendCollapseIndex
 from quiddity._effective_surfaces import EffectiveSurfaceIndex
-from quiddity._typing import FaceLike, Part
-from quiddity.inspection import (
+from quiddity._surface_facts import (
     AnalyticSurface,
     FaceInspection,
     OrientationCapability,
@@ -30,6 +29,7 @@ from quiddity.inspection import (
     _surface_anchor,
     inspect_face,
 )
+from quiddity._typing import FaceLike, Part
 
 
 class FaceRef:

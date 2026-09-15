@@ -35,6 +35,7 @@ from OCP.TopAbs import TopAbs_OUT
 import quiddity as recognition
 import quiddity.experimental_geometry as experimental
 import quiddity.inspection as inspection
+from quiddity import _surface_facts
 
 ROOT = Path(__file__).parents[1]
 MANIFEST = ROOT / "src" / "quiddity" / "inspection_api.json"
@@ -481,6 +482,34 @@ def test_supported_module_all_is_the_exact_roster_plus_manifest_protocol() -> No
     assert set(inspection.__all__) == set(EXPECTED_KINDS) | manifest_protocol
 
 
+def test_published_symbols_present_as_inspection_without_importing_it() -> None:
+    """The surface-fact leaf is a seam, not a name a consumer sees; the override is in the leaf.
+
+    `experimental_geometry` re-exports these too, so the check runs in a fresh interpreter that
+    never imports `quiddity.inspection`: if the override lived in the facade the leaf's private
+    name would leak to that public path.
+    """
+
+    names = [
+        str(symbol["name"])
+        for symbol in _symbols()
+        if symbol["kind"] in {"dataclass", "enum", "function"}
+        and hasattr(_surface_facts, str(symbol["name"]))
+    ]
+    assert len(names) == 8, names
+    script = (
+        "import sys, quiddity.experimental_geometry as eg\n"
+        "assert 'quiddity.inspection' not in sys.modules\n"
+        "for name in sys.argv[1:]:\n"
+        "    if hasattr(eg, name):\n"
+        "        assert getattr(eg, name).__module__ == 'quiddity.inspection', name\n"
+    )
+    subprocess.run([sys.executable, "-c", script, *names], check=True)
+    for name in names:
+        symbol = typing.cast(type, _resolve(f"quiddity.inspection.{name}"))
+        assert symbol.__module__ == "quiddity.inspection", name
+
+
 def test_stable_inspect_face_returns_native_fact_anchor_and_closed_refusal() -> None:
     cylinder = Cylinder(8, 20).faces().filter_by(GeomType.CYLINDER)[0]
     inspected = inspection.inspect_face(cylinder)
@@ -525,7 +554,7 @@ def test_inspection_anchor_falls_back_to_a_proved_outer_boundary(monkeypatch) ->
         def State(self):
             return TopAbs_OUT
 
-    monkeypatch.setattr(inspection, "_BRepClass_FaceClassifier", OutsideClassifier)
+    monkeypatch.setattr(_surface_facts, "_BRepClass_FaceClassifier", OutsideClassifier)
     face = max(Box(7, 9, 11).faces().filter_by(GeomType.PLANE), key=lambda item: item.center().Z)
 
     anchor = inspection.inspect_face(face).anchor
@@ -552,7 +581,7 @@ def test_inspection_omits_anchor_when_surface_bounds_are_invalid(monkeypatch) ->
             return 1.0
 
     face = Cylinder(3, 8).faces().filter_by(GeomType.CYLINDER)[0]
-    monkeypatch.setattr(inspection, "_BRepAdaptor_Surface", InvalidBounds)
+    monkeypatch.setattr(_surface_facts, "_BRepAdaptor_Surface", InvalidBounds)
 
     assert inspection.inspect_face(face).anchor is None
 

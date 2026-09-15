@@ -78,6 +78,17 @@ class FamilyId(Enum):
     TURNED_STEPS = "turned_steps"
 
 
+class DerivedId(Enum):
+    """Closed identifiers for post-reconciliation, non-physical projections."""
+
+    HOLE_PATTERNS = "hole_patterns"
+    SLOT_PATTERNS = "slot_patterns"
+    ORIENTED_SLOT_PATTERNS = "oriented_slot_patterns"
+    POCKET_PATTERNS = "pocket_patterns"
+    GUSSET_RIB_PATTERNS = "gusset_rib_patterns"
+    PASSAGES_COMPAT = "passages_compat"
+
+
 @dataclass(frozen=True, slots=True, init=False)
 class Evidence:
     """Original defining/constituent nodes and effective-surface acceptance dependencies."""

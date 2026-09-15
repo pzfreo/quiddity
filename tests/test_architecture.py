@@ -86,6 +86,9 @@ def test_cross_run_correspondence_is_absent() -> None:
 MODULE_SEAM_EDGES = {
     # Stdlib-only leaf: the checks the capability and inspection manifests share (ADR 0007).
     "_manifest": set(),
+    # What a family declares about itself (ADR 0003/0007): a leaf below every family module.
+    # It types against `_run`, which is family-free, and must never reach a family itself.
+    "_definitions": {"_candidates", "_claims", "_run", "_typing"},
     "_outer_profile": {"_geometry", "_record"},
     "_outer_profile_geometry": {"_adjacency", "_geometry", "_outer_profile", "_typing"},
     "_corner_section": {"_adjacency", "_section_passages", "_sections", "_volume_probe"},
@@ -156,6 +159,7 @@ MODULE_SEAM_EDGES = {
         "_body_identity",
         "_candidates",
         "_claims",
+        "_definitions",
         "_geometry",
         "_pattern_geometry",
         "_record",
@@ -408,6 +412,7 @@ MODULE_SEAM_EDGES = {
     # Internal orchestration registry: it names family adapters but owns no geometry or policy.
     # Family modules never import it, so the edge remains one-way from orchestration to families.
     "_registry": {
+        "_definitions",
         "_candidates",
         "_claims",
         "_passage_compat",
@@ -474,17 +479,18 @@ MODULE_SEAM_EDGES = {
         "_analytic_surfaces",
         "_blend_view",
         "_effective_surfaces",
+        "_surface_facts",
         "_typing",
-        "inspection",
     },
+    # The analytic surface-fact core, below every family, so the geometry facade and the run
+    # context never reach a family through the inspection facade's declared-feature readers.
+    "_surface_facts": {"_adjacency", "_effective_surfaces", "_typing"},
     # Supported F7 declaration-inspection surface. It projects the neutral analytic
     # substrate and re-exports only the four independently proven family readers.
     "inspection": {
-        "_adjacency",
         "_bevel",
-        "_effective_surfaces",
         "_manifest",
-        "_typing",
+        "_surface_facts",
         "countersinks",
         "grooves",
         "profiled_bores",
@@ -611,10 +617,12 @@ MODULE_SEAM_EDGES = {
         "_body_identity",
         "_candidates",
         "_claims",
+        "_definitions",
         "_geometry",
         "_record",
         "_solid_properties",
         "_typing",
+        "turned",
     },
     "prismatic_pockets": {
         "_adjacency",
@@ -665,6 +673,7 @@ MODULE_SEAM_EDGES = {
         "_candidates",
         "_claims",
         "_corner_section",
+        "_definitions",
         "_cylindrical_channels",
         "_diagnostics",
         "_dispositions",
@@ -1205,7 +1214,10 @@ def test_only_result_orchestration_may_create_restricted_completed_inputs() -> N
             visit_AsyncFunctionDef = visit_FunctionDef
 
             def visit_Call(self, node: ast.Call) -> None:
-                if isinstance(node.func, ast.Attribute) and node.func.attr == "restricted_inputs":
+                if isinstance(node.func, ast.Attribute) and node.func.attr in {
+                    "restricted_inputs",
+                    "restricted",
+                }:
                     callers.append((self.filename, self.function))
                 if isinstance(node.func, ast.Name) and node.func.id in {
                     "CompletedInputs",
@@ -1218,6 +1230,7 @@ def test_only_result_orchestration_may_create_restricted_completed_inputs() -> N
 
     assert sorted(callers) == [
         ("_claims.py", "restricted_inputs"),
+        ("result.py", "_derive_patterns"),
         ("result.py", "_discover_all"),
     ]
     assert constructors == []
@@ -1677,7 +1690,7 @@ def test_f3b_blend_index_and_view_have_only_reviewed_production_call_sites() -> 
     exempt = {
         "blends.py",
         "experimental_geometry.py",
-        "inspection.py",
+        "_surface_facts.py",
         "_run.py",
         "_blend_view.py",
         "_effective_surfaces.py",
@@ -1701,7 +1714,7 @@ def test_f3b_blend_index_and_view_have_only_reviewed_production_call_sites() -> 
         ("experimental_geometry.py", "BlendCollapseIndex.view"),
         ("experimental_geometry.py", "CollapsedGraphView.expand_arc"),
         ("experimental_geometry.py", "EffectiveSurfaceIndex"),
-        ("inspection.py", "EffectiveSurfaceIndex"),
+        ("_surface_facts.py", "EffectiveSurfaceIndex"),
         ("_run.py", "EffectiveSurfaceIndex"),
     }
     mutation_imports = """

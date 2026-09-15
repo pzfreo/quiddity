@@ -12,18 +12,30 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from enum import Enum
-from types import MappingProxyType
-from typing import Protocol, TypeAlias, TypeVar, cast
+from typing import Protocol, TypeAlias
 
+from quiddity import gussets, plates
 from quiddity._candidates import (
     Candidate,
     CandidateSet,
     CompletedInputs,
+    DerivedId,
     EvidenceIndex,
     FamilyId,
 )
-from quiddity._claims import EvidenceWriter
+from quiddity._definitions import (
+    AcceptedInputs,
+    Counted,
+    DerivedDefinition,
+    DiscoveryServices,
+    FullyAttributed,
+    IncompleteAttribution,
+    NotCounted,
+    PhysicalDefinition,
+    always,
+    prismatic,
+    simple,
+)
 from quiddity._features import (
     BoltCircle,
     BossRecord,
@@ -39,10 +51,8 @@ from quiddity._recess_features import (
     _discover_pockets,
     _discover_slots,
 )
-from quiddity._run import RecognitionContext
 from quiddity._section_recess import SectionRecess
 from quiddity._section_recess_discovery import discover_section_recesses
-from quiddity._typing import CylinderInventory
 from quiddity.angled_steps import AngledStep, recognise_angled_steps
 from quiddity.blends import Blend, _discover_blends
 from quiddity.chamfers import Chamfer, recognise_chamfers
@@ -62,13 +72,6 @@ from quiddity.edge_open_prismatic_recesses import (
 from quiddity.fillets import Fillet, _discover_fillets
 from quiddity.flats import Flat, _discover_flats
 from quiddity.grooves import Groove, recognise_grooves
-from quiddity.gussets import (
-    GussetRib,
-    GussetRibArray,
-    GussetRibMirrorPair,
-    _discover_gusset_ribs,
-    recognise_gusset_rib_patterns,
-)
 from quiddity.levels import (
     FaceLevel,
     RiserEvidence,
@@ -94,7 +97,6 @@ from quiddity.passages import (
     SectionPassage,
     recognise_section_passages,
 )
-from quiddity.plates import Plate, _discover_plates
 from quiddity.polygonal_bosses import (
     PolygonalBoss,
     PolygonalStock,
@@ -143,91 +145,6 @@ RECESS_SOURCE_FAMILIES = frozenset(
         FamilyId.ROUND_BOTTOM_BLIND_SLOTS,
     }
 )
-
-
-@dataclass(frozen=True, slots=True)
-class Counted:
-    """A definition contributes to one existing stable census key."""
-
-    key: str
-
-
-@dataclass(frozen=True, slots=True)
-class NotCounted:
-    """A definition is deliberately absent from the feature census."""
-
-    reason: str
-
-
-CensusSpec: TypeAlias = Counted | NotCounted
-
-
-@dataclass(frozen=True, slots=True)
-class FullyAttributed:
-    """Every aggregate output path has non-empty original-face defining evidence."""
-
-    proof_contract: str
-
-
-@dataclass(frozen=True, slots=True)
-class IncompleteAttribution:
-    """At least one output path lacks a reviewed complete ownership proof."""
-
-    reason: str
-    follow_up_or_exclusion: str
-
-
-AttributionSpec: TypeAlias = FullyAttributed | IncompleteAttribution
-
-
-class DerivedId(Enum):
-    """Closed identifiers for post-reconciliation, non-physical projections."""
-
-    HOLE_PATTERNS = "hole_patterns"
-    SLOT_PATTERNS = "slot_patterns"
-    ORIENTED_SLOT_PATTERNS = "oriented_slot_patterns"
-    POCKET_PATTERNS = "pocket_patterns"
-    GUSSET_RIB_PATTERNS = "gusset_rib_patterns"
-    PASSAGES_COMPAT = "passages_compat"
-
-
-@dataclass(frozen=True, slots=True)
-class DiscoveryServices:
-    """Run facts and the sole write capability available to registry adapters."""
-
-    context: RecognitionContext
-    writer: EvidenceWriter
-    cylinders: CylinderInventory
-
-
-RecordT = TypeVar("RecordT")
-
-
-@dataclass(frozen=True, slots=True)
-class AcceptedInputs:
-    """Read-only accepted records for exactly one derived definition's sources."""
-
-    _allowed: frozenset[FamilyId]
-    _records: Mapping[FamilyId, tuple[object, ...]]
-
-    @classmethod
-    def restricted(
-        cls,
-        allowed: tuple[FamilyId, ...],
-        accepted: Mapping[FamilyId, tuple[object, ...]],
-    ) -> AcceptedInputs:
-        return cls(
-            frozenset(allowed),
-            MappingProxyType({family: accepted[family] for family in allowed}),
-        )
-
-    def records(self, family: FamilyId, record_type: type[RecordT]) -> tuple[RecordT, ...]:
-        if family not in self._allowed:
-            raise ValueError(f"{family.value} is not a declared accepted source")
-        records = self._records[family]
-        if not all(isinstance(record, record_type) for record in records):
-            raise TypeError(f"{family.value} source has the wrong record type")
-        return cast(tuple[RecordT, ...], records)
 
 
 @dataclass(frozen=True, slots=True)
@@ -334,55 +251,9 @@ _issue_projection_inputs = _projection_authority_factory()
 del _projection_authority_factory
 
 
-PhysicalDiscoverer: TypeAlias = Callable[[DiscoveryServices, CompletedInputs], list[object]]
-Applicability: TypeAlias = Callable[[RecognitionContext], bool]
-DerivedDiscoverer: TypeAlias = Callable[[AcceptedInputs], list[object]]
 ProjectionDiscoverer: TypeAlias = Callable[
     [AcceptedProjectionInputs, ProjectionInputs], list[object]
 ]
-
-
-def always(context: RecognitionContext) -> bool:
-    del context
-    return True
-
-
-def prismatic(context: RecognitionContext) -> bool:
-    return not context.rotational
-
-
-@dataclass(frozen=True, slots=True)
-class PhysicalDefinition:
-    family: FamilyId
-    record_types: tuple[type[object], ...]
-    result_field: str
-    public_entrypoint: str
-    dependencies: tuple[FamilyId, ...]
-    applicable: Applicability
-    discover: PhysicalDiscoverer
-    census: CensusSpec
-    attribution: AttributionSpec
-    projected: Applicability = always
-
-
-@dataclass(frozen=True, slots=True)
-class DerivedDefinition:
-    identifier: DerivedId
-    record_types: tuple[type[object], ...]
-    result_field: str
-    public_entrypoint: str | None
-    sources: tuple[FamilyId, ...]
-    derive: DerivedDiscoverer | ProjectionDiscoverer
-    census: CensusSpec
-    role: str = "discoverer"
-
-
-def _simple(call: Callable[[DiscoveryServices], list[object]]) -> PhysicalDiscoverer:
-    def discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
-        del inputs
-        return call(services)
-
-    return discover
 
 
 def _holes(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
@@ -397,23 +268,6 @@ def _holes(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]
             writer=services.writer,
             predecessor_occurrences=occurrences,
             face_surfaces=services.context.face_surfaces,
-        )
-    )
-
-
-def _plates(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
-    turned_solids = frozenset(
-        solid
-        for occurrence in inputs.occurrences(FamilyId.TURNED_STEPS, TurnedStep)
-        if (solid := occurrence.solid()) is not None
-    )
-    if services.context.rotational and not turned_solids:
-        return []
-    return list(
-        _discover_plates(
-            services.context.part,
-            writer=services.writer,
-            excluded_solids=turned_solids,
         )
     )
 
@@ -476,10 +330,6 @@ def _pocket_patterns(inputs: AcceptedInputs) -> list[object]:
     return list(recognise_pocket_patterns(inputs.records(FamilyId.POCKETS, Pocket)))
 
 
-def _gusset_rib_patterns(inputs: AcceptedInputs) -> list[object]:
-    return list(recognise_gusset_rib_patterns(inputs.records(FamilyId.GUSSET_RIBS, GussetRib)))
-
-
 def _passages_compat(
     inputs: AcceptedProjectionInputs, projection: ProjectionInputs
 ) -> list[object]:
@@ -503,7 +353,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_countersinks",
         (),
         always,
-        _simple(lambda s: list(_discover_countersinks(s.context.part, writer=s.writer))),
+        simple(lambda s: list(_discover_countersinks(s.context.part, writer=s.writer))),
         Counted("countersink"),
         FullyAttributed("every returned countersink claims its original conical seat face"),
     ),
@@ -527,7 +377,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_double_d_bores",
         (),
         always,
-        _simple(
+        simple(
             lambda s: list(
                 _discover_double_d_bores(
                     s.context.part,
@@ -548,7 +398,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_bosses",
         (),
         always,
-        _simple(
+        simple(
             lambda s: list(
                 _discover_bosses(
                     s.context.part,
@@ -569,7 +419,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_polygonal_bosses",
         (),
         always,
-        _simple(
+        simple(
             lambda s: list(
                 _discover_polygonal_bosses(
                     s.context.part,
@@ -588,7 +438,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_polygonal_stock",
         (),
         always,
-        _simple(
+        simple(
             lambda s: list(
                 _discover_polygonal_stock(
                     s.context.part,
@@ -607,7 +457,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_channels",
         (),
         always,
-        _simple(
+        simple(
             lambda s: list(
                 _discover_channels(
                     s.context.part,
@@ -626,7 +476,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_slots",
         (),
         always,
-        _simple(
+        simple(
             lambda s: list(
                 _discover_slots(s.context.part, writer=s.writer, face_edges=s.context.face_edges)
             )
@@ -641,7 +491,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_rectangular_blind_slots",
         (),
         prismatic,
-        _simple(lambda s: list(recognise_rectangular_blind_slots(s.context.part, ledger=s.writer))),
+        simple(lambda s: list(recognise_rectangular_blind_slots(s.context.part, ledger=s.writer))),
         NotCounted("Counted once through the unified section_recess projection"),
         FullyAttributed("every returned rectangular blind slot owns its two sides, floor, and cap"),
     ),
@@ -652,9 +502,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_round_bottom_blind_slots",
         (),
         prismatic,
-        _simple(
-            lambda s: list(recognise_round_bottom_blind_slots(s.context.part, ledger=s.writer))
-        ),
+        simple(lambda s: list(recognise_round_bottom_blind_slots(s.context.part, ledger=s.writer))),
         NotCounted("Counted once through the unified section_recess projection"),
         FullyAttributed(
             "every returned round-bottom blind slot owns its two curved sides, floor, and cap"
@@ -667,7 +515,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_grooves",
         (),
         always,
-        _simple(
+        simple(
             lambda s: list(
                 recognise_grooves(
                     s.context.part,
@@ -687,7 +535,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_flats",
         (),
         always,
-        _simple(
+        simple(
             lambda s: list(
                 _discover_flats(
                     s.context.part,
@@ -707,7 +555,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_pockets",
         (),
         always,
-        _simple(
+        simple(
             lambda s: list(
                 _discover_pockets(s.context.part, writer=s.writer, face_edges=s.context.face_edges)
             )
@@ -722,7 +570,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_prismatic_pockets",
         (),
         always,
-        _simple(
+        simple(
             lambda s: list(
                 recognise_prismatic_pockets(
                     s.context.part, ledger=s.writer, face_edges=s.context.face_edges
@@ -739,7 +587,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_edge_open_circular_pockets",
         (),
         always,
-        _simple(
+        simple(
             lambda s: list(
                 recognise_edge_open_circular_pockets(
                     s.context.part, ledger=s.writer, face_edges=s.context.face_edges
@@ -756,7 +604,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_edge_open_prismatic_recesses",
         (),
         always,
-        _simple(
+        simple(
             lambda s: list(
                 recognise_edge_open_prismatic_recesses(
                     s.context.part, ledger=s.writer, face_edges=s.context.face_edges
@@ -773,8 +621,13 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_section_recesses",
         (),
         always,
-        _simple(
-            lambda s: list(discover_section_recesses(writer=s.writer, surfaces=s.context.surfaces))
+        simple(
+            lambda s: list(
+                discover_section_recesses(
+                    writer=s.writer,
+                    surfaces=s.context.surfaces,
+                )
+            )
         ),
         Counted("section_recess"),
         FullyAttributed(
@@ -788,7 +641,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_rectangular_pads",
         (),
         always,
-        _simple(
+        simple(
             lambda s: list(
                 _discover_rectangular_pads(
                     s.context.part,
@@ -808,7 +661,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_repeating_radial_profiles",
         (),
         always,
-        _simple(
+        simple(
             lambda s: list(_discover_repeating_radial_profiles(s.context.part, writer=s.writer))
         ),
         NotCounted("correspondence evidence is not a distinct feature"),
@@ -823,7 +676,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_turned_steps",
         (),
         always,
-        _simple(
+        simple(
             lambda s: list(
                 recognise_turned_steps(
                     s.context.part,
@@ -843,7 +696,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_face_levels",
         (),
         always,
-        _simple(lambda s: list(_discover_step_levels(s.context.part, writer=s.writer))),
+        simple(lambda s: list(_discover_step_levels(s.context.part, writer=s.writer))),
         NotCounted("level substrate is not a distinct feature"),
         FullyAttributed(
             "every returned FaceLevel owns the exact body-local horizontal face cluster"
@@ -867,7 +720,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_chamfers",
         (),
         always,
-        _simple(
+        simple(
             lambda s: list(
                 recognise_chamfers(
                     s.context.part,
@@ -888,7 +741,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_angled_steps",
         (),
         prismatic,
-        _simple(
+        simple(
             lambda s: list(
                 recognise_angled_steps(
                     s.context.part, ledger=s.writer, face_edges=s.context.face_edges
@@ -905,34 +758,13 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_paired_ramp_steps",
         (),
         prismatic,
-        _simple(lambda s: list(recognise_paired_ramp_steps(s.context.part, ledger=s.writer))),
+        simple(lambda s: list(recognise_paired_ramp_steps(s.context.part, ledger=s.writer))),
         Counted("paired_ramp_step"),
         FullyAttributed(
             "every returned paired-ramp step claims both original ramps and its closing terminal"
         ),
     ),
-    PhysicalDefinition(
-        FamilyId.GUSSET_RIBS,
-        (GussetRib,),
-        "gusset_ribs",
-        "recognise_gusset_ribs",
-        (),
-        prismatic,
-        _simple(
-            lambda s: list(
-                _discover_gusset_ribs(
-                    s.context.part,
-                    graph=s.context.graph,
-                    face_edges=s.context.face_edges,
-                    sink=s.writer.sink,
-                )
-            )
-        ),
-        Counted("gusset_rib"),
-        FullyAttributed(
-            "every returned gusset rib claims both end caps, its slant and edge blends"
-        ),
-    ),
+    gussets.DEFINITION,
     PhysicalDefinition(
         FamilyId.THROUGH_STEPS,
         (ThroughStep,),
@@ -940,7 +772,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_through_steps",
         (),
         prismatic,
-        _simple(lambda s: list(recognise_through_steps(s.context.part, ledger=s.writer))),
+        simple(lambda s: list(recognise_through_steps(s.context.part, ledger=s.writer))),
         Counted("through_step"),
         FullyAttributed("every returned through step claims both rectangular wall regions"),
     ),
@@ -951,7 +783,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_circular_blind_steps",
         (),
         prismatic,
-        _simple(
+        simple(
             lambda s: list(
                 _discover_circular_blind_steps(
                     s.context.part,
@@ -974,7 +806,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_section_passages",
         (),
         always,
-        _simple(
+        simple(
             lambda s: list(
                 recognise_section_passages(
                     s.context.part, ledger=s.writer, face_edges=s.context.face_edges
@@ -1005,7 +837,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_blends",
         (),
         always,
-        _simple(
+        simple(
             lambda s: list(
                 _discover_blends(
                     s.context.part,
@@ -1025,7 +857,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         "recognise_fillets",
         (),
         always,
-        _simple(
+        simple(
             lambda s: list(
                 _discover_fillets(
                     s.context.part,
@@ -1041,17 +873,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         Counted("fillet"),
         FullyAttributed("every returned fillet claims its original curved blend face"),
     ),
-    PhysicalDefinition(
-        FamilyId.PLATES,
-        (Plate,),
-        "plates",
-        "recognise_plates",
-        (FamilyId.TURNED_STEPS,),
-        always,
-        _plates,
-        Counted("plate"),
-        FullyAttributed("every returned Plate claims its complete low/high planar face groups"),
-    ),
+    plates.DEFINITION,
 )
 
 
@@ -1092,15 +914,7 @@ DERIVED_DEFINITIONS: tuple[DerivedDefinition, ...] = (
         _pocket_patterns,
         NotCounted("not a distinct census key"),
     ),
-    DerivedDefinition(
-        DerivedId.GUSSET_RIB_PATTERNS,
-        (GussetRibArray, GussetRibMirrorPair),
-        "gusset_rib_patterns",
-        "recognise_gusset_rib_patterns",
-        (FamilyId.GUSSET_RIBS,),
-        _gusset_rib_patterns,
-        NotCounted("a relation among already counted gusset ribs"),
-    ),
+    gussets.PATTERNS,
     DerivedDefinition(
         DerivedId.PASSAGES_COMPAT,
         (Passage,),

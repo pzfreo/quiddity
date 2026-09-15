@@ -18,10 +18,11 @@ from enum import Enum
 from types import MappingProxyType
 from typing import Any, Protocol, TypeVar, cast
 
-from quiddity._candidates import Candidate, CandidateSet, EvidenceIndex, FamilyId
+from quiddity._candidates import Candidate, CandidateSet, DerivedId, EvidenceIndex, FamilyId
 from quiddity._claims import ClaimLedger
 from quiddity._corner_section import prove_corner_section
 from quiddity._cylindrical_channels import prove_cylindrical_channel
+from quiddity._definitions import AcceptedInputs, DiscoveryServices, FullyAttributed
 from quiddity._diagnostics import ResidualDiagnostic, diagnose_residuals
 from quiddity._dispositions import (
     Outcome,
@@ -52,11 +53,7 @@ from quiddity._registry import (
     DERIVED_DEFINITIONS,
     PHYSICAL_DEFINITIONS,
     RECESS_SOURCE_FAMILIES,
-    AcceptedInputs,
     AcceptedProjectionInputs,
-    DerivedId,
-    DiscoveryServices,
-    FullyAttributed,
     ProjectionDiscoverer,
     ProjectionInputs,
     _issue_projection_inputs,
