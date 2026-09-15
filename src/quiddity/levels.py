@@ -699,7 +699,9 @@ def project_step_shoulders(
 
 
 # What this family declares about itself; `_registry` decides where it runs.
-def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+def _discover_step_level_family(
+    services: DiscoveryServices, inputs: CompletedInputs
+) -> list[object]:
     del inputs  # no completed predecessors
     return list(_discover_step_levels(services.context.part, writer=services.writer))
 
@@ -712,7 +714,7 @@ STEP_LEVELS = PhysicalDefinition(
     public_entrypoint=recognise_face_levels.__name__,
     dependencies=(),
     applicable=always,
-    discover=_discover,
+    discover=_discover_step_level_family,
     census=NotCounted("level substrate is not a distinct feature"),
     attribution=FullyAttributed(
         "every returned FaceLevel owns the exact body-local horizontal face cluster"
