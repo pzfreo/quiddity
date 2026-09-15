@@ -19,8 +19,16 @@ from dataclasses import dataclass
 from build123d import GeomType
 
 from quiddity._adjacency import FaceGraph, FaceNode
-from quiddity._candidates import EvidenceSink, FamilyId
+from quiddity._candidates import CompletedInputs, EvidenceSink, FamilyId
 from quiddity._claims import ClaimLedger, EvidenceWriter
+from quiddity._definitions import (
+    Counted,
+    DiscoveryServices,
+    FullyAttributed,
+    ManifestEvidence,
+    PhysicalDefinition,
+    prismatic,
+)
 from quiddity._geometry import AXIS_ALIGNED_COS, SMOOTH_ARC_GAP, length_tol, part_scale
 from quiddity._record import Record
 from quiddity._typing import Part
@@ -250,3 +258,28 @@ def recognise_paired_ramp_steps(
                 defining=(left, right, terminal),
             )
     return [record for record, _left, _right, _terminal in found]
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(recognise_paired_ramp_steps(services.context.part, ledger=services.writer))
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.PAIRED_RAMP_STEPS,
+    record_types=(PairedRampStep,),
+    result_field="paired_ramp_steps",
+    public_entrypoint=recognise_paired_ramp_steps.__name__,
+    dependencies=(),
+    applicable=prismatic,
+    discover=_discover,
+    census=Counted("paired_ramp_step"),
+    attribution=FullyAttributed(
+        "every returned paired-ramp step claims both original ramps and its closing terminal"
+    ),
+    evidence=ManifestEvidence(
+        goldens=("paired_ramp_step",),
+        tests=("tests/test_paired_ramp_steps.py",),
+    ),
+)

@@ -14,7 +14,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Protocol, TypeAlias
 
-from quiddity import angled_steps, chamfers, gussets, plates
+from quiddity import angled_steps, chamfers, gussets, paired_ramp_steps, plates
 from quiddity._candidates import (
     Candidate,
     CandidateSet,
@@ -89,7 +89,6 @@ from quiddity.oriented_slots import (
     _project as _project_oriented_slot,
 )
 from quiddity.pads import RaisedPad, _discover_rectangular_pads
-from quiddity.paired_ramp_steps import PairedRampStep, recognise_paired_ramp_steps
 from quiddity.passages import (
     Passage,
     SectionPassage,
@@ -713,19 +712,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
     ),
     chamfers.DEFINITION,
     angled_steps.DEFINITION,
-    PhysicalDefinition(
-        FamilyId.PAIRED_RAMP_STEPS,
-        (PairedRampStep,),
-        "paired_ramp_steps",
-        "recognise_paired_ramp_steps",
-        (),
-        prismatic,
-        simple(lambda s: list(recognise_paired_ramp_steps(s.context.part, ledger=s.writer))),
-        Counted("paired_ramp_step"),
-        FullyAttributed(
-            "every returned paired-ramp step claims both original ramps and its closing terminal"
-        ),
-    ),
+    paired_ramp_steps.DEFINITION,
     gussets.DEFINITION,
     PhysicalDefinition(
         FamilyId.THROUGH_STEPS,
