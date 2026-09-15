@@ -48,6 +48,7 @@ from quiddity._dispositions import Outcome, ReasonCode
 from quiddity._reconcile import reconcile_blend_candidates
 from quiddity.evidence import build_recognition_evidence
 from quiddity.result import _take_inventory
+from tests.route_pins import assert_core_route_is_closed
 
 
 def _external(radius: float = 2.0):
@@ -549,3 +550,19 @@ def test_toroidal_face_traversal_order_does_not_change_records(monkeypatch) -> N
 
     monkeypatch.setattr(part_type, "faces", reversed_faces)
     assert recognise_blends(part) == baseline
+
+
+def test_only_the_declaration_may_call_writer_enabled_core() -> None:
+    """This family had no route pin before it declared itself, and routes through a core."""
+
+    assert_core_route_is_closed(
+        module="blends",
+        core="_discover_blends",
+        entrypoint="recognise_blends",
+        handed_over={
+            "graph": "services.context.graph",
+            "surfaces": "services.context.surfaces",
+            "writer": "services.writer",
+        },
+        withheld=("writer",),
+    )

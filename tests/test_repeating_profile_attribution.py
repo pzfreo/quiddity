@@ -668,49 +668,13 @@ def test_registry_status_and_not_counted_disposition_are_exact() -> None:
 
 def test_private_core_and_constructor_rosters_are_closed() -> None:
     package = ROOT / "src/quiddity"
-    sites = []
     constructors = []
     proposal_constructors = []
     for path in package.glob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        aliases = set()
-        module_aliases = set()
-        for statement in tree.body:
-            if isinstance(statement, ast.ImportFrom) and statement.module in {
-                "quiddity.repeating_profiles",
-                "repeating_profiles",
-            }:
-                aliases.update(
-                    alias.asname or alias.name
-                    for alias in statement.names
-                    if alias.name == "_discover_repeating_radial_profiles"
-                )
-            if isinstance(statement, ast.ImportFrom) and statement.module == "quiddity":
-                module_aliases.update(
-                    alias.asname or alias.name
-                    for alias in statement.names
-                    if alias.name == "repeating_profiles"
-                )
-            if isinstance(statement, ast.Import):
-                module_aliases.update(
-                    alias.asname or alias.name
-                    for alias in statement.names
-                    if alias.name == "quiddity.repeating_profiles"
-                )
-        if path.name == "repeating_profiles.py":
-            aliases.add("_discover_repeating_radial_profiles")
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
-            if isinstance(node.func, ast.Name) and node.func.id in aliases:
-                sites.append((path.name, node))
-            if (
-                isinstance(node.func, ast.Attribute)
-                and node.func.attr == "_discover_repeating_radial_profiles"
-                and isinstance(node.func.value, ast.Name)
-                and node.func.value.id in module_aliases
-            ):
-                sites.append((path.name, node))
             name = node.func.id if isinstance(node.func, ast.Name) else ""
             if name == "RepeatingRadialProfile":
                 constructors.append(path.name)
@@ -784,10 +748,20 @@ def test_private_core_and_constructor_rosters_are_closed() -> None:
     ):
         assert prohibited not in source
 
-    # `CompletedInputs` is the declaration adapter's own parameter type, so a flat ban on the name
-    # would now ban the declaration. What stays banned is the recogniser reading it: every mention
-    # must be the import or `_discover`'s signature, never a body.
+    # `CompletedInputs` is the declaration adapter's own parameter type, so a flat ban on the
+    # name would now ban the declaration. Two things stay banned: naming the type anywhere but
+    # that annotation -- under any alias, and in a string annotation, both of which a bare
+    # `ast.Name` sweep would miss -- and the adapter reading the inputs it is handed, which is
+    # what the ban is actually for. This family declares no predecessors, so there is nothing
+    # there to read.
     module_tree = ast.parse(source)
+    aliases = {
+        alias.asname or alias.name
+        for node in ast.walk(module_tree)
+        if isinstance(node, ast.ImportFrom)
+        for alias in node.names
+        if alias.name == "CompletedInputs"
+    } | {"CompletedInputs"}
     declaration = next(
         node
         for node in module_tree.body
@@ -802,7 +776,14 @@ def test_private_core_and_constructor_rosters_are_closed() -> None:
     assert not [
         node
         for node in ast.walk(module_tree)
-        if isinstance(node, ast.Name)
-        and node.id == "CompletedInputs"
-        and id(node) not in annotations
+        if id(node) not in annotations
+        and (
+            (isinstance(node, ast.Name) and node.id in aliases)
+            or (isinstance(node, ast.Constant) and node.value in aliases)
+        )
     ]
+    assert any(
+        isinstance(node, ast.Delete)
+        and any(isinstance(target, ast.Name) and target.id == "inputs" for target in node.targets)
+        for node in declaration.body
+    ), "the declaration must delete `inputs`, not read them: this family declares no predecessors"

@@ -29,6 +29,7 @@ from quiddity._claims import EvidenceWriter
 from quiddity._definitions import (
     DiscoveryServices,
     FullyAttributed,
+    ManifestEvidence,
     NotCounted,
     PhysicalDefinition,
     always,
@@ -714,5 +715,9 @@ DEFINITION = PhysicalDefinition(
     census=NotCounted("level substrate is not a distinct feature"),
     attribution=FullyAttributed(
         "every returned FaceLevel owns the exact body-local horizontal face cluster"
+    ),
+    evidence=ManifestEvidence(
+        goldens=("plates_pads_levels_and_slanted_steps", "slanted_steps"),
+        extra_records=(("FaceLevel", "evidence", ("RecognitionResult.step_levels",)),),
     ),
 )

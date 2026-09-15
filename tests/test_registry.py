@@ -561,3 +561,37 @@ def test_registry_result_field_validation_rejects_stale_contract() -> None:
     ) - {"holes"}
     with pytest.raises(ValueError, match="do not exactly cover"):
         validate_result_fields(fields_without_one)
+
+
+def test_every_family_says_something_different_about_what_it_claims() -> None:
+    """No two families share an attribution sentence or a `NotCounted` reason.
+
+    These strings are prose, so nothing else in the suite reads them: a declaration that copied a
+    neighbour's would pass every gate. They moved out of one file and into thirty-odd during the
+    declared-family migration, which is exactly when a copy-paste between siblings stops being
+    visible in one diff.
+    """
+
+    claims = [
+        (item.family.name, item.attribution.proof_contract)
+        for item in PHYSICAL_DEFINITIONS
+        if isinstance(item.attribution, FullyAttributed)
+    ]
+    duplicated = {
+        contract for _family, contract in claims if [c for _f, c in claims].count(contract) > 1
+    }
+    assert duplicated == set()
+
+    reasons = [
+        (item.family.name, item.census.reason)
+        for item in PHYSICAL_DEFINITIONS
+        if isinstance(item.census, NotCounted)
+    ]
+    shared = {reason for _family, reason in reasons if [r for _f, r in reasons].count(reason) > 1}
+    # Two reasons are genuinely shared by groups of families -- the recess-projected ones, and
+    # those whose records are counted under another family's key. Naming them here means a new
+    # family cannot join either group silently.
+    assert shared == {
+        "Counted once through the unified section_recess projection",
+        "not a distinct census key",
+    }
