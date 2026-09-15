@@ -14,7 +14,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Protocol, TypeAlias
 
-from quiddity import angled_steps, chamfers, gussets, paired_ramp_steps, plates
+from quiddity import angled_steps, chamfers, gussets, paired_ramp_steps, plates, through_steps
 from quiddity._candidates import (
     Candidate,
     CandidateSet,
@@ -125,7 +125,6 @@ from quiddity.slots import (
     recognise_pocket_patterns,
     recognise_slot_patterns,
 )
-from quiddity.through_steps import ThroughStep, recognise_through_steps
 from quiddity.turned import TurnedStep, recognise_turned_steps
 
 # Internal detector identities survive the public SectionRecess schema replacement so that
@@ -714,17 +713,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
     angled_steps.DEFINITION,
     paired_ramp_steps.DEFINITION,
     gussets.DEFINITION,
-    PhysicalDefinition(
-        FamilyId.THROUGH_STEPS,
-        (ThroughStep,),
-        "through_steps",
-        "recognise_through_steps",
-        (),
-        prismatic,
-        simple(lambda s: list(recognise_through_steps(s.context.part, ledger=s.writer))),
-        Counted("through_step"),
-        FullyAttributed("every returned through step claims both rectangular wall regions"),
-    ),
+    through_steps.DEFINITION,
     PhysicalDefinition(
         FamilyId.CIRCULAR_BLIND_STEPS,
         (CircularBlindStep,),
