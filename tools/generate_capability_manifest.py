@@ -18,13 +18,15 @@ from pathlib import Path
 
 import quiddity as recognition
 from quiddity._record import Record
+from quiddity._registry import DERIVED_DEFINITIONS, PHYSICAL_DEFINITIONS, Counted
 
 ROOT = Path(__file__).parents[1]
 TARGET = ROOT / "src" / "quiddity" / "capabilities.json"
 
 # Recognisers, output records, aggregate membership and census keys are derived from the
 # registry below. What stays by hand is what ADR 0005 makes a deliberate contract: the
-# evidence a family publishes, and the records that are not its registry output.
+# evidence a family publishes, and the records that are not its registry output. A new
+# family sets `introduced`; the default is the first release of this distribution.
 EVIDENCE: dict[str, dict[str, object]] = {
     "angled-steps": {"goldens": ["angled_blind_step"], "tests": ["tests/test_angled_steps.py"]},
     "gusset-ribs": {
@@ -184,38 +186,48 @@ EXTRA_RECORDS: dict[str, list[tuple[str, str, list[str]]]] = {
 
 
 def _family_id(entrypoint: str) -> str:
+    """``recognise_x_y`` publishes as family ``x-y``; a family that breaks the rule fails at
+    the EVIDENCE lookup below with the derived id in the message."""
+
     return entrypoint.removeprefix("recognise_").replace("_", "-")
 
 
 def _registry_families() -> dict[str, dict[str, object]]:
     """One FAMILIES entry per registry definition whose entry point the package exports."""
 
-    from quiddity._registry import DERIVED_DEFINITIONS, PHYSICAL_DEFINITIONS, Counted
-
     exported = set(recognition.__all__)
     families: dict[str, dict[str, object]] = {}
-    for definition in (*PHYSICAL_DEFINITIONS, *DERIVED_DEFINITIONS):
-        entrypoint = definition.public_entrypoint
+    definitions = [
+        (d.public_entrypoint, "part", d.record_types, d.result_field, d.census)
+        for d in PHYSICAL_DEFINITIONS
+    ] + [
+        (d.public_entrypoint, "derived", d.record_types, d.result_field, d.census)
+        for d in DERIVED_DEFINITIONS
+        if d.public_entrypoint is not None
+    ]
+    for entrypoint, kind, record_types, result_field, census_spec in definitions:
         if entrypoint not in exported:
             continue
         family_id = _family_id(entrypoint)
         if family_id not in EVIDENCE:
             raise KeyError(f"{family_id} is in the registry but has no EVIDENCE entry")
-        kind = "derived" if definition in DERIVED_DEFINITIONS else "part"
         extra = EXTRA_RECORDS.get(family_id, [])
         overridden = {name for name, _role, _membership in extra}
         records = [
-            (record.__name__, "output", [f"RecognitionResult.{definition.result_field}"])
-            for record in definition.record_types
+            (record.__name__, "output", [f"RecognitionResult.{result_field}"])
+            for record in record_types
             if record.__name__ not in overridden
         ] + list(extra)
-        census = definition.census.key if isinstance(definition.census, Counted) else None
+        census = census_spec.key if isinstance(census_spec, Counted) else None
         families[family_id] = {
             "recognisers": [(entrypoint, kind)],
             "records": records,
             "census": census,
             **EVIDENCE[family_id],
         }
+    unknown = (set(EVIDENCE) | set(EXTRA_RECORDS)) - families.keys()
+    if unknown:
+        raise KeyError(f"no exported registry family for {sorted(unknown)}")
     return families
 
 

@@ -234,7 +234,7 @@ every site.
 | 5 | `src/quiddity/census.py` | the census binding, or nothing when the family is `NotCounted` | `tests/test_census.py` |
 | 6 | `src/quiddity/_effective_surfaces.py` | one roster entry per raw surface read the module makes | `test_effective_surface_reader_roster_covers_every_raw_classification` |
 | 7 | `tests/test_architecture.py` | `PUBLIC_MODULES`, the module's seam entry, and its arc-reader sites | that file's own tests |
-| 8 | `tools/generate_capability_manifest.py` | the family's `EVIDENCE` entry (goldens, tests, version), then regenerate `capabilities.json`; recognisers, records, membership and census come from the registry | `--check` in `tests/test_capability_manifest.py` |
+| 8 | `tools/generate_capability_manifest.py` | the family's `EVIDENCE` entry (goldens, tests, version), and an `EXTRA_RECORDS` entry for any nested, evidence, aggregate or projection record or a non-default role or membership; then regenerate `capabilities.json`. The entry point, its kind, the output record, its aggregate field and the census key come from the registry | `--check` in `tests/test_capability_manifest.py` |
 | 9 | `docs/capabilities.md` | the recogniser row and one row per record | `tests/test_capability_claims.py` |
 
 Regenerate, do not hand-edit, the committed capability manifest:
