@@ -22,6 +22,18 @@ from quiddity._adjacency import (
 from quiddity._body_identity import unambiguous_body_keys
 from quiddity._candidates import EvidenceSink, FamilyId
 from quiddity._claims import ClaimLedger, EvidenceWriter
+from quiddity._definitions import (
+    AcceptedInputs,
+    Counted,
+    DerivedDefinition,
+    DerivedId,
+    Evidence,
+    FullyAttributed,
+    NotCounted,
+    PhysicalDefinition,
+    prismatic,
+    simple,
+)
 from quiddity._geometry import length_tol
 from quiddity._pattern_geometry import _pattern_tol
 from quiddity._record import Record
@@ -386,3 +398,47 @@ def recognise_gusset_rib_patterns(
                 )
                 used.update((index, other))
     return sorted(patterns, key=lambda pattern: pattern.ribs[0].thickness_bounds)
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+DEFINITION = PhysicalDefinition(
+    FamilyId.GUSSET_RIBS,
+    (GussetRib,),
+    "gusset_ribs",
+    "recognise_gusset_ribs",
+    (),
+    prismatic,
+    simple(
+        lambda s: list(
+            _discover_gusset_ribs(
+                s.context.part,
+                graph=s.context.graph,
+                face_edges=s.context.face_edges,
+                sink=s.writer.sink,
+            )
+        )
+    ),
+    Counted("gusset_rib"),
+    FullyAttributed("every returned gusset rib claims both end caps, its slant and edge blends"),
+    evidence=Evidence(
+        goldens=("gusset_ribs",), tests=("tests/test_gussets.py",), introduced="0.2.10"
+    ),
+)
+
+
+def _derive_patterns(inputs: AcceptedInputs) -> list[object]:
+    return list(recognise_gusset_rib_patterns(inputs.records(FamilyId.GUSSET_RIBS, GussetRib)))
+
+
+PATTERNS = DerivedDefinition(
+    DerivedId.GUSSET_RIB_PATTERNS,
+    (GussetRibArray, GussetRibMirrorPair),
+    "gusset_rib_patterns",
+    "recognise_gusset_rib_patterns",
+    (FamilyId.GUSSET_RIBS,),
+    _derive_patterns,
+    NotCounted("a relation among already counted gusset ribs"),
+    evidence=Evidence(
+        goldens=("gusset_rib_patterns",), tests=("tests/test_gussets.py",), introduced="0.2.10"
+    ),
+)

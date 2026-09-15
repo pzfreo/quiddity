@@ -86,6 +86,9 @@ def test_cross_run_correspondence_is_absent() -> None:
 MODULE_SEAM_EDGES = {
     # Stdlib-only leaf: the checks the capability and inspection manifests share (ADR 0007).
     "_manifest": set(),
+    # What a family declares about itself (ADR 0003/0007): a leaf below every family module,
+    # so it must never reach `_run`.
+    "_definitions": {"_adjacency", "_candidates", "_claims", "_effective_surfaces", "_typing"},
     "_outer_profile": {"_geometry", "_record"},
     "_outer_profile_geometry": {"_adjacency", "_geometry", "_outer_profile", "_typing"},
     "_corner_section": {"_adjacency", "_section_passages", "_sections", "_volume_probe"},
@@ -152,6 +155,7 @@ MODULE_SEAM_EDGES = {
         "_typing",
     },
     "gussets": {
+        "_definitions",
         "_adjacency",
         "_body_identity",
         "_candidates",
@@ -408,6 +412,7 @@ MODULE_SEAM_EDGES = {
     # Internal orchestration registry: it names family adapters but owns no geometry or policy.
     # Family modules never import it, so the edge remains one-way from orchestration to families.
     "_registry": {
+        "_definitions",
         "_candidates",
         "_claims",
         "_passage_compat",
