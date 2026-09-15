@@ -62,6 +62,7 @@ def test_projection_rejects_a_record_from_the_wrong_family_contract():
 def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity._registry as registry_module
     import quiddity._run as run_module
+    import quiddity.gussets as gussets_module
     import quiddity.plates as plates_module
     import quiddity.result as result_module
     from quiddity._candidates import EvidenceIndex
@@ -262,6 +263,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     monkeypatch.setattr(registry_module, "_discover_fillets", counted("fillets", []))
     # A declared family is patched where it lives; the registry no longer imports its core.
     monkeypatch.setattr(plates_module, "_discover_plates", counted("plates", []))
+    monkeypatch.setattr(gussets_module, "_discover_gusset_ribs", counted("gusset_ribs", []))
 
     # A part rather than a bare object: the orchestrator now builds one face graph for the
     # families that record which faces they were built from, and an empty inventory is all this
@@ -310,6 +312,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
         "chamfers",
         "fillets",
         "plates",
+        "gusset_ribs",
     }
     assert set(calls) == expected
     assert set(calls.values()) == {1}

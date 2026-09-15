@@ -155,11 +155,11 @@ MODULE_SEAM_EDGES = {
         "_typing",
     },
     "gussets": {
-        "_definitions",
         "_adjacency",
         "_body_identity",
         "_candidates",
         "_claims",
+        "_definitions",
         "_geometry",
         "_pattern_geometry",
         "_record",
