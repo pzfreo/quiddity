@@ -523,6 +523,7 @@ MODULE_SEAM_EDGES = {
     },
     "polygonal_bosses": {
         "_candidates",
+        "_definitions",
         "_geometry",
         "_geometry_evidence",
         "_record",
