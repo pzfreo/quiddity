@@ -19,6 +19,7 @@ from quiddity import (
     chamfers,
     circular_blind_steps,
     edge_open_circular_recesses,
+    edge_open_prismatic_recesses,
     fillets,
     flats,
     grooves,
@@ -72,10 +73,6 @@ from quiddity._section_recess import SectionRecess
 from quiddity._section_recess_discovery import discover_section_recesses
 from quiddity.blends import Blend, _discover_blends
 from quiddity.countersinks import CounterSink, _discover_countersinks
-from quiddity.edge_open_prismatic_recesses import (
-    EdgeOpenPrismaticRecess,
-    recognise_edge_open_prismatic_recesses,
-)
 from quiddity.levels import (
     FaceLevel,
     RiserEvidence,
@@ -435,23 +432,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
     ),
     prismatic_pockets.DEFINITION,
     edge_open_circular_recesses.DEFINITION,
-    PhysicalDefinition(
-        FamilyId.EDGE_OPEN_PRISMATIC_RECESSES,
-        (EdgeOpenPrismaticRecess,),
-        "edge_open_prismatic_recesses",
-        "recognise_edge_open_prismatic_recesses",
-        (),
-        always,
-        simple(
-            lambda s: list(
-                recognise_edge_open_prismatic_recesses(
-                    s.context.part, ledger=s.writer, face_edges=s.context.face_edges
-                )
-            )
-        ),
-        NotCounted("Counted once through the unified section_recess projection"),
-        FullyAttributed("every returned edge-open recess claims its physical wall supports"),
-    ),
+    edge_open_prismatic_recesses.DEFINITION,
     PhysicalDefinition(
         FamilyId.SECTION_RECESSES,
         (SectionRecess,),
