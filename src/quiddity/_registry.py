@@ -24,6 +24,7 @@ from quiddity import (
     flats,
     grooves,
     gussets,
+    pads,
     paired_ramp_steps,
     plates,
     polygonal_bosses,
@@ -91,7 +92,6 @@ from quiddity.oriented_slots import (
 from quiddity.oriented_slots import (
     _project as _project_oriented_slot,
 )
-from quiddity.pads import RaisedPad, _discover_rectangular_pads
 from quiddity.passages import (
     Passage,
     SectionPassage,
@@ -453,26 +453,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
             "every SectionRecess publishes its original wall faces and complete constituent set"
         ),
     ),
-    PhysicalDefinition(
-        FamilyId.PADS,
-        (RaisedPad,),
-        "pads",
-        "recognise_rectangular_pads",
-        (),
-        always,
-        simple(
-            lambda s: list(
-                _discover_rectangular_pads(
-                    s.context.part,
-                    writer=s.writer,
-                    face_surfaces=s.context.face_surfaces,
-                    geometry=s.context.geometry,
-                )
-            )
-        ),
-        NotCounted("not a distinct census key"),
-        FullyAttributed("every returned Pad owns its exact top and four perimeter-wall faces"),
-    ),
+    pads.DEFINITION,
     PhysicalDefinition(
         FamilyId.REPEATING_RADIAL_PROFILES,
         (RepeatingRadialProfile,),

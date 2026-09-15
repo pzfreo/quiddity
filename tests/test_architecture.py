@@ -270,6 +270,7 @@ MODULE_SEAM_EDGES = {
         "_analytic_surfaces",
         "_candidates",
         "_claims",
+        "_definitions",
         "_effective_surfaces",
         "_geometry",
         "_record",

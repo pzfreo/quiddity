@@ -58,14 +58,6 @@ EVIDENCE: dict[str, dict[str, object]] = {
     "face-levels": {"goldens": ["plates_pads_levels_and_slanted_steps", "slanted_steps"]},
     "hole-patterns": {"goldens": ["bolt_circle_and_rectangular_grid"]},
     "holes": {"goldens": ["simple_through_hole", "counterbored_and_countersunk_holes"]},
-    "rectangular-pads": {
-        "goldens": ["plates_pads_levels_and_slanted_steps"],
-        "tests": [
-            "docs/benchmarks/nurbs-conversion-sweep.json",
-            "tests/test_nurbs_conversion_sweep.py",
-            "tests/test_pad_attribution.py",
-        ],
-    },
     "repeating-radial-profiles": {"goldens": ["repeating_radial_profile", "traversal_order"]},
     "risers": {"goldens": ["plates_pads_levels_and_slanted_steps", "slanted_steps"]},
     "slot-patterns": {"goldens": ["straight_and_obround_slots"]},
