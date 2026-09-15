@@ -38,8 +38,16 @@ from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.GeomAbs import GeomAbs_Plane
 
 from quiddity._adjacency import FaceEdges, edge_face_map, neighbours
-from quiddity._candidates import FamilyId
+from quiddity._candidates import CompletedInputs, FamilyId
 from quiddity._claims import EvidenceWriter
+from quiddity._definitions import (
+    Counted,
+    DiscoveryServices,
+    FullyAttributed,
+    ManifestEvidence,
+    PhysicalDefinition,
+    always,
+)
 from quiddity._features import analyse_cylinders
 from quiddity._geometry import (
     _axis_direction_is_aligned,
@@ -350,3 +358,30 @@ def _axis_line(axis: str, ax: Sequence[float], direction: Sequence[float] | None
     Aligned stock therefore retains its existing two-coordinate representation.
     """
     return _axis_line_coordinates(axis, ax, direction)
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(
+        _discover_flats(
+            services.context.part,
+            cyls=services.cylinders,
+            face_edges=services.context.face_edges,
+            writer=services.writer,
+        )
+    )
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.FLATS,
+    record_types=(Flat,),
+    result_field="flats",
+    public_entrypoint=recognise_flats.__name__,
+    dependencies=(),
+    applicable=always,
+    discover=_discover,
+    census=Counted("flat"),
+    attribution=FullyAttributed("every returned flat claims its defining planar truncation face"),
+    evidence=ManifestEvidence(goldens=("chamfers_fillets_and_flats",)),
+)
