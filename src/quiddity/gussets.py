@@ -20,13 +20,12 @@ from quiddity._adjacency import (
     neighbours,
 )
 from quiddity._body_identity import unambiguous_body_keys
-from quiddity._candidates import CompletedInputs, EvidenceSink, FamilyId
+from quiddity._candidates import CompletedInputs, DerivedId, EvidenceSink, FamilyId
 from quiddity._claims import ClaimLedger, EvidenceWriter
 from quiddity._definitions import (
     AcceptedInputs,
     Counted,
     DerivedDefinition,
-    DerivedId,
     DiscoveryServices,
     Evidence,
     FullyAttributed,

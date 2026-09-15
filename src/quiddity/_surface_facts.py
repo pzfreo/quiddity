@@ -181,3 +181,19 @@ def inspect_face(face: FaceLike) -> FaceInspection:
     except ValueError:
         anchor = None
     return FaceInspection(surface, anchor)
+
+
+# Published from `quiddity.inspection`, whichever facade imports them first: the leaf is an
+# implementation seam, not a name a consumer should ever see in a repr or a type hint.
+for _published in (
+    SurfaceKind,
+    SurfaceProvenance,
+    OrientationCapability,
+    SurfaceRefusalReason,
+    AnalyticSurface,
+    RefusedSurface,
+    FaceInspection,
+    inspect_face,
+):
+    _published.__module__ = "quiddity.inspection"
+del _published

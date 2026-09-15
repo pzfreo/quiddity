@@ -165,7 +165,7 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
     ),
     "_surface_facts": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
-        "supported F7 inspection owns its bounded trimmed-surface anchor projection",
+        "the surface-fact leaf that F7 inspection publishes owns its trimmed-surface anchor",
     ),
     "experimental_geometry": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,

@@ -37,7 +37,7 @@ modules that sit between layers are recorded as comments in the table:
    `_body_identity`, `_geometry`.
 2. The graph: `_analytic_surfaces`, `_adjacency`.
 3. Shared substrates and evidence primitives that scan or probe once and publish no record:
-   `_effective_surfaces`, `_blend_view`, `_cylinder_substrate`, `_volume_probe`, `_wire_seed`,
+   `_effective_surfaces`, `_surface_facts`, `_blend_view`, `_cylinder_substrate`, `_volume_probe`, `_wire_seed`,
    `_support_patches`, and the run-local evidence types `_candidates`, `_claims`, `_dispositions`.
    `experimental_geometry` sits here too: a public wrapper over the graph and surface index with
    a reviewed consumer roster (`_run`, `_geometry_evidence`, `pads`, `polygonal_bosses`).

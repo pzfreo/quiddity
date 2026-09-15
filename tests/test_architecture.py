@@ -86,9 +86,9 @@ def test_cross_run_correspondence_is_absent() -> None:
 MODULE_SEAM_EDGES = {
     # Stdlib-only leaf: the checks the capability and inspection manifests share (ADR 0007).
     "_manifest": set(),
-    # What a family declares about itself (ADR 0003/0007): a leaf below every family module,
-    # so it must never reach `_run`.
-    "_definitions": {"_adjacency", "_candidates", "_claims", "_run", "_typing"},
+    # What a family declares about itself (ADR 0003/0007): a leaf below every family module.
+    # It types against `_run`, which is family-free, and must never reach a family itself.
+    "_definitions": {"_candidates", "_claims", "_run", "_typing"},
     "_outer_profile": {"_geometry", "_record"},
     "_outer_profile_geometry": {"_adjacency", "_geometry", "_outer_profile", "_typing"},
     "_corner_section": {"_adjacency", "_section_passages", "_sections", "_volume_probe"},
@@ -488,12 +488,9 @@ MODULE_SEAM_EDGES = {
     # Supported F7 declaration-inspection surface. It projects the neutral analytic
     # substrate and re-exports only the four independently proven family readers.
     "inspection": {
-        "_adjacency",
         "_bevel",
-        "_effective_surfaces",
         "_manifest",
         "_surface_facts",
-        "_typing",
         "countersinks",
         "grooves",
         "profiled_bores",
@@ -1686,7 +1683,6 @@ def test_f3b_blend_index_and_view_have_only_reviewed_production_call_sites() -> 
     exempt = {
         "blends.py",
         "experimental_geometry.py",
-        "inspection.py",
         "_surface_facts.py",
         "_run.py",
         "_blend_view.py",

@@ -8,6 +8,10 @@ and recognition evidence remain private or experimental.
 
 ``experimental_geometry.inspect_face`` remains an identity-preserving compatibility
 alias.  New consumers should import the supported names from this module.
+
+The analytic surface-fact core lives in the ``_surface_facts`` leaf and is republished here
+under this module's name, so the geometry facade can use it without importing the family
+readers below.
 """
 
 from __future__ import annotations
@@ -55,21 +59,6 @@ InspectionApiManifest: TypeAlias = dict[str, Any]
 class InspectionApiManifestError(ValueError):
     """The installed inspection API manifest is missing, stale, or unsupported."""
 
-
-# These are published from this module: the leaf is an implementation seam, not a name a
-# consumer should ever see in a repr or a type hint.
-for _published in (
-    SurfaceKind,
-    SurfaceProvenance,
-    OrientationCapability,
-    SurfaceRefusalReason,
-    AnalyticSurface,
-    RefusedSurface,
-    FaceInspection,
-    inspect_face,
-):
-    _published.__module__ = __name__
-del _published
 
 _keys = partial(_check_keys, error=InspectionApiManifestError)
 _version = partial(_parse_version, error=InspectionApiManifestError)
