@@ -186,6 +186,17 @@ completed predecessor.
 
 ```python
 # in example_features.py
+from quiddity._candidates import CompletedInputs
+from quiddity._definitions import (
+    Counted,
+    DiscoveryServices,
+    FullyAttributed,
+    ManifestEvidence,
+    PhysicalDefinition,
+    always,
+)
+
+
 def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
     del inputs  # no completed predecessors
     return list(recognise_example_features(services.context.part, ledger=services.writer))
@@ -211,7 +222,8 @@ DEFINITION = PhysicalDefinition(
 ```
 
 A declaration names its entry point by reference so a rename fails at import, and carries its own
-`ManifestEvidence`, so the capability manifest tool needs no entry for it.
+`ManifestEvidence`, so the capability manifest tool needs no `EVIDENCE` entry for it. A family with
+non-output records still needs its `EXTRA_RECORDS` entry there (#628).
 
 The registry owns orchestration metadata, not geometry:
 
