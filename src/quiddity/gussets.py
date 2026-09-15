@@ -27,8 +27,8 @@ from quiddity._definitions import (
     Counted,
     DerivedDefinition,
     DiscoveryServices,
-    Evidence,
     FullyAttributed,
+    ManifestEvidence,
     NotCounted,
     PhysicalDefinition,
     prismatic,
@@ -424,7 +424,7 @@ DEFINITION = PhysicalDefinition(
     attribution=FullyAttributed(
         "every returned gusset rib claims both end caps, its slant and edge blends"
     ),
-    evidence=Evidence(
+    evidence=ManifestEvidence(
         goldens=("gusset_ribs",), tests=("tests/test_gussets.py",), introduced="0.2.10"
     ),
 )
@@ -442,7 +442,7 @@ PATTERNS = DerivedDefinition(
     sources=(FamilyId.GUSSET_RIBS,),
     derive=_derive_patterns,
     census=NotCounted("a relation among already counted gusset ribs"),
-    evidence=Evidence(
+    evidence=ManifestEvidence(
         goldens=("gusset_rib_patterns",), tests=("tests/test_gussets.py",), introduced="0.2.10"
     ),
 )

@@ -1211,7 +1211,10 @@ def test_only_result_orchestration_may_create_restricted_completed_inputs() -> N
             visit_AsyncFunctionDef = visit_FunctionDef
 
             def visit_Call(self, node: ast.Call) -> None:
-                if isinstance(node.func, ast.Attribute) and node.func.attr == "restricted_inputs":
+                if isinstance(node.func, ast.Attribute) and node.func.attr in {
+                    "restricted_inputs",
+                    "restricted",
+                }:
                     callers.append((self.filename, self.function))
                 if isinstance(node.func, ast.Name) and node.func.id in {
                     "CompletedInputs",
@@ -1224,6 +1227,7 @@ def test_only_result_orchestration_may_create_restricted_completed_inputs() -> N
 
     assert sorted(callers) == [
         ("_claims.py", "restricted_inputs"),
+        ("result.py", "_derive_patterns"),
         ("result.py", "_discover_all"),
     ]
     assert constructors == []

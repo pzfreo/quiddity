@@ -4,7 +4,8 @@
 
 A leaf below every family module. It names the shapes a declaration takes and nothing about
 execution: the registry (`_registry`) is still the one ordered literal that says which families
-run and in what order, and it validates every declaration it lists.
+run and in what order, and it validates the sequence and census of what it lists; the
+manifest tool validates the evidence.
 """
 
 from __future__ import annotations
@@ -96,7 +97,6 @@ class AcceptedInputs:
 
 PhysicalDiscoverer: TypeAlias = Callable[[DiscoveryServices, CompletedInputs], list[object]]
 Applicability: TypeAlias = Callable[[RecognitionContext], bool]
-DerivedDiscoverer: TypeAlias = Callable[[AcceptedInputs], list[object]]
 
 
 def always(context: RecognitionContext) -> bool:
@@ -118,14 +118,22 @@ def simple(call: Callable[[DiscoveryServices], list[object]]) -> PhysicalDiscove
     return discover
 
 
+#: The release the manifest attributes a family to when the declaration names none.
+FIRST_RELEASE = "0.2.0"
+
+
 @dataclass(frozen=True, slots=True)
-class Evidence:
-    """What the capability manifest publishes for a family (ADR 0005)."""
+class ManifestEvidence:
+    """What the capability manifest publishes for a family (ADR 0005).
+
+    Not the run-local `_candidates.Evidence`: this is the golden and test paths a consumer can
+    open, not the faces a record was proven from.
+    """
 
     goldens: tuple[str, ...] = ()
     golden_paths: tuple[str, ...] = ()
     tests: tuple[str, ...] = ()
-    introduced: str = "0.2.0"
+    introduced: str = FIRST_RELEASE
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,7 +148,7 @@ class PhysicalDefinition:
     census: CensusSpec
     attribution: AttributionSpec
     projected: Applicability = always
-    evidence: Evidence | None = field(default=None, kw_only=True)
+    evidence: ManifestEvidence | None = field(default=None, kw_only=True)
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,7 +158,9 @@ class DerivedDefinition:
     result_field: str
     public_entrypoint: str | None
     sources: tuple[FamilyId, ...]
+    # A standard discoverer takes `AcceptedInputs`; a projection takes the registry's own
+    # projection inputs, which this leaf cannot name. `result` casts at the one site of each.
     derive: Callable[..., list[object]]
     census: CensusSpec
     role: str = "discoverer"
-    evidence: Evidence | None = field(default=None, kw_only=True)
+    evidence: ManifestEvidence | None = field(default=None, kw_only=True)

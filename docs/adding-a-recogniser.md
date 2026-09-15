@@ -245,9 +245,9 @@ uv run python tools/generate_capability_manifest.py --write
 
 Measured on the gussets family (issue #602): sixteen files, now eleven, plus the module itself,
 its fixtures and the goldens in the next section. A family that declares itself (`DEFINITION`
-with its `Evidence`) needs no entry in the manifest tool; a family still described in the
-registry needs an `EVIDENCE` entry there, and an `EXTRA_RECORDS` entry for any non-output
-record. A site that only restates what the registry already knows is a candidate for
+with its `ManifestEvidence`) needs no `EVIDENCE` entry in the manifest tool; a family still
+described in the registry does. Either kind still needs an `EXTRA_RECORDS` entry there for
+any non-output record. A site that only restates what the registry already knows is a candidate for
 derivation; the three remaining test files in row 9 are deliberate pins, not restatements.
 A site that is a public contract stays, and its check is what makes forgetting it visible. See
 [ADR 0005](adr/0005-versioned-cross-repository-capability-contract.md).

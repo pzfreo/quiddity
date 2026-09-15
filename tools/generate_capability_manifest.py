@@ -17,6 +17,7 @@ import typing
 from pathlib import Path
 
 import quiddity as recognition
+from quiddity._definitions import FIRST_RELEASE
 from quiddity._record import Record
 from quiddity._registry import DERIVED_DEFINITIONS, PHYSICAL_DEFINITIONS, Counted
 
@@ -435,7 +436,7 @@ def build_manifest() -> dict[str, object]:
                 + spec.get("golden_paths", [])
             ),
             "id": family_id,
-            "introduced_in": spec.get("introduced", "0.2.0"),
+            "introduced_in": spec.get("introduced", FIRST_RELEASE),
             "recognisers": [
                 (
                     {

@@ -363,8 +363,6 @@ def _passages_compat(
     return [record for record, _ in found]
 
 
-_simple = simple
-
 PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
     PhysicalDefinition(
         FamilyId.COUNTERSINKS,
