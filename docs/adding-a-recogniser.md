@@ -226,7 +226,8 @@ A declaration names its entry point by reference so a rename fails at import, an
 non-output records still needs its `EXTRA_RECORDS` entry there (#628). `introduced` defaults to the
 first release; set it only for a family added later. Name `tests` only where a test file is the
 evidence a consumer should read; a family whose goldens carry that weight names none, as
-`flats.py` and `grooves.py` do.
+`flats.py` and `grooves.py` do. A family whose entry point the package does not export has no
+manifest entry at all, so it declares no evidence either, as `rectangular_blind_slots.py` shows.
 
 `DEFINITION` is the name only where the module declares one family. A module declaring several
 families names each declaration after its family instead, as `polygonal_bosses.py` does with

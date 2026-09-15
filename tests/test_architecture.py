@@ -213,6 +213,7 @@ MODULE_SEAM_EDGES = {
         "_adjacency",
         "_candidates",
         "_claims",
+        "_definitions",
         "_record",
         "_typing",
         "round_bottom_slots",
