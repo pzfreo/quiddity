@@ -46,9 +46,17 @@ from OCP.Standard import Standard_Failure
 
 from quiddity._analytic_surfaces import SurfaceKind, validated_parameters
 from quiddity._body_identity import BodyKey, unambiguous_body_keys
-from quiddity._candidates import FamilyId
+from quiddity._candidates import CompletedInputs, FamilyId
 from quiddity._claims import ClaimLedger, EvidenceWriter
 from quiddity._cylinder_substrate import _line_key, full_cylinders
+from quiddity._definitions import (
+    Counted,
+    DiscoveryServices,
+    FullyAttributed,
+    ManifestEvidence,
+    PhysicalDefinition,
+    always,
+)
 from quiddity._effective_surfaces import (
     AnalyticSurfaceFact,
     EffectiveFaceSurfaceQuery,
@@ -561,3 +569,36 @@ def _shoulder_stations(
             shoulders.add(round(pos, 3))
 
     return sorted(shoulders)
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(
+        recognise_turned_steps(
+            services.context.part,
+            cyls=services.cylinders,
+            ledger=services.writer,
+            face_surfaces=services.context.face_surfaces,
+        )
+    )
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.TURNED_STEPS,
+    record_types=(TurnedStep,),
+    result_field="turned_steps",
+    public_entrypoint=recognise_turned_steps.__name__,
+    dependencies=(),
+    applicable=always,
+    discover=_discover,
+    census=Counted("step"),
+    attribution=FullyAttributed("every returned turned step claims its defining profile faces"),
+    evidence=ManifestEvidence(
+        goldens=("turned_steps_and_grooves",),
+        extra_records=(
+            ("TurnedProfile", "aggregate", ()),
+            ("TurnedProfileKey", "nested", ()),
+        ),
+    ),
+)

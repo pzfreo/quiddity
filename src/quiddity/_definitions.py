@@ -13,7 +13,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import TypeAlias, TypeVar, cast
+from typing import Literal, TypeAlias, TypeVar, cast
 
 from quiddity._candidates import CompletedInputs, DerivedId, FamilyId
 from quiddity._claims import EvidenceWriter
@@ -122,6 +122,10 @@ def simple(call: Callable[[DiscoveryServices], list[object]]) -> PhysicalDiscove
 FIRST_RELEASE = "0.2.0"
 
 
+#: The roles `capabilities.validate_capability_manifest` accepts for a published record.
+ExtraRecordRole = Literal["aggregate", "evidence", "nested", "output", "projection"]
+
+
 @dataclass(frozen=True, slots=True)
 class ManifestEvidence:
     """What the capability manifest publishes for a family (ADR 0005).
@@ -134,6 +138,11 @@ class ManifestEvidence:
     golden_paths: tuple[str, ...] = ()
     tests: tuple[str, ...] = ()
     introduced: str = FIRST_RELEASE
+    #: Records the family publishes that are not its `record_types` output: nested parts of a
+    #: record, aggregate documents, and projection outputs that reach a different result field.
+    #: `(name, role, membership)`, where an empty membership means the record is reached through
+    #: another rather than through a field of its own.
+    extra_records: tuple[tuple[str, ExtraRecordRole, tuple[str, ...]], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

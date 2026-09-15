@@ -24,8 +24,15 @@ from OCP.GProp import GProp_GProps
 
 from quiddity._adjacency import FaceNode
 from quiddity._body_identity import BodyKey, unambiguous_body_keys
-from quiddity._candidates import FamilyId
+from quiddity._candidates import CompletedInputs, FamilyId
 from quiddity._claims import EvidenceWriter
+from quiddity._definitions import (
+    DiscoveryServices,
+    FullyAttributed,
+    NotCounted,
+    PhysicalDefinition,
+    always,
+)
 from quiddity._geometry import (
     AXIS_ALIGNED_COS,
     AXIS_ZERO_COS,
@@ -688,3 +695,24 @@ def project_step_shoulders(
         out.extend(StepShoulder(r.axis, pos) for pos in r.positions)
         out.extend(StepShoulder(r.other_axis, pos) for pos in r.other_positions)
     return sorted(out)
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(_discover_step_levels(services.context.part, writer=services.writer))
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.STEP_LEVELS,
+    record_types=(FaceLevel,),
+    result_field="step_levels",
+    public_entrypoint=recognise_face_levels.__name__,
+    dependencies=(),
+    applicable=always,
+    discover=_discover,
+    census=NotCounted("level substrate is not a distinct feature"),
+    attribution=FullyAttributed(
+        "every returned FaceLevel owns the exact body-local horizontal face cluster"
+    ),
+)

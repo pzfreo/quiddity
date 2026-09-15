@@ -36,6 +36,7 @@ from quiddity._registry import PHYSICAL_DEFINITIONS, FullyAttributed, NotCounted
 from quiddity._run import start
 from quiddity.result import _discover_all, _take_inventory
 from tests.golden._common import toothed_prism
+from tests.route_pins import assert_core_route_is_closed
 
 ROOT = Path(__file__).parents[1]
 
@@ -715,23 +716,19 @@ def test_private_core_and_constructor_rosters_are_closed() -> None:
                 constructors.append(path.name)
             if name == "_RepeatingRadialProposal":
                 proposal_constructors.append(path.name)
-    assert {path for path, _call in sites} == {"repeating_profiles.py", "_registry.py"}
-    registry_call = next(call for path, call in sites if path == "_registry.py")
-    keywords = {keyword.arg: keyword.value for keyword in registry_call.keywords}
-    assert isinstance(keywords["writer"], ast.Attribute)
-    assert keywords["writer"].attr == "writer"
-    public_call = next(call for path, call in sites if path == "repeating_profiles.py")
-    assert all(keyword.arg != "writer" for keyword in public_call.keywords)
+    assert_core_route_is_closed(
+        module="repeating_profiles",
+        core="_discover_repeating_radial_profiles",
+        entrypoint="recognise_repeating_radial_profiles",
+        handed_over={"writer": "services.writer"},
+        withheld=("writer",),
+    )
     assert constructors == ["repeating_profiles.py"]
     assert proposal_constructors == ["repeating_profiles.py"]
     assert tuple(inspect.signature(recognise_repeating_radial_profiles).parameters) == (
         "part",
         "tol",
     )
-    registry_keywords = {keyword.arg: keyword.value for keyword in registry_call.keywords}
-    writer = registry_keywords["writer"]
-    assert isinstance(writer, ast.Attribute) and writer.attr == "writer"
-    assert isinstance(writer.value, ast.Name) and writer.value.id == "s"
     assert {key for key in SURFACE_READER_SITES if key.startswith("repeating_profiles:")} == {
         "repeating_profiles:_sample_wire:geom_type:1",
         "repeating_profiles:_sample_wire:geom_type:2",
@@ -752,6 +749,7 @@ def test_private_core_and_constructor_rosters_are_closed() -> None:
         "quiddity._adjacency",
         "quiddity._candidates",
         "quiddity._claims",
+        "quiddity._definitions",
         "quiddity._geometry",
         "quiddity._record",
         "quiddity._solid_properties",
@@ -780,9 +778,31 @@ def test_private_core_and_constructor_rosters_are_closed() -> None:
         "EvidenceIndex",
         "InventoryProduct",
         "ReconciliationResult",
-        "CompletedInputs",
         "candidate_set(",
         "snapshot_index(",
         "freeze_index(",
     ):
         assert prohibited not in source
+
+    # `CompletedInputs` is the declaration adapter's own parameter type, so a flat ban on the name
+    # would now ban the declaration. What stays banned is the recogniser reading it: every mention
+    # must be the import or `_discover`'s signature, never a body.
+    module_tree = ast.parse(source)
+    declaration = next(
+        node
+        for node in module_tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "_discover"
+    )
+    annotations = {
+        id(node)
+        for argument in declaration.args.args
+        if argument.annotation is not None
+        for node in ast.walk(argument.annotation)
+    }
+    assert not [
+        node
+        for node in ast.walk(module_tree)
+        if isinstance(node, ast.Name)
+        and node.id == "CompletedInputs"
+        and id(node) not in annotations
+    ]

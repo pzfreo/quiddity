@@ -65,19 +65,23 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity.angled_steps as angled_steps_module
     import quiddity.chamfers as chamfers_module
     import quiddity.circular_blind_steps as circular_blind_steps_module
+    import quiddity.countersinks as countersinks_module
     import quiddity.fillets as fillets_module
     import quiddity.flats as flats_module
     import quiddity.grooves as grooves_module
     import quiddity.gussets as gussets_module
+    import quiddity.levels as levels_module
     import quiddity.pads as pads_module
     import quiddity.paired_ramp_steps as paired_ramp_steps_module
     import quiddity.plates as plates_module
     import quiddity.polygonal_bosses as polygonal_bosses_module
     import quiddity.profiled_bores as profiled_bores_module
     import quiddity.rectangular_blind_slots as rectangular_blind_slots_module
+    import quiddity.repeating_profiles as repeating_profiles_module
     import quiddity.result as result_module
     import quiddity.round_bottom_slots as round_bottom_slots_module
     import quiddity.through_steps as through_steps_module
+    import quiddity.turned as turned_module
     from quiddity._candidates import EvidenceIndex
 
     calls: dict[str, int] = {}
@@ -140,7 +144,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     # one of the facts `RecognitionRun` owns, so `_run` is the only place that asks for it.
     monkeypatch.setattr(run_module, "analyse_cylinders", fake_cylinders)
     monkeypatch.setattr(
-        registry_module, "_discover_countersinks", counted("countersinks", countersinks)
+        countersinks_module, "_discover_countersinks", counted("countersinks", countersinks)
     )
     monkeypatch.setattr(registry_module, "_discover_holes", fake_holes)
     monkeypatch.setattr(
@@ -177,13 +181,15 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     )
     monkeypatch.setattr(pads_module, "_discover_rectangular_pads", counted("pads", []))
     monkeypatch.setattr(
-        registry_module, "_discover_repeating_radial_profiles", counted("radial_profiles", [])
+        repeating_profiles_module,
+        "_discover_repeating_radial_profiles",
+        counted("radial_profiles", []),
     )
-    monkeypatch.setattr(registry_module, "recognise_turned_steps", cyl_consumer("turned_steps", []))
+    monkeypatch.setattr(turned_module, "recognise_turned_steps", cyl_consumer("turned_steps", []))
     # Fully-attributed FaceLevels cannot be fabricated without original horizontal-face evidence.
     # This test owns dependency injection, so keep the family empty but still invoked and bound.
     levels: list[FaceLevel] = []
-    monkeypatch.setattr(registry_module, "_discover_step_levels", counted("step_levels", levels))
+    monkeypatch.setattr(levels_module, "_discover_step_levels", counted("step_levels", levels))
     monkeypatch.setattr(registry_module, "_discover_risers", counted("risers", []))
     monkeypatch.setattr(chamfers_module, "recognise_chamfers", counted("chamfers", []))
     monkeypatch.setattr(angled_steps_module, "recognise_angled_steps", counted("angled_steps", []))

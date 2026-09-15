@@ -45,20 +45,9 @@ EVIDENCE: dict[str, dict[str, object]] = {
         ],
     },
     "bosses": {"goldens": ["simple_through_hole", "turned_steps_and_grooves"]},
-    "blends": {
-        "goldens": [
-            "small_convex_blends",
-            "toroidal_blend_compound",
-            "toroidal_blend_internal",
-            "toroidal_blends_turned",
-        ],
-        "tests": ["tests/test_blends.py", "tests/test_blend_view.py"],
-    },
-    "countersinks": {"goldens": ["counterbored_and_countersunk_holes"]},
     "face-levels": {"goldens": ["plates_pads_levels_and_slanted_steps", "slanted_steps"]},
     "hole-patterns": {"goldens": ["bolt_circle_and_rectangular_grid"]},
     "holes": {"goldens": ["simple_through_hole", "counterbored_and_countersunk_holes"]},
-    "repeating-radial-profiles": {"goldens": ["repeating_radial_profile", "traversal_order"]},
     "risers": {"goldens": ["plates_pads_levels_and_slanted_steps", "slanted_steps"]},
     "slot-patterns": {"goldens": ["straight_and_obround_slots"]},
     "oriented-slots": {
@@ -70,7 +59,6 @@ EVIDENCE: dict[str, dict[str, object]] = {
         "tests": ["tests/test_oriented_slots.py"],
     },
     "slots": {"goldens": ["straight_and_obround_slots"]},
-    "turned-steps": {"goldens": ["turned_steps_and_grooves"]},
 }
 
 # Records a family publishes beyond its registry output records: nested values, evidence
@@ -98,17 +86,6 @@ EXTRA_RECORDS: dict[str, list[tuple[str, str, list[str]]]] = {
         ("SectionRecessGrid", "projection", ["RecognitionResult.section_recess_patterns"]),
         ("SectionRecessRefusal", "projection", ["RecognitionResult.section_recess_refusals"]),
     ],
-    "blends": [
-        ("CircularBlendPath", "nested", ["RecognitionResult.blends.path"]),
-        ("StraightBlendPath", "nested", ["RecognitionResult.blends.path"]),
-    ],
-    "countersinks": [
-        (
-            "CounterSink",
-            "output",
-            ["RecognitionResult.countersinks", "RecognitionResult.holes.csink"],
-        ),
-    ],
     "face-levels": [
         ("FaceLevel", "evidence", ["RecognitionResult.step_levels"]),
     ],
@@ -120,9 +97,6 @@ EXTRA_RECORDS: dict[str, list[tuple[str, str, list[str]]]] = {
         ),
         ("HoleSpec", "evidence", []),
     ],
-    "repeating-radial-profiles": [
-        ("RepeatingRadialProfile", "evidence", ["RecognitionResult.repeating_radial_profiles"]),
-    ],
     "risers": [
         ("RiserEvidence", "evidence", ["RecognitionResult.risers"]),
         ("StepShoulder", "projection", []),
@@ -130,10 +104,6 @@ EXTRA_RECORDS: dict[str, list[tuple[str, str, list[str]]]] = {
     "oriented-slots": [
         ("PassageEnds", "nested", []),
         ("SectionPassage", "nested", []),
-    ],
-    "turned-steps": [
-        ("TurnedProfile", "aggregate", []),
-        ("TurnedProfileKey", "nested", []),
     ],
 }
 
@@ -179,7 +149,14 @@ def _registry_families() -> dict[str, dict[str, object]]:
             evidence = EVIDENCE[family_id]
         else:
             raise KeyError(f"{family_id} is in the registry but has no EVIDENCE entry")
-        extra = EXTRA_RECORDS.get(family_id, [])
+        if declared is not None:
+            # Symmetric with the evidence rule above: declaring makes the family the owner, so an
+            # empty `extra_records` means it has none, not that the table should still be read.
+            if family_id in EXTRA_RECORDS:
+                raise KeyError(f"{family_id} declares its extra records; remove its entry")
+            extra = [(name, role, list(fields)) for name, role, fields in declared.extra_records]
+        else:
+            extra = EXTRA_RECORDS.get(family_id, [])
         overridden = {name for name, _role, _membership in extra}
         records = [
             (record.__name__, "output", [f"RecognitionResult.{result_field}"])

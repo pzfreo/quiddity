@@ -16,14 +16,17 @@ from typing import Protocol, TypeAlias
 
 from quiddity import (
     angled_steps,
+    blends,
     chamfers,
     circular_blind_steps,
+    countersinks,
     edge_open_circular_recesses,
     edge_open_prismatic_recesses,
     fillets,
     flats,
     grooves,
     gussets,
+    levels,
     pads,
     paired_ramp_steps,
     plates,
@@ -31,8 +34,10 @@ from quiddity import (
     prismatic_pockets,
     profiled_bores,
     rectangular_blind_slots,
+    repeating_profiles,
     round_bottom_slots,
     through_steps,
+    turned,
 )
 from quiddity._candidates import (
     Candidate,
@@ -72,13 +77,11 @@ from quiddity._recess_features import (
 )
 from quiddity._section_recess import SectionRecess
 from quiddity._section_recess_discovery import discover_section_recesses
-from quiddity.blends import Blend, _discover_blends
-from quiddity.countersinks import CounterSink, _discover_countersinks
+from quiddity.countersinks import CounterSink
 from quiddity.levels import (
     FaceLevel,
     RiserEvidence,
     _discover_risers,
-    _discover_step_levels,
 )
 from quiddity.oriented_slots import (
     OrientedSlot,
@@ -97,10 +100,6 @@ from quiddity.passages import (
     SectionPassage,
     recognise_section_passages,
 )
-from quiddity.repeating_profiles import (
-    RepeatingRadialProfile,
-    _discover_repeating_radial_profiles,
-)
 from quiddity.slots import (
     Channel,
     Pocket,
@@ -112,7 +111,6 @@ from quiddity.slots import (
     recognise_pocket_patterns,
     recognise_slot_patterns,
 )
-from quiddity.turned import TurnedStep, recognise_turned_steps
 
 # Internal detector identities survive the public SectionRecess schema replacement so that
 # discovery, reconciliation and effectiveness scoring remain comparable across the cutover.
@@ -329,17 +327,7 @@ def _passages_compat(
 
 
 PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
-    PhysicalDefinition(
-        FamilyId.COUNTERSINKS,
-        (CounterSink,),
-        "countersinks",
-        "recognise_countersinks",
-        (),
-        always,
-        simple(lambda s: list(_discover_countersinks(s.context.part, writer=s.writer))),
-        Counted("countersink"),
-        FullyAttributed("every returned countersink claims its original conical seat face"),
-    ),
+    countersinks.DEFINITION,
     PhysicalDefinition(
         FamilyId.HOLES,
         (HoleRecord,),
@@ -454,54 +442,9 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         ),
     ),
     pads.DEFINITION,
-    PhysicalDefinition(
-        FamilyId.REPEATING_RADIAL_PROFILES,
-        (RepeatingRadialProfile,),
-        "repeating_radial_profiles",
-        "recognise_repeating_radial_profiles",
-        (),
-        always,
-        simple(
-            lambda s: list(_discover_repeating_radial_profiles(s.context.part, writer=s.writer))
-        ),
-        NotCounted("correspondence evidence is not a distinct feature"),
-        FullyAttributed(
-            "every returned repeating radial profile owns its exact opposed source faces"
-        ),
-    ),
-    PhysicalDefinition(
-        FamilyId.TURNED_STEPS,
-        (TurnedStep,),
-        "turned_steps",
-        "recognise_turned_steps",
-        (),
-        always,
-        simple(
-            lambda s: list(
-                recognise_turned_steps(
-                    s.context.part,
-                    cyls=s.cylinders,
-                    ledger=s.writer,
-                    face_surfaces=s.context.face_surfaces,
-                )
-            )
-        ),
-        Counted("step"),
-        FullyAttributed("every returned turned step claims its defining profile faces"),
-    ),
-    PhysicalDefinition(
-        FamilyId.STEP_LEVELS,
-        (FaceLevel,),
-        "step_levels",
-        "recognise_face_levels",
-        (),
-        always,
-        simple(lambda s: list(_discover_step_levels(s.context.part, writer=s.writer))),
-        NotCounted("level substrate is not a distinct feature"),
-        FullyAttributed(
-            "every returned FaceLevel owns the exact body-local horizontal face cluster"
-        ),
-    ),
+    repeating_profiles.DEFINITION,
+    turned.DEFINITION,
+    levels.DEFINITION,
     PhysicalDefinition(
         FamilyId.RISERS,
         (RiserEvidence,),
@@ -550,26 +493,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
             "every oriented slot reissues the exact accepted rectangular passage wall set"
         ),
     ),
-    PhysicalDefinition(
-        FamilyId.BLENDS,
-        (Blend,),
-        "blends",
-        "recognise_blends",
-        (),
-        always,
-        simple(
-            lambda s: list(
-                _discover_blends(
-                    s.context.part,
-                    graph=s.context.graph,
-                    surfaces=s.context.surfaces,
-                    writer=s.writer,
-                )
-            )
-        ),
-        Counted("blend"),
-        FullyAttributed("every returned Blend owns every original cylindrical chain patch"),
-    ),
+    blends.DEFINITION,
     fillets.DEFINITION,
     plates.DEFINITION,
 )
