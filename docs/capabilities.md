@@ -673,5 +673,5 @@ for face_ref in view.faces:
 ```
 
 The new symbols are advertised by the installed evidence API manifest. The recognition and
-five-operation inspection manifests are unchanged. [ADR0025](adr/0025-body-owned-planar-outer-profile-inspection.md)
+five-operation inspection manifests are unchanged. [the outer-profile family record](families/planar-outer-profile.md)
 records the accepted extension to ADR0010's evidence boundary.

@@ -23,7 +23,7 @@ census is the one honest signal, so that is all this reports.
 Above the aggregate rather than beside it: this counts what
 :func:`quiddity.build_recognition_result` returns, over the same run, so a count and a
 result cannot describe one part differently. It was a parallel orchestration once, and the two
-drifted -- see ADR 0003's amendment for what that cost.
+drifted -- see ADR 0003 for what that cost.
 """
 
 from __future__ import annotations

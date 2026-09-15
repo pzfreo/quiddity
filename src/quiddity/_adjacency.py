@@ -477,7 +477,7 @@ class FaceGraph:
           lands on is the answer.
         - **smooth** -- the outward normals agree to :data:`SMOOTH_ARC_GAP` where the faces meet.
           A face split in two by a neighbouring feature is the exact case, its halves coplanar;
-          a tangential blend is the other. This is why ADR 0004's amendment treats seeing
+          a tangential blend is the other. This is why ADR 0004 treats seeing
           *through* a blend and *across* a split as one mechanism: a split is the zero-angle
           blend.
         - **unknown** -- adjacent, but no single answer applies. See :data:`ArcKind`.

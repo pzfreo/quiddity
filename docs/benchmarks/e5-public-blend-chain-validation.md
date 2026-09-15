@@ -3,7 +3,7 @@
 Issue #414 publishes the existing label-independent `BlendCollapseIndex` as a conservative
 physical `Blend` family. One occurrence is one complete same-solid, same-radius native cylindrical
 rolling-ball chain. `Fillet` retains precedence where its exact defining-face union covers the
-chain. [ADR 0013](../adr/0013-public-blend-chain-recognition.md) records the public contract.
+chain. [the blend-chain family record](../families/blend-chains.md) records the public contract.
 
 ## Evidence protocol
 

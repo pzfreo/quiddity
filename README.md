@@ -296,7 +296,7 @@ The default `boundary_margin=0.6` is measured in model length units (normally mi
 strictly excludes turned end faces at both ends. It can be overridden explicitly. The former
 `result.step_ladder(bound_box)` call remains as a deprecated 0.2.x compatibility shim and will be
 removed no earlier than 1.0.0. See
-[`ADR 0006`](docs/adr/0006-explicit-step-ladder-z-span.md) for the caller inventory and boundary
+[the step-ladder family record](docs/families/step-ladder-z-span.md) for the caller inventory and boundary
 decision.
 
 ## Scope
