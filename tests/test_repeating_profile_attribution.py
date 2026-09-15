@@ -36,6 +36,7 @@ from quiddity._registry import PHYSICAL_DEFINITIONS, FullyAttributed, NotCounted
 from quiddity._run import start
 from quiddity.result import _discover_all, _take_inventory
 from tests.golden._common import toothed_prism
+from tests.route_pins import assert_core_route_is_closed
 
 ROOT = Path(__file__).parents[1]
 
@@ -667,71 +668,31 @@ def test_registry_status_and_not_counted_disposition_are_exact() -> None:
 
 def test_private_core_and_constructor_rosters_are_closed() -> None:
     package = ROOT / "src/quiddity"
-    sites = []
     constructors = []
     proposal_constructors = []
     for path in package.glob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        aliases = set()
-        module_aliases = set()
-        for statement in tree.body:
-            if isinstance(statement, ast.ImportFrom) and statement.module in {
-                "quiddity.repeating_profiles",
-                "repeating_profiles",
-            }:
-                aliases.update(
-                    alias.asname or alias.name
-                    for alias in statement.names
-                    if alias.name == "_discover_repeating_radial_profiles"
-                )
-            if isinstance(statement, ast.ImportFrom) and statement.module == "quiddity":
-                module_aliases.update(
-                    alias.asname or alias.name
-                    for alias in statement.names
-                    if alias.name == "repeating_profiles"
-                )
-            if isinstance(statement, ast.Import):
-                module_aliases.update(
-                    alias.asname or alias.name
-                    for alias in statement.names
-                    if alias.name == "quiddity.repeating_profiles"
-                )
-        if path.name == "repeating_profiles.py":
-            aliases.add("_discover_repeating_radial_profiles")
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
-            if isinstance(node.func, ast.Name) and node.func.id in aliases:
-                sites.append((path.name, node))
-            if (
-                isinstance(node.func, ast.Attribute)
-                and node.func.attr == "_discover_repeating_radial_profiles"
-                and isinstance(node.func.value, ast.Name)
-                and node.func.value.id in module_aliases
-            ):
-                sites.append((path.name, node))
             name = node.func.id if isinstance(node.func, ast.Name) else ""
             if name == "RepeatingRadialProfile":
                 constructors.append(path.name)
             if name == "_RepeatingRadialProposal":
                 proposal_constructors.append(path.name)
-    assert {path for path, _call in sites} == {"repeating_profiles.py", "_registry.py"}
-    registry_call = next(call for path, call in sites if path == "_registry.py")
-    keywords = {keyword.arg: keyword.value for keyword in registry_call.keywords}
-    assert isinstance(keywords["writer"], ast.Attribute)
-    assert keywords["writer"].attr == "writer"
-    public_call = next(call for path, call in sites if path == "repeating_profiles.py")
-    assert all(keyword.arg != "writer" for keyword in public_call.keywords)
+    assert_core_route_is_closed(
+        module="repeating_profiles",
+        core="_discover_repeating_radial_profiles",
+        entrypoint="recognise_repeating_radial_profiles",
+        handed_over={"writer": "services.writer"},
+        withheld=("writer",),
+    )
     assert constructors == ["repeating_profiles.py"]
     assert proposal_constructors == ["repeating_profiles.py"]
     assert tuple(inspect.signature(recognise_repeating_radial_profiles).parameters) == (
         "part",
         "tol",
     )
-    registry_keywords = {keyword.arg: keyword.value for keyword in registry_call.keywords}
-    writer = registry_keywords["writer"]
-    assert isinstance(writer, ast.Attribute) and writer.attr == "writer"
-    assert isinstance(writer.value, ast.Name) and writer.value.id == "s"
     assert {key for key in SURFACE_READER_SITES if key.startswith("repeating_profiles:")} == {
         "repeating_profiles:_sample_wire:geom_type:1",
         "repeating_profiles:_sample_wire:geom_type:2",
@@ -752,6 +713,7 @@ def test_private_core_and_constructor_rosters_are_closed() -> None:
         "quiddity._adjacency",
         "quiddity._candidates",
         "quiddity._claims",
+        "quiddity._definitions",
         "quiddity._geometry",
         "quiddity._record",
         "quiddity._solid_properties",
@@ -780,9 +742,48 @@ def test_private_core_and_constructor_rosters_are_closed() -> None:
         "EvidenceIndex",
         "InventoryProduct",
         "ReconciliationResult",
-        "CompletedInputs",
         "candidate_set(",
         "snapshot_index(",
         "freeze_index(",
     ):
         assert prohibited not in source
+
+    # `CompletedInputs` is the declaration adapter's own parameter type, so a flat ban on the
+    # name would now ban the declaration. Two things stay banned: naming the type anywhere but
+    # that annotation -- under any alias, and in a string annotation, both of which a bare
+    # `ast.Name` sweep would miss -- and the adapter reading the inputs it is handed, which is
+    # what the ban is actually for. This family declares no predecessors, so there is nothing
+    # there to read.
+    module_tree = ast.parse(source)
+    aliases = {
+        alias.asname or alias.name
+        for node in ast.walk(module_tree)
+        if isinstance(node, ast.ImportFrom)
+        for alias in node.names
+        if alias.name == "CompletedInputs"
+    } | {"CompletedInputs"}
+    declaration = next(
+        node
+        for node in module_tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "_discover"
+    )
+    annotations = {
+        id(node)
+        for argument in declaration.args.args
+        if argument.annotation is not None
+        for node in ast.walk(argument.annotation)
+    }
+    assert not [
+        node
+        for node in ast.walk(module_tree)
+        if id(node) not in annotations
+        and (
+            (isinstance(node, ast.Name) and node.id in aliases)
+            or (isinstance(node, ast.Constant) and node.value in aliases)
+        )
+    ]
+    assert any(
+        isinstance(node, ast.Delete)
+        and any(isinstance(target, ast.Name) and target.id == "inputs" for target in node.targets)
+        for node in declaration.body
+    ), "the declaration must delete `inputs`, not read them: this family declares no predecessors"

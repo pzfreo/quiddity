@@ -18,8 +18,16 @@ from math import atan2, cos, hypot, pi, sin
 from build123d import GeomType
 
 from quiddity._adjacency import FaceNode
-from quiddity._candidates import FamilyId
+from quiddity._candidates import CompletedInputs, FamilyId
 from quiddity._claims import EvidenceWriter
+from quiddity._definitions import (
+    DiscoveryServices,
+    FullyAttributed,
+    ManifestEvidence,
+    NotCounted,
+    PhysicalDefinition,
+    always,
+)
 from quiddity._geometry import part_scale
 from quiddity._record import Record
 from quiddity._solid_properties import (
@@ -481,3 +489,34 @@ def recognise_repeating_radial_profiles(
 
 
 __all__ = ["RepeatingRadialProfile", "recognise_repeating_radial_profiles"]
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(_discover_repeating_radial_profiles(services.context.part, writer=services.writer))
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.REPEATING_RADIAL_PROFILES,
+    record_types=(RepeatingRadialProfile,),
+    result_field="repeating_radial_profiles",
+    public_entrypoint=recognise_repeating_radial_profiles.__name__,
+    dependencies=(),
+    applicable=always,
+    discover=_discover,
+    census=NotCounted("correspondence evidence is not a distinct feature"),
+    attribution=FullyAttributed(
+        "every returned repeating radial profile owns its exact opposed source faces"
+    ),
+    evidence=ManifestEvidence(
+        goldens=("repeating_radial_profile", "traversal_order"),
+        extra_records=(
+            (
+                "RepeatingRadialProfile",
+                "evidence",
+                ("RecognitionResult.repeating_radial_profiles",),
+            ),
+        ),
+    ),
+)

@@ -45,20 +45,8 @@ EVIDENCE: dict[str, dict[str, object]] = {
         ],
     },
     "bosses": {"goldens": ["simple_through_hole", "turned_steps_and_grooves"]},
-    "blends": {
-        "goldens": [
-            "small_convex_blends",
-            "toroidal_blend_compound",
-            "toroidal_blend_internal",
-            "toroidal_blends_turned",
-        ],
-        "tests": ["tests/test_blends.py", "tests/test_blend_view.py"],
-    },
-    "countersinks": {"goldens": ["counterbored_and_countersunk_holes"]},
-    "face-levels": {"goldens": ["plates_pads_levels_and_slanted_steps", "slanted_steps"]},
     "hole-patterns": {"goldens": ["bolt_circle_and_rectangular_grid"]},
     "holes": {"goldens": ["simple_through_hole", "counterbored_and_countersunk_holes"]},
-    "repeating-radial-profiles": {"goldens": ["repeating_radial_profile", "traversal_order"]},
     "risers": {"goldens": ["plates_pads_levels_and_slanted_steps", "slanted_steps"]},
     "slot-patterns": {"goldens": ["straight_and_obround_slots"]},
     "oriented-slots": {
@@ -70,7 +58,6 @@ EVIDENCE: dict[str, dict[str, object]] = {
         "tests": ["tests/test_oriented_slots.py"],
     },
     "slots": {"goldens": ["straight_and_obround_slots"]},
-    "turned-steps": {"goldens": ["turned_steps_and_grooves"]},
 }
 
 # Records a family publishes beyond its registry output records: nested values, evidence
@@ -98,20 +85,6 @@ EXTRA_RECORDS: dict[str, list[tuple[str, str, list[str]]]] = {
         ("SectionRecessGrid", "projection", ["RecognitionResult.section_recess_patterns"]),
         ("SectionRecessRefusal", "projection", ["RecognitionResult.section_recess_refusals"]),
     ],
-    "blends": [
-        ("CircularBlendPath", "nested", ["RecognitionResult.blends.path"]),
-        ("StraightBlendPath", "nested", ["RecognitionResult.blends.path"]),
-    ],
-    "countersinks": [
-        (
-            "CounterSink",
-            "output",
-            ["RecognitionResult.countersinks", "RecognitionResult.holes.csink"],
-        ),
-    ],
-    "face-levels": [
-        ("FaceLevel", "evidence", ["RecognitionResult.step_levels"]),
-    ],
     "holes": [
         (
             "CounterBore",
@@ -120,9 +93,6 @@ EXTRA_RECORDS: dict[str, list[tuple[str, str, list[str]]]] = {
         ),
         ("HoleSpec", "evidence", []),
     ],
-    "repeating-radial-profiles": [
-        ("RepeatingRadialProfile", "evidence", ["RecognitionResult.repeating_radial_profiles"]),
-    ],
     "risers": [
         ("RiserEvidence", "evidence", ["RecognitionResult.risers"]),
         ("StepShoulder", "projection", []),
@@ -130,10 +100,6 @@ EXTRA_RECORDS: dict[str, list[tuple[str, str, list[str]]]] = {
     "oriented-slots": [
         ("PassageEnds", "nested", []),
         ("SectionPassage", "nested", []),
-    ],
-    "turned-steps": [
-        ("TurnedProfile", "aggregate", []),
-        ("TurnedProfileKey", "nested", []),
     ],
 }
 
@@ -145,23 +111,50 @@ def _family_id(entrypoint: str) -> str:
     return entrypoint.removeprefix("recognise_").replace("_", "-")
 
 
+def _is_module_declared(definition: object) -> bool:
+    """Whether the family describes itself, rather than being a literal in `_registry`.
+
+    A declaration's discoverer is written in the family module. A registry literal's comes from
+    `simple()` in `_definitions`, or is an adapter defined in `_registry` itself.
+    """
+
+    discover = getattr(definition, "discover", None) or getattr(definition, "derive", None)
+    return getattr(discover, "__module__", "") not in {
+        "quiddity._definitions",
+        "quiddity._registry",
+    }
+
+
 def _registry_families() -> dict[str, dict[str, object]]:
     """One FAMILIES entry per registry definition whose entry point the package exports."""
 
     exported = set(recognition.__all__)
     families: dict[str, dict[str, object]] = {}
     definitions = [
-        (d.public_entrypoint, "part", d.record_types, d.result_field, d.census, d.evidence)
+        (d.public_entrypoint, "part", d.record_types, d.result_field, d.census, d.evidence, d)
         for d in PHYSICAL_DEFINITIONS
     ] + [
-        (d.public_entrypoint, "derived", d.record_types, d.result_field, d.census, d.evidence)
+        (d.public_entrypoint, "derived", d.record_types, d.result_field, d.census, d.evidence, d)
         for d in DERIVED_DEFINITIONS
         if d.public_entrypoint is not None
     ]
-    for entrypoint, kind, record_types, result_field, census_spec, declared in definitions:
+    for (
+        entrypoint,
+        kind,
+        record_types,
+        result_field,
+        census_spec,
+        declared,
+        definition,
+    ) in definitions:
         if entrypoint not in exported:
             continue
         family_id = _family_id(entrypoint)
+        if declared is None and _is_module_declared(definition):
+            raise KeyError(
+                f"{family_id} is declared in its own module but names no ManifestEvidence; "
+                "move its EVIDENCE and EXTRA_RECORDS entries into the declaration"
+            )
         if declared is not None:
             if family_id in EVIDENCE:
                 raise KeyError(f"{family_id} declares its evidence; remove its EVIDENCE entry")
