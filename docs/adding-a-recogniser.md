@@ -289,6 +289,13 @@ present at every site.
 | 8 | `docs/capabilities.md` | the recogniser row and one row per record | `tests/test_capability_claims.py` |
 | 9 | `tests/test_golden_fixtures.py`, `tests/test_registry.py`, `tests/test_mfcadpp_corpus.py` | the family in each file's deliberate pin: the expected fixture list, the registry order, and the corpus census counts | those files' own tests, which fail on the new family until edited |
 
+None of those sites is what a **migration** breaks. A family that already exists may have a
+`tools/benchmark_<name>.py` beside it, and those disable the family by rebinding its entry point
+on `_registry` -- a handle the declaration takes away. Retarget it at the family module, which is
+where the declaration resolves the name at call time. Only the two slot benchmarks are covered by
+a test (`tests/test_blind_slot_benchmark_comparison.py`); the rest fail silently, so grep
+`tools/benchmark_*.py` for the name being moved.
+
 Regenerate, do not hand-edit, the committed capability manifest:
 
 ```bash

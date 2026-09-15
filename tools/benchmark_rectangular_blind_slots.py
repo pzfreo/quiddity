@@ -32,18 +32,20 @@ def _summary(values: list[float]) -> dict[str, float]:
 
 
 def _run_case(part: Any, enabled: bool) -> tuple[Any, float]:
-    import quiddity._registry as registry
+    import quiddity.rectangular_blind_slots as family
     from quiddity.result import _take_inventory
 
-    original = registry.recognise_rectangular_blind_slots
+    # The declaration resolves its entry point in the family module at call time, so that is
+    # where the benchmark disables it; the registry no longer holds the name.
+    original = family.recognise_rectangular_blind_slots
     if not enabled:
-        registry.recognise_rectangular_blind_slots = lambda *_args, **_kwargs: []
+        family.recognise_rectangular_blind_slots = lambda *_args, **_kwargs: []
     try:
         started = time.perf_counter()
         product = _take_inventory(part)
         return product, time.perf_counter() - started
     finally:
-        registry.recognise_rectangular_blind_slots = original
+        family.recognise_rectangular_blind_slots = original
 
 
 def _measure(parts: list[tuple[str, Any]]) -> dict[str, Any]:
