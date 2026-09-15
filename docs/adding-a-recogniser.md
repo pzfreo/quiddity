@@ -235,7 +235,7 @@ present at every site.
 | 6 | `src/quiddity/_effective_surfaces.py` | a `SURFACE_READER_ROSTER` entry for the module and one `SURFACE_READER_SITES` entry per raw surface read | `test_effective_surface_reader_roster_covers_every_raw_classification` |
 | 7 | `tests/test_architecture.py` | `PUBLIC_MODULES`, the module's seam entry, the module in the `_registry` and `result` seam sets, and its arc-reader sites | that file's own tests |
 | 8 | `docs/capabilities.md` | the recogniser row and one row per record | `tests/test_capability_claims.py` |
-| 9 | `tests/test_golden_data.py`, `tests/test_golden_fixtures.py`, `tests/test_inventory_agreement.py`, `tests/test_recognition_result.py`, `tests/test_registry.py`, `tests/test_mfcadpp_corpus.py` | the family in each file's hand-kept roster: public recognisers, expected fixtures, shared and result-only census keys, derived fields, registry order, and the corpus census | those files' own tests, which fail on the new family until edited |
+| 9 | `tests/test_golden_fixtures.py`, `tests/test_registry.py`, `tests/test_mfcadpp_corpus.py` | the family in each file's deliberate pin: the expected fixture list, the registry order, and the corpus census counts | those files' own tests, which fail on the new family until edited |
 
 Regenerate, do not hand-edit, the committed capability manifest:
 
@@ -243,13 +243,13 @@ Regenerate, do not hand-edit, the committed capability manifest:
 uv run python tools/generate_capability_manifest.py --write
 ```
 
-Measured on the gussets family (issue #602): sixteen files, now fourteen, plus the module itself,
+Measured on the gussets family (issue #602): sixteen files, now eleven, plus the module itself,
 its fixtures and the goldens in the next section. A family that declares itself (`DEFINITION`
 with its `Evidence`) needs no entry in the manifest tool; a family still described in the
 registry needs an `EVIDENCE` entry there, and an `EXTRA_RECORDS` entry for any non-output
 record. A site that only restates what the registry already knows is a candidate for
-derivation; row 9 is six of them. A site that is a public contract stays, and its check is
-what makes forgetting it visible. See
+derivation; the three remaining test files in row 9 are deliberate pins, not restatements.
+A site that is a public contract stays, and its check is what makes forgetting it visible. See
 [ADR 0005](adr/0005-versioned-cross-repository-capability-contract.md).
 
 ## 8. Extend the semantic goldens deliberately

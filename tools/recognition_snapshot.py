@@ -2,6 +2,29 @@
 
 from __future__ import annotations
 
+# Added in the 0.4 rich-schema transition and pinned by its own schema/oracle goldens. The legacy
+# snapshot deliberately stays byte-identical to the Draftwright-era surface, so these are excluded.
+POST_BASELINE = frozenset(
+    {
+        "recognise_section_passages",
+        "recognise_section_recesses",
+        "recognise_edge_open_circular_pockets",
+        "recognise_edge_open_prismatic_recesses",
+        "recognise_oriented_slots",
+        "recognise_oriented_slot_patterns",
+    }
+)
+
+
+def legacy_public_recognisers(recognition) -> set[str]:
+    """The recognisers the legacy snapshot inventories for *recognition*."""
+
+    return {
+        name
+        for name in recognition.__all__
+        if name.startswith("recognise_") and name not in POST_BASELINE
+    }
+
 
 def recognition_snapshot(recognition, feature_census, part):
     """Run every public recogniser and required substrate with injected shared evidence."""
@@ -43,16 +66,6 @@ def recognition_snapshot(recognition, feature_census, part):
         "recognise_slots": slots,
         "recognise_turned_steps": recognition.recognise_turned_steps(part, cyls=cylinders),
     }
-    # Added in the 0.4 rich-schema transition and pinned by its own schema/oracle goldens.
-    # This legacy snapshot deliberately stays byte-identical to the Draftwright-era surface.
-    post_baseline = {
-        "recognise_section_passages",
-        "recognise_section_recesses",
-        "recognise_edge_open_circular_pockets",
-        "recognise_edge_open_prismatic_recesses",
-        "recognise_oriented_slots",
-        "recognise_oriented_slot_patterns",
-    }
     # Every other exported recogniser is found in `__all__` rather than a hand-kept list, so
     # adding a family cannot leave the snapshot stale. The registry says which are derived: a
     # physical recogniser takes the part; a derived one takes its source family's records. The
@@ -73,7 +86,7 @@ def recognition_snapshot(recognition, feature_census, part):
     pending = [
         name
         for name in sorted(recognition.__all__)
-        if name.startswith("recognise_") and name not in individual and name not in post_baseline
+        if name.startswith("recognise_") and name not in individual and name not in POST_BASELINE
     ]
     for name in pending:
         if name in derived_sources:
@@ -95,11 +108,7 @@ def recognition_snapshot(recognition, feature_census, part):
             )
         individual[name] = recognise(*(individual[source] for source in derived_sources[name]))
 
-    public_recognisers = {
-        name
-        for name in recognition.__all__
-        if name.startswith("recognise_") and name not in post_baseline
-    }
+    public_recognisers = legacy_public_recognisers(recognition)
     if set(individual) != public_recognisers:
         missing = sorted(public_recognisers - set(individual))
         extra = sorted(set(individual) - public_recognisers)

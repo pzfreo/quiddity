@@ -56,32 +56,20 @@ import pytest
 from build123d import import_step
 
 import quiddity as r
+from quiddity._registry import DERIVED_DEFINITIONS, PHYSICAL_DEFINITIONS, Counted, NotCounted
 from quiddity.census import feature_census
 from tests.golden._common import load_fixture
 
 GOLDEN = Path(__file__).parent / "golden"
 CORPUS = Path(__file__).parent / "corpus"
 
-#: Census key -> result field, for every family both inventories report. `step` is absent
-#: deliberately; see the module docstring.
+#: Census key -> result field, for every family both inventories report: every registry family
+#: that is `Counted`, less the two documented exceptions. `step` is a compatibility rule under
+#: ADR 0003 (both records survive, only the count is corrected) and `flat` is a substrate.
 SHARED = {
-    "section_recess": "section_recesses",
-    "hole": "holes",
-    "hole_pattern": "hole_patterns",
-    "boss": "bosses",
-    "slot": "slots",
-    "oriented_slot": "oriented_slots",
-    "groove": "grooves",
-    "chamfer": "chamfers",
-    "angled_step": "angled_steps",
-    "gusset_rib": "gusset_ribs",
-    "paired_ramp_step": "paired_ramp_steps",
-    "through_step": "through_steps",
-    "circular_blind_step": "circular_blind_steps",
-    "blend": "blends",
-    "fillet": "fillets",
-    "countersink": "countersinks",
-    "plate": "plates",
+    definition.census.key: definition.result_field
+    for definition in (*PHYSICAL_DEFINITIONS, *DERIVED_DEFINITIONS)
+    if isinstance(definition.census, Counted) and definition.census.key not in {"step", "flat"}
 }
 
 
@@ -135,33 +123,23 @@ def test_the_two_inventories_agree_on_the_screw_that_once_disagreed():
     assert _disagreements(part) == {}
 
 
-#: `RecognitionResult` fields the census deliberately does not count, and why. Written out
-#: rather than derived so that adding an aggregate family forces a decision here: is it a
-#: machined feature the census should count, or one of these?
+#: `RecognitionResult` fields the census deliberately does not count, and why. The decision is
+#: forced where the family is declared: every registry definition states `Counted` or
+#: `NotCounted(reason)`, and `validate_census_contract` refuses a registry that disagrees with
+#: the census. The fields below are the ones no registry definition owns.
 RESULT_ONLY = {
-    # Substrates and projections: evidence other recognisers consume, not features in their
-    # own right. The census docstring excludes these by design.
+    definition.result_field: definition.census.reason
+    for definition in (*PHYSICAL_DEFINITIONS, *DERIVED_DEFINITIONS)
+    if isinstance(definition.census, NotCounted)
+    # The converged recess detectors are registry families without a public result field.
+    and definition.result_field in r.RecognitionResult.__dataclass_fields__
+} | {
     "cylinders": "the shared cylinder scan",
     "flats": "substrate for turned features",
-    "step_levels": "substrate, and level derivation belongs to the model layer",
-    "risers": "substrate for the step ladder",
     "rotational": "a classification, not a record list",
-    # A compatibility rule under ADR 0003: both records survive, only the count is corrected.
     "turned_steps": "counted as `step` after `steps_that_are_not_grooves`",
-    # Pattern families: the census counts hole patterns and not these. A scope decision about
-    # what a distinct machined feature is, and one worth revisiting rather than inheriting.
-    "slot_patterns": "census counts hole patterns only",
-    "oriented_slot_patterns": "census counts hole patterns only",
     "section_recess_patterns": "census counts hole patterns only",
-    "gusset_rib_patterns": "a relation among already counted gusset ribs",
     "section_recess_refusals": "evidence without reconstructible geometry is not an occurrence",
-    # Families with no census key at all. Each is a gap rather than a decision, and naming
-    # them here is what makes that visible.
-    "double_d_bores": "no census key",
-    "pads": "no census key",
-    "polygonal_bosses": "no census key",
-    "polygonal_stock": "no census key",
-    "repeating_radial_profiles": "no census key",
 }
 
 

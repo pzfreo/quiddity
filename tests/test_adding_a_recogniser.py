@@ -21,7 +21,8 @@ GUIDE = ROOT / "docs" / "adding-a-recogniser.md"
 #: sixteen. Changes only when a site is derived from the registry or a new one is found.
 #: 16 -> 15: the snapshot tool's package-originated list is derived from the registry.
 #: 15 -> 14: a family declares itself in its module; the manifest tool reads that declaration.
-REGISTRATION_SITES = 14
+#: 14 -> 11: three test rosters that restated the registry now read it.
+REGISTRATION_SITES = 11
 
 
 def _registration_sites() -> list[Path]:

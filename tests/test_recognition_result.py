@@ -361,13 +361,7 @@ def test_physical_roster_matches_every_nonlegacy_family_and_result_field() -> No
         "section_recess_patterns",
         "section_recess_refusals",
         "rotational",
-        "hole_patterns",
-        "slot_patterns",
-        "oriented_slot_patterns",
-        "pocket_patterns",
-        "gusset_rib_patterns",
-        "passages",
-    }
+    } | {definition.result_field for definition in result_module.DERIVED_DEFINITIONS}
     assert {definition.result_field for definition in result_module.PHYSICAL_DEFINITIONS} == (
         set(result_module._LegacyRecognitionResult.__dataclass_fields__) - nonphysical
     )

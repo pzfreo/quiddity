@@ -7,42 +7,14 @@ GOLDEN_ROOT = ROOT / "tests" / "golden"
 sys.path.insert(0, str(ROOT / "tools"))
 
 from golden_support import CANONICALIZER_VERSION, canonical_json  # noqa: E402
+from recognition_snapshot import legacy_public_recognisers  # noqa: E402
 
-PUBLIC_RECOGNISERS = {
-    "recognise_angled_steps",
-    "recognise_blends",
-    "recognise_paired_ramp_steps",
-    "recognise_passages",
-    "recognise_prismatic_pockets",
-    "recognise_through_steps",
-    "recognise_bosses",
-    "recognise_chamfers",
-    "recognise_channels",
-    "recognise_circular_blind_steps",
-    "recognise_countersinks",
-    "recognise_double_d_bores",
-    "recognise_face_levels",
-    "recognise_fillets",
-    "recognise_flats",
-    "recognise_grooves",
-    "recognise_gusset_ribs",
-    "recognise_gusset_rib_patterns",
-    "recognise_hole_patterns",
-    "recognise_holes",
-    "recognise_plates",
-    "recognise_pocket_patterns",
-    "recognise_pockets",
-    "recognise_polygonal_bosses",
-    "recognise_polygonal_stock",
-    "recognise_rectangular_pads",
-    "recognise_rectangular_blind_slots",
-    "recognise_repeating_radial_profiles",
-    "recognise_round_bottom_blind_slots",
-    "recognise_risers",
-    "recognise_slot_patterns",
-    "recognise_slots",
-    "recognise_turned_steps",
-}
+from tools._legacy_recognition import namespace  # noqa: E402
+
+#: Derived from the same inventory the snapshot tool runs, so a family added to the package is
+#: missing from every golden until they are regenerated, and a golden cannot carry a name the
+#: package no longer exports.
+PUBLIC_RECOGNISERS = legacy_public_recognisers(namespace())
 SUBSTRATES = {
     "analyse_cylinders",
     "feature_diameters",
