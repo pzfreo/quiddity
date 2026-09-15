@@ -27,6 +27,7 @@ from quiddity import (
     polygonal_bosses,
     profiled_bores,
     rectangular_blind_slots,
+    round_bottom_slots,
     through_steps,
 )
 from quiddity._candidates import (
@@ -105,10 +106,6 @@ from quiddity.prismatic_pockets import PrismaticPocket, recognise_prismatic_pock
 from quiddity.repeating_profiles import (
     RepeatingRadialProfile,
     _discover_repeating_radial_profiles,
-)
-from quiddity.round_bottom_slots import (
-    RoundBottomBlindSlot,
-    recognise_round_bottom_blind_slots,
 )
 from quiddity.slots import (
     Channel,
@@ -421,19 +418,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         FullyAttributed("every returned Slot owns its complete selected wall and cap faces"),
     ),
     rectangular_blind_slots.DEFINITION,
-    PhysicalDefinition(
-        FamilyId.ROUND_BOTTOM_BLIND_SLOTS,
-        (RoundBottomBlindSlot,),
-        "round_bottom_blind_slots",
-        "recognise_round_bottom_blind_slots",
-        (),
-        prismatic,
-        simple(lambda s: list(recognise_round_bottom_blind_slots(s.context.part, ledger=s.writer))),
-        NotCounted("Counted once through the unified section_recess projection"),
-        FullyAttributed(
-            "every returned round-bottom blind slot owns its two curved sides, floor, and cap"
-        ),
-    ),
+    round_bottom_slots.DEFINITION,
     grooves.DEFINITION,
     flats.DEFINITION,
     PhysicalDefinition(

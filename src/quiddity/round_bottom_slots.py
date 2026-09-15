@@ -19,8 +19,15 @@ from OCP.Standard import Standard_ConstructionError, Standard_DomainError, Stand
 from OCP.StdFail import StdFail_NotDone
 
 from quiddity._adjacency import FaceGraph, FaceNode, axis_aligned_axis, is_any_smooth
-from quiddity._candidates import EvidenceSink, FamilyId
+from quiddity._candidates import CompletedInputs, EvidenceSink, FamilyId
 from quiddity._claims import ClaimLedger, EvidenceWriter
+from quiddity._definitions import (
+    DiscoveryServices,
+    FullyAttributed,
+    NotCounted,
+    PhysicalDefinition,
+    prismatic,
+)
 from quiddity._geometry import (
     AXIS_ALIGNED_COS,
     AXIS_ZERO_COS,
@@ -620,3 +627,26 @@ def recognise_round_bottom_blind_slots(
         for record, nodes in found:
             sink.propose(FamilyId.ROUND_BOTTOM_BLIND_SLOTS, record, defining=nodes)
     return [record for record, _nodes in found]
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(recognise_round_bottom_blind_slots(services.context.part, ledger=services.writer))
+
+
+# The package does not export this entry point, so the capability manifest has no entry for the
+# family, and the declaration below names no evidence.
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.ROUND_BOTTOM_BLIND_SLOTS,
+    record_types=(RoundBottomBlindSlot,),
+    result_field="round_bottom_blind_slots",
+    public_entrypoint=recognise_round_bottom_blind_slots.__name__,
+    dependencies=(),
+    applicable=prismatic,
+    discover=_discover,
+    census=NotCounted("Counted once through the unified section_recess projection"),
+    attribution=FullyAttributed(
+        "every returned round-bottom blind slot owns its two curved sides, floor, and cap"
+    ),
+)
