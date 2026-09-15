@@ -57,7 +57,6 @@ EVIDENCE: dict[str, dict[str, object]] = {
     "countersinks": {"goldens": ["counterbored_and_countersunk_holes"]},
     "double-d-bores": {"goldens": ["double_d_bore"]},
     "face-levels": {"goldens": ["plates_pads_levels_and_slanted_steps", "slanted_steps"]},
-    "grooves": {"goldens": ["turned_steps_and_grooves"]},
     "hole-patterns": {"goldens": ["bolt_circle_and_rectangular_grid"]},
     "holes": {"goldens": ["simple_through_hole", "counterbored_and_countersunk_holes"]},
     "polygonal-bosses": {"goldens": ["polygonal_boss"]},

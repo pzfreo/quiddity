@@ -34,8 +34,16 @@ from build123d import GeomType
 
 from quiddity._adjacency import FaceEdges, edge_face_map, neighbours
 from quiddity._body_identity import unambiguous_body_keys
-from quiddity._candidates import FamilyId
+from quiddity._candidates import CompletedInputs, FamilyId
 from quiddity._claims import ClaimLedger, EvidenceWriter
+from quiddity._definitions import (
+    Counted,
+    DiscoveryServices,
+    FullyAttributed,
+    ManifestEvidence,
+    PhysicalDefinition,
+    always,
+)
 from quiddity._features import analyse_cylinders
 from quiddity._geometry import length_tol
 from quiddity._record import Record
@@ -355,3 +363,30 @@ def recognise_grooves(
                 family=FamilyId.GROOVES,
             )
     return [groove for groove, _ in out]
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(
+        recognise_grooves(
+            services.context.part,
+            cyls=services.cylinders,
+            ledger=services.writer,
+            face_edges=services.context.face_edges,
+        )
+    )
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.GROOVES,
+    record_types=(Groove,),
+    result_field="grooves",
+    public_entrypoint=recognise_grooves.__name__,
+    dependencies=(),
+    applicable=always,
+    discover=_discover,
+    census=Counted("groove"),
+    attribution=FullyAttributed("every returned groove claims its defining groove faces"),
+    evidence=ManifestEvidence(goldens=("turned_steps_and_grooves",)),
+)

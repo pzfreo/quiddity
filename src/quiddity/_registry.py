@@ -20,6 +20,7 @@ from quiddity import (
     circular_blind_steps,
     fillets,
     flats,
+    grooves,
     gussets,
     paired_ramp_steps,
     plates,
@@ -73,7 +74,6 @@ from quiddity.edge_open_prismatic_recesses import (
     EdgeOpenPrismaticRecess,
     recognise_edge_open_prismatic_recesses,
 )
-from quiddity.grooves import Groove, recognise_grooves
 from quiddity.levels import (
     FaceLevel,
     RiserEvidence,
@@ -508,26 +508,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
             "every returned round-bottom blind slot owns its two curved sides, floor, and cap"
         ),
     ),
-    PhysicalDefinition(
-        FamilyId.GROOVES,
-        (Groove,),
-        "grooves",
-        "recognise_grooves",
-        (),
-        always,
-        simple(
-            lambda s: list(
-                recognise_grooves(
-                    s.context.part,
-                    cyls=s.cylinders,
-                    ledger=s.writer,
-                    face_edges=s.context.face_edges,
-                )
-            )
-        ),
-        Counted("groove"),
-        FullyAttributed("every returned groove claims its defining groove faces"),
-    ),
+    grooves.DEFINITION,
     flats.DEFINITION,
     PhysicalDefinition(
         FamilyId.POCKETS,
