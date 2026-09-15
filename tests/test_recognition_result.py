@@ -71,6 +71,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity.gussets as gussets_module
     import quiddity.paired_ramp_steps as paired_ramp_steps_module
     import quiddity.plates as plates_module
+    import quiddity.polygonal_bosses as polygonal_bosses_module
     import quiddity.profiled_bores as profiled_bores_module
     import quiddity.result as result_module
     import quiddity.through_steps as through_steps_module
@@ -147,10 +148,10 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     monkeypatch.setattr(registry_module, "recognise_hole_patterns", derived("patterns", holes, []))
     monkeypatch.setattr(registry_module, "_discover_bosses", cyl_consumer("bosses", []))
     monkeypatch.setattr(
-        registry_module, "_discover_polygonal_bosses", counted("polygonal_bosses", [])
+        polygonal_bosses_module, "_discover_polygonal_bosses", counted("polygonal_bosses", [])
     )
     monkeypatch.setattr(
-        registry_module, "_discover_polygonal_stock", counted("polygonal_stock", [])
+        polygonal_bosses_module, "_discover_polygonal_stock", counted("polygonal_stock", [])
     )
     monkeypatch.setattr(registry_module, "_discover_channels", counted("channels", []))
     monkeypatch.setattr(registry_module, "_discover_slots", counted("slots", slots))

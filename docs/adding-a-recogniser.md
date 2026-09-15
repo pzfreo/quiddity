@@ -228,6 +228,10 @@ first release; set it only for a family added later. Name `tests` only where a t
 evidence a consumer should read; a family whose goldens carry that weight names none, as
 `flats.py` and `grooves.py` do.
 
+`DEFINITION` is the name only where the module declares one family. A module declaring several
+names each after its family instead, as `polygonal_bosses.py` does with `BOSSES` and `STOCK`, so
+that the registry line says which one it is placing.
+
 `_discover` may call either the public entry point or the module's private core. Call the core when
 the adapter must hand over something the public signature does not accept: the write capability in
 `fillets.py` and `flats.py`, whose public surfaces take none; the run's shared effective surfaces in

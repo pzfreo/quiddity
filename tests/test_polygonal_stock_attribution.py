@@ -720,18 +720,23 @@ def test_private_core_constructor_and_cap_identity_paths_are_closed() -> None:
                 core_sites.append((path.name, node))
             if name == "PolygonalStock":
                 constructors.append((path.name, node))
-    assert {path for path, _call in core_sites} == {"polygonal_bosses.py", "_registry.py"}
-    registry_call = next(call for path, call in core_sites if path == "_registry.py")
-    keywords = {keyword.arg: keyword.value for keyword in registry_call.keywords}
+    # Two sites, both in the family module: the declaration, which hands the run's writer
+    # through, and the public entry point, which must not.
+    assert [path for path, _call in core_sites] == ["polygonal_bosses.py", "polygonal_bosses.py"]
+    writer_calls = [
+        call for _path, call in core_sites if any(kw.arg == "writer" for kw in call.keywords)
+    ]
+    assert len(writer_calls) == 1
+    keywords = {keyword.arg: keyword.value for keyword in writer_calls[0].keywords}
     assert isinstance(keywords["writer"], ast.Attribute) and keywords["writer"].attr == "writer"
     assert isinstance(keywords["writer"].value, ast.Name)
-    assert keywords["writer"].value.id == "s"
+    assert keywords["writer"].value.id == "services"
     assert isinstance(keywords["graph"], ast.Attribute) and keywords["graph"].attr == "geometry"
     assert isinstance(keywords["graph"].value, ast.Attribute)
     assert keywords["graph"].value.attr == "context"
     assert isinstance(keywords["graph"].value.value, ast.Name)
-    assert keywords["graph"].value.value.id == "s"
-    public_call = next(call for path, call in core_sites if path == "polygonal_bosses.py")
+    assert keywords["graph"].value.value.id == "services"
+    public_call = next(call for _path, call in core_sites if call is not writer_calls[0])
     assert all(keyword.arg != "writer" for keyword in public_call.keywords)
     public_keywords = {keyword.arg: keyword.value for keyword in public_call.keywords}
     assert isinstance(public_keywords["graph"], ast.Name)
@@ -761,14 +766,23 @@ def test_private_core_constructor_and_cap_identity_paths_are_closed() -> None:
         "FullyAttributed",
         "reconcile",
     }
-    assert not ({node.id for node in ast.walk(tree) if isinstance(node, ast.Name)} & prohibited)
+    # The declarations at the module tail name their own attribution, so `FullyAttributed` is
+    # imported and used there; nothing the recogniser actually runs may reach for it.
+    in_functions = {
+        name.id
+        for function in ast.walk(tree)
+        if isinstance(function, ast.FunctionDef)
+        for name in ast.walk(function)
+        if isinstance(name, ast.Name)
+    }
+    assert not (in_functions & prohibited)
     imported = {
         alias.name
         for node in ast.walk(tree)
         if isinstance(node, ast.Import | ast.ImportFrom)
         for alias in node.names
     }
-    assert not (imported & prohibited)
+    assert not (imported & (prohibited - {"FullyAttributed"}))
 
     raw_readers = []
 

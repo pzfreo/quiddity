@@ -1113,7 +1113,7 @@ def test_excluded_stock_recess_and_nonhex_shapes_never_publish(part) -> None:
     assert ledger.candidate_set(FamilyId.POLYGONAL_BOSSES).candidates == ()
 
 
-def test_private_core_has_one_production_writer_caller_and_one_boss_constructor() -> None:
+def test_private_core_has_one_declared_writer_caller_and_one_boss_constructor() -> None:
     core_sites: list[tuple[str, ast.Call]] = []
     constructors: list[tuple[str, ast.Call]] = []
     for path in (ROOT / "src/quiddity").glob("*.py"):
@@ -1131,17 +1131,19 @@ def test_private_core_has_one_production_writer_caller_and_one_boss_constructor(
             ):
                 constructors.append((path.name, call))
 
-    assert {path for path, _call in core_sites} == {
-        "polygonal_bosses.py",
-        "_registry.py",
-    }
-    registry_call = next(call for path, call in core_sites if path == "_registry.py")
-    keywords = {keyword.arg: keyword.value for keyword in registry_call.keywords}
+    # Two sites, both in the family module: the declaration, which hands the run's writer
+    # through, and the public entry point, which must not.
+    assert [path for path, _call in core_sites] == ["polygonal_bosses.py", "polygonal_bosses.py"]
+    writer_calls = [
+        call for _path, call in core_sites if any(kw.arg == "writer" for kw in call.keywords)
+    ]
+    assert len(writer_calls) == 1
+    keywords = {keyword.arg: keyword.value for keyword in writer_calls[0].keywords}
     writer = keywords["writer"]
     assert isinstance(writer, ast.Attribute) and writer.attr == "writer"
-    assert isinstance(writer.value, ast.Name) and writer.value.id == "s"
+    assert isinstance(writer.value, ast.Name) and writer.value.id == "services"
     graph = keywords["graph"]
     assert isinstance(graph, ast.Attribute) and graph.attr == "geometry"
     assert isinstance(graph.value, ast.Attribute) and graph.value.attr == "context"
-    assert isinstance(graph.value.value, ast.Name) and graph.value.value.id == "s"
+    assert isinstance(graph.value.value, ast.Name) and graph.value.value.id == "services"
     assert [(path, len(call.args)) for path, call in constructors] == [("polygonal_bosses.py", 0)]
