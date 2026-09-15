@@ -723,11 +723,30 @@ def test_private_core_constructor_and_cap_identity_paths_are_closed() -> None:
     # Two sites, both in the family module: the declaration, which hands the run's writer
     # through, and the public entry point, which must not.
     assert [path for path, _call in core_sites] == ["polygonal_bosses.py", "polygonal_bosses.py"]
-    writer_calls = [
-        call for _path, call in core_sites if any(kw.arg == "writer" for kw in call.keywords)
+    assert not [
+        path.name
+        for path in (ROOT / "src/quiddity").glob("*.py")
+        if path.name != "polygonal_bosses.py"
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        if isinstance(node, ast.Attribute) and node.attr == "_discover_polygonal_stock"
     ]
-    assert len(writer_calls) == 1
-    keywords = {keyword.arg: keyword.value for keyword in writer_calls[0].keywords}
+    module_tree = ast.parse((ROOT / "src/quiddity/polygonal_bosses.py").read_text("utf-8"))
+    declared, public = (
+        next(
+            node
+            for node in module_tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == name
+        )
+        for name in ("_discover_stock", "recognise_polygonal_stock")
+    )
+    declared_call = next(
+        node
+        for node in ast.walk(declared)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "_discover_polygonal_stock"
+    )
+    keywords = {keyword.arg: keyword.value for keyword in declared_call.keywords}
     assert isinstance(keywords["writer"], ast.Attribute) and keywords["writer"].attr == "writer"
     assert isinstance(keywords["writer"].value, ast.Name)
     assert keywords["writer"].value.id == "services"
@@ -736,7 +755,13 @@ def test_private_core_constructor_and_cap_identity_paths_are_closed() -> None:
     assert keywords["graph"].value.attr == "context"
     assert isinstance(keywords["graph"].value.value, ast.Name)
     assert keywords["graph"].value.value.id == "services"
-    public_call = next(call for _path, call in core_sites if call is not writer_calls[0])
+    public_call = next(
+        node
+        for node in ast.walk(public)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "_discover_polygonal_stock"
+    )
     assert all(keyword.arg != "writer" for keyword in public_call.keywords)
     public_keywords = {keyword.arg: keyword.value for keyword in public_call.keywords}
     assert isinstance(public_keywords["graph"], ast.Name)
