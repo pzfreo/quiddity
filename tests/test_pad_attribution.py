@@ -1157,6 +1157,7 @@ def test_private_core_has_one_declared_writer_caller_and_three_record_paths() ->
             "face_surfaces": "services.context.face_surfaces",
             "geometry": "services.context.geometry",
         },
+        withheld=("writer",),
     )
     assert [(path, len(call.args)) for path, call in constructors] == [("pads.py", 0)]
 

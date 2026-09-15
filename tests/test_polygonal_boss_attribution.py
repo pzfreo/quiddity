@@ -1132,5 +1132,6 @@ def test_private_core_has_one_declared_writer_caller_and_one_boss_constructor() 
         declaration="_discover_boss_family",
         entrypoint="recognise_polygonal_bosses",
         handed_over={"writer": "services.writer", "graph": "services.context.geometry"},
+        withheld=("writer",),
     )
     assert [(path, len(call.args)) for path, call in constructors] == [("polygonal_bosses.py", 0)]

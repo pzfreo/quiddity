@@ -699,6 +699,7 @@ def test_private_core_constructor_and_cap_identity_paths_are_closed() -> None:
         declaration="_discover_stock_family",
         entrypoint="recognise_polygonal_stock",
         handed_over={"writer": "services.writer", "graph": "services.context.geometry"},
+        withheld=("writer",),
     )
 
     # What the public entry point forwards is this family's own business, not the shared pin's.

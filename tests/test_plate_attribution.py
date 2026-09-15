@@ -712,24 +712,6 @@ def test_empty_completed_turned_roster_does_not_veto_plate_solids() -> None:
     assert product.result.plates
 
 
-def test_plate_private_core_and_declared_route_are_closed() -> None:
-    module = (ROOT / "src/quiddity/plates.py").read_text(encoding="utf-8")
-    tree = ast.parse(module)
-    plates = next(
-        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_discover"
-    )
-    calls = [node for node in ast.walk(plates) if isinstance(node, ast.Call)]
-    discover = next(
-        call
-        for call in calls
-        if isinstance(call.func, ast.Name) and call.func.id == "_discover_plates"
-    )
-    writer = {keyword.arg: keyword.value for keyword in discover.keywords}["writer"]
-    assert isinstance(writer, ast.Attribute) and writer.attr == "writer"
-    keywords = {keyword.arg: keyword.value for keyword in discover.keywords}
-    assert "excluded_solids" in keywords
-
-
 def test_plate_import_constructor_and_capability_rosters_are_closed() -> None:
     package = ROOT / "src/quiddity"
     constructors: list[tuple[str, ast.Call]] = []
@@ -764,6 +746,7 @@ def test_plate_import_constructor_and_capability_rosters_are_closed() -> None:
         core="_discover_plates",
         entrypoint="recognise_plates",
         handed_over={"writer": "services.writer", "excluded_solids": "turned_solids"},
+        withheld=("writer",),
     )
     assert [(path, len(call.args)) for path, call in constructors] == [("plates.py", 0)]
     assert [(path, len(call.args)) for path, call in proposal_sites] == [("plates.py", 3)]

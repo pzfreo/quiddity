@@ -759,6 +759,7 @@ def test_the_declaration_is_the_only_production_writer_enabled_fillet_caller() -
             "min_radius": "None",
             "max_radius_frac": "0.45",
         },
+        withheld=("writer",),
     )
 
 

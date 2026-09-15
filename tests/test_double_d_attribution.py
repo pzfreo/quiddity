@@ -1076,6 +1076,7 @@ def test_only_the_declaration_may_call_writer_enabled_core() -> None:
             "writer": "services.writer",
             "face_edges": "services.context.face_edges",
         },
+        withheld=("writer",),
     )
 
 

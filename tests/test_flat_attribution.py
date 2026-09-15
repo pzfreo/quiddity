@@ -239,6 +239,7 @@ def test_the_declaration_is_the_only_production_writer_enabled_flat_caller() -> 
             "cyls": "services.cylinders",
             "face_edges": "services.context.face_edges",
         },
+        withheld=("writer",),
     )
 
 
