@@ -53,11 +53,11 @@ def recognition_snapshot(recognition, feature_census, part):
         "recognise_oriented_slots",
         "recognise_oriented_slot_patterns",
     }
-    # Every other public recogniser is discovered from the registry rather than a hand-kept
-    # list, so adding a family cannot leave the snapshot stale. A physical recogniser takes the
-    # part; a derived recogniser takes its source family's records, which the registry names.
-    # The pinned Draftwright baseline has no such attributes, so a missing name is skipped
-    # there; the inventory check below still fails closed for the package itself.
+    # Every other exported recogniser is found in `__all__` rather than a hand-kept list, so
+    # adding a family cannot leave the snapshot stale. The registry says which are derived: a
+    # physical recogniser takes the part; a derived one takes its source family's records. The
+    # pinned Draftwright baseline has no such attributes, so a missing name is skipped there.
+    # For the package, a recogniser that cannot run raises here rather than being omitted.
     from quiddity._registry import DERIVED_DEFINITIONS, PHYSICAL_DEFINITIONS
 
     entrypoint_of_family = {
@@ -85,8 +85,15 @@ def recognition_snapshot(recognition, feature_census, part):
         if name not in derived_sources:
             continue
         recognise = getattr(recognition, name, None)
-        if recognise is not None:
-            individual[name] = recognise(*(individual[source] for source in derived_sources[name]))
+        if recognise is None:
+            continue
+        missing_sources = [s for s in derived_sources[name] if s not in individual]
+        if missing_sources:
+            raise RuntimeError(
+                f"{name}: sources {missing_sources} are not in the legacy snapshot; add it to "
+                "post_baseline beside them or snapshot the source first"
+            )
+        individual[name] = recognise(*(individual[source] for source in derived_sources[name]))
 
     public_recognisers = {
         name
