@@ -71,6 +71,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity.grooves as grooves_module
     import quiddity.gussets as gussets_module
     import quiddity.levels as levels_module
+    import quiddity.oriented_slots as oriented_slots_module
     import quiddity.pads as pads_module
     import quiddity.paired_ramp_steps as paired_ramp_steps_module
     import quiddity.plates as plates_module
@@ -166,7 +167,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
         registry_module, "recognise_slot_patterns", derived("slot_patterns", slots, [])
     )
     monkeypatch.setattr(
-        registry_module,
+        oriented_slots_module,
         "recognise_oriented_slot_patterns",
         derived("oriented_slot_patterns", [], []),
     )
@@ -190,7 +191,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     # This test owns dependency injection, so keep the family empty but still invoked and bound.
     levels: list[FaceLevel] = []
     monkeypatch.setattr(levels_module, "_discover_step_levels", counted("step_levels", levels))
-    monkeypatch.setattr(registry_module, "_discover_risers", counted("risers", []))
+    monkeypatch.setattr(levels_module, "_discover_risers", counted("risers", []))
     monkeypatch.setattr(chamfers_module, "recognise_chamfers", counted("chamfers", []))
     monkeypatch.setattr(angled_steps_module, "recognise_angled_steps", counted("angled_steps", []))
     monkeypatch.setattr(

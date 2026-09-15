@@ -47,16 +47,7 @@ EVIDENCE: dict[str, dict[str, object]] = {
     "bosses": {"goldens": ["simple_through_hole", "turned_steps_and_grooves"]},
     "hole-patterns": {"goldens": ["bolt_circle_and_rectangular_grid"]},
     "holes": {"goldens": ["simple_through_hole", "counterbored_and_countersunk_holes"]},
-    "risers": {"goldens": ["plates_pads_levels_and_slanted_steps", "slanted_steps"]},
     "slot-patterns": {"goldens": ["straight_and_obround_slots"]},
-    "oriented-slots": {
-        "golden_paths": ["tests/golden/oriented_slots/contract.json"],
-        "tests": ["tests/test_oriented_slots.py"],
-    },
-    "oriented-slot-patterns": {
-        "golden_paths": ["tests/golden/oriented_slots/contract.json"],
-        "tests": ["tests/test_oriented_slots.py"],
-    },
     "slots": {"goldens": ["straight_and_obround_slots"]},
 }
 
@@ -92,14 +83,6 @@ EXTRA_RECORDS: dict[str, list[tuple[str, str, list[str]]]] = {
             ["RecognitionResult.holes.cbore", "RecognitionResult.holes.spotface"],
         ),
         ("HoleSpec", "evidence", []),
-    ],
-    "risers": [
-        ("RiserEvidence", "evidence", ["RecognitionResult.risers"]),
-        ("StepShoulder", "projection", []),
-    ],
-    "oriented-slots": [
-        ("PassageEnds", "nested", []),
-        ("SectionPassage", "nested", []),
     ],
 }
 

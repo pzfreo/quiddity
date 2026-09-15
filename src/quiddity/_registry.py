@@ -27,6 +27,7 @@ from quiddity import (
     grooves,
     gussets,
     levels,
+    oriented_slots,
     pads,
     paired_ramp_steps,
     plates,
@@ -78,23 +79,6 @@ from quiddity._recess_features import (
 from quiddity._section_recess import SectionRecess
 from quiddity._section_recess_discovery import discover_section_recesses
 from quiddity.countersinks import CounterSink
-from quiddity.levels import (
-    FaceLevel,
-    RiserEvidence,
-    _discover_risers,
-)
-from quiddity.oriented_slots import (
-    OrientedSlot,
-    OrientedSlotArray,
-    OrientedSlotGrid,
-    recognise_oriented_slot_patterns,
-)
-from quiddity.oriented_slots import (
-    _body_keys as _oriented_slot_body_keys,
-)
-from quiddity.oriented_slots import (
-    _project as _project_oriented_slot,
-)
 from quiddity.passages import (
     Passage,
     SectionPassage,
@@ -253,58 +237,12 @@ def _holes(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]
     )
 
 
-def _risers(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
-    body_levels: dict[object, list[FaceLevel]] = {}
-    for occurrence in inputs.occurrences(FamilyId.STEP_LEVELS, FaceLevel):
-        solid = occurrence.solid()
-        if solid is None:  # pragma: no cover - completed occurrences revalidate this invariant
-            raise ValueError("completed FaceLevel occurrence has no valid solid")
-        body_levels.setdefault(solid, []).append(occurrence.record(FaceLevel))
-    return list(
-        _discover_risers(
-            services.context.part,
-            writer=services.writer,
-            body_levels=body_levels,
-        )
-    )
-
-
-def _oriented_slots(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
-    occurrences = inputs.occurrences(FamilyId.PASSAGES, SectionPassage)
-    solids = []
-    for occurrence in occurrences:
-        solid = occurrence.solid()
-        if solid is None:  # pragma: no cover - completed passage evidence is nonempty/same-solid
-            raise ValueError("completed SectionPassage occurrence has no valid solid")
-        solids.append(solid)
-    keys = _oriented_slot_body_keys(services.context.graph, tuple(solids))
-    found: list[OrientedSlot] = []
-    for occurrence, solid in zip(occurrences, solids, strict=True):
-        record = _project_oriented_slot(
-            occurrence.record(SectionPassage),
-            keys[solid],
-        )
-        if record is None:
-            continue
-        defining = occurrence.defining()
-        services.writer.sink.propose(FamilyId.ORIENTED_SLOTS, record, defining=defining)
-        found.append(record)
-    found.sort()
-    return list(found)
-
-
 def _hole_patterns(inputs: AcceptedInputs) -> list[object]:
     return list(recognise_hole_patterns(inputs.records(FamilyId.HOLES, HoleRecord)))
 
 
 def _slot_patterns(inputs: AcceptedInputs) -> list[object]:
     return list(recognise_slot_patterns(inputs.records(FamilyId.SLOTS, Slot)))
-
-
-def _oriented_slot_patterns(inputs: AcceptedInputs) -> list[object]:
-    return list(
-        recognise_oriented_slot_patterns(inputs.records(FamilyId.ORIENTED_SLOTS, OrientedSlot))
-    )
 
 
 def _pocket_patterns(inputs: AcceptedInputs) -> list[object]:
@@ -444,18 +382,8 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
     pads.DEFINITION,
     repeating_profiles.DEFINITION,
     turned.DEFINITION,
-    levels.DEFINITION,
-    PhysicalDefinition(
-        FamilyId.RISERS,
-        (RiserEvidence,),
-        "risers",
-        "recognise_risers",
-        (FamilyId.STEP_LEVELS,),
-        always,
-        _risers,
-        NotCounted("riser evidence is not a distinct feature"),
-        FullyAttributed("every returned RiserEvidence owns all producing faces on one valid solid"),
-    ),
+    levels.STEP_LEVELS,
+    levels.RISERS,
     chamfers.DEFINITION,
     angled_steps.DEFINITION,
     paired_ramp_steps.DEFINITION,
@@ -480,19 +408,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         FullyAttributed("every returned passage claims its defining passage faces"),
         projected=prismatic,
     ),
-    PhysicalDefinition(
-        FamilyId.ORIENTED_SLOTS,
-        (OrientedSlot,),
-        "oriented_slots",
-        "recognise_oriented_slots",
-        (FamilyId.PASSAGES,),
-        prismatic,
-        _oriented_slots,
-        Counted("oriented_slot"),
-        FullyAttributed(
-            "every oriented slot reissues the exact accepted rectangular passage wall set"
-        ),
-    ),
+    oriented_slots.DEFINITION,
     blends.DEFINITION,
     fillets.DEFINITION,
     plates.DEFINITION,
@@ -518,15 +434,7 @@ DERIVED_DEFINITIONS: tuple[DerivedDefinition, ...] = (
         _slot_patterns,
         NotCounted("not a distinct census key"),
     ),
-    DerivedDefinition(
-        DerivedId.ORIENTED_SLOT_PATTERNS,
-        (OrientedSlotArray, OrientedSlotGrid),
-        "oriented_slot_patterns",
-        "recognise_oriented_slot_patterns",
-        (FamilyId.ORIENTED_SLOTS,),
-        _oriented_slot_patterns,
-        NotCounted("not a distinct census key"),
-    ),
+    oriented_slots.PATTERNS,
     DerivedDefinition(
         DerivedId.POCKET_PATTERNS,
         (PocketArray, PocketGrid),

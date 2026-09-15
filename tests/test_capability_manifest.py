@@ -355,6 +355,54 @@ def test_a_declared_extra_replaces_rather_than_duplicates_the_output_record_it_s
     assert flats == [("Flat", "output", ["RecognitionResult.flats", "RecognitionResult.elsewhere"])]
 
 
+def test_generator_refuses_a_module_declared_family_that_names_no_evidence(monkeypatch) -> None:
+    """The other half of the rule: declaring the family means owning its manifest facts.
+
+    Without this the tool falls back to its own tables, which is correct for a family still
+    described in the registry and silently wrong for one that declares itself -- the state #660
+    found `levels` in, and which `--check` cannot see because the output is unchanged.
+    """
+
+    spec = importlib.util.spec_from_file_location(
+        "generate_capability_manifest", ROOT / "tools" / "generate_capability_manifest.py"
+    )
+    assert spec is not None and spec.loader is not None
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+
+    index, declared = next(
+        (index, definition)
+        for index, definition in enumerate(tool.PHYSICAL_DEFINITIONS)
+        if definition.public_entrypoint == "recognise_flats"
+    )
+    stripped = dataclasses.replace(declared, evidence=None)
+    monkeypatch.setattr(
+        tool,
+        "PHYSICAL_DEFINITIONS",
+        tool.PHYSICAL_DEFINITIONS[:index] + (stripped,) + tool.PHYSICAL_DEFINITIONS[index + 1 :],
+    )
+    with pytest.raises(KeyError, match="names no ManifestEvidence"):
+        tool._registry_families()
+
+
+def test_generator_still_reads_its_tables_for_a_family_the_registry_describes() -> None:
+    """The gate keys off where the family is declared, not merely off a missing evidence field."""
+
+    spec = importlib.util.spec_from_file_location(
+        "generate_capability_manifest", ROOT / "tools" / "generate_capability_manifest.py"
+    )
+    assert spec is not None and spec.loader is not None
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+
+    literal = next(
+        definition
+        for definition in tool.PHYSICAL_DEFINITIONS
+        if definition.evidence is None and not tool._is_module_declared(definition)
+    )
+    assert tool._family_id(literal.public_entrypoint) in tool.EVIDENCE
+
+
 def test_committed_manifest_is_the_deterministic_generator_output() -> None:
     subprocess.run(
         [sys.executable, "tools/generate_capability_manifest.py", "--check"],
