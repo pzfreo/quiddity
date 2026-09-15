@@ -14,8 +14,16 @@ from OCP.BRepGProp import BRepGProp
 from OCP.GProp import GProp_GProps
 
 from quiddity._analytic_surfaces import SurfaceKind
-from quiddity._candidates import FamilyId
+from quiddity._candidates import CompletedInputs, FamilyId
 from quiddity._claims import EvidenceWriter
+from quiddity._definitions import (
+    DiscoveryServices,
+    FullyAttributed,
+    ManifestEvidence,
+    NotCounted,
+    PhysicalDefinition,
+    always,
+)
 from quiddity._effective_surfaces import (
     AnalyticSurfaceFact,
     EffectiveFaceSurfaceQuery,
@@ -836,3 +844,39 @@ def _discover_rectangular_pads(
             surfaces=surface_uses,
         )
     return records
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(
+        _discover_rectangular_pads(
+            services.context.part,
+            writer=services.writer,
+            face_surfaces=services.context.face_surfaces,
+            geometry=services.context.geometry,
+        )
+    )
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.PADS,
+    record_types=(RaisedPad,),
+    result_field="pads",
+    public_entrypoint=recognise_rectangular_pads.__name__,
+    dependencies=(),
+    applicable=always,
+    discover=_discover,
+    census=NotCounted("not a distinct census key"),
+    attribution=FullyAttributed(
+        "every returned Pad owns its exact top and four perimeter-wall faces"
+    ),
+    evidence=ManifestEvidence(
+        goldens=("plates_pads_levels_and_slanted_steps",),
+        tests=(
+            "docs/benchmarks/nurbs-conversion-sweep.json",
+            "tests/test_nurbs_conversion_sweep.py",
+            "tests/test_pad_attribution.py",
+        ),
+    ),
+)

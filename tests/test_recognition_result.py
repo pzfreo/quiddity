@@ -69,6 +69,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity.flats as flats_module
     import quiddity.grooves as grooves_module
     import quiddity.gussets as gussets_module
+    import quiddity.pads as pads_module
     import quiddity.paired_ramp_steps as paired_ramp_steps_module
     import quiddity.plates as plates_module
     import quiddity.polygonal_bosses as polygonal_bosses_module
@@ -174,7 +175,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     monkeypatch.setattr(
         registry_module, "recognise_pocket_patterns", derived("pocket_patterns", pockets, [])
     )
-    monkeypatch.setattr(registry_module, "_discover_rectangular_pads", counted("pads", []))
+    monkeypatch.setattr(pads_module, "_discover_rectangular_pads", counted("pads", []))
     monkeypatch.setattr(
         registry_module, "_discover_repeating_radial_profiles", counted("radial_profiles", [])
     )

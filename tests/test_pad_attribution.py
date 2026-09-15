@@ -1137,7 +1137,7 @@ def test_signed_principal_pad_step_round_trip_preserves_record(tmp_path: Path) -
     assert recognise_rectangular_pads(imported) == recognise_rectangular_pads(part)
 
 
-def test_private_core_has_one_production_writer_caller_and_three_record_paths() -> None:
+def test_private_core_has_one_declared_writer_caller_and_three_record_paths() -> None:
     core_sites: list[tuple[str, ast.Call]] = []
     constructors: list[tuple[str, ast.Call]] = []
     for path in (ROOT / "src/quiddity").glob("*.py"):
@@ -1150,12 +1150,52 @@ def test_private_core_has_one_production_writer_caller_and_three_record_paths() 
             if qualified.endswith(".RaisedPad") or qualified == "RaisedPad":
                 constructors.append((path.name, call))
 
-    assert {path for path, _call in core_sites} == {"pads.py", "_registry.py"}
-    registry_call = next(call for path, call in core_sites if path == "_registry.py")
-    keywords = {keyword.arg: keyword.value for keyword in registry_call.keywords}
+    # Two sites, both in the family module: the declaration, which hands the run's writer
+    # through, and the public entry point, which must not. No module outside the family names
+    # the core at all -- not by import, not as an attribute -- since either can be rebound and
+    # called under a new name.
+    assert [path for path, _call in core_sites] == ["pads.py", "pads.py"]
+    assert not [
+        path.name
+        for path in (ROOT / "src/quiddity").glob("*.py")
+        if path.name != "pads.py"
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        if (isinstance(node, ast.Attribute) and node.attr == "_discover_rectangular_pads")
+        or (
+            isinstance(node, ast.ImportFrom)
+            and node.module == "quiddity.pads"
+            and any(alias.name == "_discover_rectangular_pads" for alias in node.names)
+        )
+    ]
+
+    module_tree = ast.parse((ROOT / "src/quiddity/pads.py").read_text("utf-8"))
+    declared, public = (
+        next(
+            node
+            for node in module_tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == name
+        )
+        for name in ("_discover", "recognise_rectangular_pads")
+    )
+    declared_call = next(
+        node
+        for node in ast.walk(declared)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "_discover_rectangular_pads"
+    )
+    keywords = {keyword.arg: keyword.value for keyword in declared_call.keywords}
     writer = keywords["writer"]
     assert isinstance(writer, ast.Attribute) and writer.attr == "writer"
-    assert isinstance(writer.value, ast.Name) and writer.value.id == "s"
+    assert isinstance(writer.value, ast.Name) and writer.value.id == "services"
+    public_call = next(
+        node
+        for node in ast.walk(public)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "_discover_rectangular_pads"
+    )
+    assert not any(keyword.arg == "writer" for keyword in public_call.keywords)
     assert [(path, len(call.args)) for path, call in constructors] == [("pads.py", 0)]
 
 
