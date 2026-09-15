@@ -51,8 +51,15 @@ from dataclasses import dataclass
 from build123d import Face, Solid, Vector, Wire
 
 from quiddity._adjacency import FaceEdges, FaceGraph, FaceNode
-from quiddity._candidates import FamilyId
+from quiddity._candidates import CompletedInputs, FamilyId
 from quiddity._claims import ClaimLedger, EvidenceWriter
+from quiddity._definitions import (
+    DiscoveryServices,
+    FullyAttributed,
+    NotCounted,
+    PhysicalDefinition,
+    always,
+)
 from quiddity._geometry import AXIS_ZERO_COS
 from quiddity._record import Record
 from quiddity._rings import (
@@ -524,3 +531,32 @@ def recognise_prismatic_pockets(
                 constituent=constituent,
             )
     return [pocket for pocket, _nodes, _constituent in found]
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(
+        recognise_prismatic_pockets(
+            services.context.part,
+            ledger=services.writer,
+            face_edges=services.context.face_edges,
+        )
+    )
+
+
+# The package does not export this entry point, so the capability manifest has no entry for the
+# family, and the declaration below names no evidence.
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.PRISMATIC_POCKETS,
+    record_types=(PrismaticPocket,),
+    result_field="prismatic_pockets",
+    public_entrypoint=recognise_prismatic_pockets.__name__,
+    dependencies=(),
+    applicable=always,
+    discover=_discover,
+    census=NotCounted("Counted once through the unified section_recess projection"),
+    attribution=FullyAttributed(
+        "every returned prismatic pocket claims its defining boundary faces"
+    ),
+)

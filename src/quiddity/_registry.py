@@ -25,6 +25,7 @@ from quiddity import (
     paired_ramp_steps,
     plates,
     polygonal_bosses,
+    prismatic_pockets,
     profiled_bores,
     rectangular_blind_slots,
     round_bottom_slots,
@@ -102,7 +103,6 @@ from quiddity.passages import (
     SectionPassage,
     recognise_section_passages,
 )
-from quiddity.prismatic_pockets import PrismaticPocket, recognise_prismatic_pockets
 from quiddity.repeating_profiles import (
     RepeatingRadialProfile,
     _discover_repeating_radial_profiles,
@@ -436,23 +436,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
         NotCounted("Counted once through the unified section_recess projection"),
         FullyAttributed("every returned Pocket owns its selected walls, corner floor, or caps"),
     ),
-    PhysicalDefinition(
-        FamilyId.PRISMATIC_POCKETS,
-        (PrismaticPocket,),
-        "prismatic_pockets",
-        "recognise_prismatic_pockets",
-        (),
-        always,
-        simple(
-            lambda s: list(
-                recognise_prismatic_pockets(
-                    s.context.part, ledger=s.writer, face_edges=s.context.face_edges
-                )
-            )
-        ),
-        NotCounted("Counted once through the unified section_recess projection"),
-        FullyAttributed("every returned prismatic pocket claims its defining boundary faces"),
-    ),
+    prismatic_pockets.DEFINITION,
     PhysicalDefinition(
         FamilyId.EDGE_OPEN_CIRCULAR_POCKETS,
         (EdgeOpenCircularPocket,),
