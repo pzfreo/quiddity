@@ -422,14 +422,25 @@ def test_part_based_recognisers_are_keyword_only_after_part():
 
 
 def _ledger_taking_recognisers():
-    for name in sorted(quiddity.__all__):
-        if not name.startswith("recognise_"):
-            continue
-        fn = getattr(quiddity, name)
-        params = inspect.signature(fn).parameters
-        if "ledger" in params and name != "recognise_passages":
-            # recognise_passages is the legacy projection and refuses a ledger by design.
-            yield name, fn
+    """Every `recognise_*` in a public module that accepts a ledger, root-exported or not.
+
+    `passages.recognise_passages` is the legacy projection and refuses a ledger by design
+    (`PassageCompatibilityError`), so it is the one exclusion.
+    """
+    import importlib
+
+    from tests.test_architecture import PUBLIC_MODULES
+
+    for module_name in sorted(PUBLIC_MODULES):
+        module = importlib.import_module(f"quiddity.{module_name}")
+        for name in sorted(vars(module)):
+            fn = getattr(module, name)
+            if not (name.startswith("recognise_") and callable(fn)):
+                continue
+            if getattr(fn, "__module__", None) != module.__name__:
+                continue  # re-exported from another module; checked there
+            if "ledger" in inspect.signature(fn).parameters and name != "recognise_passages":
+                yield f"{module_name}.{name}", fn
 
 
 @pytest.mark.parametrize("name,fn", list(_ledger_taking_recognisers()))

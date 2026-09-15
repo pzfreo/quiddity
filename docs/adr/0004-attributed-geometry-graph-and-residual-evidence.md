@@ -63,8 +63,8 @@ dimensioned or shown; consumers translate neutral diagnostics into their own pol
 
 - `tests/test_architecture.py`: every arc reader has one reviewed disposition; the surface-reader
   roster covers every raw classification; the blend index and view have only reviewed production
-  call sites; the residual reducer cannot rediscover or mutate geometry; the modules that attach
-  recovered `SurfaceUse` dependencies are a pinned roster.
+  call sites; the residual reducer cannot rediscover or mutate geometry; the modules that import
+  `SurfaceUse`, the only route to attaching recovered dependencies today, are a pinned roster.
 - `tests/test_arcs.py` and the effective-surface tests for the graph and index contracts.
 - Golden fixtures: existing recogniser outputs stay stable while a family migrates onto the graph.
 

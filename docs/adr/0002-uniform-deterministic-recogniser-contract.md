@@ -88,7 +88,7 @@ is one Passage evidence authority.
 
 - `tests/test_recogniser_contract.py`: keyword-only signature checks over every exported
   part-based recogniser, derived from the exports; ledger parity for every ledger-taking
-  recogniser over every golden fixture; frozen, JSON-serialisable records with no build123d/OCP
+  recogniser in a public module over every golden fixture; frozen, JSON-serialisable records with no build123d/OCP
   objects;
   `tests/test_capability_manifest.py`: return annotations against the manifest.
 - Determinism tests: permuting kernel traversal order does not alter record order.

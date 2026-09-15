@@ -25,8 +25,8 @@ second implementation.
 dictionary `MODULE_SEAM_EDGES` in `tests/test_architecture.py`, one entry per module, with a
 comment where the reason is not obvious. This file no longer restates that table. Adding a module
 or an edge means adding it there in the same PR, and the review of that edge is the architecture
-review. Every module has an entry (`test_every_module_has_a_seam_entry`), and an edge the table
-does not list fails the suite.
+review. Every module except the root re-export has an entry (`test_every_module_has_a_seam_entry`),
+and an edge the table does not list fails the suite.
 
 **Layers, bottom up.** The table is acyclic (`test_module_graph_is_acyclic`). The layers below
 are the intended reading of it, not a theorem: a few reviewed exceptions (a family facade

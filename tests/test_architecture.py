@@ -1951,6 +1951,11 @@ PUBLISHED_RESULT_FIELDS = {
     "chamfers",
     "angled_steps",
     "paired_ramp_steps",
+    "through_steps",
+    "circular_blind_steps",
+    "blends",
+    "fillets",
+    "plates",
 }
 
 

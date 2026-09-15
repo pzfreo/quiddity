@@ -91,8 +91,8 @@ shipped in a patch release by the owner's explicit override; its additive requir
   internal check, with their manifest tests; `tests/test_capability_claims.py`; the consumer
   typing check in `tests/typing/`.
 - `tests/test_architecture.py`: every defined public recogniser is exported; correspondence
-  absent; the published `ReconciliationReason` values and `RecognitionResult` fields may only
-  grow without a deliberate edit to the pinned roster. `tests/test_experimental_geometry.py` and `tests/test_inspection_api.py` keep
+  absent; the published `ReconciliationReason` values and `RecognitionResult` fields may
+  only grow without a deliberate edit to the pinned roster. `tests/test_experimental_geometry.py` and `tests/test_inspection_api.py` keep
   `experimental_geometry` out of the root.
 - Evidence and explanation tests: forged, copied and cross-view references refuse;
   `defining ⊆ constituent`; the report's result is the same object as the plain run's.
