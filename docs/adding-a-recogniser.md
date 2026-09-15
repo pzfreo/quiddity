@@ -235,8 +235,7 @@ every site.
 | 6 | `src/quiddity/_effective_surfaces.py` | one roster entry per raw surface read the module makes | `test_effective_surface_reader_roster_covers_every_raw_classification` |
 | 7 | `tests/test_architecture.py` | `PUBLIC_MODULES`, the module's seam entry, and its arc-reader sites | that file's own tests |
 | 8 | `tools/generate_capability_manifest.py` | the family's `EVIDENCE` entry (goldens, tests, version), then regenerate `capabilities.json`; recognisers, records, membership and census come from the registry | `--check` in `tests/test_capability_manifest.py` |
-| 9 | `tools/recognition_snapshot.py` | the recogniser name in the package-originated list | the snapshot inventory check |
-| 10 | `docs/capabilities.md` | the recogniser row and one row per record | `tests/test_capability_claims.py` |
+| 9 | `docs/capabilities.md` | the recogniser row and one row per record | `tests/test_capability_claims.py` |
 
 Regenerate, do not hand-edit, the committed capability manifest:
 
@@ -244,7 +243,7 @@ Regenerate, do not hand-edit, the committed capability manifest:
 uv run python tools/generate_capability_manifest.py --write
 ```
 
-Measured on the gussets family (issue #602): these ten sites, plus the module itself, its
+Measured on the gussets family (issue #602): ten sites, now nine, plus the module itself, its
 fixtures and the goldens in the next section. A site that only restates what the registry
 already knows is a candidate for derivation; a site that is a public contract stays, and its
 check is what makes forgetting it visible. See
@@ -263,8 +262,7 @@ There are two different sources of golden data:
 
 For a package-originated family:
 
-1. add its recogniser name to the explicit package-originated list in
-   `tools/recognition_snapshot.py`;
+1. nothing in `tools/recognition_snapshot.py`: it discovers the family from the registry;
 2. add its `individual` result and aggregate field to every `tests/golden/*/expected.json`;
 3. if it is `Counted`, add its census key to every expected census object;
 4. add a dedicated fixture whose geometry positively proves the new record when the existing

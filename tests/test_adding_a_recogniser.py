@@ -19,7 +19,8 @@ GUIDE = ROOT / "docs" / "adding-a-recogniser.md"
 
 #: Hand-edit sites a new family needs, measured on the gussets family (#602) on 2026-09-15.
 #: Lower this only when a site has been derived from the registry.
-REGISTRATION_SITES = 10
+#: 10 -> 9: the snapshot tool's package-originated list is derived from the registry.
+REGISTRATION_SITES = 9
 
 
 def _registration_sites() -> list[Path]:

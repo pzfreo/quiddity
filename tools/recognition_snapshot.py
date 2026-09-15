@@ -43,35 +43,6 @@ def recognition_snapshot(recognition, feature_census, part):
         "recognise_slots": slots,
         "recognise_turned_steps": recognition.recognise_turned_steps(part, cyls=cylinders),
     }
-    # Families originated in this package have no counterpart in the pinned Draftwright
-    # baseline, so asking that module for them raises rather than returning nothing. Adding
-    # them unconditionally broke `capture_draftwright_goldens` for the whole corpus, not only
-    # for the new family — it snapshots `draftwright.recognition`, which has no such
-    # attribute. Keying off the module being snapshotted keeps both callers working, and the
-    # inventory check below still fails closed: a name present in `__all__` but skipped here
-    # is a mismatch, so this cannot quietly drop a family from a package that does have it.
-    for name in (
-        "recognise_angled_steps",
-        "recognise_blends",
-        "recognise_gusset_ribs",
-        "recognise_circular_blind_steps",
-        "recognise_paired_ramp_steps",
-        "recognise_passages",
-        "recognise_prismatic_pockets",
-        "recognise_rectangular_blind_slots",
-        "recognise_round_bottom_blind_slots",
-        "recognise_through_steps",
-    ):
-        recognise = getattr(recognition, name, None)
-        if recognise is not None:
-            individual[name] = recognise(part)
-
-    recognise_gusset_patterns = getattr(recognition, "recognise_gusset_rib_patterns", None)
-    if recognise_gusset_patterns is not None:
-        individual["recognise_gusset_rib_patterns"] = recognise_gusset_patterns(
-            individual["recognise_gusset_ribs"]
-        )
-
     # Added in the 0.4 rich-schema transition and pinned by its own schema/oracle goldens.
     # This legacy snapshot deliberately stays byte-identical to the Draftwright-era surface.
     post_baseline = {
@@ -82,6 +53,41 @@ def recognition_snapshot(recognition, feature_census, part):
         "recognise_oriented_slots",
         "recognise_oriented_slot_patterns",
     }
+    # Every other public recogniser is discovered from the registry rather than a hand-kept
+    # list, so adding a family cannot leave the snapshot stale. A physical recogniser takes the
+    # part; a derived recogniser takes its source family's records, which the registry names.
+    # The pinned Draftwright baseline has no such attributes, so a missing name is skipped
+    # there; the inventory check below still fails closed for the package itself.
+    from quiddity._registry import DERIVED_DEFINITIONS, PHYSICAL_DEFINITIONS
+
+    entrypoint_of_family = {
+        definition.family: definition.public_entrypoint for definition in PHYSICAL_DEFINITIONS
+    }
+    derived_sources = {
+        definition.public_entrypoint: [
+            entrypoint_of_family[source] for source in definition.sources
+        ]
+        for definition in DERIVED_DEFINITIONS
+        if definition.public_entrypoint is not None
+    }
+    pending = [
+        name
+        for name in sorted(recognition.__all__)
+        if name.startswith("recognise_") and name not in individual and name not in post_baseline
+    ]
+    for name in pending:
+        if name in derived_sources:
+            continue
+        recognise = getattr(recognition, name, None)
+        if recognise is not None:
+            individual[name] = recognise(part)
+    for name in pending:
+        if name not in derived_sources:
+            continue
+        recognise = getattr(recognition, name, None)
+        if recognise is not None:
+            individual[name] = recognise(*(individual[source] for source in derived_sources[name]))
+
     public_recognisers = {
         name
         for name in recognition.__all__
