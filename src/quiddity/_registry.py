@@ -14,7 +14,15 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Protocol, TypeAlias
 
-from quiddity import angled_steps, chamfers, gussets, paired_ramp_steps, plates, through_steps
+from quiddity import (
+    angled_steps,
+    chamfers,
+    circular_blind_steps,
+    gussets,
+    paired_ramp_steps,
+    plates,
+    through_steps,
+)
 from quiddity._candidates import (
     Candidate,
     CandidateSet,
@@ -54,10 +62,6 @@ from quiddity._recess_features import (
 from quiddity._section_recess import SectionRecess
 from quiddity._section_recess_discovery import discover_section_recesses
 from quiddity.blends import Blend, _discover_blends
-from quiddity.circular_blind_steps import (
-    CircularBlindStep,
-    _discover_circular_blind_steps,
-)
 from quiddity.countersinks import CounterSink, _discover_countersinks
 from quiddity.edge_open_circular_recesses import (
     EdgeOpenCircularPocket,
@@ -714,29 +718,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
     paired_ramp_steps.DEFINITION,
     gussets.DEFINITION,
     through_steps.DEFINITION,
-    PhysicalDefinition(
-        FamilyId.CIRCULAR_BLIND_STEPS,
-        (CircularBlindStep,),
-        "circular_blind_steps",
-        "recognise_circular_blind_steps",
-        (),
-        prismatic,
-        simple(
-            lambda s: list(
-                _discover_circular_blind_steps(
-                    s.context.part,
-                    graph=s.context.graph,
-                    cylinders=s.cylinders,
-                    effective=s.context.face_surfaces,
-                    sink=s.writer.sink,
-                )
-            )
-        ),
-        Counted("circular_blind_step"),
-        FullyAttributed(
-            "every returned circular blind step claims its cylindrical wall and terminal"
-        ),
-    ),
+    circular_blind_steps.DEFINITION,
     PhysicalDefinition(
         FamilyId.PASSAGES,
         (SectionPassage,),

@@ -18,9 +18,17 @@ from typing import Any
 from build123d import Vector, extrude
 
 from quiddity._adjacency import FaceGraph, FaceNode, axis_aligned_axis
-from quiddity._candidates import EvidenceSink, FamilyId
+from quiddity._candidates import CompletedInputs, EvidenceSink, FamilyId
 from quiddity._claims import ClaimLedger, EvidenceWriter
 from quiddity._cylinder_substrate import analyse_cylinders
+from quiddity._definitions import (
+    Counted,
+    DiscoveryServices,
+    FullyAttributed,
+    ManifestEvidence,
+    PhysicalDefinition,
+    prismatic,
+)
 from quiddity._effective_surfaces import (
     AnalyticSurfaceFact,
     EffectiveFaceSurfaceQuery,
@@ -297,3 +305,36 @@ def recognise_circular_blind_steps(
         effective=effective,
         sink=sink,
     )
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(
+        _discover_circular_blind_steps(
+            services.context.part,
+            graph=services.context.graph,
+            cylinders=services.cylinders,
+            effective=services.context.face_surfaces,
+            sink=services.writer.sink,
+        )
+    )
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.CIRCULAR_BLIND_STEPS,
+    record_types=(CircularBlindStep,),
+    result_field="circular_blind_steps",
+    public_entrypoint=recognise_circular_blind_steps.__name__,
+    dependencies=(),
+    applicable=prismatic,
+    discover=_discover,
+    census=Counted("circular_blind_step"),
+    attribution=FullyAttributed(
+        "every returned circular blind step claims its cylindrical wall and terminal"
+    ),
+    evidence=ManifestEvidence(
+        goldens=("circular_blind_step",),
+        tests=("tests/test_circular_blind_steps.py",),
+    ),
+)

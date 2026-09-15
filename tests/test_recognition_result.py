@@ -64,6 +64,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity._run as run_module
     import quiddity.angled_steps as angled_steps_module
     import quiddity.chamfers as chamfers_module
+    import quiddity.circular_blind_steps as circular_blind_steps_module
     import quiddity.gussets as gussets_module
     import quiddity.paired_ramp_steps as paired_ramp_steps_module
     import quiddity.plates as plates_module
@@ -189,7 +190,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
         counted("through_steps", []),
     )
     monkeypatch.setattr(
-        registry_module,
+        circular_blind_steps_module,
         "_discover_circular_blind_steps",
         counted("circular_blind_steps", []),
     )

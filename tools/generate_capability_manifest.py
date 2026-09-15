@@ -44,10 +44,6 @@ EVIDENCE: dict[str, dict[str, object]] = {
             "tests/test_open_channel_section.py",
         ],
     },
-    "circular-blind-steps": {
-        "goldens": ["circular_blind_step"],
-        "tests": ["tests/test_circular_blind_steps.py"],
-    },
     "bosses": {"goldens": ["simple_through_hole", "turned_steps_and_grooves"]},
     "blends": {
         "goldens": [
