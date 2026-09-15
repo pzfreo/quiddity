@@ -17,6 +17,7 @@ import dataclasses
 import inspect
 import json
 from math import cos, pi, sin
+from pathlib import Path
 
 import pytest
 from build123d import (
@@ -36,6 +37,7 @@ from build123d import (
     fillet,
 )
 
+import quiddity
 from quiddity import (
     BoltCircle,
     BossRecord,
@@ -88,6 +90,7 @@ from quiddity import (
     recognise_turned_steps,
 )
 from quiddity._record import Record
+from tests.golden._common import load_fixture
 from tools._legacy_recognition import (
     Channel,
     Pocket,
@@ -134,6 +137,8 @@ _EXPECTED_RECORD_TYPES = {
     PairedRampStep,
     ThroughStep,
 }
+
+GOLDEN_ROOT = Path(__file__).parent / "golden"
 
 
 def _csk_plate():
@@ -391,42 +396,55 @@ def test_frozen_records_reject_mutation():
 
 
 def test_part_based_recognisers_are_keyword_only_after_part():
-    """Part-based recognisers take ``part`` then keyword-only args (ADR 0013)."""
-    for fn in (
-        recognise_holes,
-        recognise_bosses,
-        recognise_polygonal_bosses,
-        recognise_polygonal_stock,
-        recognise_rectangular_pads,
-        recognise_countersinks,
-        recognise_double_d_bores,
-        recognise_angled_steps,
-        recognise_paired_ramp_steps,
-        recognise_through_steps,
-        recognise_passages,
-        recognise_chamfers,
-        recognise_channels,
-        recognise_fillets,
-        recognise_slots,
-        recognise_pockets,
-        recognise_flats,
-        recognise_grooves,
-        recognise_plates,
-        recognise_face_levels,
-        recognise_risers,
-        recognise_repeating_radial_profiles,
-        recognise_turned_steps,
-    ):
+    """Every exported part-based recogniser takes ``part`` then keyword-only args (ADR 0002).
+
+    Derived from the package exports rather than a hand-kept list, which had drifted to 23 of
+    the 25 part-based recognisers.
+    """
+    checked = 0
+    for name in sorted(quiddity.__all__):
+        if not name.startswith("recognise_"):
+            continue
+        fn = getattr(quiddity, name)
         params = list(inspect.signature(fn).parameters.values())
-        assert params[0].name == "part"
+        if params[0].name != "part":
+            continue  # derived recognisers take records, not a part
+        checked += 1
         assert params[0].kind in (
             inspect.Parameter.POSITIONAL_ONLY,
             inspect.Parameter.POSITIONAL_OR_KEYWORD,
         )
         for p in params[1:]:
             assert p.kind == inspect.Parameter.KEYWORD_ONLY, (
-                f"{fn.__name__}: '{p.name}' must be keyword-only (injected dep / tuning)"
+                f"{name}: '{p.name}' must be keyword-only (injected dep / tuning)"
             )
+    assert checked >= 25
+
+
+def _ledger_taking_recognisers():
+    for name in sorted(quiddity.__all__):
+        if not name.startswith("recognise_"):
+            continue
+        fn = getattr(quiddity, name)
+        params = inspect.signature(fn).parameters
+        if "ledger" in params and name != "recognise_passages":
+            # recognise_passages is the legacy projection and refuses a ledger by design.
+            yield name, fn
+
+
+@pytest.mark.parametrize("name,fn", list(_ledger_taking_recognisers()))
+def test_passing_a_ledger_changes_nothing_about_the_return_value(name, fn):
+    """ADR 0002: the claim sidecar is write-only, so records are identical with and without it.
+
+    Runs every ledger-taking recogniser over every golden fixture, so the guarantee is checked
+    for the whole roster rather than per family in each claims test.
+    """
+    from quiddity._adjacency import FaceGraph
+    from quiddity._claims import ClaimLedger
+
+    for path in sorted(GOLDEN_ROOT.glob("*/fixture.py")):
+        part = load_fixture(path).build_fixture()
+        assert fn(part) == fn(part, ledger=ClaimLedger(FaceGraph(part))), (name, path.parent.name)
 
 
 def test_cylinder_substrate_is_injectable():

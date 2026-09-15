@@ -519,6 +519,201 @@ MODULE_SEAM_EDGES = {
         "_typing",
         "experimental_geometry",
     },
+    # --- Added 2026-09-15 so that every module has an entry (ADR 0007).
+    # Leaves and near-leaves.
+    "_typing": set(),
+    "_record": set(),
+    "_passage_compat": set(),
+    "step_io": set(),
+    "_geometry": {"_body_identity", "_typing"},
+    # Public family modules that had no entry. Edges are the imports each had on the day it was
+    # listed; a sibling's record type or helper may be imported, a sibling recogniser is never
+    # called (ADR 0002/0007).
+    "angled_steps": {
+        "_adjacency",
+        "_bevel",
+        "_candidates",
+        "_claims",
+        "_geometry",
+        "_record",
+        "_solid_properties",
+        "_typing",
+    },
+    "chamfers": {
+        "_adjacency",
+        "_bevel",
+        "_candidates",
+        "_claims",
+        "_features",
+        "_geometry",
+        "_record",
+        "_solid_properties",
+        "_typing",
+        "countersinks",
+    },
+    "countersinks": {"_candidates", "_claims", "_geometry", "_record", "_typing"},
+    "fillets": {
+        "_adjacency",
+        "_bevel",
+        "_candidates",
+        "_claims",
+        "_features",
+        "_geometry",
+        "_record",
+        "_solid_properties",
+        "_typing",
+    },
+    "flats": {
+        "_adjacency",
+        "_candidates",
+        "_claims",
+        "_features",
+        "_geometry",
+        "_record",
+        "_typing",
+    },
+    "grooves": {
+        "_adjacency",
+        "_body_identity",
+        "_candidates",
+        "_claims",
+        "_features",
+        "_geometry",
+        "_record",
+        "_solid_properties",
+        "_typing",
+        "turned",
+    },
+    "levels": {
+        "_adjacency",
+        "_body_identity",
+        "_candidates",
+        "_claims",
+        "_geometry",
+        "_record",
+        "_solid_properties",
+        "_typing",
+    },
+    "passages": {
+        "_adjacency",
+        "_candidates",
+        "_claims",
+        "_geometry",
+        "_passage_compat",
+        "_record",
+        "_rings",
+        "_section_passages",
+        "_sections",
+        "_typing",
+    },
+    "plates": {
+        "_adjacency",
+        "_body_identity",
+        "_candidates",
+        "_claims",
+        "_geometry",
+        "_record",
+        "_solid_properties",
+        "_typing",
+    },
+    "prismatic_pockets": {
+        "_adjacency",
+        "_candidates",
+        "_claims",
+        "_geometry",
+        "_record",
+        "_rings",
+        "_typing",
+        "_volume_probe",
+        "_wire_seed",
+    },
+    "repeating_profiles": {
+        "_adjacency",
+        "_candidates",
+        "_claims",
+        "_geometry",
+        "_record",
+        "_solid_properties",
+        "_typing",
+        "profiled_bores",
+    },
+    "turned": {
+        "_analytic_surfaces",
+        "_body_identity",
+        "_candidates",
+        "_claims",
+        "_cylinder_substrate",
+        "_effective_surfaces",
+        "_features",
+        "_geometry",
+        "_record",
+        "_solid_properties",
+        "_typing",
+    },
+    # Compatibility facades: re-exports only (ADR 0007).
+    "_features": {
+        "_cylinder_substrate",
+        "_hole_features",
+        "_hole_patterns",
+        "_pattern_geometry",
+        "_typing",
+        "countersinks",
+    },
+    "slots": {"_recess_features", "_recess_patterns", "_recess_records", "_typing"},
+    # Orchestration: `result` is the one module allowed to import every family (ADR 0003).
+    "result": {
+        "_candidates",
+        "_claims",
+        "_corner_section",
+        "_cylindrical_channels",
+        "_diagnostics",
+        "_dispositions",
+        "_features",
+        "_geometry",
+        "_open_channel_section",
+        "_reconcile",
+        "_registry",
+        "_run",
+        "_section_adapters",
+        "_section_recess",
+        "_section_recess_geometry",
+        "_sections",
+        "_typing",
+        "angled_steps",
+        "blends",
+        "chamfers",
+        "circular_blind_steps",
+        "countersinks",
+        "edge_open_circular_recesses",
+        "edge_open_prismatic_recesses",
+        "fillets",
+        "flats",
+        "grooves",
+        "gussets",
+        "levels",
+        "oriented_slots",
+        "pads",
+        "paired_ramp_steps",
+        "passages",
+        "plates",
+        "polygonal_bosses",
+        "prismatic_pockets",
+        "profiled_bores",
+        "rectangular_blind_slots",
+        "repeating_profiles",
+        "round_bottom_slots",
+        "slots",
+        "through_steps",
+        "turned",
+    },
+    # Projections and public facades over the one result (ADR 0003/0005).
+    "census": {"_record", "_registry", "_typing", "result"},
+    "explanations": {"_diagnostics", "_dispositions", "_registry", "_typing", "result"},
+    "section_recesses": {"_section_recess", "_typing", "result"},
+    "frames": {"_cylinder_substrate", "_geometry", "_typing", "evidence", "explanations", "result"},
+    "capabilities": {"_manifest"},
+    "document": {"_typing", "evidence", "frames"},
+    "cli": {"_typing", "capabilities", "document"},
 }
 
 ARC_READER_SITES = {
@@ -1251,6 +1446,18 @@ def test_internal_module_seams_match_adr_0007() -> None:
     assert crossings == {}
 
 
+def test_every_module_has_a_seam_entry() -> None:
+    """ADR 0007: the seam table is the record, so it must name every module.
+
+    The containment check above only binds modules the table lists. Until 2026-09-15 fourteen
+    public family modules had no entry and could add any import unnoticed; this keeps that from
+    recurring. `__init__` is the root re-export and is excluded.
+    """
+
+    graph = _package_import_graph()
+    assert set(graph) - {"__init__"} == set(MODULE_SEAM_EDGES)
+
+
 def test_shared_manifest_checks_have_exactly_the_two_declared_importers() -> None:
     """ADR 0007 names `capabilities` and `inspection`, and names `evidence` as excluded.
 
@@ -1647,3 +1854,114 @@ def test_recess_families_keep_one_shared_face_inventory_and_patterns_are_pure() 
             if isinstance(node, ast.Attribute) and node.attr in {"edges", "faces", "solids"}
         ]
         assert topology_reads == [], module_name
+
+
+def test_reconciler_reads_constituent_evidence_at_exactly_one_reviewed_site() -> None:
+    """ADR 0003: rules compare defining evidence; one rule also reads constituent membership.
+
+    Prismatic pockets against blind slots is the reviewed exception. A second read is a policy
+    change to reconciliation and belongs in a review, not in a diff nobody noticed.
+    """
+
+    path = PACKAGE / "_reconcile.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    sites: dict[str, int] = {}
+    for function in tree.body:
+        if not isinstance(function, ast.FunctionDef):
+            continue
+        for node in ast.walk(function):
+            if isinstance(node, ast.Attribute) and node.attr == "constituent_of":
+                sites[function.name] = sites.get(function.name, 0) + 1
+    assert sites == {"reconcile_recess_candidates": 1}
+
+
+def test_recovered_surface_dependencies_are_attached_by_a_reviewed_roster() -> None:
+    """ADR 0004: a family attaches recovered `SurfaceUse` dependencies only after its own
+    migration is measured. The roster is the set of modules that import the type."""
+
+    importers = set()
+    for path in PACKAGE.glob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.ImportFrom)
+                and node.module
+                and node.module.endswith("_effective_surfaces")
+                and any(alias.name == "SurfaceUse" for alias in node.names)
+            ):
+                importers.add(path.stem)
+    assert importers == {
+        "_candidates",
+        "_claims",
+        "_cylinder_substrate",
+        "_hole_features",
+        "circular_blind_steps",
+        "pads",
+    }
+
+
+# ADR 0005: what the public explanation and result surfaces publish may grow, never shrink,
+# without a deliberate edit here. Removing or renaming any of these is a compatibility event.
+PUBLISHED_RECONCILIATION_REASONS = {
+    "default.accepted",
+    "recess.prismatic_superseded_by_pocket",
+    "recess.pocket_superseded_by_rectangular_blind_slot",
+    "recess.pocket_superseded_by_edge_open_circular_pocket",
+    "recess.pocket_superseded_by_passage",
+    "recess.pocket_superseded_by_prismatic",
+    "recess.slot_superseded_by_pocket",
+    "recess.slot_superseded_by_prismatic",
+    "recess.slot_superseded_by_passage",
+    "recess.passage_superseded_by_slot",
+    "recess.passage_superseded_by_oriented_slot",
+    "bevel.chamfer_superseded_by_angled_step",
+    "blend.fillet_superseded_by_circular_blind_step",
+    "blend.chain_superseded_by_fillet",
+    "bore.hole_superseded_by_double_d_bore",
+    "turned.step_groove_compatible",
+    "turned.groove_step_compatible",
+}
+
+PUBLISHED_RESULT_FIELDS = {
+    "cylinders",
+    "countersinks",
+    "holes",
+    "double_d_bores",
+    "hole_patterns",
+    "bosses",
+    "polygonal_bosses",
+    "polygonal_stock",
+    "slots",
+    "oriented_slots",
+    "slot_patterns",
+    "oriented_slot_patterns",
+    "grooves",
+    "flats",
+    "section_recesses",
+    "section_recess_refusals",
+    "section_recess_patterns",
+    "pads",
+    "gusset_ribs",
+    "gusset_rib_patterns",
+    "repeating_radial_profiles",
+    "turned_steps",
+    "step_levels",
+    "rotational",
+    "risers",
+    "chamfers",
+    "angled_steps",
+    "paired_ramp_steps",
+}
+
+
+def test_published_reconciliation_reasons_only_grow() -> None:
+    from quiddity.explanations import ReconciliationReason
+
+    published = {reason.value for reason in ReconciliationReason}
+    assert published >= PUBLISHED_RECONCILIATION_REASONS
+
+
+def test_published_result_fields_only_grow() -> None:
+    from quiddity.result import RecognitionResult
+
+    assert {field.name for field in fields(RecognitionResult)} >= PUBLISHED_RESULT_FIELDS

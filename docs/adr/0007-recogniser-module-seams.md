@@ -22,21 +22,19 @@ re-exports from its private core with object identity and `__module__` preserved
 second implementation.
 
 **The seam table is the record.** The allowed dependency edges between modules are the
-dictionary `MODULE_SEAM_EDGES` in `tests/test_architecture.py`, with a comment where the reason
-is not obvious. This file no longer restates that table. Adding a module or an edge means adding
-it there in the same PR, and the review of that edge is the architecture review. For a listed
-module, an edge the table does not list fails the suite. The table is partial: 65 modules are
-listed and 27 are not, among them 14 public family modules (`levels`, `passages`, `plates`,
-`chamfers`, `turned` and others) and the top-level facades. An unlisted module is bound only by
-acyclicity and the rules below. Closing that gap is a listed-module-at-a-time review, not a
-decision this record has taken.
+dictionary `MODULE_SEAM_EDGES` in `tests/test_architecture.py`, one entry per module, with a
+comment where the reason is not obvious. This file no longer restates that table. Adding a module
+or an edge means adding it there in the same PR, and the review of that edge is the architecture
+review. Every module has an entry (`test_every_module_has_a_seam_entry`), and an edge the table
+does not list fails the suite.
 
 **Layers, bottom up.** The table is acyclic (`test_module_graph_is_acyclic`). The layers below
 are the intended reading of it, not a theorem: a few reviewed exceptions (a family facade
 importing `result` inside a function, `_run` reaching `experimental_geometry`) and the helper
 modules that sit between layers are recorded as comments in the table:
 
-1. Leaves: `_typing`, `_record`, `_manifest`, `_solid_properties`, `_geometry`.
+1. Leaves and near-leaves: `_typing`, `_record`, `_manifest`, `_solid_properties`,
+   `_body_identity`, `_geometry`.
 2. The graph: `_analytic_surfaces`, `_adjacency`.
 3. Shared substrates and evidence primitives that scan or probe once and publish no record:
    `_effective_surfaces`, `_blend_view`, `_cylinder_substrate`, `_volume_probe`, `_wire_seed`,
@@ -71,7 +69,8 @@ recogniser, is what would make the graph mutable, so it stays absent.
 ## Enforced by
 
 `tests/test_architecture.py`: `test_module_graph_is_acyclic`,
-`test_internal_module_seams_match_adr_0007`, `test_no_accidental_public_modules`,
+`test_internal_module_seams_match_adr_0007`, `test_every_module_has_a_seam_entry`,
+`test_no_accidental_public_modules`,
 `test_compatibility_facades_preserve_export_identity_and_module_paths`,
 `test_reconciler_never_imports_or_calls_discovery`,
 `test_migrated_discovery_cores_receive_write_only_evidence`,

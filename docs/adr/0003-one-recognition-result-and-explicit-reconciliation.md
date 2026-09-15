@@ -72,7 +72,8 @@ Consumer lifecycle caches are outside the result.
 
 - `tests/test_architecture.py`: the reconciler never imports or calls discovery; phase functions
   have one-way capability boundaries; only orchestration creates restricted completed inputs;
-  every result field is registry-owned or a reviewed exception; correspondence stays absent.
+  every result field is registry-owned or a reviewed exception; correspondence stays absent;
+  the reconciler reads constituent evidence at exactly one reviewed site.
 - `tests/test_run_context.py`: one aggregate run derives each shared substrate once.
 - Fixture tests for each named rule, and for the fact that ambiguous or unsupported geometry
   cannot return clean absence.
