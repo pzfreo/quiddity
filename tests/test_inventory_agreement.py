@@ -15,14 +15,16 @@ nothing in the suite was looking.
 
 They now share one inventory — `_take_inventory` — so a disagreement of that kind can no longer
 be written. What remains for this file to guard is the *mapping*: the census names a kind, the
-inventory returns a field, and nothing but this checks that the census counts the field it means
-to. A key wired to the wrong family, or a family added to one side and not the other, still
-produces a wrong number silently. So the property is kept rather than retired as impossible.
+inventory returns a field, and a key wired to the wrong family still produces a wrong number
+silently. The map below is derived from the registry, so it is not an independent statement of
+that mapping; what makes it one is `census.py`, whose hand-kept bindings the registry is validated
+against at import, and the committed capability manifest, which names each family's census key.
+This file checks that the mapping those two agree on is the one the numbers actually follow.
 
 **It is no longer checked over the whole vendored corpus.** The mapping is a property of the two
 inventories, not of any part: a key wired to the wrong field is wrong on *every* part that
 carries the family, so the evidence only has to make each family appear once. Measured, the 32
-golden fixtures already do — every one of the seventeen `SHARED` families is populated by at least
+golden fixtures already do — every `SHARED` family is populated by at least
 one of them (`section_recess` by eight, `hole` by seven, `boss`, `blend` and `plate` by four
 each, `slot`, `chamfer` and `through_step` by two, the rest by one). Reading all 87 vendored
 parts added 188 seconds serially at the series' branch point, and 65 s once run-scoped caching
@@ -131,7 +133,8 @@ RESULT_ONLY = {
     definition.result_field: definition.census.reason
     for definition in (*PHYSICAL_DEFINITIONS, *DERIVED_DEFINITIONS)
     if isinstance(definition.census, NotCounted)
-    # The converged recess detectors are registry families without a public result field.
+    # Registry families without a public result field: the converged recess detectors and the
+    # legacy-only derived families (`pocket_patterns`, `passages`).
     and definition.result_field in r.RecognitionResult.__dataclass_fields__
 } | {
     "cylinders": "the shared cylinder scan",
@@ -143,26 +146,13 @@ RESULT_ONLY = {
 }
 
 
-def test_the_shared_map_still_covers_every_family_the_census_counts():
-    """A census key added without updating `SHARED` would be compared against nothing.
-
-    That is the failure mode this file exists to prevent, one level up.
-    """
-
-    counted = set(
-        feature_census(load_fixture(GOLDEN / "simple_through_hole" / "fixture.py").build_fixture())
-    )
-    # `step` and `flat` are the documented exceptions: a compatibility rule and a substrate.
-    assert counted - set(SHARED) == {"step", "flat"}
-
-
 def test_the_shared_map_still_covers_every_family_the_aggregate_reports():
-    """And the same in the other direction, which the first test cannot see.
+    """Every result field is either compared or excused by name.
 
-    A new `RecognitionResult` family omitted from the census would leave the two inventories
-    covering different sets while every comparison here still passed -- exactly the drift this
-    file claims to catch. The exclusions are the useful part: they make the current asymmetry
-    deliberate, and force a decision each time an aggregate family is added.
+    A registry family without a public field, or a field without a registry family, is refused
+    at import by `result.py`, so this cannot fail on its own; it is kept because `RESULT_ONLY`
+    is the one place the exclusions are written down with their reasons, and a new aggregate
+    field has to be excused here or compared above.
     """
 
     fields = {

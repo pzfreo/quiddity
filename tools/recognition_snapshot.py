@@ -19,6 +19,9 @@ POST_BASELINE = frozenset(
 def legacy_public_recognisers(recognition) -> set[str]:
     """The recognisers the legacy snapshot inventories for *recognition*."""
 
+    retired = POST_BASELINE - set(recognition.__all__)
+    if retired:
+        raise RuntimeError(f"POST_BASELINE names retired recognisers: {sorted(retired)}")
     return {
         name
         for name in recognition.__all__
@@ -104,7 +107,7 @@ def recognition_snapshot(recognition, feature_census, part):
         if missing_sources:
             raise RuntimeError(
                 f"{name}: sources {missing_sources} are not in the legacy snapshot; add it to "
-                "post_baseline beside them or snapshot the source first"
+                "POST_BASELINE beside them or snapshot the source first"
             )
         individual[name] = recognise(*(individual[source] for source in derived_sources[name]))
 

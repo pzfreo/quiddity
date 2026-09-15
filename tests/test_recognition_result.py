@@ -351,6 +351,8 @@ def test_aggregate_inventory_has_one_named_candidate_per_physical_output() -> No
 
 
 def test_physical_roster_matches_every_nonlegacy_family_and_result_field() -> None:
+    """`result.py` refuses these at import; this names the four fields no definition owns."""
+
     import quiddity.result as result_module
     from quiddity._candidates import FamilyId
 

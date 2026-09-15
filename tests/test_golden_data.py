@@ -11,9 +11,9 @@ from recognition_snapshot import legacy_public_recognisers  # noqa: E402
 
 from tools._legacy_recognition import namespace  # noqa: E402
 
-#: Derived from the same inventory the snapshot tool runs, so a family added to the package is
-#: missing from every golden until they are regenerated, and a golden cannot carry a name the
-#: package no longer exports.
+#: Derived from the same inventory the snapshot tool runs over the legacy namespace, so a family
+#: added to the package is missing from every golden until they are regenerated, and a golden
+#: cannot carry a name that namespace does not have.
 PUBLIC_RECOGNISERS = legacy_public_recognisers(namespace())
 SUBSTRATES = {
     "analyse_cylinders",

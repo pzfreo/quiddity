@@ -266,7 +266,7 @@ There are two different sources of golden data:
 For a package-originated family:
 
 1. nothing in `tools/recognition_snapshot.py`, which finds the family from the exports, unless
-   the family belongs in its `post_baseline` set because the legacy snapshot must not show it;
+   the family belongs in its `POST_BASELINE` set because the legacy snapshot must not show it;
 2. add its `individual` result and aggregate field to every `tests/golden/*/expected.json`;
 3. if it is `Counted`, add its census key to every expected census object;
 4. add a dedicated fixture whose geometry positively proves the new record when the existing
