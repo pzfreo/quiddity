@@ -272,6 +272,54 @@ def test_generator_refuses_a_declared_family_that_also_has_an_evidence_entry(mon
         tool._registry_families()
 
 
+def _tool_with_declared_extra(extra: tuple[str, str, tuple[str, ...]], monkeypatch):
+    """Load the generator and give its first declared exported family *extra*, returning both."""
+
+    spec = importlib.util.spec_from_file_location(
+        "generate_capability_manifest", ROOT / "tools" / "generate_capability_manifest.py"
+    )
+    assert spec is not None and spec.loader is not None
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+
+    index, declared = next(
+        (index, definition)
+        for index, definition in enumerate(tool.PHYSICAL_DEFINITIONS)
+        if definition.evidence is not None and definition.public_entrypoint in recognition.__all__
+    )
+    # `PhysicalDefinition` is frozen, so the tuple is rebuilt rather than the definition mutated.
+    amended = dataclasses.replace(
+        declared, evidence=dataclasses.replace(declared.evidence, extra_records=(extra,))
+    )
+    monkeypatch.setattr(
+        tool,
+        "PHYSICAL_DEFINITIONS",
+        tool.PHYSICAL_DEFINITIONS[:index] + (amended,) + tool.PHYSICAL_DEFINITIONS[index + 1 :],
+    )
+    return tool, tool._family_id(declared.public_entrypoint)
+
+
+def test_generator_refuses_a_declared_family_that_also_has_an_extra_records_entry(
+    monkeypatch,
+) -> None:
+    """The same rule as evidence: a family declares its extras, or the tool holds them, not both."""
+
+    tool, family_id = _tool_with_declared_extra(("Nested", "nested", ()), monkeypatch)
+    assert family_id not in tool.EXTRA_RECORDS
+    monkeypatch.setitem(tool.EXTRA_RECORDS, family_id, [("Nested", "nested", [])])
+    with pytest.raises(KeyError, match="declares its extra records"):
+        tool._registry_families()
+
+
+def test_declared_extra_records_reach_the_manifest_like_a_tool_entry(monkeypatch) -> None:
+    """A declared extra is published exactly as the tool's own table would have published it."""
+
+    extra = ("SomeNested", "projection", ("RecognitionResult.elsewhere",))
+    tool, family_id = _tool_with_declared_extra(extra, monkeypatch)
+    records = tool._registry_families()[family_id]["records"]
+    assert ("SomeNested", "projection", ["RecognitionResult.elsewhere"]) in records
+
+
 def test_committed_manifest_is_the_deterministic_generator_output() -> None:
     subprocess.run(
         [sys.executable, "tools/generate_capability_manifest.py", "--check"],
