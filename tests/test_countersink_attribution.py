@@ -30,6 +30,7 @@ from quiddity._candidates import FamilyId
 from quiddity._claims import ClaimLedger
 from quiddity.countersinks import _discover_countersinks
 from quiddity.result import _take_inventory
+from tests.route_pins import assert_core_route_is_closed
 
 
 def _qualified_calls(tree: ast.AST) -> list[tuple[str, ast.Call]]:
@@ -468,31 +469,14 @@ def test_reversed_face_traversal_preserves_occurrence_roles(
     assert len(ledger.candidate_set(FamilyId.COUNTERSINKS).candidates) == 2
 
 
-def test_only_registry_may_call_writer_enabled_core() -> None:
-    root = Path(__file__).parents[1]
-    sites: list[tuple[str, str, bool]] = []
-    for path in (root / "src").rglob("*.py"):
-        if path.name == "countersinks.py":
-            continue
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for qualified, node in _qualified_calls(tree):
-            if qualified == "quiddity.countersinks._discover_countersinks":
-                sites.append(
-                    (
-                        path.name,
-                        "<lambda>"
-                        if any(
-                            isinstance(parent, ast.Lambda) and node in ast.walk(parent)
-                            for parent in ast.walk(tree)
-                        )
-                        else "<module>",
-                        any(
-                            keyword.arg == "writer" and ast.unparse(keyword.value) == "s.writer"
-                            for keyword in node.keywords
-                        ),
-                    )
-                )
-    assert sites == [("_registry.py", "<lambda>", True)]
+def test_only_the_declaration_may_call_writer_enabled_core() -> None:
+    assert_core_route_is_closed(
+        module="countersinks",
+        core="_discover_countersinks",
+        entrypoint="recognise_countersinks",
+        handed_over={"writer": "services.writer"},
+        withheld=("writer",),
+    )
 
 
 def test_counter_sink_constructor_roster_is_closed() -> None:
