@@ -179,7 +179,14 @@ def _registry_families() -> dict[str, dict[str, object]]:
             evidence = EVIDENCE[family_id]
         else:
             raise KeyError(f"{family_id} is in the registry but has no EVIDENCE entry")
-        extra = EXTRA_RECORDS.get(family_id, [])
+        if declared is not None:
+            # Symmetric with the evidence rule above: declaring makes the family the owner, so an
+            # empty `extra_records` means it has none, not that the table should still be read.
+            if family_id in EXTRA_RECORDS:
+                raise KeyError(f"{family_id} declares its extra records; remove its entry")
+            extra = [(name, role, list(fields)) for name, role, fields in declared.extra_records]
+        else:
+            extra = EXTRA_RECORDS.get(family_id, [])
         overridden = {name for name, _role, _membership in extra}
         records = [
             (record.__name__, "output", [f"RecognitionResult.{result_field}"])
