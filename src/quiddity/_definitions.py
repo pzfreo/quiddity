@@ -134,6 +134,11 @@ class ManifestEvidence:
     golden_paths: tuple[str, ...] = ()
     tests: tuple[str, ...] = ()
     introduced: str = FIRST_RELEASE
+    #: Records the family publishes that are not its `record_types` output: nested parts of a
+    #: record, aggregate documents, and projection outputs that reach a different result field.
+    #: `(name, role, membership)`, where an empty membership means the record is reached through
+    #: another rather than through a field of its own.
+    extra_records: tuple[tuple[str, str, tuple[str, ...]], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
