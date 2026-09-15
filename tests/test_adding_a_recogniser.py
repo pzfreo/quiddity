@@ -62,12 +62,24 @@ def test_registration_site_count_is_pinned() -> None:
     assert len(_registration_sites()) == REGISTRATION_SITES
 
 
-def test_every_exported_recogniser_is_a_registry_entry_point() -> None:
-    """Closes the loop the check below relies on: a family that drops out of ``__all__``
-    would otherwise silently drop out of every other check too."""
+def test_exports_are_exactly_the_registry_entry_points_less_the_retired_ones() -> None:
+    """Closes the loop the check below relies on, in both directions.
+
+    A registry family dropped from ``__all__`` would otherwise silently drop out of every
+    needle below; a name in ``__all__`` with no registry definition would be unreachable by
+    the aggregate. The retired names are the converged recess detectors and the legacy
+    passage entry, which stay in the registry but are no longer exported.
+    """
+
+    from tools._legacy_recognition import __all__ as retired
 
     exported = {name for name in quiddity.__all__ if name.startswith("recognise_")}
-    assert exported == {definition.public_entrypoint for definition in _exported_definitions()}
+    entry_points = {
+        definition.public_entrypoint
+        for definition in (*PHYSICAL_DEFINITIONS, *DERIVED_DEFINITIONS)
+        if definition.public_entrypoint is not None
+    }
+    assert exported == entry_points - set(retired)
 
 
 def test_every_exported_family_is_present_at_every_text_checkable_site() -> None:

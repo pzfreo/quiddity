@@ -222,8 +222,8 @@ The framework derives what it can from the registry: the aggregate projection, t
 record schemas, and the tests that compare each public surface with the registry. What remains is
 a fixed list of hand edits. Each is a deliberate contract with its own check, and
 `tests/test_adding_a_recogniser.py` keeps this table, its count and its coverage honest: every
-path below must exist, the row count is pinned, and every exported family must be present at
-every site.
+path below must exist, the number of files is pinned, and every exported family must be
+present at every site.
 
 | # | Site | Add | Checked by |
 | --- | --- | --- | --- |
