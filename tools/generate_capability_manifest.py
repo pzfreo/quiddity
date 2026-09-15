@@ -67,10 +67,6 @@ EVIDENCE: dict[str, dict[str, object]] = {
         ],
         "tests": ["tests/test_blends.py", "tests/test_blend_view.py"],
     },
-    "chamfers": {
-        "goldens": ["chamfers_fillets_and_flats"],
-        "tests": ["tests/test_turned_chamfers.py"],
-    },
     "countersinks": {"goldens": ["counterbored_and_countersunk_holes"]},
     "double-d-bores": {"goldens": ["double_d_bore"]},
     "face-levels": {"goldens": ["plates_pads_levels_and_slanted_steps", "slanted_steps"]},
