@@ -39,8 +39,16 @@ from typing import Protocol
 from build123d import GeomType
 from OCP.gp import gp_Cone
 
-from quiddity._candidates import FamilyId
+from quiddity._candidates import CompletedInputs, FamilyId
 from quiddity._claims import EvidenceWriter
+from quiddity._definitions import (
+    Counted,
+    DiscoveryServices,
+    FullyAttributed,
+    ManifestEvidence,
+    PhysicalDefinition,
+    always,
+)
 from quiddity._geometry import length_tol
 from quiddity._record import Record
 from quiddity._typing import EdgeLike, FaceLike, Part
@@ -278,3 +286,33 @@ def _discover_countersinks(
         for record, node in pending:
             writer.sink.propose(FamilyId.COUNTERSINKS, record, defining=(node,))
     return [proposal.record for proposal in out]
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(_discover_countersinks(services.context.part, writer=services.writer))
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.COUNTERSINKS,
+    record_types=(CounterSink,),
+    result_field="countersinks",
+    public_entrypoint=recognise_countersinks.__name__,
+    dependencies=(),
+    applicable=always,
+    discover=_discover,
+    census=Counted("countersink"),
+    attribution=FullyAttributed("every returned countersink claims its original conical seat face"),
+    evidence=ManifestEvidence(
+        goldens=("counterbored_and_countersunk_holes",),
+        # The record reaches two result fields, so it replaces its own generated output entry.
+        extra_records=(
+            (
+                "CounterSink",
+                "output",
+                ("RecognitionResult.countersinks", "RecognitionResult.holes.csink"),
+            ),
+        ),
+    ),
+)

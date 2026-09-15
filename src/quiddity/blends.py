@@ -30,8 +30,16 @@ from OCP.TopAbs import TopAbs_Orientation
 from quiddity._adjacency import EdgeOccurrenceRef, FaceGraph, FaceNode
 from quiddity._analytic_surfaces import equivalent_parameters
 from quiddity._blend_view import BlendChain, BlendCollapseIndex
-from quiddity._candidates import FamilyId
+from quiddity._candidates import CompletedInputs, FamilyId
 from quiddity._claims import EvidenceWriter
+from quiddity._definitions import (
+    Counted,
+    DiscoveryServices,
+    FullyAttributed,
+    ManifestEvidence,
+    PhysicalDefinition,
+    always,
+)
 from quiddity._effective_surfaces import (
     AnalyticSurfaceFact,
     EffectiveSurfaceIndex,
@@ -571,3 +579,42 @@ def _discover_blends(
 
 
 __all__ = ["Blend", "CircularBlendPath", "StraightBlendPath", "recognise_blends"]
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(
+        _discover_blends(
+            services.context.part,
+            graph=services.context.graph,
+            surfaces=services.context.surfaces,
+            writer=services.writer,
+        )
+    )
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.BLENDS,
+    record_types=(Blend,),
+    result_field="blends",
+    public_entrypoint=recognise_blends.__name__,
+    dependencies=(),
+    applicable=always,
+    discover=_discover,
+    census=Counted("blend"),
+    attribution=FullyAttributed("every returned Blend owns every original cylindrical chain patch"),
+    evidence=ManifestEvidence(
+        goldens=(
+            "small_convex_blends",
+            "toroidal_blend_compound",
+            "toroidal_blend_internal",
+            "toroidal_blends_turned",
+        ),
+        tests=("tests/test_blends.py", "tests/test_blend_view.py"),
+        extra_records=(
+            ("CircularBlendPath", "nested", ("RecognitionResult.blends.path",)),
+            ("StraightBlendPath", "nested", ("RecognitionResult.blends.path",)),
+        ),
+    ),
+)
