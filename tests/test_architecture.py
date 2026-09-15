@@ -590,6 +590,7 @@ MODULE_SEAM_EDGES = {
         "_body_identity",
         "_candidates",
         "_claims",
+        "_definitions",
         "_features",
         "_geometry",
         "_record",
