@@ -75,6 +75,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity.profiled_bores as profiled_bores_module
     import quiddity.rectangular_blind_slots as rectangular_blind_slots_module
     import quiddity.result as result_module
+    import quiddity.round_bottom_slots as round_bottom_slots_module
     import quiddity.through_steps as through_steps_module
     from quiddity._candidates import EvidenceIndex
 
@@ -206,7 +207,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
         counted("rectangular_blind_slots", []),
     )
     monkeypatch.setattr(
-        registry_module,
+        round_bottom_slots_module,
         "recognise_round_bottom_blind_slots",
         counted("round_bottom_blind_slots", []),
     )
