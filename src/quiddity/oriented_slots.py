@@ -10,8 +10,19 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from quiddity._adjacency import FaceGraph, FaceNode, SolidRef
-from quiddity._candidates import EvidenceSink, FamilyId
+from quiddity._candidates import CompletedInputs, DerivedId, EvidenceSink, FamilyId
 from quiddity._claims import ClaimLedger, EvidenceWriter
+from quiddity._definitions import (
+    AcceptedInputs,
+    Counted,
+    DerivedDefinition,
+    DiscoveryServices,
+    FullyAttributed,
+    ManifestEvidence,
+    NotCounted,
+    PhysicalDefinition,
+    prismatic,
+)
 from quiddity._geometry import AXIS_ALIGNED_COS, body_signature, dot
 from quiddity._pattern_geometry import _linear_array_candidates, _plane_uv, _rect_grid
 from quiddity._record import Record
@@ -268,3 +279,69 @@ def recognise_oriented_slot_patterns(
                 patterns.append(pattern)
                 used |= indices
     return patterns
+
+
+# This family reissues accepted passages rather than discovering geometry, so the declaration
+# works from the completed occurrences and claims exactly the faces each passage proved.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    occurrences = inputs.occurrences(FamilyId.PASSAGES, SectionPassage)
+    solids = []
+    for occurrence in occurrences:
+        solid = occurrence.solid()
+        if solid is None:  # pragma: no cover - completed passage evidence is nonempty/same-solid
+            raise ValueError("completed SectionPassage occurrence has no valid solid")
+        solids.append(solid)
+    keys = _body_keys(services.context.graph, tuple(solids))
+    found: list[OrientedSlot] = []
+    for occurrence, solid in zip(occurrences, solids, strict=True):
+        record = _project(occurrence.record(SectionPassage), keys[solid])
+        if record is None:
+            continue
+        defining = occurrence.defining()
+        services.writer.sink.propose(FamilyId.ORIENTED_SLOTS, record, defining=defining)
+        found.append(record)
+    found.sort()
+    return list(found)
+
+
+def _derive_patterns(inputs: AcceptedInputs) -> list[object]:
+    return list(
+        recognise_oriented_slot_patterns(inputs.records(FamilyId.ORIENTED_SLOTS, OrientedSlot))
+    )
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.ORIENTED_SLOTS,
+    record_types=(OrientedSlot,),
+    result_field="oriented_slots",
+    public_entrypoint=recognise_oriented_slots.__name__,
+    dependencies=(FamilyId.PASSAGES,),
+    applicable=prismatic,
+    discover=_discover,
+    census=Counted("oriented_slot"),
+    attribution=FullyAttributed(
+        "every oriented slot reissues the exact accepted rectangular passage wall set"
+    ),
+    evidence=ManifestEvidence(
+        golden_paths=("tests/golden/oriented_slots/contract.json",),
+        tests=("tests/test_oriented_slots.py",),
+        extra_records=(
+            ("PassageEnds", "nested", ()),
+            ("SectionPassage", "nested", ()),
+        ),
+    ),
+)
+
+PATTERNS = DerivedDefinition(
+    identifier=DerivedId.ORIENTED_SLOT_PATTERNS,
+    record_types=(OrientedSlotArray, OrientedSlotGrid),
+    result_field="oriented_slot_patterns",
+    public_entrypoint=recognise_oriented_slot_patterns.__name__,
+    sources=(FamilyId.ORIENTED_SLOTS,),
+    derive=_derive_patterns,
+    census=NotCounted("not a distinct census key"),
+    evidence=ManifestEvidence(
+        golden_paths=("tests/golden/oriented_slots/contract.json",),
+        tests=("tests/test_oriented_slots.py",),
+    ),
+)

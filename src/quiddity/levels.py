@@ -704,7 +704,8 @@ def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[obje
     return list(_discover_step_levels(services.context.part, writer=services.writer))
 
 
-DEFINITION = PhysicalDefinition(
+# A module with more than one family names each declaration after its family, not `DEFINITION`.
+STEP_LEVELS = PhysicalDefinition(
     family=FamilyId.STEP_LEVELS,
     record_types=(FaceLevel,),
     result_field="step_levels",
@@ -719,5 +720,45 @@ DEFINITION = PhysicalDefinition(
     evidence=ManifestEvidence(
         goldens=("plates_pads_levels_and_slanted_steps", "slanted_steps"),
         extra_records=(("FaceLevel", "evidence", ("RecognitionResult.step_levels",)),),
+    ),
+)
+
+
+# Risers read the completed step levels, so the declaration groups them by solid before the core
+# sees them; `_registry` places this family after STEP_LEVELS and hands over only what completed.
+def _discover_riser_family(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    body_levels: dict[object, list[FaceLevel]] = {}
+    for occurrence in inputs.occurrences(FamilyId.STEP_LEVELS, FaceLevel):
+        solid = occurrence.solid()
+        if solid is None:  # pragma: no cover - completed occurrences revalidate this invariant
+            raise ValueError("completed FaceLevel occurrence has no valid solid")
+        body_levels.setdefault(solid, []).append(occurrence.record(FaceLevel))
+    return list(
+        _discover_risers(
+            services.context.part,
+            writer=services.writer,
+            body_levels=body_levels,
+        )
+    )
+
+
+RISERS = PhysicalDefinition(
+    family=FamilyId.RISERS,
+    record_types=(RiserEvidence,),
+    result_field="risers",
+    public_entrypoint=recognise_risers.__name__,
+    dependencies=(FamilyId.STEP_LEVELS,),
+    applicable=always,
+    discover=_discover_riser_family,
+    census=NotCounted("riser evidence is not a distinct feature"),
+    attribution=FullyAttributed(
+        "every returned RiserEvidence owns all producing faces on one valid solid"
+    ),
+    evidence=ManifestEvidence(
+        goldens=("plates_pads_levels_and_slanted_steps", "slanted_steps"),
+        extra_records=(
+            ("RiserEvidence", "evidence", ("RecognitionResult.risers",)),
+            ("StepShoulder", "projection", ()),
+        ),
     ),
 )
