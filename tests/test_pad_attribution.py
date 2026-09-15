@@ -65,6 +65,7 @@ from quiddity.pads import (
     _wall_role,
 )
 from quiddity.result import _take_inventory
+from tests.route_pins import assert_core_route_is_closed
 
 ROOT = Path(__file__).parents[1]
 
@@ -1138,64 +1139,25 @@ def test_signed_principal_pad_step_round_trip_preserves_record(tmp_path: Path) -
 
 
 def test_private_core_has_one_declared_writer_caller_and_three_record_paths() -> None:
-    core_sites: list[tuple[str, ast.Call]] = []
     constructors: list[tuple[str, ast.Call]] = []
     for path in (ROOT / "src/quiddity").glob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for qualified, call in _qualified_calls(tree):
-            if qualified.endswith("._discover_rectangular_pads") or qualified == (
-                "_discover_rectangular_pads"
-            ):
-                core_sites.append((path.name, call))
             if qualified.endswith(".RaisedPad") or qualified == "RaisedPad":
                 constructors.append((path.name, call))
 
-    # Two sites, both in the family module: the declaration, which hands the run's writer
-    # through, and the public entry point, which must not. No module outside the family names
-    # the core at all -- not by import, not as an attribute -- since either can be rebound and
-    # called under a new name.
-    assert [path for path, _call in core_sites] == ["pads.py", "pads.py"]
-    assert not [
-        path.name
-        for path in (ROOT / "src/quiddity").glob("*.py")
-        if path.name != "pads.py"
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
-        if (isinstance(node, ast.Attribute) and node.attr == "_discover_rectangular_pads")
-        or (
-            isinstance(node, ast.ImportFrom)
-            and node.module == "quiddity.pads"
-            and any(alias.name == "_discover_rectangular_pads" for alias in node.names)
-        )
-    ]
-
-    module_tree = ast.parse((ROOT / "src/quiddity/pads.py").read_text("utf-8"))
-    declared, public = (
-        next(
-            node
-            for node in module_tree.body
-            if isinstance(node, ast.FunctionDef) and node.name == name
-        )
-        for name in ("_discover", "recognise_rectangular_pads")
+    # Three run-scoped handles, all pinned: dropping `face_surfaces` is type-valid and would
+    # silently rebuild a surface graph the run already has.
+    assert_core_route_is_closed(
+        module="pads",
+        core="_discover_rectangular_pads",
+        entrypoint="recognise_rectangular_pads",
+        handed_over={
+            "writer": "services.writer",
+            "face_surfaces": "services.context.face_surfaces",
+            "geometry": "services.context.geometry",
+        },
     )
-    declared_call = next(
-        node
-        for node in ast.walk(declared)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "_discover_rectangular_pads"
-    )
-    keywords = {keyword.arg: keyword.value for keyword in declared_call.keywords}
-    writer = keywords["writer"]
-    assert isinstance(writer, ast.Attribute) and writer.attr == "writer"
-    assert isinstance(writer.value, ast.Name) and writer.value.id == "services"
-    public_call = next(
-        node
-        for node in ast.walk(public)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "_discover_rectangular_pads"
-    )
-    assert not any(keyword.arg == "writer" for keyword in public_call.keywords)
     assert [(path, len(call.args)) for path, call in constructors] == [("pads.py", 0)]
 
 

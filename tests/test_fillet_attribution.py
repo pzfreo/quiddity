@@ -46,6 +46,7 @@ from quiddity._claims import ClaimLedger
 from quiddity._features import analyse_cylinders
 from quiddity.fillets import _discover_fillets
 from quiddity.result import _take_inventory
+from tests.route_pins import assert_core_route_is_closed
 
 
 def _prismatic():
@@ -743,79 +744,22 @@ def test_multiple_valid_solids_emit_independent_fillet_occurrences() -> None:
     assert len({id(solid) for solid in solids}) == 2
 
 
-def _callee_name(func: ast.expr) -> str | None:
-    if isinstance(func, ast.Name):
-        return func.id
-    if isinstance(func, ast.Attribute):
-        return func.attr
-    return None
-
-
 def test_the_declaration_is_the_only_production_writer_enabled_fillet_caller() -> None:
-    package = Path(__file__).parents[1] / "src" / "quiddity"
-    importers = set()
-    for path in package.glob("*.py"):
-        if path.name == "fillets.py":
-            continue
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        direct = any(
-            isinstance(node, ast.ImportFrom)
-            and node.module == "quiddity.fillets"
-            and any(alias.name == "_discover_fillets" for alias in node.names)
-            for node in ast.walk(tree)
-        )
-        qualified = any(
-            isinstance(node, ast.Attribute) and node.attr == "_discover_fillets"
-            for node in ast.walk(tree)
-        )
-        if direct or qualified:
-            importers.add(path.name)
-    # The declared adapter reaches the core from inside the family module, so no other module
-    # names it at all. The route stays closed by the same argument as before.
-    assert importers == set()
-
-    # Two call sites, both here: the declared adapter and the public entry point. A third route
-    # into the writer-enabled core would be invisible to the sweep above, which skips this file.
-    call_sites = []
-    for path in package.glob("*.py"):
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"), filename=str(path))):
-            if isinstance(node, ast.Call) and _callee_name(node.func) == "_discover_fillets":
-                call_sites.append(path.name)
-    assert call_sites == ["fillets.py", "fillets.py"]
-
-    tree = ast.parse(Path(fillets_module.__file__).read_text(encoding="utf-8"))
-    declared = next(
-        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_discover"
+    # The thresholds the registry used to spell are the family's business now, but they are
+    # still the run's contract, so they are pinned here beside the capabilities.
+    assert_core_route_is_closed(
+        module="fillets",
+        core="_discover_fillets",
+        entrypoint="recognise_fillets",
+        handed_over={
+            "writer": "services.writer",
+            "cyls": "services.cylinders",
+            "face_edges": "services.context.face_edges",
+            "include_cylindrical": "not services.context.rotational",
+            "min_radius": "None",
+            "max_radius_frac": "0.45",
+        },
     )
-    call = next(
-        node
-        for node in ast.walk(declared)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "_discover_fillets"
-    )
-    keywords = {keyword.arg: keyword.value for keyword in call.keywords}
-    writer = keywords["writer"]
-    assert isinstance(writer, ast.Attribute) and writer.attr == "writer"
-    assert isinstance(writer.value, ast.Name) and writer.value.id == "services"
-    # The thresholds the registry used to spell. They are the family's business now, but they
-    # are still the run's contract, so pin them where a silent retype would otherwise pass.
-    assert ast.literal_eval(keywords["min_radius"]) is None
-    assert ast.literal_eval(keywords["max_radius_frac"]) == 0.45
-
-    public = next(
-        node
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef) and node.name == "recognise_fillets"
-    )
-    public_call = next(
-        node
-        for node in ast.walk(public)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "_discover_fillets"
-    )
-    assert not any(keyword.arg == "writer" for keyword in public_call.keywords)
 
 
 def test_fillet_constructor_and_torus_branch_source_roster_is_frozen() -> None:

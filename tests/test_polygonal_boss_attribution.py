@@ -46,6 +46,7 @@ from quiddity._geometry import AXIS_ALIGNED_COS
 from quiddity.experimental_geometry import GeometryGraph
 from quiddity.polygonal_bosses import _discover_polygonal_bosses
 from quiddity.result import _take_inventory
+from tests.route_pins import assert_core_route_is_closed
 
 ROOT = Path(__file__).parents[1]
 _ANGLE_TOL = math.radians(2)
@@ -1114,16 +1115,10 @@ def test_excluded_stock_recess_and_nonhex_shapes_never_publish(part) -> None:
 
 
 def test_private_core_has_one_declared_writer_caller_and_one_boss_constructor() -> None:
-    core_sites: list[tuple[str, ast.Call]] = []
     constructors: list[tuple[str, ast.Call]] = []
     for path in (ROOT / "src/quiddity").glob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for qualified, call in _qualified_calls(tree):
-            if (
-                qualified.endswith("._discover_polygonal_bosses")
-                or qualified == "_discover_polygonal_bosses"
-            ):
-                core_sites.append((path.name, call))
             if (
                 qualified.endswith(".PolygonalBoss")
                 or qualified == "PolygonalBoss"
@@ -1131,53 +1126,11 @@ def test_private_core_has_one_declared_writer_caller_and_one_boss_constructor() 
             ):
                 constructors.append((path.name, call))
 
-    # Two sites, both in the family module: the declaration, which hands the run's writer
-    # through, and the public entry point, which must not.
-    assert [path for path, _call in core_sites] == ["polygonal_bosses.py", "polygonal_bosses.py"]
-    # No module outside the family names the core at all -- not by import, not as an attribute.
-    # A call sweep alone misses both, because either can be rebound and called under a new name.
-    assert not [
-        path.name
-        for path in (ROOT / "src/quiddity").glob("*.py")
-        if path.name != "polygonal_bosses.py"
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
-        if (isinstance(node, ast.Attribute) and node.attr == "_discover_polygonal_bosses")
-        or (
-            isinstance(node, ast.ImportFrom)
-            and node.module == "quiddity.polygonal_bosses"
-            and any(alias.name == "_discover_polygonal_bosses" for alias in node.names)
-        )
-    ]
-    module_tree = ast.parse((ROOT / "src/quiddity/polygonal_bosses.py").read_text("utf-8"))
-    declared, public = (
-        next(
-            node
-            for node in module_tree.body
-            if isinstance(node, ast.FunctionDef) and node.name == name
-        )
-        for name in ("_discover_boss_family", "recognise_polygonal_bosses")
+    assert_core_route_is_closed(
+        module="polygonal_bosses",
+        core="_discover_polygonal_bosses",
+        declaration="_discover_boss_family",
+        entrypoint="recognise_polygonal_bosses",
+        handed_over={"writer": "services.writer", "graph": "services.context.geometry"},
     )
-    declared_call = next(
-        node
-        for node in ast.walk(declared)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "_discover_polygonal_bosses"
-    )
-    keywords = {keyword.arg: keyword.value for keyword in declared_call.keywords}
-    writer = keywords["writer"]
-    assert isinstance(writer, ast.Attribute) and writer.attr == "writer"
-    assert isinstance(writer.value, ast.Name) and writer.value.id == "services"
-    graph = keywords["graph"]
-    assert isinstance(graph, ast.Attribute) and graph.attr == "geometry"
-    assert isinstance(graph.value, ast.Attribute) and graph.value.attr == "context"
-    assert isinstance(graph.value.value, ast.Name) and graph.value.value.id == "services"
-    public_call = next(
-        node
-        for node in ast.walk(public)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "_discover_polygonal_bosses"
-    )
-    assert all(keyword.arg != "writer" for keyword in public_call.keywords)
     assert [(path, len(call.args)) for path, call in constructors] == [("polygonal_bosses.py", 0)]
