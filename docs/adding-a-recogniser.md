@@ -41,7 +41,7 @@ mirrors, traversal permutations, and relevant scale extremes.
 
 This is the practical meaning of
 [ADR 0004](adr/0004-attributed-geometry-graph-and-residual-evidence.md) and
-[ADR 0009](adr/0009-filtering-belongs-to-a-recogniser.md): keep neutral graph facts total, and put
+[ADR 0002](adr/0002-uniform-deterministic-recogniser-contract.md): keep neutral graph facts total, and put
 acceptance gates in the family that owns the decision.
 
 ## 2. Define a plain immutable record

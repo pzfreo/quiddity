@@ -8,7 +8,7 @@ Draftwright's response accepted the direction and requested authoritative provid
 document-scoped face references, and a fail-closed classification/convention gate. Those decisions,
 with the subsequent corrections on face identity, constant-section scope and bottom-condition
 terminology, are recorded normatively in
-[`ADR 0019`](adr/0019-unified-section-recess-json.md). This document remains the original review
+[the section-recess family record](families/section-recess-json.md). This document remains the original review
 request rather than being rewritten as the decision.
 
 ## Decision requested

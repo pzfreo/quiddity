@@ -3,8 +3,8 @@
 - **Status:** Accepted
 - **Date:** 2026-08-15
 - **Decider:** Paul Fremantle
-- **Record form:** current state, rewritten 2026-09-15. The per-issue amendments this file
-  carried until then are in `git log -- docs/adr/0002-uniform-deterministic-recogniser-contract.md`.
+- **Record form:** current state, rewritten 2026-09-15; absorbs ADR 0009 (filtering belongs to a
+  recogniser). The per-issue amendments this file carried until then are in `git log` on it.
 
 ## Context
 
@@ -64,6 +64,16 @@ equal signature receive `None`; traversal order and kernel handles never break t
 **Spelling.** Public recognisers use British `recognise_`. Substrates returning evidence rather
 than accepted features use precise verbs such as `analyse_cylinders`.
 
+**Shared reductions are total; rejection is a gate.** A reduction used by more than one
+recogniser returns one output per input element, with an attribute that does not apply left
+absent rather than the element dropped. Rejecting a candidate is the recogniser's decision and
+belongs where it can be named, counted and tested: a gate inside a family is visible, relaxable
+and measurable; a filter inside a shared helper is invisible to every family that inherits it and
+leaves nothing downstream to count. `FaceGraph` obeys this by construction, carrying every face
+and computing attributes lazily, which is what makes totality affordable. Where a shared reduction
+cannot be made total, the exclusion is documented on every family that inherits it in
+[`capabilities.md`](../capabilities.md), naming the shared function.
+
 **Passages.** `recognise_section_passages` is the physical entry point. `recognise_passages` is a
 writer-free legacy projection and raises `PassageCompatibilityError` if handed a ledger, so there
 is one Passage evidence authority.
@@ -76,6 +86,8 @@ is one Passage evidence authority.
 - Per-family claim tests (`tests/test_*_claims.py`): same records with and without a ledger;
   claims asserted against the geometry the faces have, not a captured count; foreign ledger refused.
 - Mutation tests proving each injected dependency is used rather than recomputed.
+- Per-family gate tests: a family that declines geometry does so in its own module, and the
+  shared graph and surface readers expose every face or a closed refusal.
 
 ## Consequences
 
