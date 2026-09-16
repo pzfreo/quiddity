@@ -69,7 +69,9 @@ Requirements:
 - contain only JSON-serialisable values;
 - describe geometry, not machining or drawing policy;
 - round only when constructing the final public record, never while proving topology;
-- preserve enough orientation and location to distinguish equal-sized occurrences.
+- preserve enough orientation and location to distinguish equal-sized occurrences;
+- live in the module that declares the family, which section 6 covers and
+  `tests/test_registry.py` enforces.
 
 Do not put `Face`, `Edge`, `Solid`, `FaceNode`, Candidate identity, or a consumer-specific concept
 on the record. See [ADR 0001](adr/0001-standalone-geometry-only-apache-library.md),
@@ -232,6 +234,15 @@ first release; set it only for a family added later. Name `tests` only where a t
 evidence a consumer should read; a family whose goldens carry that weight names none, as
 `flats.py` and `grooves.py` do. A family whose entry point the package does not export has no
 manifest entry at all, so it declares no evidence either, as `rectangular_blind_slots.py` shows.
+
+The module that declares a family also defines its record types. That has been true of every
+declared family, and `tests/test_registry.py` now says so rather than leaving it to habit. Add an
+exception there -- keyed by the `FamilyId` member name, with its reason -- when the records belong
+to a cluster of closely related types that should not be split. `section_recesses` is the case the
+rule was written for: its public record is one of seventeen profile, end, geometry and projection
+types that are only comprehensible together, so splitting the cluster costs more than the
+convention is worth, and moving all seventeen would make the family module about seven times its
+size. The exception is family-granular, so listing one exempts all of that family's records.
 
 `DEFINITION` is the name only where the module declares one family. A module declaring several
 families names each declaration after its family instead, as `polygonal_bosses.py` does with
