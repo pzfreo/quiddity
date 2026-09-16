@@ -165,11 +165,8 @@ class DerivedDefinition:
     identifier: DerivedId
     record_types: tuple[type[object], ...]
     result_field: str
-    public_entrypoint: str | None
+    public_entrypoint: str
     sources: tuple[FamilyId, ...]
-    # A standard discoverer takes `AcceptedInputs`; a projection takes the registry's own
-    # projection inputs, which this leaf cannot name. `result` casts at the one site of each.
-    derive: Callable[..., list[object]]
+    derive: Callable[[AcceptedInputs], list[object]]
     census: CensusSpec
-    role: str = "discoverer"
     evidence: ManifestEvidence | None = field(default=None, kw_only=True)

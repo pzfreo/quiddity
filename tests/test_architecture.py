@@ -1299,7 +1299,11 @@ def test_every_result_field_is_registry_owned_or_a_reviewed_exception() -> None:
 
     registry_owned = {
         definition.result_field
-        for definition in (*registry.PHYSICAL_DEFINITIONS, *registry.DERIVED_DEFINITIONS)
+        for definition in (
+            *registry.PHYSICAL_DEFINITIONS,
+            *registry.DERIVED_DEFINITIONS,
+            *registry.PROJECTION_DEFINITIONS,
+        )
     }
     #: Aggregate fields that no definition owns, each with the reason it is passed explicitly.
     #: `section_recesses` is not here: it has a physical family, and only its *value* is

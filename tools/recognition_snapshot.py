@@ -84,7 +84,6 @@ def recognition_snapshot(recognition, feature_census, part):
             entrypoint_of_family[source] for source in definition.sources
         ]
         for definition in DERIVED_DEFINITIONS
-        if definition.public_entrypoint is not None
     }
     pending = [
         name

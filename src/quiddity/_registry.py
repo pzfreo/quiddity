@@ -11,7 +11,7 @@ projection, reconciliation policy, and census key order remain independently rev
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol, TypeAlias
 
 from quiddity import (
@@ -52,11 +52,13 @@ from quiddity._candidates import (
 )
 from quiddity._definitions import (
     AcceptedInputs,
+    CensusSpec,
     Counted,
     DerivedDefinition,
     DiscoveryServices,
     FullyAttributed,
     IncompleteAttribution,
+    ManifestEvidence,
     NotCounted,
     PhysicalDefinition,
     always,
@@ -205,6 +207,27 @@ ProjectionDiscoverer: TypeAlias = Callable[
 ]
 
 
+@dataclass(frozen=True, slots=True)
+class ProjectionDefinition:
+    """A derived family projected from accepted occurrences rather than discovered.
+
+    Separate from `DerivedDefinition` because its `derive` takes the projection input types
+    declared just above, which live here rather than in the `_definitions` leaf: they reach
+    `SectionPassage` and `PassageCompatibilityView`, which sit above it. Keeping the two apart
+    types each `derive` exactly, and removes the `role` string that used to tell them apart.
+
+    A projection publishes no entry point. Its records reach a caller through the aggregate.
+    """
+
+    identifier: DerivedId
+    record_types: tuple[type[object], ...]
+    result_field: str
+    sources: tuple[FamilyId, ...]
+    derive: ProjectionDiscoverer
+    census: CensusSpec
+    evidence: ManifestEvidence | None = field(default=None, kw_only=True)
+
+
 def _holes(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
     countersinks = list(inputs.records(FamilyId.COUNTERSINKS, CounterSink))
     occurrences = inputs.occurrences(FamilyId.COUNTERSINKS, CounterSink)
@@ -340,15 +363,16 @@ DERIVED_DEFINITIONS: tuple[DerivedDefinition, ...] = (
     oriented_slots.PATTERNS,
     slots.POCKET_PATTERNS,
     gussets.PATTERNS,
-    DerivedDefinition(
+)
+
+PROJECTION_DEFINITIONS: tuple[ProjectionDefinition, ...] = (
+    ProjectionDefinition(
         DerivedId.PASSAGES_COMPAT,
         (Passage,),
         "passages",
-        None,
         (FamilyId.PASSAGES,),
         _passages_compat,
         NotCounted("compatibility projection of accepted section passages"),
-        "projection",
     ),
 )
 
@@ -356,6 +380,7 @@ DERIVED_DEFINITIONS: tuple[DerivedDefinition, ...] = (
 def validate_definitions(
     physical: tuple[PhysicalDefinition, ...],
     derived: tuple[DerivedDefinition, ...],
+    projections: tuple[ProjectionDefinition, ...],
 ) -> None:
     """Fail closed when the closed internal registry is incomplete or incoherent."""
 
@@ -367,9 +392,14 @@ def validate_definitions(
     fields = [definition.result_field for definition in physical]
     if len(set(fields)) != len(fields):
         raise ValueError("physical result fields must be unique")
+    every_derived: tuple[DerivedDefinition | ProjectionDefinition, ...] = (*derived, *projections)
     counted_keys = [
         definition.census.key for definition in physical if isinstance(definition.census, Counted)
-    ] + [definition.census.key for definition in derived if isinstance(definition.census, Counted)]
+    ] + [
+        definition.census.key
+        for definition in every_derived
+        if isinstance(definition.census, Counted)
+    ]
     if len(set(counted_keys)) != len(counted_keys) or any(not key for key in counted_keys):
         raise ValueError("counted census keys must be non-empty and unique")
     for index, definition in enumerate(physical):
@@ -400,23 +430,18 @@ def validate_definitions(
             for dependency in definition.dependencies
         ):
             raise ValueError("physical dependencies must exist before their consumer")
-    derived_ids = tuple(definition.identifier for definition in derived)
+    derived_ids = tuple(definition.identifier for definition in every_derived)
     if len(set(derived_ids)) != len(derived_ids) or set(derived_ids) != set(DerivedId):
         raise ValueError("derived definitions must cover every derived id exactly once")
-    derived_fields = [definition.result_field for definition in derived]
+    derived_fields = [definition.result_field for definition in every_derived]
     if len(set(derived_fields)) != len(derived_fields) or set(fields) & set(derived_fields):
         raise ValueError("registry result fields must be unique")
-    for derived_definition in derived:
+    for discoverer in derived:
+        if not discoverer.public_entrypoint:
+            raise ValueError("derived definitions require a public entrypoint")
+    for derived_definition in every_derived:
         if not derived_definition.record_types:
             raise ValueError("derived definitions require record contracts")
-        if derived_definition.role == "projection":
-            if derived_definition.public_entrypoint is not None:
-                raise ValueError("projection definitions cannot declare a public entrypoint")
-        elif derived_definition.role == "discoverer":
-            if not derived_definition.public_entrypoint:
-                raise ValueError("discoverer definitions require a public entrypoint")
-        else:
-            raise ValueError("derived definition role is not recognized")
         if not isinstance(derived_definition.census, Counted | NotCounted):
             raise ValueError("derived definitions require an explicit census disposition")
         if (
@@ -431,15 +456,19 @@ def validate_definitions(
 def validate_result_fields(result_fields: frozenset[str]) -> None:
     """Validate registry coverage against independently declared internal detector fields."""
 
+    every_derived: tuple[DerivedDefinition | ProjectionDefinition, ...] = (
+        *DERIVED_DEFINITIONS,
+        *PROJECTION_DEFINITIONS,
+    )
     registered = {definition.result_field for definition in PHYSICAL_DEFINITIONS} | {
-        definition.result_field for definition in DERIVED_DEFINITIONS
+        definition.result_field for definition in every_derived
     }
     if registered != result_fields:
         raise ValueError("registry fields do not exactly cover physical and derived results")
 
 
 def validate_output(
-    definition: PhysicalDefinition | DerivedDefinition,
+    definition: PhysicalDefinition | DerivedDefinition | ProjectionDefinition,
     records: list[object],
 ) -> None:
     """Reject an adapter output that violates its declared record contract."""
@@ -452,20 +481,22 @@ def validate_census_contract(
     expected: Mapping[str, str],
     physical: tuple[PhysicalDefinition, ...] = PHYSICAL_DEFINITIONS,
     derived: tuple[DerivedDefinition, ...] = DERIVED_DEFINITIONS,
+    projections: tuple[ProjectionDefinition, ...] = PROJECTION_DEFINITIONS,
 ) -> None:
     """Compare census key-to-source bindings with the independent manual census contract."""
 
+    every_derived: tuple[DerivedDefinition | ProjectionDefinition, ...] = (*derived, *projections)
     actual = {
         definition.result_field: definition.census.key
         for definition in physical
         if isinstance(definition.census, Counted)
     } | {
         definition.result_field: definition.census.key
-        for definition in derived
+        for definition in every_derived
         if isinstance(definition.census, Counted)
     }
     if actual != dict(expected):
         raise ValueError("registry census bindings do not match the manual census contract")
 
 
-validate_definitions(PHYSICAL_DEFINITIONS, DERIVED_DEFINITIONS)
+validate_definitions(PHYSICAL_DEFINITIONS, DERIVED_DEFINITIONS, PROJECTION_DEFINITIONS)
