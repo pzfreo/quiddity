@@ -25,6 +25,7 @@ from quiddity._record import Record
 from quiddity._registry import (
     DERIVED_DEFINITIONS,
     PHYSICAL_DEFINITIONS,
+    PROJECTION_DEFINITIONS,
     AcceptedInputs,
     AcceptedProjectionInputs,
     Counted,
@@ -47,12 +48,22 @@ ROOT = Path(__file__).parents[1]
 
 def test_registry_is_the_closed_ordered_internal_roster() -> None:
     assert len(PHYSICAL_DEFINITIONS) == 33
-    assert len(DERIVED_DEFINITIONS) == 6
+    assert len(DERIVED_DEFINITIONS) == 5
+    assert len(PROJECTION_DEFINITIONS) == 1
     assert tuple(item.family for item in PHYSICAL_DEFINITIONS) == PHYSICAL_FAMILIES
     assert set(PHYSICAL_FAMILIES) == set(FamilyId) - {FamilyId.LEGACY}
-    assert tuple(item.identifier for item in DERIVED_DEFINITIONS) == tuple(DerivedId)
+    # A projection is a derived family that publishes no entry point, so the two rosters cover
+    # `DerivedId` between them rather than one covering it alone.
+    assert tuple(
+        item.identifier for item in (*DERIVED_DEFINITIONS, *PROJECTION_DEFINITIONS)
+    ) == tuple(DerivedId)
+    assert all(item.public_entrypoint for item in DERIVED_DEFINITIONS)
+    assert not any(hasattr(item, "public_entrypoint") for item in PROJECTION_DEFINITIONS)
     assert all(isinstance(item.census, Counted | NotCounted) for item in PHYSICAL_DEFINITIONS)
-    assert all(isinstance(item.census, Counted | NotCounted) for item in DERIVED_DEFINITIONS)
+    assert all(
+        isinstance(item.census, Counted | NotCounted)
+        for item in (*DERIVED_DEFINITIONS, *PROJECTION_DEFINITIONS)
+    )
     assert {
         item.family
         for item in PHYSICAL_DEFINITIONS
@@ -147,7 +158,7 @@ def test_registry_is_the_closed_ordered_internal_roster() -> None:
 def test_registry_rejects_empty_attribution_contracts(attribution) -> None:
     changed = (replace(PHYSICAL_DEFINITIONS[0], attribution=attribution), *PHYSICAL_DEFINITIONS[1:])
     with pytest.raises(ValueError, match="attribut"):
-        validate_definitions(changed, DERIVED_DEFINITIONS)
+        validate_definitions(changed, DERIVED_DEFINITIONS, PROJECTION_DEFINITIONS)
 
 
 def test_step_levels_fulfil_their_body_local_attribution_promise() -> None:
@@ -192,7 +203,9 @@ def test_registry_dependencies_are_explicit_and_restricted() -> None:
         FamilyId.PLATES: (FamilyId.TURNED_STEPS,),
         FamilyId.RISERS: (FamilyId.STEP_LEVELS,),
     }
-    sources = {item.identifier: item.sources for item in DERIVED_DEFINITIONS}
+    sources = {
+        item.identifier: item.sources for item in (*DERIVED_DEFINITIONS, *PROJECTION_DEFINITIONS)
+    }
     assert sources == {
         DerivedId.HOLE_PATTERNS: (FamilyId.HOLES,),
         DerivedId.SLOT_PATTERNS: (FamilyId.SLOTS,),
@@ -493,71 +506,60 @@ def test_registry_validation_rejects_incomplete_physical_contract_metadata() -> 
         for item in PHYSICAL_DEFINITIONS
     )
     with pytest.raises(ValueError, match="attribution disposition"):
-        validate_definitions(missing_attribution, DERIVED_DEFINITIONS)
+        validate_definitions(missing_attribution, DERIVED_DEFINITIONS, PROJECTION_DEFINITIONS)
 
 
 def test_registry_validation_rejects_incomplete_derived_contract_metadata() -> None:
+    """A projection declaring an entry point is no longer a case here: it cannot be written.
+
+    `ProjectionDefinition` has no such field, so what used to be a validator branch and a test
+    is now a type error. What remains are the checks the two kinds still share.
+    """
+
     first = DERIVED_DEFINITIONS[0]
 
     with pytest.raises(ValueError, match="cover every derived id"):
-        validate_definitions(PHYSICAL_DEFINITIONS, DERIVED_DEFINITIONS[:-1])
+        validate_definitions(PHYSICAL_DEFINITIONS, DERIVED_DEFINITIONS[:-1], PROJECTION_DEFINITIONS)
+
+    with pytest.raises(ValueError, match="cover every derived id"):
+        validate_definitions(PHYSICAL_DEFINITIONS, DERIVED_DEFINITIONS, ())
 
     overlapping_field = (
         replace(first, result_field=PHYSICAL_DEFINITIONS[0].result_field),
         *DERIVED_DEFINITIONS[1:],
     )
     with pytest.raises(ValueError, match="registry result fields must be unique"):
-        validate_definitions(PHYSICAL_DEFINITIONS, overlapping_field)
+        validate_definitions(PHYSICAL_DEFINITIONS, overlapping_field, PROJECTION_DEFINITIONS)
 
-    missing_record_contract = (
-        replace(first, public_entrypoint=""),
-        *DERIVED_DEFINITIONS[1:],
-    )
-    with pytest.raises(ValueError, match="discoverer definitions require a public entrypoint"):
-        validate_definitions(PHYSICAL_DEFINITIONS, missing_record_contract)
-
-    projection = DERIVED_DEFINITIONS[-1]
-    invalid_projection_entrypoint = (
-        *DERIVED_DEFINITIONS[:-1],
-        replace(projection, public_entrypoint="recognise_passages"),
-    )
-    with pytest.raises(ValueError, match="projection definitions cannot declare"):
-        validate_definitions(PHYSICAL_DEFINITIONS, invalid_projection_entrypoint)
+    missing_entrypoint = (replace(first, public_entrypoint=""), *DERIVED_DEFINITIONS[1:])
+    with pytest.raises(ValueError, match="derived definitions require a public entrypoint"):
+        validate_definitions(PHYSICAL_DEFINITIONS, missing_entrypoint, PROJECTION_DEFINITIONS)
 
     missing_census = (
         replace(first, census=None),  # type: ignore[arg-type]
         *DERIVED_DEFINITIONS[1:],
     )
     with pytest.raises(ValueError, match="explicit census disposition"):
-        validate_definitions(PHYSICAL_DEFINITIONS, missing_census)
+        validate_definitions(PHYSICAL_DEFINITIONS, missing_census, PROJECTION_DEFINITIONS)
 
-    empty_reason = (
-        replace(first, census=NotCounted("")),
-        *DERIVED_DEFINITIONS[1:],
-    )
+    empty_reason = (replace(first, census=NotCounted("")), *DERIVED_DEFINITIONS[1:])
     with pytest.raises(ValueError, match="reasons must be non-empty"):
-        validate_definitions(PHYSICAL_DEFINITIONS, empty_reason)
+        validate_definitions(PHYSICAL_DEFINITIONS, empty_reason, PROJECTION_DEFINITIONS)
 
-    missing_record_types = (
-        replace(first, record_types=()),
-        *DERIVED_DEFINITIONS[1:],
-    )
+    missing_record_types = (replace(first, record_types=()), *DERIVED_DEFINITIONS[1:])
     with pytest.raises(ValueError, match="record contracts"):
-        validate_definitions(PHYSICAL_DEFINITIONS, missing_record_types)
+        validate_definitions(PHYSICAL_DEFINITIONS, missing_record_types, PROJECTION_DEFINITIONS)
 
-    unknown_role = (
-        replace(first, role="unknown"),  # type: ignore[arg-type]
-        *DERIVED_DEFINITIONS[1:],
-    )
-    with pytest.raises(ValueError, match="role is not recognized"):
-        validate_definitions(PHYSICAL_DEFINITIONS, unknown_role)
+    blank_projection = (replace(PROJECTION_DEFINITIONS[0], record_types=()),)
+    with pytest.raises(ValueError, match="record contracts"):
+        validate_definitions(PHYSICAL_DEFINITIONS, DERIVED_DEFINITIONS, blank_projection)
 
     invalid_source = (
         replace(first, sources=(FamilyId.LEGACY,)),
         *DERIVED_DEFINITIONS[1:],
     )
     with pytest.raises(ValueError, match="sources must be registered"):
-        validate_definitions(PHYSICAL_DEFINITIONS, invalid_source)
+        validate_definitions(PHYSICAL_DEFINITIONS, invalid_source, PROJECTION_DEFINITIONS)
 
 
 def test_registry_result_field_validation_rejects_stale_contract() -> None:

@@ -22,7 +22,12 @@ from quiddity._candidates import Candidate, CandidateSet, DerivedId, EvidenceInd
 from quiddity._claims import ClaimLedger
 from quiddity._corner_section import prove_corner_section
 from quiddity._cylindrical_channels import prove_cylindrical_channel
-from quiddity._definitions import AcceptedInputs, DiscoveryServices, FullyAttributed
+from quiddity._definitions import (
+    AcceptedInputs,
+    DerivedDefinition,
+    DiscoveryServices,
+    FullyAttributed,
+)
 from quiddity._diagnostics import ResidualDiagnostic, diagnose_residuals
 from quiddity._dispositions import (
     Outcome,
@@ -52,9 +57,10 @@ from quiddity._reconcile import (
 from quiddity._registry import (
     DERIVED_DEFINITIONS,
     PHYSICAL_DEFINITIONS,
+    PROJECTION_DEFINITIONS,
     RECESS_SOURCE_FAMILIES,
     AcceptedProjectionInputs,
-    ProjectionDiscoverer,
+    ProjectionDefinition,
     ProjectionInputs,
     _issue_projection_inputs,
     validate_output,
@@ -690,11 +696,8 @@ def _derive_patterns(accepted: CandidateInventory) -> DerivedInventory:
     accepted_records = {family: tuple(accepted.records(family)) for family in PHYSICAL_FAMILIES}
     derived: dict[DerivedId, tuple[object, ...]] = {}
     for definition in DERIVED_DEFINITIONS:
-        if definition.role == "projection":
-            continue
         inputs = AcceptedInputs.restricted(definition.sources, accepted_records)
-        standard_derive = cast(Callable[[AcceptedInputs], list[object]], definition.derive)
-        records = standard_derive(inputs)
+        records = definition.derive(inputs)
         validate_output(definition, records)
         derived[definition.identifier] = tuple(records)
     return DerivedInventory(
@@ -722,10 +725,9 @@ def _derive_passage_compat(
     inputs: AcceptedProjectionInputs, projection: ProjectionInputs
 ) -> tuple[Passage, ...]:
     definition = next(
-        item for item in DERIVED_DEFINITIONS if item.identifier is DerivedId.PASSAGES_COMPAT
+        item for item in PROJECTION_DEFINITIONS if item.identifier is DerivedId.PASSAGES_COMPAT
     )
-    derive = cast(ProjectionDiscoverer, definition.derive)
-    records = derive(inputs, projection)
+    records = definition.derive(inputs, projection)
     validate_output(definition, records)
     return cast(tuple[Passage, ...], tuple(records))
 
@@ -1582,6 +1584,10 @@ def _project_result(
     # A derived record is gated by the families it is derived from: a projection of an
     # unprojected family has nothing truthful to say. Today only the Passage compatibility
     # projection has a gated source, which is the case the explicit form spelled out.
+    every_derived: tuple[DerivedDefinition | ProjectionDefinition, ...] = (
+        *DERIVED_DEFINITIONS,
+        *PROJECTION_DEFINITIONS,
+    )
     projection.update(
         {
             definition.result_field: (
@@ -1591,7 +1597,7 @@ def _project_result(
                 )
                 else ()
             )
-            for definition in DERIVED_DEFINITIONS
+            for definition in every_derived
         }
     )
     # The one field whose value no definition can state. The registry does name its inputs, in
