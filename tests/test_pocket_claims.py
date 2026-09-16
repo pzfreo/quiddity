@@ -117,11 +117,11 @@ def test_the_aggregate_writes_pocket_and_slot_claims_through_one_writer(monkeypa
     both calls proves the two families write through one issuer without weakening that boundary.
     """
 
-    import quiddity._registry as registry_module
+    import quiddity.slots as slots_module
 
     seen = {}
-    real_pockets = registry_module._discover_pockets
-    real_slots = registry_module._discover_slots
+    real_pockets = slots_module._discover_pockets
+    real_slots = slots_module._discover_slots
 
     def capture_pockets(part, **kwargs):
         seen["pockets"] = kwargs.get("writer")
@@ -131,8 +131,8 @@ def test_the_aggregate_writes_pocket_and_slot_claims_through_one_writer(monkeypa
         seen["slots"] = kwargs.get("writer")
         return real_slots(part, **kwargs)
 
-    monkeypatch.setattr(registry_module, "_discover_pockets", capture_pockets)
-    monkeypatch.setattr(registry_module, "_discover_slots", capture_slots)
+    monkeypatch.setattr(slots_module, "_discover_pockets", capture_pockets)
+    monkeypatch.setattr(slots_module, "_discover_slots", capture_slots)
 
     part = (Box(60, 40, 12) - Pos(0, 0, 4) * Box(20, 12, 8)) - Pos(0, -14, 0) * Box(8, 12, 40)
     result = r.build_recognition_result(part)

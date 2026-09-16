@@ -817,12 +817,17 @@ def test_status_registry_writer_and_private_module_seams_are_closed() -> None:
                 and called_leaf(node.func, names, modules) == "_discover_slots"
             ):
                 callers.append((path.name, node))
-    assert importers == ["_registry.py"]
-    assert {path for path, _call in callers} == {"_registry.py", "_recess_features.py"}
-    registry_call = next(call for path, call in callers if path == "_registry.py")
-    writer = {item.arg: item.value for item in registry_call.keywords}["writer"]
+    # The declaration is in `slots.py`; the core and the public entry point stay in
+    # `_recess_features.py`, so the two are in different modules and the shared pin in
+    # `tests/route_pins.py` does not fit as written -- see the issue it is filed under.
+    assert importers == ["slots.py"]
+    # A sorted list, not a set: a third writer-handing call inside `slots.py` would otherwise
+    # be invisible, which is the escape #639 found and #647 exists to end.
+    assert sorted(path for path, _call in callers) == ["_recess_features.py", "slots.py"]
+    declared_call = next(call for path, call in callers if path == "slots.py")
+    writer = {item.arg: item.value for item in declared_call.keywords}["writer"]
     assert isinstance(writer, ast.Attribute) and writer.attr == "writer"
-    assert isinstance(writer.value, ast.Name) and writer.value.id == "s"
+    assert isinstance(writer.value, ast.Name) and writer.value.id == "services"
     assert tuple(inspect.signature(recognise_slots).parameters) == (
         "part",
         "face_edges",

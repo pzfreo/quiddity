@@ -81,6 +81,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity.repeating_profiles as repeating_profiles_module
     import quiddity.result as result_module
     import quiddity.round_bottom_slots as round_bottom_slots_module
+    import quiddity.slots as slots_module
     import quiddity.through_steps as through_steps_module
     import quiddity.turned as turned_module
     from quiddity._candidates import EvidenceIndex
@@ -161,10 +162,10 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     monkeypatch.setattr(
         polygonal_bosses_module, "_discover_polygonal_stock", counted("polygonal_stock", [])
     )
-    monkeypatch.setattr(registry_module, "_discover_channels", counted("channels", []))
-    monkeypatch.setattr(registry_module, "_discover_slots", counted("slots", slots))
+    monkeypatch.setattr(slots_module, "_discover_channels", counted("channels", []))
+    monkeypatch.setattr(slots_module, "_discover_slots", counted("slots", slots))
     monkeypatch.setattr(
-        registry_module, "recognise_slot_patterns", derived("slot_patterns", slots, [])
+        slots_module, "recognise_slot_patterns", derived("slot_patterns", slots, [])
     )
     monkeypatch.setattr(
         oriented_slots_module,
@@ -173,12 +174,12 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     )
     monkeypatch.setattr(grooves_module, "recognise_grooves", cyl_consumer("grooves", []))
     monkeypatch.setattr(flats_module, "_discover_flats", cyl_consumer("flats", []))
-    monkeypatch.setattr(registry_module, "_discover_pockets", counted("pockets", pockets))
+    monkeypatch.setattr(slots_module, "_discover_pockets", counted("pockets", pockets))
     monkeypatch.setattr(
         registry_module, "recognise_section_passages", counted("passages", passages)
     )
     monkeypatch.setattr(
-        registry_module, "recognise_pocket_patterns", derived("pocket_patterns", pockets, [])
+        slots_module, "recognise_pocket_patterns", derived("pocket_patterns", pockets, [])
     )
     monkeypatch.setattr(pads_module, "_discover_rectangular_pads", counted("pads", []))
     monkeypatch.setattr(

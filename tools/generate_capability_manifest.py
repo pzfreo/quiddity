@@ -47,8 +47,6 @@ EVIDENCE: dict[str, dict[str, object]] = {
     "bosses": {"goldens": ["simple_through_hole", "turned_steps_and_grooves"]},
     "hole-patterns": {"goldens": ["bolt_circle_and_rectangular_grid"]},
     "holes": {"goldens": ["simple_through_hole", "counterbored_and_countersunk_holes"]},
-    "slot-patterns": {"goldens": ["straight_and_obround_slots"]},
-    "slots": {"goldens": ["straight_and_obround_slots"]},
 }
 
 # Records a family publishes beyond its registry output records: nested values, evidence

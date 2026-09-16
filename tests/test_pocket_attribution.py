@@ -1229,13 +1229,14 @@ def test_private_writer_roster_and_prohibited_reads_are_closed_alias_aware() -> 
                 continue
             if canonical(node.func) == "quiddity._recess_features._discover_pockets":
                 calls.append((path.name, node))
-    assert importers == ["_registry.py"]
-    assert {path for path, _call in calls} == {"_registry.py", "_recess_features.py"}
-    registry_call = next(call for path, call in calls if path == "_registry.py")
-    keywords = {keyword.arg: keyword.value for keyword in registry_call.keywords}
+    # The declaration is in `slots.py`, the core and public entry point in `_recess_features.py`.
+    assert importers == ["slots.py"]
+    assert sorted(path for path, _call in calls) == ["_recess_features.py", "slots.py"]
+    declared_call = next(call for path, call in calls if path == "slots.py")
+    keywords = {keyword.arg: keyword.value for keyword in declared_call.keywords}
     writer = keywords["writer"]
     assert isinstance(writer, ast.Attribute) and writer.attr == "writer"
-    assert isinstance(writer.value, ast.Name) and writer.value.id == "s"
+    assert isinstance(writer.value, ast.Name) and writer.value.id == "services"
     assert tuple(inspect.signature(_discover_pockets).parameters) == (
         "part",
         "face_edges",

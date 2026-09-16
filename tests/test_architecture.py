@@ -688,7 +688,14 @@ MODULE_SEAM_EDGES = {
         "_typing",
         "countersinks",
     },
-    "slots": {"_recess_features", "_recess_patterns", "_recess_records", "_typing"},
+    "slots": {
+        "_candidates",
+        "_definitions",
+        "_recess_features",
+        "_recess_patterns",
+        "_recess_records",
+        "_typing",
+    },
     # Orchestration: `result` is the one module allowed to import every family (ADR 0003).
     "result": {
         "_candidates",

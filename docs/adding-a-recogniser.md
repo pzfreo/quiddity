@@ -237,12 +237,21 @@ manifest entry at all, so it declares no evidence either, as `rectangular_blind_
 
 The module that declares a family also defines its record types. That has been true of every
 declared family, and `tests/test_registry.py` now says so rather than leaving it to habit. Add an
-exception there -- keyed by the `FamilyId` member name, with its reason -- when the records belong
-to a cluster of closely related types that should not be split. `section_recesses` is the case the
-rule was written for: its public record is one of seventeen profile, end, geometry and projection
-types that are only comprehensible together, so splitting the cluster costs more than the
-convention is worth, and moving all seventeen would make the family module about seven times its
-size. The exception is family-granular, so listing one exempts all of that family's records.
+exception there -- keyed by the `FamilyId` or `DerivedId` member name, with its own reason -- when moving the
+records would cost more than the convention is worth. Two reasons have come up so far, and they
+are different, so write the one that applies rather than copying a neighbour's.
+
+The records may sit **below** the machinery that reads them: `slots.py` declares three families
+whose records live in `_recess_records`, which the recess machinery imports and constructs at
+runtime, so moving them closes a cycle through `_recess_features`. The pattern records have the
+same problem by a shorter route, through `_recess_patterns` alone.
+
+Or the record may belong to a **cluster** that should not be split: `section_recesses`' public
+record is one of seventeen profile, end, geometry and projection types that are only
+comprehensible together, so moving it alone breaks up the cluster and moving all seventeen makes
+the family module about seven times its size.
+
+The exception is family-granular, so listing one exempts all of that family's records.
 
 `DEFINITION` is the name only where the module declares one family. A module declaring several
 families names each declaration after its family instead, as `polygonal_bosses.py` does with
