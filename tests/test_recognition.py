@@ -75,7 +75,9 @@ def test_native_analytic_scan_does_not_enter_effective_recovery() -> None:
 
 
 def test_native_hole_and_boss_calls_do_not_build_the_lazy_recovery_graph(monkeypatch) -> None:
-    import quiddity._hole_features as families
+    # The surface query both families share moved to `_cylinder_stacks`, which is where
+    # the recovery entry point it guards now lives.
+    import quiddity._cylinder_stacks as families
 
     def recovery_must_not_run(_part):
         raise AssertionError("native family calls must not build an effective-surface graph")
@@ -844,7 +846,7 @@ class TestFindHolePatterns:
         historical implementation still enumerated O(n^3) circle seeds with an O(n)
         membership scan after finding the grid, then discarded every result.
         """
-        import quiddity._hole_patterns as features
+        import quiddity.holes as features
         from quiddity import RectGrid, recognise_hole_patterns
 
         holes = [

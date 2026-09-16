@@ -37,10 +37,12 @@ from quiddity._adjacency import (
 )
 from quiddity._candidates import FamilyId
 from quiddity._claims import ClaimLedger
+from quiddity._cylinder_stacks import _classify_end, _segments
 from quiddity._cylinder_substrate import analyse_cylinders, full_cylinders
 from quiddity._effective_surfaces import SurfaceKind, SurfaceProvenance
-from quiddity._hole_features import _classify_end, _discover_bosses, _segments
+from quiddity.bosses import _discover_bosses
 from quiddity.result import _take_inventory
+from tests.route_pins import assert_core_route_is_closed
 
 ROOT = Path(__file__).parents[1]
 
@@ -513,7 +515,7 @@ def test_late_binding_refuses_before_publication(monkeypatch: pytest.MonkeyPatch
 
 
 def test_missing_or_aliased_boss_source_roles_refuse_before_publication(monkeypatch) -> None:
-    import quiddity._hole_features as module
+    import quiddity.bosses as module
 
     part = _bossed_plate()
     ledger = ClaimLedger(FaceGraph(part))
@@ -731,29 +733,31 @@ def test_foreign_writer_refuses_without_publication() -> None:
 
 def test_private_core_has_one_production_writer_caller_and_one_constructor() -> None:
     package = ROOT / "src/quiddity"
-    core_sites = []
     constructor_sites = []
     for path in package.glob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for qualified, call in _qualified_calls(tree):
-            if qualified.endswith("._discover_bosses") or qualified == "_discover_bosses":
-                core_sites.append((path.name, call))
             if qualified.endswith(".BossRecord") or qualified == "BossRecord":
                 constructor_sites.append((path.name, call))
-    assert len(core_sites) == 2
-    assert {path for path, _call in core_sites} == {"_hole_features.py", "_registry.py"}
-    registry_call = next(call for path, call in core_sites if path == "_registry.py")
-    writer = next(keyword.value for keyword in registry_call.keywords if keyword.arg == "writer")
-    assert isinstance(writer, ast.Attribute)
-    assert isinstance(writer.value, ast.Name) and writer.value.id == "s" and writer.attr == "writer"
-    assert [(path, len(call.args)) for path, call in constructor_sites] == [
-        ("_hole_features.py", 0)
-    ]
+    # The core and the declaration are in one module now, so the shared pin fits.
+    assert_core_route_is_closed(
+        module="bosses",
+        core="_discover_bosses",
+        entrypoint="recognise_bosses",
+        handed_over={
+            "cyls": "services.cylinders",
+            "face_edges": "services.context.face_edges",
+            "writer": "services.writer",
+            "face_surfaces": "services.context.face_surfaces",
+        },
+        withheld=("writer",),
+    )
+    assert [(path, len(call.args)) for path, call in constructor_sites] == [("bosses.py", 0)]
 
 
 def test_boss_extraction_does_not_move_shared_surface_reader_authority() -> None:
     from quiddity._effective_surfaces import SURFACE_READER_SITES
 
-    assert "_hole_features:_classify_end_uncached:adaptor:1" in SURFACE_READER_SITES
-    assert "_hole_features:_classify_end_uncached:adaptor:2" in SURFACE_READER_SITES
+    assert "_cylinder_stacks:_classify_end_uncached:adaptor:1" in SURFACE_READER_SITES
+    assert "_cylinder_stacks:_classify_end_uncached:adaptor:2" in SURFACE_READER_SITES
     assert not any("_discover_bosses" in key for key in SURFACE_READER_SITES)

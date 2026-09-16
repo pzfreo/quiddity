@@ -28,24 +28,11 @@ TARGET = ROOT / "src" / "quiddity" / "capabilities.json"
 # registry below. What stays by hand is what ADR 0005 makes a deliberate contract: the
 # evidence a family publishes, and the records that are not its registry output. A new
 # family sets `introduced`; the default is the first release of this distribution.
-EVIDENCE: dict[str, dict[str, object]] = {
-    "bosses": {"goldens": ["simple_through_hole", "turned_steps_and_grooves"]},
-    "hole-patterns": {"goldens": ["bolt_circle_and_rectangular_grid"]},
-    "holes": {"goldens": ["simple_through_hole", "counterbored_and_countersunk_holes"]},
-}
+EVIDENCE: dict[str, dict[str, object]] = {}
 
 # Records a family publishes beyond its registry output records: nested values, evidence
 # records, consumer aggregates and projections, with their roles and aggregate membership.
-EXTRA_RECORDS: dict[str, list[tuple[str, str, list[str]]]] = {
-    "holes": [
-        (
-            "CounterBore",
-            "nested",
-            ["RecognitionResult.holes.cbore", "RecognitionResult.holes.spotface"],
-        ),
-        ("HoleSpec", "evidence", []),
-    ],
-}
+EXTRA_RECORDS: dict[str, list[tuple[str, str, list[str]]]] = {}
 
 
 def _family_id(entrypoint: str) -> str:

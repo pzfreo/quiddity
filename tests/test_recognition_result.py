@@ -63,6 +63,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity._registry as registry_module
     import quiddity._run as run_module
     import quiddity.angled_steps as angled_steps_module
+    import quiddity.bosses as bosses_module
     import quiddity.chamfers as chamfers_module
     import quiddity.circular_blind_steps as circular_blind_steps_module
     import quiddity.countersinks as countersinks_module
@@ -70,6 +71,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity.flats as flats_module
     import quiddity.grooves as grooves_module
     import quiddity.gussets as gussets_module
+    import quiddity.holes as holes_module
     import quiddity.levels as levels_module
     import quiddity.oriented_slots as oriented_slots_module
     import quiddity.pads as pads_module
@@ -148,14 +150,14 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     monkeypatch.setattr(
         countersinks_module, "_discover_countersinks", counted("countersinks", countersinks)
     )
-    monkeypatch.setattr(registry_module, "_discover_holes", fake_holes)
+    monkeypatch.setattr(holes_module, "_discover_holes", fake_holes)
     monkeypatch.setattr(
         profiled_bores_module,
         "_discover_double_d_bores",
         counted("double_d_bores", []),
     )
-    monkeypatch.setattr(registry_module, "recognise_hole_patterns", derived("patterns", holes, []))
-    monkeypatch.setattr(registry_module, "_discover_bosses", cyl_consumer("bosses", []))
+    monkeypatch.setattr(holes_module, "recognise_hole_patterns", derived("patterns", holes, []))
+    monkeypatch.setattr(bosses_module, "_discover_bosses", cyl_consumer("bosses", []))
     monkeypatch.setattr(
         polygonal_bosses_module, "_discover_polygonal_bosses", counted("polygonal_bosses", [])
     )
