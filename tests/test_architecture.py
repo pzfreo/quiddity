@@ -746,7 +746,12 @@ MODULE_SEAM_EDGES = {
     # Projections and public facades over the one result (ADR 0003/0005).
     "census": {"_record", "_registry", "_typing", "result"},
     "explanations": {"_diagnostics", "_dispositions", "_registry", "_typing", "result"},
-    "section_recesses": {"_section_recess", "_typing", "result"},
+    "section_recesses": {
+        "_candidates",
+        "_definitions",
+        "_section_recess",
+        "_section_recess_discovery",
+    },
     "frames": {"_cylinder_substrate", "_geometry", "_typing", "evidence", "explanations", "result"},
     "capabilities": {"_manifest"},
     "document": {"_typing", "evidence", "frames"},

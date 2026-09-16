@@ -604,25 +604,78 @@ def test_every_family_says_something_different_about_what_it_claims() -> None:
 
 #: Declared families whose records are deliberately defined next door, and why. Asserted exactly
 #: and with the reasons required to be non-empty, because the default is that a family owns them.
+_RECESS_RECORDS_REASON = (
+    "`_recess_records` sits below the recess machinery that uses it. Eight modules import it at "
+    "run time and none imports a family module; `_recess_core`, `_recess_obround` and "
+    "`_recess_reduce` construct these records, the rest annotate or test against them. Moving "
+    "them into `slots.py` closes the cycle slots -> _recess_features -> _recess_core -> slots."
+)
+
+#: A shorter route to the same problem, and worth its own reason: of the machinery modules only
+#: `_recess_patterns` touches the pattern records, so the cycle above is not the one that bites.
+_RECESS_PATTERNS_REASON = (
+    "the pattern records are read by `_recess_patterns`, which `slots.py` imports, so moving them "
+    "into `slots.py` closes the cycle slots -> _recess_patterns -> slots."
+)
+
+_SECTION_RECESS_REASON = (
+    "`SectionRecess` is one of seventeen profile, end, geometry and projection types in "
+    "`_section_recess` that are only comprehensible together: moving it alone breaks up the "
+    "cluster, and moving all seventeen makes the family module about seven times its size."
+)
+
 RECORDS_DEFINED_NEXT_DOOR: dict[str, str] = {
-    family: (
-        "`_recess_records` sits below the recess machinery that uses it. Eight modules import it "
-        "at run time and none imports a family module; `_recess_core`, `_recess_obround` and "
-        "`_recess_reduce` construct these records, the rest annotate or test against them. "
-        "Moving them into `slots.py` closes the cycle slots -> _recess_features -> _recess_core "
-        "-> slots."
-    )
-    for family in ("SLOTS", "POCKETS", "CHANNELS")
-} | {
-    # A shorter route to the same problem, and worth its own reason: of the machinery modules,
-    # only `_recess_patterns` touches the pattern records, so the cycle above is not the one
-    # that bites. Moving them into `slots.py` closes slots -> _recess_patterns -> slots.
-    family: (
-        "the pattern records are read by `_recess_patterns`, which `slots.py` imports, so moving "
-        "them into `slots.py` closes the cycle slots -> _recess_patterns -> slots."
-    )
-    for family in ("SLOT_PATTERNS", "POCKET_PATTERNS")
+    "SLOTS": _RECESS_RECORDS_REASON,
+    "POCKETS": _RECESS_RECORDS_REASON,
+    "CHANNELS": _RECESS_RECORDS_REASON,
+    "SLOT_PATTERNS": _RECESS_PATTERNS_REASON,
+    "POCKET_PATTERNS": _RECESS_PATTERNS_REASON,
+    "SECTION_RECESSES": _SECTION_RECESS_REASON,
 }
+
+
+#: Declared families whose public entry point is defined somewhere other than the module that
+#: declares them, and why. Every other family names its entry point by reference, which makes the
+#: two the same module by construction; these name it as a string, so nothing else would notice.
+ENTRYPOINT_DEFINED_NEXT_DOOR: dict[str, str] = {
+    "SECTION_RECESSES": (
+        "`recognise_section_recesses` runs the orchestrator and filters its output, so it is a "
+        "view rather than a recogniser and lives in `result.py`. Importing it here would put "
+        "`result` back in this module's chain and close the cycle through `_registry`."
+    )
+}
+
+
+def test_a_declared_family_defines_its_own_entry_point() -> None:
+    """The declaration and the public surface are one module, unless listed above with a reason.
+
+    True by construction wherever `public_entrypoint` is `recognise_x.__name__`, since the name
+    has to be imported to be read. A string entry point breaks that, and nothing else checks it:
+    every other consumer of `public_entrypoint` resolves it against the package namespace.
+    """
+
+    spec = importlib.util.spec_from_file_location(
+        "generate_capability_manifest", ROOT / "tools" / "generate_capability_manifest.py"
+    )
+    assert spec is not None and spec.loader is not None
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+
+    elsewhere = set()
+    checked = 0
+    for definition in (*PHYSICAL_DEFINITIONS, *DERIVED_DEFINITIONS):
+        if not tool._is_module_declared(definition) or definition.public_entrypoint is None:
+            continue
+        checked += 1
+        module = _declaring_module(definition)
+        assert module is not None
+        if not hasattr(module, definition.public_entrypoint):
+            family = getattr(definition, "family", None) or definition.identifier
+            elsewhere.add(family.name)
+
+    assert checked == 34
+    assert all(ENTRYPOINT_DEFINED_NEXT_DOOR.values()), "an exception needs a reason, not just a key"
+    assert elsewhere == set(ENTRYPOINT_DEFINED_NEXT_DOOR)
 
 
 def _classes_defined_in(path: Path) -> set[str]:
@@ -709,7 +762,7 @@ def test_a_declared_family_defines_its_own_record_types() -> None:
             elsewhere[family.name] = strays
 
     # Guards the sweep itself: a predicate that stopped matching would otherwise pass vacuously.
-    assert declared == 33
+    assert declared == 34
 
     assert all(RECORDS_DEFINED_NEXT_DOOR.values()), "an exception needs a reason, not just a key"
     unexplained = {

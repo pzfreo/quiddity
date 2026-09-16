@@ -9,8 +9,15 @@ they are meaningful only within the recognition result produced for that part.
 
 from __future__ import annotations
 
-from dataclasses import replace
-
+from quiddity._candidates import CompletedInputs, FamilyId
+from quiddity._definitions import (
+    Counted,
+    DiscoveryServices,
+    FullyAttributed,
+    ManifestEvidence,
+    PhysicalDefinition,
+    always,
+)
 from quiddity._section_recess import (
     ClosedSectionProfile,
     CylindricalEndSurface,
@@ -31,45 +38,7 @@ from quiddity._section_recess import (
     SectionRecessGrid,
     SectionRecessRefusal,
 )
-from quiddity._typing import Part
-
-
-def recognise_section_recesses(part: Part) -> list[SectionRecess]:
-    """Return every accepted unified constant-section recess in *part*."""
-
-    # Aggregate orchestration calls the private discovery core from the registry.  The public
-    # unified view instead projects its completed inventory so specialised passage/recess proofs
-    # converge here without sibling recognition or a second reconciliation path.
-    from quiddity.result import build_raw_recognition_result
-
-    return list(build_raw_recognition_result(part).section_recesses)
-
-
-def build_section_recess_document(part: Part) -> SectionRecessDocument:
-    """Project accepted aggregate recesses into one deterministic JSON-safe document.
-
-    Recognition and reconciliation run exactly once through the ordinary raw/caller-coordinate
-    aggregate.  Occurrence indices are then made dense within this document; body and face indices
-    retain the aggregate run's complete input rosters.
-    """
-
-    # Local to avoid making result.py and this public facade depend on one another at import time.
-    from quiddity.result import build_raw_recognition_result
-
-    result = build_raw_recognition_result(part)
-    occurrences = tuple(
-        replace(record, index=index) for index, record in enumerate(result.section_recesses)
-    )
-    return SectionRecessDocument(
-        3,
-        "result",
-        tuple(SectionRecessBodyRef(index) for index, _ in enumerate(part.solids())),
-        tuple(SectionRecessFaceRef(index) for index, _ in enumerate(part.faces())),
-        occurrences,
-        result.section_recess_refusals,
-        result.section_recess_patterns,
-    )
-
+from quiddity._section_recess_discovery import discover_section_recesses
 
 __all__ = [
     "ClosedSectionProfile",
@@ -90,6 +59,71 @@ __all__ = [
     "SectionRecessRefusal",
     "SectionRecessArray",
     "SectionRecessGrid",
-    "build_section_recess_document",
-    "recognise_section_recesses",
 ]
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(
+        discover_section_recesses(
+            writer=services.writer,
+            surfaces=services.context.surfaces,
+        )
+    )
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.SECTION_RECESSES,
+    record_types=(SectionRecess,),
+    result_field="section_recesses",
+    # Named as a string, not by reference. `recognise_section_recesses` runs the orchestrator to
+    # project a completed run, so it lives in `result.py` with the other views; importing
+    # it here would put `result` back in this module's chain and close the cycle through
+    # `_registry`. `tests/test_registry.py` resolves the name, so a rename still fails.
+    public_entrypoint="recognise_section_recesses",
+    dependencies=(),
+    applicable=always,
+    discover=_discover,
+    census=Counted("section_recess"),
+    attribution=FullyAttributed(
+        "every SectionRecess publishes its original wall faces and complete constituent set"
+    ),
+    evidence=ManifestEvidence(
+        golden_paths=(
+            "tests/section_recess_expected.json",
+            "tests/section_recess_geometry_expected.json",
+        ),
+        tests=(
+            "tests/test_section_recesses.py",
+            "tests/test_section_recess_geometry_golden.py",
+            "tests/test_section_recess_migration.py",
+            "tests/test_section_adapter_rounding.py",
+            "tests/test_corner_section.py",
+            "tests/test_section_recess_cutover.py",
+            "tests/test_open_channel_section.py",
+        ),
+        extra_records=(
+            ("ClosedSectionProfile", "nested", ()),
+            ("CylindricalEndSurface", "nested", ()),
+            ("OpenSectionProfile", "nested", ()),
+            ("PassageFrame", "nested", ()),
+            ("PassageSection", "nested", ()),
+            ("PassageSectionVertex", "nested", ()),
+            ("PlanarEndSurface", "nested", ()),
+            ("PlanarEndTerm", "nested", ()),
+            ("PlanarEnvelopeEndSurface", "nested", ()),
+            ("SectionEnd", "nested", ()),
+            ("SectionRecessArray", "projection", ("RecognitionResult.section_recess_patterns",)),
+            ("SectionRecessBodyRef", "nested", ()),
+            ("SectionRecessClassification", "nested", ()),
+            ("SectionRecessDocument", "aggregate", ()),
+            ("SectionRecessEnds", "nested", ()),
+            ("SectionRecessEvidence", "nested", ()),
+            ("SectionRecessFaceRef", "nested", ()),
+            ("SectionRecessGeometry", "nested", ()),
+            ("SectionRecessGrid", "projection", ("RecognitionResult.section_recess_patterns",)),
+            ("SectionRecessRefusal", "projection", ("RecognitionResult.section_recess_refusals",)),
+        ),
+    ),
+)

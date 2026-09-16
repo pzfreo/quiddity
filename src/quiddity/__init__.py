@@ -193,6 +193,8 @@ from quiddity.result import (
     RecognitionResult,
     build_raw_recognition_result,
     build_recognition_result,
+    build_section_recess_document,
+    recognise_section_recesses,
 )
 from quiddity.section_recesses import (
     ClosedSectionProfile,
@@ -213,8 +215,6 @@ from quiddity.section_recesses import (
     SectionRecessGeometry,
     SectionRecessGrid,
     SectionRecessRefusal,
-    build_section_recess_document,
-    recognise_section_recesses,
 )
 from quiddity.slots import (
     Slot,

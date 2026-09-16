@@ -237,21 +237,37 @@ manifest entry at all, so it declares no evidence either, as `rectangular_blind_
 
 The module that declares a family also defines its record types. That has been true of every
 declared family, and `tests/test_registry.py` now says so rather than leaving it to habit. Add an
-exception there -- keyed by the `FamilyId` or `DerivedId` member name, with its own reason -- when moving the
-records would cost more than the convention is worth. Two reasons have come up so far, and they
-are different, so write the one that applies rather than copying a neighbour's.
+exception there -- keyed by the `FamilyId` or `DerivedId` member name, with its own reason -- when
+moving the records would cost more than the convention is worth. Write the reason that applies
+rather than copying a neighbour's: the six entries there today have three different ones.
 
-The records may sit **below** the machinery that reads them: `slots.py` declares three families
-whose records live in `_recess_records`, which the recess machinery imports and constructs at
-runtime, so moving them closes a cycle through `_recess_features`. The pattern records have the
-same problem by a shorter route, through `_recess_patterns` alone.
+The records may sit **below** the machinery that reads them. `slots.py` declares three families
+whose records live in `_recess_records`, which eight modules import and three construct from, so
+moving them closes a cycle through `_recess_features`. Its two pattern families reach the same
+problem by a shorter route, through `_recess_patterns` alone.
 
-Or the record may belong to a **cluster** that should not be split: `section_recesses`' public
-record is one of seventeen profile, end, geometry and projection types that are only
-comprehensible together, so moving it alone breaks up the cluster and moving all seventeen makes
-the family module about seven times its size.
+A record may also belong to a **cluster** that should not be split. `_section_recess` holds
+seventeen profile, end, geometry and projection types that are only comprehensible together, so
+moving `SectionRecess` alone would break up the cluster and moving all seventeen would make the
+family module about seven times its size. `section_recesses` declares itself and leaves its
+records where they are.
 
 The exception is family-granular, so listing one exempts all of that family's records.
+
+A function that **runs the orchestrator and projects one family's share of the result** is a view,
+not a recogniser, and does not belong in the family module. Views live in `result.py`, beside the
+`build_raw_recognition_result` they all call: that is the rule, so that the next one does not
+relitigate it. (`evidence`, `frames`, `census` and `explanations` are older, larger views that
+predate it and have modules of their own; a new one needs a module only when it grows to that
+size.) `recognise_section_recesses` and `build_section_recess_document` used to sit in
+`section_recesses.py`, which meant the module declaring the family also reached `result`, and
+`result` reaches `_registry`. Moving them where their role puts them is what lets that family
+declare itself at all.
+
+Where a family's core genuinely cannot run standalone -- `discover_section_recesses` needs the
+run's writer and its shared effective surfaces -- name `public_entrypoint` as a string rather than
+by reference, since importing the view back would put `result` in the module's chain again. A
+rename is still caught, by `tests/test_registry.py` and three other suites rather than at import.
 
 `DEFINITION` is the name only where the module declares one family. A module declaring several
 families names each declaration after its family instead, as `polygonal_bosses.py` does with
