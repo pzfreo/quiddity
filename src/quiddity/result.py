@@ -147,8 +147,7 @@ MIGRATED: frozenset[str] = frozenset(
 ) | frozenset(
     definition.public_entrypoint
     for definition in DERIVED_DEFINITIONS
-    if definition.public_entrypoint is not None
-    and definition.identifier not in {DerivedId.POCKET_PATTERNS, DerivedId.PASSAGES_COMPAT}
+    if definition.identifier is not DerivedId.POCKET_PATTERNS
 )
 
 

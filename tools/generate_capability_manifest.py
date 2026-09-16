@@ -80,7 +80,6 @@ def _registry_families() -> dict[str, dict[str, object]]:
     ] + [
         (d.public_entrypoint, "derived", d.record_types, d.result_field, d.census, d.evidence, d)
         for d in DERIVED_DEFINITIONS
-        if d.public_entrypoint is not None
     ]
     for (
         entrypoint,
