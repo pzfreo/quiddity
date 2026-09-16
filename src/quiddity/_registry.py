@@ -37,6 +37,7 @@ from quiddity import (
     rectangular_blind_slots,
     repeating_profiles,
     round_bottom_slots,
+    slots,
     through_steps,
     turned,
 )
@@ -71,11 +72,6 @@ from quiddity._features import (
 )
 from quiddity._hole_features import _discover_bosses, _discover_holes
 from quiddity._passage_compat import PassageCompatibilityView, passage_from_view
-from quiddity._recess_features import (
-    _discover_channels,
-    _discover_pockets,
-    _discover_slots,
-)
 from quiddity._section_recess import SectionRecess
 from quiddity._section_recess_discovery import discover_section_recesses
 from quiddity.countersinks import CounterSink
@@ -83,17 +79,6 @@ from quiddity.passages import (
     Passage,
     SectionPassage,
     recognise_section_passages,
-)
-from quiddity.slots import (
-    Channel,
-    Pocket,
-    PocketArray,
-    PocketGrid,
-    Slot,
-    SlotArray,
-    SlotGrid,
-    recognise_pocket_patterns,
-    recognise_slot_patterns,
 )
 
 # Internal detector identities survive the public SectionRecess schema replacement so that
@@ -241,14 +226,6 @@ def _hole_patterns(inputs: AcceptedInputs) -> list[object]:
     return list(recognise_hole_patterns(inputs.records(FamilyId.HOLES, HoleRecord)))
 
 
-def _slot_patterns(inputs: AcceptedInputs) -> list[object]:
-    return list(recognise_slot_patterns(inputs.records(FamilyId.SLOTS, Slot)))
-
-
-def _pocket_patterns(inputs: AcceptedInputs) -> list[object]:
-    return list(recognise_pocket_patterns(inputs.records(FamilyId.POCKETS, Pocket)))
-
-
 def _passages_compat(
     inputs: AcceptedProjectionInputs, projection: ProjectionInputs
 ) -> list[object]:
@@ -303,59 +280,13 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
     ),
     polygonal_bosses.BOSSES,
     polygonal_bosses.STOCK,
-    PhysicalDefinition(
-        FamilyId.CHANNELS,
-        (Channel,),
-        "channels",
-        "recognise_channels",
-        (),
-        always,
-        simple(
-            lambda s: list(
-                _discover_channels(
-                    s.context.part,
-                    face_edges=s.context.face_edges,
-                    writer=s.writer,
-                )
-            )
-        ),
-        NotCounted("Counted once through the unified section_recess projection"),
-        FullyAttributed("every returned Channel owns its exact two opposed side-wall faces"),
-    ),
-    PhysicalDefinition(
-        FamilyId.SLOTS,
-        (Slot,),
-        "slots",
-        "recognise_slots",
-        (),
-        always,
-        simple(
-            lambda s: list(
-                _discover_slots(s.context.part, writer=s.writer, face_edges=s.context.face_edges)
-            )
-        ),
-        Counted("slot"),
-        FullyAttributed("every returned Slot owns its complete selected wall and cap faces"),
-    ),
+    slots.CHANNELS,
+    slots.SLOTS,
     rectangular_blind_slots.DEFINITION,
     round_bottom_slots.DEFINITION,
     grooves.DEFINITION,
     flats.DEFINITION,
-    PhysicalDefinition(
-        FamilyId.POCKETS,
-        (Pocket,),
-        "pockets",
-        "recognise_pockets",
-        (),
-        always,
-        simple(
-            lambda s: list(
-                _discover_pockets(s.context.part, writer=s.writer, face_edges=s.context.face_edges)
-            )
-        ),
-        NotCounted("Counted once through the unified section_recess projection"),
-        FullyAttributed("every returned Pocket owns its selected walls, corner floor, or caps"),
-    ),
+    slots.POCKETS,
     prismatic_pockets.DEFINITION,
     edge_open_circular_recesses.DEFINITION,
     edge_open_prismatic_recesses.DEFINITION,
@@ -425,25 +356,9 @@ DERIVED_DEFINITIONS: tuple[DerivedDefinition, ...] = (
         _hole_patterns,
         Counted("hole_pattern"),
     ),
-    DerivedDefinition(
-        DerivedId.SLOT_PATTERNS,
-        (SlotArray, SlotGrid),
-        "slot_patterns",
-        "recognise_slot_patterns",
-        (FamilyId.SLOTS,),
-        _slot_patterns,
-        NotCounted("not a distinct census key"),
-    ),
+    slots.SLOT_PATTERNS,
     oriented_slots.PATTERNS,
-    DerivedDefinition(
-        DerivedId.POCKET_PATTERNS,
-        (PocketArray, PocketGrid),
-        "pocket_patterns",
-        "recognise_pocket_patterns",
-        (FamilyId.POCKETS,),
-        _pocket_patterns,
-        NotCounted("not a distinct census key"),
-    ),
+    slots.POCKET_PATTERNS,
     gussets.PATTERNS,
     DerivedDefinition(
         DerivedId.PASSAGES_COMPAT,

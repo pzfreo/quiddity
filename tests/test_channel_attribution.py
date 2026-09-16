@@ -874,14 +874,15 @@ def test_channel_private_core_and_registry_writer_route_are_closed() -> None:
             for name, call in _qualified_calls(tree)
             if name == "_discover_channels" or name.endswith("._discover_channels")
         )
-    assert {name for name, _call in sites} == {"_recess_features.py", "_registry.py"}
-    registry = next(call for name, call in sites if name == "_registry.py")
-    writer = {keyword.arg: keyword.value for keyword in registry.keywords}["writer"]
+    # The declaration is in `slots.py`, the core and public entry point in `_recess_features.py`.
+    assert sorted(name for name, _call in sites) == ["_recess_features.py", "slots.py"]
+    declared = next(call for name, call in sites if name == "slots.py")
+    writer = {keyword.arg: keyword.value for keyword in declared.keywords}["writer"]
     assert (
         isinstance(writer, ast.Attribute)
         and writer.attr == "writer"
         and isinstance(writer.value, ast.Name)
-        and writer.value.id == "s"
+        and writer.value.id == "services"
     )
 
     feature_tree = ast.parse(
