@@ -2,12 +2,15 @@
 # Copyright 2024-2026 Paul Fremantle
 
 import ast
+import importlib.util
 import inspect
+import sys
 import types
 import typing
 from dataclasses import fields, replace
 from inspect import signature
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 from build123d import Box, BuildPart, BuildSketch, Mode, Pos, RegularPolygon, extrude
@@ -38,6 +41,8 @@ from quiddity._registry import (
 )
 from quiddity.census import CENSUS_BINDINGS, CENSUS_KEYS
 from quiddity.result import MIGRATED, PHYSICAL_FAMILIES, _take_inventory
+
+ROOT = Path(__file__).parents[1]
 
 
 def test_registry_is_the_closed_ordered_internal_roster() -> None:
@@ -595,3 +600,104 @@ def test_every_family_says_something_different_about_what_it_claims() -> None:
         "Counted once through the unified section_recess projection",
         "not a distinct census key",
     }
+
+
+#: Declared families whose records are deliberately defined next door, and why. Asserted exactly
+#: and with the reasons required to be non-empty, because the default is that a family owns them.
+RECORDS_DEFINED_NEXT_DOOR: dict[str, str] = {}
+
+
+def _classes_defined_in(path: Path) -> set[str]:
+    """The classes whose `class` statement is in *path*, read from the source."""
+
+    return {
+        node.name
+        for node in ast.parse(path.read_text(encoding="utf-8")).body
+        if isinstance(node, ast.ClassDef)
+    }
+
+
+def _defining_file(record: type) -> str:
+    """Where *record*'s `class` statement really is, for the failure message.
+
+    `inspect.getfile` would name the module that re-exported it, which is the very confusion this
+    test exists to catch; reporting it would send a reader to the wrong file.
+    """
+
+    for path in sorted((ROOT / "src" / "quiddity").glob("*.py")):
+        if record.__name__ not in _classes_defined_in(path):
+            continue
+        module = sys.modules.get(f"quiddity.{path.stem}")
+        if module is not None and getattr(module, record.__name__, None) is record:
+            return path.name
+    return "(not found in the package)"
+
+
+def _declaring_module(definition: object) -> ModuleType | None:
+    """The package module holding *definition* as a module-level name, if any."""
+
+    for module in list(sys.modules.values()):
+        name = getattr(module, "__name__", "")
+        if not name.startswith("quiddity.") or getattr(module, "__file__", None) is None:
+            continue
+        if any(value is definition for value in vars(module).values()):
+            return module
+    return None
+
+
+def test_a_declared_family_defines_its_own_record_types() -> None:
+    """A family module owns its records, unless it is named above with a reason.
+
+    True of every declared family since the migration began, but only by habit -- nothing said so,
+    so nothing would have noticed the first to drift.
+
+    Two things have to be read rather than asked for. **Where** a class is defined: `__module__` is
+    not it, and neither is `inspect.getsourcefile`, which for a class is only `__module__` resolved
+    to a filename. Six modules here rewrite `__module__` on names they publish elsewhere, and
+    twelve of the fifteen record types still to be declared sit behind one: `Slot` reports
+    `quiddity.slots` while its `class` statement is in `_recess_records.py`. And
+    **which** class it is: matching on `__name__` alone would let a foreign record in under a local
+    name, so the name found in the source must also resolve back to this very record.
+
+    The module measured is the one holding the declaration, not the one holding the discoverer.
+    Those are the same module today, and the rule is about the former: moving a `def` next to the
+    records it wants would otherwise sidestep the rule rather than take the exception.
+    """
+
+    spec = importlib.util.spec_from_file_location(
+        "generate_capability_manifest", ROOT / "tools" / "generate_capability_manifest.py"
+    )
+    assert spec is not None and spec.loader is not None
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+
+    elsewhere: dict[str, dict[str, str]] = {}
+    declared = 0
+    for definition in (*PHYSICAL_DEFINITIONS, *DERIVED_DEFINITIONS):
+        if not tool._is_module_declared(definition):
+            continue  # still described by a registry literal
+        declared += 1
+        module = _declaring_module(definition)
+        assert module is not None, f"{definition} is declared but bound to no module-level name"
+        defined_here = _classes_defined_in(Path(module.__file__))
+        strays = {
+            record.__name__: _defining_file(record)
+            for record in definition.record_types
+            if record.__name__ not in defined_here
+            or getattr(module, record.__name__, None) is not record
+        }
+        if strays:
+            family = getattr(definition, "family", None) or definition.identifier
+            elsewhere[family.name] = strays
+
+    # Guards the sweep itself: a predicate that stopped matching would otherwise pass vacuously.
+    assert declared == 28
+
+    assert all(RECORDS_DEFINED_NEXT_DOOR.values()), "an exception needs a reason, not just a key"
+    unexplained = {
+        family: strays
+        for family, strays in elsewhere.items()
+        if family not in RECORDS_DEFINED_NEXT_DOOR
+    }
+    assert unexplained == {}
+    assert sorted(set(RECORDS_DEFINED_NEXT_DOOR) - set(elsewhere)) == []
