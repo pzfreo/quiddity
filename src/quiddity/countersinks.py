@@ -119,6 +119,10 @@ def countersink_matches_hole(countersink: CounterSink, hole: _HoleLike) -> bool:
     association establishes which recognised bore mouth it belongs to. Keep that geometry
     predicate recognition-owned so feature construction and downstream completeness cannot
     drift.
+
+    It keys on the minor circle at a bore *end* rather than on the bore itself, for two
+    reasons: the answer is then independent of which end `recognise_holes` happened to call the
+    opening, and a separate coaxial hole on the opposite face cannot claim the same cone.
     """
     minor = tuple(
         countersink.location[index] + countersink.depth * countersink.axis[index]

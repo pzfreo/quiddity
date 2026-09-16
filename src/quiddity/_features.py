@@ -9,24 +9,6 @@ from quiddity._cylinder_substrate import (
     analyse_cylinders,
     full_cylinders,
 )
-from quiddity._hole_features import (
-    BossRecord,
-    CounterBore,
-    HoleRecord,
-    feature_diameters,
-    recognise_bosses,
-    recognise_holes,
-)
-from quiddity._hole_patterns import (
-    BoltCircle,
-    HoleSpec,
-    LinearArray,
-    RectGrid,
-    recognise_hole_patterns,
-)
-from quiddity._hole_patterns import (
-    _bolt_circle_candidates as _bolt_circle_candidates,
-)
 from quiddity._pattern_geometry import (
     _linear_array_candidates as _linear_array_candidates,
 )
@@ -37,7 +19,22 @@ from quiddity._pattern_geometry import (
     _rect_grid as _rect_grid,
 )
 from quiddity._typing import Vector3 as Vector3
+from quiddity.bosses import BossRecord, recognise_bosses
 from quiddity.countersinks import CounterSink as CounterSink
+from quiddity.diameters import feature_diameters
+from quiddity.holes import (
+    BoltCircle,
+    CounterBore,
+    HoleRecord,
+    HoleSpec,
+    LinearArray,
+    RectGrid,
+    recognise_hole_patterns,
+    recognise_holes,
+)
+from quiddity.holes import (
+    _bolt_circle_candidates as _bolt_circle_candidates,
+)
 
 __all__ = [
     "BoltCircle",

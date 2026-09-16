@@ -21,12 +21,12 @@ import quiddity.result as result_module
 from quiddity._adjacency import FaceGraph
 from quiddity._candidates import FamilyId
 from quiddity._claims import ClaimLedger
+from quiddity._definitions import AcceptedInputs
 from quiddity._record import Record
 from quiddity._registry import (
     DERIVED_DEFINITIONS,
     PHYSICAL_DEFINITIONS,
     PROJECTION_DEFINITIONS,
-    AcceptedInputs,
     AcceptedProjectionInputs,
     Counted,
     DerivedId,
@@ -677,7 +677,7 @@ def test_a_declared_family_defines_its_own_entry_point() -> None:
             family = getattr(definition, "family", None) or definition.identifier
             elsewhere.add(family.name)
 
-    assert checked == 34
+    assert checked == 37
     assert all(ENTRYPOINT_DEFINED_NEXT_DOOR.values()), "an exception needs a reason, not just a key"
     assert elsewhere == set(ENTRYPOINT_DEFINED_NEXT_DOOR)
 
@@ -766,7 +766,7 @@ def test_a_declared_family_defines_its_own_record_types() -> None:
             elsewhere[family.name] = strays
 
     # Guards the sweep itself: a predicate that stopped matching would otherwise pass vacuously.
-    assert declared == 34
+    assert declared == 37
 
     assert all(RECORDS_DEFINED_NEXT_DOOR.values()), "an exception needs a reason, not just a key"
     unexplained = {

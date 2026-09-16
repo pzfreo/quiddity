@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2024-2026 Paul Fremantle
-"""Hole and boss records and recognition over the shared cylinder substrate."""
+"""Recognition of cylindrical holes, their counterbores and spotfaces, and their patterns."""
 
 import math
 from collections.abc import Sequence
@@ -10,65 +10,61 @@ from typing import cast
 from build123d import Face
 from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.GeomAbs import (
-    GeomAbs_BezierSurface,
-    GeomAbs_BSplineSurface,
     GeomAbs_Cone,
-    GeomAbs_Cylinder,
-    GeomAbs_Plane,
-    GeomAbs_Sphere,
     GeomAbs_Torus,
 )
 
 from quiddity._adjacency import (
     FaceEdges,
     FaceNode,
-    GraphRunToken,
     edge_face_map,
-    frame_points_outward,
     neighbours,
 )
-from quiddity._candidates import CompletedOccurrence, FamilyId
+from quiddity._candidates import CompletedInputs, CompletedOccurrence, DerivedId, FamilyId
 from quiddity._claims import EvidenceWriter
+from quiddity._cylinder_stacks import (
+    SegmentEvidence,
+    _axis_point,
+    _classify_end,
+    _end_partners,
+    _family_surface_query,
+    _full_cyls,
+    _segments,
+)
 from quiddity._cylinder_substrate import (
     _STACK_GAP_FRAC,
-    _cyl_group_key,
     _line_key,
     _merge_runs,
     analyse_cylinders,
-    full_cylinders,
+)
+from quiddity._definitions import (
+    AcceptedInputs,
+    Counted,
+    DerivedDefinition,
+    DiscoveryServices,
+    FullyAttributed,
+    ManifestEvidence,
+    PhysicalDefinition,
+    always,
 )
 from quiddity._effective_surfaces import (
-    AnalyticSurfaceFact,
     EffectiveFaceSurfaceQuery,
-    EffectiveSurfaceFact,
-    SurfaceKind,
     SurfaceUse,
     SurfaceUseRefusal,
-    SurfaceUseResult,
     cylinder_surface_dependency,
-    effective_faces_for_graph,
-    effective_faces_for_part,
 )
 from quiddity._geometry import dot, length_tol, quantise, without_negative_zero
+from quiddity._pattern_geometry import (
+    _PATTERN_ABS_TOL,
+    _linear_array_candidates,
+    _pattern_tol,
+    _plane_uv,
+    _rect_grid,
+)
 from quiddity._record import Record
-from quiddity._typing import CylinderEvidence, CylinderInventory, FaceLike, Part, Vector3
+from quiddity._typing import CylinderInventory, Part, Vector3
 from quiddity.countersinks import CounterSink, countersink_matches_hole
 
-
-class SegmentEvidence(CylinderEvidence):
-    """One coaxial cylinder segment: a :class:`CylinderEvidence` plus the patches it merged.
-
-    Defined here rather than in ``_typing`` because it is internal — ``CylinderEvidence`` is
-    published for downstream compatibility, this is not. It exists because ``_segments`` widens
-    each cylinder record with the faces of every patch it absorbed, so annotating a segment
-    ``CylinderEvidence`` would be *wrong* rather than merely imprecise: the extra key is what
-    the end-classification walk reads.
-    """
-
-    faces: list[Face]
-
-
-_full_cyls = full_cylinders
 #: Two cylinder patches are the same diameter. NOT a machining allowance: `analyse_cylinders`
 #: quantises every diameter to six significant figures, so this is an equality test on those
 #: quantised values rather than a tolerance on a length. Named because a bare number here reads
@@ -79,43 +75,10 @@ _full_cyls = full_cylinders
 #: twentieth, 0.01 mm is 8% of a 0.125 mm band, so patches of visibly different diameter
 #: compared equal.
 _SAME_DIAMETER_FRAC = 1e-4
+
+
 #: Smallest diameter the proportional test will divide by; see `_same_diameter`.
 _DIAMETER_FLOOR = 1e-9
-
-
-class _LazyPartSurfaceQuery:
-    """Defer the standalone recovery graph until a spline face actually needs it."""
-
-    def __init__(self, part: Part) -> None:
-        self._part = part
-        self._delegate: EffectiveFaceSurfaceQuery | None = None
-
-    def _query(self) -> EffectiveFaceSurfaceQuery:
-        if self._delegate is None:
-            self._delegate = effective_faces_for_part(self._part)
-        return self._delegate
-
-    @property
-    def run_token(self) -> GraphRunToken:
-        return self._query().run_token
-
-    def fact(self, face: FaceLike) -> EffectiveSurfaceFact:
-        return self._query().fact(face)
-
-    def use(self, face: FaceLike, *, material_side: bool = False) -> SurfaceUseResult:
-        return self._query().use(face, material_side=material_side)
-
-
-def _family_surface_query(
-    part: Part,
-    writer: EvidenceWriter | None,
-    supplied: EffectiveFaceSurfaceQuery | None,
-) -> EffectiveFaceSurfaceQuery | None:
-    if supplied is not None:
-        return supplied
-    if writer is not None:
-        return effective_faces_for_graph(writer.graph)
-    return _LazyPartSurfaceQuery(part)
 
 
 def _same_diameter(a: float, b: float) -> bool:
@@ -125,10 +88,6 @@ def _same_diameter(a: float, b: float) -> bool:
     # below `quantise`'s own resolution at any size this package sees, so it never decides a
     # real comparison -- it only stops one from dividing the world by nothing.
     return abs(a - b) <= _SAME_DIAMETER_FRAC * max(abs(a), abs(b), _DIAMETER_FLOOR)
-
-
-# A counterbore-like step shallower than this fraction of its diameter is a spotface.
-_SPOTFACE_MAX_RATIO = 0.2
 
 
 @dataclass(frozen=True)
@@ -198,57 +157,6 @@ class _HoleProposal:
     matching_csinks: tuple[CounterSink, ...]
 
 
-@dataclass(frozen=True)
-class BossRecord(Record):
-    """An external cylindrical boss (including a turned part's OD).
-
-    ``axis`` points from the base toward the free end, ``location`` is the
-    axis point at the free end, and ``height`` the axial extent.
-    """
-
-    axis: Vector3
-    location: Vector3
-    diameter: float
-    height: float
-
-
-@dataclass(frozen=True, slots=True)
-class _BossProposal:
-    record: BossRecord
-    segment_faces: tuple[Face, ...]
-    terminal_faces: tuple[Face, ...]
-
-
-def _segments(cyls: list[CylinderEvidence]) -> list[SegmentEvidence]:
-    """Collapse cylinder patches into segments: one per (axis line, diameter,
-    contiguous axial range). Keyway-split patches of one bore merge; coaxial
-    same-diameter holes from opposite faces stay separate."""
-    # cast rather than a TypedDict literal: `dict(run[0], ...)` carries the ten keys of the
-    # source record forwards, and respelling them here would be a second place to keep in step
-    # with `CylinderEvidence`.
-    return [
-        cast(
-            SegmentEvidence,
-            dict(
-                run[0],
-                s_lo=min(p["s_lo"] for p in run),
-                s_hi=max(p["s_hi"] for p in run),
-                faces=[p["face"] for p in run],
-            ),
-        )
-        for run in _merge_runs(cyls, _cyl_group_key)
-    ]
-
-
-def _axis_point(seg: SegmentEvidence, s: float) -> tuple[float, float, float]:
-    """The 3D point on *seg*'s axis at axial coordinate *s*."""
-    ax, ay, az = seg["axis_xyz"]
-    dx, dy, dz = seg["dir_xyz"]
-    s_ap = ax * dx + ay * dy + az * dz
-    t = s - s_ap
-    return (ax + t * dx, ay + t * dy, az + t * dz)
-
-
 def _canonical_hole_axis_point(seg: SegmentEvidence, s: float) -> tuple[float, float, float]:
     """Remove the final kernel-noise digit from a reconstructed Hole location."""
 
@@ -257,196 +165,6 @@ def _canonical_hole_axis_point(seg: SegmentEvidence, s: float) -> tuple[float, f
     # significant figures removes their last kernel-noise digit while remaining far tighter than
     # the public record serializer and all length predicates.
     return tuple(quantise(value, figures=11) for value in measured)  # type: ignore[return-value]
-
-
-def _end_partners(
-    seg: SegmentEvidence, s_end: float, edge_faces: dict, cache: dict | None = None
-) -> list:
-    """The faces beyond one axial end of *seg*: partners of edges that lie at
-    that end. An opening edge on a slanted or curved surface dips away from
-    the end plane (by the lip sagitta), so edges match within a margin — but
-    stay well clear of the segment's other end.
-
-    *cache* (optional) memoises the result per ``(seg, s_end)`` within one
-    ``recognise_holes``/``recognise_bosses`` call — the same end is classified several
-    times (``_merge_stacks`` plus the main loop), and each scan walks every
-    face's edges. The seg is stored in the cached value so an ``is`` check
-    rejects (and pins against) any ``id`` reuse."""
-    if cache is not None:
-        key = ("ep", id(seg), round(s_end, 9))
-        hit = cache.get(key)
-        if hit is not None and hit[0] is seg:
-            # cast, not a copy: the cache exists to avoid re-walking every face's edges, and
-            # rebuilding the list on each hit would undo that. The value's type is fixed by
-            # where it is written, a few lines below.
-            return cast(list, hit[1])
-    dx, dy, dz = seg["dir_xyz"]
-    margin = max(
-        length_tol(seg["diameter"], rel=_STACK_GAP_FRAC),
-        min(0.45 * (seg["s_hi"] - seg["s_lo"]), 0.5 * seg["diameter"]),
-    )
-    partners = []
-    for face in seg["faces"]:
-        for edge in face.edges():
-            pts = [edge.center()] + [v.center() for v in edge.vertices()]
-            if not all(abs(p.X * dx + p.Y * dy + p.Z * dz - s_end) <= margin for p in pts):
-                continue
-            for partner in edge_faces.get(edge, ()):
-                if not any(partner.is_same(f) for f in seg["faces"]):
-                    partners.append(partner)
-    if cache is not None:
-        cache[key] = (seg, partners)
-    return partners
-
-
-def _classify_end(
-    seg: SegmentEvidence,
-    s_end: float,
-    hi_end: bool,
-    edge_faces: dict,
-    cache: dict | None = None,
-    face_surfaces: EffectiveFaceSurfaceQuery | None = None,
-    *,
-    terminal_faces: list[Face] | None = None,
-) -> str:
-    """Cached wrapper over :func:`_classify_end_uncached` (see *cache* there)."""
-    retained: list[Face] = []
-    if cache is None:
-        result = _classify_end_uncached(
-            seg,
-            s_end,
-            hi_end,
-            edge_faces,
-            face_surfaces=face_surfaces,
-            terminal_faces=retained,
-        )
-        if terminal_faces is not None:
-            terminal_faces.extend(retained)
-        return result
-    key = ("ce", id(seg), round(s_end, 9), hi_end)
-    hit = cache.get(key)
-    if hit is not None and hit[0] is seg:
-        if terminal_faces is not None:
-            terminal_faces.extend(hit[2])
-        return cast(str, hit[1])
-    result = _classify_end_uncached(
-        seg,
-        s_end,
-        hi_end,
-        edge_faces,
-        cache,
-        face_surfaces=face_surfaces,
-        terminal_faces=retained,
-    )
-    cached_faces = tuple(retained)
-    cache[key] = (seg, result, cached_faces)
-    if terminal_faces is not None:
-        terminal_faces.extend(cached_faces)
-    return result
-
-
-def _classify_end_uncached(
-    seg: SegmentEvidence,
-    s_end: float,
-    hi_end: bool,
-    edge_faces: dict,
-    cache: dict | None = None,
-    face_surfaces: EffectiveFaceSurfaceQuery | None = None,
-    *,
-    terminal_faces: list[Face] | None = None,
-) -> str:
-    """Classify one axial end of a cylinder segment from the face beyond it.
-
-    Returns ``"open"`` (the bore exits, or the boss's free end), ``"flat"``
-    (closed by a plane facing back into the segment, or a boss's base),
-    ``"drill_point"`` (a bore closed by a cone), or ``"unknown"``.
-
-    Planes, cones, and tori are decisive; a curved wall (cylinder/sphere) is
-    a weak signal — an exit for a bore, a base for a boss — that only counts
-    when no decisive partner is present (a crossing port near a flat bottom
-    must not outvote the bottom).
-
-    An adjacent cone is read through the segment's internal/external context
-    and its apex direction: for a bore, apex outward closes it (drill point)
-    while apex inward widens it (an entry chamfer or countersink — open);
-    for a boss the senses flip (apex outward is a chamfered free end, apex
-    inward a base draft).  Tori follow the corner they round: one curling
-    inward (major radius below the segment's) is a closed corner — a blind
-    bore's bottom or a boss's base — and one flaring outward is an opening
-    lip or a free end.
-    """
-    dx, dy, dz = seg["dir_xyz"]
-    e_sign = 1.0 if hi_end else -1.0
-    weak: tuple[str, tuple[Face, ...]] | None = None
-
-    def classified(state: str, *faces: Face) -> str:
-        if terminal_faces is not None:
-            terminal_faces.extend(faces)
-        return state
-
-    for partner in _end_partners(seg, s_end, edge_faces, cache):
-        surf = BRepAdaptor_Surface(partner.wrapped)
-        kind = surf.GetType()
-        if kind == GeomAbs_Cone:
-            cone = surf.Cone()
-            apex = cone.Apex()
-            apex_s = apex.X() * dx + apex.Y() * dy + apex.Z() * dz
-            outward = (apex_s - s_end) * e_sign > 0
-            if not seg["external"]:
-                if outward:
-                    # A deburr chamfer on a flat floor's rim is also an
-                    # apex-outward cone — closed either way, but it has the
-                    # floor plane right next to it where a true drill point
-                    # has nothing beyond its apex.
-                    for e2 in partner.edges():
-                        for n in edge_faces.get(e2, ()):
-                            if n.is_same(partner) or any(n.is_same(f) for f in seg["faces"]):
-                                continue
-                            n_surf = BRepAdaptor_Surface(n.wrapped)
-                            if n_surf.GetType() != GeomAbs_Plane:
-                                continue
-                            nv = n.normal_at(n.center())
-                            if abs(nv.X * dx + nv.Y * dy + nv.Z * dz) > 0.9:
-                                return classified("flat", n)
-                    return classified("drill_point", partner)
-                return "open"
-            return "open" if outward else "flat"
-        if kind == GeomAbs_Torus:
-            curls_in = surf.Torus().MajorRadius() < seg["diameter"] / 2
-            if not seg["external"]:
-                return "flat" if curls_in else "open"
-            return "open" if curls_in else "flat"
-        if kind == GeomAbs_Plane:
-            n = partner.normal_at(partner.center())
-            normal = (n.X, n.Y, n.Z)
-        elif kind in (GeomAbs_BSplineSurface, GeomAbs_BezierSurface) and face_surfaces is not None:
-            fact = face_surfaces.fact(partner)
-            if not isinstance(fact, AnalyticSurfaceFact) or fact.kind is not SurfaceKind.PLANE:
-                continue
-            plane_use = face_surfaces.use(partner, material_side=True)
-            if not isinstance(plane_use, SurfaceUse) or plane_use.material_side is None:
-                continue
-            normal = plane_use.material_side.outward
-        else:
-            normal = None
-        if normal is not None:
-            alignment = dot(normal, (dx, dy, dz)) * e_sign
-            if alignment < -0.5:
-                return classified("flat", partner)
-            if alignment > 0.5:
-                return classified("open", partner)
-        if kind == GeomAbs_Sphere:
-            # Convex (material inside the sphere): the bore exits through a
-            # spherical surface. Concave (a ball-nose cavity): a closed
-            # bottom — reported as "flat" (no rounded-bottom category).
-            convex = bool(frame_points_outward(partner))
-            if not seg["external"]:
-                weak = ("open" if convex else "flat", (partner,))
-            else:
-                weak = ("flat" if convex else "open", (partner,))
-        elif kind == GeomAbs_Cylinder:
-            weak = ("open" if not seg["external"] else "flat", ())
-    return classified(weak[0], *weak[1]) if weak is not None else "unknown"
 
 
 def _shared_transition(
@@ -580,20 +298,6 @@ def _merge_stacks(
     return merged
 
 
-def _csink_for_hole(h: HoleRecord, csinks: Sequence[CounterSink]) -> CounterSink | None:
-    """The countersink seated on hole *h*, or None. A countersink belongs to the
-    hole when its **minor circle** — where the cone meets the drilled bore — sits coaxially
-    at one of the hole's bore *ends*: the opening (``s`` ≈ 0) or, for a through hole (open
-    at both faces), the far end (``s`` ≈ depth). Keying on the minor-at-a-bore-end (not the
-    opening face, nor the axis direction) makes association independent of which end
-    ``recognise_holes`` happened to call the opening, and still excludes a *separate*
-    coaxial hole on the opposite face — whose own bore ends are elsewhere."""
-    for cs in csinks:
-        if countersink_matches_hole(cs, h):
-            return cs
-    return None
-
-
 def _drilled_from(
     stack: list[SegmentEvidence],
     edge_faces: dict,
@@ -648,6 +352,10 @@ def _drilled_from(
     if bottom_faces is not None and bottom_state in ("flat", "drill_point"):
         bottom_faces.extend(lo_faces if from_hi else hi_faces)
     return from_hi, opening_seg, opening_s, {"open": "through"}.get(bottom_state, bottom_state)
+
+
+# A counterbore-like step shallower than this fraction of its diameter is a spotface.
+_SPOTFACE_MAX_RATIO = 0.2
 
 
 def _near_side_steps(steps: list[SegmentEvidence]) -> _NearSideSelection:
@@ -913,162 +621,324 @@ def _discover_holes(
     return [proposal.record for proposal in proposals]
 
 
-def recognise_bosses(
-    part: Part, *, cyls: CylinderInventory | None = None, face_edges: FaceEdges | None = None
-) -> list[BossRecord]:
-    """Recognise external cylindrical bosses on *part* (one
-    :class:`BossRecord` per coaxial external cylinder segment, including a
-    turned part's OD — callers wanting only local bosses can filter on
-    diameter against the part envelope).
+_BC_SPACING_FRAC = 0.04
 
-    Pass *cyls* — a precomputed ``analyse_cylinders(part)`` result — to avoid
-    re-scanning the solid (mirrors ``recognise_holes``'s parameter, so a caller
-    computing both holes and bosses can share one analysis).
+
+@dataclass(frozen=True)
+class BoltCircle(Record):
+    """≥3 identical holes equally spaced on a circle.
+
+    ``center`` is the world point at the holes' opening plane, ``diameter``
+    the bolt-circle diameter (BCD), ``holes`` the member features.
     """
-    return _discover_bosses(part, cyls=cyls, face_edges=face_edges)
+
+    holes: tuple[HoleRecord, ...]
+    center: Vector3
+    diameter: float
 
 
-def _discover_bosses(
-    part: Part,
-    *,
-    cyls: CylinderInventory | None = None,
-    face_edges: FaceEdges | None = None,
-    writer: EvidenceWriter | None = None,
-    face_surfaces: EffectiveFaceSurfaceQuery | None = None,
-) -> list[BossRecord]:
-    """Discover Bosses and validate every defining segment before publication."""
+@dataclass(frozen=True)
+class LinearArray(Record):
+    """≥3 identical holes collinear at constant pitch.
 
-    effective = _family_surface_query(part, writer, face_surfaces)
-    z_cyls, cross_cyls = (
-        cyls if cyls is not None else analyse_cylinders(part, face_surfaces=effective)
+    ``direction`` is the unit vector from the first hole toward the last
+    (members are ordered along it).
+    """
+
+    holes: tuple[HoleRecord, ...]
+    pitch: float
+    direction: Vector3
+
+
+@dataclass(frozen=True)
+class RectGrid(Record):
+    """A fully-populated rectangular grid of identical holes (an N×M lattice).
+
+    ``rows``×``cols`` holes sit on a regular rectangular lattice; every lattice
+    position is occupied (``rows * cols == len(holes)``). ``center`` is the world
+    point at the grid centroid (opening plane).
+
+    The serialized lattice convention is self-contained: **columns** are spaced
+    ``col_pitch`` apart along the lattice's first basis direction and **rows**
+    ``row_pitch`` apart along the second, and ``angle`` is the COLUMN direction's
+    orientation in degrees within the holes' opening plane, measured in the
+    :func:`quiddity._geometry.plane_axes` frame and normalised to ``[0, 180)``.
+
+    ``[0, 180)`` and not ``[0, 90)``: the lattice is unchanged by a half-turn (its
+    cell set is symmetric about ``center``, so the basis sign carries no
+    information) but a QUARTER-turn swaps rows for columns, which these fields
+    distinguish. Note the first basis is the SHORTEST pairwise vector rather than
+    anything world-aligned, so a grid may legitimately come back with its rows and
+    columns named the other way round — what is fixed is that each count keeps its
+    own pitch, and that the fields describe the same lattice.
+
+    A rectangular *ring* / perimeter (holes only around the edge, interior
+    empty) is not a grid — it is reported as its constituent edge
+    :class:`LinearArray` rows instead.
+    """
+
+    holes: tuple[HoleRecord, ...]
+    rows: int
+    cols: int
+    row_pitch: float
+    col_pitch: float
+    angle: float
+    center: Vector3
+
+
+@dataclass(frozen=True)
+class HoleSpec(Record):
+    """The machining spec shared by holes that are the *same drilled feature*.
+
+    Two holes drilled with the same tool, in the same direction, with the same
+    counterbore/spotface stack have equal :class:`HoleSpec` values (a through
+    drill is the same spec whatever wall it pierces). Because the dataclass is
+    frozen it hashes and compares by value, so it is a stable dict/set key for
+    grouping holes — pattern detection and callout grouping agree when they key
+    on the same :class:`HoleSpec`.
+
+    Build one with :meth:`from_hole`; do not construct the fields by hand (the
+    normalisation in :meth:`from_hole` is part of the contract). ``axis`` is the
+    drilling direction snapped to 6 dp (boolean ops leave ~1e-16 noise on the
+    components, and exact float keys would split a pattern silently). ``depth``
+    is ``None`` for a through hole — its depth is irrelevant to the spec —
+    otherwise the bore depth. Public and stable for downstream consumers.
+    """
+
+    axis: Vector3
+    diameter: float
+    depth: float | None
+    bottom: str
+    cbore: CounterBore | None
+    spotface: CounterBore | None
+    # The countersink's *size* only — ``(major_diameter, included_angle)`` — never its
+    # location, so identical countersunk holes at different positions share one spec.
+    csink: tuple[float, float] | None = None
+
+    @classmethod
+    def from_hole(cls, hole: HoleRecord) -> "HoleSpec":
+        """The :class:`HoleSpec` for *hole* (a :class:`HoleRecord`)."""
+        depth = None if hole.bottom == "through" else hole.depth
+        axis = tuple(0.0 if abs(c) < 1e-6 else round(c, 6) for c in hole.axis)
+        csink = (hole.csink.major_diameter, hole.csink.included_angle) if hole.csink else None
+        return cls(
+            (axis[0], axis[1], axis[2]),
+            hole.diameter,
+            depth,
+            hole.bottom,
+            hole.cbore,
+            hole.spotface,
+            csink,
+        )
+
+
+def _spec_key(h) -> HoleSpec:
+    return HoleSpec.from_hole(h)
+
+
+def _as_bolt_circle(holes, pts: Sequence[tuple[float, float]]) -> BoltCircle | None:
+    """BoltCircle when *pts* (2D) are equally spaced on a common circle."""
+    n = len(pts)
+    cx = sum(p[0] for p in pts) / n
+    cy = sum(p[1] for p in pts) / n
+    radii = [math.hypot(p[0] - cx, p[1] - cy) for p in pts]
+    r = sum(radii) / n
+    if r < _PATTERN_ABS_TOL or max(abs(ri - r) for ri in radii) > _pattern_tol(r):
+        return None
+    angles = sorted(math.atan2(p[1] - cy, p[0] - cx) for p in pts)
+    gaps = [angles[i + 1] - angles[i] for i in range(n - 1)]
+    gaps.append(2 * math.pi - (angles[-1] - angles[0]))
+    even = 2 * math.pi / n
+    if max(abs(g - even) for g in gaps) > _BC_SPACING_FRAC * even:
+        return None
+    center = tuple(sum(c) / n for c in zip(*(h.location for h in holes), strict=True))
+    return BoltCircle(holes=tuple(holes), center=center, diameter=round(2 * r, 2))
+
+
+def _circumcircle(p0, p1, p2) -> tuple[float, float, float] | None:
+    """Centre and radius ``(cx, cy, r)`` of the circle through three 2D points,
+    or ``None`` when they are collinear (so a collinear triple can never seed a
+    bolt circle — collinearity must win, per :func:`recognise_hole_patterns`)."""
+    ax, ay = p0
+    bx, by = p1
+    cx, cy = p2
+    d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by))
+    if abs(d) < 1e-9:
+        return None
+    a2, b2, c2 = ax * ax + ay * ay, bx * bx + by * by, cx * cx + cy * cy
+    ux = (a2 * (by - cy) + b2 * (cy - ay) + c2 * (ay - by)) / d
+    uy = (a2 * (cx - bx) + b2 * (ax - cx) + c2 * (bx - ax)) / d
+    return ux, uy, math.hypot(ax - ux, ay - uy)
+
+
+def _bolt_circle_candidates(
+    members, pts: Sequence[tuple[float, float]]
+) -> list[tuple[BoltCircle, frozenset[int]]]:
+    """All bolt circles within a spec group: every triple seeds a candidate
+    circle, the group's points lying on it are gathered, and the set is kept
+    only if :func:`_as_bolt_circle` confirms it is fully, evenly populated.
+    Returns ``(BoltCircle, frozenset(member indices))`` candidates."""
+    n = len(pts)
+    out, seen = [], set()
+    for i in range(n):
+        for j in range(i + 1, n):
+            for k in range(j + 1, n):
+                circ = _circumcircle(pts[i], pts[j], pts[k])
+                if circ is None:
+                    continue
+                cx, cy, r = circ
+                if r < _PATTERN_ABS_TOL:
+                    continue
+                key = (round(cx, 2), round(cy, 2), round(r, 2))
+                if key in seen:
+                    continue
+                seen.add(key)
+                tol = _pattern_tol(r)
+                idx = [
+                    m
+                    for m in range(n)
+                    if abs(math.hypot(pts[m][0] - cx, pts[m][1] - cy) - r) <= tol
+                ]
+                if len(idx) < 3:
+                    continue
+                pat = _as_bolt_circle([members[m] for m in idx], [pts[m] for m in idx])
+                if pat is not None:
+                    out.append((pat, frozenset(idx)))
+    return out
+
+
+def _mk_hole_linear(members, pitch, direction) -> LinearArray:
+    return LinearArray(holes=tuple(members), pitch=pitch, direction=direction)
+
+
+def _mk_hole_grid(members, rows, cols, row_pitch, col_pitch, angle, center) -> RectGrid:
+    return RectGrid(
+        holes=tuple(members),
+        rows=rows,
+        cols=cols,
+        row_pitch=row_pitch,
+        col_pitch=col_pitch,
+        angle=angle,
+        center=center,
     )
-    external = [c for c in _full_cyls(z_cyls) + _full_cyls(cross_cyls) if c["external"]]
-    if not external:
-        return []
-    edge_faces = edge_face_map(part.faces(), face_edges=face_edges)
-    cache: dict = {}
-
-    proposals: list[_BossProposal] = []
-    for seg in _segments(external):
-        d = seg["dir_xyz"]
-        lo_faces: list[Face] = []
-        hi_faces: list[Face] = []
-        lo_state = _classify_end(
-            seg,
-            seg["s_lo"],
-            False,
-            edge_faces,
-            cache,
-            effective,
-            terminal_faces=lo_faces,
-        )
-        hi_state = _classify_end(
-            seg,
-            seg["s_hi"],
-            True,
-            edge_faces,
-            cache,
-            effective,
-            terminal_faces=hi_faces,
-        )
-        # The free end is the open one (its cap faces away from the segment);
-        # default to the high end when both or neither are open.
-        from_hi = not (lo_state == "open" and hi_state != "open")
-        proposals.append(
-            _BossProposal(
-                BossRecord(
-                    axis=without_negative_zero(d if from_hi else tuple(-c for c in d)),
-                    location=_axis_point(seg, seg["s_hi"] if from_hi else seg["s_lo"]),
-                    diameter=seg["diameter"],
-                    height=round(seg["s_hi"] - seg["s_lo"], 2),
-                ),
-                tuple(seg["faces"]),
-                tuple(hi_faces if from_hi and hi_state == "open" else lo_faces)
-                if (hi_state if from_hi else lo_state) == "open"
-                else (),
-            )
-        )
-
-    if writer is not None:
-        assert effective is not None
-        pending: list[tuple[BossRecord, tuple[FaceNode, ...], tuple[FaceNode, ...]]] = []
-        for proposal in proposals:
-            resolved = {writer.graph.require_node(face) for face in proposal.segment_faces}
-            nodes = tuple(node for node in writer.graph.nodes if node in resolved)
-            if not nodes:
-                raise ValueError("Boss defining faces do not prove one valid solid")
-            terminal_resolved = {
-                writer.graph.require_node(face) for face in proposal.terminal_faces
-            }
-            if resolved & terminal_resolved:
-                raise ValueError("Boss terminal identity aliases cylindrical evidence")
-            terminal_nodes = tuple(node for node in writer.graph.nodes if node in terminal_resolved)
-            members = (*nodes, *terminal_nodes)
-            solid = writer.graph.common_valid_solid(members)
-            if solid is None:
-                raise ValueError("Boss defining faces do not prove one valid solid")
-            pending.append((proposal.record, nodes, members))
-        issued_pending: list[
-            tuple[BossRecord, tuple[FaceNode, ...], tuple[FaceNode, ...], tuple[SurfaceUse, ...]]
-        ] = []
-        for record, nodes, members in pending:
-            issued = tuple(
-                cylinder_surface_dependency(effective, writer.graph.face(node)) for node in nodes
-            )
-            if any(isinstance(use, SurfaceUseRefusal) for use in issued):
-                raise ValueError("Boss cylinder provenance is unavailable")
-            uses = tuple(use for use in issued if isinstance(use, SurfaceUse))
-            issued_pending.append((record, nodes, members, uses))
-        for record, nodes, members, uses in issued_pending:
-            writer.add_defining(
-                record,
-                nodes,
-                family=FamilyId.BOSSES,
-                constituent=members,
-                surfaces=uses,
-            )
-
-    return [proposal.record for proposal in proposals]
 
 
-def feature_diameters(
-    part: Part,
-    cyls: CylinderInventory | None = None,
-    holes: Sequence[HoleRecord] | None = None,
-    bosses: Sequence[BossRecord] | None = None,
-) -> list[float]:
-    """Sorted unique diameters of the *recognised* dimensionable cylindrical
-    features on *part*: every hole bore, each hole's counterbore/spotface step,
-    and every boss.
+def recognise_hole_patterns(
+    holes: Sequence[HoleRecord],
+) -> list[BoltCircle | LinearArray | RectGrid]:
+    """Recognise :class:`BoltCircle`, :class:`LinearArray`, and
+    :class:`RectGrid` patterns among *holes* (``HoleRecord`` records, e.g.
+    from :func:`recognise_holes`).
 
-    This is the inventory to use for coverage checks ("is each dimensionable
-    diameter called out?"). It is deliberately built from
-    :func:`recognise_holes` / :func:`recognise_bosses`, not the raw :func:`full_cylinders`
-    patch list, so partial cylinders that never become a real feature — slot ends and
-    interrupted recesses (an exact half-cylinder pair sums to a full turn and
-    fools an angle-only test, but is not a bore) — are excluded, while genuine
-    counterbore/spotface steps are kept.
+    Holes are grouped by machining spec and drilling axis, then each group is
+    *sub-clustered* — a single spec can contribute several patterns (two
+    separate bolt circles, the rows of a rectangular perimeter, a grid). All
+    candidate sub-patterns are enumerated and allocated greedily largest-first,
+    so each hole belongs to at most one pattern and the richest interpretation
+    wins. Precedence is deterministic: a full grid claims its complete same-spec group first;
+    remaining candidates sort by member count with stable family order. A filled N×M lattice
+    becomes one :class:`RectGrid`; a rectangular
+    ring or perimeter is reported as its edge :class:`LinearArray` rows.
 
-    Pass *cyls* — a precomputed ``analyse_cylinders(part)`` result — to share one
-    scan between ``recognise_holes`` and ``recognise_bosses``. Pass *holes* — a precomputed
-    ``recognise_holes`` result — to reuse the single feature inventory instead of
-    re-detecting (the single-inventory rule).
+    Collinearity is tested ahead of concyclicity (any three points are
+    concyclic, so a 3-hole "bolt circle" must really be an equilateral
+    triangle); unpatterned holes are simply absent from the result.
     """
-    cyls = analyse_cylinders(part) if cyls is None else cyls
-    if holes is None:
-        holes = recognise_holes(part, cyls=cyls)
-    diams: list[float] = []
+    groups: dict = {}
     for h in holes:
-        diams.append(h.diameter)
-        if h.cbore is not None:
-            diams.append(h.cbore.diameter)
-        if h.spotface is not None:
-            diams.append(h.spotface.diameter)
-    for b in recognise_bosses(part, cyls=cyls) if bosses is None else bosses:
-        diams.append(b.diameter)
-    return sorted(set(diams))
+        groups.setdefault(_spec_key(h), []).append(h)
+
+    patterns: list[BoltCircle | LinearArray | RectGrid] = []
+    for spec, members in groups.items():
+        if len(members) < 3:
+            continue
+        u, v = _plane_uv(spec.axis)
+        pts = [
+            (
+                sum(a * b for a, b in zip(h.location, u, strict=True)),
+                sum(a * b for a, b in zip(h.location, v, strict=True)),
+            )
+            for h in members
+        ]
+        grid = _rect_grid(members, pts, _mk_hole_grid)
+        if grid is not None:
+            # `_rect_grid` succeeds only when this entire same-spec group fills one
+            # lattice. The grid therefore claims every member, sorts ahead of every
+            # equal-sized candidate, and makes all circle/linear candidates impossible
+            # to allocate. Return it now instead of doing O(n^4) work whose results are
+            # guaranteed to be discarded.
+            patterns.append(grid)
+            continue
+        candidates: list = []
+        candidates += _bolt_circle_candidates(members, pts)
+        candidates += _linear_array_candidates(members, pts, _mk_hole_linear)
+        # allocate largest-first; a hole used by one pattern is off the table
+        # for the rest (stable sort keeps grids ahead of circles ahead of rows
+        # at equal size)
+        candidates.sort(key=lambda c: -len(c[1]))
+        used: set = set()
+        for pattern, idx in candidates:
+            if idx & used:
+                continue
+            patterns.append(pattern)
+            used |= idx
+    return patterns
 
 
-# Preserve the historical implementation-module path used by repr/pickle tooling.
-for _record_type in (CounterBore, HoleRecord, BossRecord):
-    _record_type.__module__ = "quiddity._features"
+# Holes read the countersinks that completed before them, so the declaration hands the core both
+# the records and their occurrences; `_registry` places this family after COUNTERSINKS.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    countersinks = list(inputs.records(FamilyId.COUNTERSINKS, CounterSink))
+    occurrences = inputs.occurrences(FamilyId.COUNTERSINKS, CounterSink)
+    return list(
+        _discover_holes(
+            services.context.part,
+            cyls=services.cylinders,
+            csinks=countersinks,
+            face_edges=services.context.face_edges,
+            writer=services.writer,
+            predecessor_occurrences=occurrences,
+            face_surfaces=services.context.face_surfaces,
+        )
+    )
+
+
+def _derive_patterns(inputs: AcceptedInputs) -> list[object]:
+    return list(recognise_hole_patterns(inputs.records(FamilyId.HOLES, HoleRecord)))
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.HOLES,
+    record_types=(HoleRecord,),
+    result_field="holes",
+    public_entrypoint=recognise_holes.__name__,
+    dependencies=(FamilyId.COUNTERSINKS,),
+    applicable=always,
+    discover=_discover,
+    census=Counted("hole"),
+    attribution=FullyAttributed(
+        "every returned Hole claims its complete original cylindrical occurrence faces"
+    ),
+    evidence=ManifestEvidence(
+        goldens=("simple_through_hole", "counterbored_and_countersunk_holes"),
+        extra_records=(
+            (
+                "CounterBore",
+                "nested",
+                ("RecognitionResult.holes.cbore", "RecognitionResult.holes.spotface"),
+            ),
+            ("HoleSpec", "evidence", ()),
+        ),
+    ),
+)
+
+PATTERNS = DerivedDefinition(
+    identifier=DerivedId.HOLE_PATTERNS,
+    record_types=(BoltCircle, LinearArray, RectGrid),
+    result_field="hole_patterns",
+    public_entrypoint=recognise_hole_patterns.__name__,
+    sources=(FamilyId.HOLES,),
+    derive=_derive_patterns,
+    census=Counted("hole_pattern"),
+    evidence=ManifestEvidence(goldens=("bolt_circle_and_rectangular_grid",)),
+)

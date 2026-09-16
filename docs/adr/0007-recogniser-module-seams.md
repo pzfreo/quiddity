@@ -41,7 +41,7 @@ modules that sit between layers are recorded as comments in the table:
    `_support_patches`, and the run-local evidence types `_candidates`, `_claims`, `_dispositions`.
    `experimental_geometry` sits here too: a public wrapper over the graph and surface index with
    a reviewed consumer roster (`_run`, `_geometry_evidence`, `pads`, `polygonal_bosses`).
-4. Family cores and shared proofs (`_hole_features`, the `_recess_*`, `_section_*` and
+4. Family cores and shared proofs (`_cylinder_stacks`, the `_recess_*`, `_section_*` and
    `_cylindrical_*` modules) and the public family modules over them.
 5. Orchestration: `_reconcile`, `_run`, `_registry`, `result`.
 6. Projections and facades: `census`, `explanations`, `evidence`, `inspection`, `capabilities`,

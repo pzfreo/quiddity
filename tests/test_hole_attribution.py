@@ -45,6 +45,12 @@ from quiddity._adjacency import (
 )
 from quiddity._candidates import FamilyId
 from quiddity._claims import ClaimLedger
+from quiddity._cylinder_stacks import (
+    SegmentEvidence,
+    _classify_end,
+    _end_partners,
+    _segments,
+)
 from quiddity._cylinder_substrate import (
     _STACK_GAP_FRAC,
     _cyl_group_key,
@@ -55,19 +61,6 @@ from quiddity._cylinder_substrate import (
 )
 from quiddity._effective_surfaces import SurfaceKind, SurfaceProvenance
 from quiddity._geometry import length_tol, quantise
-from quiddity._hole_features import (
-    CounterBore,
-    HoleRecord,
-    SegmentEvidence,
-    _bore_depth,
-    _classify_end,
-    _discover_holes,
-    _drilled_from,
-    _end_partners,
-    _near_side_steps,
-    _same_diameter,
-    _segments,
-)
 from quiddity._registry import PHYSICAL_DEFINITIONS
 from quiddity.countersinks import (
     CounterSink,
@@ -75,7 +68,17 @@ from quiddity.countersinks import (
     countersink_matches_hole,
     recognise_countersinks,
 )
+from quiddity.holes import (
+    CounterBore,
+    HoleRecord,
+    _bore_depth,
+    _discover_holes,
+    _drilled_from,
+    _near_side_steps,
+    _same_diameter,
+)
 from quiddity.result import _take_inventory
+from tests.route_pins import assert_core_route_is_closed
 
 ROOT = Path(__file__).parents[1]
 
@@ -744,7 +747,7 @@ def test_cylinder_quantisation_line_projection_and_gap_boundaries() -> None:
 
 
 def test_opening_tie_break_and_monotonic_step_rejection(monkeypatch) -> None:
-    import quiddity._hole_features as module
+    import quiddity.holes as module
 
     lo = _segment(10, 0, 4)
     hi = _segment(10, 4, 10)
@@ -1053,7 +1056,7 @@ def test_ambiguous_or_empty_countersink_predecessor_refuses_atomically() -> None
 
 
 def test_cross_solid_or_reused_countersink_predecessor_refuses_prefix_free(monkeypatch) -> None:
-    import quiddity._hole_features as module
+    import quiddity.holes as module
 
     left, right = Pos(-50, 0, 0) * _countersunk(), Pos(50, 0, 0) * _countersunk()
     part = Compound([left, right])
@@ -1086,7 +1089,7 @@ def test_cross_solid_or_reused_countersink_predecessor_refuses_prefix_free(monke
 
 
 def test_duplicate_hole_face_ownership_refuses_without_prefix(monkeypatch) -> None:
-    import quiddity._hole_features as module
+    import quiddity.holes as module
 
     part = _through()
     ledger = ClaimLedger(FaceGraph(part))
@@ -1244,7 +1247,7 @@ def test_rounded_slot_and_unrelated_wider_groove_issue_no_surplus_roles() -> Non
 
 @pytest.mark.parametrize("stale", [False, True])
 def test_deep_or_translated_cylindrical_snapshot_refuses_atomically(monkeypatch, stale) -> None:
-    import quiddity._hole_features as module
+    import quiddity.holes as module
 
     part = _through()
     ledger = ClaimLedger(FaceGraph(part))
@@ -1264,7 +1267,7 @@ def test_deep_or_translated_cylindrical_snapshot_refuses_atomically(monkeypatch,
 
 
 def test_missing_or_aliased_hole_source_roles_refuse_atomically(monkeypatch) -> None:
-    import quiddity._hole_features as module
+    import quiddity.holes as module
 
     part = _blind()
     ledger = ClaimLedger(FaceGraph(part))
@@ -1380,28 +1383,22 @@ def _qualified_calls(tree: ast.AST) -> list[tuple[str, ast.Call]]:
 
 
 def test_private_hole_core_has_one_writer_caller_and_declared_predecessor() -> None:
-    sites: list[tuple[str, ast.Call]] = []
-    for path in (ROOT / "src/quiddity").glob("*.py"):
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        sites.extend(
-            (path.name, call)
-            for qualified, call in _qualified_calls(tree)
-            if qualified.endswith("._discover_holes") or qualified == "_discover_holes"
-        )
-    assert {name for name, _call in sites} == {"_hole_features.py", "_registry.py"}
-    registry = next(call for name, call in sites if name == "_registry.py")
-    keywords = {keyword.arg: keyword.value for keyword in registry.keywords}
-    writer = keywords["writer"]
-    assert (
-        isinstance(writer, ast.Attribute)
-        and writer.attr == "writer"
-        and isinstance(writer.value, ast.Name)
-        and writer.value.id == "services"
+    # The core and the declaration are in one module now, so the shared pin fits.
+    assert_core_route_is_closed(
+        module="holes",
+        core="_discover_holes",
+        entrypoint="recognise_holes",
+        handed_over={
+            "cyls": "services.cylinders",
+            "csinks": "countersinks",
+            "face_edges": "services.context.face_edges",
+            "writer": "services.writer",
+            "predecessor_occurrences": "occurrences",
+            "face_surfaces": "services.context.face_surfaces",
+        },
+        withheld=("writer",),
     )
-    predecessor = keywords["predecessor_occurrences"]
-    assert isinstance(predecessor, ast.Name) and predecessor.id == "occurrences"
-
-    source = ast.parse((ROOT / "src/quiddity/_hole_features.py").read_text(encoding="utf-8"))
+    source = ast.parse((ROOT / "src/quiddity/holes.py").read_text(encoding="utf-8"))
     functions = {node.name: node for node in source.body if isinstance(node, ast.FunctionDef)}
     public_calls = [
         call
@@ -1415,11 +1412,13 @@ def test_private_hole_core_has_one_writer_caller_and_declared_predecessor() -> N
         "face_edges",
     }
 
-    registry_tree = ast.parse((ROOT / "src/quiddity/_registry.py").read_text(encoding="utf-8"))
-    registry_functions = {
-        node.name: node for node in registry_tree.body if isinstance(node, ast.FunctionDef)
+    # The adapter is `_discover` in the family module now, not `_holes` in the registry.
+    declared = {
+        node.name: node
+        for node in ast.parse((ROOT / "src/quiddity/holes.py").read_text(encoding="utf-8")).body
+        if isinstance(node, ast.FunctionDef)
     }
-    holes_body = registry_functions["_holes"]
+    holes_body = declared["_discover"]
     occurrence_calls = [
         call
         for qualified, call in _qualified_calls(holes_body)
@@ -1456,14 +1455,14 @@ def test_hole_record_and_step_constructor_roster_is_closed() -> None:
             if qualified.endswith(".CounterBore") or qualified == "CounterBore":
                 sites.append((path.name, "CounterBore"))
     assert sites == [
-        ("_hole_features.py", "CounterBore"),
-        ("_hole_features.py", "HoleRecord"),
+        ("holes.py", "CounterBore"),
+        ("holes.py", "HoleRecord"),
     ]
 
     from quiddity._effective_surfaces import SURFACE_READER_SITES
 
-    assert "_hole_features:_classify_end_uncached:adaptor:1" in SURFACE_READER_SITES
-    assert "_hole_features:_classify_end_uncached:adaptor:2" in SURFACE_READER_SITES
+    assert "_cylinder_stacks:_classify_end_uncached:adaptor:1" in SURFACE_READER_SITES
+    assert "_cylinder_stacks:_classify_end_uncached:adaptor:2" in SURFACE_READER_SITES
     assert not any("_discover_holes" in key for key in SURFACE_READER_SITES)
 
 

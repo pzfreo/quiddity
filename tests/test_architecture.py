@@ -13,14 +13,16 @@ ROOT = Path(__file__).parents[1]
 PACKAGE = ROOT / "src" / "quiddity"
 
 PUBLIC_MODULES = {
-    "blends",
     "angled_steps",
+    "blends",
+    "bosses",
     "capabilities",
     "census",
     "chamfers",
     "circular_blind_steps",
     "cli",
     "countersinks",
+    "diameters",
     "document",
     "edge_open_circular_recesses",
     "edge_open_prismatic_recesses",
@@ -32,24 +34,25 @@ PUBLIC_MODULES = {
     "frames",
     "grooves",
     "gussets",
+    "holes",
     "inspection",
     "levels",
     "oriented_slots",
     "pads",
     "paired_ramp_steps",
-    "through_steps",
     "passages",
     "plates",
-    "prismatic_pockets",
     "polygonal_bosses",
+    "prismatic_pockets",
     "profiled_bores",
-    "repeating_profiles",
     "rectangular_blind_slots",
+    "repeating_profiles",
+    "result",
     "round_bottom_slots",
     "section_recesses",
-    "result",
     "slots",
     "step_io",
+    "through_steps",
     "turned",
 }
 
@@ -243,17 +246,45 @@ MODULE_SEAM_EDGES = {
         "_geometry",
         "_typing",
     },
-    "_hole_features": {
+    "_cylinder_stacks": {
         "_adjacency",
-        "_candidates",
         "_claims",
         "_cylinder_substrate",
         "_effective_surfaces",
         "_geometry",
+        "_typing",
+    },
+    "holes": {
+        "_adjacency",
+        "_candidates",
+        "_claims",
+        "_cylinder_stacks",
+        "_cylinder_substrate",
+        "_definitions",
+        "_effective_surfaces",
+        "_geometry",
+        "_pattern_geometry",
         "_record",
         "_typing",
         "countersinks",
-        "edge_open_prismatic_recesses",
+    },
+    "bosses": {
+        "_adjacency",
+        "_candidates",
+        "_claims",
+        "_cylinder_stacks",
+        "_cylinder_substrate",
+        "_definitions",
+        "_effective_surfaces",
+        "_geometry",
+        "_record",
+        "_typing",
+    },
+    "diameters": {
+        "_cylinder_substrate",
+        "_typing",
+        "bosses",
+        "holes",
     },
     "_pattern_geometry": {"_geometry"},
     "profiled_bores": {
@@ -279,7 +310,6 @@ MODULE_SEAM_EDGES = {
         "_typing",
         "experimental_geometry",
     },
-    "_hole_patterns": {"_hole_features", "_pattern_geometry", "_record", "_typing"},
     # Ring geometry: `passages` owned it while it was the only family walking rings.
     "_rings": {"_adjacency", "_geometry", "_typing"},
     "_recess_records": {"_record", "_typing"},
@@ -427,8 +457,9 @@ MODULE_SEAM_EDGES = {
         "_claims",
         "_passage_compat",
         "_features",
-        "_hole_features",
         "_recess_features",
+        "bosses",
+        "holes",
         "_run",
         "_section_recess",
         "_section_recess_discovery",
@@ -682,11 +713,12 @@ MODULE_SEAM_EDGES = {
     # Compatibility facades: re-exports only (ADR 0007).
     "_features": {
         "_cylinder_substrate",
-        "_hole_features",
-        "_hole_patterns",
         "_pattern_geometry",
         "_typing",
+        "bosses",
         "countersinks",
+        "diameters",
+        "holes",
     },
     "slots": {
         "_candidates",
@@ -1203,8 +1235,8 @@ def test_aggregate_phase_functions_have_one_way_capability_boundaries() -> None:
 
     ledger_type = typing.get_type_hints(module._discover_all)["ledger"]
     assert ledger_type.__name__ == "ClaimLedger"
-    registry_module = importlib.import_module("quiddity._registry")
-    writer_type = typing.get_type_hints(registry_module.DiscoveryServices)["writer"]
+    definitions_module = importlib.import_module("quiddity._definitions")
+    writer_type = typing.get_type_hints(definitions_module.DiscoveryServices)["writer"]
     assert writer_type.__name__ == "EvidenceWriter"
     assert {name for name in dir(writer_type) if not name.startswith("_")} == {
         "add_defining",
@@ -1794,26 +1826,23 @@ def test_compatibility_facades_preserve_export_identity_and_module_paths() -> No
             for name in ("analyse_cylinders", "full_cylinders")
         },
         **{
-            name: importlib.import_module("quiddity._hole_features")
-            for name in (
-                "BossRecord",
-                "CounterBore",
-                "HoleRecord",
-                "feature_diameters",
-                "recognise_bosses",
-                "recognise_holes",
-            )
+            name: importlib.import_module("quiddity.bosses")
+            for name in ("BossRecord", "recognise_bosses")
         },
         **{
-            name: importlib.import_module("quiddity._hole_patterns")
+            name: importlib.import_module("quiddity.holes")
             for name in (
                 "BoltCircle",
+                "CounterBore",
+                "HoleRecord",
                 "HoleSpec",
                 "LinearArray",
                 "RectGrid",
                 "recognise_hole_patterns",
+                "recognise_holes",
             )
         },
+        "feature_diameters": importlib.import_module("quiddity.diameters"),
     }
     for name, implementation in implementations.items():
         assert getattr(recognition, name) is getattr(feature_facade, name)
@@ -1896,11 +1925,40 @@ def test_recess_families_keep_one_shared_face_inventory_and_patterns_are_pure() 
         ]
         assert len(scans) == 1, name
 
-    for module_name in ("_hole_patterns.py", "_pattern_geometry.py", "_recess_patterns.py"):
+    # `holes.py` holds its own pattern projection as well as the recogniser, so the check is
+    # scoped to the pattern code rather than the file: it is that which must work from records
+    # alone. The scope is *derived* by walking out from the pattern entry points, not listed --
+    # a named list silently drops classes and never covers a helper added later.
+    def _pattern_scope(tree: ast.Module, roots: tuple[str, ...]) -> list[ast.AST]:
+        defined = {
+            node.name: node
+            for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.ClassDef))
+        }
+        seen: set[str] = set()
+        pending = [name for name in roots if name in defined]
+        while pending:
+            name = pending.pop()
+            if name in seen:
+                continue
+            seen.add(name)
+            pending.extend(
+                node.id
+                for node in ast.walk(defined[name])
+                if isinstance(node, ast.Name) and node.id in defined
+            )
+        assert seen >= set(roots), module_name
+        return [defined[name] for name in sorted(seen)]
+
+    scoped_roots = {"holes.py": ("recognise_hole_patterns", "_derive_patterns")}
+    for module_name in ("holes.py", "_pattern_geometry.py", "_recess_patterns.py"):
         tree = ast.parse((PACKAGE / module_name).read_text(encoding="utf-8"), filename=module_name)
+        roots = scoped_roots.get(module_name)
+        scopes = [tree] if roots is None else _pattern_scope(tree, roots)
         topology_reads = [
             node.attr
-            for node in ast.walk(tree)
+            for scope in scopes
+            for node in ast.walk(scope)
             if isinstance(node, ast.Attribute) and node.attr in {"edges", "faces", "solids"}
         ]
         assert topology_reads == [], module_name
@@ -1943,9 +2001,11 @@ def test_recovered_surface_dependencies_are_attached_by_a_reviewed_roster() -> N
     assert importers == {
         "_candidates",
         "_claims",
+        "_cylinder_stacks",
         "_cylinder_substrate",
-        "_hole_features",
+        "bosses",
         "circular_blind_steps",
+        "holes",
         "pads",
     }
 

@@ -137,7 +137,11 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "native compatibility fast path stays raw; non-native cylinders use effective facts",
     ),
-    "_hole_features": (
+    "_cylinder_stacks": (
+        SurfaceReaderDisposition.TORUS_DEFERRED,
+        "stack end classification distinguishes cones and toroidal blends",
+    ),
+    "holes": (
         SurfaceReaderDisposition.TORUS_DEFERRED,
         "hole termination distinguishes cones and toroidal blends",
     ),
@@ -629,15 +633,15 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.MIGRATED_EFFECTIVE,
         "native fast path plus run-owned recovered cylinder and radial-side query",
     ),
-    "_hole_features:_classify_end_uncached:adaptor:1": (
+    "_cylinder_stacks:_classify_end_uncached:adaptor:1": (
         SurfaceReaderDisposition.ORIENTATION_DEFERRED,
         "end plane/sphere/cylinder classification uses oriented topology",
     ),
-    "_hole_features:_classify_end_uncached:adaptor:2": (
+    "_cylinder_stacks:_classify_end_uncached:adaptor:2": (
         SurfaceReaderDisposition.ORIENTATION_DEFERRED,
         "neighbour plane/cylinder classification uses oriented topology",
     ),
-    "_hole_features:_shared_transition:adaptor:1": (
+    "holes:_shared_transition:adaptor:1": (
         SurfaceReaderDisposition.TORUS_DEFERRED,
         "cone-or-torus transition rule includes unsupported torus",
     ),

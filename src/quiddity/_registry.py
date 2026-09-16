@@ -17,6 +17,7 @@ from typing import Protocol, TypeAlias
 from quiddity import (
     angled_steps,
     blends,
+    bosses,
     chamfers,
     circular_blind_steps,
     countersinks,
@@ -26,6 +27,7 @@ from quiddity import (
     flats,
     grooves,
     gussets,
+    holes,
     levels,
     oriented_slots,
     pads,
@@ -45,17 +47,14 @@ from quiddity import (
 from quiddity._candidates import (
     Candidate,
     CandidateSet,
-    CompletedInputs,
     DerivedId,
     EvidenceIndex,
     FamilyId,
 )
 from quiddity._definitions import (
-    AcceptedInputs,
     CensusSpec,
     Counted,
     DerivedDefinition,
-    DiscoveryServices,
     FullyAttributed,
     IncompleteAttribution,
     ManifestEvidence,
@@ -65,17 +64,7 @@ from quiddity._definitions import (
     prismatic,
     simple,
 )
-from quiddity._features import (
-    BoltCircle,
-    BossRecord,
-    HoleRecord,
-    LinearArray,
-    RectGrid,
-    recognise_hole_patterns,
-)
-from quiddity._hole_features import _discover_bosses, _discover_holes
 from quiddity._passage_compat import PassageCompatibilityView, passage_from_view
-from quiddity.countersinks import CounterSink
 from quiddity.passages import (
     Passage,
     SectionPassage,
@@ -228,26 +217,6 @@ class ProjectionDefinition:
     evidence: ManifestEvidence | None = field(default=None, kw_only=True)
 
 
-def _holes(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
-    countersinks = list(inputs.records(FamilyId.COUNTERSINKS, CounterSink))
-    occurrences = inputs.occurrences(FamilyId.COUNTERSINKS, CounterSink)
-    return list(
-        _discover_holes(
-            services.context.part,
-            cyls=services.cylinders,
-            csinks=countersinks,
-            face_edges=services.context.face_edges,
-            writer=services.writer,
-            predecessor_occurrences=occurrences,
-            face_surfaces=services.context.face_surfaces,
-        )
-    )
-
-
-def _hole_patterns(inputs: AcceptedInputs) -> list[object]:
-    return list(recognise_hole_patterns(inputs.records(FamilyId.HOLES, HoleRecord)))
-
-
 def _passages_compat(
     inputs: AcceptedProjectionInputs, projection: ProjectionInputs
 ) -> list[object]:
@@ -265,41 +234,9 @@ def _passages_compat(
 
 PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
     countersinks.DEFINITION,
-    PhysicalDefinition(
-        FamilyId.HOLES,
-        (HoleRecord,),
-        "holes",
-        "recognise_holes",
-        (FamilyId.COUNTERSINKS,),
-        always,
-        _holes,
-        Counted("hole"),
-        FullyAttributed(
-            "every returned Hole claims its complete original cylindrical occurrence faces"
-        ),
-    ),
+    holes.DEFINITION,
     profiled_bores.DEFINITION,
-    PhysicalDefinition(
-        FamilyId.BOSSES,
-        (BossRecord,),
-        "bosses",
-        "recognise_bosses",
-        (),
-        always,
-        simple(
-            lambda s: list(
-                _discover_bosses(
-                    s.context.part,
-                    cyls=s.cylinders,
-                    face_edges=s.context.face_edges,
-                    writer=s.writer,
-                    face_surfaces=s.context.face_surfaces,
-                )
-            )
-        ),
-        Counted("boss"),
-        FullyAttributed("every returned boss claims its original external segment faces"),
-    ),
+    bosses.DEFINITION,
     polygonal_bosses.BOSSES,
     polygonal_bosses.STOCK,
     slots.CHANNELS,
@@ -350,15 +287,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
 
 
 DERIVED_DEFINITIONS: tuple[DerivedDefinition, ...] = (
-    DerivedDefinition(
-        DerivedId.HOLE_PATTERNS,
-        (BoltCircle, LinearArray, RectGrid),
-        "hole_patterns",
-        "recognise_hole_patterns",
-        (FamilyId.HOLES,),
-        _hole_patterns,
-        Counted("hole_pattern"),
-    ),
+    holes.PATTERNS,
     slots.SLOT_PATTERNS,
     oriented_slots.PATTERNS,
     slots.POCKET_PATTERNS,

@@ -385,8 +385,12 @@ def test_generator_refuses_a_module_declared_family_that_names_no_evidence(monke
         tool._registry_families()
 
 
-def test_generator_still_reads_its_tables_for_a_family_the_registry_describes() -> None:
-    """The gate keys off where the family is declared, not merely off a missing evidence field."""
+def test_the_tools_evidence_tables_are_empty_now_that_every_family_declares() -> None:
+    """The fallback path still exists and is no longer used: both tables are empty.
+
+    It cannot be deleted while any family is still a registry literal -- one is -- but nothing
+    reaches it, so #632 can remove the branch rather than migrate anything further into it.
+    """
 
     spec = importlib.util.spec_from_file_location(
         "generate_capability_manifest", ROOT / "tools" / "generate_capability_manifest.py"
@@ -395,12 +399,20 @@ def test_generator_still_reads_its_tables_for_a_family_the_registry_describes() 
     tool = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(tool)
 
-    literal = next(
+    assert tool.EVIDENCE == {}
+    assert tool.EXTRA_RECORDS == {}
+
+    # The one family the registry still describes is unexported, so it needs no manifest entry;
+    # that is why emptying the tables left the committed manifest unchanged.
+    literals = [
         definition
         for definition in tool.PHYSICAL_DEFINITIONS
-        if definition.evidence is None and not tool._is_module_declared(definition)
-    )
-    assert tool._family_id(literal.public_entrypoint) in tool.EVIDENCE
+        if not tool._is_module_declared(definition)
+    ]
+    assert [definition.public_entrypoint for definition in literals] == [
+        "recognise_section_passages"
+    ]
+    assert not any(definition.public_entrypoint in recognition.__all__ for definition in literals)
 
 
 def test_committed_manifest_is_the_deterministic_generator_output() -> None:
