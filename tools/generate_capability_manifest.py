@@ -29,21 +29,6 @@ TARGET = ROOT / "src" / "quiddity" / "capabilities.json"
 # evidence a family publishes, and the records that are not its registry output. A new
 # family sets `introduced`; the default is the first release of this distribution.
 EVIDENCE: dict[str, dict[str, object]] = {
-    "section-recesses": {
-        "golden_paths": [
-            "tests/section_recess_expected.json",
-            "tests/section_recess_geometry_expected.json",
-        ],
-        "tests": [
-            "tests/test_section_recesses.py",
-            "tests/test_section_recess_geometry_golden.py",
-            "tests/test_section_recess_migration.py",
-            "tests/test_section_adapter_rounding.py",
-            "tests/test_corner_section.py",
-            "tests/test_section_recess_cutover.py",
-            "tests/test_open_channel_section.py",
-        ],
-    },
     "bosses": {"goldens": ["simple_through_hole", "turned_steps_and_grooves"]},
     "hole-patterns": {"goldens": ["bolt_circle_and_rectangular_grid"]},
     "holes": {"goldens": ["simple_through_hole", "counterbored_and_countersunk_holes"]},
@@ -52,28 +37,6 @@ EVIDENCE: dict[str, dict[str, object]] = {
 # Records a family publishes beyond its registry output records: nested values, evidence
 # records, consumer aggregates and projections, with their roles and aggregate membership.
 EXTRA_RECORDS: dict[str, list[tuple[str, str, list[str]]]] = {
-    "section-recesses": [
-        ("ClosedSectionProfile", "nested", []),
-        ("CylindricalEndSurface", "nested", []),
-        ("OpenSectionProfile", "nested", []),
-        ("PassageFrame", "nested", []),
-        ("PassageSection", "nested", []),
-        ("PassageSectionVertex", "nested", []),
-        ("PlanarEndSurface", "nested", []),
-        ("PlanarEndTerm", "nested", []),
-        ("PlanarEnvelopeEndSurface", "nested", []),
-        ("SectionEnd", "nested", []),
-        ("SectionRecessArray", "projection", ["RecognitionResult.section_recess_patterns"]),
-        ("SectionRecessBodyRef", "nested", []),
-        ("SectionRecessClassification", "nested", []),
-        ("SectionRecessDocument", "aggregate", []),
-        ("SectionRecessEnds", "nested", []),
-        ("SectionRecessEvidence", "nested", []),
-        ("SectionRecessFaceRef", "nested", []),
-        ("SectionRecessGeometry", "nested", []),
-        ("SectionRecessGrid", "projection", ["RecognitionResult.section_recess_patterns"]),
-        ("SectionRecessRefusal", "projection", ["RecognitionResult.section_recess_refusals"]),
-    ],
     "holes": [
         (
             "CounterBore",

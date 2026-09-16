@@ -69,9 +69,12 @@ from quiddity._section_recess import (
     SectionEnd,
     SectionRecess,
     SectionRecessArray,
+    SectionRecessBodyRef,
     SectionRecessClassification,
+    SectionRecessDocument,
     SectionRecessEnds,
     SectionRecessEvidence,
+    SectionRecessFaceRef,
     SectionRecessGeometry,
     SectionRecessGrid,
     SectionRecessRefusal,
@@ -1608,4 +1611,41 @@ def _project_result(
         # field names drift. The 81 explicit keywords bought per-field checking of names and
         # containers that the registry now states once instead.
         **projection,  # type: ignore[arg-type]
+    )
+
+
+# Two views over a completed run, not recognisers: both run the aggregate and project one
+# family's share of it. They live here, with the orchestrator they consume, rather than in
+# `section_recesses`, which declares the family and must stay clear of `_registry`'s chain.
+
+
+def recognise_section_recesses(part: Part) -> list[SectionRecess]:
+    """Return every accepted unified constant-section recess in *part*."""
+
+    # Aggregate orchestration calls the private discovery core from the registry.  The public
+    # unified view instead projects its completed inventory so specialised passage/recess proofs
+    # converge here without sibling recognition or a second reconciliation path.
+    return list(build_raw_recognition_result(part).section_recesses)
+
+
+def build_section_recess_document(part: Part) -> SectionRecessDocument:
+    """Project accepted aggregate recesses into one deterministic JSON-safe document.
+
+    Recognition and reconciliation run exactly once through the ordinary raw/caller-coordinate
+    aggregate.  Occurrence indices are then made dense within this document; body and face indices
+    retain the aggregate run's complete input rosters.
+    """
+
+    result = build_raw_recognition_result(part)
+    occurrences = tuple(
+        replace(record, index=index) for index, record in enumerate(result.section_recesses)
+    )
+    return SectionRecessDocument(
+        3,
+        "result",
+        tuple(SectionRecessBodyRef(index) for index, _ in enumerate(part.solids())),
+        tuple(SectionRecessFaceRef(index) for index, _ in enumerate(part.faces())),
+        occurrences,
+        result.section_recess_refusals,
+        result.section_recess_patterns,
     )

@@ -2,6 +2,12 @@
 
 ## 0.2.10 — Quiddity
 
+- `recognise_section_recesses` and `build_section_recess_document` moved from
+  `quiddity.section_recesses` to `quiddity.result`. Both are views over a completed run rather
+  than recognisers, and keeping them in the family module stopped that family declaring itself.
+  The supported `quiddity.recognise_section_recesses` and `quiddity.build_section_recess_document`
+  are unchanged; only the submodule paths moved.
+
 - Recognise right-triangular gusset ribs joining perpendicular support planes, including
   cylindrical fillets along the slanted side edges. Each `GussetRib` records the thickness
   axis and bounds, both support planes, and the signed virtual sharp-corner leg lengths. The

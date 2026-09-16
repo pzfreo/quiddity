@@ -37,6 +37,7 @@ from quiddity import (
     rectangular_blind_slots,
     repeating_profiles,
     round_bottom_slots,
+    section_recesses,
     slots,
     through_steps,
     turned,
@@ -72,8 +73,6 @@ from quiddity._features import (
 )
 from quiddity._hole_features import _discover_bosses, _discover_holes
 from quiddity._passage_compat import PassageCompatibilityView, passage_from_view
-from quiddity._section_recess import SectionRecess
-from quiddity._section_recess_discovery import discover_section_recesses
 from quiddity.countersinks import CounterSink
 from quiddity.passages import (
     Passage,
@@ -290,26 +289,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
     prismatic_pockets.DEFINITION,
     edge_open_circular_recesses.DEFINITION,
     edge_open_prismatic_recesses.DEFINITION,
-    PhysicalDefinition(
-        FamilyId.SECTION_RECESSES,
-        (SectionRecess,),
-        "section_recesses",
-        "recognise_section_recesses",
-        (),
-        always,
-        simple(
-            lambda s: list(
-                discover_section_recesses(
-                    writer=s.writer,
-                    surfaces=s.context.surfaces,
-                )
-            )
-        ),
-        Counted("section_recess"),
-        FullyAttributed(
-            "every SectionRecess publishes its original wall faces and complete constituent set"
-        ),
-    ),
+    section_recesses.DEFINITION,
     pads.DEFINITION,
     repeating_profiles.DEFINITION,
     turned.DEFINITION,
