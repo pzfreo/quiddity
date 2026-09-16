@@ -62,8 +62,16 @@ from quiddity._adjacency import (
     FaceNode,
     SolidRef,
 )
-from quiddity._candidates import EvidenceSink, FamilyId
+from quiddity._candidates import CompletedInputs, EvidenceSink, FamilyId
 from quiddity._claims import ClaimLedger, EvidenceWriter
+from quiddity._definitions import (
+    DiscoveryServices,
+    FullyAttributed,
+    NotCounted,
+    PhysicalDefinition,
+    always,
+    prismatic,
+)
 from quiddity._geometry import cross, dot, unit
 from quiddity._passage_compat import (
     PassageCompatibilityView,
@@ -667,3 +675,39 @@ def _discover_passages(
     if sink is not None:
         raise PassageCompatibilityError(_LEDGER_ERROR)
     return [record for record, _ in _legacy_roster(part, graph)]
+
+
+# What this family declares about itself; `_registry` decides where it runs.
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs  # no completed predecessors
+    return list(
+        recognise_section_passages(
+            services.context.part,
+            ledger=services.writer,
+            face_edges=services.context.face_edges,
+        )
+    )
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.PASSAGES,
+    record_types=(SectionPassage,),
+    result_field="section_passages",
+    public_entrypoint=recognise_section_passages.__name__,
+    dependencies=(),
+    applicable=always,
+    discover=_discover,
+    census=NotCounted("Counted once through the unified section_recess projection"),
+    attribution=FullyAttributed("every returned passage claims its defining passage faces"),
+    projected=prismatic,
+)
+
+# The PASSAGES_COMPAT projection over this family is still a `_registry` literal, and is
+# *deferred*, not impossible. Its `derive` takes `AcceptedProjectionInputs`, whose
+# `passage_views()` returns `SectionPassage` -- the one name in the projection-input block that
+# sits above the `_definitions` leaf -- so importing it here as written closes
+# `_registry -> passages -> _registry`. Generalising `passage_views()` off `SectionPassage`, the
+# way `AcceptedInputs.records(family, record_type)` already is, would let those types move down
+# and this module declare its own projection. That also relocates the projection-authority
+# minting closure -- deliberately closed, and rostered by name in `tests/test_registry.py` -- into
+# a leaf every family imports, which is a change worth its own review rather than a rider here.

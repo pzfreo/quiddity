@@ -33,7 +33,7 @@ TESTS = Path(__file__).parent
 
 #: The registry is mid-migration, so this only falls as families leave it. It exists to stop the
 #: sweep passing vacuously: a matcher that stopped matching would otherwise look like a clean bill.
-KNOWN_REFERENCE_COUNT = 5
+KNOWN_REFERENCE_COUNT = 2
 
 _STRING_TARGET = re.compile(r"^quiddity\._registry\.(\w+)$")
 

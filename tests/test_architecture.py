@@ -653,6 +653,7 @@ MODULE_SEAM_EDGES = {
         "_adjacency",
         "_candidates",
         "_claims",
+        "_definitions",
         "_geometry",
         "_passage_compat",
         "_record",

@@ -60,7 +60,6 @@ def test_projection_rejects_a_record_from_the_wrong_family_contract():
 
 
 def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
-    import quiddity._registry as registry_module
     import quiddity._run as run_module
     import quiddity.angled_steps as angled_steps_module
     import quiddity.bosses as bosses_module
@@ -76,6 +75,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity.oriented_slots as oriented_slots_module
     import quiddity.pads as pads_module
     import quiddity.paired_ramp_steps as paired_ramp_steps_module
+    import quiddity.passages as passages_module
     import quiddity.plates as plates_module
     import quiddity.polygonal_bosses as polygonal_bosses_module
     import quiddity.profiled_bores as profiled_bores_module
@@ -178,7 +178,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     monkeypatch.setattr(flats_module, "_discover_flats", cyl_consumer("flats", []))
     monkeypatch.setattr(slots_module, "_discover_pockets", counted("pockets", pockets))
     monkeypatch.setattr(
-        registry_module, "recognise_section_passages", counted("passages", passages)
+        passages_module, "recognise_section_passages", counted("passages", passages)
     )
     monkeypatch.setattr(
         slots_module, "recognise_pocket_patterns", derived("pocket_patterns", pockets, [])

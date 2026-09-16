@@ -84,7 +84,7 @@ def test_rotational_projection_still_uses_passage_evidence_for_reconciliation():
 def test_rotational_passage_reconciles_pockets_before_public_projection(monkeypatch):
     """Rejected pockets cannot author a pattern after a projection-hidden Passage wins."""
 
-    import quiddity._registry as registry_module
+    import quiddity.passages as passages_module
     import quiddity.result as result_module
     import quiddity.slots as slots_module
 
@@ -135,7 +135,7 @@ def test_rotational_passage_reconciles_pockets_before_public_projection(monkeypa
         return []
 
     monkeypatch.setattr(slots_module, "_discover_pockets", fake_pockets)
-    monkeypatch.setattr(registry_module, "recognise_section_passages", fake_passages)
+    monkeypatch.setattr(passages_module, "recognise_section_passages", fake_passages)
     monkeypatch.setattr(slots_module, "recognise_pocket_patterns", fake_patterns)
 
     product = result_module._take_inventory(Box(20, 20, 10), rotational=True)

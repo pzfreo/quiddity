@@ -352,9 +352,9 @@ def test_a_passage_records_the_ring_it_was_built_from():
 
 
 def test_aggregate_discovers_passages_once_before_reconciliation(monkeypatch) -> None:
-    import quiddity._registry as registry_module
+    import quiddity.passages as passages_module
 
-    original = registry_module.recognise_section_passages
+    original = passages_module.recognise_section_passages
     calls = 0
 
     def counted(*args, **kwargs):
@@ -362,7 +362,7 @@ def test_aggregate_discovers_passages_once_before_reconciliation(monkeypatch) ->
         calls += 1
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(registry_module, "recognise_section_passages", counted)
+    monkeypatch.setattr(passages_module, "recognise_section_passages", counted)
 
     build_recognition_result(_hexagonal_passage())
 

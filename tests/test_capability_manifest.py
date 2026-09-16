@@ -402,17 +402,23 @@ def test_the_tools_evidence_tables_are_empty_now_that_every_family_declares() ->
     assert tool.EVIDENCE == {}
     assert tool.EXTRA_RECORDS == {}
 
-    # The one family the registry still describes is unexported, so it needs no manifest entry;
-    # that is why emptying the tables left the committed manifest unchanged.
-    literals = [
+    # Every physical family declares itself now, so nothing can reach the fallback even in
+    # principle. The one definition the registry still describes is a projection, which publishes
+    # no entry point and so has no manifest entry to fall back for.
+    assert [
         definition
         for definition in tool.PHYSICAL_DEFINITIONS
         if not tool._is_module_declared(definition)
-    ]
-    assert [definition.public_entrypoint for definition in literals] == [
-        "recognise_section_passages"
-    ]
-    assert not any(definition.public_entrypoint in recognition.__all__ for definition in literals)
+    ] == []
+    # The tool never sees projections -- they publish no entry point -- so this reads the roster
+    # from the registry rather than from the module under test.
+    from quiddity._registry import PROJECTION_DEFINITIONS
+
+    assert [
+        definition.identifier.name
+        for definition in PROJECTION_DEFINITIONS
+        if not tool._is_module_declared(definition)
+    ] == ["PASSAGES_COMPAT"]
 
 
 def test_committed_manifest_is_the_deterministic_generator_output() -> None:
