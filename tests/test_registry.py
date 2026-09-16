@@ -606,10 +606,11 @@ def test_every_family_says_something_different_about_what_it_claims() -> None:
 #: and with the reasons required to be non-empty, because the default is that a family owns them.
 RECORDS_DEFINED_NEXT_DOOR: dict[str, str] = {
     family: (
-        "`_recess_records` sits below the recess machinery that reads it: `_recess_core`, "
-        "`_recess_faces`, `_recess_reduce`, `_recess_obround` and `_open_channel_section` "
-        "construct these records at runtime and none imports a family module, so moving them "
-        "into `slots.py` closes the cycle slots -> _recess_features -> _recess_core -> slots."
+        "`_recess_records` sits below the recess machinery that uses it. Eight modules import it "
+        "at run time and none imports a family module; `_recess_core`, `_recess_obround` and "
+        "`_recess_reduce` construct these records, the rest annotate or test against them. "
+        "Moving them into `slots.py` closes the cycle slots -> _recess_features -> _recess_core "
+        "-> slots."
     )
     for family in ("SLOTS", "POCKETS", "CHANNELS")
 } | {

@@ -118,8 +118,9 @@ SLOTS = PhysicalDefinition(
     evidence=ManifestEvidence(goldens=("straight_and_obround_slots",)),
 )
 
-# The package exports neither this entry point nor the two below it, so those three families
-# have no capability manifest entry and declare no evidence.
+# `recognise_pockets`, `recognise_channels` and `recognise_pocket_patterns` are not exported, so
+# those three families have no capability manifest entry and declare no evidence. The two that are
+# exported, SLOTS and SLOT_PATTERNS, carry theirs.
 POCKETS = PhysicalDefinition(
     family=FamilyId.POCKETS,
     record_types=(Pocket,),

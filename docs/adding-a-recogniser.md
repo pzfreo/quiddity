@@ -237,7 +237,7 @@ manifest entry at all, so it declares no evidence either, as `rectangular_blind_
 
 The module that declares a family also defines its record types. That has been true of every
 declared family, and `tests/test_registry.py` now says so rather than leaving it to habit. Add an
-exception there -- keyed by the `FamilyId` member name, with its own reason -- when moving the
+exception there -- keyed by the `FamilyId` or `DerivedId` member name, with its own reason -- when moving the
 records would cost more than the convention is worth. Two reasons have come up so far, and they
 are different, so write the one that applies rather than copying a neighbour's.
 
