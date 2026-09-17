@@ -32,6 +32,7 @@ from quiddity import (
     oriented_slots,
     pads,
     paired_ramp_steps,
+    passages,
     plates,
     polygonal_bosses,
     prismatic_pockets,
@@ -62,13 +63,11 @@ from quiddity._definitions import (
     PhysicalDefinition,
     always,
     prismatic,
-    simple,
 )
 from quiddity._passage_compat import PassageCompatibilityView, passage_from_view
 from quiddity.passages import (
     Passage,
     SectionPassage,
-    recognise_section_passages,
 )
 
 # Internal detector identities survive the public SectionRecess schema replacement so that
@@ -200,10 +199,16 @@ ProjectionDiscoverer: TypeAlias = Callable[
 class ProjectionDefinition:
     """A derived family projected from accepted occurrences rather than discovered.
 
-    Separate from `DerivedDefinition` because its `derive` takes the projection input types
-    declared just above, which live here rather than in the `_definitions` leaf: they reach
-    `SectionPassage` and `PassageCompatibilityView`, which sit above it. Keeping the two apart
-    types each `derive` exactly, and removes the `role` string that used to tell them apart.
+    Separate from `DerivedDefinition` because the two are not the same kind of thing: a
+    projection publishes no entry point, contributes nothing to the manifest, runs in its own
+    phase, and takes a two-argument `derive`. Keeping them apart types each `derive` exactly and
+    removes the `role` string that used to tell them apart.
+
+    The projection input types are declared just above rather than in the `_definitions` leaf
+    because `AcceptedProjectionInputs.passage_views()` returns `SectionPassage`, which does sit
+    above it. That is the only such name -- `PassageCompatibilityView`, `Candidate`,
+    `CandidateSet` and `EvidenceIndex` are all at or below `_candidates`, which the leaf already
+    depends on -- so this placement is one generalisation away from being unnecessary.
 
     A projection publishes no entry point. Its records reach a caller through the aggregate.
     """
@@ -261,24 +266,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
     gussets.DEFINITION,
     through_steps.DEFINITION,
     circular_blind_steps.DEFINITION,
-    PhysicalDefinition(
-        FamilyId.PASSAGES,
-        (SectionPassage,),
-        "section_passages",
-        "recognise_section_passages",
-        (),
-        always,
-        simple(
-            lambda s: list(
-                recognise_section_passages(
-                    s.context.part, ledger=s.writer, face_edges=s.context.face_edges
-                )
-            )
-        ),
-        NotCounted("Counted once through the unified section_recess projection"),
-        FullyAttributed("every returned passage claims its defining passage faces"),
-        projected=prismatic,
-    ),
+    passages.DEFINITION,
     oriented_slots.DEFINITION,
     blends.DEFINITION,
     fillets.DEFINITION,
