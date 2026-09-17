@@ -481,10 +481,14 @@ def test_legacy_ledger_refuses_before_any_geometry_work(monkeypatch) -> None:
     assert ledger.candidate_set(FamilyId.PASSAGES).candidates == ()
 
 
-def test_aggregate_has_one_rich_authority_and_legacy_projection() -> None:
+def test_aggregate_has_one_rich_authority() -> None:
     result = build_recognition_result(_square())
-    assert len(result.section_passages) == len(result.passages) == 1
-    assert result.passages == tuple(recognise_passages(_square()))
+    assert len(result.section_passages) == 1
+    # The aggregate no longer projects the legacy record beside the rich one, so the removed
+    # `result.passages == tuple(recognise_passages(...))` has no counterpart: nothing here ties
+    # the rich record to the legacy one any more. All that survives is that the standalone
+    # legacy entry point still finds one passage.
+    assert len(recognise_passages(_square())) == 1
 
 
 def test_duplicate_legacy_defining_roster_refuses_before_publication(monkeypatch) -> None:
@@ -598,7 +602,6 @@ def test_oblique_passage_is_rich_only_and_keeps_exact_wall_ownership() -> None:
     )
     result = build_recognition_result(part)
     assert result.section_passages == (record,)
-    assert result.passages == ()
 
 
 @pytest.mark.parametrize(

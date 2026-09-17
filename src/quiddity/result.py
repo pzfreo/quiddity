@@ -24,7 +24,6 @@ from quiddity._corner_section import prove_corner_section
 from quiddity._cylindrical_channels import prove_cylindrical_channel
 from quiddity._definitions import (
     AcceptedInputs,
-    DerivedDefinition,
     DiscoveryServices,
     FullyAttributed,
 )
@@ -57,12 +56,7 @@ from quiddity._reconcile import (
 from quiddity._registry import (
     DERIVED_DEFINITIONS,
     PHYSICAL_DEFINITIONS,
-    PROJECTION_DEFINITIONS,
     RECESS_SOURCE_FAMILIES,
-    AcceptedProjectionInputs,
-    ProjectionDefinition,
-    ProjectionInputs,
-    _issue_projection_inputs,
     validate_output,
     validate_result_fields,
 )
@@ -112,7 +106,6 @@ from quiddity.oriented_slots import OrientedSlot, OrientedSlotArray, OrientedSlo
 from quiddity.pads import RaisedPad
 from quiddity.paired_ramp_steps import PairedRampStep
 from quiddity.passages import (
-    Passage,
     PassageFrame,
     PassageSectionVertex,
     SectionPassage,
@@ -260,7 +253,6 @@ class DerivedInventory:
     oriented_slot_patterns: tuple[OrientedSlotArray | OrientedSlotGrid, ...]
     pocket_patterns: tuple[PocketArray | PocketGrid, ...]
     gusset_rib_patterns: tuple[GussetRibArray | GussetRibMirrorPair, ...]
-    passages: tuple[Passage, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -457,7 +449,6 @@ class _LegacyRecognitionResult(RecognitionResult):
     edge_open_prismatic_recesses: tuple[EdgeOpenPrismaticRecess, ...]
     pocket_patterns: tuple[PocketArray | PocketGrid, ...]
     section_passages: tuple[SectionPassage, ...]
-    passages: tuple[Passage, ...]
 
 
 validate_result_fields(
@@ -541,20 +532,6 @@ def _take_inventory(
         reconciliation.accepted_set(physical.candidate_set(family)) for family in PHYSICAL_FAMILIES
     )
     derived = _derive_patterns(accepted)
-    passage_definition = next(
-        item for item in PHYSICAL_DEFINITIONS if item.family is FamilyId.PASSAGES
-    )
-    passage_projection = _issue_projection_inputs(
-        accepted.candidate_set(FamilyId.PASSAGES),
-        evidence,
-    )
-    derived = replace(
-        derived,
-        passages=_derive_passage_compat(
-            passage_projection,
-            ProjectionInputs(passage_definition.projected(context)),
-        ),
-    )
     result = _project_result(context, accepted, derived, evidence)
     return InventoryProduct(
         context=context,
@@ -716,19 +693,7 @@ def _derive_patterns(accepted: CandidateInventory) -> DerivedInventory:
             tuple[GussetRibArray | GussetRibMirrorPair, ...],
             derived[DerivedId.GUSSET_RIB_PATTERNS],
         ),
-        passages=(),
     )
-
-
-def _derive_passage_compat(
-    inputs: AcceptedProjectionInputs, projection: ProjectionInputs
-) -> tuple[Passage, ...]:
-    definition = next(
-        item for item in PROJECTION_DEFINITIONS if item.identifier is DerivedId.PASSAGES_COMPAT
-    )
-    records = definition.derive(inputs, projection)
-    validate_output(definition, records)
-    return cast(tuple[Passage, ...], tuple(records))
 
 
 def _publication_value(build: Callable[..., RecordT], /, *args, **kwargs) -> RecordT:
@@ -1580,23 +1545,12 @@ def _project_result(
         )
         for definition in PHYSICAL_DEFINITIONS
     }
-    # A derived record is gated by the families it is derived from: a projection of an
-    # unprojected family has nothing truthful to say. Today only the Passage compatibility
-    # projection has a gated source, which is the case the explicit form spelled out.
-    every_derived: tuple[DerivedDefinition | ProjectionDefinition, ...] = (
-        *DERIVED_DEFINITIONS,
-        *PROJECTION_DEFINITIONS,
-    )
+    # No gate here: `validate_definitions` refuses a derived definition whose source family is
+    # only conditionally projected, so every derived field is projected wherever its sources are.
     projection.update(
         {
-            definition.result_field: (
-                getattr(derived, definition.result_field)
-                if all(
-                    _PHYSICAL_BY_FAMILY[source].projected(context) for source in definition.sources
-                )
-                else ()
-            )
-            for definition in every_derived
+            definition.result_field: getattr(derived, definition.result_field)
+            for definition in DERIVED_DEFINITIONS
         }
     )
     # The one field whose value no definition can state. The registry does name its inputs, in

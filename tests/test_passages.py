@@ -107,12 +107,14 @@ def test_a_through_slot_is_reported_here_too_and_the_aggregate_resolves_it():
 
     result = build_recognition_result(slotted)
     assert result.slots, "the slot is what survives, because it dimensions the void"
-    assert result.passages == (), "and the passage it also is, does not"
+    assert result.section_passages == (), "and the passage it also is, does not"
 
     # A four-walled void no slot claims is still a passage: the side count was never the point.
     square = Box(60, 40, 20) - Box(10, 10, 60)
     assert recognise_slots(square) == []
-    assert [p.sides for p in build_recognition_result(square).passages] == [4]
+    assert [len(p.section.boundary) for p in build_recognition_result(square).section_passages] == [
+        4
+    ]
 
     ledger, passages = _attributed_sections(square)
     (candidate,) = ledger.candidate_set(FamilyId.PASSAGES).candidates
@@ -135,7 +137,9 @@ def test_a_passage_crossing_a_slot_only_in_projection_survives():
 
     result = build_recognition_result(part)
     assert result.slots, "the Z slot"
-    assert [p.axis for p in result.passages] == ["x"], "the X passage, at the same XY, survives"
+    assert [p.frame.run for p in result.section_passages] == [(1.0, 0.0, 0.0)], (
+        "the X passage, at the same XY, survives"
+    )
     ledger, passages = _attributed_sections(part)
     assert (1.0, 0.0, 0.0) in {passage.frame.run for passage in passages}
     assert len(ledger.candidate_set(FamilyId.PASSAGES).candidates) == len(passages)

@@ -1,5 +1,13 @@
 # Release notes
 
+## Unreleased
+
+- **Breaking:** `RecognitionResult.passages` is removed. It was a compatibility projection of the
+  passages family onto the pre-0.4 `Passage` record, and it owned no Candidate or evidence of its
+  own. `RecognitionResult.section_passages` is now the only passage output the aggregate carries;
+  writer-free `recognise_passages` still returns legacy records directly. See
+  `docs/migration-0.4.md`.
+
 ## 0.2.10 — Quiddity
 
 - `recognise_section_recesses` and `build_section_recess_document` moved from

@@ -455,7 +455,6 @@ MODULE_SEAM_EDGES = {
         "_definitions",
         "_candidates",
         "_claims",
-        "_passage_compat",
         "_features",
         "_recess_features",
         "bosses",
@@ -1214,7 +1213,6 @@ def test_aggregate_phase_functions_have_one_way_capability_boundaries() -> None:
         "_reconcile_existing": {"physical", "evidence", "return"},
         "diagnose_residuals": {"reconciliation", "evidence", "return"},
         "_derive_patterns": {"accepted", "return"},
-        "_derive_passage_compat": {"inputs", "projection", "return"},
         "_project_result": {"context", "accepted", "derived", "evidence", "return"},
     }
     for name, parameters in expected.items():
@@ -1335,7 +1333,6 @@ def test_every_result_field_is_registry_owned_or_a_reviewed_exception() -> None:
         for definition in (
             *registry.PHYSICAL_DEFINITIONS,
             *registry.DERIVED_DEFINITIONS,
-            *registry.PROJECTION_DEFINITIONS,
         )
     }
     #: Aggregate fields that no definition owns, each with the reason it is passed explicitly.

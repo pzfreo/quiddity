@@ -31,10 +31,6 @@ import quiddity._registry as registry_module
 
 TESTS = Path(__file__).parent
 
-#: The registry is mid-migration, so this only falls as families leave it. It exists to stop the
-#: sweep passing vacuously: a matcher that stopped matching would otherwise look like a clean bill.
-KNOWN_REFERENCE_COUNT = 2
-
 _STRING_TARGET = re.compile(r"^quiddity\._registry\.(\w+)$")
 
 
@@ -112,10 +108,62 @@ def test_every_registry_reference_still_resolves(path: Path) -> None:
     assert missing == [], f"{path.name} names {missing} on `_registry`, which no longer has them"
 
 
-def test_the_sweep_still_finds_the_references_it_is_meant_to_check() -> None:
+#: The migration is finished, so no test names a migration-sensitive registry attribute any more
+#: and the sweep above legitimately finds nothing across the corpus. That makes a corpus count
+#: useless as a matcher guard -- zero reads the same whether the matcher works and there is
+#: nothing left, or the matcher quietly stopped matching. So the guard runs the matcher over a
+#: fixture carrying one of every form the module docstring claims to support, which pins all of
+#: them rather than whichever happened to survive. The fixture is assembled from `_MODULE` rather
+#: than written out: spelled literally, its string target and attribute chains would be picked up
+#: by the sweep scanning this very file, and the resolution test above would then fail on names
+#: that exist only inside it.
+_MODULE = "quiddity._registry"
+_PACKAGE, _PRIVATE = _MODULE.split(".")
+
+_REFERENCE_FORMS = f"""
+import {_MODULE}
+import {_MODULE} as aliased
+from {_PACKAGE} import {_PRIVATE}
+from {_PACKAGE} import {_PRIVATE} as renamed
+
+{_MODULE}.BARE_IMPORT
+aliased.ALIASED_IMPORT
+{_PRIVATE}.FROM_IMPORT
+renamed.RENAMED_IMPORT
+setattr(aliased, "SETATTR_TARGET", None)
+getattr(aliased, "GETATTR_TARGET")
+delattr(renamed, "DELATTR_TARGET")
+monkeypatch.setattr(renamed, "MONKEYPATCH_TARGET", None)
+mock.patch.object({_PRIVATE}, "PATCH_OBJECT_TARGET")
+monkeypatch.setattr("{_MODULE}.STRING_TARGET", None)
+hasattr({_PRIVATE}, "ABSENT_NAME")
+"""
+
+
+def test_the_sweep_still_finds_every_reference_form_it_claims_to() -> None:
     """Guards the matcher: a sweep that matched nothing would pass every case above."""
 
-    found = sum(
-        len(_registry_references(path.read_text(encoding="utf-8"))) for path in TESTS.glob("*.py")
-    )
-    assert found == KNOWN_REFERENCE_COUNT
+    assert _registry_references(_REFERENCE_FORMS) == {
+        "BARE_IMPORT",
+        "ALIASED_IMPORT",
+        "FROM_IMPORT",
+        "RENAMED_IMPORT",
+        "SETATTR_TARGET",
+        "GETATTR_TARGET",
+        "DELATTR_TARGET",
+        "MONKEYPATCH_TARGET",
+        "PATCH_OBJECT_TARGET",
+        "STRING_TARGET",
+    }
+
+
+def test_the_sweep_still_refuses_the_one_form_that_claims_absence() -> None:
+    """`hasattr` is excluded on purpose, and the exclusion is as load-bearing as the matches.
+
+    A test writes `assert not hasattr(registry_module, "X")` to claim a name is *gone*. Reading
+    that as a reference would make the resolution test above fail on exactly the assertion that
+    proves the migration worked, so widening the callee set is not the harmless fix it looks
+    like. The fixture carries the form; this pins that it finds nothing.
+    """
+
+    assert "ABSENT_NAME" not in _registry_references(_REFERENCE_FORMS)

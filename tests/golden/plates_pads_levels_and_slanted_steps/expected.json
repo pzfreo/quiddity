@@ -47,7 +47,6 @@
           }
         ],
         "paired_ramp_steps": [],
-        "passages": [],
         "plates": [
           {
             "_type": "Plate",
@@ -479,7 +478,6 @@
           }
         ],
         "paired_ramp_steps": [],
-        "passages": [],
         "plates": [],
         "pocket_patterns": [],
         "pockets": [
