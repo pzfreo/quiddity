@@ -26,7 +26,9 @@ dictionary `MODULE_SEAM_EDGES` in `tests/test_architecture.py`, one entry per mo
 comment where the reason is not obvious. This file no longer restates that table. Adding a module
 or an edge means adding it there in the same PR, and the review of that edge is the architecture
 review. Every module except the root re-export has an entry (`test_every_module_has_a_seam_entry`),
-and an edge the table does not list fails the suite.
+an edge the table does not list fails the suite, and so does an entry the code has stopped using
+(`test_no_seam_entry_has_gone_stale`) -- removing an edge is as much a part of the change as
+adding one, or the record decays into a list of permissions nobody needs.
 
 **Layers, bottom up.** The table is acyclic (`test_module_graph_is_acyclic`). The layers below
 are the intended reading of it, not a theorem: a few reviewed exceptions (a family facade
@@ -76,6 +78,7 @@ recogniser, is what would make the graph mutable, so it stays absent.
 
 `tests/test_architecture.py`: `test_module_graph_is_acyclic`,
 `test_internal_module_seams_match_adr_0007`, `test_every_module_has_a_seam_entry`,
+`test_no_seam_entry_has_gone_stale`,
 `test_no_accidental_public_modules`,
 `test_compatibility_facades_preserve_export_identity_and_module_paths`,
 `test_reconciler_never_imports_or_calls_discovery`,
