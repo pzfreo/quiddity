@@ -3,7 +3,6 @@
 
 
 import ast
-import builtins
 import inspect
 import json
 import math
@@ -65,8 +64,8 @@ def test_projection_rejects_a_record_from_the_wrong_family_contract():
         )
 
 
-def _registry_discovery_targets() -> set[tuple[str, str]]:
-    """Every (module, name) the orchestrator reaches discovery through, read from the registry.
+def _registry_discovery_targets() -> dict[str, frozenset[tuple[str, str]]]:
+    """Per family, the (module, name) pairs the orchestrator reaches discovery through.
 
     Each definition's `discover`/`derive` is a small adapter in the family's own module; the
     functions it calls are what a run actually executes. Deriving the roster this way is what
@@ -76,9 +75,15 @@ def _registry_discovery_targets() -> set[tuple[str, str]]:
     Bare-name calls only, and only those bound to a function in that module: `monkeypatch`
     rebinds a module attribute, so a call through `services.x` or a method is not interceptable
     there and is not a patch target.
+
+    That rule is what the walk can see, not a proof of what a run does. An adapter that binds
+    its discovery to a local first (`finder = _discover_x; finder(...)`), or reaches it through
+    an attribute or a dispatch table, contributes nothing here. The empty-roster assertion in
+    the test is what turns such a family from silent into loud: it contributes no target, so it
+    is named rather than skipped. Keyed by family so that check can name the family.
     """
 
-    targets: set[tuple[str, str]] = set()
+    rosters: dict[str, frozenset[tuple[str, str]]] = {}
     for definition in (*PHYSICAL_DEFINITIONS, *DERIVED_DEFINITIONS):
         adapter = getattr(definition, "discover", None) or definition.derive
         module = sys.modules[adapter.__module__]
@@ -88,15 +93,16 @@ def _registry_discovery_targets() -> set[tuple[str, str]]:
             for child in tree.body
             if isinstance(child, ast.FunctionDef) and child.name == adapter.__name__
         )
-        for call in ast.walk(node):
-            if not isinstance(call, ast.Call) or not isinstance(call.func, ast.Name):
-                continue
-            name = call.func.id
-            if hasattr(builtins, name):
-                continue
-            if isinstance(getattr(module, name, None), types.FunctionType):
-                targets.add((adapter.__module__, name))
-    return targets
+        targets = {
+            (adapter.__module__, call.func.id)
+            for call in ast.walk(node)
+            if isinstance(call, ast.Call)
+            and isinstance(call.func, ast.Name)
+            and isinstance(getattr(module, call.func.id, None), types.FunctionType)
+        }
+        identifier = getattr(definition, "family", None) or definition.identifier
+        rosters[identifier.name] = frozenset(targets)
+    return rosters
 
 
 def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
@@ -388,7 +394,12 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     # this the test still passes with a family missing -- its real recogniser runs, returns
     # nothing on an empty part, and contributes no counter to compare. That is how `gussets`
     # (#624) and seven more went unnoticed.
-    unintercepted = sorted(_registry_discovery_targets() - patched)
+    rosters = _registry_discovery_targets()
+    # A family the walk can see no interceptable call in is the same silence in a new shape: it
+    # subtracts nothing below, so it would pass unpatched. Name it instead of skipping it.
+    invisible = sorted(name for name, targets in rosters.items() if not targets)
+    assert invisible == [], f"no interceptable discovery call found for: {invisible}"
+    unintercepted = sorted(frozenset().union(*rosters.values()) - patched)
     assert unintercepted == [], f"reached real discovery: {unintercepted}"
 
     built = result_module.build_recognition_result(_Part())
