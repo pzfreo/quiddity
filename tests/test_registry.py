@@ -346,6 +346,40 @@ def test_registry_applicability_is_context_only() -> None:
     } == {FamilyId.PASSAGES: prismatic}
 
 
+def test_registry_applicability_is_pinned_per_family() -> None:
+    """The eight families that only run on a prismatic part, named.
+
+    `projected` was pinned above; `applicable` was not, though it decides the larger thing --
+    whether the family runs at all. Moving one was not unnoticed before this, but it was never
+    *named*: measured on three families, `test_golden_parity.py` fails on between one and
+    thirty pinned snapshots, and `angled_steps` additionally trips the gating case in
+    `test_recognition_explanations.py` that happens to use it as its example. Neither says a
+    family's applicability changed, and regenerating goldens is an ordinary enough action to
+    absorb a deliberate one without review.
+
+    A separate test from the `projected` pin above, so that a regression in one does not
+    short-circuit before the other is evaluated.
+
+    The eight are written out rather than read off the registry: widening the set has to be a
+    visible edit to this list, not something the code can grant itself.
+    """
+
+    assert {
+        definition.family: definition.applicable
+        for definition in PHYSICAL_DEFINITIONS
+        if definition.applicable is not always
+    } == {
+        FamilyId.RECTANGULAR_BLIND_SLOTS: prismatic,
+        FamilyId.ROUND_BOTTOM_BLIND_SLOTS: prismatic,
+        FamilyId.ANGLED_STEPS: prismatic,
+        FamilyId.PAIRED_RAMP_STEPS: prismatic,
+        FamilyId.GUSSET_RIBS: prismatic,
+        FamilyId.THROUGH_STEPS: prismatic,
+        FamilyId.CIRCULAR_BLIND_STEPS: prismatic,
+        FamilyId.ORIENTED_SLOTS: prismatic,
+    }
+
+
 def test_registry_validation_rejects_duplicate_missing_and_late_dependencies() -> None:
     with pytest.raises(ValueError, match="cover every non-legacy family"):
         validate_definitions(PHYSICAL_DEFINITIONS[:-1], DERIVED_DEFINITIONS)
