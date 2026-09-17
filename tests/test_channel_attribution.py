@@ -24,7 +24,7 @@ from build123d import (
 from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.GeomAbs import GeomAbs_Plane
 
-import quiddity._recess_core as core_module
+import quiddity._recess_core as recess_core
 import quiddity._recess_features as feature_module
 from quiddity._adjacency import FaceEdges, FaceGraph, FaceNode
 from quiddity._candidates import FamilyId
@@ -334,7 +334,7 @@ def test_missing_or_wall_aliased_floor_refuses_before_publication(monkeypatch, a
     part = build_fixture()
     graph = FaceGraph(part)
     ledger = ClaimLedger(graph)
-    proposals = core_module._channel_proposals_one(part, graph=graph)
+    proposals = recess_core._channel_proposals_one(part, graph=graph)
     assert len(proposals) == 1
     proposal = proposals[0]
     floor = frozenset({proposal.low_wall}) if alias_wall else frozenset()
@@ -760,16 +760,16 @@ def test_foreign_graph_copied_node_and_late_body_failure_are_atomic(monkeypatch)
 def test_proposal_builder_refuses_a_candidate_without_graph_nodes(monkeypatch) -> None:
     part = build_fixture()
     graph = FaceGraph(part)
-    faces = core_module._planar_faces(part, graph=graph)
+    faces = recess_core._planar_faces(part, graph=graph)
     walls = [face for face in faces if face.wall and face.axis == "y"]
     assert len(walls) >= 2
     node_free = [replace(face, node=None) for face in faces]
     expected = recognise_channels(part)[0]
 
-    monkeypatch.setattr(core_module, "_planar_faces", lambda *_args, **_kwargs: node_free)
-    monkeypatch.setattr(core_module, "_channel_candidate", lambda *_args, **_kwargs: expected)
+    monkeypatch.setattr(recess_core, "_planar_faces", lambda *_args, **_kwargs: node_free)
+    monkeypatch.setattr(recess_core, "_channel_candidate", lambda *_args, **_kwargs: expected)
     with pytest.raises(ValueError, match="require graph nodes"):
-        core_module._channel_proposals_one(part, graph=graph)
+        recess_core._channel_proposals_one(part, graph=graph)
 
 
 def test_proposal_builder_refuses_a_candidate_without_retained_floor_nodes(monkeypatch) -> None:
@@ -777,15 +777,15 @@ def test_proposal_builder_refuses_a_candidate_without_retained_floor_nodes(monke
     graph = FaceGraph(part)
     expected = recognise_channels(part)[0]
 
-    monkeypatch.setattr(core_module, "_channel_candidate", lambda *_args, **_kwargs: expected)
+    monkeypatch.setattr(recess_core, "_channel_candidate", lambda *_args, **_kwargs: expected)
     with pytest.raises(ValueError, match="floor identity is unavailable"):
-        core_module._channel_proposals_one(part, graph=graph)
+        recess_core._channel_proposals_one(part, graph=graph)
 
 
 def test_candidate_remains_compatible_without_a_floor_identity_consumer(monkeypatch) -> None:
     part = build_fixture()
     graph = FaceGraph(part)
-    original = core_module._channel_candidate
+    original = recess_core._channel_candidate
     captured = {}
 
     def capture(*args, **kwargs):
@@ -794,8 +794,8 @@ def test_candidate_remains_compatible_without_a_floor_identity_consumer(monkeypa
             captured["args"] = args
         return result
 
-    monkeypatch.setattr(core_module, "_channel_candidate", capture)
-    expected = core_module._channel_proposals_one(part, graph=graph)[0].record
+    monkeypatch.setattr(recess_core, "_channel_candidate", capture)
+    expected = recess_core._channel_proposals_one(part, graph=graph)[0].record
 
     assert original(*captured["args"]) == expected
 
