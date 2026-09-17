@@ -503,7 +503,6 @@ def test_10060_legacy_false_positive_is_omitted_with_only_the_named_census_narro
     passages = product.physical.candidate_set(FamilyId.PASSAGES).candidates
     assert len(passages) == 1
     assert product._legacy_result.section_passages == (passages[0].record,)
-    assert product._legacy_result.passages == (legacy[1],)
     # Three-decimal endpoint serialization cannot encode this odd-quantum span's historical
     # midpoint: the issuer-frozen full-precision compatibility fact, not record rematching, owns
     # the exact legacy value.

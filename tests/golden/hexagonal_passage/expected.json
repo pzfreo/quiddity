@@ -35,45 +35,6 @@
         "holes": [],
         "pads": [],
         "paired_ramp_steps": [],
-        "passages": [
-          {
-            "_type": "Passage",
-            "at": [
-              0.0,
-              0.0,
-              0.0
-            ],
-            "axis": "z",
-            "length": 10.0,
-            "section": [
-              [
-                -20.0,
-                0.0
-              ],
-              [
-                -10.0,
-                -17.321
-              ],
-              [
-                10.0,
-                -17.321
-              ],
-              [
-                20.0,
-                0.0
-              ],
-              [
-                10.0,
-                17.321
-              ],
-              [
-                -10.0,
-                17.321
-              ]
-            ],
-            "sides": 6
-          }
-        ],
         "plates": [],
         "pocket_patterns": [],
         "pockets": [],
@@ -116,7 +77,6 @@
         "holes": [],
         "pads": [],
         "paired_ramp_steps": [],
-        "passages": [],
         "plates": [],
         "pocket_patterns": [],
         "pockets": [],

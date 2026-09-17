@@ -69,7 +69,7 @@ def test_a_non_rectangular_passage_beats_slots_assembled_from_its_wall_pairs():
 
     result = r.build_recognition_result(part)
     assert result.slots == ()
-    assert [passage.sides for passage in result.passages] == [8]
+    assert [len(passage.section.boundary) for passage in result.section_passages] == [8]
 
 
 def test_rotational_projection_still_uses_passage_evidence_for_reconciliation():
@@ -77,7 +77,7 @@ def test_rotational_projection_still_uses_passage_evidence_for_reconciliation():
 
     result = r.build_recognition_result(_u_void(blind=False), rotational=True)
 
-    assert result.passages == ()
+    assert result.section_passages == ()
     assert result.slots == ()
 
 
@@ -140,7 +140,7 @@ def test_rotational_passage_reconciles_pockets_before_public_projection(monkeypa
 
     product = result_module._take_inventory(Box(20, 20, 10), rotational=True)
 
-    assert product._legacy_result.passages == ()
+    assert product._legacy_result.section_passages == ()
     assert product._legacy_result.pockets == ()
     assert product._legacy_result.pocket_patterns == ()
     assert pattern_inputs == [()]
@@ -155,7 +155,7 @@ def test_empty_evidence_obround_slot_does_not_suppress_an_unrelated_passage():
     result = r.build_recognition_result(part)
 
     assert len(result.slots) == 1
-    assert len(result.passages) == 1
+    assert len(result.section_passages) == 1
 
 
 def test_empty_evidence_obround_pocket_survives_an_unrelated_passage():
@@ -166,7 +166,7 @@ def test_empty_evidence_obround_pocket_survives_an_unrelated_passage():
     result = r.build_recognition_result(part)
 
     assert len(result.pockets) == 1
-    assert len(result.passages) == 1
+    assert len(result.section_passages) == 1
 
 
 @pytest.mark.parametrize("placement", [None, Pos(7, -3, 11) * Rot(90, 0, 0)])

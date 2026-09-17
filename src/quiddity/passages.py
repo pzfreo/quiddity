@@ -701,13 +701,3 @@ DEFINITION = PhysicalDefinition(
     attribution=FullyAttributed("every returned passage claims its defining passage faces"),
     projected=prismatic,
 )
-
-# The PASSAGES_COMPAT projection over this family is still a `_registry` literal, and is
-# *deferred*, not impossible. Its `derive` takes `AcceptedProjectionInputs`, whose
-# `passage_views()` returns `SectionPassage` -- the one name in the projection-input block that
-# sits above the `_definitions` leaf -- so importing it here as written closes
-# `_registry -> passages -> _registry`. Generalising `passage_views()` off `SectionPassage`, the
-# way `AcceptedInputs.records(family, record_type)` already is, would let those types move down
-# and this module declare its own projection. That also relocates the projection-authority
-# minting closure -- deliberately closed, and rostered by name in `tests/test_registry.py` -- into
-# a leaf every family imports, which is a change worth its own review rather than a rider here.

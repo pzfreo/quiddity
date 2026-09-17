@@ -10,9 +10,7 @@ projection, reconciliation policy, and census key order remain independently rev
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
-from typing import Protocol, TypeAlias
+from collections.abc import Mapping
 
 from quiddity import (
     angled_steps,
@@ -46,28 +44,18 @@ from quiddity import (
     turned,
 )
 from quiddity._candidates import (
-    Candidate,
-    CandidateSet,
     DerivedId,
-    EvidenceIndex,
     FamilyId,
 )
 from quiddity._definitions import (
-    CensusSpec,
     Counted,
     DerivedDefinition,
     FullyAttributed,
     IncompleteAttribution,
-    ManifestEvidence,
     NotCounted,
     PhysicalDefinition,
     always,
     prismatic,
-)
-from quiddity._passage_compat import PassageCompatibilityView, passage_from_view
-from quiddity.passages import (
-    Passage,
-    SectionPassage,
 )
 
 # Internal detector identities survive the public SectionRecess schema replacement so that
@@ -84,157 +72,6 @@ RECESS_SOURCE_FAMILIES = frozenset(
         FamilyId.ROUND_BOTTOM_BLIND_SLOTS,
     }
 )
-
-
-@dataclass(frozen=True, slots=True)
-class ProjectionInputs:
-    """The sole already-decided aggregate applicability fact available to projections."""
-
-    projected: bool
-
-
-@dataclass(frozen=True, slots=True)
-class _ProjectionInputSnapshot:
-    inputs: AcceptedProjectionInputs
-    candidate_set: CandidateSet[object]
-    candidates: tuple[Candidate[object], ...]
-    evidence: EvidenceIndex
-
-
-class _ProjectionInputAuthority(Protocol):
-    def validate(self, inputs: AcceptedProjectionInputs) -> _ProjectionInputSnapshot: ...
-
-
-@dataclass(frozen=True, slots=True, init=False)
-class AcceptedProjectionInputs:
-    """Exact accepted occurrence identities and their issuer-validated compatibility facts."""
-
-    _allowed: frozenset[FamilyId]
-    _candidate_set: CandidateSet[object]
-    _candidates: tuple[Candidate[object], ...]
-    _evidence: EvidenceIndex
-    _issuer: _ProjectionInputAuthority
-
-    def passage_views(
-        self,
-    ) -> tuple[tuple[SectionPassage, PassageCompatibilityView], ...]:
-        family = FamilyId.PASSAGES
-        if family not in self._allowed:
-            raise ValueError("passages is not a declared accepted projection source")
-        snapshot = self._issuer.validate(self)
-        if snapshot.candidate_set.family is not family:
-            raise ValueError("accepted passages projection source family changed")
-        result: list[tuple[SectionPassage, PassageCompatibilityView]] = []
-        seen: set[int] = set()
-        for candidate in self._candidates:
-            if id(candidate) in seen:
-                raise ValueError("accepted passages projection roster contains a duplicate")
-            seen.add(id(candidate))
-            if not isinstance(candidate.record, SectionPassage):
-                raise TypeError("passages projection source has the wrong record type")
-            result.append((candidate.record, self._evidence.passage_compatibility(candidate)))
-        return tuple(result)
-
-
-def _projection_authority_factory():
-    """Close the mint token inside one function closure, never a module attribute."""
-
-    authority = object()
-
-    def mint(accepted: CandidateSet[object], evidence: EvidenceIndex) -> AcceptedProjectionInputs:
-        if accepted.family is not FamilyId.PASSAGES:
-            raise ValueError("projection inputs require the accepted passages candidate set")
-        evidence.validate_candidate_set(accepted)
-        original: _ProjectionInputSnapshot | None = None
-
-        class Issuer:
-            def __init__(self, supplied: object) -> None:
-                if supplied is not authority:
-                    raise ValueError("projection input issuer lacks orchestration authority")
-
-            def validate(self, inputs: AcceptedProjectionInputs) -> _ProjectionInputSnapshot:
-                snapshot = original
-                if snapshot is None or snapshot.inputs is not inputs:
-                    raise ValueError("accepted projection inputs were not issued by orchestration")
-                if (
-                    inputs._issuer is not self
-                    or inputs._candidate_set is not snapshot.candidate_set
-                    or inputs._evidence is not snapshot.evidence
-                    or snapshot.candidate_set.candidates is not snapshot.candidates
-                    or len(inputs._candidates) != len(snapshot.candidates)
-                    or any(
-                        current is not original_candidate
-                        for current, original_candidate in zip(
-                            inputs._candidates, snapshot.candidates, strict=True
-                        )
-                    )
-                ):
-                    raise ValueError("accepted passages projection roster changed after issuance")
-                snapshot.evidence.validate_candidate_set(snapshot.candidate_set)
-                return snapshot
-
-        result = object.__new__(AcceptedProjectionInputs)
-        object.__setattr__(result, "_allowed", frozenset((FamilyId.PASSAGES,)))
-        object.__setattr__(result, "_candidate_set", accepted)
-        object.__setattr__(result, "_candidates", accepted.candidates)
-        object.__setattr__(result, "_evidence", evidence)
-        issuer = Issuer(authority)
-        object.__setattr__(result, "_issuer", issuer)
-        original = _ProjectionInputSnapshot(result, accepted, accepted.candidates, evidence)
-        return result
-
-    return mint
-
-
-_issue_projection_inputs = _projection_authority_factory()
-del _projection_authority_factory
-
-
-ProjectionDiscoverer: TypeAlias = Callable[
-    [AcceptedProjectionInputs, ProjectionInputs], list[object]
-]
-
-
-@dataclass(frozen=True, slots=True)
-class ProjectionDefinition:
-    """A derived family projected from accepted occurrences rather than discovered.
-
-    Separate from `DerivedDefinition` because the two are not the same kind of thing: a
-    projection publishes no entry point, contributes nothing to the manifest, runs in its own
-    phase, and takes a two-argument `derive`. Keeping them apart types each `derive` exactly and
-    removes the `role` string that used to tell them apart.
-
-    The projection input types are declared just above rather than in the `_definitions` leaf
-    because `AcceptedProjectionInputs.passage_views()` returns `SectionPassage`, which does sit
-    above it. That is the only such name -- `PassageCompatibilityView`, `Candidate`,
-    `CandidateSet` and `EvidenceIndex` are all at or below `_candidates`, which the leaf already
-    depends on -- so this placement is one generalisation away from being unnecessary.
-
-    A projection publishes no entry point. Its records reach a caller through the aggregate.
-    """
-
-    identifier: DerivedId
-    record_types: tuple[type[object], ...]
-    result_field: str
-    sources: tuple[FamilyId, ...]
-    derive: ProjectionDiscoverer
-    census: CensusSpec
-    evidence: ManifestEvidence | None = field(default=None, kw_only=True)
-
-
-def _passages_compat(
-    inputs: AcceptedProjectionInputs, projection: ProjectionInputs
-) -> list[object]:
-    if not projection.projected:
-        return []
-    found: list[tuple[Passage, int]] = []
-    for _, fact in inputs.passage_views():
-        if not fact.eligible:
-            continue
-        assert fact.legacy_ordinal is not None
-        found.append((passage_from_view(fact, Passage), fact.legacy_ordinal))
-    found.sort(key=lambda item: item[1])
-    return [record for record, _ in found]
 
 
 PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
@@ -282,22 +119,10 @@ DERIVED_DEFINITIONS: tuple[DerivedDefinition, ...] = (
     gussets.PATTERNS,
 )
 
-PROJECTION_DEFINITIONS: tuple[ProjectionDefinition, ...] = (
-    ProjectionDefinition(
-        DerivedId.PASSAGES_COMPAT,
-        (Passage,),
-        "passages",
-        (FamilyId.PASSAGES,),
-        _passages_compat,
-        NotCounted("compatibility projection of accepted section passages"),
-    ),
-)
-
 
 def validate_definitions(
     physical: tuple[PhysicalDefinition, ...],
     derived: tuple[DerivedDefinition, ...],
-    projections: tuple[ProjectionDefinition, ...],
 ) -> None:
     """Fail closed when the closed internal registry is incomplete or incoherent."""
 
@@ -309,14 +134,9 @@ def validate_definitions(
     fields = [definition.result_field for definition in physical]
     if len(set(fields)) != len(fields):
         raise ValueError("physical result fields must be unique")
-    every_derived: tuple[DerivedDefinition | ProjectionDefinition, ...] = (*derived, *projections)
     counted_keys = [
         definition.census.key for definition in physical if isinstance(definition.census, Counted)
-    ] + [
-        definition.census.key
-        for definition in every_derived
-        if isinstance(definition.census, Counted)
-    ]
+    ] + [definition.census.key for definition in derived if isinstance(definition.census, Counted)]
     if len(set(counted_keys)) != len(counted_keys) or any(not key for key in counted_keys):
         raise ValueError("counted census keys must be non-empty and unique")
     for index, definition in enumerate(physical):
@@ -347,16 +167,16 @@ def validate_definitions(
             for dependency in definition.dependencies
         ):
             raise ValueError("physical dependencies must exist before their consumer")
-    derived_ids = tuple(definition.identifier for definition in every_derived)
+    derived_ids = tuple(definition.identifier for definition in derived)
     if len(set(derived_ids)) != len(derived_ids) or set(derived_ids) != set(DerivedId):
         raise ValueError("derived definitions must cover every derived id exactly once")
-    derived_fields = [definition.result_field for definition in every_derived]
+    derived_fields = [definition.result_field for definition in derived]
     if len(set(derived_fields)) != len(derived_fields) or set(fields) & set(derived_fields):
         raise ValueError("registry result fields must be unique")
     for discoverer in derived:
         if not discoverer.public_entrypoint:
             raise ValueError("derived definitions require a public entrypoint")
-    for derived_definition in every_derived:
+    for derived_definition in derived:
         if not derived_definition.record_types:
             raise ValueError("derived definitions require record contracts")
         if not isinstance(derived_definition.census, Counted | NotCounted):
@@ -368,24 +188,33 @@ def validate_definitions(
             raise ValueError("not-counted census reasons must be non-empty")
         if any(source not in positions for source in derived_definition.sources):
             raise ValueError("derived sources must be registered physical families")
+        # `_project_result` copies a derived field across verbatim. That is only truthful while
+        # every source family projects into the same contexts the derived field does: a
+        # projection of an unprojected family has nothing to say. It used to hold that gate at
+        # runtime, for the one derived definition sourcing from `passages` -- the sole family
+        # with a context-dependent `projected`. That definition is gone, so the gate became a
+        # branch no context could reach and no test could cover. Declaring the condition here
+        # refuses the case at import instead: reinstate the gate, with a test, before adding a
+        # derived family whose source is conditionally projected.
+        if any(
+            physical[positions[source]].projected is not always
+            for source in derived_definition.sources
+        ):
+            raise ValueError("derived sources must be unconditionally projected")
 
 
 def validate_result_fields(result_fields: frozenset[str]) -> None:
     """Validate registry coverage against independently declared internal detector fields."""
 
-    every_derived: tuple[DerivedDefinition | ProjectionDefinition, ...] = (
-        *DERIVED_DEFINITIONS,
-        *PROJECTION_DEFINITIONS,
-    )
     registered = {definition.result_field for definition in PHYSICAL_DEFINITIONS} | {
-        definition.result_field for definition in every_derived
+        definition.result_field for definition in DERIVED_DEFINITIONS
     }
     if registered != result_fields:
         raise ValueError("registry fields do not exactly cover physical and derived results")
 
 
 def validate_output(
-    definition: PhysicalDefinition | DerivedDefinition | ProjectionDefinition,
+    definition: PhysicalDefinition | DerivedDefinition,
     records: list[object],
 ) -> None:
     """Reject an adapter output that violates its declared record contract."""
@@ -398,22 +227,20 @@ def validate_census_contract(
     expected: Mapping[str, str],
     physical: tuple[PhysicalDefinition, ...] = PHYSICAL_DEFINITIONS,
     derived: tuple[DerivedDefinition, ...] = DERIVED_DEFINITIONS,
-    projections: tuple[ProjectionDefinition, ...] = PROJECTION_DEFINITIONS,
 ) -> None:
     """Compare census key-to-source bindings with the independent manual census contract."""
 
-    every_derived: tuple[DerivedDefinition | ProjectionDefinition, ...] = (*derived, *projections)
     actual = {
         definition.result_field: definition.census.key
         for definition in physical
         if isinstance(definition.census, Counted)
     } | {
         definition.result_field: definition.census.key
-        for definition in every_derived
+        for definition in derived
         if isinstance(definition.census, Counted)
     }
     if actual != dict(expected):
         raise ValueError("registry census bindings do not match the manual census contract")
 
 
-validate_definitions(PHYSICAL_DEFINITIONS, DERIVED_DEFINITIONS, PROJECTION_DEFINITIONS)
+validate_definitions(PHYSICAL_DEFINITIONS, DERIVED_DEFINITIONS)

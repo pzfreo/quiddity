@@ -1102,22 +1102,20 @@ def test_all_existing_golden_polygonal_recess_records_round_trip() -> None:
         part = fixture.build_fixture()
         prismatic_result = build_recognition_result(part, rotational=False)
         rotational_result = build_recognition_result(part, rotational=True)
-        collections = (
-            (recognise_passages(part), recognise_prismatic_pockets(part)),
-            (prismatic_result.passages, prismatic_result.prismatic_pockets),
-            (rotational_result.passages, rotational_result.prismatic_pockets),
-        )
+        # Only the standalone legacy entry point still produces `Passage` records; the aggregate
+        # carries prismatic pockets alone, so its two collections go through the pocket loop.
         issuer = BodyRefIssuer()
-        for passages, pockets in collections:
-            for passage in passages:
-                occurrence = passage_to_occurrence(
-                    passage, body_ref=issuer.issue(), body_refs=issuer
-                )
-                assert (
-                    occurrence_to_passage(occurrence, body_refs=issuer).to_dict()
-                    == passage.to_dict()
-                )
-                checked += 1
+        for passage in recognise_passages(part):
+            occurrence = passage_to_occurrence(passage, body_ref=issuer.issue(), body_refs=issuer)
+            assert (
+                occurrence_to_passage(occurrence, body_refs=issuer).to_dict() == passage.to_dict()
+            )
+            checked += 1
+        for pockets in (
+            recognise_prismatic_pockets(part),
+            prismatic_result.prismatic_pockets,
+            rotational_result.prismatic_pockets,
+        ):
             for pocket in pockets:
                 occurrence = prismatic_pocket_to_occurrence(
                     pocket, body_ref=issuer.issue(), body_refs=issuer
@@ -1127,4 +1125,6 @@ def test_all_existing_golden_polygonal_recess_records_round_trip() -> None:
                     == pocket.to_dict()
                 )
                 checked += 1
-    assert checked == 25
+    # 25 -> 24: the aggregate's legacy `passages` output is gone, so one of its records no
+    # longer exists to round-trip. The adapter pair is still covered by `recognise_passages`.
+    assert checked == 24

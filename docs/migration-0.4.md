@@ -13,27 +13,19 @@ before geometry discovery or ledger mutation. Attributed callers must migrate to
 records = recognise_section_passages(part, ledger=ledger)
 ```
 
-`RecognitionResult.section_passages` is the physical, counted result. The existing
-`RecognitionResult.passages` field remains a post-reconciliation compatibility projection of
-accepted, exactly representable principal line sections; it owns no Candidate or evidence and is
-not counted separately. It is a stable subsequence of the standalone legacy result, not a promise
-that every historical legacy record has a rich equivalent. A legacy-only record whose claimed
-walls do not form a truthful constant section remains visible from writer-free
-`recognise_passages`, but is absent from the aggregate, reconciliation and census. Free-axis
-occurrences appear only in `section_passages`.
+`RecognitionResult.section_passages` is the physical, counted result, and is now the only passage
+output the aggregate carries. The `RecognitionResult.passages` compatibility projection has been
+removed: it owned no Candidate or evidence, was not counted separately, and was only ever a stable
+subsequence of the standalone legacy result rather than a promise that every historical legacy
+record had a rich equivalent. Writer-free `recognise_passages` still returns legacy records
+directly for callers that want them.
 
 This intentionally narrows aggregate compatibility before 1.0. On the checked-in
-`10060.step` regression, standalone legacy output remains the two-element `(X, Z)` sequence. The
-partial-span X false positive has no rich occurrence, while the truthful Z occurrence remains the
-sole aggregate projection in its original relative order. Consequently `feature_census` reports
-one Passage instead of the historical two; all other census keys and the exact Slot, Pocket and
-Prismatic Pocket dispositions remain unchanged on that part.
-
-The compatibility projection is frozen from the full-precision occurrence at Candidate issuance;
-it is not value-rematched from the rounded rich record. This distinction is necessary for an odd
-number of three-decimal span quanta: `10060.step` serializes the Z interval as `(0.0, 33.245)`,
-whose half-quantum midpoint cannot itself be represented to three decimals, while the historical
-full-precision midpoint correctly rounds to `16.623`.
+`10060.step` regression, standalone legacy output remains the two-element `(X, Z)` sequence: the
+partial-span X false positive has no rich occurrence, and the truthful Z occurrence is the one
+`recognise_section_passages` reports. Consequently `feature_census` reports one Passage instead of
+the historical two; all other census keys and the exact Slot, Pocket and Prismatic Pocket
+dispositions remain unchanged on that part.
 
 The package capability manifest is format 2. Each recogniser declares whether it is a physical
 authority, compatibility projection, or derived API, and each counted family names its
