@@ -152,7 +152,6 @@ MODULE_SEAM_EDGES = {
     "_bevel": {"_geometry", "_solid_properties", "_typing"},
     "paired_ramp_steps": {
         "_adjacency",
-        "_bevel",
         "_candidates",
         "_claims",
         "_definitions",
@@ -394,11 +393,10 @@ MODULE_SEAM_EDGES = {
     # obround ends recover the ones no wall pair found, and reduction turns what is left into
     # features. Each layer may import the ones below it and none may import one above, which is
     # the property the split was for -- a family predicate cannot quietly become substrate.
-    "_recess_faces": {"_adjacency", "_recess_records", "_typing", "_volume_probe"},
+    "_recess_faces": {"_adjacency", "_recess_records", "_typing"},
     "_recess_reduce": {
         "_adjacency",
         "_body_identity",
-        "_geometry",
         "_recess_faces",
         "_recess_records",
         "_solid_properties",
@@ -438,7 +436,6 @@ MODULE_SEAM_EDGES = {
     # sits above it -- a recogniser importing this is the order dependence ADR 0003 forbids.
     "_reconcile": {
         "_candidates",
-        "_claims",
         "_dispositions",
         "_passage_compat",
         "_recess_records",
@@ -454,15 +451,8 @@ MODULE_SEAM_EDGES = {
     "_registry": {
         "_definitions",
         "_candidates",
-        "_claims",
-        "_features",
-        "_recess_features",
         "bosses",
         "holes",
-        "_run",
-        "_section_recess",
-        "_section_recess_discovery",
-        "_typing",
         "angled_steps",
         "blends",
         "chamfers",
@@ -517,7 +507,6 @@ MODULE_SEAM_EDGES = {
     # It may wrap the neutral layers; consumers must not reach those concrete classes.
     "experimental_geometry": {
         "_adjacency",
-        "_analytic_surfaces",
         "_blend_view",
         "_effective_surfaces",
         "_surface_facts",
@@ -1438,6 +1427,17 @@ def _package_import_graph() -> dict[str, set[str]]:
     for module, path in paths.items():
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
+            # A relative import is invisible to every branch below: `from . import _claims` has
+            # no `node.module`, and `from ._claims import X` has one that never carries the
+            # package prefix. That was harmless while the graph was only read to *forbid* edges
+            # -- a missed edge merely went unpoliced. `test_no_seam_entry_has_gone_stale` reads
+            # it to *delete* them, so a relative import would have the suite instruct someone to
+            # remove a live entry, after which nothing polices the crossing at all. The package
+            # uses absolute imports throughout; this keeps it that way rather than teaching the
+            # walk a form nothing writes.
+            assert not (isinstance(node, ast.ImportFrom) and node.level), (
+                f"{module} uses a relative import, which the seam graph cannot see"
+            )
             if isinstance(node, ast.ImportFrom) and node.module == package:
                 # `from quiddity import chamfers` names the module as an alias, not in
                 # node.module. Reading only node.module made this form invisible, so a seam or
@@ -1524,6 +1524,36 @@ def test_internal_module_seams_match_adr_0007() -> None:
         if graph[module] - allowed
     }
     assert crossings == {}
+
+
+def test_no_seam_entry_has_gone_stale() -> None:
+    """ADR 0007: the table is the record, so it may not claim an edge the code stopped using.
+
+    Deliberately a second test rather than turning the containment check above into an equality
+    one. Equality was tried and reverted, because it made "this function no longer needs that
+    helper" a test failure indistinguishable from a real seam violation -- and those are not the
+    same event. A crossing is a design violation; a stale entry is a line to delete.
+
+    Containment alone is not enough, though: nothing removes a permission when the code that
+    needed it goes, so the table only ever grows. Twelve entries across six modules had gone
+    stale by the time this was written, several of them family internals the registry is not
+    permitted to import at all -- so the table was granting edges ADR 0007's own rule forbids.
+    A record that cannot shrink stops being a record.
+
+    Together with the containment check and `test_every_module_has_a_seam_entry` this does come
+    to exact equality between table and graph, which is the strictness that was reverted before.
+    The cost is re-priced rather than avoided: what changes is that the two halves fail
+    separately, under names that say which of them it was.
+    """
+
+    graph = _package_import_graph()
+
+    stale = {
+        module: sorted(allowed - graph[module])
+        for module, allowed in MODULE_SEAM_EDGES.items()
+        if allowed - graph[module]
+    }
+    assert stale == {}, "these seam entries are no longer imported; delete them from the table"
 
 
 def test_every_module_has_a_seam_entry() -> None:
