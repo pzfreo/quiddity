@@ -155,6 +155,7 @@ def assert_core_route_is_closed(
     module: str,
     core: str,
     declaration: str = "_discover",
+    core_module: str | None = None,
     handed_over: dict[str, str],
     also_reached_from: dict[str, tuple[str, ...]],
 ) -> None:
@@ -166,6 +167,18 @@ def assert_core_route_is_closed(
     added later without being pinned fails here. That matters in both directions -- dropping
     ``face_surfaces`` from the pads declaration is type-valid and silently rebuilds a surface
     graph the run already has.
+
+    *core_module* is where the core is defined, defaulting to *module*. The recess families need
+    it: their declarations are in `slots.py` and their cores in `_recess_features.py`. Naming it
+    rather than locating it is what keeps the two home files a claim the caller makes, not a
+    reading of the layout -- see the comment at the assertion.
+
+    Note that this couples the pin to file layout: a sanctioned caller that moves to a third
+    module fails with `X lives in Y.py, not beside the declaration or the core`. That is
+    deliberate. The choice it forces -- move the code back, or widen the pin on purpose -- is the
+    one worth making consciously, and `_recess_features.py` shows why: it holds the cores and
+    entry points of three families, so naming it as a home lets the naming sweep skip a module
+    that is not this family's alone.
 
     *also_reached_from* is the exhaustive roster of the **other** functions allowed to call the
     core, each mapped to the keywords it must not pass. It is required and exhaustive in both
@@ -194,15 +207,19 @@ def assert_core_route_is_closed(
         )
 
     declaring_file = f"{module}.py"
+    core_file = f"{core_module or module}.py"
     declared = (declaring_file, _function(declaring_file, declaration))
     sanctioned = {name: _locate(name) for name in also_reached_from}
-    core_file, _core_def = _locate(core)
 
-    # A sanctioned caller lives either beside the declaration or beside the core, and nowhere
-    # else. Without this the `allowed` set below would be derived from the very code it
-    # constrains: relocating a public entry point into another module would carry permission
-    # with it, and moving `recognise_countersinks` into `pads.py` would stop being an error.
+    # Both home files are *named* by the caller and then checked against where the code actually
+    # is. Deriving either from the code would make the set of files the sweep below skips a
+    # consequence of the very layout it constrains: splitting the core out into another module --
+    # an active pattern here, and how `channels` came to be shaped this way -- would silently
+    # enrol that module, and a rebinding there would then be unpinned.
     homes = {declaring_file, core_file}
+    assert _locate(core)[0] == core_file, (
+        f"{core} is defined in {_locate(core)[0]}, not {core_file}"
+    )
     for caller, (path, _node) in sanctioned.items():
         assert path in homes, f"{caller} lives in {path}, not beside the declaration or the core"
 

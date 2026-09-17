@@ -873,6 +873,7 @@ def test_channel_private_core_and_registry_writer_route_are_closed() -> None:
     assert_core_route_is_closed(
         module="slots",
         core="_discover_channels",
+        core_module="_recess_features",
         declaration="_discover_channel_family",
         handed_over={
             "face_edges": "services.context.face_edges",
