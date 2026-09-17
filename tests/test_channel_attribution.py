@@ -24,7 +24,7 @@ from build123d import (
 from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.GeomAbs import GeomAbs_Plane
 
-import quiddity._recess_core as core_module
+import quiddity._recess_core as recess_core
 import quiddity._recess_features as feature_module
 from quiddity._adjacency import FaceEdges, FaceGraph, FaceNode
 from quiddity._candidates import FamilyId
@@ -51,6 +51,7 @@ from quiddity._recess_features import _discover_channels
 from quiddity._recess_records import Channel
 from quiddity.result import _take_inventory
 from tests.golden.open_channels.fixture import build_fixture
+from tests.route_pins import assert_core_route_is_closed
 from tools._legacy_recognition import (
     recognise_channels,
 )
@@ -333,7 +334,7 @@ def test_missing_or_wall_aliased_floor_refuses_before_publication(monkeypatch, a
     part = build_fixture()
     graph = FaceGraph(part)
     ledger = ClaimLedger(graph)
-    proposals = core_module._channel_proposals_one(part, graph=graph)
+    proposals = recess_core._channel_proposals_one(part, graph=graph)
     assert len(proposals) == 1
     proposal = proposals[0]
     floor = frozenset({proposal.low_wall}) if alias_wall else frozenset()
@@ -759,16 +760,16 @@ def test_foreign_graph_copied_node_and_late_body_failure_are_atomic(monkeypatch)
 def test_proposal_builder_refuses_a_candidate_without_graph_nodes(monkeypatch) -> None:
     part = build_fixture()
     graph = FaceGraph(part)
-    faces = core_module._planar_faces(part, graph=graph)
+    faces = recess_core._planar_faces(part, graph=graph)
     walls = [face for face in faces if face.wall and face.axis == "y"]
     assert len(walls) >= 2
     node_free = [replace(face, node=None) for face in faces]
     expected = recognise_channels(part)[0]
 
-    monkeypatch.setattr(core_module, "_planar_faces", lambda *_args, **_kwargs: node_free)
-    monkeypatch.setattr(core_module, "_channel_candidate", lambda *_args, **_kwargs: expected)
+    monkeypatch.setattr(recess_core, "_planar_faces", lambda *_args, **_kwargs: node_free)
+    monkeypatch.setattr(recess_core, "_channel_candidate", lambda *_args, **_kwargs: expected)
     with pytest.raises(ValueError, match="require graph nodes"):
-        core_module._channel_proposals_one(part, graph=graph)
+        recess_core._channel_proposals_one(part, graph=graph)
 
 
 def test_proposal_builder_refuses_a_candidate_without_retained_floor_nodes(monkeypatch) -> None:
@@ -776,15 +777,15 @@ def test_proposal_builder_refuses_a_candidate_without_retained_floor_nodes(monke
     graph = FaceGraph(part)
     expected = recognise_channels(part)[0]
 
-    monkeypatch.setattr(core_module, "_channel_candidate", lambda *_args, **_kwargs: expected)
+    monkeypatch.setattr(recess_core, "_channel_candidate", lambda *_args, **_kwargs: expected)
     with pytest.raises(ValueError, match="floor identity is unavailable"):
-        core_module._channel_proposals_one(part, graph=graph)
+        recess_core._channel_proposals_one(part, graph=graph)
 
 
 def test_candidate_remains_compatible_without_a_floor_identity_consumer(monkeypatch) -> None:
     part = build_fixture()
     graph = FaceGraph(part)
-    original = core_module._channel_candidate
+    original = recess_core._channel_candidate
     captured = {}
 
     def capture(*args, **kwargs):
@@ -793,8 +794,8 @@ def test_candidate_remains_compatible_without_a_floor_identity_consumer(monkeypa
             captured["args"] = args
         return result
 
-    monkeypatch.setattr(core_module, "_channel_candidate", capture)
-    expected = core_module._channel_proposals_one(part, graph=graph)[0].record
+    monkeypatch.setattr(recess_core, "_channel_candidate", capture)
+    expected = recess_core._channel_proposals_one(part, graph=graph)[0].record
 
     assert original(*captured["args"]) == expected
 
@@ -866,25 +867,23 @@ def _qualified_calls(tree: ast.AST):
 
 
 def test_channel_private_core_and_registry_writer_route_are_closed() -> None:
-    sites: list[tuple[str, ast.Call]] = []
-    for path in (ROOT / "src/quiddity").glob("*.py"):
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        sites.extend(
-            (path.name, call)
-            for name, call in _qualified_calls(tree)
-            if name == "_discover_channels" or name.endswith("._discover_channels")
-        )
-    # The declaration is in `slots.py`, the core and public entry point in `_recess_features.py`.
-    assert sorted(name for name, _call in sites) == ["_recess_features.py", "slots.py"]
-    declared = next(call for name, call in sites if name == "slots.py")
-    writer = {keyword.arg: keyword.value for keyword in declared.keywords}["writer"]
-    assert (
-        isinstance(writer, ast.Attribute)
-        and writer.attr == "writer"
-        and isinstance(writer.value, ast.Name)
-        and writer.value.id == "services"
+    # The declaration is in `slots.py`; the core and the public entry point stay in
+    # `_recess_features.py`. The shared pin locates each sanctioned caller by name across the
+    # package rather than being told a file, so the split costs it nothing.
+    assert_core_route_is_closed(
+        module="slots",
+        core="_discover_channels",
+        core_module="_recess_features",
+        declaration="_discover_channel_family",
+        handed_over={
+            "face_edges": "services.context.face_edges",
+            "writer": "services.writer",
+        },
+        also_reached_from={"recognise_channels": ("writer",)},
     )
 
+    # What the entry point passes *instead* of a writer is this family's own business, not the
+    # shared pin's: a read-only graph taken from the caller's ledger, or none at all.
     feature_tree = ast.parse(
         (ROOT / "src/quiddity/_recess_features.py").read_text(encoding="utf-8")
     )
@@ -893,14 +892,11 @@ def test_channel_private_core_and_registry_writer_route_are_closed() -> None:
         for node in feature_tree.body
         if isinstance(node, ast.FunctionDef) and node.name == "recognise_channels"
     )
-    public_calls = [
+    (call,) = [
         call
         for name, call in _qualified_calls(public)
         if name == "_discover_channels" or name.endswith("._discover_channels")
     ]
-    assert len(public_calls) == 1
-    (call,) = public_calls
-    assert all(keyword.arg != "writer" for keyword in call.keywords)
     graph = {keyword.arg: keyword.value for keyword in call.keywords}["graph"]
     assert (
         isinstance(graph, ast.IfExp)

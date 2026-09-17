@@ -744,9 +744,8 @@ def test_plate_import_constructor_and_capability_rosters_are_closed() -> None:
     assert_core_route_is_closed(
         module="plates",
         core="_discover_plates",
-        entrypoint="recognise_plates",
         handed_over={"writer": "services.writer", "excluded_solids": "turned_solids"},
-        withheld=("writer",),
+        also_reached_from={"recognise_plates": ("writer",)},
     )
     assert [(path, len(call.args)) for path, call in constructors] == [("plates.py", 0)]
     assert [(path, len(call.args)) for path, call in proposal_sites] == [("plates.py", 3)]

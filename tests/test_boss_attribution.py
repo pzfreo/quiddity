@@ -743,14 +743,13 @@ def test_private_core_has_one_production_writer_caller_and_one_constructor() -> 
     assert_core_route_is_closed(
         module="bosses",
         core="_discover_bosses",
-        entrypoint="recognise_bosses",
         handed_over={
             "cyls": "services.cylinders",
             "face_edges": "services.context.face_edges",
             "writer": "services.writer",
             "face_surfaces": "services.context.face_surfaces",
         },
-        withheld=("writer",),
+        also_reached_from={"recognise_bosses": ("writer",)},
     )
     assert [(path, len(call.args)) for path, call in constructor_sites] == [("bosses.py", 0)]
 

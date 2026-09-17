@@ -11,17 +11,21 @@ names its own values.
 What this does **not** prove is that the core is the only way to reach the capability. Three
 routes defeat a syntactic sweep, and only one of them is caught elsewhere:
 
-* ``globals()["_discover_x"](part, writer=...)`` inside the family module itself. No gate rejects
-  this -- the call sweep does not recognise the callee, and the sweep for outside modules skips
-  this file by construction.
-* a positional argument. All seven cores take the capability keyword-only, so the capability
-  itself cannot go this way, but the part the declaration passes is unpinned.
+* ``globals()["_discover_x"](part, writer=...)`` inside a module that already holds a sanctioned
+  caller. No gate rejects this -- the call sweep does not recognise the callee, and the sweep for
+  outside modules skips those files by construction.
+* a positional argument. Every core this pin is applied to takes the capability keyword-only --
+  not every core in the package does -- so the capability itself cannot go this way, but the part
+  the declaration passes is unpinned.
 * ``getattr(module, "_discover_x")``, which ``ruff`` rejects as B009.
+* a module-level rebinding -- ``_ALIAS = _discover_x`` and then ``_ALIAS(part, writer=...)`` --
+  inside a file that already holds a sanctioned caller. Simpler than either of the above and
+  rejected by nothing. An *import* alias is followed; a plain assignment is not.
 
-A ``**``-splat is *not* on that list: both calls must spell their keywords, because a splat at the
-sanctioned call site would otherwise hide the capability from ``withheld``. ``mypy`` does not catch
-it -- an entry point can splat a real ``EvidenceWriter`` into the core with no ``type: ignore`` --
-so the pin rejects it directly.
+A ``**``-splat is *not* on that list: every sanctioned call must spell its keywords, because a
+splat at a sanctioned call site would otherwise hide the capability from the withheld set.
+``mypy`` does not catch it -- an entry point can splat a real ``EvidenceWriter`` into the core
+with no ``type: ignore`` -- so the pin rejects it directly.
 """
 
 from __future__ import annotations
@@ -40,26 +44,54 @@ def _callee_name(func: ast.expr) -> str | None:
     return None
 
 
-def _function(tree: ast.Module, name: str, filename: str) -> ast.FunctionDef:
+def _tree(filename: str) -> ast.Module:
+    return ast.parse((PACKAGE / filename).read_text(encoding="utf-8"), filename=filename)
+
+
+def _function(filename: str, name: str) -> ast.FunctionDef:
     function = next(
-        (node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == name),
+        (
+            node
+            for node in _tree(filename).body
+            if isinstance(node, ast.FunctionDef) and node.name == name
+        ),
         None,
     )
     assert function is not None, f"{filename} has no module-level `def {name}`"
     return function
 
 
-def _core_call(function: ast.FunctionDef, core: str) -> ast.Call:
-    call = next(
-        (
-            node
-            for node in ast.walk(function)
-            if isinstance(node, ast.Call) and _callee_name(node.func) == core
-        ),
-        None,
-    )
-    assert call is not None, f"{function.name} does not call {core}"
-    return call
+def _module_level_defs(name: str) -> list[tuple[str, ast.FunctionDef]]:
+    return [
+        (path.name, node)
+        for path in sorted(PACKAGE.glob("*.py"))
+        for node in ast.parse(path.read_text(encoding="utf-8"), filename=str(path)).body
+        if isinstance(node, ast.FunctionDef) and node.name == name
+    ]
+
+
+def _locate(name: str) -> tuple[str, ast.FunctionDef]:
+    """The one module-level ``def name`` in the package, with the file holding it.
+
+    Locating rather than being told the file is what lets a sanctioned caller live in a module
+    other than the declaration's -- the recess families declare in ``slots.py`` and keep both
+    core and entry point in ``_recess_features.py``. Two definitions of the name is an error
+    rather than a pick, because the pin would otherwise silently check the wrong one.
+    """
+    found = _module_level_defs(name)
+    assert len(found) == 1, f"{name} has {len(found)} module-level definitions: {found}"
+    return found[0]
+
+
+def _the_core_call(where: tuple[str, ast.FunctionDef], names: set[str]) -> ast.Call:
+    filename, function = where
+    calls = [
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Call) and _callee_name(node.func) in names
+    ]
+    assert len(calls) == 1, f"{filename}::{function.name} calls the core {len(calls)} times"
+    return calls[0]
 
 
 def _spelled_keywords(call: ast.Call, where: str) -> dict[str, str]:
@@ -73,16 +105,61 @@ def _spelled_keywords(call: ast.Call, where: str) -> dict[str, str]:
     }
 
 
+def _sites_in(
+    node: ast.AST, names: set[str], filename: str, enclosing: str
+) -> list[tuple[str, str]]:
+    """Recurse, attributing each call to the function whose body holds it.
+
+    A call in a decorator or a default argument is attributed to the function it decorates or
+    defaults, though it evaluates in the enclosing scope. That misnames the site but cannot hide
+    one: the pair is still reported, so it either matches a sanctioned entry or fails the roster.
+    """
+    sites: list[tuple[str, str]] = []
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef):
+            sites.extend(_sites_in(child, names, filename, child.name))
+            continue
+        if isinstance(child, ast.Call) and _callee_name(child.func) in names:
+            sites.append((filename, enclosing))
+        sites.extend(_sites_in(child, names, filename, enclosing))
+    return sites
+
+
+def _local_names(tree: ast.Module, core: str) -> set[str]:
+    """Every name *core* answers to in this file, including the one it was imported under.
+
+    `from quiddity._recess_features import _discover_channels as _dc` then `_dc(...)` is a call
+    to the core that a bare name match does not see, and the sanctioned files are exactly the
+    ones the outsider sweep skips.
+    """
+    return {core} | {
+        alias.asname
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+        for alias in node.names
+        if alias.name == core and alias.asname
+    }
+
+
+def _call_sites(core: str) -> list[tuple[str, str]]:
+    """Every call to *core* in the package, as (file, enclosing function) pairs."""
+    sites: list[tuple[str, str]] = []
+    for path in sorted(PACKAGE.glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        sites.extend(_sites_in(tree, _local_names(tree, core), path.name, "<module>"))
+    return sites
+
+
 def assert_core_route_is_closed(
     *,
     module: str,
     core: str,
     declaration: str = "_discover",
-    entrypoint: str,
+    core_module: str | None = None,
     handed_over: dict[str, str],
-    withheld: tuple[str, ...],
+    also_reached_from: dict[str, tuple[str, ...]],
 ) -> None:
-    """Assert only *module*'s *declaration* reaches *core* with the run's capabilities.
+    """Assert *module*'s *declaration* is the only route that hands *core* the run's capabilities.
 
     *handed_over* maps every keyword the declaration passes to the ``ast.unparse`` form of the
     expression it must pass -- normal form, not the source text, so ``0.30`` is pinned as ``0.3``
@@ -91,59 +168,96 @@ def assert_core_route_is_closed(
     ``face_surfaces`` from the pads declaration is type-valid and silently rebuilds a surface
     graph the run already has.
 
-    *withheld* names what the public entry point must not pass, and has no default on purpose. It
-    must name keywords the declaration hands over, so that a typo cannot quietly assert nothing,
-    and is narrower than all of them, because an entry point may legitimately forward its own
-    parameters to the core -- ``recognise_flats`` passes ``cyls`` and ``face_edges``
-    it was given. What it may never pass is the capability. A default would be wrong the moment a
-    family spells that capability ``ledger`` or ``sink``, both of which this package uses, and it
-    would be wrong *silently*: the check would pass while asserting nothing.
+    *core_module* is where the core is defined, defaulting to *module*. The recess families need
+    it: their declarations are in `slots.py` and their cores in `_recess_features.py`. Naming it
+    rather than locating it is what keeps the two home files a claim the caller makes, not a
+    reading of the layout -- see the comment at the assertion.
+
+    Note that this couples the pin to file layout: a sanctioned caller that moves to a third
+    module fails with `X lives in Y.py, not beside the declaration or the core`. That is
+    deliberate. The choice it forces -- move the code back, or widen the pin on purpose -- is the
+    one worth making consciously, and `_recess_features.py` shows why: it holds the cores and
+    entry points of three families, so naming it as a home lets the naming sweep skip a module
+    that is not this family's alone.
+
+    *also_reached_from* is the exhaustive roster of the **other** functions allowed to call the
+    core, each mapped to the keywords it must not pass. It is required and exhaustive in both
+    directions: a call site it does not name fails, and a function it names that does not call
+    the core fails too. Most families map their public entry point to the capability it may not
+    forward -- ``{"recognise_flats": ("writer",)}`` -- because an entry point may legitimately
+    forward its own parameters (``recognise_flats`` passes the ``cyls`` and ``face_edges`` it was
+    given) but never the writer the declaration mints.
+
+    ``also_reached_from={}`` is a stronger claim, not a skipped one: it says the declaration is
+    the *only* caller in the package, which is what the call-site sweep below then checks. Both
+    ``levels`` families are in that shape -- ``recognise_face_levels`` and ``recognise_risers``
+    compute a deliberately different thing from their cores rather than calling them.
+
+    Each roster entry's keywords must be non-empty and must name keywords the declaration hands
+    over, so that a typo cannot quietly assert nothing. There is no default: it would be wrong
+    the moment a family spells the capability ``ledger`` or ``sink``, both of which this package
+    uses, and it would be wrong *silently*.
     """
 
-    # A `withheld` naming nothing the declaration passes would assert nothing at all, which is
-    # how this pin was wrong before: the check stays green and the route stays open.
-    assert withheld and set(withheld) <= set(handed_over), (
-        f"withheld={withheld} names nothing {declaration} hands over"
+    for caller, withheld in also_reached_from.items():
+        # A `withheld` naming nothing the declaration passes would assert nothing at all, which is
+        # how this pin was wrong before: the check stays green and the route stays open.
+        assert withheld and set(withheld) <= set(handed_over), (
+            f"{caller}'s withheld={withheld} names nothing {declaration} hands over"
+        )
+
+    declaring_file = f"{module}.py"
+    core_file = f"{core_module or module}.py"
+    declared = (declaring_file, _function(declaring_file, declaration))
+    sanctioned = {name: _locate(name) for name in also_reached_from}
+
+    # Both home files are *named* by the caller and then checked against where the code actually
+    # is. Deriving either from the code would make the set of files the sweep below skips a
+    # consequence of the very layout it constrains: splitting the core out into another module --
+    # an active pattern here, and how `channels` came to be shaped this way -- would silently
+    # enrol that module, and a rebinding there would then be unpinned.
+    homes = {declaring_file, core_file}
+    assert _locate(core)[0] == core_file, (
+        f"{core} is defined in {_locate(core)[0]}, not {core_file}"
     )
+    for caller, (path, _node) in sanctioned.items():
+        assert path in homes, f"{caller} lives in {path}, not beside the declaration or the core"
 
-    filename = f"{module}.py"
-
-    # No module outside the family names the core at all -- not by import, not as an attribute,
-    # since either can be rebound and called under a name this sweep would not recognise.
+    # No module outside those two homes names the core at all -- not by import, not as an
+    # attribute, since either can be rebound and called under a name the call sweep would not
+    # recognise. The import arm deliberately ignores which module the name is imported *from*:
+    # `slots` re-exports `_discover_channels`, so keying on the core's own module would let
+    # `from quiddity.slots import _discover_channels as _dc` through, which is a live route.
     outsiders = sorted(
         path.name
         for path in PACKAGE.glob("*.py")
-        if path.name != filename
+        if path.name not in homes
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"), filename=str(path)))
         if (isinstance(node, ast.Attribute) and node.attr == core)
-        or (
-            isinstance(node, ast.ImportFrom)
-            # A relative `from .flats import ...` carries the bare module name and a level.
-            and node.module in (f"quiddity.{module}", module)
-            and any(alias.name == core for alias in node.names)
-        )
+        or (isinstance(node, ast.ImportFrom) and any(alias.name == core for alias in node.names))
     )
-    assert outsiders == [], f"{core} is named outside {filename} by {outsiders}"
+    assert outsiders == [], f"{core} is named outside {sorted(homes)} by {outsiders}"
 
-    # Exactly two call sites, both here. A third route into the writer-enabled core would be
-    # invisible to the sweep above, which skips this file.
-    call_sites = [
-        path.name
-        for path in PACKAGE.glob("*.py")
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"), filename=str(path)))
-        if isinstance(node, ast.Call) and _callee_name(node.func) == core
-    ]
-    assert call_sites == [filename, filename], f"{core} call sites: {call_sites}"
+    # The sanctioned sites are derived from the functions located above rather than counted, so
+    # a second call inside a sanctioned function, or a first call from any other function in an
+    # allowed file, both fail -- neither is visible to a count, and the sweep above skips those
+    # files by construction.
+    expected = sorted(
+        [(declaring_file, declaration)] + [(path, node.name) for path, node in sanctioned.values()]
+    )
+    assert sorted(_call_sites(core)) == expected, (
+        f"{core} call sites: {sorted(_call_sites(core))}, sanctioned {expected}"
+    )
 
     # Which call is which is decided by the function holding it, not by the keywords it carries:
     # a declaration and an entry point that swapped keywords would otherwise both look right.
-    tree = ast.parse((PACKAGE / filename).read_text(encoding="utf-8"))
-    declared_call = _core_call(_function(tree, declaration, filename), core)
-    passed = _spelled_keywords(declared_call, declaration)
+    declaring_names = _local_names(_tree(declaring_file), core)
+    passed = _spelled_keywords(_the_core_call(declared, declaring_names), declaration)
     assert passed == handed_over, f"{declaration} hands over {passed}, pinned as {handed_over}"
 
-    public_call = _core_call(_function(tree, entrypoint, filename), core)
-    handed = sorted(
-        keyword for keyword in _spelled_keywords(public_call, entrypoint) if keyword in withheld
-    )
-    assert handed == [], f"{entrypoint} hands the core {handed}, which only the declaration may"
+    for caller, withheld in also_reached_from.items():
+        caller_file, _caller_node = sanctioned[caller]
+        caller_names = _local_names(_tree(caller_file), core)
+        spelled = _spelled_keywords(_the_core_call(sanctioned[caller], caller_names), caller)
+        handed = sorted(keyword for keyword in spelled if keyword in withheld)
+        assert handed == [], f"{caller} hands the core {handed}, which only the declaration may"

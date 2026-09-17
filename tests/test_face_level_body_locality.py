@@ -21,6 +21,7 @@ from quiddity._candidates import FamilyId
 from quiddity._claims import EvidenceWriter
 from quiddity.levels import _discover_step_levels, recognise_face_levels
 from quiddity.result import _take_inventory
+from tests.route_pins import assert_core_route_is_closed
 
 _MINIMUM_Z = (Align.CENTER, Align.CENTER, Align.MIN)
 
@@ -194,3 +195,19 @@ def test_writer_free_open_face_uses_the_non_solid_compatibility_scope() -> None:
 
     assert len(levels) == 1
     assert levels[0].z == pytest.approx(1.0)
+
+
+def test_step_level_private_core_and_registry_writer_route_are_closed() -> None:
+    # `also_reached_from={}` is the whole point here: `recognise_face_levels` does not call this
+    # core and must not be made to. It answers a broader question -- every horizontal face level,
+    # at a caller-chosen tolerance and area floor -- where the core answers the narrow one the
+    # family declares: area-filtered levels strictly inside the part height, with their faces
+    # published. `step_level_records` is the core's writer-free twin. So the declaration is the
+    # only caller, which is a stricter roster than the two-site shape, not a relaxed one.
+    assert_core_route_is_closed(
+        module="levels",
+        core="_discover_step_levels",
+        declaration="_discover_step_level_family",
+        handed_over={"writer": "services.writer"},
+        also_reached_from={},
+    )
