@@ -891,12 +891,11 @@ def test_channel_private_core_and_registry_writer_route_are_closed() -> None:
         for node in feature_tree.body
         if isinstance(node, ast.FunctionDef) and node.name == "recognise_channels"
     )
-    public_calls = [
+    (call,) = [
         call
         for name, call in _qualified_calls(public)
         if name == "_discover_channels" or name.endswith("._discover_channels")
     ]
-    (call,) = public_calls
     graph = {keyword.arg: keyword.value for keyword in call.keywords}["graph"]
     assert (
         isinstance(graph, ast.IfExp)

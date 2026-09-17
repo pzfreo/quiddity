@@ -14,9 +14,13 @@ routes defeat a syntactic sweep, and only one of them is caught elsewhere:
 * ``globals()["_discover_x"](part, writer=...)`` inside a module that already holds a sanctioned
   caller. No gate rejects this -- the call sweep does not recognise the callee, and the sweep for
   outside modules skips those files by construction.
-* a positional argument. Every core takes the capability keyword-only, so the capability itself
-  cannot go this way, but the part the declaration passes is unpinned.
+* a positional argument. Every core this pin is applied to takes the capability keyword-only --
+  not every core in the package does -- so the capability itself cannot go this way, but the part
+  the declaration passes is unpinned.
 * ``getattr(module, "_discover_x")``, which ``ruff`` rejects as B009.
+* a module-level rebinding -- ``_ALIAS = _discover_x`` and then ``_ALIAS(part, writer=...)`` --
+  inside a file that already holds a sanctioned caller. Simpler than either of the above and
+  rejected by nothing. An *import* alias is followed; a plain assignment is not.
 
 A ``**``-splat is *not* on that list: every sanctioned call must spell its keywords, because a
 splat at a sanctioned call site would otherwise hide the capability from the withheld set.
@@ -38,6 +42,23 @@ def _callee_name(func: ast.expr) -> str | None:
     if isinstance(func, ast.Attribute):
         return func.attr
     return None
+
+
+def _tree(filename: str) -> ast.Module:
+    return ast.parse((PACKAGE / filename).read_text(encoding="utf-8"), filename=filename)
+
+
+def _function(filename: str, name: str) -> ast.FunctionDef:
+    function = next(
+        (
+            node
+            for node in _tree(filename).body
+            if isinstance(node, ast.FunctionDef) and node.name == name
+        ),
+        None,
+    )
+    assert function is not None, f"{filename} has no module-level `def {name}`"
+    return function
 
 
 def _module_level_defs(name: str) -> list[tuple[str, ast.FunctionDef]]:
@@ -62,14 +83,14 @@ def _locate(name: str) -> tuple[str, ast.FunctionDef]:
     return found[0]
 
 
-def _the_core_call(where: tuple[str, ast.FunctionDef], core: str) -> ast.Call:
+def _the_core_call(where: tuple[str, ast.FunctionDef], names: set[str]) -> ast.Call:
     filename, function = where
     calls = [
         node
         for node in ast.walk(function)
-        if isinstance(node, ast.Call) and _callee_name(node.func) == core
+        if isinstance(node, ast.Call) and _callee_name(node.func) in names
     ]
-    assert len(calls) == 1, f"{filename}::{function.name} calls {core} {len(calls)} times"
+    assert len(calls) == 1, f"{filename}::{function.name} calls the core {len(calls)} times"
     return calls[0]
 
 
@@ -84,30 +105,49 @@ def _spelled_keywords(call: ast.Call, where: str) -> dict[str, str]:
     }
 
 
-def _sites_in(node: ast.AST, core: str, filename: str, enclosing: str) -> list[tuple[str, str]]:
+def _sites_in(
+    node: ast.AST, names: set[str], filename: str, enclosing: str
+) -> list[tuple[str, str]]:
+    """Recurse, attributing each call to the function whose body holds it.
+
+    A call in a decorator or a default argument is attributed to the function it decorates or
+    defaults, though it evaluates in the enclosing scope. That misnames the site but cannot hide
+    one: the pair is still reported, so it either matches a sanctioned entry or fails the roster.
+    """
     sites: list[tuple[str, str]] = []
     for child in ast.iter_child_nodes(node):
         if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef):
-            sites.extend(_sites_in(child, core, filename, child.name))
+            sites.extend(_sites_in(child, names, filename, child.name))
             continue
-        if isinstance(child, ast.Call) and _callee_name(child.func) == core:
+        if isinstance(child, ast.Call) and _callee_name(child.func) in names:
             sites.append((filename, enclosing))
-        sites.extend(_sites_in(child, core, filename, enclosing))
+        sites.extend(_sites_in(child, names, filename, enclosing))
     return sites
+
+
+def _local_names(tree: ast.Module, core: str) -> set[str]:
+    """Every name *core* answers to in this file, including the one it was imported under.
+
+    `from quiddity._recess_features import _discover_channels as _dc` then `_dc(...)` is a call
+    to the core that a bare name match does not see, and the sanctioned files are exactly the
+    ones the outsider sweep skips.
+    """
+    return {core} | {
+        alias.asname
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+        for alias in node.names
+        if alias.name == core and alias.asname
+    }
 
 
 def _call_sites(core: str) -> list[tuple[str, str]]:
     """Every call to *core* in the package, as (file, enclosing function) pairs."""
-    return [
-        site
-        for path in sorted(PACKAGE.glob("*.py"))
-        for site in _sites_in(
-            ast.parse(path.read_text(encoding="utf-8"), filename=str(path)),
-            core,
-            path.name,
-            "<module>",
-        )
-    ]
+    sites: list[tuple[str, str]] = []
+    for path in sorted(PACKAGE.glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        sites.extend(_sites_in(tree, _local_names(tree, core), path.name, "<module>"))
+    return sites
 
 
 def assert_core_route_is_closed(
@@ -158,25 +198,28 @@ def assert_core_route_is_closed(
     sanctioned = {name: _locate(name) for name in also_reached_from}
     core_file, _core_def = _locate(core)
 
-    # No module outside the core's own home, the declaration's home and the sanctioned callers'
-    # homes names the core at all -- not by import, not as an attribute, since either can be
-    # rebound and called under a name the call sweep would not recognise.
-    core_module = core_file.removesuffix(".py")
-    allowed = {core_file, declaring_file} | {path for path, _node in sanctioned.values()}
+    # A sanctioned caller lives either beside the declaration or beside the core, and nowhere
+    # else. Without this the `allowed` set below would be derived from the very code it
+    # constrains: relocating a public entry point into another module would carry permission
+    # with it, and moving `recognise_countersinks` into `pads.py` would stop being an error.
+    homes = {declaring_file, core_file}
+    for caller, (path, _node) in sanctioned.items():
+        assert path in homes, f"{caller} lives in {path}, not beside the declaration or the core"
+
+    # No module outside those two homes names the core at all -- not by import, not as an
+    # attribute, since either can be rebound and called under a name the call sweep would not
+    # recognise. The import arm deliberately ignores which module the name is imported *from*:
+    # `slots` re-exports `_discover_channels`, so keying on the core's own module would let
+    # `from quiddity.slots import _discover_channels as _dc` through, which is a live route.
     outsiders = sorted(
         path.name
         for path in PACKAGE.glob("*.py")
-        if path.name not in allowed
+        if path.name not in homes
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"), filename=str(path)))
         if (isinstance(node, ast.Attribute) and node.attr == core)
-        or (
-            isinstance(node, ast.ImportFrom)
-            # A relative `from .flats import ...` carries the bare module name and a level.
-            and node.module in (f"quiddity.{core_module}", core_module)
-            and any(alias.name == core for alias in node.names)
-        )
+        or (isinstance(node, ast.ImportFrom) and any(alias.name == core for alias in node.names))
     )
-    assert outsiders == [], f"{core} is named outside {sorted(allowed)} by {outsiders}"
+    assert outsiders == [], f"{core} is named outside {sorted(homes)} by {outsiders}"
 
     # The sanctioned sites are derived from the functions located above rather than counted, so
     # a second call inside a sanctioned function, or a first call from any other function in an
@@ -191,20 +234,13 @@ def assert_core_route_is_closed(
 
     # Which call is which is decided by the function holding it, not by the keywords it carries:
     # a declaration and an entry point that swapped keywords would otherwise both look right.
-    passed = _spelled_keywords(_the_core_call(declared, core), declaration)
+    declaring_names = _local_names(_tree(declaring_file), core)
+    passed = _spelled_keywords(_the_core_call(declared, declaring_names), declaration)
     assert passed == handed_over, f"{declaration} hands over {passed}, pinned as {handed_over}"
 
     for caller, withheld in also_reached_from.items():
-        spelled = _spelled_keywords(_the_core_call(sanctioned[caller], core), caller)
+        caller_file, _caller_node = sanctioned[caller]
+        caller_names = _local_names(_tree(caller_file), core)
+        spelled = _spelled_keywords(_the_core_call(sanctioned[caller], caller_names), caller)
         handed = sorted(keyword for keyword in spelled if keyword in withheld)
         assert handed == [], f"{caller} hands the core {handed}, which only the declaration may"
-
-
-def _function(filename: str, name: str) -> ast.FunctionDef:
-    tree = ast.parse((PACKAGE / filename).read_text(encoding="utf-8"), filename=filename)
-    function = next(
-        (node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == name),
-        None,
-    )
-    assert function is not None, f"{filename} has no module-level `def {name}`"
-    return function
