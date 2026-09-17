@@ -57,6 +57,13 @@ recogniser, is what would make the graph mutable, so it stays absent.
   record-agnostic and perform no topology scan.
 - Family modules interpret injected evidence and never call a sibling recogniser; importing a
   sibling's record type or helper is allowed.
+- The registry imports family modules, not their internals -- with one exception it still carries,
+  `_passage_compat`, whose projection is the last declaration written as a registry literal (#632).
+  Otherwise it reads the `PhysicalDefinition`
+  each module declares; a family's private discovery core is reached only from that declaration
+  and, where the family has one, its own public entry point. The layer 5 -> layer 4 edge is
+  therefore one import per family module rather than one per private name, and each core's
+  callers are pinned by `tests/route_pins.py`.
 - The reconciler imports no discovery module and calls no recogniser.
 - Migrated discovery cores receive a write-only evidence sink, never an index they could read.
 - Some modules have a reviewed consumer roster rather than an open edge: `_blend_view`,

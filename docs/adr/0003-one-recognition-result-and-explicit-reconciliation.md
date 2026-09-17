@@ -80,8 +80,11 @@ Consumer lifecycle caches are outside the result.
 
 ## Consequences
 
-Consumers receive one explainable feature universe. Adding a family means one registry entry and,
-where it overlaps an existing family, one named rule with evidence from both sides. Which
+Consumers receive one explainable feature universe. Adding a family means a declaration in the
+family's own module and one line in `_registry` placing it in execution order, plus -- where it
+overlaps an existing family -- one named rule with evidence from both sides. The declaration is
+where it moved to in #625: the registry once held each family's full definition and imported its
+private core to build one, and now imports only the module and reads what it declares. Which
 families were evaluated for a run is published by the explanation report
 ([ADR 0005](0005-versioned-cross-repository-capability-contract.md)); `RecognitionResult` itself
 carries no such field.

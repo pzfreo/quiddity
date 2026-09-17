@@ -24,36 +24,12 @@ from quiddity._registry import DERIVED_DEFINITIONS, PHYSICAL_DEFINITIONS, Counte
 ROOT = Path(__file__).parents[1]
 TARGET = ROOT / "src" / "quiddity" / "capabilities.json"
 
-# Recognisers, output records, aggregate membership and census keys are derived from the
-# registry below. What stays by hand is what ADR 0005 makes a deliberate contract: the
-# evidence a family publishes, and the records that are not its registry output. A new
-# family sets `introduced`; the default is the first release of this distribution.
-EVIDENCE: dict[str, dict[str, object]] = {}
-
-# Records a family publishes beyond its registry output records: nested values, evidence
-# records, consumer aggregates and projections, with their roles and aggregate membership.
-EXTRA_RECORDS: dict[str, list[tuple[str, str, list[str]]]] = {}
-
 
 def _family_id(entrypoint: str) -> str:
-    """``recognise_x_y`` publishes as family ``x-y``; a family that breaks the rule fails at
-    the EVIDENCE lookup below with the derived id in the message."""
+    """``recognise_x_y`` publishes as family ``x-y``; a family that breaks the rule fails at the
+    `ManifestEvidence` check below with the derived id in the message."""
 
     return entrypoint.removeprefix("recognise_").replace("_", "-")
-
-
-def _is_module_declared(definition: object) -> bool:
-    """Whether the family describes itself, rather than being a literal in `_registry`.
-
-    A declaration's discoverer is written in the family module. A registry literal's comes from
-    `simple()` in `_definitions`, or is an adapter defined in `_registry` itself.
-    """
-
-    discover = getattr(definition, "discover", None) or getattr(definition, "derive", None)
-    return getattr(discover, "__module__", "") not in {
-        "quiddity._definitions",
-        "quiddity._registry",
-    }
 
 
 def _registry_families() -> dict[str, dict[str, object]]:
@@ -62,54 +38,36 @@ def _registry_families() -> dict[str, dict[str, object]]:
     exported = set(recognition.__all__)
     families: dict[str, dict[str, object]] = {}
     definitions = [
-        (d.public_entrypoint, "part", d.record_types, d.result_field, d.census, d.evidence, d)
+        (d.public_entrypoint, "part", d.record_types, d.result_field, d.census, d.evidence)
         for d in PHYSICAL_DEFINITIONS
     ] + [
-        (d.public_entrypoint, "derived", d.record_types, d.result_field, d.census, d.evidence, d)
+        (d.public_entrypoint, "derived", d.record_types, d.result_field, d.census, d.evidence)
         for d in DERIVED_DEFINITIONS
     ]
-    for (
-        entrypoint,
-        kind,
-        record_types,
-        result_field,
-        census_spec,
-        declared,
-        definition,
-    ) in definitions:
+    for entrypoint, kind, record_types, result_field, census_spec, declared in definitions:
         if entrypoint not in exported:
             continue
         family_id = _family_id(entrypoint)
-        if declared is None and _is_module_declared(definition):
+        # Every family declares its own evidence now. There is no table left to fall back to, so
+        # a definition that publishes an entry point and names no `ManifestEvidence` is an error
+        # rather than a family this tool knows about from somewhere else.
+        if declared is None:
             raise KeyError(
-                f"{family_id} is declared in its own module but names no ManifestEvidence; "
-                "move its EVIDENCE and EXTRA_RECORDS entries into the declaration"
+                f"{family_id} publishes {entrypoint} but its definition names no ManifestEvidence"
             )
-        if declared is not None:
-            if family_id in EVIDENCE:
-                raise KeyError(f"{family_id} declares its evidence; remove its EVIDENCE entry")
-            evidence: dict[str, object] = {
-                key: list(value) if isinstance(value, tuple) else value
-                for key, value in (
-                    ("goldens", declared.goldens),
-                    ("golden_paths", declared.golden_paths),
-                    ("tests", declared.tests),
-                    ("introduced", declared.introduced),
-                )
-                if value
-            }
-        elif family_id in EVIDENCE:
-            evidence = EVIDENCE[family_id]
-        else:
-            raise KeyError(f"{family_id} is in the registry but has no EVIDENCE entry")
-        if declared is not None:
-            # Symmetric with the evidence rule above: declaring makes the family the owner, so an
-            # empty `extra_records` means it has none, not that the table should still be read.
-            if family_id in EXTRA_RECORDS:
-                raise KeyError(f"{family_id} declares its extra records; remove its entry")
-            extra = [(name, role, list(fields)) for name, role, fields in declared.extra_records]
-        else:
-            extra = EXTRA_RECORDS.get(family_id, [])
+        evidence: dict[str, object] = {
+            key: list(value) if isinstance(value, tuple) else value
+            for key, value in (
+                ("goldens", declared.goldens),
+                ("golden_paths", declared.golden_paths),
+                ("tests", declared.tests),
+                ("introduced", declared.introduced),
+            )
+            if value
+        }
+        # An empty `extra_records` means the family has none, not that something else should be
+        # consulted for it.
+        extra = [(name, role, list(fields)) for name, role, fields in declared.extra_records]
         overridden = {name for name, _role, _membership in extra}
         records = [
             (record.__name__, "output", [f"RecognitionResult.{result_field}"])
@@ -123,9 +81,6 @@ def _registry_families() -> dict[str, dict[str, object]]:
             "census": census,
             **evidence,
         }
-    unknown = (set(EVIDENCE) | set(EXTRA_RECORDS)) - families.keys()
-    if unknown:
-        raise KeyError(f"no exported registry family for {sorted(unknown)}")
     return families
 
 

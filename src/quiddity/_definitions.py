@@ -108,16 +108,6 @@ def prismatic(context: RecognitionContext) -> bool:
     return not context.rotational
 
 
-def simple(call: Callable[[DiscoveryServices], list[object]]) -> PhysicalDiscoverer:
-    """Adapt a discoverer that needs no completed predecessor inputs."""
-
-    def discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
-        del inputs
-        return call(services)
-
-    return discover
-
-
 #: The release the manifest attributes a family to when the declaration names none.
 FIRST_RELEASE = "0.2.0"
 

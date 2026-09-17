@@ -259,19 +259,6 @@ def test_manifest_evidence_and_documentation_are_live_source_paths() -> None:
             assert payload, f"{reference} is not canonical expected data"
 
 
-def test_generator_refuses_a_declared_family_that_also_has_an_evidence_entry(monkeypatch) -> None:
-    spec = importlib.util.spec_from_file_location(
-        "generate_capability_manifest", ROOT / "tools" / "generate_capability_manifest.py"
-    )
-    assert spec is not None and spec.loader is not None
-    tool = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(tool)
-    assert "gusset-ribs" not in tool.EVIDENCE
-    monkeypatch.setitem(tool.EVIDENCE, "gusset-ribs", {"tests": ["tests/test_gussets.py"]})
-    with pytest.raises(KeyError, match="declares its evidence"):
-        tool._registry_families()
-
-
 def _tool_with_declared_extra(
     extra: tuple[str, str, tuple[str, ...]], monkeypatch: pytest.MonkeyPatch
 ) -> tuple[types.ModuleType, str]:
@@ -306,18 +293,6 @@ def _tool_with_declared_extra(
     # here rather than left describing the registry as it was before the patch.
     monkeypatch.setattr(tool, "FAMILIES", tool._registry_families())
     return tool, tool._family_id(declared.public_entrypoint)
-
-
-def test_generator_refuses_a_declared_family_that_also_has_an_extra_records_entry(
-    monkeypatch,
-) -> None:
-    """The same rule as evidence: a family declares its extras, or the tool holds them, not both."""
-
-    tool, family_id = _tool_with_declared_extra(("Nested", "nested", ()), monkeypatch)
-    assert family_id not in tool.EXTRA_RECORDS
-    monkeypatch.setitem(tool.EXTRA_RECORDS, family_id, [("Nested", "nested", [])])
-    with pytest.raises(KeyError, match="declares its extra records"):
-        tool._registry_families()
 
 
 def test_a_declared_extra_record_is_published_like_a_tool_entry(monkeypatch) -> None:
@@ -356,11 +331,14 @@ def test_a_declared_extra_replaces_rather_than_duplicates_the_output_record_it_s
 
 
 def test_generator_refuses_a_module_declared_family_that_names_no_evidence(monkeypatch) -> None:
-    """The other half of the rule: declaring the family means owning its manifest facts.
+    """Declaring the family means owning its manifest facts.
 
-    Without this the tool falls back to its own tables, which is correct for a family still
+    Before #632 the tool fell back to its own tables, which was correct for a family still
     described in the registry and silently wrong for one that declares itself -- the state #660
-    found `levels` in, and which `--check` cannot see because the output is unchanged.
+    found `levels` in, and which `--check` cannot see because the output is unchanged. This is
+    also the gate that made those tables deletable: while it held, `EVIDENCE` and `EXTRA_RECORDS`
+    could only ever be empty, because a family reaching them failed here first. There is now no
+    table to fall back to at all, so silence is an error rather than a lookup elsewhere.
     """
 
     spec = importlib.util.spec_from_file_location(
@@ -385,11 +363,14 @@ def test_generator_refuses_a_module_declared_family_that_names_no_evidence(monke
         tool._registry_families()
 
 
-def test_the_tools_evidence_tables_are_empty_now_that_every_family_declares() -> None:
-    """The fallback path still exists and is no longer used: both tables are empty.
+def test_the_generator_holds_no_hand_written_family_tables() -> None:
+    """The scaffolding is gone, not merely empty.
 
-    It cannot be deleted while any family is still a registry literal -- one is -- but nothing
-    reaches it, so #632 can remove the branch rather than migrate anything further into it.
+    `EVIDENCE` and `EXTRA_RECORDS` were the tables a family's manifest entry came from before it
+    declared one, and they emptied family by family through #625. Asserting they are absent
+    rather than `== {}` is the difference that matters: an empty table is a place for the next
+    family to be written back into, and the whole point of the migration was that there should
+    not be one.
     """
 
     spec = importlib.util.spec_from_file_location(
@@ -399,26 +380,17 @@ def test_the_tools_evidence_tables_are_empty_now_that_every_family_declares() ->
     tool = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(tool)
 
-    assert tool.EVIDENCE == {}
-    assert tool.EXTRA_RECORDS == {}
-
-    # Every physical family declares itself now, so nothing can reach the fallback even in
-    # principle. The one definition the registry still describes is a projection, which publishes
-    # no entry point and so has no manifest entry to fall back for.
-    assert [
-        definition
-        for definition in tool.PHYSICAL_DEFINITIONS
-        if not tool._is_module_declared(definition)
-    ] == []
-    # The tool never sees projections -- they publish no entry point -- so this reads the roster
-    # from the registry rather than from the module under test.
-    from quiddity._registry import PROJECTION_DEFINITIONS
-
-    assert [
-        definition.identifier.name
-        for definition in PROJECTION_DEFINITIONS
-        if not tool._is_module_declared(definition)
-    ] == ["PASSAGES_COMPAT"]
+    assert not hasattr(tool, "EVIDENCE")
+    assert not hasattr(tool, "EXTRA_RECORDS")
+    # Which is only safe because every exported definition carries its own evidence -- the
+    # generator now raises rather than looking anywhere else. Checked directly, not inferred
+    # from the tool running successfully, since `--check` would pass on a stale manifest too.
+    missing = [
+        definition.public_entrypoint
+        for definition in (*tool.PHYSICAL_DEFINITIONS, *tool.DERIVED_DEFINITIONS)
+        if definition.public_entrypoint in set(recognition.__all__) and definition.evidence is None
+    ]
+    assert missing == []
 
 
 def test_committed_manifest_is_the_deterministic_generator_output() -> None:

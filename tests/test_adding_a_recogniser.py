@@ -22,7 +22,14 @@ GUIDE = ROOT / "docs" / "adding-a-recogniser.md"
 #: 16 -> 15: the snapshot tool's package-originated list is derived from the registry.
 #: 15 -> 14: a family declares itself in its module; the manifest tool reads that declaration.
 #: 14 -> 11: three test rosters that restated the registry now read it.
-REGISTRATION_SITES = 11
+#: 11 -> 12: #632 made `tests/test_recognition_result.py` a site rather than removing one. Its
+#: injection test now derives the routes to intercept from the registry, so a new family that
+#: omits its patch line fails there. That edit was always needed; until #632 it was silent,
+#: which is how seven families came to be missing from it.
+REGISTRATION_SITES = 12
+#: The prose below the table restates the count in words. It drifted from the table once (#632),
+#: silently, because only the table was checked. Pinned here so the guide fails loudly instead.
+REGISTRATION_SITES_IN_WORDS = "twelve"
 
 
 def _registration_sites() -> list[Path]:
@@ -62,6 +69,9 @@ def test_every_registration_site_the_guide_names_exists() -> None:
 
 def test_registration_site_count_is_pinned() -> None:
     assert len(_registration_sites()) == REGISTRATION_SITES
+    text = GUIDE.read_text(encoding="utf-8")
+    section = text[text.index("## 7. ") : text.index("## 8. ")]
+    assert f"now {REGISTRATION_SITES_IN_WORDS}," in section
 
 
 def test_exports_are_exactly_the_registry_entry_points_less_the_retired_ones() -> None:
