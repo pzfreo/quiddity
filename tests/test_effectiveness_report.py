@@ -57,6 +57,12 @@ from tools.run_effectiveness_baseline import (
 )
 
 ROOT = Path(__file__).parents[1]
+#: A child process here is guarded against hanging CI, not measured. The bound has to clear the
+#: slowest legitimate run on the slowest runner, and CI runs `pytest -n 2` on two-core machines,
+#: so a child competes with another worker for one of two cores. The baseline run below measures
+#: 15.7s idle and still reached 30s on macOS (#673): a bound under 2x an idle best case detects
+#: what else was scheduled, not a hang. Only a wedged process should reach this.
+SUBPROCESS_TIMEOUT_SECONDS = 180
 TAXONOMY = ROOT / "docs" / "benchmarks" / "effectiveness-taxonomy-v1.json"
 TAXONOMY_V2 = ROOT / "docs" / "benchmarks" / "effectiveness-taxonomy-v2.json"
 TAXONOMY_V3 = ROOT / "docs" / "benchmarks" / "effectiveness-taxonomy-v3.json"
@@ -162,7 +168,7 @@ print(json.dumps(signature, sort_keys=True))
             check=True,
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=SUBPROCESS_TIMEOUT_SECONDS,
         ).stdout
         for _ in range(2)
     ]
@@ -183,7 +189,7 @@ def test_runner_import_does_not_load_production_recognisers() -> None:
         check=True,
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=SUBPROCESS_TIMEOUT_SECONDS,
     )
 
     assert completed.stdout == "False\n"
@@ -1093,7 +1099,7 @@ def test_model_scoring_is_worker_count_independent_except_runtime(tmp_path: Path
     with ProcessPoolExecutor(
         max_workers=2, mp_context=multiprocessing.get_context("spawn")
     ) as executor:
-        parallel = executor.submit(_score_model, task).result(timeout=30)
+        parallel = executor.submit(_score_model, task).result(timeout=SUBPROCESS_TIMEOUT_SECONDS)
 
     assert serial.pop("seconds") >= 0
     assert parallel.pop("seconds") >= 0
@@ -1137,7 +1143,7 @@ def test_command_refuses_to_write_a_partial_report(tmp_path: Path) -> None:
         cwd=ROOT,
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=SUBPROCESS_TIMEOUT_SECONDS,
     )
 
     assert completed.returncode == 2
