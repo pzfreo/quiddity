@@ -233,13 +233,12 @@ def test_the_declaration_is_the_only_production_writer_enabled_flat_caller() -> 
     assert_core_route_is_closed(
         module="flats",
         core="_discover_flats",
-        entrypoint="recognise_flats",
         handed_over={
             "writer": "services.writer",
             "cyls": "services.cylinders",
             "face_edges": "services.context.face_edges",
         },
-        withheld=("writer",),
+        also_reached_from={"recognise_flats": ("writer",)},
     )
 
 

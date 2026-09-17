@@ -558,11 +558,10 @@ def test_only_the_declaration_may_call_writer_enabled_core() -> None:
     assert_core_route_is_closed(
         module="blends",
         core="_discover_blends",
-        entrypoint="recognise_blends",
         handed_over={
             "graph": "services.context.graph",
             "surfaces": "services.context.surfaces",
             "writer": "services.writer",
         },
-        withheld=("writer",),
+        also_reached_from={"recognise_blends": ("writer",)},
     )

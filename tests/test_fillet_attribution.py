@@ -750,7 +750,6 @@ def test_the_declaration_is_the_only_production_writer_enabled_fillet_caller() -
     assert_core_route_is_closed(
         module="fillets",
         core="_discover_fillets",
-        entrypoint="recognise_fillets",
         handed_over={
             "writer": "services.writer",
             "cyls": "services.cylinders",
@@ -759,7 +758,7 @@ def test_the_declaration_is_the_only_production_writer_enabled_fillet_caller() -
             "min_radius": "None",
             "max_radius_frac": "0.45",
         },
-        withheld=("writer",),
+        also_reached_from={"recognise_fillets": ("writer",)},
     )
 
 

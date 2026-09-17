@@ -473,9 +473,8 @@ def test_only_the_declaration_may_call_writer_enabled_core() -> None:
     assert_core_route_is_closed(
         module="countersinks",
         core="_discover_countersinks",
-        entrypoint="recognise_countersinks",
         handed_over={"writer": "services.writer"},
-        withheld=("writer",),
+        also_reached_from={"recognise_countersinks": ("writer",)},
     )
 
 

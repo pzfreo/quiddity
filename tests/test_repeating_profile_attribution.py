@@ -683,9 +683,8 @@ def test_private_core_and_constructor_rosters_are_closed() -> None:
     assert_core_route_is_closed(
         module="repeating_profiles",
         core="_discover_repeating_radial_profiles",
-        entrypoint="recognise_repeating_radial_profiles",
         handed_over={"writer": "services.writer"},
-        withheld=("writer",),
+        also_reached_from={"recognise_repeating_radial_profiles": ("writer",)},
     )
     assert constructors == ["repeating_profiles.py"]
     assert proposal_constructors == ["repeating_profiles.py"]

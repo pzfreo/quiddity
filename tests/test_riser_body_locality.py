@@ -20,6 +20,7 @@ from quiddity import (
 )
 from quiddity._candidates import FamilyId
 from quiddity.result import _take_inventory
+from tests.route_pins import assert_core_route_is_closed
 
 _MINIMUM_Z = (Align.CENTER, Align.CENTER, Align.MIN)
 
@@ -210,3 +211,17 @@ def test_step_round_trip_preserves_body_local_risers(tmp_path) -> None:
 
     assert _signature(imported) == _signature(part)
     assert build_recognition_result(imported).risers == tuple(recognise_risers(imported))
+
+
+def test_riser_private_core_and_registry_writer_route_are_closed() -> None:
+    # As with step levels, the public entry point is not this core under another name and so is
+    # not a sanctioned caller. `recognise_risers` rebuilds its own body levels from the part,
+    # because standalone there is no run to read completed FaceLevel authority from; the core
+    # takes that authority as `body_levels` and the declaration is what supplies it.
+    assert_core_route_is_closed(
+        module="levels",
+        core="_discover_risers",
+        declaration="_discover_riser_family",
+        handed_over={"writer": "services.writer", "body_levels": "body_levels"},
+        also_reached_from={},
+    )

@@ -1387,7 +1387,6 @@ def test_private_hole_core_has_one_writer_caller_and_declared_predecessor() -> N
     assert_core_route_is_closed(
         module="holes",
         core="_discover_holes",
-        entrypoint="recognise_holes",
         handed_over={
             "cyls": "services.cylinders",
             "csinks": "countersinks",
@@ -1396,7 +1395,7 @@ def test_private_hole_core_has_one_writer_caller_and_declared_predecessor() -> N
             "predecessor_occurrences": "occurrences",
             "face_surfaces": "services.context.face_surfaces",
         },
-        withheld=("writer",),
+        also_reached_from={"recognise_holes": ("writer",)},
     )
     source = ast.parse((ROOT / "src/quiddity/holes.py").read_text(encoding="utf-8"))
     functions = {node.name: node for node in source.body if isinstance(node, ast.FunctionDef)}

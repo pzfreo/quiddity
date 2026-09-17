@@ -1151,13 +1151,12 @@ def test_private_core_has_one_declared_writer_caller_and_three_record_paths() ->
     assert_core_route_is_closed(
         module="pads",
         core="_discover_rectangular_pads",
-        entrypoint="recognise_rectangular_pads",
         handed_over={
             "writer": "services.writer",
             "face_surfaces": "services.context.face_surfaces",
             "geometry": "services.context.geometry",
         },
-        withheld=("writer",),
+        also_reached_from={"recognise_rectangular_pads": ("writer",)},
     )
     assert [(path, len(call.args)) for path, call in constructors] == [("pads.py", 0)]
 

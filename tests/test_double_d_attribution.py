@@ -1071,12 +1071,11 @@ def test_only_the_declaration_may_call_writer_enabled_core() -> None:
     assert_core_route_is_closed(
         module="profiled_bores",
         core="_discover_double_d_bores",
-        entrypoint="recognise_double_d_bores",
         handed_over={
             "writer": "services.writer",
             "face_edges": "services.context.face_edges",
         },
-        withheld=("writer",),
+        also_reached_from={"recognise_double_d_bores": ("writer",)},
     )
 
 

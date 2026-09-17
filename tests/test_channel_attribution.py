@@ -51,6 +51,7 @@ from quiddity._recess_features import _discover_channels
 from quiddity._recess_records import Channel
 from quiddity.result import _take_inventory
 from tests.golden.open_channels.fixture import build_fixture
+from tests.route_pins import assert_core_route_is_closed
 from tools._legacy_recognition import (
     recognise_channels,
 )
@@ -866,25 +867,22 @@ def _qualified_calls(tree: ast.AST):
 
 
 def test_channel_private_core_and_registry_writer_route_are_closed() -> None:
-    sites: list[tuple[str, ast.Call]] = []
-    for path in (ROOT / "src/quiddity").glob("*.py"):
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        sites.extend(
-            (path.name, call)
-            for name, call in _qualified_calls(tree)
-            if name == "_discover_channels" or name.endswith("._discover_channels")
-        )
-    # The declaration is in `slots.py`, the core and public entry point in `_recess_features.py`.
-    assert sorted(name for name, _call in sites) == ["_recess_features.py", "slots.py"]
-    declared = next(call for name, call in sites if name == "slots.py")
-    writer = {keyword.arg: keyword.value for keyword in declared.keywords}["writer"]
-    assert (
-        isinstance(writer, ast.Attribute)
-        and writer.attr == "writer"
-        and isinstance(writer.value, ast.Name)
-        and writer.value.id == "services"
+    # The declaration is in `slots.py`; the core and the public entry point stay in
+    # `_recess_features.py`. The shared pin locates each sanctioned caller by name across the
+    # package rather than being told a file, so the split costs it nothing.
+    assert_core_route_is_closed(
+        module="slots",
+        core="_discover_channels",
+        declaration="_discover_channel_family",
+        handed_over={
+            "face_edges": "services.context.face_edges",
+            "writer": "services.writer",
+        },
+        also_reached_from={"recognise_channels": ("writer",)},
     )
 
+    # What the entry point passes *instead* of a writer is this family's own business, not the
+    # shared pin's: a read-only graph taken from the caller's ledger, or none at all.
     feature_tree = ast.parse(
         (ROOT / "src/quiddity/_recess_features.py").read_text(encoding="utf-8")
     )
@@ -898,9 +896,7 @@ def test_channel_private_core_and_registry_writer_route_are_closed() -> None:
         for name, call in _qualified_calls(public)
         if name == "_discover_channels" or name.endswith("._discover_channels")
     ]
-    assert len(public_calls) == 1
     (call,) = public_calls
-    assert all(keyword.arg != "writer" for keyword in call.keywords)
     graph = {keyword.arg: keyword.value for keyword in call.keywords}["graph"]
     assert (
         isinstance(graph, ast.IfExp)
