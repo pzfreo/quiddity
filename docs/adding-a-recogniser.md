@@ -224,12 +224,11 @@ DEFINITION = PhysicalDefinition(
 ```
 
 A declaration names its entry point by reference so a rename fails at import, and carries its own
-`ManifestEvidence`, so the capability manifest tool needs no `EVIDENCE` entry for it, and none
-either for the `EXTRA_RECORDS` of a family whose records go beyond its output: name those in
-`ManifestEvidence(extra_records=...)`, in the same `(name, role, membership)` shape. The tool
-refuses a declared family that also has an entry in either table. It still holds
-`NO_MEMBERSHIP_RATIONALE` and `RECORD_SCHEMA_VERSIONS`, which a declaration cannot yet carry
-(#632). `introduced` defaults to the
+`ManifestEvidence`, which is the only place the capability manifest tool reads a family's evidence
+from: a family that publishes an entry point and names none is an error at generation time, not a
+fallback. Records that go beyond the family's output go in `ManifestEvidence(extra_records=...)`,
+in `(name, role, membership)` shape. The tool still holds `NO_MEMBERSHIP_RATIONALE` and
+`RECORD_SCHEMA_VERSIONS`, which a declaration cannot yet carry. `introduced` defaults to the
 first release; set it only for a family added later. Name `tests` only where a test file is the
 evidence a consumer should read; a family whose goldens carry that weight names none, as
 `flats.py` and `grooves.py` do. A family whose entry point the package does not export has no
@@ -328,6 +327,7 @@ present at every site.
 | 7 | `tests/test_architecture.py` | `PUBLIC_MODULES`, the module's seam entry, the module in the `_registry` and `result` seam sets, and its arc-reader sites | that file's own tests |
 | 8 | `docs/capabilities.md` | the recogniser row and one row per record | `tests/test_capability_claims.py` |
 | 9 | `tests/test_golden_fixtures.py`, `tests/test_registry.py`, `tests/test_mfcadpp_corpus.py` | the family in each file's deliberate pin: the expected fixture list, the registry order, and the corpus census counts | those files' own tests, which fail on the new family until edited |
+| 10 | `tests/test_recognition_result.py` | the family's `patch(...)` line and its `expected` entry in the injection test | that test, which reads the routes to intercept from the registry and fails naming any it did not see patched |
 
 None of those sites is what a **migration** breaks. A family that already exists may have a
 `tools/benchmark_<name>.py` beside it, and those disable the family by rebinding its entry point

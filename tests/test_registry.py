@@ -673,7 +673,7 @@ def test_a_declared_family_defines_its_own_entry_point() -> None:
     # The migration is finished: the only definition still written as a registry literal is a
     # projection, which publishes no entry point and so is skipped above anyway.
     assert [
-        definition.identifier.name
+        (getattr(definition, "family", None) or definition.identifier).name
         for definition in (*PHYSICAL_DEFINITIONS, *DERIVED_DEFINITIONS, *PROJECTION_DEFINITIONS)
         if not _is_declared_in_its_module(definition)
     ] == ["PASSAGES_COMPAT"]

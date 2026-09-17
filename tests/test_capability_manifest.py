@@ -259,35 +259,6 @@ def test_manifest_evidence_and_documentation_are_live_source_paths() -> None:
             assert payload, f"{reference} is not canonical expected data"
 
 
-def test_generator_refuses_an_exported_family_that_declares_no_evidence(monkeypatch) -> None:
-    """There is no table to fall back to, so silence is an error rather than a lookup elsewhere.
-
-    This is the gate that made the tables deletable: while it held, `EVIDENCE` and
-    `EXTRA_RECORDS` could only ever be empty, because a family reaching them failed here first.
-    """
-
-    spec = importlib.util.spec_from_file_location(
-        "generate_capability_manifest", ROOT / "tools" / "generate_capability_manifest.py"
-    )
-    assert spec is not None and spec.loader is not None
-    tool = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(tool)
-
-    index, declared = next(
-        (index, definition)
-        for index, definition in enumerate(tool.PHYSICAL_DEFINITIONS)
-        if definition.public_entrypoint == "recognise_gusset_ribs"
-    )
-    stripped = dataclasses.replace(declared, evidence=None)
-    monkeypatch.setattr(
-        tool,
-        "PHYSICAL_DEFINITIONS",
-        tool.PHYSICAL_DEFINITIONS[:index] + (stripped,) + tool.PHYSICAL_DEFINITIONS[index + 1 :],
-    )
-    with pytest.raises(KeyError, match="names no ManifestEvidence"):
-        tool._registry_families()
-
-
 def _tool_with_declared_extra(
     extra: tuple[str, str, tuple[str, ...]], monkeypatch: pytest.MonkeyPatch
 ) -> tuple[types.ModuleType, str]:
@@ -360,11 +331,14 @@ def test_a_declared_extra_replaces_rather_than_duplicates_the_output_record_it_s
 
 
 def test_generator_refuses_a_module_declared_family_that_names_no_evidence(monkeypatch) -> None:
-    """The other half of the rule: declaring the family means owning its manifest facts.
+    """Declaring the family means owning its manifest facts.
 
-    Without this the tool falls back to its own tables, which is correct for a family still
+    Before #632 the tool fell back to its own tables, which was correct for a family still
     described in the registry and silently wrong for one that declares itself -- the state #660
-    found `levels` in, and which `--check` cannot see because the output is unchanged.
+    found `levels` in, and which `--check` cannot see because the output is unchanged. This is
+    also the gate that made those tables deletable: while it held, `EVIDENCE` and `EXTRA_RECORDS`
+    could only ever be empty, because a family reaching them failed here first. There is now no
+    table to fall back to at all, so silence is an error rather than a lookup elsewhere.
     """
 
     spec = importlib.util.spec_from_file_location(

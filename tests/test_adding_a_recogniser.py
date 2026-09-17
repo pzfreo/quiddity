@@ -22,10 +22,11 @@ GUIDE = ROOT / "docs" / "adding-a-recogniser.md"
 #: 16 -> 15: the snapshot tool's package-originated list is derived from the registry.
 #: 15 -> 14: a family declares itself in its module; the manifest tool reads that declaration.
 #: 14 -> 11: three test rosters that restated the registry now read it.
-#: Re-measured on 2026-09-17 when #632 deleted the manifest tool's evidence tables: still 11.
-#: That work removed hand-written metadata but no *site* -- the tables were never a table row,
-#: because by then a new family declared its own evidence and never touched the tool.
-REGISTRATION_SITES = 11
+#: 11 -> 12: #632 made `tests/test_recognition_result.py` a site rather than removing one. Its
+#: injection test now derives the routes to intercept from the registry, so a new family that
+#: omits its patch line fails there. That edit was always needed; until #632 it was silent,
+#: which is how seven families came to be missing from it.
+REGISTRATION_SITES = 12
 
 
 def _registration_sites() -> list[Path]:
