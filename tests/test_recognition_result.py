@@ -333,8 +333,9 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     patch(plates_module, "_discover_plates", counted("plates", []))
     patch(gussets_module, "_discover_gusset_ribs", counted("gusset_ribs", []))
 
-    # Seven families reached real discovery until the roster check below was written: the four
-    # recess families, the section-recess aggregate, oriented slots and gusset-rib patterns.
+    # Seven families reached real discovery until the roster check below was written: prismatic
+    # pockets, the two edge-open recesses, blends, gusset-rib patterns, the section-recess
+    # aggregate and oriented slots.
     # None of them failed, because an empty part yields empty records either way -- which is
     # exactly why nothing noticed. #624 found `gussets` in the same state.
     patch(

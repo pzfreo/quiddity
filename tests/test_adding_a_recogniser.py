@@ -27,6 +27,9 @@ GUIDE = ROOT / "docs" / "adding-a-recogniser.md"
 #: omits its patch line fails there. That edit was always needed; until #632 it was silent,
 #: which is how seven families came to be missing from it.
 REGISTRATION_SITES = 12
+#: The prose below the table restates the count in words. It drifted from the table once (#632),
+#: silently, because only the table was checked. Pinned here so the guide fails loudly instead.
+REGISTRATION_SITES_IN_WORDS = "twelve"
 
 
 def _registration_sites() -> list[Path]:
@@ -66,6 +69,9 @@ def test_every_registration_site_the_guide_names_exists() -> None:
 
 def test_registration_site_count_is_pinned() -> None:
     assert len(_registration_sites()) == REGISTRATION_SITES
+    text = GUIDE.read_text(encoding="utf-8")
+    section = text[text.index("## 7. ") : text.index("## 8. ")]
+    assert f"now {REGISTRATION_SITES_IN_WORDS}," in section
 
 
 def test_exports_are_exactly_the_registry_entry_points_less_the_retired_ones() -> None:

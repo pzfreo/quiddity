@@ -342,7 +342,7 @@ Regenerate, do not hand-edit, the committed capability manifest:
 uv run python tools/generate_capability_manifest.py --write
 ```
 
-Measured on the gussets family (issue #602): sixteen files, now eleven, plus the module itself,
+Measured on the gussets family (issue #602): sixteen files, now twelve, plus the module itself,
 its fixtures and the goldens in the next section. The manifest tool is no longer one of them --
 a family's `ManifestEvidence` is part of its declaration, and the generator refuses a family that
 publishes an entry point without one, so there is nowhere else for that metadata to live. A site
