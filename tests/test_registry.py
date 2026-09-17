@@ -2,7 +2,6 @@
 # Copyright 2024-2026 Paul Fremantle
 
 import ast
-import importlib.util
 import inspect
 import sys
 import types
@@ -658,17 +657,10 @@ def test_a_declared_family_defines_its_own_entry_point() -> None:
     every other consumer of `public_entrypoint` resolves it against the package namespace.
     """
 
-    spec = importlib.util.spec_from_file_location(
-        "generate_capability_manifest", ROOT / "tools" / "generate_capability_manifest.py"
-    )
-    assert spec is not None and spec.loader is not None
-    tool = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(tool)
-
     elsewhere = set()
     checked = 0
     for definition in (*PHYSICAL_DEFINITIONS, *DERIVED_DEFINITIONS, *PROJECTION_DEFINITIONS):
-        if not tool._is_module_declared(definition) or definition.public_entrypoint is None:
+        if not _is_declared_in_its_module(definition) or definition.public_entrypoint is None:
             continue
         checked += 1
         module = _declaring_module(definition)
@@ -678,8 +670,28 @@ def test_a_declared_family_defines_its_own_entry_point() -> None:
             elsewhere.add(family.name)
 
     assert checked == 38
+    # The migration is finished: the only definition still written as a registry literal is a
+    # projection, which publishes no entry point and so is skipped above anyway.
+    assert [
+        definition.identifier.name
+        for definition in (*PHYSICAL_DEFINITIONS, *DERIVED_DEFINITIONS, *PROJECTION_DEFINITIONS)
+        if not _is_declared_in_its_module(definition)
+    ] == ["PASSAGES_COMPAT"]
     assert all(ENTRYPOINT_DEFINED_NEXT_DOOR.values()), "an exception needs a reason, not just a key"
     assert elsewhere == set(ENTRYPOINT_DEFINED_NEXT_DOOR)
+
+
+def _is_declared_in_its_module(definition: object) -> bool:
+    """Whether the family describes itself, rather than being a literal in `_registry`.
+
+    A declaration's discoverer is written in the family module; a registry literal's is an
+    adapter defined in `_registry` itself. This lived in the manifest generator while that tool
+    still had a hand-written evidence table to fall back to for the families it was false for.
+    The table is gone, so the tool no longer asks the question and these tests own it.
+    """
+
+    discover = getattr(definition, "discover", None) or getattr(definition, "derive", None)
+    return getattr(discover, "__module__", "") != "quiddity._registry"
 
 
 def _classes_defined_in(path: Path) -> set[str]:
@@ -739,17 +751,10 @@ def test_a_declared_family_defines_its_own_record_types() -> None:
     records it wants would otherwise sidestep the rule rather than take the exception.
     """
 
-    spec = importlib.util.spec_from_file_location(
-        "generate_capability_manifest", ROOT / "tools" / "generate_capability_manifest.py"
-    )
-    assert spec is not None and spec.loader is not None
-    tool = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(tool)
-
     elsewhere: dict[str, dict[str, str]] = {}
     declared = 0
     for definition in (*PHYSICAL_DEFINITIONS, *DERIVED_DEFINITIONS, *PROJECTION_DEFINITIONS):
-        if not tool._is_module_declared(definition):
+        if not _is_declared_in_its_module(definition):
             continue  # still described by a registry literal
         declared += 1
         module = _declaring_module(definition)
