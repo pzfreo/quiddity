@@ -343,12 +343,12 @@ uv run python tools/generate_capability_manifest.py --write
 ```
 
 Measured on the gussets family (issue #602): sixteen files, now eleven, plus the module itself,
-its fixtures and the goldens in the next section. A family that declares itself (`DEFINITION`
-with its `ManifestEvidence`) needs neither an `EVIDENCE` nor an `EXTRA_RECORDS` entry in the
-manifest tool; a family still described in the registry needs both. A site that only restates
-what the registry already knows is a candidate for
-derivation; the three remaining test files in row 9 are deliberate pins, not restatements.
-A site that is a public contract stays, and its check is what makes forgetting it visible. See
+its fixtures and the goldens in the next section. The manifest tool is no longer one of them --
+a family's `ManifestEvidence` is part of its declaration, and the generator refuses a family that
+publishes an entry point without one, so there is nowhere else for that metadata to live. A site
+that only restates what the registry already knows is a candidate for derivation; the three
+remaining test files in row 9 are deliberate pins, not restatements. A site that is a public
+contract stays, and its check is what makes forgetting it visible. See
 [ADR 0005](adr/0005-versioned-cross-repository-capability-contract.md).
 
 ## 8. Extend the semantic goldens deliberately

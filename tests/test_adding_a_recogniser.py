@@ -22,6 +22,9 @@ GUIDE = ROOT / "docs" / "adding-a-recogniser.md"
 #: 16 -> 15: the snapshot tool's package-originated list is derived from the registry.
 #: 15 -> 14: a family declares itself in its module; the manifest tool reads that declaration.
 #: 14 -> 11: three test rosters that restated the registry now read it.
+#: Re-measured on 2026-09-17 when #632 deleted the manifest tool's evidence tables: still 11.
+#: That work removed hand-written metadata but no *site* -- the tables were never a table row,
+#: because by then a new family declared its own evidence and never touched the tool.
 REGISTRATION_SITES = 11
 
 
