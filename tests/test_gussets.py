@@ -32,7 +32,7 @@ from quiddity._adjacency import FaceGraph, edge_face_map
 from quiddity._body_identity import body_signature
 from quiddity._candidates import FamilyId
 from quiddity._claims import ClaimLedger
-from quiddity.gussets import _cap
+from quiddity.gussets import _cap, _discover_gusset_ribs
 from tests.golden.gusset_rib_patterns.fixture import build_fixture as build_pattern_fixture
 from tests.golden.gusset_ribs.fixture import build_fixture
 
@@ -225,7 +225,11 @@ def test_a_rounded_hypotenuse_keeps_the_virtual_leg_dimensions(tmp_path):
             replace(rib, body_key=None) for rib in recognise_gusset_ribs(sharp)
         ]
         ledger = ClaimLedger(FaceGraph(rounded))
-        (record,) = recognise_gusset_ribs(rounded, ledger=ledger)
+        # The public entry point is writer-free per ADR 0002; claims come from the core the
+        # registry calls.
+        (record,) = _discover_gusset_ribs(
+            rounded, graph=ledger.graph, face_edges=None, sink=ledger.sink
+        )
         (candidate,) = ledger.candidate_set_for(FamilyId.GUSSET_RIBS, [record]).candidates
         assert len(ledger.defining_of(candidate)) == expected_faces
     path = tmp_path / "rounded-rib.step"
@@ -238,7 +242,7 @@ def test_a_rounded_hypotenuse_keeps_the_virtual_leg_dimensions(tmp_path):
 def test_evidence_owns_original_rib_faces_and_step_round_trip(tmp_path):
     part = _plain_rib()
     ledger = ClaimLedger(FaceGraph(part))
-    (record,) = recognise_gusset_ribs(part, ledger=ledger)
+    (record,) = _discover_gusset_ribs(part, graph=ledger.graph, face_edges=None, sink=ledger.sink)
     (candidate,) = ledger.candidate_set_for(FamilyId.GUSSET_RIBS, [record]).candidates
     assert len(ledger.defining_of(candidate)) == 3
     assert ledger.graph.common_valid_solid(ledger.defining_of(candidate)) is not None

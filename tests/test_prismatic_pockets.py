@@ -41,6 +41,7 @@ from build123d import (
 from quiddity._adjacency import FaceGraph
 from quiddity._candidates import FamilyId
 from quiddity._claims import ClaimLedger
+from quiddity._recess_features import _discover_pockets
 from quiddity._reconcile import prismatic_pockets_that_are_not_pockets
 from quiddity._rings import rings
 from quiddity.frames import (
@@ -574,7 +575,8 @@ def test_a_rectangular_recess_is_reported_by_both_families_and_reconciled_to_one
     assert_ring_role(rect_ledger, rect_candidate, rect_records[0])
 
     ledger = ClaimLedger(FaceGraph(part))
-    pockets = r.recognise_pockets(part, ledger=ledger)
+    # `recognise_pockets` is writer-free per ADR 0002; claims come from the core.
+    pockets = _discover_pockets(part, writer=ledger.writer)
     prismatic = r.recognise_prismatic_pockets(part, ledger=ledger)
 
     assert len(pockets) == 1 and len(prismatic) == 1, "both families see this recess"
@@ -589,7 +591,7 @@ def test_a_rectangular_recess_is_reported_by_both_families_and_reconciled_to_one
     # would refuse its faces rather than quietly answering about the wrong one.
     triangle = _triangular()
     tri_ledger = ClaimLedger(FaceGraph(triangle))
-    tri_pockets = r.recognise_pockets(triangle, ledger=tri_ledger)
+    tri_pockets = _discover_pockets(triangle, writer=tri_ledger.writer)
     tri = r.recognise_prismatic_pockets(triangle, ledger=tri_ledger)
     assert (
         len(prismatic_pockets_that_are_not_pockets(tri, tri_pockets, tri_ledger.snapshot_index()))

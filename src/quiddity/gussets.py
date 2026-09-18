@@ -21,7 +21,6 @@ from quiddity._adjacency import (
 )
 from quiddity._body_identity import unambiguous_body_keys
 from quiddity._candidates import CompletedInputs, DerivedId, EvidenceSink, FamilyId
-from quiddity._claims import ClaimLedger, EvidenceWriter
 from quiddity._definitions import (
     AcceptedInputs,
     Counted,
@@ -312,12 +311,10 @@ def recognise_gusset_ribs(
     part: Part,
     *,
     face_edges: FaceEdges | None = None,
-    ledger: ClaimLedger | EvidenceWriter | None = None,
 ) -> list[GussetRib]:
     """Return right-triangular material ribs bridging two principal planes."""
-    graph = FaceGraph(part, face_edges=face_edges) if ledger is None else ledger.graph
-    sink = None if ledger is None else ledger.sink
-    return _discover_gusset_ribs(part, graph=graph, face_edges=face_edges, sink=sink)
+    graph = FaceGraph(part, face_edges=face_edges)
+    return _discover_gusset_ribs(part, graph=graph, face_edges=face_edges, sink=None)
 
 
 def recognise_gusset_rib_patterns(

@@ -32,6 +32,7 @@ from quiddity._recess_faces import (
     _cylinder_faces,
     _planar_faces,
 )
+from quiddity._recess_features import _discover_pockets, _discover_slots
 from quiddity._recess_obround import (
     _CAP_CLUSTER_FRAC,
     _compatible_end_groups,
@@ -163,6 +164,7 @@ def test_occurrence_matrix_preserves_public_parity_and_exact_planar_roles(
     graph = FaceGraph(part, face_edges=memo)
     one = _slot_proposals_one if family == "slot" else _pocket_proposals_one
     public = recognise_slots if family == "slot" else recognise_pockets
+    core = _discover_slots if family == "slot" else _discover_pockets
     proposals = _body_scoped_proposals(
         list(part.solids()) or [part], partial(one, face_edges=memo, graph=graph)
     )
@@ -171,7 +173,9 @@ def test_occurrence_matrix_preserves_public_parity_and_exact_planar_roles(
     assert [proposal.record.to_dict() for proposal in proposals] == [
         record.to_dict() for record in public(part, face_edges=memo)
     ]
-    assert public(part, face_edges=memo, ledger=ledger) == public(part, face_edges=memo)
+    # The public entry points are writer-free per ADR 0002, so the parity is between the core
+    # the registry calls and the public function, which is the seam it always mattered across.
+    assert core(part, face_edges=memo, writer=ledger.writer) == public(part, face_edges=memo)
     assert all(len(proposal.planar) == expected_planar for proposal in proposals)
     assert all(node in graph.nodes for proposal in proposals for node in proposal.planar)
     assert {claim.claimant for claim in ledger.claims} == {

@@ -37,13 +37,33 @@ from quiddity._dispositions import Outcome, ReasonCode
 from quiddity._effective_surfaces import (
     SurfaceKind,
     SurfaceProvenance,
+    effective_faces_for_graph,
 )
 from quiddity.circular_blind_steps import (
     QUARTER_TURN_RAD_TOL,
     CircularBlindStep,
+    _discover_circular_blind_steps,
     recognise_circular_blind_steps,
 )
 from quiddity.result import _take_inventory
+
+
+def _discovered(part, ledger, *, cyls=None):
+    """Run the core the registry calls, writing claims into *ledger*.
+
+    `recognise_circular_blind_steps` is writer-free per ADR 0002, so a test that wants claims
+    goes where the run goes. The core takes the pieces the entry point would otherwise derive.
+    """
+
+    effective = effective_faces_for_graph(ledger.graph)
+    cylinders = analyse_cylinders(part, face_surfaces=effective) if cyls is None else cyls
+    return _discover_circular_blind_steps(
+        part,
+        graph=ledger.graph,
+        cylinders=cylinders,
+        effective=effective,
+        sink=ledger.sink,
+    )
 
 
 def _step(scale: float = 1.0):
@@ -88,7 +108,7 @@ def test_direct_and_aggregate_paths_keep_exact_two_face_provenance_and_drop_the_
     graph = FaceGraph(part)
     ledger = ClaimLedger(graph)
 
-    direct = recognise_circular_blind_steps(part, ledger=ledger)
+    direct = _discovered(part, ledger)
 
     assert direct == recognise_circular_blind_steps(part)
     assert len(ledger.claims) == 1
@@ -121,7 +141,7 @@ def test_exact_bspline_cylinder_keeps_record_and_original_surface_provenance() -
     graph = FaceGraph(recovered)
     ledger = ClaimLedger(graph)
 
-    records = recognise_circular_blind_steps(recovered, ledger=ledger)
+    records = _discovered(recovered, ledger)
 
     assert records == recognise_circular_blind_steps(native)
     (candidate,) = ledger.candidate_set(FamilyId.CIRCULAR_BLIND_STEPS).candidates
@@ -237,7 +257,7 @@ def test_open_shell_and_foreign_cylinder_inventory_fail_before_issuance() -> Non
     ledger = ClaimLedger(FaceGraph(part))
     foreign = Pos(100, 0, 0) * _step()
     with pytest.raises(ValueError, match="graph|node|own"):
-        recognise_circular_blind_steps(part, cyls=analyse_cylinders(foreign), ledger=ledger)
+        _discovered(part, ledger, cyls=analyse_cylinders(foreign))
     assert ledger.candidate_set(FamilyId.CIRCULAR_BLIND_STEPS).candidates == ()
 
 
@@ -256,7 +276,7 @@ def test_equal_valued_occurrences_keep_distinct_candidate_identity_and_evidence(
     graph = FaceGraph(part)
     ledger = ClaimLedger(graph)
 
-    records = recognise_circular_blind_steps(part, ledger=ledger)
+    records = _discovered(part, ledger)
     candidates = ledger.candidate_set(FamilyId.CIRCULAR_BLIND_STEPS).candidates
 
     assert len(records) == len(candidates) == 2
@@ -287,7 +307,7 @@ def test_second_candidate_late_solid_validation_failure_is_batch_atomic(monkeypa
 
     monkeypatch.setattr(FaceGraph, "common_valid_solid", fail_validation)
     with pytest.raises(ValueError, match="valid solid"):
-        recognise_circular_blind_steps(part, ledger=ledger)
+        _discovered(part, ledger)
     assert ledger.candidate_set(FamilyId.CIRCULAR_BLIND_STEPS).candidates == ()
 
 

@@ -19,7 +19,6 @@ from build123d import Vector, extrude
 
 from quiddity._adjacency import FaceGraph, FaceNode, axis_aligned_axis
 from quiddity._candidates import CompletedInputs, EvidenceSink, FamilyId
-from quiddity._claims import ClaimLedger, EvidenceWriter
 from quiddity._cylinder_substrate import analyse_cylinders
 from quiddity._definitions import (
     Counted,
@@ -290,20 +289,18 @@ def recognise_circular_blind_steps(
     part: Part,
     *,
     cyls: CylinderInventory | FrozenCylinderInventory | None = None,
-    ledger: ClaimLedger | EvidenceWriter | None = None,
 ) -> list[CircularBlindStep]:
     """Recognise bounded quarter-cylindrical blind corner steps."""
 
-    graph = FaceGraph(part) if ledger is None else ledger.graph
+    graph = FaceGraph(part)
     effective = effective_faces_for_graph(graph)
     cylinders = analyse_cylinders(part, face_surfaces=effective) if cyls is None else cyls
-    sink = None if ledger is None else ledger.sink
     return _discover_circular_blind_steps(
         part,
         graph=graph,
         cylinders=cylinders,
         effective=effective,
-        sink=sink,
+        sink=None,
     )
 
 

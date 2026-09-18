@@ -163,7 +163,6 @@ MODULE_SEAM_EDGES = {
         "_adjacency",
         "_body_identity",
         "_candidates",
-        "_claims",
         "_definitions",
         "_geometry",
         "_pattern_geometry",
@@ -184,7 +183,6 @@ MODULE_SEAM_EDGES = {
     "circular_blind_steps": {
         "_adjacency",
         "_candidates",
-        "_claims",
         "_cylinder_substrate",
         "_definitions",
         "_effective_surfaces",
@@ -485,7 +483,6 @@ MODULE_SEAM_EDGES = {
     "oriented_slots": {
         "_adjacency",
         "_candidates",
-        "_claims",
         "_definitions",
         "_geometry",
         "_pattern_geometry",

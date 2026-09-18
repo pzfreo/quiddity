@@ -376,16 +376,20 @@ def test_route_matrix_matches_fresh_complete_role_inventory(part, planar: int, c
                 assert cylinder.Radius() == pytest.approx(record.width / 2)
 
 
-def test_public_claim_ledger_and_writer_use_the_same_complete_product() -> None:
+def test_writer_enabled_discovery_matches_the_writer_free_public_product() -> None:
+    """The core the registry calls returns exactly what the public function does.
+
+    This used to compare three routes, because the public function accepted either a
+    `ClaimLedger` or its `EvidenceWriter`. That choice was a public-surface convenience and is
+    gone with the parameter: `recognise_slots` is writer-free per ADR 0002, and the core takes a
+    writer. What is worth pinning is unchanged -- writing claims does not alter the product.
+    """
+
     part = Box(100, 60, 20) - _obround(30, 12, 20)
-    public_ledger = ClaimLedger(FaceGraph(part))
-    via_ledger = recognise_slots(part, ledger=public_ledger)
     writer_ledger = ClaimLedger(FaceGraph(part))
-    via_writer = recognise_slots(part, ledger=writer_ledger.writer)
+    via_writer = _discover_slots(part, writer=writer_ledger.writer)
     plain = recognise_slots(part)
-    assert [item.to_dict() for item in via_ledger] == [item.to_dict() for item in plain]
     assert [item.to_dict() for item in via_writer] == [item.to_dict() for item in plain]
-    assert [len(claim.defining) for claim in public_ledger.claims] == [4]
     assert [len(claim.defining) for claim in writer_ledger.claims] == [4]
 
 
@@ -652,7 +656,7 @@ def test_public_compatibility_path_does_not_relabel_source_identity(monkeypatch)
 
     monkeypatch.setattr(ledger.graph, "require_node", stale)
     with pytest.raises(ValueError, match="foreign source face"):
-        recognise_slots(part, ledger=ledger)
+        _discover_slots(part, writer=ledger.writer, _wrap_identity_errors=False)
     assert ledger.candidate_set(FamilyId.SLOTS).candidates == ()
 
 
@@ -821,18 +825,21 @@ def test_status_registry_writer_and_private_module_seams_are_closed() -> None:
     # `_recess_features.py`, so the two are in different modules and the shared pin in
     # `tests/route_pins.py` does not fit as written -- see the issue it is filed under.
     assert importers == ["slots.py"]
-    # A sorted list, not a set: a third writer-handing call inside `slots.py` would otherwise
+    # A sorted list, not a set: a second writer-handing call inside `slots.py` would otherwise
     # be invisible, which is the escape #639 found and #647 exists to end.
-    assert sorted(path for path, _call in callers) == ["_recess_features.py", "slots.py"]
+    #
+    # One caller now, not two. `recognise_slots` in `_recess_features.py` used to reach the core
+    # as well, to serve its `ledger=` parameter; that parameter is gone under ADR 0002's
+    # writer-free rule, so the declaration is the only route in.
+    assert sorted(path for path, _call in callers) == ["slots.py"]
     declared_call = next(call for path, call in callers if path == "slots.py")
     writer = {item.arg: item.value for item in declared_call.keywords}["writer"]
     assert isinstance(writer, ast.Attribute) and writer.attr == "writer"
     assert isinstance(writer.value, ast.Name) and writer.value.id == "services"
-    assert tuple(inspect.signature(recognise_slots).parameters) == (
-        "part",
-        "face_edges",
-        "ledger",
-    )
+    # Writer-free per ADR 0002: no `ledger`, and nothing else a caller could hand a writer
+    # through. The parameter exposed issuance authority no supported consumer should hold,
+    # through private types that carry no compatibility promise.
+    assert tuple(inspect.signature(recognise_slots).parameters) == ("part", "face_edges")
 
     watched = {
         "_slot_proposals_one",

@@ -360,10 +360,17 @@ def test_record_only_compatibility_wrapper_preserves_value_and_order() -> None:
     ]
 
 
-def test_public_ledger_remains_graph_only_and_writer_free() -> None:
+def test_channel_discovery_remains_graph_only_and_writer_free() -> None:
+    """The family claims nothing, and the public function can no longer be handed a ledger.
+
+    `recognise_channels` is writer-free per ADR 0002, so the graph-only property is now
+    structural on that side. What is still worth asserting is that the core, given the run's
+    graph, agrees with it and still issues no candidate.
+    """
+
     part = build_fixture()
     ledger = ClaimLedger(FaceGraph(part))
-    assert recognise_channels(part, ledger=ledger) == recognise_channels(part)
+    assert feature_module._discover_channels(part, graph=ledger.graph) == recognise_channels(part)
     assert ledger.candidate_set(FamilyId.CHANNELS).candidates == ()
 
 
@@ -882,8 +889,10 @@ def test_channel_private_core_and_registry_writer_route_are_closed() -> None:
         also_reached_from={"recognise_channels": ("writer",)},
     )
 
-    # What the entry point passes *instead* of a writer is this family's own business, not the
-    # shared pin's: a read-only graph taken from the caller's ledger, or none at all.
+    # The public entry point is writer-free per ADR 0002, so it cannot hand the core anything
+    # from a caller: it passes a literal `graph=None` and the family builds its own per solid.
+    # Before, this pinned the exact `None if ledger is None else ledger.graph` shape, because a
+    # ledger could reach the core through here and the shape was what kept it read-only.
     feature_tree = ast.parse(
         (ROOT / "src/quiddity/_recess_features.py").read_text(encoding="utf-8")
     )
@@ -892,26 +901,18 @@ def test_channel_private_core_and_registry_writer_route_are_closed() -> None:
         for node in feature_tree.body
         if isinstance(node, ast.FunctionDef) and node.name == "recognise_channels"
     )
+    assert not any(
+        argument.arg in {"ledger", "writer", "sink"}
+        for argument in (*public.args.args, *public.args.kwonlyargs)
+    )
     (call,) = [
         call
         for name, call in _qualified_calls(public)
         if name == "_discover_channels" or name.endswith("._discover_channels")
     ]
-    graph = {keyword.arg: keyword.value for keyword in call.keywords}["graph"]
-    assert (
-        isinstance(graph, ast.IfExp)
-        and isinstance(graph.test, ast.Compare)
-        and isinstance(graph.test.left, ast.Name)
-        and graph.test.left.id == "ledger"
-        and len(graph.test.ops) == 1
-        and isinstance(graph.test.ops[0], ast.Is)
-        and isinstance(graph.test.comparators[0], ast.Constant)
-        and graph.test.comparators[0].value is None
-        and isinstance(graph.orelse, ast.Attribute)
-        and isinstance(graph.orelse.value, ast.Name)
-        and graph.orelse.value.id == "ledger"
-        and graph.orelse.attr == "graph"
-    )
+    handed = {keyword.arg: keyword.value for keyword in call.keywords}
+    assert isinstance(handed["graph"], ast.Constant) and handed["graph"].value is None
+    assert "writer" not in handed and "sink" not in handed
 
     constructors: list[tuple[str, str]] = []
     for path in (ROOT / "src/quiddity").glob("*.py"):
