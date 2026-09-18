@@ -20,6 +20,7 @@ from quiddity._adjacency import FaceGraph
 from quiddity._candidates import FamilyId
 from quiddity._claims import ClaimLedger
 from quiddity.result import _take_inventory
+from quiddity.turned import _discover_turned_steps
 
 
 def _shaft(*, x: float = 0.0, y: float = 0.0, scale: float = 1.0):
@@ -82,7 +83,7 @@ def test_all_turned_evidence_validates_before_any_candidate_is_published(
     monkeypatch.setattr(FaceGraph, "common_valid_solid", fail_later_proposal)
 
     with pytest.raises(ValueError, match="no common valid solid"):
-        recognise_turned_steps(part, ledger=ledger)
+        _discover_turned_steps(part, ledger=ledger)
     assert calls == 2
     assert ledger.claims == ()
 

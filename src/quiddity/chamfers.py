@@ -135,7 +135,6 @@ def recognise_chamfers(
     tol: float | None = None,
     max_leg_frac: float = 0.45,
     face_edges: FaceEdges | None = None,
-    ledger: ClaimLedger | EvidenceWriter | None = None,
     cyls: CylinderInventory | None = None,
     include_planar: bool = True,
 ) -> list[Chamfer]:
@@ -154,13 +153,42 @@ def recognise_chamfers(
     planar bevels on a turned part as its turned chamfer inventory, while retaining its
     principal-axis external cones.
 
-    *ledger* records the face a chamfer was **established by**: the bevel, and only that. The
-    two axis-aligned planes it bridges remain unclaimed: they locate the virtual sharp corner
-    the convexity probe tests, and each belongs to whatever feature owns it.
+    Writer-free, per ADR 0002: the registry reaches the same geometry through
+    :func:`_discover_chamfers`, which issues the claims.
+    """
+
+    return _discover_chamfers(
+        part,
+        tol=tol,
+        max_leg_frac=max_leg_frac,
+        face_edges=face_edges,
+        ledger=None,
+        cyls=cyls,
+        include_planar=include_planar,
+    )
+
+
+def _discover_chamfers(
+    part: Part,
+    *,
+    tol: float | None = None,
+    max_leg_frac: float = 0.45,
+    face_edges: FaceEdges | None = None,
+    ledger: ClaimLedger | EvidenceWriter | None,
+    cyls: CylinderInventory | None = None,
+    include_planar: bool = True,
+) -> list[Chamfer]:
+    """Recognise the chamfers and, with a ledger, claim the bevel face each was established by.
+
+    Only the bevel is claimed. The two axis-aligned planes it bridges remain unclaimed: they
+    locate the virtual sharp corner the convexity probe tests, and each belongs to whatever
+    feature owns it.
 
     A blind step's slant clears every gate here, because on the face alone it is a bevel; pass
-    the ledger ``recognise_angled_steps`` wrote into and
-    :func:`quiddity._reconcile.chamfers_that_are_not_angled_steps` removes it."""
+    the ledger angled-step discovery wrote into and
+    :func:`quiddity._reconcile.chamfers_that_are_not_angled_steps` removes it.
+    """
+
     properties = run_solid_properties(ledger)
     bb = properties.bounding_box(part)
     # Geometry, rather than callout significance, decides the default answer. A caller that
@@ -307,7 +335,7 @@ def recognise_chamfers(
 def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
     del inputs  # no completed predecessors
     return list(
-        recognise_chamfers(
+        _discover_chamfers(
             services.context.part,
             cyls=services.cylinders,
             ledger=services.writer,

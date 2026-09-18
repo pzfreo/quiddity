@@ -47,7 +47,7 @@ from quiddity._section_passages import (
     _parallel_pair_candidates,
 )
 from quiddity._sections import LocalFrame, PlanarSection, SectionVertex
-from quiddity.passages import _section_passage_record
+from quiddity.passages import _discover_section_passages, _section_passage_record
 from quiddity.result import _discover_all
 from tools._legacy_recognition import (
     PassageCompatibilityError,
@@ -332,7 +332,7 @@ def test_sloped_passage_publishes_walls_only_as_defining_and_constituent_evidenc
     part = Wedge(60, 50, 20, 0, -10, 60, 5) - _polygonal_tool(6)
     ledger = ClaimLedger(FaceGraph(part))
 
-    records = recognise_section_passages(part, ledger=ledger)
+    records = _discover_section_passages(part, ledger.graph, ledger.sink)
     (candidate,) = ledger.candidate_set(FamilyId.PASSAGES).candidates
     evidence = ledger.snapshot_index()
 
@@ -457,7 +457,7 @@ def test_public_nested_schema_and_json_shape() -> None:
 def test_rich_api_is_the_exact_passages_candidate_authority() -> None:
     part = _square()
     ledger = ClaimLedger(FaceGraph(part))
-    records = recognise_section_passages(part, ledger=ledger)
+    records = _discover_section_passages(part, ledger.graph, ledger.sink)
     (candidate,) = ledger.candidate_set(FamilyId.PASSAGES).candidates
     assert candidate.record is records[0]
     assert len(ledger.defining_of(candidate)) == len(records[0].section.boundary) == 4
@@ -582,7 +582,7 @@ def test_oblique_passage_is_rich_only_and_keeps_exact_wall_ownership() -> None:
     assert recognise_passages(part) == []
     graph = FaceGraph(part)
     ledger = ClaimLedger(graph)
-    (record,) = recognise_section_passages(part, ledger=ledger)
+    (record,) = _discover_section_passages(part, ledger.graph, ledger.sink)
     assert record.frame.run == pytest.approx(oracle.run, abs=5e-7)
     assert record.run_interval == pytest.approx(oracle.interval, abs=5e-4)
     assert record.frame.run == (0.390731, -0.26913, 0.880283)
@@ -616,7 +616,7 @@ def test_oblique_passage_is_rich_only_and_keeps_exact_wall_ownership() -> None:
 def test_free_axis_line_sections_preserve_complete_wall_cycles(section, wall_count) -> None:
     part = Rot(17, 23, 31) * (Box(60, 40, 20) - _polygonal_tool(section))
     ledger = ClaimLedger(FaceGraph(part))
-    (record,) = recognise_section_passages(part, ledger=ledger)
+    (record,) = _discover_section_passages(part, ledger.graph, ledger.sink)
     assert len(record.section.boundary) == wall_count
     (candidate,) = ledger.candidate_set(FamilyId.PASSAGES).candidates
     assert candidate.record is record
@@ -629,7 +629,7 @@ def test_multiple_unequal_free_axis_occurrences_on_one_solid_are_distinct() -> N
     part = part - Pos(-20, 0, 0) * Box(8, 8, 60) - Pos(20, 0, 0) * Box(12, 6, 60)
     part = Rot(17, 23, 31) * part
     ledger = ClaimLedger(FaceGraph(part))
-    records = recognise_section_passages(part, ledger=ledger)
+    records = _discover_section_passages(part, ledger.graph, ledger.sink)
     candidates = ledger.candidate_set(FamilyId.PASSAGES).candidates
     assert len(records) == len(candidates) == 2
     assert all(
@@ -643,7 +643,7 @@ def test_equal_coincident_solids_keep_two_occurrence_identities() -> None:
     second = Rot(17, 23, 31) * _square()
     part = Compound([first, second])
     ledger = ClaimLedger(FaceGraph(part))
-    records = recognise_section_passages(part, ledger=ledger)  # type: ignore[arg-type]
+    records = _discover_section_passages(part, ledger.graph, ledger.sink)  # type: ignore[arg-type]
     candidates = ledger.candidate_set(FamilyId.PASSAGES).candidates
     assert len(records) == len(candidates) == 2
     assert records[0] == records[1]
@@ -683,7 +683,7 @@ def test_material_classification_reads_each_graph_authorized_solid_not_the_compo
 def test_free_axis_passage_survives_translation_mirror_and_uniform_scale(part) -> None:
     graph = FaceGraph(part)
     ledger = ClaimLedger(graph)
-    records = recognise_section_passages(part, ledger=ledger)  # type: ignore[arg-type]
+    records = _discover_section_passages(part, ledger.graph, ledger.sink)  # type: ignore[arg-type]
     assert len(records) == 1
     (candidate,) = ledger.candidate_set(FamilyId.PASSAGES).candidates
     assert candidate.record is records[0]
@@ -698,7 +698,7 @@ def test_face_and_solid_presentation_reversal_preserves_record_and_wall_shapes()
     def observed(supplied):
         graph = FaceGraph(supplied)
         ledger = ClaimLedger(graph)
-        records = recognise_section_passages(supplied, ledger=ledger)
+        records = _discover_section_passages(supplied, ledger.graph, ledger.sink)
         candidates = ledger.candidate_set(FamilyId.PASSAGES).candidates
         assert len(records) == len(candidates) == 2
         assert all(
@@ -735,7 +735,7 @@ def test_full_discovery_accepts_one_junction_split_into_collinear_occurrences() 
     memo = _SplitJunctionEdges(target)
     graph = FaceGraph(part, face_edges=memo)
     ledger = ClaimLedger(graph)
-    (record,) = recognise_section_passages(part, face_edges=memo, ledger=ledger)
+    (record,) = _discover_section_passages(part, ledger.graph, ledger.sink)
     (candidate,) = ledger.candidate_set(FamilyId.PASSAGES).candidates
     assert candidate.record is record
     defining = ledger.defining_of(candidate)
@@ -857,7 +857,7 @@ def test_full_prism_coordinate_floor_is_fail_closed_at_equality(monkeypatch) -> 
 def test_candidate_compatibility_fact_is_issuer_revalidated() -> None:
     part = _square()
     ledger = ClaimLedger(FaceGraph(part))
-    recognise_section_passages(part, ledger=ledger)
+    _discover_section_passages(part, ledger.graph, ledger.sink)
     (candidate,) = ledger.candidate_set(FamilyId.PASSAGES).candidates
     index = ledger.snapshot_index()
     original = candidate.compatibility
@@ -893,7 +893,7 @@ def test_whole_occurrence_serialization_displacement_refuses_before_evidence() -
     refused = Rot(17, 23, 31) * (Box(60, 40, 10000) - Box(10, 10, 30000))
     ledger = ClaimLedger(FaceGraph(refused))
     with pytest.raises(ValueError, match="serialization exceeds the displacement bound"):
-        recognise_section_passages(refused, ledger=ledger)
+        _discover_section_passages(refused, ledger.graph, ledger.sink)
     assert ledger.candidate_set(FamilyId.PASSAGES).candidates == ()
 
 
@@ -910,7 +910,7 @@ def test_whole_occurrence_serialization_displacement_refuses_before_evidence() -
 def test_caps_obstructions_and_taper_refuse_without_evidence(part) -> None:
     part = Rot(17, 23, 31) * part
     ledger = ClaimLedger(FaceGraph(part))
-    assert recognise_section_passages(part, ledger=ledger) == []
+    assert _discover_section_passages(part, ledger.graph, ledger.sink) == []
     assert ledger.candidate_set(FamilyId.PASSAGES).candidates == ()
 
 
@@ -918,7 +918,7 @@ def test_open_shell_cannot_supply_body_authority() -> None:
     solid = Rot(17, 23, 31) * _square()
     shell = Shell(solid.faces())
     ledger = ClaimLedger(FaceGraph(shell))
-    assert recognise_section_passages(shell, ledger=ledger) == []  # type: ignore[arg-type]
+    assert _discover_section_passages(shell, ledger.graph, ledger.sink) == []  # type: ignore[arg-type]
     assert ledger.candidate_set(FamilyId.PASSAGES).candidates == ()
 
 

@@ -36,6 +36,8 @@ from quiddity._claims import ClaimLedger
 from quiddity._reconcile import (
     chamfers_that_are_not_angled_steps as _reconcile_chamfers,
 )
+from quiddity.angled_steps import _discover_angled_steps
+from quiddity.chamfers import _discover_chamfers
 
 #: A 45° wedge cutting 4 mm into each of the two faces meeting at the edge.
 _WEDGE = 5.657
@@ -81,8 +83,13 @@ def _both_reversed():
 def _claimed(part):
     """Both families against one ledger, proved to return what they return without it."""
 
-    ledger, chamfers = attributed_run(part, FamilyId.CHAMFERS, r.recognise_chamfers)
-    steps = r.recognise_angled_steps(part, ledger=ledger)
+    ledger, chamfers = attributed_run(
+        part,
+        FamilyId.CHAMFERS,
+        r.recognise_chamfers,
+        discover=lambda led: _discover_chamfers(part, ledger=led),
+    )
+    steps = _discover_angled_steps(part, face_edges=None, graph=ledger.graph, sink=ledger.sink)
 
     plain_steps = r.recognise_angled_steps(part)
     assert steps == plain_steps, "claiming changed what was recognised"
@@ -242,14 +249,25 @@ def test_a_ledger_built_from_another_block_is_refused_rather_than_left_empty():
     part, twin = _blind(), _blind()
     assert r.recognise_chamfers(twin) == r.recognise_chamfers(part), "the twin is this block"
 
-    for recognise in (r.recognise_chamfers, r.recognise_angled_steps):
+    # `angled_steps` is writer-free per ADR 0002, so its writer route is the core; `chamfers`
+    # has not been converted yet and still takes the sidecar. Both must refuse the same way.
+    routes = (
+        ("_discover_chamfers", lambda led: _discover_chamfers(part, ledger=led)),
+        (
+            "_discover_angled_steps",
+            lambda led: _discover_angled_steps(
+                part, face_edges=None, graph=led.graph, sink=led.sink
+            ),
+        ),
+    )
+    for name, run in routes:
         foreign = ClaimLedger(FaceGraph(twin))
         try:
-            recognise(part, ledger=foreign)
+            run(foreign)
         except ValueError as refusal:
             assert "built from a different part" in str(refusal)
         else:
-            raise AssertionError(f"{recognise.__name__} accepted another part's graph")
+            raise AssertionError(f"{name} accepted another part's graph")
 
 
 def test_a_shared_face_edge_memo_does_not_change_what_is_claimed():
@@ -259,8 +277,8 @@ def test_a_shared_face_edge_memo_does_not_change_what_is_claimed():
     part = _both()
     memo = FaceEdges()
     ledger = ClaimLedger(FaceGraph(part, face_edges=memo))
-    chamfers = r.recognise_chamfers(part, face_edges=memo, ledger=ledger)
-    steps = r.recognise_angled_steps(part, face_edges=memo, ledger=ledger)
+    chamfers = _discover_chamfers(part, face_edges=memo, ledger=ledger)
+    steps = _discover_angled_steps(part, face_edges=memo, graph=ledger.graph, sink=ledger.sink)
 
     assert chamfers == r.recognise_chamfers(part)
     assert steps == r.recognise_angled_steps(part)

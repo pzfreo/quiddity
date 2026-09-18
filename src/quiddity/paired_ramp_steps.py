@@ -20,7 +20,6 @@ from build123d import GeomType
 
 from quiddity._adjacency import FaceGraph, FaceNode
 from quiddity._candidates import CompletedInputs, EvidenceSink, FamilyId
-from quiddity._claims import ClaimLedger, EvidenceWriter
 from quiddity._definitions import (
     Counted,
     DiscoveryServices,
@@ -225,12 +224,23 @@ def _candidate(
 
 
 def recognise_paired_ramp_steps(
-    part: Part, *, ledger: ClaimLedger | EvidenceWriter | None = None
+    part: Part,
 ) -> list[PairedRampStep]:
-    """Return supported paired-ramp through steps in deterministic geometry order."""
+    """Return supported paired-ramp through steps in deterministic geometry order.
 
-    graph = FaceGraph(part) if ledger is None else ledger.graph
-    sink: EvidenceSink | None = None if ledger is None else ledger.sink
+    Writer-free, per ADR 0002: the registry reaches the same geometry through
+    :func:`_discover_paired_ramp_steps`, which issues the claims.
+    """
+
+    return _discover_paired_ramp_steps(part, graph=FaceGraph(part), sink=None)
+
+
+def _discover_paired_ramp_steps(
+    part: Part, *, graph: FaceGraph, sink: EvidenceSink | None
+) -> list[PairedRampStep]:
+    """Discover the pairs and, with a sink, issue each record's two ramps and terminal."""
+
+    del part  # the graph carries every face this family reads
     ramps: dict[FaceNode, tuple] = {}
     for node in graph.nodes:
         read = _read_ramp(graph, node)
@@ -263,7 +273,13 @@ def recognise_paired_ramp_steps(
 # What this family declares about itself; `_registry` decides where it runs.
 def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
     del inputs  # no completed predecessors
-    return list(recognise_paired_ramp_steps(services.context.part, ledger=services.writer))
+    return list(
+        _discover_paired_ramp_steps(
+            services.context.part,
+            graph=services.writer.graph,
+            sink=services.writer.sink,
+        )
+    )
 
 
 DEFINITION = PhysicalDefinition(

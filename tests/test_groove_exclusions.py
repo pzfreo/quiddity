@@ -20,6 +20,7 @@ from build123d import Axis, Cone, Cylinder, GeomType, Pos, Rot, chamfer, fillet
 
 from quiddity import recognise_grooves
 from quiddity._candidates import FamilyId
+from quiddity.grooves import _discover_grooves
 
 
 def _shaft_with_reduced_band(*, wall_r=15.0, band_r=12.0, lo_h=20.0, band_h=5.0, hi_h=20.0):
@@ -35,7 +36,12 @@ def test_a_narrow_band_between_two_equal_walls_is_a_groove():
     """The positive control. Without it the exclusions below prove nothing."""
 
     part = _shaft_with_reduced_band()
-    ledger, (groove,) = attributed_run(part, FamilyId.GROOVES, recognise_grooves)
+    ledger, (groove,) = attributed_run(
+        part,
+        FamilyId.GROOVES,
+        recognise_grooves,
+        discover=lambda led: _discover_grooves(part, ledger=led),
+    )
 
     assert groove.diameter == 24.0
     assert groove.width == 5.0
@@ -144,7 +150,12 @@ def test_a_groove_with_lead_in_chamfers_is_recognised():
     """
 
     part = _chamfered_groove()
-    ledger, grooves = attributed_run(part, FamilyId.GROOVES, recognise_grooves)
+    ledger, grooves = attributed_run(
+        part,
+        FamilyId.GROOVES,
+        recognise_grooves,
+        discover=lambda led: _discover_grooves(part, ledger=led),
+    )
 
     assert len(grooves) == 1
     assert (grooves[0].diameter, grooves[0].width) == (24.0, 5.0)
@@ -213,7 +224,12 @@ def test_a_radiused_lead_in_joins_the_groove_bands():
     plain += Pos(0, 0, 22.5) * Cylinder(15, 20)
     radiused = fillet(plain.edges().filter_by(GeomType.CIRCLE).group_by(Axis.Z)[1], 1.0)
 
-    ledger, grooves = attributed_run(radiused, FamilyId.GROOVES, recognise_grooves)
+    ledger, grooves = attributed_run(
+        radiused,
+        FamilyId.GROOVES,
+        recognise_grooves,
+        discover=lambda led: _discover_grooves(radiused, ledger=led),
+    )
     assert [(groove.diameter, groove.width) for groove in grooves] == [(24.0, 1.5)]
     (candidate,) = ledger.candidate_set(FamilyId.GROOVES).candidates
     assert_groove_role(ledger, candidate, grooves[0])
@@ -229,8 +245,12 @@ def test_a_chamfered_groove_reads_the_same_at_any_scale():
     """
 
     for factor in (0.05, 5.0, 100.0):
+        scaled = _chamfered_groove().scale(factor)
         ledger, (groove,) = attributed_run(
-            _chamfered_groove().scale(factor), FamilyId.GROOVES, recognise_grooves
+            scaled,
+            FamilyId.GROOVES,
+            recognise_grooves,
+            discover=lambda led, scaled=scaled: _discover_grooves(scaled, ledger=led),
         )
         assert groove.diameter == round(24.0 * factor, 3), f"at {factor}x"
         (candidate,) = ledger.candidate_set(FamilyId.GROOVES).candidates
@@ -238,4 +258,9 @@ def test_a_chamfered_groove_reads_the_same_at_any_scale():
 
 
 def test_a_plain_cylinder_has_no_groove():
-    unattributed_run(Cylinder(15, 40), FamilyId.GROOVES, recognise_grooves)
+    plain = Cylinder(15, 40)
+    unattributed_run(
+        plain,
+        FamilyId.GROOVES,
+        discover=lambda led: _discover_grooves(plain, ledger=led),
+    )

@@ -246,7 +246,6 @@ def recognise_grooves(
     part: Part,
     *,
     cyls: CylinderInventory | None = None,
-    ledger: ClaimLedger | EvidenceWriter | None = None,
     face_edges: FaceEdges | None = None,
 ) -> list[Groove]:
     """Recognise the turned grooves of *part* (see module docstring). Returns one
@@ -261,15 +260,28 @@ def recognise_grooves(
     Pass *face_edges* to reuse the run's face-edge memo when radiused lead-ins require an
     adjacency walk. Ordinary and conical grooves do not consult it.
 
-    *ledger* records the face a groove was **established by**: its floor band, and only that.
-    The two larger neighbours are what make the band a local minimum rather than a shoulder,
-    but a groove is not bounded by them -- they are the shaft either side of it, and each
-    belongs to whatever feature owns it. Treating consultation as consumption would have every
-    groove contest its own neighbours.
-
     The same band is also a rung of the turned-step ladder, and both records are real; see
     :mod:`quiddity._reconcile` for why neither is dropped and why the census still
     counts the band once."""
+
+    return _discover_grooves(part, cyls=cyls, ledger=None, face_edges=face_edges)
+
+
+def _discover_grooves(
+    part: Part,
+    *,
+    cyls: CylinderInventory | None = None,
+    ledger: ClaimLedger | EvidenceWriter | None,
+    face_edges: FaceEdges | None = None,
+) -> list[Groove]:
+    """Recognise the grooves and, with a ledger, claim the floor band each was established by.
+
+    Only the floor band is claimed. The two larger neighbours are what make the band a local
+    minimum rather than a shoulder, but a groove is not bounded by them -- they are the shaft
+    either side of it, and each belongs to whatever feature owns it. Treating consultation as
+    consumption would have every groove contest its own neighbours.
+    """
+
     z_cyls, cross_cyls = cyls if cyls is not None else analyse_cylinders(part)
     ext = [c for c in (*z_cyls, *cross_cyls) if c.get("external")]
     if not ext:
@@ -369,7 +381,7 @@ def recognise_grooves(
 def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
     del inputs  # no completed predecessors
     return list(
-        recognise_grooves(
+        _discover_grooves(
             services.context.part,
             cyls=services.cylinders,
             ledger=services.writer,

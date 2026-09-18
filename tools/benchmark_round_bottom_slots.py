@@ -35,17 +35,19 @@ def _run_case(part: Any, enabled: bool) -> tuple[Any, float]:
     import quiddity.round_bottom_slots as family
     from quiddity.result import _take_inventory
 
-    # The declaration resolves its entry point in the family module at call time, so that is
-    # where the benchmark disables it; the registry no longer holds the name.
-    original = family.recognise_round_bottom_blind_slots
+    # The declaration resolves its *core* in the family module at call time, so that is where
+    # the benchmark disables it. It used to swap the public entry point, which the declaration
+    # called; under ADR 0002's writer-free rule it no longer does, and swapping it would have
+    # left both runs identical rather than disabling anything.
+    original = family._discover_round_bottom_blind_slots
     if not enabled:
-        family.recognise_round_bottom_blind_slots = lambda *_args, **_kwargs: []
+        family._discover_round_bottom_blind_slots = lambda *_args, **_kwargs: []
     try:
         started = time.perf_counter()
         product = _take_inventory(part)
         return product, time.perf_counter() - started
     finally:
-        family.recognise_round_bottom_blind_slots = original
+        family._discover_round_bottom_blind_slots = original
 
 
 def _measure(parts: list[tuple[str, Any]]) -> dict[str, Any]:

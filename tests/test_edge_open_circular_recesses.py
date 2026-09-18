@@ -24,6 +24,7 @@ from quiddity.edge_open_circular_recesses import (
     EdgeOpenCircularPocket,
     OpenCircularSection,
     OpenCircularSectionSegment,
+    _discover_edge_open_circular_pockets,
     recognise_edge_open_circular_pockets,
 )
 from quiddity.result import _take_inventory
@@ -211,7 +212,7 @@ def test_equal_occurrences_on_separate_solids_keep_separate_ownership() -> None:
     part = Compound([first, Pos(100, 0, 0) * _open_circular_pocket()])
     ledger = ClaimLedger(FaceGraph(part))
 
-    found = recognise_edge_open_circular_pockets(part, ledger=ledger)
+    found = _discover_edge_open_circular_pockets(part, graph=ledger.graph, ledger=ledger)
 
     assert len(found) == 2
     assert len(ledger.claims) == 2

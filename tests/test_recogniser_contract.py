@@ -16,6 +16,7 @@ from __future__ import annotations
 import dataclasses
 import inspect
 import json
+import sys
 from math import cos, pi, sin
 from pathlib import Path
 
@@ -90,6 +91,7 @@ from quiddity import (
     recognise_turned_steps,
 )
 from quiddity._record import Record
+from quiddity._registry import PHYSICAL_DEFINITIONS
 from tests.golden._common import load_fixture
 from tools._legacy_recognition import (
     Channel,
@@ -421,41 +423,294 @@ def test_part_based_recognisers_are_keyword_only_after_part():
     assert checked >= 25
 
 
-def _ledger_taking_recognisers():
-    """Every `recognise_*` in a public module that accepts a ledger, root-exported or not.
+def _public_entrypoint(definition):
+    """The family's public function, wherever it lives.
 
-    `passages.recognise_passages` is the legacy projection and refuses a ledger by design
-    (`PassageCompatibilityError`), so it is the one exclusion.
+    Usually the module that declares the family, but the recess families keep their entry
+    points in `_recess_features` while declaring themselves in `slots`.
     """
+
     import importlib
 
     from tests.test_architecture import PUBLIC_MODULES
 
-    for module_name in sorted(PUBLIC_MODULES):
-        module = importlib.import_module(f"quiddity.{module_name}")
-        for name in sorted(vars(module)):
-            fn = getattr(module, name)
-            if not (name.startswith("recognise_") and callable(fn)):
-                continue
-            if getattr(fn, "__module__", None) != module.__name__:
-                continue  # re-exported from another module; checked there
-            if "ledger" in inspect.signature(fn).parameters and name != "recognise_passages":
-                yield f"{module_name}.{name}", fn
+    name = definition.public_entrypoint
+    candidates = [sys.modules[definition.discover.__module__], quiddity]
+    candidates += [importlib.import_module(f"quiddity.{m}") for m in sorted(PUBLIC_MODULES)]
+    for module in candidates:
+        fn = getattr(module, name, None)
+        if callable(fn):
+            return fn
+    raise AssertionError(f"no public entry point named {name}")
 
 
-@pytest.mark.parametrize("name,fn", list(_ledger_taking_recognisers()))
-def test_passing_a_ledger_changes_nothing_about_the_return_value(name, fn):
+def _annotation_members(annotation):
+    """Every type mentioned anywhere in *annotation*, not just its outermost arguments.
+
+    `typing.get_args` goes one level, so `ClaimLedger | None` is seen but `list[ClaimLedger] |
+    None` is not -- and optional-with-a-default is this repo's near-universal parameter idiom,
+    so the one-level form was escapable by the shape most likely to be written.
+    """
+
+    import typing
+
+    seen = [annotation]
+    for member in typing.get_args(annotation):
+        seen.extend(_annotation_members(member))
+    return seen
+
+
+def test_no_public_entry_point_accepts_a_writer():
+    """ADR 0002: the claim sidecar is not a public parameter, for any family.
+
+    The invariant the writer-free migration established (#679). It was verified once by a
+    script that lived nowhere, which is worth no more than not checking: the guide's template
+    for a new family showed a `ledger=` parameter, so family 34 would have reinstated this by
+    following the repo's own documented procedure, and nothing would have failed.
+
+    The parity test below does not catch it either -- a public function taking `ledger=None`
+    still returns identical records, so it passes.
+
+    Checked four ways, because each of the first three is escapable on its own. A parameter
+    *named* ledger/writer/sink is the obvious form. A parameter of one of those *types* under
+    any other name is the same capability relabelled. `**kwargs` forwarded to the core
+    reinstates `ledger=` exactly while showing no parameter at all. And a parameter annotated
+    bare `object` defeats both the name and the type check while accepting anything -- which is
+    where a relabelled writer would hide, so an untyped public parameter is refused outright.
+    No public entry point has one today, so the rule costs nothing and closes the gap.
+    """
+
+    import typing
+
+    from quiddity._candidates import EvidenceSink
+    from quiddity._claims import ClaimLedger, EvidenceWriter
+
+    forbidden_names = {"ledger", "writer", "sink"}
+    forbidden_types = (ClaimLedger, EvidenceWriter, EvidenceSink)
+    offences: dict[str, list[str]] = {}
+    for definition in PHYSICAL_DEFINITIONS:
+        # `eval_str=True` because every family module uses `from __future__ import annotations`,
+        # so annotations arrive as source text. Matching that text is a check on spelling: an
+        # aliased import (`ClaimLedger as _Sidecar`) reinstates the capability while the word
+        # disappears. Resolving to the class compares what the parameter accepts.
+        try:
+            signature = inspect.signature(_public_entrypoint(definition), eval_str=True)
+        except NameError as unresolved:  # pragma: no cover - names the family, not just the symbol
+            raise AssertionError(
+                f"{definition.family.name}: annotation does not resolve ({unresolved})"
+            ) from unresolved
+        found = sorted(forbidden_names & set(signature.parameters))
+        for name, parameter in signature.parameters.items():
+            members = _annotation_members(parameter.annotation)
+            if any(
+                isinstance(member, type) and issubclass(member, forbidden_types)
+                for member in members
+            ):
+                found.append(f"{name} accepts a write capability")
+            if parameter.kind is inspect.Parameter.VAR_KEYWORD:
+                found.append(f"**{name} could carry one")
+            elif name != "part" and (
+                parameter.annotation is inspect.Parameter.empty
+                or any(member is object or member is typing.Any for member in members)
+            ):
+                found.append(f"{name} accepts anything, so it could carry one")
+        if found:
+            offences[definition.family.name] = sorted(set(found))
+    assert offences == {}, "a public entry point exposes issuance authority"
+
+
+def _tripwire(*_args, _reached=None, **_kwargs):
+    """Stand-in body for a public entry point: record the caller's module and return nothing.
+
+    Has no free variables, because it is installed by assigning its `__code__` onto the real
+    function and a code object with closure cells cannot be transplanted.
+
+    `_reached` is keyword-only, so it cannot swallow a real positional argument, and the guard
+    must therefore supply it through `__kwdefaults__`. An earlier version supplied it through
+    `__defaults__`: the transplanted code has `co_argcount == 0`, so that tuple was ignored,
+    `_reached` resolved to nothing, and every call raised `TypeError` instead of recording. The
+    guard then passed or failed on whether an exception escaped the run -- which a
+    `try/except Exception` at the call site defeats, an idiom this package uses sixteen times.
+    The tripwire had never once fired. `test_the_routing_tripwire_fires` exists so that cannot
+    be true again.
+    """
+
+    import sys as _sys
+
+    _reached.append(_sys._getframe(1).f_globals.get("__name__", "<unknown>"))
+    return []
+
+
+def test_the_routing_tripwire_fires():
+    """The guard below is worth nothing if its tripwire never runs. Prove that it does.
+
+    Not a tautology: the first version of this mechanism could not fire at all, and every escape
+    it was supposed to catch failed for an unrelated reason that looked the same from outside.
+    """
+
+    reached: list[str] = []
+
+    def victim(part, *, face_edges=None):
+        return ["a real record"]
+
+    original = (victim.__code__, victim.__defaults__, victim.__kwdefaults__)
+    victim.__code__ = _tripwire.__code__
+    victim.__kwdefaults__ = {"_reached": reached}
+    try:
+        assert victim("part", face_edges=None) == []
+    finally:
+        victim.__code__, victim.__defaults__, victim.__kwdefaults__ = original
+    assert reached == [__name__], reached
+    assert victim("part") == ["a real record"], "the tripwire was not restored"
+
+
+def test_no_physical_declaration_routes_through_its_public_entry_point():
+    """ADR 0002: the registry calls the private core, not the facade over it.
+
+    Observed, not predicted, and observed on the function rather than on a name.
+
+    This took four attempts, and the three failures are the point. An AST walk over each
+    `discover` adapter missed an aliased import and a module attribute. Rebinding
+    `module.recognise_x` missed a second global bound to the same function. Rebinding every
+    global whose value `is` the entry point missed `functools.partial(recognise_x)` and a
+    default argument capturing it before the test ran. Each fix closed the shape in front of it
+    and left the next one open -- which is #672 in miniature, inside a guard written to prevent
+    exactly that.
+
+    So the entry point's `__code__` is replaced, not its name. Every reference -- a global, a
+    default, a closure cell, a partial, a dispatch table -- holds the same function object, and
+    calling any of them now runs the tripwire. There is no binding left to alias.
+
+    Derived definitions are excluded deliberately: all five call their own
+    `recognise_*_patterns`, which is a pure function of records already produced and holds no
+    writer.
+
+    What this deliberately does not chase: a `TypeVar` bound to `ClaimLedger`, a structural
+    `Protocol` matching its shape, or a bundle type such as `DiscoveryServices` carrying the
+    writer as a field. All three defeat the writer guard beside this one, and all three were
+    found by review. None is a mistake anyone makes by accident -- they are what someone writes
+    when trying to get a writer past a check on purpose, and a guard that has to survive that is
+    a guard being designed against the wrong opponent. The mistake this exists to catch is a
+    contributor copying an older template, and that is caught by name, alias, default argument,
+    partial, subclass and nested generic alike.
+    """
+
+    from quiddity._claims import ClaimLedger
+    from quiddity._run import start
+    from quiddity.result import _discover_all
+
+    part = Box(60, 40, 20) - Pos(0, 0, 4) * Box(20, 12, 12)
+    turned = Cylinder(15, 40) - Pos(0, 0, 18) * Cylinder(9, 12)
+
+    reached: list[str] = []
+    entries = {
+        id(_public_entrypoint(item)): _public_entrypoint(item) for item in PHYSICAL_DEFINITIONS
+    }
+    original = {
+        key: (fn.__code__, fn.__defaults__, fn.__kwdefaults__) for key, fn in entries.items()
+    }
+    try:
+        for fn in entries.values():
+            fn.__code__ = _tripwire.__code__
+            fn.__kwdefaults__ = {"_reached": reached}
+        # Both contexts. No golden fixture is rotational, so a declaration that reaches its
+        # facade only on the rotational path would be invisible to every other test here.
+        for subject, rotational in ((part, False), (turned, True)):
+            context = start(subject, rotational=rotational)
+            _discover_all(context, ClaimLedger(context.graph, definitions=PHYSICAL_DEFINITIONS))
+    finally:
+        for key, fn in entries.items():
+            fn.__code__, fn.__defaults__, fn.__kwdefaults__ = original[key]
+    assert reached == [], f"{sorted(set(reached))} reach discovery through a public entry point"
+
+
+#: Families whose declared `public_entrypoint` is not output-equivalent to their discovery,
+#: with the reason each is not. None is a defect: `public_entrypoint` names the function a
+#: consumer calls, which is a different question from what one family's discovery contributes
+#: to a run. Measured on the goldens, and each reason verified rather than inferred.
+PARITY_EXCEPTIONS = {
+    "STEP_LEVELS": (
+        "The entry point is broader than the core. `recognise_face_levels` returns every "
+        "horizontal face level unfiltered (`min_area_frac=0.0`); the core computes "
+        "area-filtered interior step levels, and `step_level_records` is its closer analogue. "
+        "Differs on 31 of 32 goldens."
+    ),
+    "SECTION_RECESSES": (
+        "The entry point is a view over a completed run, not a recogniser: "
+        "`recognise_section_recesses` returns "
+        "`build_raw_recognition_result(part).section_recesses`. This family's discovery "
+        "contributes no records directly -- they are projected from the recess source families "
+        "-- so its discovery output is 0 while the view returns what the run assembled. "
+        "Differs on 6 goldens."
+    ),
+    "HOLES": (
+        "The run injects a completed predecessor the standalone call does not have. "
+        "`recognise_holes(part)` reports `csink=None`; passing the `csinks=` the run already "
+        "has from the completed countersink family reproduces the run's records exactly. That "
+        "is the dependency-injection contract working, not a parity failure. Differs on 1 "
+        "golden."
+    ),
+}
+
+
+def test_writing_claims_changes_nothing_about_the_records():
     """ADR 0002: the claim sidecar is write-only, so records are identical with and without it.
 
-    Runs every ledger-taking recogniser over every golden fixture, so the guarantee is checked
-    for the whole roster rather than per family in each claims test.
-    """
-    from quiddity._adjacency import FaceGraph
-    from quiddity._claims import ClaimLedger
+    Every physical family over every golden fixture, so the guarantee is checked for the whole
+    roster rather than per family in each claims test.
 
+    This used to parametrise over public recognisers taking a `ledger=`. Under ADR 0002's
+    writer-free rule none does, so that roster became empty and the test skipped itself --
+    reporting a clean run while asserting nothing. The writer now reaches each family the way a
+    real run reaches it, through `_discover_all`, which is a roster that cannot go stale when a
+    family is rerouted (#672) because it is the production path rather than a list of names.
+    """
+
+    from quiddity._claims import ClaimLedger
+    from quiddity._run import start
+    from quiddity.result import _discover_all
+
+    entrypoints = [_public_entrypoint(item) for item in PHYSICAL_DEFINITIONS]
+    covered: set[str] = set()
+    diverged: set[str] = set()
     for path in sorted(GOLDEN_ROOT.glob("*/fixture.py")):
         part = load_fixture(path).build_fixture()
-        assert fn(part) == fn(part, ledger=ClaimLedger(FaceGraph(part))), (name, path.parent.name)
+        context = start(part)
+        ledger = ClaimLedger(context.graph, definitions=PHYSICAL_DEFINITIONS)
+        completed = _discover_all(context, ledger)
+        for definition, public, candidates in zip(
+            PHYSICAL_DEFINITIONS, entrypoints, completed, strict=True
+        ):
+            if not definition.applicable(context):
+                continue  # the run skips it, so there is nothing to compare
+            written = [candidate.record for candidate in candidates.candidates]
+            if definition.family.name in PARITY_EXCEPTIONS:
+                # Compared anyway, to keep the exception list honest: an entry that stopped
+                # diverging would otherwise sit here forever, excusing a family that no longer
+                # needs excusing. Only the record is needed, not the assertion.
+                #
+                # Once, though. `SECTION_RECESSES`'s entry point runs a whole second
+                # recognition, so comparing it on all 32 goldens cost 15s -- a fifth of this
+                # file, in the fast tier and every matrix job -- to re-prove a divergence one
+                # fixture already established.
+                if definition.family.name not in diverged and written != list(public(part)):
+                    diverged.add(definition.family.name)
+                continue
+            assert written == list(public(part)), (
+                definition.family.name,
+                path.parent.name,
+            )
+            covered.add(definition.family.name)
+    # The set, not a count. A count passes while almost all of the coverage evaporates: with
+    # 30 families over 32 goldens the total is 960, and a threshold of 30 is met by one family
+    # alone. Naming the families is the difference between "everything was checked" and
+    # "something was".
+    families = {item.family.name for item in PHYSICAL_DEFINITIONS}
+    assert covered == families - set(PARITY_EXCEPTIONS), families - set(PARITY_EXCEPTIONS) - covered
+    assert all(PARITY_EXCEPTIONS.values()), "an exception needs a reason, not just a key"
+    assert set(PARITY_EXCEPTIONS) <= families, set(PARITY_EXCEPTIONS) - families
+    # And no exception is stale: each must still diverge somewhere, or it should be deleted.
+    assert diverged == set(PARITY_EXCEPTIONS), set(PARITY_EXCEPTIONS) - diverged
 
 
 def test_cylinder_substrate_is_injectable():

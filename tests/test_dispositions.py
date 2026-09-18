@@ -17,7 +17,7 @@ from quiddity._dispositions import (
     ReconciliationResult,
 )
 from quiddity._reconcile import reconcile_recess_candidates
-from quiddity.passages import SectionPassage, recognise_section_passages
+from quiddity.passages import SectionPassage, _discover_section_passages
 from quiddity.prismatic_pockets import PrismaticPocket
 
 
@@ -316,7 +316,7 @@ def test_empty_pocket_evidence_proves_neither_passage_nor_ring_containment() -> 
     part = Box(60, 40, 20) - Box(10, 10, 60)
     ledger = ClaimLedger(FaceGraph(part))
     pocket = Record(1)
-    passages_found = recognise_section_passages(part, ledger=ledger)
+    passages_found = _discover_section_passages(part, ledger.graph, ledger.sink)
     ring = PrismaticPocket("z", 3, 5.0, 1, (0.0, 0.0, 0.0), ((0.0, 0.0),) * 3)
     ledger.propose(FamilyId.POCKETS, pocket)
     ledger.propose(FamilyId.PRISMATIC_POCKETS, ring, [ledger.graph.nodes[1]])

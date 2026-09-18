@@ -42,6 +42,7 @@ from quiddity.round_bottom_slots import (
     _coplanar_region,
     _Cylinder,
     _cylinder_surface,
+    _discover_round_bottom_blind_slots,
     _empty_sweep,
     _length_tolerance,
     _principal_rectangle,
@@ -110,7 +111,7 @@ def test_round_bottom_blind_slot_has_truthful_dimensions_and_evidence():
     part = _slot()
     ledger = ClaimLedger(FaceGraph(part))
 
-    actual = recognise_round_bottom_blind_slots(part, ledger=ledger)
+    actual = _discover_round_bottom_blind_slots(part, graph=ledger.graph, sink=ledger.sink)
     assert actual == [
         RoundBottomBlindSlot(
             axis="z",
@@ -365,7 +366,10 @@ def test_cap_side_and_context_subdivisions_preserve_the_logical_feature():
 
     for part in (cap_split, side_split, mouth_split):
         ledger = ClaimLedger(FaceGraph(part))
-        assert recognise_round_bottom_blind_slots(part, ledger=ledger) == expected
+        assert (
+            _discover_round_bottom_blind_slots(part, graph=ledger.graph, sink=ledger.sink)
+            == expected
+        )
         assert set(ledger.claims[0].defining) <= set(ledger.graph.nodes)
 
 
@@ -436,7 +440,7 @@ def test_invalid_open_solid_and_mixed_compound_never_publish_invalid_evidence():
 
     mixed = Compound(children=[valid, invalid])
     ledger = ClaimLedger(FaceGraph(mixed))
-    records = recognise_round_bottom_blind_slots(mixed, ledger=ledger)
+    records = _discover_round_bottom_blind_slots(mixed, graph=ledger.graph, sink=ledger.sink)
 
     assert len(records) == 1
     assert records[0].at[0] < 0

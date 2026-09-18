@@ -18,6 +18,7 @@ from quiddity import (
 )
 from quiddity._candidates import FamilyId
 from quiddity._geometry import _coaxial_axis_lines
+from quiddity.chamfers import _discover_chamfers
 
 CORPUS = Path(__file__).parent / "corpus" / "gramel"
 
@@ -38,7 +39,12 @@ def _filleted_stepped_shaft():
 
 def test_direct_reader_recognises_conical_turned_chamfers():
     part = _chamfered_stepped_shaft()
-    ledger, found = attributed_run(part, FamilyId.CHAMFERS, recognise_chamfers)
+    ledger, found = attributed_run(
+        part,
+        FamilyId.CHAMFERS,
+        recognise_chamfers,
+        discover=lambda led: _discover_chamfers(part, ledger=led),
+    )
 
     assert len(found) == 4
     assert {(chamfer.axis, chamfer.leg1, chamfer.leg2, chamfer.angle) for chamfer in found} == {
@@ -66,7 +72,12 @@ def test_rotational_inventory_keeps_turned_chamfers():
 def test_real_turned_inventory_keeps_dimensioned_three_tenths_chamfers():
     part = import_step(str(CORPUS / "GRM-03_thumbwheel_drive_screw.step"))
 
-    ledger, found = attributed_run(part, FamilyId.CHAMFERS, recognise_chamfers)
+    ledger, found = attributed_run(
+        part,
+        FamilyId.CHAMFERS,
+        recognise_chamfers,
+        discover=lambda led: _discover_chamfers(part, ledger=led),
+    )
     assert tuple(found) == build_recognition_result(part, rotational=True).chamfers
     assert all(
         len(ledger.defining_of(candidate)) == 1
@@ -83,16 +94,19 @@ def test_real_turned_inventory_keeps_dimensioned_three_tenths_chamfers():
 
 
 def test_two_tenths_turned_edge_break_is_geometry_by_default_but_obeys_a_caller_floor():
+    shaft = _chamfered_stepped_shaft(0.2)
     _ledger, found = attributed_run(
-        _chamfered_stepped_shaft(0.2), FamilyId.CHAMFERS, recognise_chamfers
+        shaft,
+        FamilyId.CHAMFERS,
+        recognise_chamfers,
+        discover=lambda led: _discover_chamfers(shaft, ledger=led),
     )
     assert found
 
     unattributed_run(
-        _chamfered_stepped_shaft(0.2),
+        shaft,
         FamilyId.CHAMFERS,
-        recognise_chamfers,
-        kwargs={"tol": 0.3},
+        discover=lambda led: _discover_chamfers(shaft, tol=0.3, ledger=led),
     )
 
 

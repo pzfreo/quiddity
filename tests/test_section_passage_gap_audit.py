@@ -22,7 +22,7 @@ from quiddity._adjacency import FaceGraph
 from quiddity._candidates import FamilyId
 from quiddity._claims import ClaimLedger
 from quiddity._section_passages import section_ring_proposals
-from quiddity.passages import recognise_section_passages
+from quiddity.passages import _discover_section_passages
 from tools.audit_mfcadpp_section_passage_gaps import (
     _probe_component,
     _relation,
@@ -127,7 +127,7 @@ def test_two_mouth_fallback_publishes_exact_constituent_membership() -> None:
     ledger = ClaimLedger(graph)
     (proposal,) = section_ring_proposals(part, graph)
 
-    (record,) = recognise_section_passages(part, ledger=ledger)
+    (record,) = _discover_section_passages(part, ledger.graph, ledger.sink)
     (candidate,) = ledger.candidate_set(FamilyId.PASSAGES).candidates
     evidence = ledger.snapshot_index()
 

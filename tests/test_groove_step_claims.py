@@ -32,6 +32,8 @@ from quiddity._candidates import FamilyId
 from quiddity._claims import ClaimLedger
 from quiddity._dispositions import Outcome, ReasonCode
 from quiddity._reconcile import steps_that_are_not_grooves
+from quiddity.grooves import _discover_grooves
+from quiddity.turned import _discover_turned_steps
 
 
 def _grooved_shaft():
@@ -56,8 +58,9 @@ def _claimed(part):
         FamilyId.GROOVES,
         r.recognise_grooves,
         kwargs={"cyls": cyls},
+        discover=lambda led: _discover_grooves(part, cyls=cyls, ledger=led),
     )
-    steps = r.recognise_turned_steps(part, cyls=cyls, ledger=ledger)
+    steps = _discover_turned_steps(part, cyls=cyls, ledger=ledger)
 
     plain_steps = r.recognise_turned_steps(part, cyls=cyls)
     assert steps == plain_steps, "claiming changed what was recognised"
@@ -95,11 +98,13 @@ def test_multiple_grooves_keep_occurrence_identity_and_floor_roles() -> None:
     shaft = Cylinder(20, 80)
     for position in (10, 35):
         shaft -= Pos(0, 0, position) * (Cylinder(20, 6) - Cylinder(16, 6))
+    shaft_cyls = r.analyse_cylinders(shaft)
     ledger, grooves = attributed_run(
         shaft,
         FamilyId.GROOVES,
         r.recognise_grooves,
-        kwargs={"cyls": r.analyse_cylinders(shaft)},
+        kwargs={"cyls": shaft_cyls},
+        discover=lambda led: _discover_grooves(shaft, cyls=shaft_cyls, ledger=led),
     )
 
     assert len(grooves) == 2
@@ -188,7 +193,7 @@ def test_all_groove_ownership_validates_before_any_candidate_is_published(
     monkeypatch.setattr(FaceGraph, "common_valid_solid", fail_later_proposal)
 
     with pytest.raises(ValueError, match="no common valid solid"):
-        r.recognise_grooves(part, ledger=ledger)
+        _discover_grooves(part, ledger=ledger)
     assert calls == 2
     assert ledger.claims == ()
 
@@ -221,7 +226,7 @@ def test_equal_profile_keys_cannot_claim_two_source_solids(
     )
 
     with pytest.raises(ValueError, match="profile key identifies multiple"):
-        r.recognise_grooves(part, ledger=ledger)
+        _discover_grooves(part, ledger=ledger)
     assert ledger.claims == ()
 
 
@@ -355,14 +360,20 @@ def test_a_ledger_built_from_another_shaft_is_refused_rather_than_left_empty():
     twin = _grooved_shaft()
     assert r.recognise_grooves(twin) == r.recognise_grooves(part), "the twin is this shaft"
 
-    for recognise in (r.recognise_grooves, r.recognise_turned_steps):
+    # `turned_steps` is writer-free per ADR 0002, so its writer route is the core; `grooves`
+    # has not been converted yet and still takes the sidecar. Both must refuse the same way.
+    routes = (
+        ("_discover_grooves", lambda led: _discover_grooves(part, ledger=led)),
+        ("_discover_turned_steps", lambda led: _discover_turned_steps(part, ledger=led)),
+    )
+    for name, run in routes:
         foreign = ClaimLedger(FaceGraph(twin))
         try:
-            recognise(part, ledger=foreign)
+            run(foreign)
         except ValueError as refusal:
             assert "built from a different part" in str(refusal)
         else:
-            raise AssertionError(f"{recognise.__name__} accepted another part's graph")
+            raise AssertionError(f"{name} accepted another part's graph")
 
 
 @pytest.mark.parametrize("factor", (1.0, 0.05, 100.0))

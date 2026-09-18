@@ -61,15 +61,24 @@ from quiddity._claims import ClaimLedger
 from quiddity._reconcile import chamfers_that_are_not_angled_steps
 from quiddity.angled_steps import (
     _closed_by_a_triangular_flat,
+    _discover_angled_steps,
     _effective_linear_sides,
 )
-from quiddity.chamfers import BevelReject, classify_bevel, convex_bevel
+from quiddity.chamfers import BevelReject, _discover_chamfers, classify_bevel, convex_bevel
 
 #: A 45° wedge whose in-plane legs are both 4 mm: rotating a square 45° puts its half-diagonal
 #: on each axis, so a side of 4·√2 cuts 4 mm into each of the two faces meeting at the edge.
 _WEDGE = 5.657
 _SUBDIVIDED_TERMINAL = Path(__file__).parent / "corpus" / "mfcadpp_regressions" / "11512.step"
 _SUBDIVIDED_TERMINAL_MANIFEST = _SUBDIVIDED_TERMINAL.with_name("MANIFEST.json")
+
+
+def _angled_core(part):
+    """The writer-enabled core the registry calls, as a ledger-taking thunk."""
+
+    return lambda ledger: _discover_angled_steps(
+        part, face_edges=None, graph=ledger.graph, sink=ledger.sink
+    )
 
 
 def _block() -> Box:
@@ -270,7 +279,9 @@ def test_principal_y_angled_step_survives_step_round_trip(tmp_path) -> None:
 
 def test_successful_step_owns_only_the_slant() -> None:
     part = _blind()
-    ledger, steps = attributed_run(part, FamilyId.ANGLED_STEPS, recognise_angled_steps)
+    ledger, steps = attributed_run(
+        part, FamilyId.ANGLED_STEPS, recognise_angled_steps, discover=_angled_core(part)
+    )
     step = steps[0]
     candidate = ledger.candidate_set_for(FamilyId.ANGLED_STEPS, [step]).candidates[0]
     evidence = ledger.snapshot_index()
@@ -337,8 +348,8 @@ def test_the_chamfer_family_proposes_a_slant_and_the_reconciler_takes_it_back():
 
     for part, kept in ((blind, 0), (through, 1)):
         ledger = ClaimLedger(FaceGraph(part))
-        chamfers = recognise_chamfers(part, ledger=ledger)
-        steps = recognise_angled_steps(part, ledger=ledger)
+        chamfers = _discover_chamfers(part, ledger=ledger)
+        steps = _discover_angled_steps(part, face_edges=None, graph=ledger.graph, sink=ledger.sink)
         assert (
             chamfers_that_are_not_angled_steps(chamfers, steps, ledger.snapshot_index())
             == chamfers[:kept]
@@ -503,7 +514,12 @@ def test_a_bolt_hole_through_the_blind_end_does_not_hide_the_step():
     assert len(ends[0].edges()) == 4, "the fixture must actually add an edge to the flat"
     assert len(ends[0].outer_wire().edges()) == 3
 
-    ledger, drilled = attributed_run(drilled_part, FamilyId.ANGLED_STEPS, recognise_angled_steps)
+    ledger, drilled = attributed_run(
+        drilled_part,
+        FamilyId.ANGLED_STEPS,
+        recognise_angled_steps,
+        discover=_angled_core(drilled_part),
+    )
     assert drilled == plain
     (candidate,) = ledger.candidate_set(FamilyId.ANGLED_STEPS).candidates
     assert len(ledger.defining_of(candidate)) == 1
@@ -534,7 +550,9 @@ def test_records_are_ordered_deterministically_and_are_plain_data():
     """Two steps on one part come back in a stable order that does not depend on traversal."""
 
     part = _blind() - Pos(20, -20, 6) * Rot(45, 0, 0) * Box(30, _WEDGE, _WEDGE)
-    ledger, steps = attributed_run(part, FamilyId.ANGLED_STEPS, recognise_angled_steps)
+    ledger, steps = attributed_run(
+        part, FamilyId.ANGLED_STEPS, recognise_angled_steps, discover=_angled_core(part)
+    )
 
     assert len(steps) == 2
     assert steps == sorted(steps, key=lambda s: (s.axis, s.at))
@@ -554,10 +572,11 @@ def test_records_are_ordered_deterministically_and_are_plain_data():
 def test_a_part_with_no_oblique_face_has_no_angled_steps():
     """The empty case, on geometry that exercises the scan rather than skipping it."""
 
+    empty = _block() - Pos(0, 0, 0) * Cylinder(6, 12)
     unattributed_run(
-        _block() - Pos(0, 0, 0) * Cylinder(6, 12),
+        empty,
         FamilyId.ANGLED_STEPS,
-        recognise_angled_steps,
+        discover=_angled_core(empty),
     )
 
 

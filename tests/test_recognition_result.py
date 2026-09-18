@@ -170,7 +170,9 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
         )
 
     def counted(name, returns):
-        def fake(part, **kwargs):
+        # `*args` because a family's core may be called positionally -- `passages` hands its
+        # core `(part, graph, sink)` that way -- while the public entry points take keywords.
+        def fake(part, *args, **kwargs):
             calls[name] = calls.get(name, 0) + 1
             return returns
 
@@ -225,10 +227,10 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
         "recognise_oriented_slot_patterns",
         derived("oriented_slot_patterns", [], []),
     )
-    patch(grooves_module, "recognise_grooves", cyl_consumer("grooves", []))
+    patch(grooves_module, "_discover_grooves", cyl_consumer("grooves", []))
     patch(flats_module, "_discover_flats", cyl_consumer("flats", []))
     patch(slots_module, "_discover_pockets", counted("pockets", pockets))
-    patch(passages_module, "recognise_section_passages", counted("passages", passages))
+    patch(passages_module, "_discover_section_passages", counted("passages", passages))
     patch(slots_module, "recognise_pocket_patterns", derived("pocket_patterns", pockets, []))
     patch(pads_module, "_discover_rectangular_pads", counted("pads", []))
     patch(
@@ -236,22 +238,22 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
         "_discover_repeating_radial_profiles",
         counted("radial_profiles", []),
     )
-    patch(turned_module, "recognise_turned_steps", cyl_consumer("turned_steps", []))
+    patch(turned_module, "_discover_turned_steps", cyl_consumer("turned_steps", []))
     # Fully-attributed FaceLevels cannot be fabricated without original horizontal-face evidence.
     # This test owns dependency injection, so keep the family empty but still invoked and bound.
     levels: list[FaceLevel] = []
     patch(levels_module, "_discover_step_levels", counted("step_levels", levels))
     patch(levels_module, "_discover_risers", counted("risers", []))
-    patch(chamfers_module, "recognise_chamfers", counted("chamfers", []))
-    patch(angled_steps_module, "recognise_angled_steps", counted("angled_steps", []))
+    patch(chamfers_module, "_discover_chamfers", counted("chamfers", []))
+    patch(angled_steps_module, "_discover_angled_steps", counted("angled_steps", []))
     patch(
         paired_ramp_steps_module,
-        "recognise_paired_ramp_steps",
+        "_discover_paired_ramp_steps",
         counted("paired_ramp_steps", []),
     )
     patch(
         through_steps_module,
-        "recognise_through_steps",
+        "_discover_through_steps",
         counted("through_steps", []),
     )
     patch(
@@ -261,12 +263,12 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     )
     patch(
         rectangular_blind_slots_module,
-        "recognise_rectangular_blind_slots",
+        "_discover_rectangular_blind_slots",
         counted("rectangular_blind_slots", []),
     )
     patch(
         round_bottom_slots_module,
-        "recognise_round_bottom_blind_slots",
+        "_discover_round_bottom_blind_slots",
         counted("round_bottom_blind_slots", []),
     )
 
@@ -340,17 +342,17 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     # exactly why nothing noticed. #624 found `gussets` in the same state.
     patch(
         prismatic_pockets_module,
-        "recognise_prismatic_pockets",
+        "_discover_prismatic_pockets",
         counted("prismatic_pockets", []),
     )
     patch(
         edge_open_circular_recesses_module,
-        "recognise_edge_open_circular_pockets",
+        "_discover_edge_open_circular_pockets",
         counted("edge_open_circular_pockets", []),
     )
     patch(
         edge_open_prismatic_recesses_module,
-        "recognise_edge_open_prismatic_recesses",
+        "_discover_edge_open_prismatic_recesses",
         counted("edge_open_prismatic_recesses", []),
     )
     patch(blends_module, "_discover_blends", counted("blends", []))

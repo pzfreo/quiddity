@@ -100,7 +100,6 @@ from quiddity._candidates import (
     EvidenceSink,
     FamilyId,
 )
-from quiddity._claims import ClaimLedger, EvidenceWriter
 from quiddity._definitions import (
     Counted,
     DiscoveryServices,
@@ -207,7 +206,6 @@ def recognise_angled_steps(
     part: Part,
     *,
     face_edges: FaceEdges | None = None,
-    ledger: ClaimLedger | EvidenceWriter | None = None,
 ) -> list[AngledStep]:
     """Recognise the angled blind steps of *part* (see module docstring). Returns one
     :class:`AngledStep` per qualifying slant face, sorted deterministically. Empty when the
@@ -227,9 +225,7 @@ def recognise_angled_steps(
     :func:`quiddity._reconcile.chamfers_that_are_not_angled_steps`, decided from these
     claims rather than by each family second-guessing the other."""
 
-    graph = None if ledger is None else ledger.graph
-    sink = None if ledger is None else ledger.sink
-    return _discover_angled_steps(part, face_edges=face_edges, graph=graph, sink=sink)
+    return _discover_angled_steps(part, face_edges=face_edges, graph=None, sink=None)
 
 
 def _discover_angled_steps(
@@ -311,10 +307,11 @@ def _discover_angled_steps(
 def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
     del inputs  # no completed predecessors
     return list(
-        recognise_angled_steps(
+        _discover_angled_steps(
             services.context.part,
-            ledger=services.writer,
             face_edges=services.context.face_edges,
+            graph=services.writer.graph,
+            sink=services.writer.sink,
         )
     )
 

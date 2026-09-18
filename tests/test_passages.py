@@ -37,6 +37,7 @@ from quiddity._candidates import FamilyId
 from quiddity._claims import ClaimLedger
 from quiddity._reconcile import reconcile_recess_candidates
 from quiddity._rings import _canonical, _centroid, _interior_point
+from quiddity.passages import _discover_section_passages
 from tools._legacy_recognition import (
     build_recognition_result,
     recognise_passages,
@@ -73,7 +74,7 @@ def test_a_four_wall_passage_survives_when_no_slot_candidate_claims_it() -> None
 
     part = _block() - Box(10, 10, 60)
     ledger = ClaimLedger(FaceGraph(part))
-    passages_found = recognise_section_passages(part, ledger=ledger)
+    passages_found = _discover_section_passages(part, ledger.graph, ledger.sink)
     empty_slots = ledger.candidate_set_for(FamilyId.SLOTS, ())
     empty_pockets = ledger.candidate_set_for(FamilyId.POCKETS, ())
     empty_rings = ledger.candidate_set_for(FamilyId.PRISMATIC_POCKETS, ())
@@ -358,7 +359,10 @@ def test_a_passage_records_the_ring_it_was_built_from():
 def test_aggregate_discovers_passages_once_before_reconciliation(monkeypatch) -> None:
     import quiddity.passages as passages_module
 
-    original = passages_module.recognise_section_passages
+    # The declaration calls the writer-enabled core, not the public entry point, so the core is
+    # what a "discovered exactly once" count has to watch. Patching the public function would
+    # now count zero and pass for the wrong reason.
+    original = passages_module._discover_section_passages
     calls = 0
 
     def counted(*args, **kwargs):
@@ -366,7 +370,7 @@ def test_aggregate_discovers_passages_once_before_reconciliation(monkeypatch) ->
         calls += 1
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(passages_module, "recognise_section_passages", counted)
+    monkeypatch.setattr(passages_module, "_discover_section_passages", counted)
 
     build_recognition_result(_hexagonal_passage())
 
@@ -458,7 +462,7 @@ def test_a_ledger_built_from_another_part_is_refused_rather_than_answered():
 
     foreign = ClaimLedger(FaceGraph(twin))
     try:
-        recognise_section_passages(part, ledger=foreign)
+        _discover_section_passages(part, foreign.graph, foreign.sink)
     except ValueError as refusal:
         assert "built from a different part" in str(refusal)
     else:
@@ -468,7 +472,7 @@ def test_a_ledger_built_from_another_part_is_refused_rather_than_answered():
 def _attributed_sections(part):
     plain = recognise_section_passages(part)
     ledger = ClaimLedger(FaceGraph(part))
-    measured = recognise_section_passages(part, ledger=ledger)
+    measured = _discover_section_passages(part, ledger.graph, ledger.sink)
     assert measured == plain
     candidates = ledger.candidate_set(FamilyId.PASSAGES).candidates
     assert len(candidates) == len(measured)
