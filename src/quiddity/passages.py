@@ -339,7 +339,11 @@ class PassageCompatibilityError(RuntimeError):
 
 _LEDGER_ERROR = (
     "recognise_passages(..., ledger=...) is unavailable from 0.4.0; "
-    "use recognise_section_passages(..., ledger=...)"
+    "use quiddity.passages.recognise_section_passages(part) -- it is not root-exported -- "
+    "whose SectionPassage records carry the section, frame and ends the legacy value "
+    "approximated. For the faces each was established by, a run publishes passages through "
+    "the unified section_recess projection, not under a passages family; see "
+    "docs/migration-0.4.md"
 )
 
 
@@ -375,12 +379,14 @@ def recognise_section_passages(
     part: Part,
     *,
     face_edges: FaceEdges | None = None,
-    ledger: ClaimLedger | EvidenceWriter | None = None,
 ) -> list[SectionPassage]:
-    """Recognise canonical section passages, with optional defining-wall evidence."""
+    """Recognise canonical section passages.
 
-    graph = FaceGraph(part, face_edges=face_edges) if ledger is None else ledger.graph
-    return _discover_section_passages(part, graph, None if ledger is None else ledger.sink)
+    Writer-free, per ADR 0002: defining-wall evidence is issued by the core the registry calls,
+    and read back through the public evidence API.
+    """
+
+    return _discover_section_passages(part, FaceGraph(part, face_edges=face_edges), None)
 
 
 def _serialized_passage_section(section: PlanarSection) -> PassageSection:
@@ -681,10 +687,10 @@ def _discover_passages(
 def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
     del inputs  # no completed predecessors
     return list(
-        recognise_section_passages(
+        _discover_section_passages(
             services.context.part,
-            ledger=services.writer,
-            face_edges=services.context.face_edges,
+            services.writer.graph,
+            services.writer.sink,
         )
     )
 

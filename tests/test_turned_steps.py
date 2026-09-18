@@ -16,6 +16,7 @@ from quiddity import (
     recognise_turned_steps,
 )
 from quiddity._candidates import FamilyId
+from quiddity.turned import _discover_turned_steps
 
 
 def _shaft_x(*sections):
@@ -50,8 +51,12 @@ def _step_signature(steps):
 
 class TestFindTurnedSteps:
     def test_two_step_shaft(self):
+        shaft = _shaft_x((30, 40), (16, 30))
         _ledger, steps = attributed_run(
-            _shaft_x((30, 40), (16, 30)), FamilyId.TURNED_STEPS, recognise_turned_steps
+            shaft,
+            FamilyId.TURNED_STEPS,
+            recognise_turned_steps,
+            discover=lambda led: _discover_turned_steps(shaft, ledger=led),
         )
         assert steps
         assert _lengths(steps) == [30.0, 40.0]
@@ -131,7 +136,12 @@ class TestFindTurnedSteps:
         assert diffs == [30.0, 40.0]
 
     def test_plain_cylinder_is_empty(self):
-        unattributed_run(Cylinder(15, 40), FamilyId.TURNED_STEPS, recognise_turned_steps)
+        plain = Cylinder(15, 40)
+        unattributed_run(
+            plain,
+            FamilyId.TURNED_STEPS,
+            discover=lambda led: _discover_turned_steps(plain, ledger=led),
+        )
         assert TurnedProfile.from_steps(recognise_turned_steps(Cylinder(15, 40))) is None
 
     def test_prismatic_box_is_empty(self):

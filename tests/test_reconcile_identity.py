@@ -32,6 +32,9 @@ from quiddity._reconcile import (
     chamfers_that_are_not_angled_steps,
     prismatic_pockets_that_are_not_pockets,
 )
+from quiddity.angled_steps import _discover_angled_steps
+from quiddity.chamfers import _discover_chamfers
+from quiddity.prismatic_pockets import _discover_prismatic_pockets
 from tools._legacy_recognition import namespace
 
 _WEDGE = 5.657
@@ -60,9 +63,11 @@ def _claimed(part):
     ledger = ClaimLedger(FaceGraph(part))
     return ledger, {
         "pockets": _discover_pockets(part, writer=ledger.writer),
-        "prismatic": r.recognise_prismatic_pockets(part, ledger=ledger),
-        "chamfers": r.recognise_chamfers(part, ledger=ledger),
-        "steps": r.recognise_angled_steps(part, ledger=ledger),
+        "prismatic": _discover_prismatic_pockets(part, graph=ledger.graph, ledger=ledger),
+        "chamfers": _discover_chamfers(part, ledger=ledger),
+        "steps": _discover_angled_steps(
+            part, face_edges=None, graph=ledger.graph, sink=ledger.sink
+        ),
     }
 
 

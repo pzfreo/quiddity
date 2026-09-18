@@ -485,19 +485,19 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "project an original circular boundary without reconstructing a missing arc",
     ),
-    "edge_open_circular_recesses:recognise_edge_open_circular_pockets:geom_type:1": (
+    "edge_open_circular_recesses:_discover_edge_open_circular_pockets:geom_type:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "require the two physically present original cylindrical supports",
     ),
-    "edge_open_circular_recesses:recognise_edge_open_circular_pockets:geom_type:2": (
+    "edge_open_circular_recesses:_discover_edge_open_circular_pockets:geom_type:2": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "verify the alternating original planar/cylindrical chain",
     ),
-    "edge_open_circular_recesses:recognise_edge_open_circular_pockets:is_planar:1": (
+    "edge_open_circular_recesses:_discover_edge_open_circular_pockets:is_planar:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "floor seed is deliberately restricted to an original planar face",
     ),
-    "edge_open_circular_recesses:recognise_edge_open_circular_pockets:is_planar:2": (
+    "edge_open_circular_recesses:_discover_edge_open_circular_pockets:is_planar:2": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "straight wall supports are deliberately restricted to original planar faces",
     ),
@@ -505,11 +505,11 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "require exact physical straight floor-to-wall boundary segments",
     ),
-    "edge_open_prismatic_recesses:recognise_edge_open_prismatic_recesses:is_planar:1": (
+    "edge_open_prismatic_recesses:_discover_edge_open_prismatic_recesses:is_planar:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "floor seed is deliberately restricted to an original planar face",
     ),
-    "edge_open_prismatic_recesses:recognise_edge_open_prismatic_recesses:is_planar:2": (
+    "edge_open_prismatic_recesses:_discover_edge_open_prismatic_recesses:is_planar:2": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "wall supports are deliberately restricted to original planar faces",
     ),
@@ -718,15 +718,15 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "edge curve kind validates a complete linear defining seam",
     ),
-    "chamfers:recognise_chamfers:adaptor:1": (
+    "chamfers:_discover_chamfers:adaptor:1": (
         SurfaceReaderDisposition.ORIENTATION_DEFERRED,
         "cone family gate uses oriented neighbours",
     ),
-    "chamfers:recognise_chamfers:adaptor:2": (
+    "chamfers:_discover_chamfers:adaptor:2": (
         SurfaceReaderDisposition.ORIENTATION_DEFERRED,
         "cone parameter read uses oriented frame",
     ),
-    "chamfers:recognise_chamfers:adaptor:3": (
+    "chamfers:_discover_chamfers:adaptor:3": (
         SurfaceReaderDisposition.ORIENTATION_DEFERRED,
         "neighbour plane direction uses oriented frame",
     ),
@@ -771,7 +771,7 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.TORUS_DEFERRED,
         "torus adjacency family gate",
     ),
-    "grooves:recognise_grooves:geom_type:1": (
+    "grooves:_discover_grooves:geom_type:1": (
         SurfaceReaderDisposition.TORUS_DEFERRED,
         "torus family applicability gate",
     ),

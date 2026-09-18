@@ -87,15 +87,18 @@ def recognise_example_features(
     part: Part,
     *,
     face_edges: FaceEdges | None = None,
-    ledger: ClaimLedger | EvidenceWriter | None = None,
 ) -> list[ExampleFeature]:
-    graph = ledger.graph if ledger is not None else FaceGraph(part, face_edges=face_edges)
-    sink = None if ledger is None else ledger.sink
-    return _discover_example_features(part, graph=graph, sink=sink)
+    """Writer-free, per ADR 0002: no `ledger`, `writer` or `sink` on a public signature.
+
+    Those types are private and carry no compatibility promise, and issuance authority over a
+    run's claims is not something a consumer should hold. The read side is the evidence API.
+    """
+
+    return _discover_example_features(part, graph=FaceGraph(part, face_edges=face_edges), sink=None)
 ```
 
-The exact adapter depends on whether the family needs the compatibility `ledger=` sidecar. The
-important private shape is narrower:
+The public surface takes no write capability, so the adapter is the same shape for every family.
+The important private shape is narrower:
 
 ```python
 def _discover_example_features(
@@ -201,7 +204,13 @@ from quiddity._definitions import (
 
 def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
     del inputs  # no completed predecessors
-    return list(recognise_example_features(services.context.part, ledger=services.writer))
+    return list(
+        _discover_example_features(
+            services.context.part,
+            graph=services.writer.graph,
+            sink=services.writer.sink,
+        )
+    )
 
 
 DEFINITION = PhysicalDefinition(
@@ -273,14 +282,16 @@ families names each declaration after its family instead, as `polygonal_bosses.p
 `BOSSES` and `STOCK`, so that the registry line says which one it is placing. Their adapters need
 distinct names too, and the name must not collide with another family's private core.
 
-`_discover` may call either the public entry point or the module's private core. Call the core when
-the adapter must hand over something the public signature does not accept: the write capability in
-`fillets.py` and `flats.py`, whose public surfaces take none; the run's shared effective surfaces in
-`circular_blind_steps.py`, whose public entry point would rebuild them; the completed-predecessor
-exclusion in `plates.py`, whose public surface takes no writer either. Otherwise call the public
-entry point, as `grooves.py` does. `gussets.py` predates this rule and routes through its core
-although its public entry point would serve; do not copy it. Pin a core route with a test, so that
-no other package module can reach the capability-enabled one — `fillets.py`, `flats.py` and
+`_discover` calls the module's private core, never the public entry point. That is not a
+preference: the public signature accepts no write capability, so it cannot hand one over, and
+`tests/test_recogniser_contract.py` fails the build if a declaration routes through its own
+public function. `gussets.py` is the shape to copy; `grooves.py` and every other family now
+match it.
+
+The core also receives whatever else the public signature does not take — the run's shared
+effective surfaces in `circular_blind_steps.py`, which the public entry point would rebuild, and
+the completed-predecessor exclusion in `plates.py`. Pin a core route with a test, so that no
+other package module can reach the capability-enabled one — `fillets.py`, `flats.py` and
 `plates.py` do, and `flats.py` is the smallest.
 
 The core takes the capability under whatever handle it needs, and the handle decides what it can

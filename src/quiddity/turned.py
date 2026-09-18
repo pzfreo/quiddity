@@ -278,7 +278,6 @@ def recognise_turned_steps(
     part: Part,
     *,
     cyls: CylinderInventory | None = None,
-    ledger: ClaimLedger | EvidenceWriter | None = None,
     face_surfaces: EffectiveFaceSurfaceQuery | None = None,
 ) -> list[TurnedStep]:
     """Recognise the axial steps of a stepped turned ``part``.
@@ -292,15 +291,28 @@ def recognise_turned_steps(
     re-scanning the solid, matching :func:`recognise_holes`'s dependency-injection contract.
     *face_surfaces* reuses the run's certified surface query for spline shoulder planes.
 
-    *ledger* records the bands a step was **established by**: the widest external bands lying
-    over its span, which are what set its diameter. The shoulder planes that set ``lo`` and
-    ``hi`` are read from transverse faces belonging to the neighbouring steps, and claiming
-    those would have every rung of the ladder contest the ones either side of it.
-
     A rung whose band is also a groove is not dropped -- the ladder is a profile, and a profile
     with a hole in it describes a different shaft. See :mod:`quiddity._reconcile`.
     The returned profile can still be partial: unsupported intervals are omitted,
     so its steps need not cover the body's full axial extent.
+    """
+
+    return _discover_turned_steps(part, cyls=cyls, ledger=None, face_surfaces=face_surfaces)
+
+
+def _discover_turned_steps(
+    part: Part,
+    *,
+    cyls: CylinderInventory | None = None,
+    ledger: ClaimLedger | EvidenceWriter | None,
+    face_surfaces: EffectiveFaceSurfaceQuery | None = None,
+) -> list[TurnedStep]:
+    """Recognise the axial steps and, with a ledger, issue the bands each was established by.
+
+    The bands claimed are the widest external ones lying over a step's span, which are what set
+    its diameter. The shoulder planes that set ``lo`` and ``hi`` are read from transverse faces
+    belonging to the neighbouring steps, and claiming those would have every rung of the ladder
+    contest the ones either side of it.
     """
 
     def get_face_surfaces() -> EffectiveFaceSurfaceQuery:
@@ -575,7 +587,7 @@ def _shoulder_stations(
 def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
     del inputs  # no completed predecessors
     return list(
-        recognise_turned_steps(
+        _discover_turned_steps(
             services.context.part,
             cyls=services.cylinders,
             ledger=services.writer,

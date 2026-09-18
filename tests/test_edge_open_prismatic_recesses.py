@@ -29,6 +29,7 @@ from quiddity.edge_open_prismatic_recesses import (
     OpenPolygonalSection,
     OpenSectionOpening,
     _complete_wall_boundaries,
+    _discover_edge_open_prismatic_recesses,
     recognise_edge_open_prismatic_recesses,
 )
 from tools._legacy_recognition import (
@@ -348,7 +349,7 @@ def test_edge_open_recess_publishes_exact_body_local_evidence() -> None:
     part = _edge_open_hexagon()
     ledger = ClaimLedger(FaceGraph(part))
 
-    (record,) = recognise_edge_open_prismatic_recesses(part, ledger=ledger)
+    (record,) = _discover_edge_open_prismatic_recesses(part, graph=ledger.graph, ledger=ledger)
     (candidate,) = ledger.candidate_set(FamilyId.EDGE_OPEN_PRISMATIC_RECESSES).candidates
     evidence = ledger.snapshot_index()
 

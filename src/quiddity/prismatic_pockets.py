@@ -443,7 +443,6 @@ def recognise_prismatic_pockets(
     part: Part,
     *,
     face_edges: FaceEdges | None = None,
-    ledger: ClaimLedger | EvidenceWriter | None = None,
 ) -> list[PrismaticPocket]:
     """Recognise the prismatic pockets of *part* (see module docstring).
 
@@ -458,15 +457,28 @@ def recognise_prismatic_pockets(
     :func:`quiddity._reconcile.prismatic_pockets_that_are_not_pockets`, decided from
     the claims rather than by either family second-guessing the other.
 
-    *ledger* records the faces the pocket was **established by**: its planar wall supports. The
-    exact cap and interruption faces selected by that proof are wider constituent evidence, not
-    defining claims. The floor makes the recess blind; on an interrupted ring, its unique plane
-    and the exterior mouth also bound the physical depth without becoming ownership evidence.
-    This preserves the same ownership line
-    :func:`quiddity.recognise_pockets` draws for the recess it finds by pairing.
+    Writer-free, per ADR 0002: the registry reaches the same geometry through
+    :func:`_discover_prismatic_pockets`, which issues the claims.
     """
 
-    graph = FaceGraph(part, face_edges=face_edges) if ledger is None else ledger.graph
+    return _discover_prismatic_pockets(
+        part, graph=FaceGraph(part, face_edges=face_edges), ledger=None
+    )
+
+
+def _discover_prismatic_pockets(
+    part: Part,
+    *,
+    graph: FaceGraph,
+    ledger: ClaimLedger | EvidenceWriter | None,
+) -> list[PrismaticPocket]:
+    """Discover the pockets and, with a ledger, claim the planar wall supports of each.
+
+    The floor is consulted to prove the ring is capped at one end but is not claimed: it only
+    had to exist, and the pocket's extent is the walls' own overlap rather than the floor's
+    position.
+    """
+
     found: list[tuple[PrismaticPocket, tuple[FaceNode, ...], frozenset[FaceNode]]] = []
     for ring in rings(part, graph):
         low_capped, high_capped = ring.caps
@@ -537,10 +549,10 @@ def recognise_prismatic_pockets(
 def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
     del inputs  # no completed predecessors
     return list(
-        recognise_prismatic_pockets(
+        _discover_prismatic_pockets(
             services.context.part,
+            graph=services.writer.graph,
             ledger=services.writer,
-            face_edges=services.context.face_edges,
         )
     )
 

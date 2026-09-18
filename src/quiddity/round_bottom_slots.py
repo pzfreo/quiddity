@@ -20,7 +20,6 @@ from OCP.StdFail import StdFail_NotDone
 
 from quiddity._adjacency import FaceGraph, FaceNode, axis_aligned_axis, is_any_smooth
 from quiddity._candidates import CompletedInputs, EvidenceSink, FamilyId
-from quiddity._claims import ClaimLedger, EvidenceWriter
 from quiddity._definitions import (
     DiscoveryServices,
     FullyAttributed,
@@ -606,13 +605,21 @@ def _recognise_one(
     return out
 
 
-def recognise_round_bottom_blind_slots(
-    part: Part, *, ledger: ClaimLedger | EvidenceWriter | None = None
-) -> list[RoundBottomBlindSlot]:
-    """Recognise the exact analytic U-section, one-cap subset described by the record."""
+def recognise_round_bottom_blind_slots(part: Part) -> list[RoundBottomBlindSlot]:
+    """Recognise the exact analytic U-section, one-cap subset described by the record.
 
-    graph = ledger.graph if ledger is not None else FaceGraph(part)
-    sink: EvidenceSink | None = None if ledger is None else ledger.sink
+    Writer-free, per ADR 0002: the registry reaches the same geometry through
+    :func:`_discover_round_bottom_blind_slots`, which issues the claims.
+    """
+
+    return _discover_round_bottom_blind_slots(part, graph=FaceGraph(part), sink=None)
+
+
+def _discover_round_bottom_blind_slots(
+    part: Part, *, graph: FaceGraph, sink: EvidenceSink | None
+) -> list[RoundBottomBlindSlot]:
+    """Discover the subset and, with a sink, issue each record's defining faces."""
+
     found: list[tuple[RoundBottomBlindSlot, frozenset[FaceNode]]] = []
     for solid in part.solids():
         if not graph.solid_properties.is_valid(solid):
@@ -632,7 +639,13 @@ def recognise_round_bottom_blind_slots(
 # What this family declares about itself; `_registry` decides where it runs.
 def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
     del inputs  # no completed predecessors
-    return list(recognise_round_bottom_blind_slots(services.context.part, ledger=services.writer))
+    return list(
+        _discover_round_bottom_blind_slots(
+            services.context.part,
+            graph=services.writer.graph,
+            sink=services.writer.sink,
+        )
+    )
 
 
 # The package does not export this entry point, so the capability manifest has no entry for the

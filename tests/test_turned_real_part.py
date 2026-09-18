@@ -37,6 +37,7 @@ from build123d import import_step  # noqa: E402
 from quiddity import recognise_turned_steps  # noqa: E402
 from quiddity._candidates import FamilyId  # noqa: E402
 from quiddity._geometry import quantise  # noqa: E402
+from quiddity.turned import _discover_turned_steps
 
 CORPUS = Path(__file__).parent / "corpus" / "gramel"
 
@@ -75,7 +76,12 @@ def _profile(part):
 
 def test_split_widest_band_contributes_every_original_face() -> None:
     part = import_step(str(CORPUS / "string_post.step"))
-    ledger, steps = attributed_run(part, FamilyId.TURNED_STEPS, recognise_turned_steps)
+    ledger, steps = attributed_run(
+        part,
+        FamilyId.TURNED_STEPS,
+        recognise_turned_steps,
+        discover=lambda led: _discover_turned_steps(part, ledger=led),
+    )
     candidates = ledger.candidate_set(FamilyId.TURNED_STEPS).candidates
 
     assert len(steps) == len(candidates) == 4

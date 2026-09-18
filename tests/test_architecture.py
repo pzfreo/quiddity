@@ -153,7 +153,6 @@ MODULE_SEAM_EDGES = {
     "paired_ramp_steps": {
         "_adjacency",
         "_candidates",
-        "_claims",
         "_definitions",
         "_geometry",
         "_record",
@@ -173,7 +172,6 @@ MODULE_SEAM_EDGES = {
         "_adjacency",
         "_body_identity",
         "_candidates",
-        "_claims",
         "_definitions",
         "_geometry",
         "_record",
@@ -194,7 +192,6 @@ MODULE_SEAM_EDGES = {
     "round_bottom_slots": {
         "_adjacency",
         "_candidates",
-        "_claims",
         "_definitions",
         "_geometry",
         "_record",
@@ -216,7 +213,6 @@ MODULE_SEAM_EDGES = {
     "rectangular_blind_slots": {
         "_adjacency",
         "_candidates",
-        "_claims",
         "_definitions",
         "_record",
         "_typing",
@@ -567,7 +563,6 @@ MODULE_SEAM_EDGES = {
         "_adjacency",
         "_bevel",
         "_candidates",
-        "_claims",
         "_definitions",
         "_geometry",
         "_record",
@@ -784,7 +779,7 @@ ARC_READER_SITES = {
     "src/quiddity/edge_open_circular_recesses:_ordered_chain:arc:1": ("legacy-contract"),
     **{
         f"src/quiddity/edge_open_circular_recesses:"
-        f"recognise_edge_open_circular_pockets:arc:{ordinal}": disposition
+        f"_discover_edge_open_circular_pockets:arc:{ordinal}": disposition
         for ordinal, disposition in enumerate(
             ("exact-nonsmooth", "legacy-contract", "legacy-contract"), start=1
         )
@@ -796,7 +791,7 @@ ARC_READER_SITES = {
     },
     **{
         f"src/quiddity/edge_open_prismatic_recesses:"
-        f"recognise_edge_open_prismatic_recesses:arc:{ordinal}": disposition
+        f"_discover_edge_open_prismatic_recesses:arc:{ordinal}": disposition
         for ordinal, disposition in enumerate(
             ("exact-nonsmooth", "exact-nonsmooth", "legacy-contract"), start=1
         )

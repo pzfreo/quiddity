@@ -309,10 +309,27 @@ def recognise_edge_open_prismatic_recesses(
     part: Part,
     *,
     face_edges: FaceEdges | None = None,
-    ledger: ClaimLedger | EvidenceWriter | None = None,
 ) -> list[EdgeOpenPrismaticRecess]:
-    """Recognise proved one-side-open polygonal recesses with at least three physical walls."""
-    graph = FaceGraph(part, face_edges=face_edges) if ledger is None else ledger.graph
+    """Recognise proved one-side-open polygonal recesses with at least three physical walls.
+
+    Writer-free, per ADR 0002: the registry reaches the same geometry through
+    :func:`_discover_edge_open_prismatic_recesses`, which issues the claims.
+    """
+
+    return _discover_edge_open_prismatic_recesses(
+        part, graph=FaceGraph(part, face_edges=face_edges), ledger=None
+    )
+
+
+def _discover_edge_open_prismatic_recesses(
+    part: Part,
+    *,
+    graph: FaceGraph,
+    ledger: ClaimLedger | EvidenceWriter | None,
+) -> list[EdgeOpenPrismaticRecess]:
+    """Discover the recesses and, with a ledger, claim each one's walls and floor."""
+
+    del part  # the graph carries every face this family reads
     found: list[tuple[EdgeOpenPrismaticRecess, tuple[FaceNode, ...], FaceNode]] = []
     for floor in graph.nodes:
         plane = _principal_plane(graph, floor) if graph.is_planar(floor) else None
@@ -420,10 +437,10 @@ def recognise_edge_open_prismatic_recesses(
 def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
     del inputs  # no completed predecessors
     return list(
-        recognise_edge_open_prismatic_recesses(
+        _discover_edge_open_prismatic_recesses(
             services.context.part,
+            graph=services.writer.graph,
             ledger=services.writer,
-            face_edges=services.context.face_edges,
         )
     )
 

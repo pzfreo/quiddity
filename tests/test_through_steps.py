@@ -37,6 +37,7 @@ from quiddity._dispositions import Outcome
 from quiddity.result import _take_inventory
 from quiddity.through_steps import (
     ThroughStep,
+    _discover_through_steps,
     _four_principal_runs,
     recognise_through_steps,
 )
@@ -95,7 +96,7 @@ def test_rectangular_through_step_has_one_canonical_open_section_and_claim():
     part = _step()
     ledger = ClaimLedger(FaceGraph(part))
 
-    assert _geometry_only(recognise_through_steps(part, ledger=ledger)) == [
+    assert _geometry_only(_discover_through_steps(part, graph=ledger.graph, sink=ledger.sink)) == [
         ThroughStep(
             axis="z",
             length=20.0,
@@ -175,7 +176,9 @@ def test_coplanar_face_subdivision_is_representation_only():
     split = _split_face_at_z(plain, defining)
     ledger = ClaimLedger(FaceGraph(split))
 
-    assert recognise_through_steps(split, ledger=ledger) == recognise_through_steps(plain)
+    assert _discover_through_steps(
+        split, graph=ledger.graph, sink=ledger.sink
+    ) == recognise_through_steps(plain)
     assert len(ledger.claims[0].defining) == 3
 
 
@@ -305,7 +308,7 @@ def test_an_interrupted_wall_keeps_exact_graph_owned_evidence_and_aggregate_pari
     graph = FaceGraph(part)
     ledger = ClaimLedger(graph)
 
-    direct = recognise_through_steps(part, ledger=ledger)
+    direct = _discover_through_steps(part, graph=ledger.graph, sink=ledger.sink)
 
     assert direct == recognise_through_steps(part)
     assert len(ledger.claims) == 1
@@ -366,7 +369,7 @@ def test_foreign_evidence_fails_before_any_family_candidate_is_issued(monkeypatc
     )
 
     with pytest.raises(ValueError, match="graph|issued|belong"):
-        recognise_through_steps(part, ledger=ledger)
+        _discover_through_steps(part, graph=ledger.graph, sink=ledger.sink)
     assert ledger.candidate_set(FamilyId.THROUGH_STEPS).candidates == ()
 
 

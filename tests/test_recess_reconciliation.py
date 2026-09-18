@@ -112,12 +112,14 @@ def test_rotational_passage_reconciles_pockets_before_public_projection(monkeypa
         writer.add_defining(pocket, [writer.graph.nodes[0]], family=FamilyId.POCKETS)
         return [pocket]
 
-    def fake_passages(part, *, ledger, face_edges):
-        del part, face_edges
-        ledger.sink.propose(
+    # The declaration calls the writer-enabled core, so that is where a stub has to sit. Left
+    # on the public entry point it would simply never fire, and real discovery would run.
+    def fake_passages(part, graph, sink):
+        del part
+        sink.propose(
             FamilyId.PASSAGES,
             passage,
-            defining=[ledger.graph.nodes[0]],
+            defining=[graph.nodes[0]],
             compatibility=PassageCompatibilityView(
                 "z",
                 ((-2.0, -4.0), (2.0, -4.0), (2.0, 4.0), (-2.0, 4.0)),
@@ -135,7 +137,7 @@ def test_rotational_passage_reconciles_pockets_before_public_projection(monkeypa
         return []
 
     monkeypatch.setattr(slots_module, "_discover_pockets", fake_pockets)
-    monkeypatch.setattr(passages_module, "recognise_section_passages", fake_passages)
+    monkeypatch.setattr(passages_module, "_discover_section_passages", fake_passages)
     monkeypatch.setattr(slots_module, "recognise_pocket_patterns", fake_patterns)
 
     product = result_module._take_inventory(Box(20, 20, 10), rotational=True)

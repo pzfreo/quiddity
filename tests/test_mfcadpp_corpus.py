@@ -35,7 +35,7 @@ from build123d import import_step
 
 import quiddity as recognition
 from quiddity import _recess_core as recess_core
-from quiddity import recognise_angled_steps, recognise_chamfers, recognise_slots
+from quiddity import recognise_angled_steps, recognise_slots
 from quiddity._adjacency import FaceGraph
 from quiddity._candidates import FamilyId
 from quiddity._claims import ClaimLedger
@@ -47,6 +47,10 @@ from quiddity._reconcile import (
 )
 from quiddity._registry import PHYSICAL_DEFINITIONS
 from quiddity._run import start
+from quiddity.angled_steps import _discover_angled_steps
+from quiddity.chamfers import _discover_chamfers
+from quiddity.passages import _discover_section_passages
+from quiddity.prismatic_pockets import _discover_prismatic_pockets
 from quiddity.result import _discover_all, _take_inventory
 from tools import _legacy_recognition as legacy_recognition
 
@@ -78,8 +82,8 @@ def _bevels(part):
     """
 
     ledger = ClaimLedger(FaceGraph(part))
-    proposed = recognise_chamfers(part, ledger=ledger)
-    steps = recognise_angled_steps(part, ledger=ledger)
+    proposed = _discover_chamfers(part, ledger=ledger)
+    steps = _discover_angled_steps(part, face_edges=None, graph=ledger.graph, sink=ledger.sink)
     return (
         proposed,
         chamfers_that_are_not_angled_steps(proposed, steps, ledger.snapshot_index()),
@@ -708,8 +712,8 @@ def test_accepted_recess_claims_have_no_containment_conflicts(corpus):
         # writer-free in turn.
         slots = _discover_slots(part, writer=ledger.writer)
         pockets = _discover_pockets(part, writer=ledger.writer)
-        prismatic = legacy_recognition.recognise_prismatic_pockets(part, ledger=ledger)
-        passages = legacy_recognition.recognise_section_passages(part, ledger=ledger)
+        prismatic = _discover_prismatic_pockets(part, graph=ledger.graph, ledger=ledger)
+        passages = _discover_section_passages(part, ledger.graph, ledger.sink)
         for family, records in (
             (FamilyId.SLOTS, slots),
             (FamilyId.POCKETS, pockets),

@@ -29,6 +29,7 @@ from quiddity.frames import build_framed_recognition_result
 from quiddity.rectangular_blind_slots import (
     RectangularBlindSlot,
     _contains_span,
+    _discover_rectangular_blind_slots,
     _has_unambiguous_slot_roles,
     _length_tolerance,
     recognise_rectangular_blind_slots,
@@ -73,7 +74,7 @@ def test_rectangular_blind_slot_has_truthful_dimensions_and_complete_evidence():
     part = _slot()
     ledger = ClaimLedger(FaceGraph(part))
 
-    actual = recognise_rectangular_blind_slots(part, ledger=ledger)
+    actual = _discover_rectangular_blind_slots(part, graph=ledger.graph, sink=ledger.sink)
 
     assert actual == [
         RectangularBlindSlot(
@@ -201,7 +202,9 @@ def test_split_cap_sides_floor_and_compound_order_preserve_complete_occurrences(
     (record,) = recognise_rectangular_blind_slots(split)
     assert record == recognise_rectangular_blind_slots(part)[0]
     split_ledger = ClaimLedger(FaceGraph(split))
-    assert recognise_rectangular_blind_slots(split, ledger=split_ledger) == [record]
+    assert _discover_rectangular_blind_slots(
+        split, graph=split_ledger.graph, sink=split_ledger.sink
+    ) == [record]
     assert len(split_ledger.claims[0].defining) == 8
 
     left = Pos(-50, 0, 0) * part

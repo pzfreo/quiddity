@@ -51,6 +51,7 @@ from quiddity.frames import (
 from quiddity.prismatic_pockets import (
     SPAN_EPS,
     _axis_for_opening,
+    _discover_prismatic_pockets,
     _floor_seeded_regions,
     _material_fraction,
     _section_prism,
@@ -152,6 +153,7 @@ def _claimed(part):
         part,
         FamilyId.PRISMATIC_POCKETS,
         r.recognise_prismatic_pockets,
+        discover=lambda led: _discover_prismatic_pockets(part, graph=led.graph, ledger=led),
     )
 
 
@@ -215,7 +217,7 @@ def test_partial_mouth_treatment_does_not_hide_a_uniquely_bounded_pocket(
     ledger = ClaimLedger(FaceGraph(part))
 
     direct = r.recognise_prismatic_pockets(part)
-    attributed = r.recognise_prismatic_pockets(part, ledger=ledger)
+    attributed = _discover_prismatic_pockets(part, graph=ledger.graph, ledger=ledger)
     (pocket,) = attributed
     (candidate,) = ledger.candidate_set(FamilyId.PRISMATIC_POCKETS).candidates
     evidence = ledger.snapshot_index()
@@ -274,7 +276,7 @@ def test_an_intact_floor_recovers_a_six_sided_pocket_through_a_deep_side_opening
     ledger = ClaimLedger(FaceGraph(part))
 
     direct = r.recognise_prismatic_pockets(part)
-    attributed = r.recognise_prismatic_pockets(part, ledger=ledger)
+    attributed = _discover_prismatic_pockets(part, graph=ledger.graph, ledger=ledger)
     (pocket,) = attributed
     (candidate,) = ledger.candidate_set(FamilyId.PRISMATIC_POCKETS).candidates
     evidence = ledger.snapshot_index()
@@ -344,7 +346,7 @@ def test_every_selected_blended_cap_patch_is_constituent_but_not_defining() -> N
     ledger = ClaimLedger(FaceGraph(part))
     selected = tuple(ring for ring in rings(part, ledger.graph) if any(ring.caps))
 
-    (pocket,) = r.recognise_prismatic_pockets(part, ledger=ledger)
+    (pocket,) = _discover_prismatic_pockets(part, graph=ledger.graph, ledger=ledger)
     (ring,) = selected
     (candidate,) = ledger.candidate_set(FamilyId.PRISMATIC_POCKETS).candidates
     evidence = ledger.snapshot_index()
@@ -359,7 +361,7 @@ def test_both_capped_internal_cavity_issues_no_record_or_evidence() -> None:
     enclosed = Box(120, 80, 20) - Pos(0, 0, -3) * _prism((-12, -9), (12, -9), (0, 12), height=6)
     ledger = ClaimLedger(FaceGraph(enclosed))
 
-    assert r.recognise_prismatic_pockets(enclosed, ledger=ledger) == []
+    assert _discover_prismatic_pockets(enclosed, graph=ledger.graph, ledger=ledger) == []
     assert ledger.candidate_set(FamilyId.PRISMATIC_POCKETS).candidates == ()
 
 
@@ -536,7 +538,11 @@ def test_a_void_open_at_both_ends_is_a_passage_and_not_reported_here():
     part = _through()
     from attribution_audit import unattributed_run
 
-    unattributed_run(part, FamilyId.PRISMATIC_POCKETS, r.recognise_prismatic_pockets)
+    unattributed_run(
+        part,
+        FamilyId.PRISMATIC_POCKETS,
+        discover=lambda led: _discover_prismatic_pockets(part, graph=led.graph, ledger=led),
+    )
     assert r.recognise_passages(part), "the same void must still be a passage"
 
 
@@ -577,7 +583,7 @@ def test_a_rectangular_recess_is_reported_by_both_families_and_reconciled_to_one
     ledger = ClaimLedger(FaceGraph(part))
     # `recognise_pockets` is writer-free per ADR 0002; claims come from the core.
     pockets = _discover_pockets(part, writer=ledger.writer)
-    prismatic = r.recognise_prismatic_pockets(part, ledger=ledger)
+    prismatic = _discover_prismatic_pockets(part, graph=ledger.graph, ledger=ledger)
 
     assert len(pockets) == 1 and len(prismatic) == 1, "both families see this recess"
     (candidate,) = ledger.candidate_set(FamilyId.PRISMATIC_POCKETS).candidates
@@ -592,7 +598,7 @@ def test_a_rectangular_recess_is_reported_by_both_families_and_reconciled_to_one
     triangle = _triangular()
     tri_ledger = ClaimLedger(FaceGraph(triangle))
     tri_pockets = _discover_pockets(triangle, writer=tri_ledger.writer)
-    tri = r.recognise_prismatic_pockets(triangle, ledger=tri_ledger)
+    tri = _discover_prismatic_pockets(triangle, graph=tri_ledger.graph, ledger=tri_ledger)
     assert (
         len(prismatic_pockets_that_are_not_pockets(tri, tri_pockets, tri_ledger.snapshot_index()))
         == 1
@@ -623,7 +629,7 @@ def test_a_ledger_built_from_another_part_is_refused_rather_than_left_empty():
 
     foreign = ClaimLedger(FaceGraph(twin))
     try:
-        r.recognise_prismatic_pockets(part, ledger=foreign)
+        _discover_prismatic_pockets(part, graph=foreign.graph, ledger=foreign)
     except ValueError as refusal:
         assert "built from a different part" in str(refusal)
     else:

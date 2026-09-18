@@ -37,6 +37,7 @@ from quiddity._bevel import BevelReject, classify_bevel
 from quiddity._candidates import FamilyId
 from quiddity._claims import ClaimLedger
 from quiddity._dispositions import Outcome
+from quiddity.paired_ramp_steps import _discover_paired_ramp_steps
 from quiddity.result import _take_inventory
 from tests.golden.triangular_and_hex_pockets.fixture import build_fixture as pocket_fixture
 
@@ -181,7 +182,7 @@ def test_ramp_run_direction_uses_the_existing_direction_tolerance(monkeypatch) -
 def test_the_pair_claims_both_original_ramps_and_its_required_terminal() -> None:
     part = _side_cut()
     ledger = ClaimLedger(FaceGraph(part))
-    records = recognise_paired_ramp_steps(part, ledger=ledger)
+    records = _discover_paired_ramp_steps(part, graph=ledger.graph, sink=ledger.sink)
     candidate = ledger.candidate_set_for(FamilyId.PAIRED_RAMP_STEPS, records).candidates[0]
 
     assert len(ledger.snapshot_index().defining_of(candidate)) == 3
@@ -371,7 +372,7 @@ def test_multiple_coplanar_ramp_faces_are_not_traversed_or_merged() -> None:
     )
 
     ledger = ClaimLedger(graph)
-    assert recognise_paired_ramp_steps(split, ledger=ledger) == []
+    assert _discover_paired_ramp_steps(split, graph=ledger.graph, sink=ledger.sink) == []
     assert ledger.claims == ()
 
 

@@ -189,13 +189,21 @@ def attributed_run(
     recognise: Callable[..., Sequence],
     *,
     kwargs: Mapping[str, Any] | None = None,
+    discover: Callable[[ClaimLedger], Sequence],
 ):
-    """Prove writer parity and the identity/provenance lifecycle for one real fixture."""
+    """Prove writer parity and the identity/provenance lifecycle for one real fixture.
+
+    *recognise* is the public entry point and is called writer-free -- every one of them is,
+    per ADR 0002. *discover* runs the same family with claims written, which is where a writer
+    belongs: the private core the registry calls. It takes the ledger and returns records, so
+    each family hands its core whatever shape that core wants -- a writer, a ledger, or a graph
+    and a sink.
+    """
 
     call_kwargs = dict(kwargs or {})
     plain = tuple(recognise(part, **call_kwargs))
     ledger = ClaimLedger(FaceGraph(part))
-    measured = tuple(recognise(part, ledger=ledger, **call_kwargs))
+    measured = tuple(discover(ledger))
     assert [type(record) for record in measured] == [type(record) for record in plain]
     assert measured == plain
     assert [record.to_dict() for record in measured] == [record.to_dict() for record in plain]
@@ -221,16 +229,16 @@ def attributed_run(
     return ledger, list(measured)
 
 
-def unattributed_run(
-    part,
-    family: FamilyId,
-    recognise: Callable[..., Sequence],
-    *,
-    kwargs: Mapping[str, Any] | None = None,
-):
-    """Prove a negative fixture issues neither output nor an orphan family Candidate."""
+def unattributed_run(part, family: FamilyId, discover: Callable[[ClaimLedger], Sequence]):
+    """Prove a negative fixture issues neither output nor an orphan family Candidate.
+
+    *discover* is the writer-enabled core, as in :func:`attributed_run`. It takes no
+    *recognise* or *kwargs*: once the core became the only route, neither was read, and a
+    caller threading tuning into `kwargs` rather than into its thunk would have had it
+    silently ignored. The thunk carries whatever tuning the case needs.
+    """
 
     ledger = ClaimLedger(FaceGraph(part))
-    assert recognise(part, ledger=ledger, **dict(kwargs or {})) == []
+    assert list(discover(ledger)) == []
     assert ledger.candidate_set(family).candidates == ()
     return ledger

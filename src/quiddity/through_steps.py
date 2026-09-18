@@ -20,7 +20,6 @@ from build123d import GeomType, Wire
 from quiddity._adjacency import FaceGraph, FaceNode, axis_aligned_axis
 from quiddity._body_identity import BodyKey, unambiguous_body_keys
 from quiddity._candidates import CompletedInputs, EvidenceSink, FamilyId
-from quiddity._claims import ClaimLedger, EvidenceWriter
 from quiddity._definitions import (
     Counted,
     DiscoveryServices,
@@ -377,13 +376,21 @@ def _recognise_one(
     return out
 
 
-def recognise_through_steps(
-    part: Part, *, ledger: ClaimLedger | EvidenceWriter | None = None
-) -> list[ThroughStep]:
-    """Recognise the proven rectangular subset of open-profile through steps."""
+def recognise_through_steps(part: Part) -> list[ThroughStep]:
+    """Recognise the proven rectangular subset of open-profile through steps.
 
-    graph = FaceGraph(part) if ledger is None else ledger.graph
-    sink: EvidenceSink | None = None if ledger is None else ledger.sink
+    Writer-free, per ADR 0002: the registry reaches the same geometry through
+    :func:`_discover_through_steps`, which issues the claims.
+    """
+
+    return _discover_through_steps(part, graph=FaceGraph(part), sink=None)
+
+
+def _discover_through_steps(
+    part: Part, *, graph: FaceGraph, sink: EvidenceSink | None
+) -> list[ThroughStep]:
+    """Discover the subset and, with a sink, issue each record's defining faces."""
+
     planes = {node: axis_aligned_axis(graph.face(node).wrapped) for node in graph.nodes}
     solids = list(part.solids())
     body_keys = unambiguous_body_keys(
@@ -409,7 +416,13 @@ def recognise_through_steps(
 # What this family declares about itself; `_registry` decides where it runs.
 def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
     del inputs  # no completed predecessors
-    return list(recognise_through_steps(services.context.part, ledger=services.writer))
+    return list(
+        _discover_through_steps(
+            services.context.part,
+            graph=services.writer.graph,
+            sink=services.writer.sink,
+        )
+    )
 
 
 DEFINITION = PhysicalDefinition(

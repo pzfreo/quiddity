@@ -36,17 +36,20 @@ def _run_case(part: Any, enabled: bool) -> tuple[Any, float]:
     import quiddity.through_steps as family
     from quiddity.result import _take_inventory
 
-    # The declaration resolves its entry point in the family module at call time, so that is
-    # where the benchmark disables it; the registry no longer holds the name.
-    original = family.recognise_through_steps
+    # The declaration resolves its *core* in the family module at call time, so that is where
+    # the benchmark disables it. It used to swap the public entry point, which the declaration
+    # called; under ADR 0002's writer-free rule it no longer does, and swapping it would have
+    # left both runs identical rather than disabling anything. No test covers this tool, so
+    # that would have gone unnoticed -- unlike its two siblings, which have one.
+    original = family._discover_through_steps
     if not enabled:
-        family.recognise_through_steps = lambda *_args, **_kwargs: []
+        family._discover_through_steps = lambda *_args, **_kwargs: []
     try:
         started = time.perf_counter()
         result = _take_inventory(part).result
         return result, time.perf_counter() - started
     finally:
-        family.recognise_through_steps = original
+        family._discover_through_steps = original
 
 
 def _measure(parts: list[tuple[str, Any]]) -> dict[str, Any]:

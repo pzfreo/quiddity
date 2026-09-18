@@ -19,6 +19,7 @@ from quiddity._adjacency import FaceGraph
 from quiddity._candidates import FamilyId
 from quiddity._claims import ClaimLedger
 from quiddity._effective_surfaces import effective_faces_for_part
+from quiddity.turned import _discover_turned_steps
 
 CORPUS = Path(__file__).parent / "corpus" / "cadgenbench"
 
@@ -41,7 +42,7 @@ def test_exact_threaded_connector_has_no_face_centre_shoulders():
         (366.82, 420, 103.12),
     ]
     ledger = ClaimLedger(FaceGraph(part))
-    assert recognise_turned_steps(part, ledger=ledger) == steps
+    assert _discover_turned_steps(part, ledger=ledger) == steps
     candidates = ledger.candidate_set(FamilyId.TURNED_STEPS).candidates
     # All eight original cylindrical crest patches must survive coalescing.
     assert len(ledger.defining_of(candidates[-1])) == 8
@@ -60,7 +61,12 @@ def test_internal_annular_faces_do_not_split_one_outer_diameter(scale):
     for z in (5, 15, 25):
         part -= Pos(0, 0, z) * (Cylinder(14, 1) - Cylinder(10, 1))
     part = Pos(91, -37, 48) * Rotation(0, 90, 0) * part.scale(scale)
-    ledger, steps = attributed_run(part, FamilyId.TURNED_STEPS, recognise_turned_steps)
+    ledger, steps = attributed_run(
+        part,
+        FamilyId.TURNED_STEPS,
+        recognise_turned_steps,
+        discover=lambda led: _discover_turned_steps(part, ledger=led),
+    )
     assert [(s.axis, s.length, s.diameter) for s in steps] == [
         ("x", 100 * scale, 30 * scale),
         ("x", 10 * scale, 16 * scale),

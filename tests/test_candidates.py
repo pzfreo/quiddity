@@ -12,7 +12,6 @@ from types import SimpleNamespace
 import pytest
 from build123d import Box, Cylinder, Face, Plane, Pos, Rot
 
-from quiddity import recognise_angled_steps
 from quiddity._adjacency import FaceGraph
 from quiddity._candidates import (
     Candidate,
@@ -29,6 +28,7 @@ from quiddity._claims import ClaimLedger
 from quiddity._effective_surfaces import SurfaceUse, effective_faces_for_graph
 from quiddity._passage_compat import PassageCompatibilityView
 from quiddity._registry import PHYSICAL_DEFINITIONS
+from quiddity.angled_steps import _discover_angled_steps
 
 
 @dataclass(frozen=True)
@@ -803,7 +803,9 @@ def test_angled_steps_use_the_named_candidate_family() -> None:
     )
     ledger = ClaimLedger(FaceGraph(angled_step_part))
 
-    records = recognise_angled_steps(angled_step_part, ledger=ledger)
+    records = _discover_angled_steps(
+        angled_step_part, face_edges=None, graph=ledger.graph, sink=ledger.sink
+    )
     candidate_set = ledger.candidate_set(FamilyId.ANGLED_STEPS)
 
     assert tuple(candidate.record for candidate in candidate_set.candidates) == tuple(records)

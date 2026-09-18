@@ -8,6 +8,7 @@ from build123d import Axis, Box, Cylinder, Pos, Rotation
 
 from quiddity import build_recognition_result, recognise_plates, recognise_turned_steps
 from quiddity._candidates import FamilyId
+from quiddity.turned import _discover_turned_steps
 
 
 def _rounded_plate(radius):
@@ -33,7 +34,11 @@ def test_rounded_slabs_do_not_publish_steps(separated, axis, scale):
     rotation = {"x": Rotation(0, 90, 0), "y": Rotation(90, 0, 0), "z": Rotation(0, 0, 0)}
     part = Pos(91, -37, 48) * rotation[axis] * part
     assert len(part.solids()) == 1
-    unattributed_run(part, FamilyId.TURNED_STEPS, recognise_turned_steps)
+    unattributed_run(
+        part,
+        FamilyId.TURNED_STEPS,
+        discover=lambda led: _discover_turned_steps(part, ledger=led),
+    )
 
 
 def test_false_steps_do_not_suppress_sheet_plates():
@@ -50,14 +55,22 @@ def test_coaxial_quarter_cylinders_do_not_establish_turned_diameters():
     shaft = Pos(0, 0, 1.5) * Cylinder(25, 3) + Pos(0, 0, 4.5) * Cylinder(3.5, 3)
     quarter = shaft & (Pos(25, 25, 3) * Box(50, 50, 6))
     assert len(quarter.solids()) == 1
-    unattributed_run(quarter, FamilyId.TURNED_STEPS, recognise_turned_steps)
+    unattributed_run(
+        quarter,
+        FamilyId.TURNED_STEPS,
+        discover=lambda led: _discover_turned_steps(quarter, ledger=led),
+    )
 
 
 def test_parallel_offset_cylinders_do_not_form_one_profile():
     # Both bands have full angular support, but their axis lines differ.
     part = Pos(0, 0, 1.5) * Cylinder(25, 3) + Pos(10, 0, 4.5) * Cylinder(3.5, 3)
     assert len(part.solids()) == 1
-    unattributed_run(part, FamilyId.TURNED_STEPS, recognise_turned_steps)
+    unattributed_run(
+        part,
+        FamilyId.TURNED_STEPS,
+        discover=lambda led: _discover_turned_steps(part, ledger=led),
+    )
 
 
 def test_genuine_thin_steps_are_preserved():
