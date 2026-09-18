@@ -2,12 +2,8 @@
 # Copyright 2024-2026 Paul Fremantle
 
 
-import ast
-import inspect
 import json
 import math
-import sys
-import types
 from dataclasses import FrozenInstanceError, replace
 
 import pytest
@@ -23,7 +19,7 @@ from quiddity import (
     TurnedStep,
     build_recognition_result,
 )
-from quiddity._candidates import FamilyId
+from quiddity._candidates import DerivedId, FamilyId
 from quiddity._registry import DERIVED_DEFINITIONS, PHYSICAL_DEFINITIONS
 from tools._legacy_recognition import (
     Passage,
@@ -64,48 +60,27 @@ def test_projection_rejects_a_record_from_the_wrong_family_contract():
         )
 
 
-def _registry_discovery_targets() -> dict[str, frozenset[tuple[str, str]]]:
-    """Per family, the (module, name) pairs the orchestrator reaches discovery through.
+def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
+    """Every shared dependency is derived once and injected, and no family rediscovers it.
 
-    Each definition's `discover`/`derive` is a small adapter in the family's own module; the
-    functions it calls are what a run actually executes. Deriving the roster this way is what
-    stops a family being silently absent from the injection test below -- #624 found `gussets`
-    missing, and seven more were missing when this was written.
+    For that to mean anything, no family's *real* discovery may run: a family this test forgot
+    to intercept would quietly do its own work and look like a family that was intercepted and
+    found nothing.
 
-    Bare-name calls only, and only those bound to a function in that module: `monkeypatch`
-    rebinds a module attribute, so a call through `services.x` or a method is not interceptable
-    there and is not a patch target.
+    The roster of families to intercept is the registry's, and it is checked by what the run
+    actually reached -- each stub records the definition it stands in for, and the set must come
+    out equal to the registered one. An earlier version derived the roster by AST-walking each
+    declaration's adapter for bare-name calls, which is a prediction about where discovery will
+    be reached from rather than an observation that it was; it was escaped three times, most
+    recently by rerouting a declaration (#672).
 
-    That rule is what the walk can see, not a proof of what a run does. An adapter that binds
-    its discovery to a local first (`finder = _discover_x; finder(...)`), or reaches it through
-    an attribute or a dispatch table, contributes nothing here. The empty-roster assertion in
-    the test is what turns such a family from silent into loud: it contributes no target, so it
-    is named rather than skipped. Keyed by family so that check can name the family.
+    Precisely, this establishes that every registered definition ran *a* stub, which is the same
+    thing as "no real discovery ran" only while each adapter reaches one interceptable call.
+    That holds today: the walk this replaced found 39 targets across 38 definitions, and the
+    sole definition with two -- `ORIENTED_SLOTS`, through `_body_keys` and `_project` -- has
+    both patched here.
     """
 
-    rosters: dict[str, frozenset[tuple[str, str]]] = {}
-    for definition in (*PHYSICAL_DEFINITIONS, *DERIVED_DEFINITIONS):
-        adapter = getattr(definition, "discover", None) or definition.derive
-        module = sys.modules[adapter.__module__]
-        tree = ast.parse(inspect.getsource(module))
-        node = next(
-            child
-            for child in tree.body
-            if isinstance(child, ast.FunctionDef) and child.name == adapter.__name__
-        )
-        targets = {
-            (adapter.__module__, call.func.id)
-            for call in ast.walk(node)
-            if isinstance(call, ast.Call)
-            and isinstance(call.func, ast.Name)
-            and isinstance(getattr(module, call.func.id, None), types.FunctionType)
-        }
-        identifier = getattr(definition, "family", None) or definition.identifier
-        rosters[identifier.name] = frozenset(targets)
-    return rosters
-
-
-def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity._run as run_module
     import quiddity.angled_steps as angled_steps_module
     import quiddity.blends as blends_module
@@ -140,13 +115,10 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     from quiddity._candidates import EvidenceIndex
 
     calls: dict[str, int] = {}
-    # Every rebinding this test makes, so the roster check at the end reads what was actually
-    # patched rather than a second hand-written list that could drift from the first.
-    patched: set[tuple[str, str]] = set()
-
-    def patch(module, name, replacement):
-        patched.add((module.__name__, name))
-        monkeypatch.setattr(module, name, replacement)
+    # Which registered definition each stub stands in for. Checked against the registry below,
+    # so the roster of families this test must intercept is the registry's own and cannot be
+    # written short -- which is how `gussets` (#624) and seven more went unnoticed.
+    stood_in_for: set[FamilyId | DerivedId] = set()
 
     cylinders = ([{"axis": "z"}], [{"axis": "x"}])
     # Fully-attributed Countersinks cannot be fabricated without original cone evidence in this
@@ -169,26 +141,29 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
             left is right for left, right in zip(actual, expected, strict=True)
         )
 
-    def counted(name, returns):
+    def counted(owner, name, returns):
         # `*args` because a family's core may be called positionally -- `passages` hands its
         # core `(part, graph, sink)` that way -- while the public entry points take keywords.
         def fake(part, *args, **kwargs):
             calls[name] = calls.get(name, 0) + 1
+            stood_in_for.add(owner)
             return returns
 
         return fake
 
-    def cyl_consumer(name, returns):
+    def cyl_consumer(owner, name, returns):
         def fake(part, *, cyls=None, **kwargs):
             calls[name] = calls.get(name, 0) + 1
+            stood_in_for.add(owner)
             assert cyls == cylinders and cyls is not cylinders
             return returns
 
         return fake
 
-    def derived(name, source, returns):
+    def derived(owner, name, source, returns):
         def fake(records):
             calls[name] = calls.get(name, 0) + 1
+            stood_in_for.add(owner)
             assert same_records(records, source)
             return returns
 
@@ -201,75 +176,126 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
 
     def fake_holes(part, *, cyls=None, csinks=None, **kwargs):
         calls["holes"] = calls.get("holes", 0) + 1
+        stood_in_for.add(FamilyId.HOLES)
         assert cyls == cylinders and cyls is not cylinders
         assert same_records(csinks, countersinks)
         return holes
 
     # Patched where the run derives it, not where the aggregate used to. The cylinder scan is
     # one of the facts `RecognitionRun` owns, so `_run` is the only place that asks for it.
-    patch(run_module, "analyse_cylinders", fake_cylinders)
-    patch(countersinks_module, "_discover_countersinks", counted("countersinks", countersinks))
-    patch(holes_module, "_discover_holes", fake_holes)
-    patch(
+    monkeypatch.setattr(run_module, "analyse_cylinders", fake_cylinders)
+    monkeypatch.setattr(
+        countersinks_module,
+        "_discover_countersinks",
+        counted(FamilyId.COUNTERSINKS, "countersinks", countersinks),
+    )
+    monkeypatch.setattr(holes_module, "_discover_holes", fake_holes)
+    monkeypatch.setattr(
         profiled_bores_module,
         "_discover_double_d_bores",
-        counted("double_d_bores", []),
+        counted(FamilyId.DOUBLE_D_BORES, "double_d_bores", []),
     )
-    patch(holes_module, "recognise_hole_patterns", derived("patterns", holes, []))
-    patch(bosses_module, "_discover_bosses", cyl_consumer("bosses", []))
-    patch(polygonal_bosses_module, "_discover_polygonal_bosses", counted("polygonal_bosses", []))
-    patch(polygonal_bosses_module, "_discover_polygonal_stock", counted("polygonal_stock", []))
-    patch(slots_module, "_discover_channels", counted("channels", []))
-    patch(slots_module, "_discover_slots", counted("slots", slots))
-    patch(slots_module, "recognise_slot_patterns", derived("slot_patterns", slots, []))
-    patch(
+    monkeypatch.setattr(
+        holes_module,
+        "recognise_hole_patterns",
+        derived(DerivedId.HOLE_PATTERNS, "patterns", holes, []),
+    )
+    monkeypatch.setattr(
+        bosses_module, "_discover_bosses", cyl_consumer(FamilyId.BOSSES, "bosses", [])
+    )
+    monkeypatch.setattr(
+        polygonal_bosses_module,
+        "_discover_polygonal_bosses",
+        counted(FamilyId.POLYGONAL_BOSSES, "polygonal_bosses", []),
+    )
+    monkeypatch.setattr(
+        polygonal_bosses_module,
+        "_discover_polygonal_stock",
+        counted(FamilyId.POLYGONAL_STOCK, "polygonal_stock", []),
+    )
+    monkeypatch.setattr(
+        slots_module, "_discover_channels", counted(FamilyId.CHANNELS, "channels", [])
+    )
+    monkeypatch.setattr(slots_module, "_discover_slots", counted(FamilyId.SLOTS, "slots", slots))
+    monkeypatch.setattr(
+        slots_module,
+        "recognise_slot_patterns",
+        derived(DerivedId.SLOT_PATTERNS, "slot_patterns", slots, []),
+    )
+    monkeypatch.setattr(
         oriented_slots_module,
         "recognise_oriented_slot_patterns",
-        derived("oriented_slot_patterns", [], []),
+        derived(DerivedId.ORIENTED_SLOT_PATTERNS, "oriented_slot_patterns", [], []),
     )
-    patch(grooves_module, "_discover_grooves", cyl_consumer("grooves", []))
-    patch(flats_module, "_discover_flats", cyl_consumer("flats", []))
-    patch(slots_module, "_discover_pockets", counted("pockets", pockets))
-    patch(passages_module, "_discover_section_passages", counted("passages", passages))
-    patch(slots_module, "recognise_pocket_patterns", derived("pocket_patterns", pockets, []))
-    patch(pads_module, "_discover_rectangular_pads", counted("pads", []))
-    patch(
+    monkeypatch.setattr(
+        grooves_module, "_discover_grooves", cyl_consumer(FamilyId.GROOVES, "grooves", [])
+    )
+    monkeypatch.setattr(flats_module, "_discover_flats", cyl_consumer(FamilyId.FLATS, "flats", []))
+    monkeypatch.setattr(
+        slots_module, "_discover_pockets", counted(FamilyId.POCKETS, "pockets", pockets)
+    )
+    monkeypatch.setattr(
+        passages_module,
+        "_discover_section_passages",
+        counted(FamilyId.PASSAGES, "passages", passages),
+    )
+    monkeypatch.setattr(
+        slots_module,
+        "recognise_pocket_patterns",
+        derived(DerivedId.POCKET_PATTERNS, "pocket_patterns", pockets, []),
+    )
+    monkeypatch.setattr(
+        pads_module, "_discover_rectangular_pads", counted(FamilyId.PADS, "pads", [])
+    )
+    monkeypatch.setattr(
         repeating_profiles_module,
         "_discover_repeating_radial_profiles",
-        counted("radial_profiles", []),
+        counted(FamilyId.REPEATING_RADIAL_PROFILES, "radial_profiles", []),
     )
-    patch(turned_module, "_discover_turned_steps", cyl_consumer("turned_steps", []))
+    monkeypatch.setattr(
+        turned_module,
+        "_discover_turned_steps",
+        cyl_consumer(FamilyId.TURNED_STEPS, "turned_steps", []),
+    )
     # Fully-attributed FaceLevels cannot be fabricated without original horizontal-face evidence.
     # This test owns dependency injection, so keep the family empty but still invoked and bound.
     levels: list[FaceLevel] = []
-    patch(levels_module, "_discover_step_levels", counted("step_levels", levels))
-    patch(levels_module, "_discover_risers", counted("risers", []))
-    patch(chamfers_module, "_discover_chamfers", counted("chamfers", []))
-    patch(angled_steps_module, "_discover_angled_steps", counted("angled_steps", []))
-    patch(
+    monkeypatch.setattr(
+        levels_module, "_discover_step_levels", counted(FamilyId.STEP_LEVELS, "step_levels", levels)
+    )
+    monkeypatch.setattr(levels_module, "_discover_risers", counted(FamilyId.RISERS, "risers", []))
+    monkeypatch.setattr(
+        chamfers_module, "_discover_chamfers", counted(FamilyId.CHAMFERS, "chamfers", [])
+    )
+    monkeypatch.setattr(
+        angled_steps_module,
+        "_discover_angled_steps",
+        counted(FamilyId.ANGLED_STEPS, "angled_steps", []),
+    )
+    monkeypatch.setattr(
         paired_ramp_steps_module,
         "_discover_paired_ramp_steps",
-        counted("paired_ramp_steps", []),
+        counted(FamilyId.PAIRED_RAMP_STEPS, "paired_ramp_steps", []),
     )
-    patch(
+    monkeypatch.setattr(
         through_steps_module,
         "_discover_through_steps",
-        counted("through_steps", []),
+        counted(FamilyId.THROUGH_STEPS, "through_steps", []),
     )
-    patch(
+    monkeypatch.setattr(
         circular_blind_steps_module,
         "_discover_circular_blind_steps",
-        counted("circular_blind_steps", []),
+        counted(FamilyId.CIRCULAR_BLIND_STEPS, "circular_blind_steps", []),
     )
-    patch(
+    monkeypatch.setattr(
         rectangular_blind_slots_module,
         "_discover_rectangular_blind_slots",
-        counted("rectangular_blind_slots", []),
+        counted(FamilyId.RECTANGULAR_BLIND_SLOTS, "rectangular_blind_slots", []),
     )
-    patch(
+    monkeypatch.setattr(
         round_bottom_slots_module,
         "_discover_round_bottom_blind_slots",
-        counted("round_bottom_blind_slots", []),
+        counted(FamilyId.ROUND_BOTTOM_BLIND_SLOTS, "round_bottom_blind_slots", []),
     )
 
     # All five recess families are proposed before one reconciler decides among them. Passage
@@ -303,19 +329,21 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
 
         return reconcile
 
-    patch(result_module, "reconcile_recess_candidates", fake_recesses)
-    patch(result_module, "reconcile_bevel_candidates", fake_policy("reconcile_bevels"))
-    patch(
+    monkeypatch.setattr(result_module, "reconcile_recess_candidates", fake_recesses)
+    monkeypatch.setattr(
+        result_module, "reconcile_bevel_candidates", fake_policy("reconcile_bevels")
+    )
+    monkeypatch.setattr(
         result_module,
         "reconcile_circular_step_fillets",
         fake_policy("reconcile_circular_step_fillets"),
     )
-    patch(
+    monkeypatch.setattr(
         result_module,
         "reconcile_profiled_bore_candidates",
         fake_policy("reconcile_profiled_bores"),
     )
-    patch(
+    monkeypatch.setattr(
         result_module,
         "reconcile_step_groove_candidates",
         fake_policy("reconcile_step_grooves"),
@@ -329,62 +357,69 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
         assert reconciliation.dispositions == ()
         return ()
 
-    patch(result_module, "diagnose_residuals", fake_diagnostics)
-    patch(fillets_module, "_discover_fillets", counted("fillets", []))
+    monkeypatch.setattr(result_module, "diagnose_residuals", fake_diagnostics)
+    monkeypatch.setattr(
+        fillets_module, "_discover_fillets", counted(FamilyId.FILLETS, "fillets", [])
+    )
     # A declared family is patched where it lives; the registry no longer imports its core.
-    patch(plates_module, "_discover_plates", counted("plates", []))
-    patch(gussets_module, "_discover_gusset_ribs", counted("gusset_ribs", []))
+    monkeypatch.setattr(plates_module, "_discover_plates", counted(FamilyId.PLATES, "plates", []))
+    monkeypatch.setattr(
+        gussets_module, "_discover_gusset_ribs", counted(FamilyId.GUSSET_RIBS, "gusset_ribs", [])
+    )
 
     # Seven families reached real discovery until the roster check below was written: prismatic
     # pockets, the two edge-open recesses, blends, gusset-rib patterns, the section-recess
     # aggregate and oriented slots.
     # None of them failed, because an empty part yields empty records either way -- which is
     # exactly why nothing noticed. #624 found `gussets` in the same state.
-    patch(
+    monkeypatch.setattr(
         prismatic_pockets_module,
         "_discover_prismatic_pockets",
-        counted("prismatic_pockets", []),
+        counted(FamilyId.PRISMATIC_POCKETS, "prismatic_pockets", []),
     )
-    patch(
+    monkeypatch.setattr(
         edge_open_circular_recesses_module,
         "_discover_edge_open_circular_pockets",
-        counted("edge_open_circular_pockets", []),
+        counted(FamilyId.EDGE_OPEN_CIRCULAR_POCKETS, "edge_open_circular_pockets", []),
     )
-    patch(
+    monkeypatch.setattr(
         edge_open_prismatic_recesses_module,
         "_discover_edge_open_prismatic_recesses",
-        counted("edge_open_prismatic_recesses", []),
+        counted(FamilyId.EDGE_OPEN_PRISMATIC_RECESSES, "edge_open_prismatic_recesses", []),
     )
-    patch(blends_module, "_discover_blends", counted("blends", []))
-    patch(
+    monkeypatch.setattr(blends_module, "_discover_blends", counted(FamilyId.BLENDS, "blends", []))
+    monkeypatch.setattr(
         gussets_module,
         "recognise_gusset_rib_patterns",
-        derived("gusset_rib_patterns", [], []),
+        derived(DerivedId.GUSSET_RIB_PATTERNS, "gusset_rib_patterns", [], []),
     )
 
     # These two take no `part`, so they cannot use the shared fakes above.
     def fake_section_recesses(*, writer, surfaces):
         calls["section_recesses"] = calls.get("section_recesses", 0) + 1
+        stood_in_for.add(FamilyId.SECTION_RECESSES)
         assert writer is not None and surfaces is not None
         return []
 
-    patch(section_recesses_module, "discover_section_recesses", fake_section_recesses)
+    monkeypatch.setattr(section_recesses_module, "discover_section_recesses", fake_section_recesses)
 
     def fake_body_keys(graph, solids):
         calls["oriented_slot_body_keys"] = calls.get("oriented_slot_body_keys", 0) + 1
+        stood_in_for.add(FamilyId.ORIENTED_SLOTS)
         assert solids == ()
         return {}
 
-    patch(oriented_slots_module, "_body_keys", fake_body_keys)
+    monkeypatch.setattr(oriented_slots_module, "_body_keys", fake_body_keys)
 
     def fake_project(source, body_key):
-        # Unreachable here -- `passages` is empty, so the loop this sits in never runs -- but it
-        # is still a route the registry says discovery goes through, so it is intercepted rather
-        # than excused. An exception roster would need maintaining as the empty families change.
+        # Unreachable while `passages` is empty, which is the loop this sits in. Intercepted
+        # anyway so the test does not quietly depend on that staying true -- real projection
+        # would run the moment a passage appeared. `ORIENTED_SLOTS` is recorded by `_body_keys`
+        # above, which is why this stub alone does not add to `stood_in_for`.
         calls["oriented_slot_project"] = calls.get("oriented_slot_project", 0) + 1
         return None
 
-    patch(oriented_slots_module, "_project", fake_project)
+    monkeypatch.setattr(oriented_slots_module, "_project", fake_project)
 
     # A part rather than a bare object: the orchestrator now builds one face graph for the
     # families that record which faces they were built from, and an empty inventory is all this
@@ -393,19 +428,25 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
         def faces(self):
             return []
 
-    # Every route the registry says a run reaches discovery through was intercepted. Without
-    # this the test still passes with a family missing -- its real recogniser runs, returns
-    # nothing on an empty part, and contributes no counter to compare. That is how `gussets`
-    # (#624) and seven more went unnoticed.
-    rosters = _registry_discovery_targets()
-    # A family the walk can see no interceptable call in is the same silence in a new shape: it
-    # subtracts nothing below, so it would pass unpatched. Name it instead of skipping it.
-    invisible = sorted(name for name, targets in rosters.items() if not targets)
-    assert invisible == [], f"no interceptable discovery call found for: {invisible}"
-    unintercepted = sorted(frozenset().union(*rosters.values()) - patched)
-    assert unintercepted == [], f"reached real discovery: {unintercepted}"
-
     built = result_module.build_recognition_result(_Part())
+
+    # Every registered definition was stood in for. A family this test forgot to intercept runs
+    # its real discovery, returns nothing on an empty part, and contributes no counter -- which
+    # looks identical to a family that was intercepted and found nothing. This roster is the
+    # registry's own, so it cannot be written short the way a hand-kept one was for `gussets`
+    # (#624) and seven others.
+    #
+    # It replaces an AST walk over each declaration's `discover` adapter, which derived the same
+    # roster by reading bare-name calls out of the source. That walk was escaped three separate
+    # times -- by an aliased local, by a family that aliased its discovery while calling an
+    # unrelated helper, and by rerouting a declaration at all (#672). Asking what the run
+    # actually stood in for cannot be escaped by a call shape, and is a good deal less code.
+    registered = {item.family for item in PHYSICAL_DEFINITIONS} | {
+        item.identifier for item in DERIVED_DEFINITIONS
+    }
+    assert stood_in_for == registered, (
+        f"registered but never intercepted: {sorted(str(i) for i in registered - stood_in_for)}"
+    )
 
     expected = {
         "angled_steps",
