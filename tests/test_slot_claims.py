@@ -27,15 +27,21 @@ from build123d import Box, Cylinder, Pos
 import quiddity as r
 from quiddity._adjacency import FaceGraph
 from quiddity._claims import ClaimLedger
+from quiddity._recess_features import _discover_slots
 
 _AXES = {"x": 0, "y": 1, "z": 2}
 
 
 def claimed(part):
-    """Recognise with a ledger, and prove doing so changed nothing about the result."""
+    """Discover with a writer, and prove doing so changed nothing about the result.
+
+    The public `recognise_slots` is writer-free per ADR 0002, so the parity this asserts is
+    between it and the core the registry calls, which is where it always mattered: the run must
+    see what a standalone caller sees.
+    """
 
     ledger = ClaimLedger(FaceGraph(part))
-    with_ledger = r.recognise_slots(part, ledger=ledger)
+    with_ledger = _discover_slots(part, writer=ledger.writer)
     assert with_ledger == r.recognise_slots(part), "claiming changed what was recognised"
     return ledger, with_ledger
 
@@ -149,8 +155,11 @@ def test_a_ledger_built_from_another_part_is_refused_rather_than_left_empty():
     twin = Box(120, 60, 20) - Box(30, 10, 20)
     assert r.recognise_slots(twin) == r.recognise_slots(part), "the twin is this part by value"
 
-    with pytest.raises(ValueError, match="built from a different part"):
-        r.recognise_slots(part, ledger=ClaimLedger(FaceGraph(twin)))
+    with pytest.raises(ValueError, match="source identity does not belong to this run") as caught:
+        _discover_slots(part, writer=ClaimLedger(FaceGraph(twin)).writer)
+    # The core wraps the resolution failure in its own attribution error; the original reason
+    # rides along as the cause rather than being replaced by it.
+    assert "built from a different part" in str(caught.value.__cause__)
 
 
 def test_the_ledger_is_written_and_never_read():
@@ -165,5 +174,7 @@ def test_the_ledger_is_written_and_never_read():
     prefilled = ClaimLedger(graph)
     prefilled.add_defining("something else entirely", graph.nodes[:4])
 
-    assert r.recognise_slots(part) == r.recognise_slots(part, ledger=ClaimLedger(FaceGraph(part)))
-    assert r.recognise_slots(part) == r.recognise_slots(part, ledger=prefilled)
+    assert r.recognise_slots(part) == _discover_slots(
+        part, writer=ClaimLedger(FaceGraph(part)).writer
+    )
+    assert r.recognise_slots(part) == _discover_slots(part, writer=prefilled.writer)

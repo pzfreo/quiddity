@@ -1231,7 +1231,10 @@ def test_private_writer_roster_and_prohibited_reads_are_closed_alias_aware() -> 
                 calls.append((path.name, node))
     # The declaration is in `slots.py`, the core and public entry point in `_recess_features.py`.
     assert importers == ["slots.py"]
-    assert sorted(path for path, _call in calls) == ["_recess_features.py", "slots.py"]
+    # One caller, not two. `recognise_pockets` reached the core as well, to serve its `ledger=`;
+    # that parameter is gone under ADR 0002's writer-free rule, so the declaration is the only
+    # route in and the public function no longer has a writer to hand anyone.
+    assert sorted(path for path, _call in calls) == ["slots.py"]
     declared_call = next(call for path, call in calls if path == "slots.py")
     keywords = {keyword.arg: keyword.value for keyword in declared_call.keywords}
     writer = keywords["writer"]
@@ -1244,15 +1247,13 @@ def test_private_writer_roster_and_prohibited_reads_are_closed_alias_aware() -> 
         "writer",
         "_wrap_errors",
     )
-    assert tuple(inspect.signature(recognise_pockets).parameters) == (
-        "part",
-        "face_edges",
-        "ledger",
-    )
-    public_call = next(call for path, call in calls if path == "_recess_features.py")
-    public_keywords = {keyword.arg: keyword.value for keyword in public_call.keywords}
-    assert isinstance(public_keywords["writer"], ast.Name)
-    assert public_keywords["writer"].id == "writer"
+    # Writer-free per ADR 0002: no `ledger`, and nothing else a caller could hand a writer
+    # through. The parameter exposed issuance authority no supported consumer should hold,
+    # through private types that carry no compatibility promise.
+    assert tuple(inspect.signature(recognise_pockets).parameters) == ("part", "face_edges")
+    # The public function used to appear in `calls` too, handing the core the writer it had been
+    # given. The roster assertion above is now what proves it does not: one caller, and it is the
+    # declaration.
 
     def resolved_call(source: str) -> str:
         tree = ast.parse(source)

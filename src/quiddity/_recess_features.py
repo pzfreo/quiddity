@@ -10,7 +10,7 @@ from functools import partial
 from quiddity._adjacency import FaceEdges, FaceGraph, FaceNode, SolidRef
 from quiddity._body_identity import unambiguous_body_keys
 from quiddity._candidates import FamilyId
-from quiddity._claims import ClaimLedger, EvidenceWriter
+from quiddity._claims import EvidenceWriter
 from quiddity._recess_core import (
     _channel_proposals_one,
     _channel_sort_key,
@@ -42,7 +42,6 @@ def recognise_slots(
     part: Part,
     *,
     face_edges: FaceEdges | None = None,
-    ledger: ClaimLedger | EvidenceWriter | None = None,
 ) -> list[Slot]:
     """Recognise enclosed through-slots independently within each solid in *part*.
 
@@ -55,36 +54,23 @@ def recognise_slots(
     A compound is scanned per solid so faces from separate components cannot
     combine into a fictitious slot across the gap between them.
 
-    *ledger* is injected the way *face_edges* is, and records which faces each returned slot was
-    built from -- its two walls, plus the walls of every candidate folded into it: the same void
-    seen through its other wall pair, and the arms a crossing channel split it into. It changes
-    nothing about what is returned: claims are written and never read here, so no slot's
-    existence can depend on another family having run. It exists so a second family can ask
-    whether it is describing the same void, instead of comparing record coordinates.
-
-    *ledger*'s graph must have been built from *part*; a face that does not resolve against it
-    is refused rather than silently claiming nothing, because an empty ledger would otherwise
-    read as "no overlap" to the reconciler it exists to serve.
-
-    Writer-enabled discovery records the complete source set selected by the occurrence route:
-    every planar wall intentionally retained by merge/collapse plus every patch in the selected
-    low/high cylindrical cap groups. Consumers that compare planar overlap continue to see the
-    same wall subset; cap-recovered occurrences now carry the evidence that establishes them.
+    Writer-free, per ADR 0002: the claim sidecar is not a public parameter. It exposed an
+    internal capability no supported consumer should hold -- issuance authority over a run's
+    claims -- through types (`ClaimLedger`, `EvidenceWriter`, `FaceGraph`) that are private and
+    carry no compatibility promise. Orchestrated runs reach :func:`_discover_slots` directly,
+    and the legitimate read-side need is served by the public evidence API.
     """
     solids = list(part.solids())
     # STEP wrappers may also contain loose construction geometry. The actual solid
     # supplies both discovery scope and the same body signature used by other families.
     sources = solids or [part]
-    if ledger is None:
-        pairs = _body_scoped_pairs(
-            sources,
-            partial(_recognise_slots_one, face_edges=face_edges),
-            properties=solid_properties(None),
-        )
-        pairs.sort(key=lambda pair: (pair[0].width, _region_center(pair[0])))
-        return [record for record, _nodes in pairs]
-    writer = ledger.writer if isinstance(ledger, ClaimLedger) else ledger
-    return _discover_slots(part, face_edges=face_edges, writer=writer, _wrap_identity_errors=False)
+    pairs = _body_scoped_pairs(
+        sources,
+        partial(_recognise_slots_one, face_edges=face_edges),
+        properties=solid_properties(None),
+    )
+    pairs.sort(key=lambda pair: (pair[0].width, _region_center(pair[0])))
+    return [record for record, _nodes in pairs]
 
 
 def _discover_slots(
@@ -173,7 +159,6 @@ def recognise_pockets(
     part: Part,
     *,
     face_edges: FaceEdges | None = None,
-    ledger: ClaimLedger | EvidenceWriter | None = None,
 ) -> list[Pocket]:
     """Recognise blind rectangular recesses independently within each solid.
 
@@ -184,30 +169,24 @@ def recognise_pockets(
     is long is dimensioned correctly. A compound is scanned per solid so separate
     components cannot supply walls or floors for one fictitious recess.
 
-    *ledger* is injected the way it is on :func:`recognise_slots`, and changes nothing about
-    what is returned: claims are written and never read here. What a pocket claims depends on
-    how it was found. From opposed walls it claims the two walls, and *not* the floor, which
-    only had to exist -- the same line the through-slot draws, since the depth is the walls'
-    own overlap rather than the floor's position. From a corner notch it claims the floor too,
-    because that path iterates floors and reads the notch's footprint off the one it finds. A
-    stubby obround pocket owns the complete low/high cylindrical cap patch clusters that establish
-    it. An elongated obround owns those cap patches in addition to its retained planar walls.
-
-    *ledger*'s graph must have been built from *part*; a face that does not resolve is refused
-    rather than silently claiming nothing.
+    Writer-free, per ADR 0002, as :func:`recognise_slots` is. What a pocket claims when a run
+    does write claims depends on how it was found: from opposed walls it claims the two walls
+    and *not* the floor, which only had to exist -- the same line the through-slot draws, since
+    the depth is the walls' own overlap rather than the floor's position. From a corner notch it
+    claims the floor too, because that path iterates floors and reads the notch's footprint off
+    the one it finds. A stubby obround pocket owns the complete low/high cylindrical cap patch
+    clusters that establish it; an elongated obround owns those in addition to its retained
+    planar walls. That is :func:`_discover_pockets`, which the registry calls.
     """
     solids = list(part.solids())
     sources = solids or [part]
-    if ledger is None:
-        pairs = _body_scoped_pairs(
-            sources,
-            partial(_recognise_pockets_one, face_edges=face_edges),
-            properties=solid_properties(None),
-        )
-        pairs.sort(key=lambda pair: (pair[0].width, _region_center(pair[0])))
-        return [record for record, _nodes in pairs]
-    writer = ledger.writer if isinstance(ledger, ClaimLedger) else ledger
-    return _discover_pockets(part, face_edges=face_edges, writer=writer, _wrap_errors=False)
+    pairs = _body_scoped_pairs(
+        sources,
+        partial(_recognise_pockets_one, face_edges=face_edges),
+        properties=solid_properties(None),
+    )
+    pairs.sort(key=lambda pair: (pair[0].width, _region_center(pair[0])))
+    return [record for record, _nodes in pairs]
 
 
 def _discover_pockets(
@@ -298,7 +277,6 @@ def recognise_channels(
     part: Part,
     *,
     face_edges: FaceEdges | None = None,
-    ledger: ClaimLedger | EvidenceWriter | None = None,
 ) -> list[Channel]:
     """Recognise full-span floored channels independently within each solid.
 
@@ -307,17 +285,12 @@ def recognise_channels(
     wall-to-wall width is an independent defining measurement. Body-local bounds prove
     that the channel reaches the ends of the same solid whose faces bound it.
 
-    *ledger* is accepted but **never written to**: this family claims nothing, because no rule
-    needs to ask what a channel was built from. What the parameter is for is the *graph* --
-    `_planar_faces` reads each face's material-side normal from it, and a family without one
-    builds its own. Passing the run's keeps a census to a single graph rather than one per solid
-    for this family alone.
+    Writer-free, per ADR 0002. This family claims nothing in any case -- no rule needs to ask
+    what a channel was built from. The run's shared graph, which `_planar_faces` reads each
+    face's material-side normal from, reaches :func:`_discover_channels` directly; called here
+    the family builds its own per solid.
     """
-    return _discover_channels(
-        part,
-        face_edges=face_edges,
-        graph=None if ledger is None else ledger.graph,
-    )
+    return _discover_channels(part, face_edges=face_edges, graph=None)
 
 
 def _discover_channels(

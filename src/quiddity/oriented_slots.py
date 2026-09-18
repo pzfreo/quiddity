@@ -11,7 +11,6 @@ from dataclasses import dataclass
 
 from quiddity._adjacency import FaceGraph, FaceNode, SolidRef
 from quiddity._candidates import CompletedInputs, DerivedId, EvidenceSink, FamilyId
-from quiddity._claims import ClaimLedger, EvidenceWriter
 from quiddity._definitions import (
     AcceptedInputs,
     Counted,
@@ -211,17 +210,11 @@ def _from_proposals(
     return [record for record, _nodes in found]
 
 
-def recognise_oriented_slots(
-    part: Part, *, ledger: ClaimLedger | EvidenceWriter | None = None
-) -> list[OrientedSlot]:
+def recognise_oriented_slots(part: Part) -> list[OrientedSlot]:
     """Recognise rectangular through slots with non-principal in-plane directions."""
 
-    graph = FaceGraph(part) if ledger is None else ledger.graph
-    return _from_proposals(
-        graph,
-        section_ring_proposals(part, graph),
-        None if ledger is None else ledger.sink,
-    )
+    graph = FaceGraph(part)
+    return _from_proposals(graph, section_ring_proposals(part, graph), None)
 
 
 def _pattern_key(slot: OrientedSlot) -> tuple[object, ...]:

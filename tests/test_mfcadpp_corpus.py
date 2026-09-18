@@ -40,6 +40,7 @@ from quiddity._adjacency import FaceGraph
 from quiddity._candidates import FamilyId
 from quiddity._claims import ClaimLedger
 from quiddity._dispositions import Outcome, ReasonCode
+from quiddity._recess_features import _discover_pockets, _discover_slots
 from quiddity._reconcile import (
     chamfers_that_are_not_angled_steps,
     reconcile_recesses,
@@ -702,8 +703,11 @@ def test_accepted_recess_claims_have_no_containment_conflicts(corpus):
     for name, part, _labels, _faces, _at in corpus:
         graph = FaceGraph(part)
         ledger = ClaimLedger(graph)
-        slots = recognition.recognise_slots(part, ledger=ledger)
-        pockets = legacy_recognition.recognise_pockets(part, ledger=ledger)
+        # Both entry points are writer-free per ADR 0002; claims come from the cores the
+        # registry calls. The remaining two families keep their `ledger=` until they are made
+        # writer-free in turn.
+        slots = _discover_slots(part, writer=ledger.writer)
+        pockets = _discover_pockets(part, writer=ledger.writer)
         prismatic = legacy_recognition.recognise_prismatic_pockets(part, ledger=ledger)
         passages = legacy_recognition.recognise_section_passages(part, ledger=ledger)
         for family, records in (

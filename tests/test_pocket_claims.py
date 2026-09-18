@@ -24,6 +24,7 @@ from build123d import Box, Cylinder, Pos
 
 from quiddity._adjacency import FaceGraph
 from quiddity._claims import ClaimLedger
+from quiddity._recess_features import _discover_pockets
 from tools._legacy_recognition import namespace
 
 r = namespace()
@@ -32,10 +33,14 @@ _AXES = {"x": 0, "y": 1, "z": 2}
 
 
 def claimed(part):
-    """Recognise with a ledger, and prove doing so changed nothing about the result."""
+    """Discover with a writer, and prove doing so changed nothing about the result.
+
+    `recognise_pockets` is writer-free per ADR 0002, so this pins the parity that always
+    mattered: the core the registry calls returns what a standalone caller sees.
+    """
 
     ledger = ClaimLedger(FaceGraph(part))
-    with_ledger = r.recognise_pockets(part, ledger=ledger)
+    with_ledger = _discover_pockets(part, writer=ledger.writer)
     assert with_ledger == r.recognise_pockets(part), "claiming changed what was recognised"
     return ledger, with_ledger
 
@@ -161,8 +166,10 @@ def test_a_ledger_built_from_another_block_is_refused_rather_than_left_empty():
 
     foreign = ClaimLedger(FaceGraph(twin))
     try:
-        r.recognise_pockets(part, ledger=foreign)
+        _discover_pockets(part, writer=foreign.writer)
     except ValueError as refusal:
-        assert "built from a different part" in str(refusal)
+        # The core labels this an attribution failure and keeps the resolution reason as cause.
+        assert "source identity does not belong to this run" in str(refusal)
+        assert "built from a different part" in str(refusal.__cause__)
     else:
-        raise AssertionError("recognise_pockets accepted another part's graph")
+        raise AssertionError("pocket discovery accepted another part's graph")
