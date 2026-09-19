@@ -1,12 +1,66 @@
 # Release notes
 
-## Unreleased
+## 0.3.0 — Quiddity
 
-- **Breaking:** `RecognitionResult.passages` is removed. It was a compatibility projection of the
-  passages family onto the pre-0.4 `Passage` record, and it owned no Candidate or evidence of its
-  own. `RecognitionResult.section_passages` is now the only passage output the aggregate carries;
-  writer-free `recognise_passages` still returns legacy records directly. See
-  `docs/migration-0.4.md`.
+Two breaking changes to the public API, and a new guide. The minor version moves rather than the
+patch because an upgrade is not automatically safe: see both items below for whether you are
+affected.
+
+### Breaking: `recognise_*` functions no longer accept `ledger=`
+
+Eighteen public recognisers took `ledger: ClaimLedger | EvidenceWriter | None = None`. They no
+longer do, so a call passing it raises `TypeError`. The functions are otherwise unchanged --
+`recognise_slots(part)` and every other ordinary call is unaffected.
+
+`recognise_angled_steps`, `recognise_chamfers`, `recognise_channels`,
+`recognise_circular_blind_steps`, `recognise_edge_open_circular_pockets`,
+`recognise_edge_open_prismatic_recesses`, `recognise_grooves`, `recognise_gusset_ribs`,
+`recognise_oriented_slots`, `recognise_paired_ramp_steps`, `recognise_pockets`,
+`recognise_prismatic_pockets`, `recognise_rectangular_blind_slots`,
+`recognise_round_bottom_blind_slots`, `recognise_section_passages`, `recognise_slots`,
+`recognise_through_steps`, `recognise_turned_steps`.
+
+`recognise_passages`, the pre-0.4 compatibility API, still accepts the parameter and raises
+`PassageCompatibilityError` rather than honouring it. It is the one exception, and ADR 0002 says
+so rather than claiming there is none.
+
+The parameter offered issuance authority over a run's claims, through types that are private and
+carry no compatibility promise (`ClaimLedger`, `EvidenceWriter`, `EvidenceSink`). Reading
+evidence is the legitimate need and has its own public API: `build_framed_recognition_evidence`,
+or `quiddity.evidence.build_recognition_evidence` for caller coordinates. Both give you the
+records and the faces each was established by.
+
+### Breaking: `RecognitionResult.passages` is removed
+
+The field is gone from the aggregate result. **Nothing replaces it on `RecognitionResult`
+directly**, and there is no `section_passages` field -- constant-section voids (passages,
+prismatic pockets, edge-open recesses) are published together as `section_recesses`.
+
+Two things to know before you filter that projection:
+
+- A run *reconciles*. A passage describing the same void as an oriented slot is dropped in favour
+  of the slot. Measured over the golden corpus, standalone discovery finds **11** passages across
+  four fixtures and a run publishes **one** with `classification.feature_kind == "passage"`.
+  Filtering for passage-kind records finds almost nothing, and raises no error.
+- `quiddity.passages.recognise_section_passages(part)` returns every ring standalone,
+  unreconciled, as `SectionPassage`. It is not root-exported, though `SectionPassage` is.
+  `recognise_passages(part)` still returns the pre-0.4 `Passage` records.
+
+See [`docs/migration-0.4.md`](docs/migration-0.4.md).
+
+### Added
+
+- [`docs/using-quiddity.md`](docs/using-quiddity.md): the three normal ways into the library --
+  recognise a whole part, recognise with source-face evidence, inspect one face -- each with a
+  runnable example, and when reaching for an individual `recognise_*` function is the right call.
+  Linked from the README.
+
+### Internal
+
+- Every recogniser family now declares itself in its own module; `_registry.py` holds ordering,
+  dependencies and declarative metadata only.
+- ADR 0002 describes the final core/facade arrangement with no transitional exception, and both
+  halves are enforced by tests rather than review.
 
 ## 0.2.10 — Quiddity
 
