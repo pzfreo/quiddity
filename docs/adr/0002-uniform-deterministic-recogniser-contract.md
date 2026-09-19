@@ -38,20 +38,40 @@ configured tolerance. It never calls a sibling recogniser. Orchestration compute
 evidence once (cylinder inventory, face graph, face-edge memo) and injects it; a recogniser
 called standalone derives what it was not given.
 
-**Injected evidence is read; the claim sidecar is written.** Where a family has migrated onto the
-evidence seam, the one mutable parameter is `ledger: ClaimLedger | EvidenceWriter | None = None`. During discovery a recogniser appends the
+**Injected evidence is read; the claim sidecar is written.** The sidecar is a parameter of the
+private core, not of the public function -- see below. During discovery a recogniser appends the
 faces each record was established by and never reads back, so no family's output can depend on
-which family ran first. On valid closed-solid input, passing a ledger changes nothing about the
-return value; on open or ambiguous topology the public facade may still return records for
-compatibility while the writer-enabled core refuses before publication. A ledger built from a
-different part is refused, not silently ignored.
+which family ran first. Passing a writer changes nothing about the return value. A writer built
+from a different part is refused, not silently ignored: the core labels it a source-identity
+failure and chains the original reason rather than replacing it.
 
 **One private core, one public facade.** The public function is a writer-free facade over a
-private core that takes an optional writer, and the registry calls that core, or the public
-function itself with `ledger=` where the family has no separate core. Across the
-two calls parity means record type, value, order and `to_dict()`, not Python identity. Within a
-writer-enabled run each Candidate retains the exact returned record occurrence, so equal-valued
-occurrences stay distinct.
+private core that takes the writer, and the registry calls the core. Every *registered* family
+entry point -- the `public_entrypoint` each `PhysicalDefinition` names -- carries no `ledger`,
+`writer` or `sink`, and no physical declaration reaches its family through the facade. Both are
+enforced by `tests/test_recogniser_contract.py` rather than left to review.
+
+One deprecated function is outside that scope and still carries the parameter:
+`quiddity.passages.recognise_passages`, the pre-0.4 compatibility API, which accepts `ledger=`
+and raises `PassageCompatibilityError` rather than honouring it. It is not any family's declared
+entry point, so the test does not reach it, and saying "no exception" would be wrong.
+
+The reason is not tidiness. `ClaimLedger`, `EvidenceWriter` and `EvidenceSink` are private and
+carry no compatibility promise, so a public parameter typed with one offers a consumer issuance
+authority over a run's claims -- a capability nothing outside the package should hold. A caller
+can still import those types and construct one; that is unsupported private usage, not a reason
+to advertise it. The legitimate read-side need is the evidence API, which is separately public.
+
+Across the two calls parity means record type, value, order and `to_dict()`, not Python
+identity. Within a writer-enabled run each Candidate retains the exact returned record
+occurrence, so equal-valued occurrences stay distinct.
+
+**`public_entrypoint` names the function a consumer calls**, which is a different question from
+what a family's discovery contributes to a run. The two are not in general output-equivalent: an
+entry point may be broader than its core (`step_levels`), a view over a whole completed run
+(`section_recesses`), or missing a predecessor the aggregate injects (`holes` and its
+countersinks). `tests/test_recogniser_contract.py` compares the two for every other family and
+records those three with their reasons.
 
 **Defining versus consulted evidence.** A record's claim names only the original faces that
 establish it: the walls that set a slot's width, the bore patches of a hole, the six sides of a

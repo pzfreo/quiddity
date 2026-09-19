@@ -632,8 +632,19 @@ def test_shared_node_with_conflicting_issuer_solidrefs_refuses_atomically(monkey
     assert ledger.candidate_set(FamilyId.SLOTS).candidates == ()
 
 
-@pytest.mark.parametrize("wrap", [True, False])
-def test_candidate_node_resolution_preserves_the_public_error_boundary(monkeypatch, wrap) -> None:
+def test_a_resolution_failure_is_labelled_an_attribution_error_and_keeps_its_cause(
+    monkeypatch,
+) -> None:
+    """One boundary now, not two.
+
+    `_discover_slots` carried `_wrap_identity_errors` so the public `recognise_slots(ledger=...)`
+    route could surface a raw resolution error while an orchestrated run relabelled it. That
+    public route is gone under ADR 0002's writer-free rule, and the switch with it, so the core
+    always labels a *source-identity resolution* failure. Unrelated kernel and predicate defects
+    stay geometry failures and are deliberately not relabelled. The original is chained rather
+    than replaced, which is what the unwrapped path existed to keep.
+    """
+
     part = Box(80, 50, 16) - Box(28, 10, 16)
     ledger = ClaimLedger(FaceGraph(part))
 
@@ -641,13 +652,14 @@ def test_candidate_node_resolution_preserves_the_public_error_boundary(monkeypat
         raise KeyError("stale issued node")
 
     monkeypatch.setattr(ledger.graph, "face", stale)
-    error = _SlotAttributionError if wrap else KeyError
-    with pytest.raises(error):
-        _discover_slots(part, writer=ledger.writer, _wrap_identity_errors=wrap)
+    with pytest.raises(_SlotAttributionError, match="does not belong to this run") as caught:
+        _discover_slots(part, writer=ledger.writer)
+    assert isinstance(caught.value.__cause__, KeyError)
+    assert "stale issued node" in str(caught.value.__cause__)
     assert ledger.candidate_set(FamilyId.SLOTS).candidates == ()
 
 
-def test_public_compatibility_path_does_not_relabel_source_identity(monkeypatch) -> None:
+def test_a_foreign_source_face_is_labelled_and_keeps_its_reason(monkeypatch) -> None:
     part = Box(80, 50, 16) - Box(28, 10, 16)
     ledger = ClaimLedger(FaceGraph(part))
 
@@ -655,8 +667,9 @@ def test_public_compatibility_path_does_not_relabel_source_identity(monkeypatch)
         raise ValueError("foreign source face")
 
     monkeypatch.setattr(ledger.graph, "require_node", stale)
-    with pytest.raises(ValueError, match="foreign source face"):
-        _discover_slots(part, writer=ledger.writer, _wrap_identity_errors=False)
+    with pytest.raises(_SlotAttributionError, match="does not belong to this run") as caught:
+        _discover_slots(part, writer=ledger.writer)
+    assert "foreign source face" in str(caught.value.__cause__)
     assert ledger.candidate_set(FamilyId.SLOTS).candidates == ()
 
 

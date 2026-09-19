@@ -568,7 +568,7 @@ def test_unexpected_geometry_value_error_is_not_relabelled(monkeypatch) -> None:
     assert ledger.candidate_set(FamilyId.POCKETS).candidates == ()
 
 
-def test_writer_graph_authority_and_unwrapped_stale_identity_fail_closed(monkeypatch) -> None:
+def test_writer_graph_authority_and_stale_identity_fail_closed(monkeypatch) -> None:
     import quiddity._recess_features as module
 
     part = Box(60, 40, 12) - Pos(0, 0, 4) * Box(20, 12, 8)
@@ -582,8 +582,9 @@ def test_writer_graph_authority_and_unwrapped_stale_identity_fail_closed(monkeyp
     stale = _RecessProposal(record, stale_nodes, floors=frozenset({FaceNode(999_998)}))
     monkeypatch.setattr(module, "_body_scoped_proposals", lambda *_a, **_kw: [stale])
     ledger = ClaimLedger(graph)
-    with pytest.raises(ValueError, match="not issued by this graph"):
-        _discover_pockets(part, writer=ledger.writer, _wrap_errors=False)
+    with pytest.raises(_PocketAttributionError, match="does not belong to this run") as caught:
+        _discover_pockets(part, writer=ledger.writer)
+    assert "not issued by this graph" in str(caught.value.__cause__)
     assert ledger.candidate_set(FamilyId.POCKETS).candidates == ()
 
 
@@ -1245,7 +1246,6 @@ def test_private_writer_roster_and_prohibited_reads_are_closed_alias_aware() -> 
         "face_edges",
         "graph",
         "writer",
-        "_wrap_errors",
     )
     # Writer-free per ADR 0002: no `ledger`, and nothing else a caller could hand a writer
     # through. The parameter exposed issuance authority no supported consumer should hold,

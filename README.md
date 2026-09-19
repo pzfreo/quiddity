@@ -17,6 +17,11 @@ records for features such as holes and counterbores, bosses, slots, pockets, pad
 fillets, chamfers, grooves, hole and pocket patterns, and turned steps. The records contain ordinary,
 JSON-serialisable geometry values rather than build123d or OCP objects.
 
+**New here? Start with [Using Quiddity](docs/using-quiddity.md).** It shows the three normal
+ways in — recognise a whole part, recognise with source-face evidence, or inspect one face — with
+a runnable example of each, and says when reaching for an individual `recognise_*` function is
+the right call rather than the wrong one.
+
 Most recognition families classify faces by native analytic surface type, so imported geometry
 should preserve its planes, cylinders and cones. STEP carries them, and every pinned fixture is
 proven to survive an export and re-import unchanged. Raised Pads additionally have measured support
