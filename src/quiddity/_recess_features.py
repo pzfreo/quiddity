@@ -79,7 +79,6 @@ def _discover_slots(
     face_edges: FaceEdges | None = None,
     graph: FaceGraph | None = None,
     writer: EvidenceWriter | None = None,
-    _wrap_identity_errors: bool = True,
 ) -> list[Slot]:
     """Discover Slots and optionally issue every selected wall and cap source patch."""
 
@@ -100,8 +99,6 @@ def _discover_slots(
             for face in part.faces():
                 writer.graph.require_node(face)
         except ValueError as exc:
-            if not _wrap_identity_errors:
-                raise
             raise _SlotAttributionError("Slot source identity does not belong to this run") from exc
         try:
             proposals = _body_scoped_proposals(sources, recognise_one, properties=properties)
@@ -146,8 +143,6 @@ def _discover_slots(
     except _SlotAttributionError:
         raise
     except (IndexError, KeyError, ValueError) as exc:
-        if not _wrap_identity_errors:
-            raise
         raise _SlotAttributionError("Slot source identity does not belong to this run") from exc
     records = [record for record, _nodes, _solid in pending]
     for record, nodes, _solid in pending:
@@ -195,7 +190,6 @@ def _discover_pockets(
     face_edges: FaceEdges | None = None,
     graph: FaceGraph | None = None,
     writer: EvidenceWriter | None = None,
-    _wrap_errors: bool = True,
 ) -> list[Pocket]:
     """Discover Pockets and optionally issue complete route-selected source faces."""
 
@@ -209,8 +203,6 @@ def _discover_pockets(
             for face in part.faces():
                 writer.graph.require_node(face)
         except ValueError as exc:
-            if not _wrap_errors:
-                raise
             raise _PocketAttributionError(
                 "Pocket source identity does not belong to this run"
             ) from exc
@@ -249,8 +241,6 @@ def _discover_pockets(
     except _PocketAttributionError:
         raise
     except (IndexError, KeyError, ValueError) as exc:
-        if not _wrap_errors:
-            raise
         raise _PocketAttributionError("Pocket source identity does not belong to this run") from exc
     pending = []
     seen: dict[tuple[Pocket, object], tuple[frozenset, frozenset]] = {}

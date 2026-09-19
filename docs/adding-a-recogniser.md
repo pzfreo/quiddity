@@ -1,5 +1,9 @@
 # Adding a recogniser
 
+Read [Using Quiddity](using-quiddity.md) first if you have not. It is what a consumer is shown,
+and a family that does not fit one of those three levels is usually a design problem rather than
+a documentation one.
+
 This is the shortest practical path for adding a feature recogniser without bypassing the
 package's AAG evidence model or the framework introduced by epic 0003.
 
@@ -334,7 +338,7 @@ present at every site.
 | 3 | `src/quiddity/result.py` | the typed result field; the projection is derived from the registry | `test_every_result_field_is_registry_owned_or_a_reviewed_exception` |
 | 4 | `src/quiddity/__init__.py` | the import and the `__all__` entry | `test_every_defined_public_recogniser_is_exported_and_snapshotted` |
 | 5 | `src/quiddity/census.py` | the census binding, or nothing when the family is `NotCounted` | `validate_census_contract` at import, and `tests/test_registry.py` |
-| 6 | `src/quiddity/_effective_surfaces.py` | a `SURFACE_READER_ROSTER` entry for the module and one `SURFACE_READER_SITES` entry per raw surface read | `test_effective_surface_reader_roster_covers_every_raw_classification` |
+| 6 | `src/quiddity/_effective_surfaces.py` | a `SURFACE_READER_ROSTER` entry for the module and one `SURFACE_READER_SITES` entry per raw surface read. The key is `module:function:role:ordinal`, so moving a read into a different function -- extracting a core, say -- changes it | `test_effective_surface_reader_roster_covers_every_raw_classification` |
 | 7 | `tests/test_architecture.py` | `PUBLIC_MODULES`, the module's seam entry, the module in the `_registry` and `result` seam sets, and its arc-reader sites | that file's own tests |
 | 8 | `docs/capabilities.md` | the recogniser row and one row per record | `tests/test_capability_claims.py` |
 | 9 | `tests/test_golden_fixtures.py`, `tests/test_registry.py`, `tests/test_mfcadpp_corpus.py` | the family in each file's deliberate pin: the expected fixture list, the registry order, and the corpus census counts | those files' own tests, which fail on the new family until edited |
@@ -472,6 +476,9 @@ uv run python tools/benchmark_recognition.py \
 - [ ] AAG/gAAG seams and context ownership are complete, not bounding-box guesses.
 - [ ] Expensive Booleans run only after cheap gates.
 - [ ] Discovery is write-only and does not call sibling recognisers.
+- [ ] The public entry point accepts no `ledger`, `writer` or `sink`, and nothing that could
+  carry one: no `**kwargs`, and no parameter that is un-annotated or typed `object`/`Any`.
+- [ ] `_discover` calls the private core, never the public entry point.
 - [ ] Defining claims contain all and only the faces establishing the record.
 - [ ] Registry dependencies, discovery applicability, projection applicability, and census policy
   are explicit.
