@@ -269,6 +269,10 @@ class FaceGraph:
         self._faces: list[FaceLike] = list(part.faces())
         self._nodes = tuple(FaceNode(at) for at in range(len(self._faces)))
         self._index = {face: at for at, face in enumerate(self._faces)}
+        if len(self._index) != len(self._faces):
+            raise ValueError(
+                "FaceGraph cannot represent a face traversal with IsSame-equal occurrences"
+            )
         self._face_edges = face_edges
         self._solid_properties = SolidProperties()
         self._edges: dict[int, tuple[EdgeLike, ...]] = {}
