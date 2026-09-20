@@ -4,7 +4,7 @@
 
 import math
 from collections.abc import Callable, Sequence
-from typing import TypeVar
+from typing import Protocol, TypeVar
 
 from quiddity._geometry import dot, length_tol, plane_axes, unit_or_none, without_negative_zero
 
@@ -14,6 +14,16 @@ from quiddity._geometry import dot, length_tol, plane_axes, unit_or_none, withou
 #: widened to a common base the module would then have to know about.
 _R = TypeVar("_R")
 
+
+class _Located(Protocol):
+    """Structural boundary shared by hole, pocket, and slot records."""
+
+    @property
+    def location(self) -> tuple[float, float, float]: ...
+
+
+_M = TypeVar("_M", bound=_Located)
+
 _PATTERN_REL_TOL = 0.02
 _PATTERN_ABS_TOL = 0.1
 
@@ -22,7 +32,7 @@ def _pattern_tol(nominal: float) -> float:
     return length_tol(nominal, rel=_PATTERN_REL_TOL, floor=_PATTERN_ABS_TOL)
 
 
-def _project_out(w, *directions) -> tuple[float, ...] | None:
+def _project_out(w: Sequence[float], *directions: Sequence[float]) -> tuple[float, ...] | None:
     """Remove every orthogonal unit *direction* from *w*, then renormalise.
 
     The ``| None`` is the collapse case. It used to be unreachable for the wrong reason: the
@@ -36,7 +46,7 @@ def _project_out(w, *directions) -> tuple[float, ...] | None:
     return unit_or_none(w)
 
 
-def _plane_uv(axis) -> tuple[tuple[float, ...], tuple[float, ...]]:
+def _plane_uv(axis: Sequence[float]) -> tuple[tuple[float, ...], tuple[float, ...]]:
     """Two orthonormal vectors spanning the plane perpendicular to *axis*.
 
     Seeded from the shared :func:`quiddity._geometry.plane_axes` basis for *axis*'s
@@ -77,7 +87,9 @@ def _plane_uv(axis) -> tuple[tuple[float, ...], tuple[float, ...]]:
     return u, v
 
 
-def _line_position(point, origin, direction) -> tuple[float, float]:
+def _line_position(
+    point: Sequence[float], origin: Sequence[float], direction: Sequence[float]
+) -> tuple[float, float]:
     """Distance along and perpendicular to an N-dimensional directed line."""
 
     relative = tuple(component - anchor for component, anchor in zip(point, origin, strict=True))
@@ -89,7 +101,7 @@ def _line_position(point, origin, direction) -> tuple[float, float]:
 
 
 def _as_linear_array(
-    members, pts: Sequence[tuple[float, ...]], make: Callable[..., _R]
+    members: Sequence[_M], pts: Sequence[tuple[float, ...]], make: Callable[..., _R]
 ) -> _R | None:
     """A linear-array record when *pts* are collinear at constant pitch.
 
@@ -145,7 +157,7 @@ def _as_linear_array(
 
 
 def _linear_array_candidates(
-    members, pts: Sequence[tuple[float, ...]], make: Callable[..., _R]
+    members: Sequence[_M], pts: Sequence[tuple[float, ...]], make: Callable[..., _R]
 ) -> list[tuple[_R, frozenset[int]]]:
     """All linear arrays within a spec group: every pair seeds a line, the
     group's collinear points are gathered and sorted, and each maximal
@@ -189,7 +201,11 @@ def _linear_array_candidates(
     return out
 
 
-def _rect_grid(members, pts: Sequence[tuple[float, float]], make: Callable[..., _R]) -> _R | None:
+def _rect_grid(
+    members: Sequence[_M],
+    pts: Sequence[tuple[float, float]],
+    make: Callable[..., _R],
+) -> _R | None:
     """A rectangular-grid record when the whole spec group fills a regular N×M
     lattice, else ``None``. The two shortest near-orthogonal pairwise vectors
     define the lattice basis; every point must land on an integer cell and every
