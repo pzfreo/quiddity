@@ -21,6 +21,7 @@ from OCP.TopoDS import TopoDS_Shape
 
 from quiddity._adjacency import FaceNode
 from quiddity._candidates import FamilyId
+from quiddity._dispositions import Outcome
 from quiddity._outer_profile import (
     OuterProfileRefusalReason,
     PlanarOuterProfile,
@@ -690,11 +691,22 @@ def _project_recognition_evidence(product: InventoryProduct) -> RecognitionEvide
         )
 
     dispositions = product.reconciliation.dispositions
+    rejected_dispositions = tuple(item for item in dispositions if item.outcome is Outcome.REJECTED)
+    projected_candidate_ids = {
+        id(candidate)
+        for disposition in rejected_dispositions
+        for candidate in (disposition.candidate, *disposition.related)
+    }
+    projected_dispositions = tuple(
+        item for item in dispositions if id(item.candidate) in projected_candidate_ids
+    )
     candidate_refs = tuple(
-        cast(CandidateRef, _issue_reference(CandidateRef, authority)) for _ in dispositions
+        cast(CandidateRef, _issue_reference(CandidateRef, authority))
+        for _ in projected_dispositions
     )
     candidate_positions = {
-        id(disposition.candidate): position for position, disposition in enumerate(dispositions)
+        id(disposition.candidate): position
+        for position, disposition in enumerate(projected_dispositions)
     }
     candidate_projections = tuple(
         _CandidateProjection(
@@ -708,7 +720,7 @@ def _project_recognition_evidence(product: InventoryProduct) -> RecognitionEvide
                 candidate_refs[candidate_positions[id(related)]] for related in disposition.related
             ),
         )
-        for reference, disposition in zip(candidate_refs, dispositions, strict=True)
+        for reference, disposition in zip(candidate_refs, projected_dispositions, strict=True)
     )
     object.__setattr__(result, "_RecognitionEvidence__authority", authority)
     object.__setattr__(result, "_RecognitionEvidence__result", product.result)
