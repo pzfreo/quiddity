@@ -60,7 +60,7 @@ from quiddity._recess_reduce import (
     _RecessProposal,
     _region_center,
 )
-from quiddity._typing import Part
+from quiddity._typing import Bounds, Part
 from quiddity._wire_seed import wire_seed as _inner_wire_seed
 
 _LENGTH_TIE_FRAC = 0.05
@@ -390,11 +390,11 @@ def _recognise_slots_one(
 
 
 def _floored_candidate(
-    fa,
-    fb,
-    part,
-    faces,
-    part_ext,
+    fa: _Face,
+    fb: _Face,
+    part: Part,
+    faces: list[_Face],
+    part_ext: dict[str, float],
     axis: str,
     graph: FaceGraph,
     *,
@@ -535,7 +535,7 @@ def _channel_candidate(
     part: Part,
     faces: list[_Face],
     part_ext: dict[str, float],
-    part_bounds,
+    part_bounds: dict[str, tuple[float, float]],
     axis: str,
     graph: FaceGraph,
     *,
@@ -555,7 +555,9 @@ def _channel_candidate(
     return candidate if isinstance(candidate, Channel) else None
 
 
-def _channel_sort_key(channel: Channel) -> tuple:
+def _channel_sort_key(
+    channel: Channel,
+) -> tuple[str, str, float, float, float, float, float, float, int]:
     """Geometry-only order, including depth to break cross-solid traversal ties."""
     return (
         channel.long_axis,
@@ -798,7 +800,7 @@ def _channel_proposals_one(
     return proposals
 
 
-def _corner_notch_proposals(faces: list[_Face], pbb) -> list[_RecessProposal[Pocket]]:
+def _corner_notch_proposals(faces: list[_Face], pbb: Bounds) -> list[_RecessProposal[Pocket]]:
     """Recognise a principal-axis rectangular blind corner interruption.
 
     A conventional pocket has opposed wall pairs. A corner interruption has only one wall on
@@ -811,7 +813,7 @@ def _corner_notch_proposals(faces: list[_Face], pbb) -> list[_RecessProposal[Poc
     """
     tol = _MERGE_TOL
 
-    def limits(bb, axis) -> tuple[float, float]:
+    def limits(bb: Bounds, axis: str) -> tuple[float, float]:
         c = "XYZ"[_AXES[axis]]
         return getattr(bb.min, c), getattr(bb.max, c)
 
@@ -944,7 +946,7 @@ def _corner_notch_proposals(faces: list[_Face], pbb) -> list[_RecessProposal[Poc
 
 
 def _recognise_corner_notches(
-    faces: list[_Face], pbb, claims: _Claims | None = None
+    faces: list[_Face], pbb: Bounds, claims: _Claims | None = None
 ) -> list[Pocket]:
     """Compatibility projection of occurrence-safe corner-notch proposals."""
 
