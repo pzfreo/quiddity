@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2024-2026 Paul Fremantle
-"""Supported within-run references from accepted recognition to source faces.
+"""Supported within-run references from recognition outcomes to source faces.
 
 References issued here are deliberately not persistent names. They are valid only with the
 exact :class:`RecognitionEvidence` that issued them and while its source part remains unchanged.
@@ -31,7 +31,12 @@ from quiddity._outer_profile import (
 from quiddity._outer_profile_geometry import _OuterProfileSource
 from quiddity._registry import PHYSICAL_DEFINITIONS, RECESS_SOURCE_FAMILIES
 from quiddity._typing import CylinderInventory, FaceLike, Part
-from quiddity.explanations import RecognitionReport, _project_report
+from quiddity.explanations import (
+    RecognitionOutcome,
+    RecognitionReport,
+    ReconciliationReason,
+    _project_report,
+)
 from quiddity.result import InventoryProduct, RecognitionResult, _take_inventory
 
 EVIDENCE_API_FORMAT = "quiddity-evidence-api"
@@ -142,6 +147,37 @@ class FeatureRef:
         raise TypeError("feature references are run-local and cannot be serialized")
 
 
+class CandidateRef:
+    """Opaque identity for one detector candidate within one evidence view.
+
+    The public rejected-candidate roster issues these references. Direct reconciliation links
+    may lead to accepted or rejected candidates; neither kind implies a distinct public feature.
+    """
+
+    __slots__ = ("__authority",)
+    __authority: object
+
+    def __init__(self) -> None:
+        raise TypeError("candidate references are issued by a recognition evidence lifecycle")
+
+    def __reduce_ex__(self, protocol: SupportsIndex) -> NoReturn:
+        del protocol
+        raise TypeError("candidate references are run-local and cannot be serialized")
+
+
+@dataclass(frozen=True, slots=True)
+class _CandidateProjection:
+    """Candidate evidence copied out of private inventory state before the view is returned."""
+
+    reference: CandidateRef
+    family: str
+    outcome: RecognitionOutcome
+    reason: ReconciliationReason
+    defining: frozenset[FaceNode]
+    constituent: frozenset[FaceNode]
+    related: tuple[CandidateRef, ...]
+
+
 class PlanarOuterProfileEvidence:
     """Issued source binding for one profile; body identity is its exact face roster.
 
@@ -180,7 +216,7 @@ class PlanarOuterProfileEvidence:
 
 
 class RecognitionEvidence:
-    """One immutable projection of accepted occurrences and exact source-part faces."""
+    """One immutable projection of recognition outcomes and exact source-part faces."""
 
     __slots__ = (
         "__authority",
@@ -191,6 +227,9 @@ class RecognitionEvidence:
         "__feature_defining",
         "__feature_constituent",
         "__feature_families",
+        "__candidate_projections",
+        "__candidate_positions",
+        "__rejected_candidates",
         "__faces",
         "__face_nodes",
         "__node_refs",
@@ -207,6 +246,9 @@ class RecognitionEvidence:
     __feature_defining: tuple[frozenset[FaceNode], ...]
     __feature_constituent: tuple[frozenset[FaceNode], ...]
     __feature_families: tuple[str, ...]
+    __candidate_projections: tuple[_CandidateProjection, ...]
+    __candidate_positions: dict[int, int]
+    __rejected_candidates: tuple[CandidateRef, ...]
     __faces: frozenset[FaceRef]
     __face_nodes: dict[int, FaceNode]
     __node_refs: dict[FaceNode, FaceRef]
@@ -243,6 +285,16 @@ class RecognitionEvidence:
         """
 
         return self.__features
+
+    @property
+    def rejected_candidates(self) -> tuple[CandidateRef, ...]:
+        """Rejected detector candidates in stable family and proposal order.
+
+        These references expose bounded diagnostic evidence, not rejected records, missed-feature
+        truth or a deduplicated public-feature census.
+        """
+
+        return self.__rejected_candidates
 
     @property
     def faces(self) -> frozenset[FaceRef]:
@@ -287,6 +339,48 @@ class RecognitionEvidence:
             self.__node_refs[node]
             for node in self.__feature_constituent[self.__feature_position(feature)]
         )
+
+    def candidate_family(self, candidate: CandidateRef) -> str:
+        """Return the stable detector family identifier for *candidate*."""
+
+        return self.__candidate_projection(candidate).family
+
+    def candidate_outcome(self, candidate: CandidateRef) -> RecognitionOutcome:
+        """Return *candidate*'s final aggregate outcome."""
+
+        return self.__candidate_projection(candidate).outcome
+
+    def candidate_reason(self, candidate: CandidateRef) -> ReconciliationReason:
+        """Return the closed reason for *candidate*'s final outcome."""
+
+        return self.__candidate_projection(candidate).reason
+
+    def candidate_defining_faces(self, candidate: CandidateRef) -> frozenset[FaceRef]:
+        """Return exact original faces establishing *candidate*."""
+
+        return frozenset(
+            self.__node_refs[node] for node in self.__candidate_projection(candidate).defining
+        )
+
+    def candidate_constituent_faces(self, candidate: CandidateRef) -> frozenset[FaceRef]:
+        """Return exact original faces proved to belong physically to *candidate*.
+
+        Equality with :meth:`candidate_defining_faces` means no wider membership was proved; it
+        does not represent an unknown or unavailable value.
+        """
+
+        return frozenset(
+            self.__node_refs[node] for node in self.__candidate_projection(candidate).constituent
+        )
+
+    def related_candidates(self, candidate: CandidateRef) -> tuple[CandidateRef, ...]:
+        """Return *candidate*'s direct reconciliation links in canonical source order.
+
+        A related candidate may itself be accepted or rejected. The link is not a promise that
+        either candidate maps one-to-one to a public :class:`FeatureRef`.
+        """
+
+        return self.__candidate_projection(candidate).related
 
     def face(self, reference: FaceRef) -> FaceLike:
         """Resolve *reference* to its borrowed source build123d face."""
@@ -347,6 +441,19 @@ class RecognitionEvidence:
         except ValueError as error:  # copied values carry the token but not issued identity
             raise ValueError("feature reference is foreign, copied, forged, or stale") from error
         return position
+
+    def __candidate_projection(self, candidate: CandidateRef) -> _CandidateProjection:
+        if type(candidate) is not CandidateRef:
+            raise TypeError("candidate must be a CandidateRef")
+        if getattr(candidate, "_CandidateRef__authority", None) is not self.__authority:
+            raise ValueError("candidate reference is foreign, copied, forged, or stale")
+        position = self.__candidate_positions.get(id(candidate))
+        if position is None:
+            raise ValueError("candidate reference is foreign, copied, forged, or stale")
+        projection = self.__candidate_projections[position]
+        if projection.reference is not candidate:
+            raise ValueError("candidate reference is foreign, copied, forged, or stale")
+        return projection
 
     def __face_node(self, reference: FaceRef) -> FaceNode:
         if type(reference) is not FaceRef:
@@ -412,6 +519,12 @@ class FramedRecognitionEvidence(Generic[FrameValue]):
         return self.__evidence.features
 
     @property
+    def rejected_candidates(self) -> tuple[CandidateRef, ...]:
+        """Rejected candidates from this view's one local-coordinate recognition run."""
+
+        return self.__evidence.rejected_candidates
+
+    @property
     def faces(self) -> frozenset[FaceRef]:
         """Opaque references to every face of the exact local working part."""
 
@@ -443,6 +556,36 @@ class FramedRecognitionEvidence(Generic[FrameValue]):
 
         return self.__evidence.constituent_faces(feature)
 
+    def candidate_family(self, candidate: CandidateRef) -> str:
+        """Return the stable detector family identifier for *candidate*."""
+
+        return self.__evidence.candidate_family(candidate)
+
+    def candidate_outcome(self, candidate: CandidateRef) -> RecognitionOutcome:
+        """Return *candidate*'s final aggregate outcome."""
+
+        return self.__evidence.candidate_outcome(candidate)
+
+    def candidate_reason(self, candidate: CandidateRef) -> ReconciliationReason:
+        """Return the closed reason for *candidate*'s final outcome."""
+
+        return self.__evidence.candidate_reason(candidate)
+
+    def candidate_defining_faces(self, candidate: CandidateRef) -> frozenset[FaceRef]:
+        """Return exact local working faces establishing *candidate*."""
+
+        return self.__evidence.candidate_defining_faces(candidate)
+
+    def candidate_constituent_faces(self, candidate: CandidateRef) -> frozenset[FaceRef]:
+        """Return exact local working faces proved to belong to *candidate*."""
+
+        return self.__evidence.candidate_constituent_faces(candidate)
+
+    def related_candidates(self, candidate: CandidateRef) -> tuple[CandidateRef, ...]:
+        """Return *candidate*'s direct reconciliation links in source order."""
+
+        return self.__evidence.related_candidates(candidate)
+
     def face(self, reference: FaceRef) -> FaceLike:
         """Resolve *reference* to its borrowed local working face."""
 
@@ -471,8 +614,8 @@ class FramedRecognitionEvidence(Generic[FrameValue]):
 
 
 def _issue_reference(
-    reference_type: type[FaceRef] | type[FeatureRef], authority: object
-) -> FaceRef | FeatureRef:
+    reference_type: type[FaceRef] | type[FeatureRef] | type[CandidateRef], authority: object
+) -> FaceRef | FeatureRef | CandidateRef:
     reference = object.__new__(reference_type)
     object.__setattr__(reference, f"_{reference_type.__name__}__authority", authority)
     return reference
@@ -545,6 +688,41 @@ def _project_recognition_evidence(product: InventoryProduct) -> RecognitionEvide
         constituent_sets.append(
             frozenset(nodes_by_index[i] for i in recess.evidence.constituent_faces)
         )
+
+    dispositions = product.reconciliation.dispositions
+    rejected_dispositions = tuple(
+        item for item in dispositions if item.outcome.value == RecognitionOutcome.REJECTED.value
+    )
+    projected_candidate_ids = {
+        id(candidate)
+        for disposition in rejected_dispositions
+        for candidate in (disposition.candidate, *disposition.related)
+    }
+    projected_dispositions = tuple(
+        item for item in dispositions if id(item.candidate) in projected_candidate_ids
+    )
+    candidate_refs = tuple(
+        cast(CandidateRef, _issue_reference(CandidateRef, authority))
+        for _ in projected_dispositions
+    )
+    candidate_positions = {
+        id(disposition.candidate): position
+        for position, disposition in enumerate(projected_dispositions)
+    }
+    candidate_projections = tuple(
+        _CandidateProjection(
+            reference=reference,
+            family=disposition.candidate.family.value,
+            outcome=RecognitionOutcome(disposition.outcome.value),
+            reason=ReconciliationReason(disposition.reason.value),
+            defining=product.evidence.defining_of(disposition.candidate),
+            constituent=product.evidence.constituent_of(disposition.candidate),
+            related=tuple(
+                candidate_refs[candidate_positions[id(related)]] for related in disposition.related
+            ),
+        )
+        for reference, disposition in zip(candidate_refs, projected_dispositions, strict=True)
+    )
     object.__setattr__(result, "_RecognitionEvidence__authority", authority)
     object.__setattr__(result, "_RecognitionEvidence__result", product.result)
     object.__setattr__(result, "_RecognitionEvidence__report", _project_report(product))
@@ -553,6 +731,21 @@ def _project_recognition_evidence(product: InventoryProduct) -> RecognitionEvide
     object.__setattr__(result, "_RecognitionEvidence__feature_defining", tuple(defining_sets))
     object.__setattr__(result, "_RecognitionEvidence__feature_constituent", tuple(constituent_sets))
     object.__setattr__(result, "_RecognitionEvidence__feature_families", tuple(families))
+    object.__setattr__(result, "_RecognitionEvidence__candidate_projections", candidate_projections)
+    object.__setattr__(
+        result,
+        "_RecognitionEvidence__candidate_positions",
+        {id(item.reference): position for position, item in enumerate(candidate_projections)},
+    )
+    object.__setattr__(
+        result,
+        "_RecognitionEvidence__rejected_candidates",
+        tuple(
+            item.reference
+            for item in candidate_projections
+            if item.outcome is RecognitionOutcome.REJECTED
+        ),
+    )
     object.__setattr__(result, "_RecognitionEvidence__faces", frozenset(node_refs.values()))
     object.__setattr__(result, "_RecognitionEvidence__face_nodes", face_nodes)
     object.__setattr__(result, "_RecognitionEvidence__node_refs", node_refs)
@@ -604,7 +797,7 @@ def build_recognition_evidence(
     cylinders: CylinderInventory | None = None,
     rotational: bool = False,
 ) -> RecognitionEvidence:
-    """Recognise *part* once and project accepted occurrences to its exact original faces.
+    """Recognise *part* once and project outcomes to its exact original faces.
 
     The caller must not mutate *part* while using the returned view. This is the explicit
     raw/caller-coordinate route; use :func:`build_framed_recognition_evidence` for the ordinary
@@ -667,6 +860,7 @@ def _validate_manifest(manifest: object) -> None:
             "EVIDENCE_API_FORMAT_VERSION",
             "EvidenceApiManifestError",
             "AssociationMeasure",
+            "CandidateRef",
             "FamilyAssociation",
             "FaceRef",
             "FeatureRef",
@@ -691,7 +885,7 @@ def _validate_manifest(manifest: object) -> None:
         api["major"] != 1
         or api["namespace"] != "quiddity.evidence"
         or not isinstance(references, dict)
-        or set(references) != {"FaceRef", "FeatureRef"}
+        or set(references) != {"CandidateRef", "FaceRef", "FeatureRef"}
         or not all(isinstance(value, str) and value for value in references.values())
         or symbols != expected_symbols
     ):
@@ -707,6 +901,7 @@ def evidence_api_manifest_json(*, format_version: int = EVIDENCE_API_FORMAT_VERS
 
 __all__ = [
     "AssociationMeasure",
+    "CandidateRef",
     "EVIDENCE_API_FORMAT",
     "EVIDENCE_API_FORMAT_VERSION",
     "EvidenceApiManifestError",

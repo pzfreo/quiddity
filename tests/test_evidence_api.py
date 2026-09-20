@@ -11,10 +11,12 @@ import pytest
 from build123d import Box, Compound, Pos, RegularPolygon, Rot, extrude
 
 import quiddity.evidence as evidence_module
+from quiddity import RecognitionOutcome, ReconciliationReason
 from quiddity.evidence import (
     EVIDENCE_API_FORMAT,
     EVIDENCE_API_FORMAT_VERSION,
     AssociationMeasure,
+    CandidateRef,
     EvidenceApiManifestError,
     FaceRef,
     FeatureRef,
@@ -65,32 +67,43 @@ def test_equal_valued_occurrences_keep_distinct_feature_references() -> None:
 
 
 def test_references_are_exactly_view_local_and_unforgeable() -> None:
-    part = _two_equal_level_bodies()
+    part = Box(60, 40, 20) - Box(30, 10, 30)
     first = build_recognition_evidence(part)
     second = build_recognition_evidence(part)
     feature = first.features[0]
     face = next(iter(first.faces))
+    candidate = first.rejected_candidates[0]
 
     with pytest.raises(ValueError, match="foreign, copied, forged, or stale"):
         second.record(feature)
     with pytest.raises(ValueError, match="foreign, copied, forged, or stale"):
         second.face(face)
     with pytest.raises(ValueError, match="foreign, copied, forged, or stale"):
+        second.candidate_family(candidate)
+    with pytest.raises(ValueError, match="foreign, copied, forged, or stale"):
         first.record(object.__new__(FeatureRef))
     with pytest.raises(ValueError, match="foreign, copied, forged, or stale"):
         first.face(object.__new__(FaceRef))
+    with pytest.raises(ValueError, match="foreign, copied, forged, or stale"):
+        first.candidate_family(object.__new__(CandidateRef))
     with pytest.raises(TypeError, match="run-local"):
         pickle.dumps(feature)
     with pytest.raises(TypeError, match="run-local"):
         pickle.dumps(face)
+    with pytest.raises(TypeError, match="run-local"):
+        pickle.dumps(candidate)
     with pytest.raises(TypeError):
         copy.copy(feature)
     with pytest.raises(TypeError):
         copy.copy(face)
+    with pytest.raises(TypeError):
+        copy.copy(candidate)
     with pytest.raises(TypeError, match="issued"):
         FeatureRef()
     with pytest.raises(TypeError, match="issued"):
         FaceRef()
+    with pytest.raises(TypeError, match="issued"):
+        CandidateRef()
     with pytest.raises(TypeError, match="created"):
         RecognitionEvidence()
     with pytest.raises(TypeError, match="FeatureRef"):
@@ -99,6 +112,8 @@ def test_references_are_exactly_view_local_and_unforgeable() -> None:
         first.constituent_faces(face)  # type: ignore[arg-type]
     with pytest.raises(TypeError, match="FaceRef"):
         first.face(feature)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="CandidateRef"):
+        first.candidate_family(feature)  # type: ignore[arg-type]
 
     copied_feature = object.__new__(FeatureRef)
     object.__setattr__(
@@ -112,10 +127,73 @@ def test_references_are_exactly_view_local_and_unforgeable() -> None:
         "_FaceRef__authority",
         object.__getattribute__(face, "_FaceRef__authority"),
     )
+    copied_candidate = object.__new__(CandidateRef)
+    object.__setattr__(
+        copied_candidate,
+        "_CandidateRef__authority",
+        object.__getattribute__(candidate, "_CandidateRef__authority"),
+    )
     with pytest.raises(ValueError, match="foreign, copied, forged, or stale"):
         first.record(copied_feature)
     with pytest.raises(ValueError, match="foreign, copied, forged, or stale"):
         first.face(copied_face)
+    with pytest.raises(ValueError, match="foreign, copied, forged, or stale"):
+        first.candidate_family(copied_candidate)
+
+
+def test_rejected_candidates_expose_bounded_faces_and_direct_reconciliation_links() -> None:
+    view = build_recognition_evidence(Box(60, 40, 20) - Box(30, 10, 30))
+
+    (rejected,) = view.rejected_candidates
+    assert view.candidate_family(rejected) == "passages"
+    assert view.candidate_outcome(rejected) is RecognitionOutcome.REJECTED
+    assert view.candidate_reason(rejected) is ReconciliationReason.PASSAGE_SUPERSEDED_BY_SLOT
+    defining = view.candidate_defining_faces(rejected)
+    constituent = view.candidate_constituent_faces(rejected)
+    assert defining <= constituent <= view.faces
+    assert all(view.face(reference) for reference in constituent)
+
+    (related,) = view.related_candidates(rejected)
+    assert related not in view.rejected_candidates
+    assert view.candidate_family(related) == "slots"
+    assert view.candidate_outcome(related) is RecognitionOutcome.ACCEPTED
+    assert view.candidate_reason(related) is ReconciliationReason.DEFAULT_ACCEPTED
+    assert view.related_candidates(related) == ()
+    related_defining = view.candidate_defining_faces(related)
+    related_constituent = view.candidate_constituent_faces(related)
+    assert related_defining <= related_constituent <= view.faces
+    assert all(view.face(reference) for reference in related_constituent)
+
+    passage = next(item for item in view.report.detector_families if item.family == "passages")
+    assert passage.rejected == len(view.rejected_candidates) == 1
+    rejected_summary = next(
+        item for item in passage.dispositions if item.outcome is RecognitionOutcome.REJECTED
+    )
+    assert rejected_summary.occurrences == 1
+    assert rejected_summary.related_occurrences == len(view.related_candidates(rejected)) == 1
+
+    accepted_faces = frozenset().union(
+        *(view.constituent_faces(feature) for feature in view.features)
+    )
+    rejected_faces = view.candidate_constituent_faces(rejected)
+    assert accepted_faces & rejected_faces
+    assert rejected_faces - accepted_faces
+    assert view.faces - accepted_faces - rejected_faces
+
+
+def test_rejected_candidate_totals_reconcile_for_every_family() -> None:
+    view = build_recognition_evidence(Box(60, 40, 20) - Box(30, 10, 30))
+    actual = {
+        family: sum(
+            view.candidate_family(candidate) == family for candidate in view.rejected_candidates
+        )
+        for family in {item.family for item in view.report.detector_families}
+    }
+
+    assert all(
+        actual[explanation.family] == explanation.rejected
+        for explanation in view.report.detector_families
+    )
 
 
 def test_defining_faces_resolve_to_the_exact_input_part() -> None:

@@ -78,7 +78,7 @@ a point on the untrimmed underlying surface; inner wires and concave outer wires
 The old `experimental_geometry.inspect_face` and surface-value names are exact-object aliases, as
 are the existing root or family-module paths for the other four reads. New code should use the
 inspection namespace. This graduation does not publish `GeometryGraph`, adjacency, blend collapse,
-sections, Candidate identity, registry, or reconciliation. Those remain private
+sections, private Candidate values, registry, or reconciliation. Those remain private
 or experimental. Cross-run correspondence is not offered at all: the F6 matcher was removed
 because it reached no consumer. See [ADR 0003](adr/0003-one-recognition-result-and-explicit-reconciliation.md).
 
@@ -120,6 +120,17 @@ related-candidate links, which are not necessarily unique physical features. Ref
 patterns have separate result collections and do not add physical recess occurrences.
 An empty diagnostic list does not prove that no geometry was missed. No JSON report schema is
 introduced by this Python API addition.
+
+`view.rejected_candidates` provides opaque run-local references for the report's rejected detector
+candidates. `candidate_family`, `candidate_outcome`, `candidate_reason`,
+`candidate_defining_faces`, `candidate_constituent_faces` and `related_candidates` project the
+bounded disposition and source-face evidence already frozen by that run. Related candidates may
+themselves be accepted or rejected and are direct reconciliation links, not necessarily final
+winners or public `FeatureRef` values. Rejected records and private detector anatomy remain private.
+Constituent evidence always contains defining evidence; equality means no wider physical
+membership was proved, not that membership is unknown. Faces absent from accepted and rejected
+candidate evidence may still have been consulted by discovery or a failed predicate, so this view
+does not prove that a face was never examined or that it represents a missed feature.
 
 Every constituent set contains its defining set. Defining faces retain their exact ownership and
 reconciliation meaning; the equal or wider constituent set reports physical membership only, may

@@ -1,5 +1,13 @@
 # Release notes
 
+## 0.3.1 — Quiddity
+
+- Add opaque, run-local `CandidateRef` evidence for rejected detector candidates. Raw, framed and
+  prepared evidence views expose each rejection's family, final outcome and reason, exact defining
+  and constituent faces, and direct candidate relationships from the same recognition run. Related
+  candidates are not assumed to be final winners or one-to-one public features; rejected records
+  and private detector state remain private. The additive evidence API retains format 1 (#688).
+
 ## 0.3.0 — Quiddity
 
 Two breaking changes to the public API, and a new guide. The minor version moves rather than the

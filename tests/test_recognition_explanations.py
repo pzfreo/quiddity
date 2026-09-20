@@ -312,6 +312,15 @@ def test_evidence_and_report_share_one_inventory(monkeypatch, route, case) -> No
     assert view.report.coverage is r.ExplanationCoverage.BOUNDED
     if case == "reconciliation":
         assert _family(view.report, "slots").rejected == 2
+        assert len(view.rejected_candidates) == 2
+        assert all(
+            view.candidate_outcome(candidate) is r.RecognitionOutcome.REJECTED
+            for candidate in view.rejected_candidates
+        )
+        assert all(
+            view.candidate_defining_faces(candidate) <= view.faces
+            for candidate in view.rejected_candidates
+        )
     elif case == "gating":
         assert _family(view.report, "angled_steps").evaluation is r.FamilyEvaluation.NOT_APPLICABLE
     else:

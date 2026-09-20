@@ -23,8 +23,10 @@ from quiddity import (
     Plate,
     PreparedFramedPart,
     RaisedPad,
+    RecognitionOutcome,
     RecognitionReport,
     RecognitionResult,
+    ReconciliationReason,
     RefusedFramedEvidence,
     SectionPassage,
     SectionRecess,
@@ -50,6 +52,7 @@ from quiddity import (
 )
 from quiddity.evidence import (
     AssociationMeasure,
+    CandidateRef,
     FaceRef,
     FamilyAssociation,
     FeatureRef,
@@ -112,6 +115,7 @@ def consume(part: Solid, face: Face, bounds: BoundBox) -> None:
     assert_type(evidence.result, RecognitionResult)
     assert_type(evidence.report, RecognitionReport)
     assert_type(evidence.features, tuple[FeatureRef, ...])
+    assert_type(evidence.rejected_candidates, tuple[CandidateRef, ...])
     assert_type(evidence.faces, frozenset[FaceRef])
     assert_type(evidence.association, GeometryAssociation)
     assert_type(evidence.association.face_count, AssociationMeasure[int])
@@ -124,6 +128,13 @@ def consume(part: Solid, face: Face, bounds: BoundBox) -> None:
         assert_type(evidence.record(feature), RecognitionRecord)
         assert_type(evidence.defining_faces(feature), frozenset[FaceRef])
         assert_type(evidence.constituent_faces(feature), frozenset[FaceRef])
+    for candidate in evidence.rejected_candidates:
+        assert_type(evidence.candidate_family(candidate), str)
+        assert_type(evidence.candidate_outcome(candidate), RecognitionOutcome)
+        assert_type(evidence.candidate_reason(candidate), ReconciliationReason)
+        assert_type(evidence.candidate_defining_faces(candidate), frozenset[FaceRef])
+        assert_type(evidence.candidate_constituent_faces(candidate), frozenset[FaceRef])
+        assert_type(evidence.related_candidates(candidate), tuple[CandidateRef, ...])
     for reference in evidence.faces:
         assert_type(evidence.face(reference), Face)
     if isinstance(framed_evidence, FramedRecognitionEvidence):
@@ -133,6 +144,14 @@ def consume(part: Solid, face: Face, bounds: BoundBox) -> None:
         assert_type(framed_evidence.caller_part, Solid | Compound)
         assert_type(framed_evidence.result, RecognitionResult)
         assert_type(framed_evidence.features, tuple[FeatureRef, ...])
+        assert_type(framed_evidence.rejected_candidates, tuple[CandidateRef, ...])
+        for candidate in framed_evidence.rejected_candidates:
+            assert_type(framed_evidence.candidate_family(candidate), str)
+            assert_type(framed_evidence.candidate_outcome(candidate), RecognitionOutcome)
+            assert_type(framed_evidence.candidate_reason(candidate), ReconciliationReason)
+            assert_type(framed_evidence.candidate_defining_faces(candidate), frozenset[FaceRef])
+            assert_type(framed_evidence.candidate_constituent_faces(candidate), frozenset[FaceRef])
+            assert_type(framed_evidence.related_candidates(candidate), tuple[CandidateRef, ...])
         for reference in framed_evidence.faces:
             assert_type(framed_evidence.face(reference), Face)
             assert_type(framed_evidence.caller_face(reference), Face)
