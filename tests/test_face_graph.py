@@ -21,7 +21,7 @@ import copy
 import dataclasses
 
 import pytest
-from build123d import Axis, Box, Cylinder, Pos, chamfer, fillet
+from build123d import Axis, Box, Cylinder, Keep, Plane, Pos, chamfer, fillet
 
 from quiddity._adjacency import FaceEdges, FaceGraph, edge_face_map, neighbours
 
@@ -49,6 +49,28 @@ def test_a_face_from_a_second_walk_resolves_to_the_same_node():
 
     assert len(second) == len(graph) > 10
     assert {graph.node_of(face) for face in second} == set(graph.nodes)
+
+
+def test_is_same_equal_face_occurrences_fail_closed() -> None:
+    """Opposite orientations of one shared face must not silently resolve to one node."""
+
+    lower, upper = Box(2, 2, 2).split(Pos(1, 0, 0) * Plane.YZ, keep=Keep.BOTH)
+    faces = [*lower.faces(), *upper.faces()]
+    duplicates = [
+        (left, right) for at, left in enumerate(faces) for right in faces[at + 1 :] if left == right
+    ]
+    assert len(faces) == 12 and len(set(faces)) == 11
+    assert len(duplicates) == 1
+    left, right = duplicates[0]
+    assert left.wrapped.IsSame(right.wrapped)
+    assert not left.wrapped.IsEqual(right.wrapped)
+
+    class SharedFaceTraversal:
+        def faces(self):
+            return faces
+
+    with pytest.raises(ValueError, match="IsSame-equal occurrences"):
+        FaceGraph(SharedFaceTraversal())
 
 
 def test_a_face_of_another_part_has_no_node():
