@@ -100,9 +100,12 @@ class GeometryGraph:
         _graph: FaceGraph | None = None,
         _surfaces: EffectiveSurfaceIndex | None = None,
     ) -> None:
-        if _graph is None and part is None:
-            raise TypeError("GeometryGraph requires a part")
-        self.__graph = FaceGraph(part) if _graph is None else _graph
+        if _graph is None:
+            if part is None:
+                raise TypeError("GeometryGraph requires a part")
+            self.__graph = FaceGraph(part)
+        else:
+            self.__graph = _graph
         self.__authority = object()
         self.__refs = tuple(FaceRef(self.__authority, node) for node in self.__graph.nodes)
         self.__by_node = dict(zip(self.__graph.nodes, self.__refs, strict=True))
