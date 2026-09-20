@@ -116,7 +116,10 @@ def _validate_aliases(
             {"deprecated_in", "kind", "old", "rationale", "remove_in", "replacement"},
             context,
         )
-        if alias.get("kind") not in {"family", "record"}:
+        if not isinstance(alias.get("kind"), str) or alias["kind"] not in {
+            "family",
+            "record",
+        }:
             raise CapabilityManifestError(f"{context}.kind must be family or record")
         if not all(isinstance(alias.get(key), str) and alias[key] for key in alias):
             raise CapabilityManifestError(f"{context} values must be non-empty strings")
@@ -169,7 +172,7 @@ def _validate_record(record: object, family_id: str, index: int) -> str:
         raise CapabilityManifestError(f"{context}.name must be a non-empty string")
     if record["qualified_name"] != f"quiddity.{name}":
         raise CapabilityManifestError(f"{context} has a non-public qualified name")
-    if record["role"] not in _ROLES:
+    if not isinstance(record["role"], str) or record["role"] not in _ROLES:
         raise CapabilityManifestError(f"{context} has unknown role {record['role']!r}")
     if type(record["schema_version"]) is not int or record["schema_version"] < 1:
         raise CapabilityManifestError(f"{context}.schema_version must be a positive integer")
@@ -201,7 +204,7 @@ def _validate_record(record: object, family_id: str, index: int) -> str:
             raise CapabilityManifestError(
                 f"{field_context}.type is outside capability type grammar"
             )
-        if field["units"] not in _UNITS:
+        if not isinstance(field["units"], str) or field["units"] not in _UNITS:
             raise CapabilityManifestError(f"{field_context} has unknown units {field['units']!r}")
     return name
 
@@ -234,9 +237,17 @@ def _validate_recogniser(recogniser: object, family_id: str) -> str:
     expected_keys = (
         base_keys | compatibility_keys if recogniser.get("role") == "compatibility" else base_keys
     )
-    if set(recogniser) != expected_keys or recogniser["kind"] not in {"derived", "part"}:
+    if (
+        set(recogniser) != expected_keys
+        or not isinstance(recogniser["kind"], str)
+        or recogniser["kind"] not in {"derived", "part"}
+    ):
         raise CapabilityManifestError(f"family {family_id!r} recogniser is invalid")
-    if recogniser["role"] not in {"compatibility", "derived", "physical"}:
+    if not isinstance(recogniser["role"], str) or recogniser["role"] not in {
+        "compatibility",
+        "derived",
+        "physical",
+    }:
         raise CapabilityManifestError(f"family {family_id!r} recogniser role is invalid")
     if recogniser["role"] == "compatibility":
         if recogniser["ledger_state"] != "unavailable":
@@ -306,7 +317,7 @@ def _validate_family(
     if not isinstance(family_id, str) or not _FAMILY_ID.fullmatch(family_id):
         raise CapabilityManifestError(f"{context}.id is invalid")
     status = family["status"]
-    if status not in _STATUSES:
+    if not isinstance(status, str) or status not in _STATUSES:
         raise CapabilityManifestError(f"family {family_id!r} has unknown status {status!r}")
     introduced = _version(family["introduced_in"], f"family {family_id!r}.introduced_in")
     if introduced > package_version:

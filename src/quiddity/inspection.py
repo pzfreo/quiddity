@@ -202,7 +202,7 @@ def _validate_function_contract(contract: dict[str, Any], context: str) -> None:
             or not _SYMBOL.fullmatch(member["name"])
             or not isinstance(member["type"], str)
             or not member["type"]
-            or (unit is not None and unit not in _RETURN_UNITS)
+            or (unit is not None and (not isinstance(unit, str) or unit not in _RETURN_UNITS))
             or (
                 values is not None
                 and (

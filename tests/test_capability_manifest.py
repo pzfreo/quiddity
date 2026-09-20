@@ -422,6 +422,7 @@ def test_committed_manifest_is_the_deterministic_generator_output() -> None:
         (lambda value: value["families"][0].pop("documentation"), "missing required"),
         (lambda value: value["families"][0].update({"id": "Not valid"}), "id is invalid"),
         (lambda value: value["families"][0].update({"status": "maybe"}), "unknown status"),
+        (lambda value: value["families"][0].update({"status": {}}), "unknown status"),
         (
             lambda value: value["families"][0].update({"recognisers": []}),
             "needs runtime entries",
@@ -437,6 +438,14 @@ def test_committed_manifest_is_the_deterministic_generator_output() -> None:
         (
             lambda value: value["families"][0]["recognisers"][0].update({"kind": "magic"}),
             "recogniser is invalid",
+        ),
+        (
+            lambda value: value["families"][0]["recognisers"][0].update({"kind": []}),
+            "recogniser is invalid",
+        ),
+        (
+            lambda value: value["families"][0]["recognisers"][0].update({"role": {}}),
+            "recogniser role is invalid",
         ),
         (
             lambda value: value["families"][0]["recognisers"][0].update(
@@ -468,6 +477,10 @@ def test_committed_manifest_is_the_deterministic_generator_output() -> None:
         ),
         (
             lambda value: value["families"][0]["records"][0].update({"role": "helper"}),
+            "unknown role",
+        ),
+        (
+            lambda value: value["families"][0]["records"][0].update({"role": []}),
             "unknown role",
         ),
         (
@@ -544,6 +557,12 @@ def test_committed_manifest_is_the_deterministic_generator_output() -> None:
             "unknown units",
         ),
         (
+            lambda value: value["families"][0]["records"][0]["fields"]["axis"].update(
+                {"units": {}}
+            ),
+            "unknown units",
+        ),
+        (
             lambda value: value["families"][0].update({"introduced_in": "9.0.0"}),
             "introduced after",
         ),
@@ -572,6 +591,23 @@ def test_committed_manifest_is_the_deterministic_generator_output() -> None:
             "unique, sorted paths",
         ),
         (lambda value: value.update({"aliases": {}}), "aliases must be an array"),
+        (
+            lambda value: value.update(
+                {
+                    "aliases": [
+                        {
+                            "deprecated_in": "0.1.0",
+                            "kind": [],
+                            "old": "old-boss",
+                            "rationale": "Compatibility alias.",
+                            "remove_in": "0.6.0",
+                            "replacement": "bosses",
+                        }
+                    ]
+                }
+            ),
+            "kind must be",
+        ),
     ],
 )
 def test_schema_validation_fails_closed(mutate, message: str) -> None:
