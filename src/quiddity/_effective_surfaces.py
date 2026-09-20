@@ -1410,7 +1410,7 @@ def effective_faces_for_part(part: Part) -> EffectiveFaceSurfaceQuery:
     return effective_faces_for_graph(FaceGraph(part))
 
 
-def _physical_boundary_length(face) -> float:
+def _physical_boundary_length(face: FaceLike) -> float:
     """Physical trim perimeter, excluding seams and degenerate representation edges."""
 
     return math.fsum(
@@ -1421,7 +1421,7 @@ def _physical_boundary_length(face) -> float:
     )
 
 
-def recovery_nominal(face) -> float:
+def recovery_nominal(face: FaceLike) -> float:
     """Rigid-transform and seam-invariant controlling length for one trimmed face."""
 
     area = float(face.area)
@@ -1434,7 +1434,7 @@ def recovery_nominal(face) -> float:
     return min(area_scale, 2.0 * area / perimeter) if perimeter > 0.0 else area_scale
 
 
-def recovery_tolerance(face) -> float:
+def recovery_tolerance(face: FaceLike) -> float:
     """ADR 0008 F1 same-geometry tolerance, fixed before corpus measurement."""
 
     return _RECOVERY_REL * recovery_nominal(face) + COORD_FLOOR
@@ -1505,7 +1505,7 @@ class EffectiveSurfaceIndex:
             return self._recover(node, face)
         return RefusedSurfaceFact(node, SurfaceRefusalReason.UNSUPPORTED_KIND)
 
-    def _recover(self, node: FaceNode, face) -> EffectiveSurfaceFact:
+    def _recover(self, node: FaceNode, face: FaceLike) -> EffectiveSurfaceFact:
         occt_version = getattr(OCP, "__version__", "")
         if occt_version not in _SUPPORTED_OCCT_CERTIFICATE_VERSIONS:
             return RefusedSurfaceFact(node, SurfaceRefusalReason.UNSUPPORTED_OCCT_CONTRACT)
