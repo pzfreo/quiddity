@@ -438,6 +438,14 @@ def prism_is_empty(
     inset: float,
     properties: SolidProperties | SolidPropertyOwner | None = None,
 ) -> bool:
-    """Whether the inset prism has exactly zero volumetric intersection with ``part``."""
+    """Whether the inset prism has exactly zero volumetric intersection with ``part``.
+
+    This is deliberately categorical rather than tolerance-based. An exact zero proves the
+    candidate region contains no material; any positive result is material, even when it is a
+    thin sliver. Equivalent probe descriptions can produce nonzero fractions a few ulp apart
+    when their construction parameters differ, but a tolerance here would not repair that
+    memo-key limitation -- it would silently change those positive intersections into empty
+    space. Quantitative consumers own their explicitly scaled tolerances separately.
+    """
 
     return prism_material_fraction(spans, part, inset=inset, properties=properties) == 0.0

@@ -142,6 +142,26 @@ def test_a_part_that_is_already_a_solid_is_its_own_probe_target() -> None:
     assert probe_solids(body) == (body,)
 
 
+@pytest.mark.parametrize(
+    ("fraction", "expected"),
+    [
+        pytest.param(0.0, True, id="zero"),
+        pytest.param(float.fromhex("0x0.0000000000001p-1022"), False, id="least-positive-float"),
+    ],
+)
+def test_prism_emptiness_is_categorical(monkeypatch, fraction: float, expected: bool) -> None:
+    """Even the least positive float is material, not tolerance-rounded empty space."""
+
+    monkeypatch.setattr(
+        _volume_probe,
+        "prism_material_fraction",
+        lambda *_args, **_kwargs: fraction,
+    )
+
+    spans = {axis: (0.0, 1.0) for axis in "xyz"}
+    assert _volume_probe.prism_is_empty(spans, Box(1.0, 1.0, 1.0), inset=0.0) is expected
+
+
 def test_anything_that_is_not_a_compound_is_passed_through_untouched() -> None:
     """Standalone and test callers hand these helpers bare objects with an ``intersect``."""
 
