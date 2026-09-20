@@ -8,8 +8,9 @@ continuously rather than only at a release.
 A Quiddity release is one GitHub release. Use `quiddity-vX.Y.Z` tags: the old package
 already owns tags such as `v0.2.0`, which must not be moved or replaced.
 
-1. Make sure `main` is on the version you intend to ship (`0.2.6.dev0` to release `0.2.6`) and
-   that `RELEASE_NOTES.md` has a `## 0.2.6` section.
+1. Manually make sure `main` is on the version you intend to ship (`0.2.6.dev0` to release
+   `0.2.6`) and that `RELEASE_NOTES.md` has a `## 0.2.6` section. The workflow does not infer or
+   enforce release-note completeness from the tag.
 2. Create a GitHub release whose tag is `quiddity-v` followed by that version, with no `.dev`
    suffix (first Quiddity release: `quiddity-v0.2.0`).
    **Attach nothing.**
