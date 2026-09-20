@@ -102,6 +102,8 @@ def test_native_section_recess_passage_scores_as_passage_not_pocket(shape) -> No
 TAXONOMY_V9 = ROOT / "docs" / "benchmarks" / "effectiveness-taxonomy-v9.json"
 TAXONOMY_V10 = ROOT / "docs" / "benchmarks" / "effectiveness-taxonomy-v10.json"
 TAXONOMY_V11 = ROOT / "docs" / "benchmarks" / "effectiveness-taxonomy-v11.json"
+TAXONOMY_V12 = ROOT / "docs" / "benchmarks" / "effectiveness-taxonomy-v12.json"
+TAXONOMY_V13 = ROOT / "docs" / "benchmarks" / "effectiveness-taxonomy-v13.json"
 
 
 def _mfinstseg(root: Path, *, inst: list[list[int]] | None = None) -> None:
@@ -465,6 +467,34 @@ def test_taxonomy_v11_adds_only_truthful_edge_open_six_sided_recesses() -> None:
         "prismatic-pockets",
     ]
     assert load_taxonomy(TAXONOMY_V11, "mfinstseg") == current
+
+
+def test_taxonomy_v12_adds_edge_open_prismatic_recesses_to_pocket_classes() -> None:
+    historical = load_taxonomy(TAXONOMY_V11, "mfcadpp")
+    current = load_taxonomy(TAXONOMY_V12, "mfcadpp")
+
+    assert {key: value for key, value in current.items() if key not in {13, 14}} == {
+        key: value for key, value in historical.items() if key not in {13, 14}
+    }
+    assert current[13]["families"] == ["edge-open-prismatic-recesses", "prismatic-pockets"]
+    assert current[14]["families"] == [
+        "edge-open-prismatic-recesses",
+        "pockets",
+        "prismatic-pockets",
+    ]
+    assert load_taxonomy(TAXONOMY_V12, "mfinstseg") == current
+
+
+def test_taxonomy_v13_adds_only_edge_open_circular_pockets() -> None:
+    historical = load_taxonomy(TAXONOMY_V12, "mfcadpp")
+    current = load_taxonomy(TAXONOMY_V13, "mfcadpp")
+
+    assert {key: value for key, value in current.items() if key != 16} == {
+        key: value for key, value in historical.items() if key != 16
+    }
+    assert current[16]["families"] == ["edge-open-circular-pockets", "pockets"]
+    assert load_taxonomy(TAXONOMY_V13, "mfinstseg") == current
+    assert baseline_runner.DEFAULT_TAXONOMY == TAXONOMY_V13
 
 
 def test_corpus_selections_are_lexical_unique_and_disclose_mfinstseg_leaks(
