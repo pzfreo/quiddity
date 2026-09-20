@@ -57,9 +57,11 @@ Immutable artifacts and SHA-256 digests:
 | [`mfcadpp-polygonal-pocket-residuals-d156aab8.json`](mfcadpp-polygonal-pocket-residuals-d156aab8.json) | `21396e65575faa2f8ef2e989b3c885ea0c9088ae5ab87d77d49122127e718927` |
 
 MFCAD++ supplies face labels but no native occurrence relation. Every count below is therefore
-either an exact face count or a same-label, shared-edge **component proxy** count. Labels select
-geometry to describe only after production candidates have been constructed; they do not enter a
-recognition predicate.
+either an exact face count or a same-label, shared-edge **component proxy** count. The scorer and
+pocket audit construct the complete production candidate inventory before consulting labels. The
+passage audit uses labels only to select diagnostic component proxies, then applies unchanged
+production helpers counterfactually and records real proposal overlap separately. No label enters
+a production discovery or acceptance predicate.
 
 ## Refreshed score vector
 
