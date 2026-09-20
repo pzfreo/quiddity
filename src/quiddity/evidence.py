@@ -21,7 +21,6 @@ from OCP.TopoDS import TopoDS_Shape
 
 from quiddity._adjacency import FaceNode
 from quiddity._candidates import FamilyId
-from quiddity._dispositions import Outcome
 from quiddity._outer_profile import (
     OuterProfileRefusalReason,
     PlanarOuterProfile,
@@ -691,7 +690,9 @@ def _project_recognition_evidence(product: InventoryProduct) -> RecognitionEvide
         )
 
     dispositions = product.reconciliation.dispositions
-    rejected_dispositions = tuple(item for item in dispositions if item.outcome is Outcome.REJECTED)
+    rejected_dispositions = tuple(
+        item for item in dispositions if item.outcome.value == RecognitionOutcome.REJECTED.value
+    )
     projected_candidate_ids = {
         id(candidate)
         for disposition in rejected_dispositions
