@@ -32,6 +32,11 @@ package families that can legitimately report that geometry. This is deliberatel
 for example, a rectangular ring can be proposed by both Pocket and Prismatic Pocket machinery,
 while aggregate reconciliation decides which occurrence survives.
 
+The runner defaults to the latest checked-in mapping, currently
+[`effectiveness-taxonomy-v13.json`](effectiveness-taxonomy-v13.json). Canonical commands still name
+that file explicitly so a copied command cannot silently acquire a later mapping. Historical
+reports retain their recorded mapping and are never reinterpreted through the current default.
+
 `partial` preserves honest matched evidence and denominators when a corpus class contains a
 geometrically supported subset but its label also covers materially different shapes outside the
 mapped family contract. It qualifies interpretation; it does not turn out-of-contract faces into
@@ -161,22 +166,30 @@ instance matrix, disjoint equivalence classes, within-instance semantic consiste
 test rows, and IDs appearing in more than one split. Duplicate or cross-split IDs are disclosed
 and excluded before lexical selection.
 
-MFInstSeg is distributed through authenticated sources and is not present in this workspace. Do
-not replace it with MFCAD++ or generated fixtures. After the original files and the upstream
-partition directory are mounted, run:
+MFInstSeg is distributed through authenticated sources and is not vendored. Do not replace it with
+MFCAD++ or generated fixtures. With the original files and upstream AAGNet partitions mounted, run
+the complete published test selection:
 
 ```bash
 uv run python tools/run_effectiveness_baseline.py \
   mfinstseg /absolute/path/to/MFInstSeg \
   --partition-root /absolute/path/to/AAGNet/MFInstseg_partition \
   --dataset-version published-original \
-  --limit 500 \
-  --output docs/benchmarks/effectiveness-mfinstseg-500-0.5.0.json
+  --taxonomy docs/benchmarks/effectiveness-taxonomy-v13.json \
+  --canonical \
+  --workers 0 \
+  --checkpoint-dir .cache/effectiveness/mfinstseg-9373-COMMIT \
+  --output docs/benchmarks/effectiveness-mfinstseg-9373-COMMIT.json
 ```
 
 Do not inspect individual MFInstSeg model geometry during baseline creation. If later work inspects
 one, record its ID and affected class; that class is no longer described as independent transfer
 evidence for the milestone.
+
+The first canonical full-test report and its interpretation are the
+[`f2cfe4f MFInstSeg baseline`](effectiveness-mfinstseg-9373-f2cfe4f.md). It records all five
+cross-split exclusions before selection and evaluates all 9,373 remaining test IDs without an
+invalid row.
 
 ## Failure and immutability policy
 
