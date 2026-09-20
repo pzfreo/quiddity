@@ -24,6 +24,8 @@ from quiddity._claims import ClaimLedger
 from quiddity._section_passages import section_ring_proposals
 from quiddity.passages import _discover_section_passages
 from tools.audit_mfcadpp_section_passage_gaps import (
+    _KNOWN_INVALID_REASON,
+    _invalid_row,
     _probe_component,
     _relation,
     _selection_hash,
@@ -232,3 +234,19 @@ def test_selection_hashes_pin_order_and_source_content() -> None:
     assert _selection_hash(["100", "200"]) == _selection_hash(["100", "200"])
     assert _selection_hash(["100", "200"]) != _selection_hash(["200", "100"])
     assert _source_selection_hash([("100", "aaa")]) != _source_selection_hash([("100", "changed")])
+
+
+def test_audit_records_only_the_documented_invalid_model_and_reason() -> None:
+    error = ValueError(_KNOWN_INVALID_REASON)
+
+    assert _invalid_row("14052", "source", error, allow_invalid=True) == {
+        "model_id": "14052",
+        "source_sha256": "source",
+        "reason": _KNOWN_INVALID_REASON,
+    }
+    with pytest.raises(ValueError, match=_KNOWN_INVALID_REASON):
+        _invalid_row("14052", "source", error, allow_invalid=False)
+    with pytest.raises(ValueError, match="different"):
+        _invalid_row("14052", "source", ValueError("different"), allow_invalid=True)
+    with pytest.raises(ValueError, match=_KNOWN_INVALID_REASON):
+        _invalid_row("not-documented", "source", error, allow_invalid=True)
