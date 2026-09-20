@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import atan2, cos, hypot, pi, sin
 
-from build123d import GeomType
+from build123d import GeomType, Wire
 
 from quiddity._adjacency import FaceNode
 from quiddity._candidates import CompletedInputs, FamilyId
@@ -35,7 +35,7 @@ from quiddity._solid_properties import (
     run_solid_properties,
     solid_properties,
 )
-from quiddity._typing import FaceLike, Part
+from quiddity._typing import Bounds, FaceLike, Part
 from quiddity.profiled_bores import principal_boundary_plane
 
 _SAMPLES_PER_CURVE = 9
@@ -199,7 +199,7 @@ def _cyclic_edge_orbits(
     return tuple(orbits)
 
 
-def _sample_wire(wire, plane_axes: tuple[str, str]) -> tuple[_CurveEvidence, ...] | None:
+def _sample_wire(wire: Wire, plane_axes: tuple[str, str]) -> tuple[_CurveEvidence, ...] | None:
     sampled: list[_CurveEvidence] = []
     try:
         for edge in wire.edges():
@@ -219,7 +219,7 @@ def _sample_wire(wire, plane_axes: tuple[str, str]) -> tuple[_CurveEvidence, ...
 
 
 def _common_circle_centre(
-    wire, plane_axes: tuple[str, str], *, tol: float
+    wire: Wire, plane_axes: tuple[str, str], *, tol: float
 ) -> tuple[float, float] | None:
     """Return the unanimous centre of at least two circular outer-wire curves."""
 
@@ -245,7 +245,7 @@ def _common_circle_centre(
     return mean if all(_distance(point, mean) <= tol for point in centres) else None
 
 
-def _prove_boundary(face, bbox, *, tol: float) -> _BoundaryEvidence | None:
+def _prove_boundary(face: FaceLike, bbox: Bounds, *, tol: float) -> _BoundaryEvidence | None:
     boundary = principal_boundary_plane(face, bbox)
     if boundary is None:
         return None
@@ -369,7 +369,7 @@ class _RepeatingRadialAttributionError(ValueError):
 
 
 def _recognise_solid(
-    solid, *, tol: float, properties: SolidProperties | None = None
+    solid: Part, *, tol: float, properties: SolidProperties | None = None
 ) -> list[_RepeatingRadialProposal]:
     bbox = solid_properties(properties).bounding_box(solid)
     metric_tol = max(tol, part_scale(bbox) * 1e-5)
