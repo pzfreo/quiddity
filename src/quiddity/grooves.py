@@ -48,7 +48,7 @@ from quiddity._features import analyse_cylinders
 from quiddity._geometry import length_tol
 from quiddity._record import Record
 from quiddity._solid_properties import run_solid_properties
-from quiddity._typing import CylinderInventory, FaceLike, Part
+from quiddity._typing import CylinderEvidence, CylinderInventory, FaceLike, Part
 from quiddity.turned import TurnedProfileKey, profile_key_from_bands
 
 #: A conical face as ``(axis direction, ((rim centre, rim radius), ...))``.
@@ -107,7 +107,12 @@ def _axis_span(face: FaceLike, axis: tuple[float, float, float]) -> tuple[float,
     return lo, hi
 
 
-def _torus_joined(lower, upper, tol: float, edge_faces: dict) -> bool:
+def _torus_joined(
+    lower: CylinderEvidence,
+    upper: CylinderEvidence,
+    tol: float,
+    edge_faces: dict[object, list[FaceLike]],
+) -> bool:
     """Whether a coaxial torus/annular-plane chain bridges two OD bands.
 
     Rounding the two sharp edges of a groove wall normally leaves an annular plane between its
@@ -122,7 +127,7 @@ def _torus_joined(lower, upper, tol: float, edge_faces: dict) -> bool:
     lo, hi = lower["s_hi"] - tol, upper["s_lo"] + tol
     axis_point = lower["axis_xyz"]
 
-    def transition(face) -> bool:
+    def transition(face: FaceLike) -> bool:
         surf = BRepAdaptor_Surface(face.wrapped)
         kind = surf.GetType()
         if kind == GeomAbs_Torus:
@@ -165,7 +170,13 @@ def _torus_joined(lower, upper, tol: float, edge_faces: dict) -> bool:
     return False
 
 
-def _joined(lower, upper, tol: float, cones: list[ConeJoin], edge_faces: dict | None) -> bool:
+def _joined(
+    lower: CylinderEvidence,
+    upper: CylinderEvidence,
+    tol: float,
+    cones: list[ConeJoin],
+    edge_faces: dict[object, list[FaceLike]] | None,
+) -> bool:
     """Whether *upper* follows *lower* along the shaft.
 
     Directly, when the two bands touch; across a **conical lead-in**; or across the tori and
@@ -196,7 +207,7 @@ def _joined(lower, upper, tol: float, cones: list[ConeJoin], edge_faces: dict | 
     return _torus_joined(lower, upper, tol, edge_faces) if edge_faces is not None else False
 
 
-def _shaft_key(c) -> tuple:
+def _shaft_key(c: CylinderEvidence) -> tuple[str, int, float, float, float]:
     """The axis line a band is turned about: the axis letter plus the axis point projected
     onto the plane perpendicular to the axis direction (position-independent along the axis),
     plus the owning solid. Bands with the same key are coaxial on one shaft; distinct parallel
