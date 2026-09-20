@@ -32,7 +32,7 @@ from OCP.GeomAbs import (
 )
 from OCP.gp import gp_Cone, gp_Cylinder, gp_Pln, gp_Pnt, gp_Sphere, gp_Vec
 from OCP.ShapeAnalysis import ShapeAnalysis_CanonicalRecognition, ShapeAnalysis_Surface
-from OCP.Standard import Standard_Failure
+from OCP.Standard import Standard_Failure, Standard_TypeMismatch
 from OCP.TopAbs import TopAbs_IN, TopAbs_OUT
 from OCP.TopLoc import TopLoc_Location
 from OCP.TopoDS import TopoDS
@@ -1103,7 +1103,8 @@ def _triangle_samples(
         if len(cleared) < _MATERIAL_MIN_SAMPLES:
             return MaterialSideRefusalReason.SAMPLE_NEAR_BOUNDARY
         return tuple(cleared)
-    except (Standard_Failure, RuntimeError, ValueError):
+    # OCP exposes Standard_TypeMismatch as an Exception sibling of Standard_Failure.
+    except (Standard_Failure, Standard_TypeMismatch, RuntimeError, ValueError):
         return MaterialSideRefusalReason.SAMPLE_UNAVAILABLE
 
 
