@@ -144,10 +144,10 @@ in or on the selected face's actual trim, including faces with holes or concave 
 The namespace also groups the four consumer-proven family reads: `classify_bevel` /
 `BevelReject`, `cone_rims`, `read_double_d_tool`, and `floor_face_anchor`. Existing root,
 family-module, and `experimental_geometry.inspect_face` imports remain exact-object compatibility
-aliases. `GeometryGraph`, adjacency, blend collapse, Candidate identity, and
+aliases. `GeometryGraph`, adjacency, blend collapse, private Candidate identity, and
 reconciliation are not part of this supported inspection API, and cross-run correspondence is
-not offered at all. The separate run-local evidence
-view below exposes only opaque accepted-feature and caller-face references.
+not offered at all. The separate run-local evidence view below exposes opaque accepted-feature,
+rejected-candidate, and caller-face references without publishing private candidate records.
 
 `inspection_api_manifest()` returns the separately versioned, installed-wheel contract for this
 roster. It does not change the recognition capability-manifest schema. See
@@ -175,15 +175,20 @@ for feature in view.features:
     print(view.family(feature), view.record(feature).to_dict())
     proof_faces = [view.face(ref) for ref in view.defining_faces(feature)]
     feature_faces = [view.face(ref) for ref in view.constituent_faces(feature)]
+for candidate in view.rejected_candidates:
+    print(view.candidate_family(candidate), view.candidate_reason(candidate).value)
+    rejected_faces = [view.face(ref) for ref in view.candidate_constituent_faces(candidate)]
+    related = view.related_candidates(candidate)
 ```
 
-`FeatureRef` keeps equal-valued occurrences distinct and `FaceRef` resolves to an original face
-of the exact input part. Defining faces prove acceptance; constituent faces are the equal or wider
-physical membership and do not participate in reconciliation. These opaque references are valid
-only with their issuing view, cannot be
-serialized, and are not persistent names across imports, transforms, edits, or separate runs.
-The caller must not mutate the part while using the view. This entry point is explicitly
-caller-coordinate/raw.
+`FeatureRef` keeps equal-valued accepted occurrences distinct, `CandidateRef` identifies bounded
+detector outcomes, and `FaceRef` resolves to an original face of the exact input part. Defining
+faces establish a feature or candidate; constituent faces are the equal or wider physical
+membership. Related candidates are direct reconciliation links and may themselves be accepted or
+rejected; they are not necessarily final winners or public features. These opaque references are
+valid only with their issuing view, cannot be serialized, and are not persistent names across
+imports, transforms, edits, or separate runs. The caller must not mutate the part while using the
+view. This entry point is explicitly caller-coordinate/raw.
 
 `view.association` accounts for the union of accepted constituent faces against every original
 face. It reports face-count and surface-area totals, associated and unassociated values,
@@ -191,6 +196,10 @@ per-family union contributions, and the exact within-run references left unassoc
 contributions may overlap and are not additive. This is not an accuracy or recall score: accepted
 classifications may be wrong, stock faces may intentionally remain unassociated, and incomplete
 constituent publication produces incomplete association.
+
+Rejected-candidate faces are diagnostic evidence, not an accuracy judgment or proof of a missed
+feature. A face absent from both accepted and rejected evidence may still have been consulted by a
+detector or failed predicate; the view does not claim that recognition never examined it.
 
 The evidence view uses unified `SectionRecess` records and may also return `SectionRecessRefusal`
 for an accepted source association without reconstructible geometry. Check the record type before

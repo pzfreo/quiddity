@@ -40,17 +40,20 @@ consumer's workflow needed one analytic fact off one face.
 3. **Inspection.** The declared-feature roster: `inspect_face` plus the four declared-feature
    reads (countersink rims, bevel classification, double-D tool, pocket floor anchor), each one
    closed fact off one face so a declared feature and a detected one agree. Contract: `inspection_api.json` (`quiddity-inspection-api`, format 1).
-4. **Evidence.** A run-local read-only view over one completed run: opaque `FeatureRef` and
-   `FaceRef`, each feature's record, defining faces and constituent faces (`defining` a required
-   subset), and association coverage with explicit denominators. References compare by same-view
+4. **Evidence.** A run-local read-only view over one completed run: opaque `FeatureRef`, `FaceRef`
+   and `CandidateRef`; each accepted feature's record, defining and constituent faces; rejected
+   detector candidates with their final outcome, reason, defining/constituent evidence and direct
+   candidate relationships; and association coverage with explicit denominators. Candidate
+   references publish no rejected record or private detector anatomy, and a relationship does not
+   imply either candidate maps one-to-one to a public feature. All references compare by same-view
    identity, never serialise, and fail closed when forged or crossed. Framed evidence maps
    working-shape faces to caller faces only by exact OCCT identity under the retained placement,
    requiring a bijection. Contract: `evidence_api.json` (`quiddity-evidence-api`, format 1).
 
 `experimental_geometry` stays out of the root and every manifest until a consumer need graduates
 part of it, as `inspect_face` did. Not published: graph construction, adjacency, blend collapse,
-Candidates, `EvidenceIndex`, the registry, reconciliation, run tokens, and cross-run
-correspondence, withdrawn on 2026-09-14 for want of a consumer.
+private `Candidate` values and records, `EvidenceIndex`, the registry, reconciliation, run tokens,
+and cross-run correspondence, withdrawn on 2026-09-14 for want of a consumer.
 
 **The capability manifest.** Families are named by permanent lower-case identifiers
 (`holes`, `hole-patterns`) that survive any rename of module, function or class; a rename is an
