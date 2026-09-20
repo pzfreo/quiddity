@@ -739,6 +739,14 @@ def test_cylinder_quantisation_line_projection_and_gap_boundaries() -> None:
     assert _line_key(base) == _line_key(inside_line)
     assert _line_key(base) != _line_key(outside_line)
 
+    x_line = dict(base, axis="x", dir_xyz=(1.0, 0.0, 0.0))
+    same_line = dict(x_line, axis_xyz=(9.0, 0.0, 0.0))
+    oblique_line = dict(x_line, dir_xyz=(math.sqrt(3) / 2, 0.0, 0.5))
+    other_body = dict(x_line, solid_idx=1)
+    assert _line_key(x_line) == _line_key(same_line)
+    assert _line_key(x_line) != _line_key(oblique_line)
+    assert _line_key(x_line) != _line_key(other_body)
+
     gap = length_tol(10, rel=_STACK_GAP_FRAC)
     touching = _segment(10, 1 + gap, 2)
     separated = _segment(10, math.nextafter(1 + gap, math.inf), 2)
@@ -840,6 +848,23 @@ def test_real_end_partner_plane_cone_torus_sphere_and_cylinder_routes() -> None:
         record.bottom == "flat" and math.isclose(record.diameter, 10)
         for record in _claimed(crossed)[0]
     )
+
+
+@pytest.mark.parametrize("transform", [Pos(0, 0, 0), Pos(17, -23, 41) * Rot(31, 17, 43)])
+def test_intersecting_nonparallel_holes_remain_independent(transform) -> None:
+    part = transform * (
+        Box(60, 60, 60)
+        - Cylinder(3, 100, rotation=(0, 90, 0))
+        - Cylinder(4, 160, rotation=(0, 60, 0))
+    )
+
+    holes = sorted(recognise_holes(part), key=lambda hole: hole.diameter)
+
+    assert [(hole.diameter, hole.depth, hole.bottom) for hole in holes] == [
+        (6.0, 60.0, "through"),
+        (8.0, 74.0, "unknown"),
+    ]
+    assert all(hole.cbore is None for hole in holes)
 
 
 def test_end_partner_margin_and_narrowest_bore_tie_are_explicit() -> None:

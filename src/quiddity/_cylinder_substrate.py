@@ -314,17 +314,23 @@ def analyse_cylinders(
 
 
 def _line_key(c) -> tuple:
-    """Coaxial-stack key: the owning solid plus the axis letter and the axis
-    point projected onto the plane perpendicular to the axis direction (so it is
-    position-independent along the axis, and exact for slanted axes too). The
-    solid component keeps coaxial bores in different bodies of an assembly from
-    grouping into one hole."""
+    """Coaxial-stack key: solid, full direction, and a point on the axis line.
+
+    The point is projected onto the plane perpendicular to the axis direction, making it
+    independent of the source anchor's position along the line and exact for slanted axes too.
+    The canonical full direction distinguishes intersecting nonparallel cylinders that share a
+    dominant axis letter and projected origin. The solid component keeps coaxial bores in
+    different bodies of an assembly from grouping into one hole.
+    """
     px, py, pz = c["axis_xyz"]
     dx, dy, dz = c["dir_xyz"]
     t = px * dx + py * dy + pz * dz
     return (
         c.get("solid_idx", 0),
         c["axis"],
+        dx,
+        dy,
+        dz,
         round(px - t * dx, 3),
         round(py - t * dy, 3),
         round(pz - t * dz, 3),
