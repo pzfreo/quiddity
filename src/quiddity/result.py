@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import math
 import warnings
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, fields, replace
 from enum import Enum
 from types import MappingProxyType
@@ -85,7 +85,7 @@ from quiddity._section_recess_geometry import (
     has_physical_planar_floor,
 )
 from quiddity._sections import LocalFrame
-from quiddity._typing import Bounds, CylinderInventory, FrozenCylinderInventory, Part
+from quiddity._typing import Bounds, CylinderInventory, FrozenCylinderInventory, Part, Vector3
 from quiddity.angled_steps import AngledStep
 from quiddity.blends import Blend
 from quiddity.chamfers import Chamfer
@@ -696,7 +696,7 @@ def _derive_patterns(accepted: CandidateInventory) -> DerivedInventory:
     )
 
 
-def _publication_value(build: Callable[..., RecordT], /, *args, **kwargs) -> RecordT:
+def _publication_value(build: Callable[..., RecordT], /, *args: Any, **kwargs: Any) -> RecordT:
     """Type only value-construction failures, never discovery or evidence failures."""
 
     try:
@@ -1218,7 +1218,13 @@ def _accepted_region_key(
     )
 
 
-def _matching_recesses(record, recesses, context, evidence, projected_regions=None):
+def _matching_recesses(
+    record: object,
+    recesses: Iterable[SectionRecess],
+    context: RecognitionContext,
+    evidence: EvidenceIndex,
+    projected_regions: Mapping[int, tuple[int, tuple[int, ...]]] | None = None,
+) -> tuple[SectionRecess, ...]:
     defining = evidence.defining_of(record)
     constituent = evidence.constituent_of(record)
     owner = context.graph.common_valid_solid(defining)
@@ -1246,8 +1252,15 @@ def _matching_recesses(record, recesses, context, evidence, projected_regions=No
     )
 
 
-def _recess_refusals(accepted, recesses, *, context, evidence, projected_regions=None):
-    refusals = []
+def _recess_refusals(
+    accepted: CandidateInventory,
+    recesses: Iterable[SectionRecess],
+    *,
+    context: RecognitionContext,
+    evidence: EvidenceIndex,
+    projected_regions: Mapping[int, tuple[int, tuple[int, ...]]] | None = None,
+) -> tuple[SectionRecessRefusal, ...]:
+    refusals: list[SectionRecessRefusal] = []
     for definition in PHYSICAL_DEFINITIONS:
         if definition.family not in RECESS_SOURCE_FAMILIES:
             continue
@@ -1301,15 +1314,18 @@ def _project_section_pattern(
     )
     pairs = list(zip(occurrences, points, strict=True))
 
-    def step(offsets):
+    def step(offsets: Sequence[float]) -> Vector3:
         denominator = math.fsum(offset * offset for offset in offsets)
-        return tuple(
-            math.fsum(
-                offset * (point[i] - center[i])
-                for offset, (_, point) in zip(offsets, pairs, strict=True)
-            )
-            / denominator
-            for i in range(3)
+        return cast(
+            Vector3,
+            tuple(
+                math.fsum(
+                    offset * (point[i] - center[i])
+                    for offset, (_, point) in zip(offsets, pairs, strict=True)
+                )
+                / denominator
+                for i in range(3)
+            ),
         )
 
     if isinstance(pattern, PocketArray):
@@ -1343,7 +1359,7 @@ def _project_section_pattern(
 
         # Legacy grid members are column-major. Publish an explicit row-major roster,
         # matching the reconstructed cells, regardless of the source detector's ordering.
-        def cell(pair):
+        def cell(pair: tuple[SectionRecess, Vector3]) -> tuple[int, int]:
             delta = tuple(pair[1][i] - center[i] for i in range(3))
             return (
                 round(
@@ -1368,7 +1384,10 @@ def _project_section_pattern(
             tuple[float, float, float], tuple(value / col_pitch for value in col_step)
         )
         skew = math.fsum(a * b for a, b in zip(row_step, col_direction, strict=True))
-        row_step = tuple(a - skew * b for a, b in zip(row_step, col_direction, strict=True))
+        row_step = cast(
+            Vector3,
+            tuple(a - skew * b for a, b in zip(row_step, col_direction, strict=True)),
+        )
         row_pitch = math.hypot(*row_step)
         if row_pitch == 0:
             return None
@@ -1404,7 +1423,13 @@ def _project_section_pattern(
     return projected
 
 
-def _section_patterns(patterns, recesses, context, evidence, projected_regions=None):
+def _section_patterns(
+    patterns: Iterable[PocketArray | PocketGrid],
+    recesses: Sequence[SectionRecess],
+    context: RecognitionContext,
+    evidence: EvidenceIndex,
+    projected_regions: Mapping[int, tuple[int, tuple[int, ...]]] | None = None,
+) -> tuple[SectionRecessArray | SectionRecessGrid, ...]:
     result: list[SectionRecessArray | SectionRecessGrid] = []
     for pattern in patterns:
         matches = [
@@ -1425,10 +1450,10 @@ def _section_patterns(patterns, recesses, context, evidence, projected_regions=N
     result.sort(key=lambda pattern: -len(pattern.members))
     allocated: list[SectionRecessArray | SectionRecessGrid] = []
     used: set[int] = set()
-    for pattern in result:
-        if not used.intersection(pattern.members):
-            allocated.append(pattern)
-            used.update(pattern.members)
+    for projected_pattern in result:
+        if not used.intersection(projected_pattern.members):
+            allocated.append(projected_pattern)
+            used.update(projected_pattern.members)
     return tuple(allocated)
 
 
