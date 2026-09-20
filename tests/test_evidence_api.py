@@ -159,6 +159,10 @@ def test_rejected_candidates_expose_bounded_faces_and_direct_reconciliation_link
     assert view.candidate_outcome(related) is RecognitionOutcome.ACCEPTED
     assert view.candidate_reason(related) is ReconciliationReason.DEFAULT_ACCEPTED
     assert view.related_candidates(related) == ()
+    related_defining = view.candidate_defining_faces(related)
+    related_constituent = view.candidate_constituent_faces(related)
+    assert related_defining <= related_constituent <= view.faces
+    assert all(view.face(reference) for reference in related_constituent)
 
     passage = next(item for item in view.report.detector_families if item.family == "passages")
     assert passage.rejected == len(view.rejected_candidates) == 1
