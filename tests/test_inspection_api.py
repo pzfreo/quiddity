@@ -870,6 +870,13 @@ def test_validator_rejects_malformed_exception_attributes(mutate, message: str) 
             lambda contract: typing.cast(
                 list[dict[str, object]],
                 typing.cast(dict[str, object], contract["returns"])["members"],
+            )[0].update({"unit": {}}),
+            "is invalid",
+        ),
+        (
+            lambda contract: typing.cast(
+                list[dict[str, object]],
+                typing.cast(dict[str, object], contract["returns"])["members"],
             )[0].update({"values": ["x", "x"]}),
             "is invalid",
         ),
