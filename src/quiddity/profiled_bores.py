@@ -14,8 +14,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import asin, isfinite, sqrt
+from typing import cast
 
-from build123d import Face, GeomType, Solid, Vector
+from build123d import Face, GeomType, Solid, Vector, Wire
 from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.Standard import Standard_ConstructionError, Standard_DomainError, Standard_Failure
 from OCP.StdFail import StdFail_NotDone
@@ -38,7 +39,7 @@ from quiddity._solid_properties import (
     run_solid_properties,
     solid_properties,
 )
-from quiddity._typing import FaceLike, Part, Vector3
+from quiddity._typing import Bounds, EdgeLike, FaceLike, Part, Vector3
 from quiddity._volume_probe import intersection_volume
 
 
@@ -143,16 +144,16 @@ def _valid_wall_chain_facts(
     return True
 
 
-def _same_shape(left, right) -> bool:
+def _same_shape(left: FaceLike, right: FaceLike) -> bool:
     return bool(left.wrapped.IsSame(right.wrapped))
 
 
 def _complete_wall_component(
-    part,
-    low_wire,
-    high_wire,
-    low_face,
-    high_face,
+    part: Part,
+    low_wire: Wire,
+    high_wire: Wire,
+    low_face: FaceLike,
+    high_face: FaceLike,
     axis: str,
     profile: DoubleDProfile,
     lo: float,
@@ -172,8 +173,8 @@ def _complete_wall_component(
     faces = list(part.faces())
     incidence = edge_face_map(faces, face_edges=face_edges)
 
-    def seeds(wire, boundary_face) -> list:
-        found: list = []
+    def seeds(wire: Wire, boundary_face: FaceLike) -> list[FaceLike]:
+        found: list[FaceLike] = []
         for edge in wire.edges():
             partners = [
                 face for face in incidence.get(edge, ()) if not _same_shape(face, boundary_face)
@@ -194,7 +195,7 @@ def _complete_wall_component(
     flat_direction = profile.flat_direction
     metric_tol = max(tol, profile.major_diameter * 1e-3)
 
-    def lateral(face) -> bool:
+    def lateral(face: FaceLike) -> bool:
         if _same_shape(face, low_face) or _same_shape(face, high_face):
             return False
         if face.geom_type not in (GeomType.PLANE, GeomType.CYLINDER):
@@ -247,7 +248,7 @@ def _complete_wall_component(
         radial_to_void[axis_i] = 0.0
         return sum(radial_to_void[i] * normal_values[i] for i in range(3)) > metric_tol
 
-    def support(face):
+    def support(face: FaceLike) -> tuple[str | float, ...]:
         surface = BRepAdaptor_Surface(face.wrapped)
         if face.geom_type == GeomType.PLANE:
             plane = surface.Plane()
@@ -276,19 +277,30 @@ def _complete_wall_component(
             cylinder.Radius(),
         )
 
-    def same_support(left, right) -> bool:
+    def same_support(left: tuple[str | float, ...], right: tuple[str | float, ...]) -> bool:
         if left[0] != right[0] or len(left) != len(right):
             return False
+        left_values = cast(tuple[float, ...], left[1:])
+        right_values = cast(tuple[float, ...], right[1:])
         if left[0] == "plane":
             return (
-                all(abs(left[i] - right[i]) <= 1e-4 for i in range(1, 4))
-                and abs(left[4] - right[4]) <= metric_tol
+                all(
+                    abs(left_value - right_value) <= 1e-4
+                    for left_value, right_value in zip(
+                        left_values[:3], right_values[:3], strict=True
+                    )
+                )
+                and abs(left_values[3] - right_values[3]) <= metric_tol
             )
-        return all(abs(left[i] - right[i]) <= 1e-4 for i in range(1, 4)) and all(
-            abs(left[i] - right[i]) <= metric_tol for i in range(4, len(left))
+        return all(
+            abs(left_value - right_value) <= 1e-4
+            for left_value, right_value in zip(left_values[:3], right_values[:3], strict=True)
+        ) and all(
+            abs(left_value - right_value) <= metric_tol
+            for left_value, right_value in zip(left_values[3:], right_values[3:], strict=True)
         )
 
-    def chain(seed) -> tuple[FaceLike, ...]:
+    def chain(seed: FaceLike) -> tuple[FaceLike, ...]:
         if not lateral(seed):
             return ()
         role = support(seed)
@@ -323,7 +335,7 @@ def _complete_wall_component(
         high_assignments.append(matches[0])
     intervals: dict[int, tuple[float, float]] = {}
     edge_pairs: list[tuple[int, int]] = []
-    visited_edges: set = set()
+    visited_edges: set[EdgeLike] = set()
     for chain_faces in chains:
         for face in chain_faces:
             key = id(face)
@@ -366,7 +378,9 @@ def _complete_wall_component(
     return tuple(face for face in faces if any(_same_shape(face, wall) for wall in seen))
 
 
-def principal_boundary_plane(face, bbox) -> tuple[str, tuple[str, str], float] | None:
+def principal_boundary_plane(
+    face: FaceLike, bbox: Bounds
+) -> tuple[str, tuple[str, str], float] | None:
     """Return ``(normal axis, in-plane axes, boundary coordinate)`` for an extremal face."""
     if face.geom_type != GeomType.PLANE:
         return None
@@ -392,7 +406,9 @@ def principal_boundary_plane(face, bbox) -> tuple[str, tuple[str, str], float] |
     return axis, (plane_axes[0], plane_axes[1]), at
 
 
-def double_d_profile(wire, plane_axes: tuple[str, str], *, tol: float) -> DoubleDProfile | None:
+def double_d_profile(
+    wire: Wire, plane_axes: tuple[str, str], *, tol: float
+) -> DoubleDProfile | None:
     """Read a double-D wire, rejecting merely topology-similar loops.
 
     The proof checks one common parent circle, opposed parallel chords, chord length and
@@ -405,7 +421,7 @@ def double_d_profile(wire, plane_axes: tuple[str, str], *, tol: float) -> Double
     if len(edges) != 4 or len(lines) != 2 or len(arcs) != 2:
         return None
 
-    def coord(obj, axis: str) -> float:
+    def coord(obj: Vector, axis: str) -> float:
         return float(getattr(obj, axis.upper()))
 
     wbb = wire.bounding_box()
@@ -518,10 +534,10 @@ def _profiles_correspond(
 
 
 def double_d_bores_from_openings(
-    openings: list[tuple[str, float, DoubleDProfile, object]],
-    bbox,
+    openings: list[tuple[str, float, DoubleDProfile, Wire]],
+    bbox: Bounds,
     *,
-    part,
+    part: Part,
     tol: float,
     proposal_context: _ProposalContext | None = None,
 ) -> list[DoubleDBore]:
@@ -613,7 +629,7 @@ def double_d_bores_from_openings(
 
 
 def _recognise_double_d_bores_one(
-    part,
+    part: Part,
     *,
     tol: float,
     face_edges: FaceEdges | None = None,
@@ -623,7 +639,7 @@ def _recognise_double_d_bores_one(
     """Recognise double-D bores within one solid's own boundary."""
     bbox = solid_properties(properties).bounding_box(part)
     scan_tol = max(tol, part_scale(bbox) * 1e-5)
-    openings: list[tuple[str, float, DoubleDProfile, object]] = []
+    openings: list[tuple[str, float, DoubleDProfile, Wire]] = []
     opening_faces: dict[int, FaceLike] = {}
     for face in part.faces():
         boundary = principal_boundary_plane(face, bbox)
