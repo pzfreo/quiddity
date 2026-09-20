@@ -36,7 +36,7 @@ from OCP.gp import gp_Pnt, gp_Vec
 from OCP.ShapeAnalysis import ShapeAnalysis_Surface
 from OCP.TopAbs import TopAbs_EDGE, TopAbs_Orientation, TopAbs_WIRE
 from OCP.TopExp import TopExp_Explorer
-from OCP.TopoDS import TopoDS
+from OCP.TopoDS import TopoDS, TopoDS_Face
 
 from quiddity._analytic_surfaces import (
     SurfaceKind,
@@ -46,7 +46,7 @@ from quiddity._analytic_surfaces import (
 )
 from quiddity._geometry import AXIS_ALIGNED_COS, SMOOTH_ARC_GAP, length_tol
 from quiddity._solid_properties import SolidProperties
-from quiddity._typing import EdgeLike, FaceLike
+from quiddity._typing import EdgeLike, FaceLike, Part, Vector3
 
 _T = TypeVar("_T")
 
@@ -263,7 +263,7 @@ class FaceGraph:
     faces alive, and its node ids stop meaning anything the moment the part changes.
     """
 
-    def __init__(self, part, *, face_edges: FaceEdges | None = None) -> None:
+    def __init__(self, part: Part, *, face_edges: FaceEdges | None = None) -> None:
         self._run_token = GraphRunToken()
         self._part = part
         self._faces: list[FaceLike] = list(part.faces())
@@ -812,7 +812,7 @@ class FaceGraph:
         )
         return "convex" if sum(x * y for x, y in zip(into, nb, strict=True)) < 0 else "concave"
 
-    def _normal_at(self, node: FaceNode, point) -> tuple[float, float, float] | None:
+    def _normal_at(self, node: FaceNode, point: Vector3) -> Vector3 | None:
         """This face's outward normal *at a point*, or None where it has none.
 
         Not cached, unlike :meth:`normal`: the answer varies over a curved face, so there is no
@@ -849,7 +849,7 @@ class FaceGraph:
         sign = 1.0 if forward else -1.0
         return (sign * cross.X(), sign * cross.Y(), sign * cross.Z())
 
-    def _boundary_direction(self, node: FaceNode, edge: EdgeLike):
+    def _boundary_direction(self, node: FaceNode, edge: EdgeLike) -> tuple[Vector3, Vector3] | None:
         """``(direction, point)``: how *node*'s boundary walks *edge*, and where it was measured.
 
         The edge's own parameterisation is not it -- OCP does not orient that consistently, and a
@@ -1234,7 +1234,7 @@ def neighbours(face: FaceLike, edge_faces: dict, *, face_edges: FaceEdges | None
     return out
 
 
-def axis_aligned_axis(face_wrapped) -> tuple[int, float] | None:
+def axis_aligned_axis(face_wrapped: TopoDS_Face) -> tuple[int, float] | None:
     """The axis a planar face's normal aligns with and that plane's fixed coordinate along
     it, or None if the face is not planar or not axis-aligned. Sign-agnostic (only alignment
     matters here); the coordinate locates the plane."""
