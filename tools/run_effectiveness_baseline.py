@@ -23,6 +23,7 @@ from typing import Any
 
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
+DEFAULT_TAXONOMY = ROOT / "docs" / "benchmarks" / "effectiveness-taxonomy-v13.json"
 
 from tools.effectiveness_report import (  # noqa: E402
     REPORT_FORMAT,
@@ -505,7 +506,7 @@ def main() -> int:
     parser.add_argument(
         "--taxonomy",
         type=Path,
-        default=ROOT / "docs" / "benchmarks" / "effectiveness-taxonomy-v1.json",
+        default=DEFAULT_TAXONOMY,
     )
     parser.add_argument("--partition-root", type=Path)
     parser.add_argument("--limit", type=int)
