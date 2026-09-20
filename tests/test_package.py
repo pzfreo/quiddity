@@ -72,23 +72,28 @@ def test_every_copy_of_the_version_agrees() -> None:
     assert evidence["package"]["version"] == version
 
 
-def test_stable_release_notes_record_the_proven_downstream_cutover() -> None:
+def test_release_notes_preserve_quiddity_cutover_and_legacy_history() -> None:
     notes = (ROOT / "RELEASE_NOTES.md").read_text(encoding="utf-8")
 
     # Past releases keep their notes. That the version *being released* has a section is a
     # different question, and asking it here was wrong: under the .devN scheme main always
     # carries an unreleased version, so this would have demanded speculative notes and failed
-    # every post-release bump. The publish workflow asks it against the tag instead.
+    # every post-release bump. The release checklist makes that a manual pre-tag check.
     assert notes.startswith("# Release notes\n")
-    # Quiddity reset its version history; distinguish its release from the old package's
-    # historical 0.2.1 entry, which must remain intact below.
-    assert notes.count("\n## 0.2.1 — Quiddity\n") == 1
-    assert notes.count("\n## 0.2.5\n") == 1
-    assert notes.count("\n## 0.2.4\n") == 1
-    assert notes.count("\n## 0.2.3\n") == 1
-    assert notes.count("\n## 0.2.2\n") == 1
-    assert notes.count("\n## 0.2.1\n") == 1
-    assert notes.count("\n## 0.2.0\n") == 1
+    # Quiddity reset its version history. Protect both sides of that cutover instead of
+    # accidentally satisfying the Quiddity checks with old-package headings.
+    quiddity_headings = (
+        "0.2.0 — Quiddity second alpha",
+        "0.2.1 — Quiddity",
+        "0.2.2 — Quiddity",
+        "0.2.3 — Quiddity",
+        "0.2.4 — Quiddity",
+        "0.2.5 — Quiddity",
+    )
+    for heading in quiddity_headings:
+        assert notes.count(f"\n## {heading}\n") == 1
+    for version in ("0.2.0", "0.2.1", "0.2.2", "0.2.3", "0.2.4", "0.2.5"):
+        assert notes.count(f"\n## {version}\n") == 1
     assert "capability manifest" in notes
     assert "Draftwright PR #1168" in notes
     assert "d659e7a6" in notes
