@@ -29,7 +29,7 @@ from OCP.GeomAbs import GeomAbs_Cylinder
 
 from quiddity._adjacency import FaceEdges, FaceGraph, FaceNode, frame_points_outward
 from quiddity._recess_records import Slot
-from quiddity._typing import Bounds, Part
+from quiddity._typing import Bounds, FaceLike, Part, Vector3
 
 _AXES = {"x": 0, "y": 1, "z": 2}
 
@@ -49,7 +49,7 @@ _FLOOR_TOL = 0.3
 _FLOOR_COVER_FRAC = 0.5
 
 
-def _dominant_axis(nrm) -> str | None:
+def _dominant_axis(nrm: Vector3) -> str | None:
     """Return the axis letter when ``nrm`` is axis-aligned, else None."""
     for axis, k in _AXES.items():
         if abs(abs(nrm[k]) - 1.0) <= _AXIS_ALIGNED_TOL:
@@ -61,7 +61,7 @@ def _dominant_axis(nrm) -> str | None:
 class _Face:
     """A planar face reduced to the data the recogniser needs."""
 
-    normal: tuple
+    normal: Vector3
     #: The principal axis this face's normal aligns with, or None when it aligns with none.
     #: Total by ADR 0009: an oblique wall is carried with ``axis=None`` rather than dropped, so
     #: the family that cannot use it is the one seen to decline it.
@@ -77,7 +77,7 @@ class _Face:
     node: FaceNode | None = None
 
 
-def _is_wall(face, face_edges: FaceEdges | None = None) -> bool:
+def _is_wall(face: FaceLike, face_edges: FaceEdges | None = None) -> bool:
     """True when *face* can be a slot wall: bounded only by straight (LINE) or circular-arc
     (CIRCLE) edges, with **at least one** straight edge and **at most one** arc. A fully
     rectangular wall qualifies (all LINE); a slot cut into round stock has a wall the OD clips
@@ -157,11 +157,11 @@ def _planar_faces(
     return faces
 
 
-def _center(bb, k) -> float:
+def _center(bb: Bounds, k: int) -> float:
     return float(getattr(bb.min, "XYZ"[k]) + getattr(bb.max, "XYZ"[k])) / 2
 
 
-def _overlap_len(bb_a, bb_b, axis) -> float:
+def _overlap_len(bb_a: Bounds, bb_b: Bounds, axis: str) -> float:
     """Length of the overlap of two bboxes along ``axis`` (0 if disjoint)."""
     c = "XYZ"[_AXES[axis]]
     lo = max(getattr(bb_a.min, c), getattr(bb_b.min, c))
@@ -169,7 +169,14 @@ def _overlap_len(bb_a, bb_b, axis) -> float:
     return float(hi - lo)
 
 
-def _end_cap_faces(faces: list[_Face], foot, foot_area, depth_axis, end, want) -> tuple[_Face, ...]:
+def _end_cap_faces(
+    faces: list[_Face],
+    foot: dict[str, tuple[float, float]],
+    foot_area: float,
+    depth_axis: str,
+    end: float,
+    want: float,
+) -> tuple[_Face, ...]:
     """Return exact inward faces when they cover one end of the required footprint.
 
     ``want`` is the sign the covering normal must point (+depth at the low end, -depth at the
@@ -198,7 +205,14 @@ def _end_cap_faces(faces: list[_Face], foot, foot_area, depth_axis, end, want) -
     return tuple(selected) if covered >= _FLOOR_COVER_FRAC * foot_area else ()
 
 
-def _end_capped(faces: list[_Face], foot, foot_area, depth_axis, end, want) -> bool:
+def _end_capped(
+    faces: list[_Face],
+    foot: dict[str, tuple[float, float]],
+    foot_area: float,
+    depth_axis: str,
+    end: float,
+    want: float,
+) -> bool:
     """Whether :func:`_end_cap_faces` proves one capped footprint end."""
 
     return bool(_end_cap_faces(faces, foot, foot_area, depth_axis, end, want))
@@ -300,7 +314,7 @@ def _has_side_walls(faces: list[_Face], s: Slot) -> bool:
     return lo_wall and hi_wall
 
 
-def _union_bb(a, b) -> SimpleNamespace:
+def _union_bb(a: Bounds | SimpleNamespace, b: Bounds) -> SimpleNamespace:
     """Axis-aligned union of two bounding boxes, as a ``min``/``max`` namespace matching the
     build123d ``BoundBox`` interface (``.min.X`` …) the cap helpers read."""
     mn = SimpleNamespace(X=min(a.min.X, b.min.X), Y=min(a.min.Y, b.min.Y), Z=min(a.min.Z, b.min.Z))
