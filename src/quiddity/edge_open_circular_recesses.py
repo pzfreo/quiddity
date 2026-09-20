@@ -23,7 +23,7 @@ from quiddity._definitions import (
 from quiddity._geometry import AXIS_ZERO_COS
 from quiddity._record import Record
 from quiddity._rings import SPAN_EPS
-from quiddity._typing import Part
+from quiddity._typing import EdgeLike, Part
 from quiddity._volume_probe import material_fraction as _material_fraction
 
 _AXES = "xyz"
@@ -226,7 +226,7 @@ def _ordered_chain(graph: FaceGraph, nodes: tuple[FaceNode, ...]) -> tuple[FaceN
     return tuple(ordered) if set(ordered) == available else None
 
 
-def _project(point, axis: int) -> tuple[float, float]:
+def _project(point: Vector, axis: int) -> tuple[float, float]:
     values = (float(point.X), float(point.Y), float(point.Z))
     others = [candidate for candidate in range(3) if candidate != axis]
     return values[others[0]], values[others[1]]
@@ -236,7 +236,9 @@ def _rounded_point(point: tuple[float, float]) -> tuple[float, float]:
     return round(point[0], _POINT_DIGITS), round(point[1], _POINT_DIGITS)
 
 
-def _arc_sweep(edge, start: tuple[float, float], end: tuple[float, float], axis: int) -> float:
+def _arc_sweep(
+    edge: EdgeLike, start: tuple[float, float], end: tuple[float, float], axis: int
+) -> float:
     center = _project(edge.arc_center, axis)
     middle = _project(edge.position_at(0.5), axis)
     first = math.atan2(start[1] - center[1], start[0] - center[0])
