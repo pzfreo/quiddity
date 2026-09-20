@@ -9,6 +9,7 @@ from itertools import combinations
 from typing import cast
 
 from build123d import Compound, Face, GeomType, Keep, Plane, Shape, ShapeList, Solid, Vector, Wire
+from OCP.TopoDS import TopoDS_Shape
 
 from quiddity._adjacency import FaceGraph, FaceNode, SolidRef, connected_components
 from quiddity._section_passages import _ordered_cycle, _pair_line
@@ -34,7 +35,9 @@ class PlaneEnvelopePassageProof:
     volume: float
 
 
-def _shape(value: Shape | ShapeList | list[Solid] | None) -> Shape:
+def _shape(
+    value: Shape[TopoDS_Shape] | ShapeList[Shape[TopoDS_Shape]] | list[Solid] | None,
+) -> Shape[TopoDS_Shape]:
     if value is None:
         return Compound([])
     return Compound(value) if isinstance(value, (list, ShapeList)) else value
@@ -94,7 +97,7 @@ def _prove(
         ) < 0:
             return None
 
-    def world(point, height):
+    def world(point: tuple[float, float], height: float) -> Vector:
         return Vector(*base.u) * point[0] + Vector(*base.v) * point[1] + run * height
 
     far = graph.face(mouth_node).center().dot(run)
