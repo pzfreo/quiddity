@@ -743,11 +743,11 @@ class HoleSpec(Record):
         )
 
 
-def _spec_key(h) -> HoleSpec:
+def _spec_key(h: HoleRecord) -> HoleSpec:
     return HoleSpec.from_hole(h)
 
 
-def _opening_plane_clusters(members, axis) -> list[list[int]]:
+def _opening_plane_clusters(members: Sequence[HoleRecord], axis: Vector3) -> list[list[int]]:
     """Indices of holes whose openings share one plane perpendicular to *axis*.
 
     Coordinates are measured relative to the first opening so a rigid translation does not spend
@@ -779,7 +779,9 @@ def _opening_plane_clusters(members, axis) -> list[list[int]]:
     )
 
 
-def _as_bolt_circle(holes, pts: Sequence[tuple[float, float]]) -> BoltCircle | None:
+def _as_bolt_circle(
+    holes: Sequence[HoleRecord], pts: Sequence[tuple[float, float]]
+) -> BoltCircle | None:
     """BoltCircle when *pts* (2D) are equally spaced on a common circle."""
     n = len(pts)
     cx = sum(p[0] for p in pts) / n
@@ -798,7 +800,9 @@ def _as_bolt_circle(holes, pts: Sequence[tuple[float, float]]) -> BoltCircle | N
     return BoltCircle(holes=tuple(holes), center=center, diameter=round(2 * r, 2))
 
 
-def _circumcircle(p0, p1, p2) -> tuple[float, float, float] | None:
+def _circumcircle(
+    p0: tuple[float, float], p1: tuple[float, float], p2: tuple[float, float]
+) -> tuple[float, float, float] | None:
     """Centre and radius ``(cx, cy, r)`` of the circle through three 2D points,
     or ``None`` when they are collinear (so a collinear triple can never seed a
     bolt circle — collinearity must win, per :func:`recognise_hole_patterns`)."""
@@ -815,7 +819,7 @@ def _circumcircle(p0, p1, p2) -> tuple[float, float, float] | None:
 
 
 def _bolt_circle_candidates(
-    members, pts: Sequence[tuple[float, float]]
+    members: Sequence[HoleRecord], pts: Sequence[tuple[float, float]]
 ) -> list[tuple[BoltCircle, frozenset[int]]]:
     """All bolt circles within a spec group: every triple seeds a candidate
     circle, the group's points lying on it are gathered, and the set is kept
@@ -850,11 +854,19 @@ def _bolt_circle_candidates(
     return out
 
 
-def _mk_hole_linear(members, pitch, direction) -> LinearArray:
+def _mk_hole_linear(members: Sequence[HoleRecord], pitch: float, direction: Vector3) -> LinearArray:
     return LinearArray(holes=tuple(members), pitch=pitch, direction=direction)
 
 
-def _mk_hole_grid(members, rows, cols, row_pitch, col_pitch, angle, center) -> RectGrid:
+def _mk_hole_grid(
+    members: Sequence[HoleRecord],
+    rows: int,
+    cols: int,
+    row_pitch: float,
+    col_pitch: float,
+    angle: float,
+    center: Vector3,
+) -> RectGrid:
     return RectGrid(
         holes=tuple(members),
         rows=rows,
