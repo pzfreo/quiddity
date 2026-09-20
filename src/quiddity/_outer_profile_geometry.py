@@ -144,7 +144,11 @@ class _OuterProfileSource:
         self.graph = graph
         self.body_nodes: dict[object, frozenset[FaceNode]] = {}
 
-    def read(self, node: FaceNode):
+    def read(
+        self, node: FaceNode
+    ) -> (
+        tuple[PlanarOuterProfile, tuple[Edge, ...], frozenset[FaceNode]] | RefusedPlanarOuterProfile
+    ):
         owner = self.graph.common_valid_solid((node,))
         if owner is None:
             return RefusedPlanarOuterProfile(Reason.AMBIGUOUS_BODY)
