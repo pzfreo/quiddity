@@ -136,6 +136,14 @@ def test_linear_array_may_cross_opening_planes() -> None:
     ]
 
 
+def test_projected_row_that_zigzags_between_planes_is_not_a_linear_array() -> None:
+    holes = [
+        _hole((float(index * 10), 0.0, -100.0 if index % 2 == 0 else 100.0)) for index in range(4)
+    ]
+
+    assert recognise_hole_patterns(holes) == []
+
+
 def test_flanged_spool_retains_both_bolt_circles() -> None:
     holes = recognise_holes(import_step_geometry(SPOOL))
 

@@ -96,6 +96,14 @@ _SUPPORTED_RECESS_AXIS_COVARIANCE = {
     "nist_ftc_09": {"pockets": 1},
 }
 
+# Issue #595 evaluates hole linear arrays in world 3-D rather than in their drilling plane.
+# FTC 07's four same-spec holes alternate between two opening planes about 204 units apart: their
+# projection is a constant-pitch row, but the physical opening points form a zigzag. Removing that
+# false LinearArray is an intentional correction, not a loss of a real pattern.
+_SUPPORTED_PATTERN_DIMENSIONALITY = {
+    "nist_ftc_07": {"hole_patterns": -1},
+}
+
 
 def _expected_after_supported_changes(stem: str, baseline: dict[str, int]) -> dict[str, int]:
     expected = dict(baseline)
@@ -103,6 +111,7 @@ def _expected_after_supported_changes(stem: str, baseline: dict[str, int]) -> di
         _SUPPORTED_ADDITIONS.get(stem, {}),
         _SUPPORTED_RECESS_CORRECTIONS.get(stem, {}),
         _SUPPORTED_RECESS_AXIS_COVARIANCE.get(stem, {}),
+        _SUPPORTED_PATTERN_DIMENSIONALITY.get(stem, {}),
     ):
         for family, change in changes.items():
             expected[family] += change
