@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import product
 
@@ -27,7 +28,7 @@ class OpenChannelProof:
     aperture_faces: tuple[FaceNode, ...] = ()
 
 
-def _bounds(graph: FaceGraph, node: FaceNode):
+def _bounds(graph: FaceGraph, node: FaceNode) -> tuple[tuple[float, float], ...]:
     points = [tuple(vertex) for vertex in graph.face(node).vertices()]
     return tuple((min(p[i] for p in points), max(p[i] for p in points)) for i in range(3))
 
@@ -35,10 +36,10 @@ def _bounds(graph: FaceGraph, node: FaceNode):
 def _supports(
     graph: FaceGraph,
     nodes: frozenset[FaceNode],
-    bounds,
-    axis,
-    at,
-    sign,
+    bounds: Sequence[tuple[float, float]],
+    axis: int,
+    at: float,
+    sign: int,
     *,
     surfaces: EffectiveSurfaceQuery | None = None,
     aperture_faces: set[FaceNode] | None = None,
@@ -164,9 +165,10 @@ def prove_open_channel(
             return None
         # The lateral opening is physical absence too, not a fourth unobserved support wall.
         lateral_bounds = list(bounds)
-        lateral_bounds[d] = tuple(
-            sorted((mouth + record.open_sign * 1e-6, mouth + record.open_sign * thickness))
+        lateral_low, lateral_high = sorted(
+            (mouth + record.open_sign * 1e-6, mouth + record.open_sign * thickness)
         )
+        lateral_bounds[d] = (lateral_low, lateral_high)
         origin = Vector(*(pair[0] for pair in lateral_bounds))
         dx, dy, dz = (hi - lo for lo, hi in lateral_bounds)
         probe = Solid.make_box(dx, dy, dz, plane=Plane(origin))
