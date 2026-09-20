@@ -27,7 +27,7 @@ The radius is the cylinder radius, read from the geometry, not estimated from th
 A too-small round (an edge-break / deburr, below ``min_radius``) is not a dimensioned
 feature.
 
-Depends on :mod:`.chamfers` for :func:`~quiddity.chamfers.convex_bevel` rather than
+Depends on :mod:`._bevel` for :func:`~quiddity._bevel.convex_bevel` rather than
 copying it, as :mod:`.angled_steps` does and for the same reason: a change to what counts as a
 convex corner should reach every family that asks. That test was a line-for-line copy here until
 epic 0002 item 2 — same construction, same probe fraction, same classifier tolerance — and two

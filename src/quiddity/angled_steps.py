@@ -45,7 +45,7 @@ two cannot disagree about what they are looking at:
   floor is a triangle. Prototyped without this gate, pockets outnumbered steps three to one
   (precision 21%); over 120 MFCAD++ models it stops all 109 of them, and the convex probe
   stops none;
-- **convex** — :func:`quiddity.chamfers.convex_bevel`, and it carries real weight:
+- **convex** — :func:`quiddity._bevel.convex_bevel`, and it carries real weight:
   of the 85 faces that reach it over 120 MFCAD++ models it rejects 24. What it catches is
   a slant with material *behind* it rather than below — a gusset filling a concave corner,
   whose hypotenuse bridges two perpendicular walls and whose ends are triangles, so it
@@ -72,8 +72,8 @@ strip's rectangular cap retains four runs, a kinked near-triangle retains four, 
 unreadable boundary fails closed. This is the named subdivided-region query required by ADR 0004,
 not a relaxation from three edges to four or five.
 
-Depends on ``chamfers`` for the bevel read and the convexity probe rather than copying
-either, so a change to what counts as a bevel reaches both recognisers at once.
+Depends on :mod:`.chamfers` for the bevel read and :mod:`._bevel` for the convexity probe rather
+than copying either, so a change to their shared bevel contract reaches both recognisers at once.
 """
 
 from __future__ import annotations
