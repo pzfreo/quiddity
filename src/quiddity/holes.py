@@ -53,7 +53,13 @@ from quiddity._effective_surfaces import (
     SurfaceUseRefusal,
     cylinder_surface_dependency,
 )
-from quiddity._geometry import dot, length_tol, quantise, without_negative_zero
+from quiddity._geometry import (
+    cluster_coordinates,
+    dot,
+    length_tol,
+    quantise,
+    without_negative_zero,
+)
 from quiddity._pattern_geometry import (
     _PATTERN_ABS_TOL,
     _linear_array_candidates,
@@ -79,6 +85,11 @@ _SAME_DIAMETER_FRAC = 1e-4
 
 #: Smallest diameter the proportional test will divide by; see `_same_diameter`.
 _DIAMETER_FLOOR = 1e-9
+
+# Hole axes are snapped component-wise to six decimal places in ``HoleSpec``. Across an arbitrary
+# axis, the combined direction error is below 2e-6 of the pattern span; use that same bound to
+# decide whether opening points occupy one plane, plus ``length_tol``'s coordinate-noise floor.
+_OPENING_PLANE_REL_TOL = 2e-6
 
 
 def _same_diameter(a: float, b: float) -> bool:
@@ -736,6 +747,38 @@ def _spec_key(h) -> HoleSpec:
     return HoleSpec.from_hole(h)
 
 
+def _opening_plane_clusters(members, axis) -> list[list[int]]:
+    """Indices of holes whose openings share one plane perpendicular to *axis*.
+
+    Coordinates are measured relative to the first opening so a rigid translation does not spend
+    floating-point precision on the world origin. The scale includes both the hole diameter and
+    the group's spatial span: the former controls a compact group, while the latter accounts for
+    the bounded angular error introduced by ``HoleSpec``'s six-place axis snap.
+    """
+
+    magnitude = math.hypot(*axis)
+    direction = tuple(component / magnitude for component in axis)
+    origin = members[0].location
+    offsets = [
+        dot(
+            tuple(
+                component - anchor
+                for component, anchor in zip(member.location, origin, strict=True)
+            ),
+            direction,
+        )
+        for member in members
+    ]
+    scale = max(
+        members[0].diameter,
+        *(math.dist(origin, member.location) for member in members),
+    )
+    return cluster_coordinates(
+        offsets,
+        tol=length_tol(scale, rel=_OPENING_PLANE_REL_TOL),
+    )
+
+
 def _as_bolt_circle(holes, pts: Sequence[tuple[float, float]]) -> BoltCircle | None:
     """BoltCircle when *pts* (2D) are equally spaced on a common circle."""
     n = len(pts)
@@ -830,15 +873,16 @@ def recognise_hole_patterns(
     :class:`RectGrid` patterns among *holes* (``HoleRecord`` records, e.g.
     from :func:`recognise_holes`).
 
-    Holes are grouped by machining spec and drilling axis, then each group is
-    *sub-clustered* — a single spec can contribute several patterns (two
-    separate bolt circles, the rows of a rectangular perimeter, a grid). All
-    candidate sub-patterns are enumerated and allocated greedily largest-first,
-    so each hole belongs to at most one pattern and the richest interpretation
-    wins. Precedence is deterministic: a full grid claims its complete same-spec group first;
-    remaining candidates sort by member count with stable family order. A filled N×M lattice
-    becomes one :class:`RectGrid`; a rectangular
-    ring or perimeter is reported as its edge :class:`LinearArray` rows.
+    Holes are grouped by machining spec and drilling axis, then circles and grids are
+    sub-clustered by their shared opening plane. Linear arrays retain their world 3-D geometry,
+    so a useful row may cross opening planes. A single spec can therefore contribute several
+    patterns (two separate bolt circles, the rows of a rectangular perimeter, a grid). All
+    candidate sub-patterns are enumerated and allocated greedily largest-first, so each hole
+    belongs to at most one pattern and the richest interpretation wins. Precedence is
+    deterministic: a full grid claims its complete same-spec group first; remaining candidates
+    sort by member count with stable family order. A filled N×M lattice becomes one
+    :class:`RectGrid`; a rectangular ring or perimeter is reported as its edge
+    :class:`LinearArray` rows.
 
     Collinearity is tested ahead of concyclicity (any three points are
     concyclic, so a 3-hole "bolt circle" must really be an equilateral
@@ -860,8 +904,11 @@ def recognise_hole_patterns(
             )
             for h in members
         ]
-        grid = _rect_grid(members, pts, _mk_hole_grid)
-        if grid is not None:
+        plane_clusters = _opening_plane_clusters(members, spec.axis)
+        if (
+            len(plane_clusters) == 1
+            and (grid := _rect_grid(members, pts, _mk_hole_grid)) is not None
+        ):
             # `_rect_grid` succeeds only when this entire same-spec group fills one
             # lattice. The grid therefore claims every member, sorts ahead of every
             # equal-sized candidate, and makes all circle/linear candidates impossible
@@ -870,8 +917,23 @@ def recognise_hole_patterns(
             patterns.append(grid)
             continue
         candidates: list = []
-        candidates += _bolt_circle_candidates(members, pts)
-        candidates += _linear_array_candidates(members, pts, _mk_hole_linear)
+        for indices in plane_clusters:
+            if len(indices) < 3:
+                continue
+            plane_members = [members[index] for index in indices]
+            plane_points = [pts[index] for index in indices]
+            grid = _rect_grid(plane_members, plane_points, _mk_hole_grid)
+            if grid is not None:
+                candidates.append((grid, frozenset(indices)))
+            candidates.extend(
+                (pattern, frozenset(indices[index] for index in local_indices))
+                for pattern, local_indices in _bolt_circle_candidates(plane_members, plane_points)
+            )
+        candidates += _linear_array_candidates(
+            members,
+            [member.location for member in members],
+            _mk_hole_linear,
+        )
         # allocate largest-first; a hole used by one pattern is off the table
         # for the rest (stable sort keeps grids ahead of circles ahead of rows
         # at equal size)

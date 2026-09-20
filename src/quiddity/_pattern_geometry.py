@@ -77,14 +77,27 @@ def _plane_uv(axis) -> tuple[tuple[float, ...], tuple[float, ...]]:
     return u, v
 
 
+def _line_position(point, origin, direction) -> tuple[float, float]:
+    """Distance along and perpendicular to an N-dimensional directed line."""
+
+    relative = tuple(component - anchor for component, anchor in zip(point, origin, strict=True))
+    along = dot(relative, direction)
+    perpendicular = tuple(
+        component - along * axis for component, axis in zip(relative, direction, strict=True)
+    )
+    return along, math.hypot(*perpendicular)
+
+
 def _as_linear_array(
-    members, pts: Sequence[tuple[float, float]], make: Callable[..., _R]
+    members, pts: Sequence[tuple[float, ...]], make: Callable[..., _R]
 ) -> _R | None:
-    """A linear-array record when *pts* (2D) are collinear at constant pitch.
+    """A linear-array record when *pts* are collinear at constant pitch.
 
     Record-generic: *make* ``(ordered_members, pitch, direction) -> Record`` builds the
     concrete record (a :class:`LinearArray` for holes, a ``PocketArray`` for pockets) so the
-    collinearity/pitch geometry is shared. *members* need a ``.location`` (world centre)."""
+    collinearity/pitch geometry is shared. Projected pattern callers pass 2-D points; hole
+    patterns pass world 3-D points so a row may cross opening planes. *members* need a
+    ``.location`` (world centre)."""
     n = len(pts)
     # endpoints are the farthest-apart pair: robust for any orientation. A
     # lexicographic (x, y) sort would pick the wrong ends for a near-axis row
@@ -96,31 +109,34 @@ def _as_linear_array(
         key=lambda ij: math.dist(pts[ij[0]], pts[ij[1]]),
     )
     first, last = pts[i0], pts[i1]
-    dx, dy = last[0] - first[0], last[1] - first[1]
-    span = math.hypot(dx, dy)
+    delta = tuple(b - a for a, b in zip(first, last, strict=True))
+    span = math.hypot(*delta)
     if span < _PATTERN_ABS_TOL:
         return None
-    ux, uy = dx / span, dy / span
+    direction = tuple(component / span for component in delta)
     # collinearity: every point within tolerance of the first→last line —
     # scaled to the pitch, not the span (a long row must not absorb holes
     # millimetres off-line)
     line_tol = _pattern_tol(span / (n - 1))
-    if any(abs((p[0] - first[0]) * -uy + (p[1] - first[1]) * ux) > line_tol for p in pts):
-        return None
+    projections = []
+    for point in pts:
+        along, perpendicular = _line_position(point, first, direction)
+        if perpendicular > line_tol:
+            return None
+        projections.append(along)
     # project each point onto the first→last axis once (used both for the pitch
     # check, sorted, and to order the members below)
-    proj = [(p[0] - first[0]) * ux + (p[1] - first[1]) * uy for p in pts]
-    ts = sorted(proj)
+    ts = sorted(projections)
     pitches = [ts[i + 1] - ts[i] for i in range(n - 1)]
     pitch = span / (n - 1)
     if max(abs(p - pitch) for p in pitches) > _pattern_tol(pitch):
         return None
     # order members along the array, in world coordinates
-    ordered = sorted(zip(proj, members, strict=True), key=lambda t: t[0])
+    ordered = sorted(zip(projections, members, strict=True), key=lambda t: t[0])
     w0 = ordered[0][1].location
     w1 = ordered[-1][1].location
     d = tuple(b - a for a, b in zip(w0, w1, strict=True))
-    norm = math.hypot(d[0], d[1], d[2])
+    norm = math.hypot(*d)
     return make(
         tuple(h for _, h in ordered),
         round(pitch, 2),
@@ -129,7 +145,7 @@ def _as_linear_array(
 
 
 def _linear_array_candidates(
-    members, pts: Sequence[tuple[float, float]], make: Callable[..., _R]
+    members, pts: Sequence[tuple[float, ...]], make: Callable[..., _R]
 ) -> list[tuple[_R, frozenset[int]]]:
     """All linear arrays within a spec group: every pair seeds a line, the
     group's collinear points are gathered and sorted, and each maximal
@@ -139,22 +155,20 @@ def _linear_array_candidates(
     out, seen = [], set()
     for i in range(n):
         for j in range(i + 1, n):
-            dx, dy = pts[j][0] - pts[i][0], pts[j][1] - pts[i][1]
-            span = math.hypot(dx, dy)
+            delta = tuple(b - a for a, b in zip(pts[i], pts[j], strict=True))
+            span = math.hypot(*delta)
             if span < _PATTERN_ABS_TOL:
                 continue
-            ux, uy = dx / span, dy / span
+            direction = tuple(component / span for component in delta)
             tol = _pattern_tol(span)
-            online = [
-                m
-                for m in range(n)
-                if abs(-(pts[m][1] - pts[i][1]) * ux + (pts[m][0] - pts[i][0]) * uy) <= tol
-            ]
-            order = sorted(
-                online,
-                key=lambda m: (pts[m][0] - pts[i][0]) * ux + (pts[m][1] - pts[i][1]) * uy,
-            )
-            ts = [(pts[m][0] - pts[i][0]) * ux + (pts[m][1] - pts[i][1]) * uy for m in order]
+            positions = []
+            for m, point in enumerate(pts):
+                along, perpendicular = _line_position(point, pts[i], direction)
+                if perpendicular <= tol:
+                    positions.append((m, along))
+            positions.sort(key=lambda item: item[1])
+            order = [m for m, _along in positions]
+            ts = [along for _m, along in positions]
             # split the sorted collinear points into maximal constant-pitch runs
             a = 0
             while a < len(order) - 2:
