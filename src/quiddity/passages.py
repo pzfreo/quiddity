@@ -600,30 +600,6 @@ def _section_projection_displacement(
     return maximum
 
 
-def _legacy_projection(record: SectionPassage) -> Passage | None:
-    """Return the exact historical principal line-polygon view when representable."""
-
-    if (
-        record.ends.low_gradient != (0.0, 0.0)
-        or record.ends.high_gradient != (0.0, 0.0)
-        or any(vertex.bulge != 0.0 for vertex in record.section.boundary)
-    ):
-        return None
-    projection = principal_projection(
-        record.frame.origin,
-        record.frame.run,
-        record.frame.u,
-        record.frame.v,
-        record.run_interval,
-        tuple(vertex.point for vertex in record.section.boundary),
-    )
-    if projection is None:
-        return None
-    return passage_from_view(
-        compatibility_view(projection, eligible=True, legacy_ordinal=0), Passage
-    )
-
-
 def _proposal_legacy_projection(proposal: SectionRingProposal) -> PrincipalProjection | None:
     """Derive the principal compatibility fact from full-precision occurrence geometry."""
 

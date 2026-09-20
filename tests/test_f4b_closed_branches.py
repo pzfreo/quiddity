@@ -35,7 +35,6 @@ from quiddity.passages import (
     PassageSection,
     PassageSectionVertex,
     SectionPassage,
-    _legacy_projection,
     _proposal_legacy_projection,
     _same_legacy_passage_geometry,
     recognise_passages,
@@ -335,17 +334,9 @@ def test_compatibility_projection_closed_absence_and_construction() -> None:
     assert _canonical_section(((0.0, 0.0), (1.0, 0.0), (2.0, 0.0))) is None
 
 
-def test_private_projection_and_unit_refusal_branches() -> None:
+def test_unit_refuses_degenerate_vector() -> None:
     with pytest.raises(ValueError, match="degenerate"):
         unit((0.0, 0.0, 0.0))
-    record = SectionPassage(_frame(), (0.0, 10.0), _section(), PassageEnds(False, False))
-    assert _legacy_projection(record) is not None
-    curved = SectionPassage(_frame(), (0.0, 10.0), _section(), PassageEnds(False, False))
-    object.__setattr__(curved.section.boundary[0], "bulge", 0.25)
-    assert _legacy_projection(curved) is None
-    oblique = SectionPassage(_frame(), (0.0, 10.0), _section(), PassageEnds(False, False))
-    object.__setattr__(oblique.frame, "run", (0.707107, 0.0, 0.707107))
-    assert _legacy_projection(oblique) is None
 
 
 def test_legacy_compatibility_mismatch_refuses_before_publication(monkeypatch) -> None:

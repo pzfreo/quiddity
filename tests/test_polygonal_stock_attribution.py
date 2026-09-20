@@ -259,17 +259,24 @@ def test_cap_and_side_threshold_equalities_are_frozen() -> None:
         normal_z=module.AXIS_ALIGNED_COS,
         z_bounds=(4.0 - module._TOL / 2, 4.0 + module._TOL / 2),
     )
-    assert module._cap_z(
-        cap, node, module._TOL, positive=True, lower_than=4.0, higher_than=4.0
+    assert module._cap_coordinate(
+        cap,
+        node,
+        module._TOL,
+        axis_index=2,
+        positive=True,
+        lower_than=4.0,
+        higher_than=4.0,
     ) == pytest.approx(4.0)
     assert (
-        module._cap_z(
+        module._cap_coordinate(
             _ThresholdGraph(
                 normal_z=module.AXIS_ALIGNED_COS - 1e-8,
                 z_bounds=(4.0, 4.0 + module._TOL),
             ),
             node,
             module._TOL,
+            axis_index=2,
             positive=True,
             lower_than=None,
             higher_than=None,
@@ -277,10 +284,11 @@ def test_cap_and_side_threshold_equalities_are_frozen() -> None:
         is None
     )
     assert (
-        module._cap_z(
+        module._cap_coordinate(
             _ThresholdGraph(normal_z=1.0, z_bounds=(4.0, 4.0)),
             node,
             module._TOL,
+            axis_index=2,
             positive=True,
             lower_than=4.0 - module._TOL - 1e-8,
             higher_than=None,
@@ -288,10 +296,11 @@ def test_cap_and_side_threshold_equalities_are_frozen() -> None:
         is None
     )
     assert (
-        module._cap_z(
+        module._cap_coordinate(
             _ThresholdGraph(normal_z=1.0, z_bounds=(4.0, 4.0)),
             node,
             module._TOL,
+            axis_index=2,
             positive=True,
             lower_than=None,
             higher_than=4.0 + module._TOL + 1e-8,
@@ -299,13 +308,14 @@ def test_cap_and_side_threshold_equalities_are_frozen() -> None:
         is None
     )
     assert (
-        module._cap_z(
+        module._cap_coordinate(
             _ThresholdGraph(
                 normal_z=module.AXIS_ALIGNED_COS,
                 z_bounds=(4.0, 4.0 + module._TOL + 1e-8),
             ),
             node,
             module._TOL,
+            axis_index=2,
             positive=True,
             lower_than=None,
             higher_than=None,
@@ -331,22 +341,24 @@ def test_cap_and_side_threshold_equalities_are_frozen() -> None:
         normal_z=-module.AXIS_ALIGNED_COS,
         z_bounds=(-module._TOL / 2, module._TOL / 2),
     )
-    assert module._cap_z(
+    assert module._cap_coordinate(
         negative,
         node,
         module._TOL,
+        axis_index=2,
         positive=False,
         lower_than=0.0,
         higher_than=0.0,
     ) == pytest.approx(0.0)
     assert (
-        module._cap_z(
+        module._cap_coordinate(
             _ThresholdGraph(
                 normal_z=-module.AXIS_ALIGNED_COS + 1e-8,
                 z_bounds=(-module._TOL / 2, module._TOL / 2),
             ),
             node,
             module._TOL,
+            axis_index=2,
             positive=False,
             lower_than=None,
             higher_than=None,

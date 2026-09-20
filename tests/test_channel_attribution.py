@@ -33,10 +33,7 @@ from quiddity._geometry import COORD_FLOOR
 from quiddity._recess_core import (
     _bounds_one_void as production_bounds_one_void,
 )
-from quiddity._recess_core import (
-    _recognise_channels_one,
-    _uninterrupted_long_span,
-)
+from quiddity._recess_core import _uninterrupted_long_span
 from quiddity._recess_faces import (
     _AXIS_ALIGNED_TOL,
     _FLOOR_COVER_FRAC,
@@ -347,17 +344,6 @@ def test_missing_or_wall_aliased_floor_refuses_before_publication(monkeypatch, a
     with pytest.raises(ValueError, match="floor identity is unavailable"):
         _discover_channels(part, writer=ledger.writer)
     assert ledger.candidate_set(FamilyId.CHANNELS).candidates == ()
-
-
-def test_record_only_compatibility_wrapper_preserves_value_and_order() -> None:
-    part = Compound([Pos(80, 0, 0) * build_fixture(), Pos(-80, 0, 0) * build_fixture()])
-    records = [record for solid in part.solids() for record in _recognise_channels_one(solid)]
-    assert records
-    assert [record.to_dict() for record in records] == [
-        replace(record, body_key=()).to_dict()
-        for solid in part.solids()
-        for record in recognise_channels(solid)
-    ]
 
 
 def test_channel_discovery_remains_graph_only_and_writer_free() -> None:

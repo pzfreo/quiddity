@@ -215,27 +215,6 @@ def _cap_coordinate(
     return coordinate
 
 
-def _cap_z(
-    graph: GeometryGraph,
-    node: FaceRef,
-    tol: float,
-    *,
-    positive: bool,
-    lower_than: float | None,
-    higher_than: float | None,
-) -> float | None:
-    """Compatibility spelling for the Z-axis unit contract."""
-    return _cap_coordinate(
-        graph,
-        node,
-        tol,
-        axis_index=2,
-        positive=positive,
-        lower_than=lower_than,
-        higher_than=higher_than,
-    )
-
-
 def _common_cap(
     component: tuple[FaceRef, ...],
     graph: GeometryGraph,
