@@ -743,16 +743,6 @@ def _recognise_pockets_one(
     return [proposal.record for proposal in proposals]
 
 
-def _recognise_channels_one(
-    part: Part, face_edges: FaceEdges | None = None, graph: FaceGraph | None = None
-) -> list[Channel]:
-    """Recognise channels using one solid's faces and bounds."""
-    return sorted(
-        {proposal.record for proposal in _channel_proposals_one(part, face_edges, graph)},
-        key=_channel_sort_key,
-    )
-
-
 def _channel_proposals_one(
     part: Part, face_edges: FaceEdges | None = None, graph: FaceGraph | None = None
 ) -> list[_ChannelProposal]:
