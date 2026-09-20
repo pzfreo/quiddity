@@ -24,7 +24,7 @@ from OCP.Geom import Geom_BezierSurface, Geom_RectangularTrimmedSurface
 from OCP.GeomAbs import GeomAbs_Cylinder
 from OCP.GeomConvert import GeomConvert
 from OCP.gp import gp_Ax3, gp_Cylinder, gp_Dir, gp_Pnt, gp_Pnt2d
-from OCP.Standard import Standard_Failure
+from OCP.Standard import Standard_Failure, Standard_TypeMismatch
 from OCP.TColgp import TColgp_Array2OfPnt
 from OCP.TopAbs import TopAbs_IN, TopAbs_OUT
 from OCP.TopLoc import TopLoc_Location
@@ -179,6 +179,24 @@ def test_material_side_sampling_refuses_uncleared_or_failed_samples(monkeypatch)
         "distance_to",
         lambda _self, _edge: (_ for _ in ()).throw(RuntimeError("distance failure")),
     )
+    assert (
+        module._triangle_samples(top, probe_distance=1e-3)
+        is MaterialSideRefusalReason.SAMPLE_UNAVAILABLE
+    )
+
+
+def test_material_side_sampling_refuses_face_downcast_type_mismatch(monkeypatch) -> None:
+    import quiddity._effective_surfaces as module
+
+    top = max(Box(10, 8, 4).faces(), key=lambda face: face.center().Z)
+
+    class TypeMismatchTopoDS:
+        @staticmethod
+        def Face_s(_shape):
+            raise Standard_TypeMismatch("TopoDS::Face")
+
+    monkeypatch.setattr(module, "TopoDS", TypeMismatchTopoDS)
+
     assert (
         module._triangle_samples(top, probe_distance=1e-3)
         is MaterialSideRefusalReason.SAMPLE_UNAVAILABLE
