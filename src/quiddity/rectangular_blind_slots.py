@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from build123d import Solid
+
 from quiddity._adjacency import FaceGraph, FaceNode, axis_aligned_axis
 from quiddity._candidates import CompletedInputs, EvidenceSink, FamilyId
 from quiddity._definitions import (
@@ -61,7 +63,7 @@ def _has_unambiguous_slot_roles(length: float, width: float, depth: float) -> bo
 
 
 def _recognise_one(
-    solid, graph: FaceGraph
+    solid: Solid, graph: FaceGraph
 ) -> list[tuple[RectangularBlindSlot, frozenset[FaceNode]]]:
     solid_nodes = {graph.require_node(face) for face in solid.faces()}
     bounds = graph.solid_properties.bounding_box(solid)
