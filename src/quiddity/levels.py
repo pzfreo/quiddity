@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from functools import total_ordering
+from typing import Protocol
 
 from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.BRepGProp import BRepGProp
@@ -43,6 +44,25 @@ from quiddity._geometry import (
 from quiddity._record import Record
 from quiddity._solid_properties import SolidProperties, solid_properties
 from quiddity._typing import FaceLike, Part
+
+
+class _XYZLike(Protocol):
+    @property
+    def X(self) -> float: ...
+
+    @property
+    def Y(self) -> float: ...
+
+    @property
+    def Z(self) -> float: ...
+
+
+class _BoundsLike(Protocol):
+    @property
+    def min(self) -> _XYZLike: ...
+
+    @property
+    def max(self) -> _XYZLike: ...
 
 
 @total_ordering
@@ -370,7 +390,7 @@ _BOUNDED_RISER_AREA_FRAC = 0.5
 
 
 def _ramp_positions(
-    fb,
+    fb: _BoundsLike,
     axis: str,
     other: str,
     ext: dict[str, float],
@@ -402,7 +422,7 @@ def _ramp_positions(
     return axis_positions, (flo, fhi)
 
 
-def _riser_orientation(normal) -> tuple[bool, str] | None:
+def _riser_orientation(normal: _XYZLike) -> tuple[bool, str] | None:
     """Classify a face normal as a riser candidate: ``(vertical, axis)``, or ``None``.
 
     A riser faces along one in-plane axis and not the other — a normal with a foot in both is a
