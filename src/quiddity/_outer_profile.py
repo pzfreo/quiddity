@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Literal
@@ -30,8 +31,8 @@ def _tangent(support: ProfileLine | ProfileArc, normal: Point3, *, end: bool) ->
     return tuple(v * math.copysign(1, support.sweep) / length for v in tangent)  # type: ignore[return-value]
 
 
-def _turns(supports, normal: Point3) -> list[float]:
-    turns = []
+def _turns(supports: Sequence[ProfileLine | ProfileArc], normal: Point3) -> list[float]:
+    turns: list[float] = []
     for at, support in enumerate(supports):
         before = _tangent(support, normal, end=True)
         after = _tangent(supports[(at + 1) % len(supports)], normal, end=False)
