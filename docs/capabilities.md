@@ -1,7 +1,8 @@
 # Proven recognition capability
 
 The SectionRecess cutover replaces specialised pocket/recess/passage outputs and uses JSON schema
-version 3 with explicit planar or cylindrical end surfaces. See
+version 4 with explicit planar or cylindrical end surfaces and a material-side relation for open
+profiles. See
 [the migration guide](section-recess-migration.md). Detector names in historical
 proof discussions are not additional public entry points; the tables below are authoritative.
 
@@ -165,10 +166,12 @@ once. Per-family contributions are separately unioned in registry order and may 
 unassociated `FaceRef` values let a caller highlight the remaining geometry without a second
 recognition or topology pass.
 
-Association does not mean correctness, recall or complete feature understanding. Every original
-face is in the denominator, including intentional stock/background geometry, and a family's
-constituent publication may still be partial. The projection neither classifies leftovers nor
-changes any recognition result.
+Association does not mean correctness, recall, complete feature understanding or reconstructibility.
+Every original face is in the denominator, including intentional stock/background geometry, and a
+family's constituent publication may still be partial. A high ratio can describe many recognised
+modification faces while omitting the stock's outer form; a lower ratio can still be sufficient to
+rebuild a feature-rich block from a known envelope. The projection neither classifies leftovers,
+identifies a stock model nor changes any recognition result.
 
 From 0.4.15, retired recess families are projected as `SectionRecess` or an explicit
 `SectionRecessRefusal` under `section_recesses` in the evidence view. Refusals retain source-face
@@ -509,13 +512,13 @@ invitation to construct values outside that evidence and call them recognized.
 
 | Public record | Implemented contract boundary |
 | --- | --- |
-| `AngledStep` | One convex oblique slant closed by a triangular blind end; `length` is how far it runs before that end. |
-| `PairedRampStep` | One principal-axis mirror-ramp cut; `angle` is the common acute ramp angle, `length` its open-to-terminal run, and `at` the original shared-ridge midpoint. A dimensioning consumer projects `2 × angle` at `at` plus the run `length` along `axis`. |
+| `AngledStep` | One convex oblique slant closed by a triangular blind end; `length` is how far it runs before that end and `corner` fixes the virtual sharp-edge side of the removed wedge. |
+| `PairedRampStep` | One principal-axis mirror-ramp cut; `angle` is the common acute ramp angle, `length` its open-to-terminal run, `at` the original shared-ridge midpoint, `opening_direction` points toward the stock-envelope opening, and `half_width` fixes the V section. A dimensioning consumer projects `2 × angle` at `at` plus the run `length` along `axis`. |
 | `ThroughStep` | One rectangular open-profile cut; `section` preserves both oriented legs and their concave corner using the two non-run coordinates in ascending XYZ order (`yz`, `xz`, or `xy`), while `length` and `axis` report the complete run and `at` is the removed-prism midpoint. |
 | `CircularBlindStep` | One quarter-cylindrical corner cut; `centreline` runs from the interior terminal to the envelope opening, and `section` locates both arc endpoints and the cylinder centre in the canonical transverse coordinate pair. |
 | `BoltCircle` | At least three same-spec holes, equally spaced on one circle. |
 | `BossRecord` | One external full-cylinder segment; its vector axis is not restricted to a world-axis string. |
-| `Chamfer` | One qualifying external, single-principal-axis planar or conical bevel; `turned` is true only for the conical shaft treatment. |
+| `Chamfer` | One qualifying external, single-principal-axis planar or conical bevel; a planar record's `corner` fixes the virtual sharp-edge side of its removed wedge, and `turned` is true only for the conical shaft treatment. |
 | `CounterBore` | One coaxial cylindrical hole step used as either the `cbore` or `spotface` field of `HoleRecord`. |
 | `CounterSink` | One proved conical seat at a matching cylindrical bore mouth. |
 | `DoubleDBore` | One constant principal-axis through double-D void; recogniser output always has `through=True`. |
@@ -523,7 +526,7 @@ invitation to construct values outside that evidence and call them recognized.
 | `Blend` | One complete same-solid rolling-ball occurrence. `radius` is always the rolling-ball radius; `side` is the proved `"convex"` or `"concave"` material relation; `path` is structurally either `StraightBlendPath` or `CircularBlendPath`. |
 | `StraightBlendPath` | A straight rolling path with canonical unit `direction` and subdivision-invariant axis point `at`. |
 | `CircularBlendPath` | A complete circular rolling path with `center`, canonical unit plane `normal`, and major `radius`. |
-| `Fillet` | One qualifying external, single-principal-axis cylindrical or toroidal edge blend; a cylindrical blend requires one unambiguous nearest supporting plane on each transverse axis, and `turned` is true only for the toroidal shaft treatment. |
+| `Fillet` | One qualifying external, single-principal-axis cylindrical or toroidal edge blend; `side="convex"` publishes the proved material-side relation using `Blend`'s vocabulary, a cylindrical blend requires one unambiguous nearest supporting plane on each transverse axis, and `turned` is true only for the toroidal shaft treatment. |
 | `Flat` | One planar truncation corresponding to a proved cylindrical-stock substrate. |
 | `Groove` | One external reduced-OD band between larger coaxial neighbours. |
 | `GussetRib` | One filled right-triangular rib joining perpendicular support planes; thickness bounds, support planes, signed virtual sharp-corner legs and body correlation use the supplied frame. |
@@ -543,7 +546,7 @@ invitation to construct values outside that evidence and call them recognized.
 | `RepeatingRadialProfile` | Geometry-only proof of complete outer-profile rotational repetition, defined by its two original opposed extremal planar source faces; not gear semantics. |
 | `RiserEvidence` | One body-local full-span candidate riser before consumer-specific projection; `body_levels` retains the complete same-solid FaceLevel occurrences (`null` only for hand-built legacy records). `project_step_shoulders(..., levels_by_riser=...)` provides explicit occurrence-aligned selection when separate bodies have value-identical levels. |
 | `ClosedSectionProfile` | Canonical closed line/arc boundary nested in a `SectionRecessGeometry`. |
-| `OpenSectionProfile` | Canonical physical line/arc chain plus the explicit gap between its loose endpoints. |
+| `OpenSectionProfile` | Canonical physical line/arc chain plus the explicit gap between its loose endpoints and `material_side`, the left/right side of the directed chain that remains solid. |
 | `SectionEnd` | One explicit open or capped end with a tagged planar or cylindrical surface. |
 | `PlanarEndSurface` | Local planar gradient relative to the end's centroid run coordinate. |
 | `PlanarEndTerm` | Absolute local-run height and gradient of one observed plane in a two-plane end. |

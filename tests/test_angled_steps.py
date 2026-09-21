@@ -219,6 +219,12 @@ def test_a_wedge_stopped_inside_the_part_is_an_angled_step():
     assert step.axis == "x"
     assert (step.leg1, step.leg2) == (4.0, 4.0)
     assert step.angle == 45.0
+    assert step.corner == (-17.5, 20.0, 6.0)
+    assert tuple(at - corner for at, corner in zip(step.at, step.corner, strict=True)) == (
+        0.0,
+        -2.0,
+        -2.0,
+    )
     # The cutter spans x = -35..-5 and the block stops at -30, so 25 mm of it is inside.
     assert step.length == 25.0
 

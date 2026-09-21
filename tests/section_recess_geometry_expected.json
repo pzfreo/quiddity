@@ -100,7 +100,8 @@
               7,
               5
             ]
-          ]
+          ],
+          "material_side": "right"
         },
         "run_interval": [
           4,
@@ -225,7 +226,8 @@
               -4.4327,
               6.8997
             ]
-          ]
+          ],
+          "material_side": "right"
         },
         "run_interval": [
           10,
@@ -597,7 +599,8 @@
               -5,
               2.5
             ]
-          ]
+          ],
+          "material_side": "right"
         },
         "run_interval": [
           0,
@@ -701,7 +704,8 @@
               -5,
               1.5
             ]
-          ]
+          ],
+          "material_side": "right"
         },
         "run_interval": [
           0,

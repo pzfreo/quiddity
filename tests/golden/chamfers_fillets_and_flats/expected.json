@@ -41,6 +41,11 @@
               0.0
             ],
             "axis": "z",
+            "corner": [
+              -90.0,
+              -15.0,
+              0.0
+            ],
             "leg1": 3.0,
             "leg2": 3.0,
             "turned": false
@@ -54,6 +59,11 @@
               0.0
             ],
             "axis": "z",
+            "corner": [
+              -90.0,
+              15.0,
+              0.0
+            ],
             "leg1": 3.0,
             "leg2": 3.0,
             "turned": false
@@ -67,6 +77,11 @@
               0.0
             ],
             "axis": "z",
+            "corner": [
+              -50.0,
+              -15.0,
+              0.0
+            ],
             "leg1": 3.0,
             "leg2": 3.0,
             "turned": false
@@ -80,6 +95,11 @@
               0.0
             ],
             "axis": "z",
+            "corner": [
+              -50.0,
+              15.0,
+              0.0
+            ],
             "leg1": 3.0,
             "leg2": 3.0,
             "turned": false
@@ -196,6 +216,7 @@
             ],
             "axis": "z",
             "radius": 4.0,
+            "side": "convex",
             "turned": false
           },
           {
@@ -207,6 +228,7 @@
             ],
             "axis": "z",
             "radius": 4.0,
+            "side": "convex",
             "turned": false
           },
           {
@@ -218,6 +240,7 @@
             ],
             "axis": "z",
             "radius": 4.0,
+            "side": "convex",
             "turned": false
           },
           {
@@ -229,6 +252,7 @@
             ],
             "axis": "z",
             "radius": 4.0,
+            "side": "convex",
             "turned": false
           }
         ],
@@ -658,6 +682,11 @@
             0.0
           ],
           "axis": "z",
+          "corner": [
+            -90.0,
+            -15.0,
+            0.0
+          ],
           "leg1": 3.0,
           "leg2": 3.0,
           "turned": false
@@ -671,6 +700,11 @@
             0.0
           ],
           "axis": "z",
+          "corner": [
+            -90.0,
+            15.0,
+            0.0
+          ],
           "leg1": 3.0,
           "leg2": 3.0,
           "turned": false
@@ -684,6 +718,11 @@
             0.0
           ],
           "axis": "z",
+          "corner": [
+            -50.0,
+            -15.0,
+            0.0
+          ],
           "leg1": 3.0,
           "leg2": 3.0,
           "turned": false
@@ -697,6 +736,11 @@
             0.0
           ],
           "axis": "z",
+          "corner": [
+            -50.0,
+            15.0,
+            0.0
+          ],
           "leg1": 3.0,
           "leg2": 3.0,
           "turned": false
@@ -850,6 +894,7 @@
           ],
           "axis": "z",
           "radius": 4.0,
+          "side": "convex",
           "turned": false
         },
         {
@@ -861,6 +906,7 @@
           ],
           "axis": "z",
           "radius": 4.0,
+          "side": "convex",
           "turned": false
         },
         {
@@ -872,6 +918,7 @@
           ],
           "axis": "z",
           "radius": 4.0,
+          "side": "convex",
           "turned": false
         },
         {
@@ -883,6 +930,7 @@
           ],
           "axis": "z",
           "radius": 4.0,
+          "side": "convex",
           "turned": false
         }
       ],

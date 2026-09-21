@@ -1,5 +1,23 @@
 # Release notes
 
+## 0.3.3 — Quiddity
+
+- Publish the material-side facts needed to reconstruct recognised cuts without probing the
+  reference solid. `Fillet.side` uses the existing `Blend` convex/concave vocabulary;
+  `Chamfer.corner` and `AngledStep.corner` locate the virtual sharp edge;
+  `PairedRampStep.opening_direction` and `half_width` fix its V section; and
+  `OpenSectionProfile.material_side` identifies the solid side of its canonical directed chain
+  (#735).
+- The additions retain positional constructor compatibility through appended defaults. Capability
+  schema versions advance for each changed record and for the enclosing section-recess records;
+  the section-recess document is schema 4.
+- ADR 0005 normally reserves additive optional fields and record-schema increments for a minor
+  release. The project owner explicitly directed this change to ship as patch release 0.3.3;
+  consumers must still adopt the new schema versions deliberately.
+- Clarify that evidence association measures face coverage, not whether the recognised records can
+  reconstruct the part. Outer stock form and feature completeness are independent of associated
+  surface-area ratio.
+
 ## 0.3.2 — Quiddity
 
 - Preserve proved recess radii instead of discarding them. Principal-axis `Slot` and legacy

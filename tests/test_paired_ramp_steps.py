@@ -111,7 +111,14 @@ def _ramp_inner_wire(*, upper: bool = False, y: float = 5.0, scale: float = 1.0)
 
 def test_a_mirror_ramp_pair_open_to_the_stock_side_is_one_physical_cut() -> None:
     assert recognise_paired_ramp_steps(_side_cut()) == [
-        PairedRampStep(axis="y", angle=51.34, length=25.0, at=(10.0, 7.5, 0.0))
+        PairedRampStep(
+            axis="y",
+            angle=51.34,
+            length=25.0,
+            at=(10.0, 7.5, 0.0),
+            opening_direction=(0.0, 1.0, 0.0),
+            half_width=8.0,
+        )
     ]
 
 
@@ -133,7 +140,14 @@ def test_a_shallow_mirror_pair_is_a_step_even_when_neither_face_is_a_chamfer() -
             classify_bevel(graph.face(node))
             raise AssertionError("the shared Chamfer reader unexpectedly accepted a shallow ramp")
     assert recognise_paired_ramp_steps(part) == [
-        PairedRampStep(axis="y", angle=87.14, length=25.0, at=(10.0, 7.5, 0.0))
+        PairedRampStep(
+            axis="y",
+            angle=87.14,
+            length=25.0,
+            at=(10.0, 7.5, 0.0),
+            opening_direction=(0.0, 1.0, 0.0),
+            half_width=0.5,
+        )
     ]
 
 
@@ -262,11 +276,24 @@ def test_every_principal_run_axis_is_the_same_geometry_under_permutation() -> No
     assert (x_step.axis, y_step.axis, z_step.axis) == ("x", "y", "z")
     assert {x_step.angle, y_step.angle, z_step.angle} == {51.34}
     assert {x_step.length, y_step.length, z_step.length} == {25.0}
+    assert (x_step.opening_direction, y_step.opening_direction, z_step.opening_direction) == (
+        (-1.0, 0.0, 0.0),
+        (0.0, 1.0, 0.0),
+        (0.0, 0.0, 1.0),
+    )
+    assert {x_step.half_width, y_step.half_width, z_step.half_width} == {8.0}
 
 
 def test_translation_moves_only_the_stable_shared_ridge_anchor() -> None:
     assert recognise_paired_ramp_steps(Pos(3, 4, 5) * _side_cut()) == [
-        PairedRampStep(axis="y", angle=51.34, length=25.0, at=(13.0, 11.5, 5.0))
+        PairedRampStep(
+            axis="y",
+            angle=51.34,
+            length=25.0,
+            at=(13.0, 11.5, 5.0),
+            opening_direction=(0.0, 1.0, 0.0),
+            half_width=8.0,
+        )
     ]
 
 
@@ -302,7 +329,14 @@ def test_a_terminal_interrupted_by_a_drilled_hole_retains_the_proved_pair() -> N
     interrupted = _side_cut() - Pos(15, -5, 0) * Rot(90, 0, 0) * Cylinder(1, 6)
 
     assert recognise_paired_ramp_steps(interrupted) == [
-        PairedRampStep(axis="y", angle=51.34, length=25.0, at=(10.0, 7.5, 0.0))
+        PairedRampStep(
+            axis="y",
+            angle=51.34,
+            length=25.0,
+            at=(10.0, 7.5, 0.0),
+            opening_direction=(0.0, 1.0, 0.0),
+            half_width=8.0,
+        )
     ]
 
 
@@ -310,7 +344,14 @@ def test_a_straight_terminal_boundary_subdivision_retains_the_proved_pair() -> N
     subdivided = _side_cut() - Pos(15, -1, 0) * Box(1, 2, 3)
 
     assert recognise_paired_ramp_steps(subdivided) == [
-        PairedRampStep(axis="y", angle=51.34, length=25.0, at=(10.0, 7.5, 0.0))
+        PairedRampStep(
+            axis="y",
+            angle=51.34,
+            length=25.0,
+            at=(10.0, 7.5, 0.0),
+            opening_direction=(0.0, 1.0, 0.0),
+            half_width=8.0,
+        )
     ]
 
 
@@ -325,7 +366,14 @@ def test_a_straight_ramp_boundary_subdivision_retains_the_original_face_pair() -
         graph, left, right, _left_read, _right_read = _proved_pair_from(part)
         assert sorted((len(graph.edges(left)), len(graph.edges(right)))) == expected_edge_counts
         assert recognise_paired_ramp_steps(part) == [
-            PairedRampStep(axis="y", angle=51.34, length=25.0, at=(10.0, 7.5, 0.0))
+            PairedRampStep(
+                axis="y",
+                angle=51.34,
+                length=25.0,
+                at=(10.0, 7.5, 0.0),
+                opening_direction=(0.0, 1.0, 0.0),
+                half_width=8.0,
+            )
         ]
 
 
@@ -336,7 +384,14 @@ def test_an_independent_circular_ramp_inner_wire_retains_the_original_face_pair(
     ramp_faces = (graph.face(left), graph.face(right))
     assert sorted(len(face.inner_wires()) for face in ramp_faces) == [0, 1]
     assert recognise_paired_ramp_steps(interrupted) == [
-        PairedRampStep(axis="y", angle=51.34, length=25.0, at=(10.0, 7.5, 0.0))
+        PairedRampStep(
+            axis="y",
+            angle=51.34,
+            length=25.0,
+            at=(10.0, 7.5, 0.0),
+            opening_direction=(0.0, 1.0, 0.0),
+            half_width=8.0,
+        )
     ]
 
 
@@ -382,7 +437,14 @@ def test_subdivided_ramps_remain_covariant_and_profile_order_independent() -> No
     assert recognise_paired_ramp_steps(Rot(0, 0, 90) * part)[0].axis == "x"
     assert recognise_paired_ramp_steps(Rot(90, 0, 0) * part)[0].axis == "z"
     assert recognise_paired_ramp_steps(Pos(3, 4, 5) * part) == [
-        PairedRampStep(axis="y", angle=51.34, length=25.0, at=(13.0, 11.5, 5.0))
+        PairedRampStep(
+            axis="y",
+            angle=51.34,
+            length=25.0,
+            at=(13.0, 11.5, 5.0),
+            opening_direction=(0.0, 1.0, 0.0),
+            half_width=8.0,
+        )
     ]
     assert recognise_paired_ramp_steps(_side_cut(cycle=1) - _ramp_boundary_notch()) == (
         recognise_paired_ramp_steps(_side_cut(cycle=2) - _ramp_boundary_notch())
@@ -397,6 +459,8 @@ def test_interrupted_ramp_recognition_is_scale_independent() -> None:
     assert small.angle == large.angle == 51.34
     assert small.length == 0.25
     assert large.length == 2500.0
+    assert small.half_width == 0.08
+    assert large.half_width == 800.0
 
 
 def test_subdivided_ramp_survives_step_round_trip(tmp_path: Path) -> None:

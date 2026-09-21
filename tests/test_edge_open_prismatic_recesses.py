@@ -172,6 +172,7 @@ def test_accepted_open_prismatic_recess_projects_to_unified_contract() -> None:
         record.geometry.profile.boundary[-1].point,
         record.geometry.profile.boundary[0].point,
     )
+    assert record.geometry.profile.material_side == "right"
 
 
 def test_edge_open_payload_matches_dedicated_golden() -> None:

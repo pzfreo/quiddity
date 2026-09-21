@@ -90,14 +90,21 @@ _COAXIAL_FRAC = 1e-4
 class Fillet(Record):
     """A recognised external edge fillet. ``axis`` is the rounded edge's direction
     ("x"/"y"/"z"); ``radius`` is the fillet radius (the cylinder radius); ``at`` is the
-    fillet face centre in part space (the ``R`` callout leader's tip). ``turned`` distinguishes
-    a toroidal treatment swept around a shaft from a cylindrical prismatic blend; it defaults
-    to ``False`` for constructor compatibility."""
+    fillet face centre in part space (the ``R`` callout leader's tip). ``side`` is the proved
+    material-side relation, using the same vocabulary as :class:`quiddity.Blend`; this family
+    recognises external rounds, so its value is ``"convex"``. ``turned`` distinguishes a
+    toroidal treatment swept around a shaft from a cylindrical prismatic blend. Both additive
+    fields have defaults for constructor compatibility."""
 
     axis: str
     radius: float
     at: tuple[float, float, float]
     turned: bool = False
+    side: str = "convex"
+
+    def __post_init__(self) -> None:
+        if self.side != "convex":
+            raise ValueError("a Fillet is an external round and its side must be convex")
 
 
 @dataclass(frozen=True, slots=True)
