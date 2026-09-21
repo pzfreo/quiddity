@@ -291,7 +291,7 @@ def _tier_suppresses(pad: RaisedPad, region: RaisedPad, *, tol: float) -> bool:
 
 
 def _recognise_rectangular_pads_one(
-    part,
+    part: Part,
     *,
     tol: float | None,
     face_surfaces: EffectiveFaceSurfaceQuery,
@@ -504,7 +504,7 @@ def _recognise_rectangular_pads_one(
 
 
 def _recognise_blended_rectangular_pads_one(
-    part,
+    part: Part,
     *,
     tol: float | None,
     face_surfaces: EffectiveFaceSurfaceQuery,
