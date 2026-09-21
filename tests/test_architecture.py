@@ -411,6 +411,7 @@ MODULE_SEAM_EDGES = {
         "_geometry",
         "_recess_faces",
         "_recess_obround",
+        "_recess_radii",
         "_recess_records",
         "_recess_reduce",
         "_typing",

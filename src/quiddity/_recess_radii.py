@@ -10,8 +10,10 @@ complete depth.  Anything partial, mixed-radius, misplaced or ambiguous remains 
 
 from __future__ import annotations
 
+from dataclasses import replace
 from itertools import product
 from types import SimpleNamespace
+from typing import TypeVar
 
 from quiddity._recess_faces import _AXES, _union_bb
 from quiddity._recess_records import Pocket, Slot
@@ -25,6 +27,8 @@ _PUBLISHED_COORD_TOL = 0.011
 # A quarter cylinder spans one radius on both footprint axes.  Keep the ratio bound aligned
 # with the established half-cylinder shape proof in `_recess_obround`.
 _QUARTER_RATIO_TOL = 0.1
+
+_RadiusRecord = TypeVar("_RadiusRecord", Slot, Pocket)
 
 
 def _close(left: float, right: float) -> bool:
@@ -140,3 +144,24 @@ def _proved_corner_radius(record: Slot | Pocket, cylinders: list[tuple]) -> floa
             if published > 0 and published not in proved:
                 proved.append(published)
     return proved[0] if len(proved) == 1 else None
+
+
+def _with_proved_corner_radius(record: _RadiusRecord, cylinders: list[tuple]) -> _RadiusRecord:
+    """Publish a proved uniform radius and restore the rounded rectangle's overall span.
+
+    Wall pairing locates ``lo``/``hi`` at the four arc tangencies, so a rounded rectangle's
+    raw length is the flat run.  The same proof that establishes all four corners authorises
+    extending each end by one radius.  Unsupported, partial and mixed-radius topology remains
+    byte-for-byte unchanged with ``corner_radius=None``.
+    """
+
+    radius = _proved_corner_radius(record, cylinders)
+    if radius is None:
+        return record
+    return replace(
+        record,
+        lo=round(record.lo - radius, 2),
+        hi=round(record.hi + radius, 2),
+        length=round(record.hi - record.lo + 2 * radius, 2),
+        corner_radius=radius,
+    )

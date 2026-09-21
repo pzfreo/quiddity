@@ -41,6 +41,7 @@ from quiddity._recess_faces import (
     _FLOOR_TOL,
     _MERGE_TOL,
     _center,
+    _cylinder_faces,
     _end_cap_faces,
     _Face,
     _has_floor,
@@ -51,6 +52,7 @@ from quiddity._recess_obround import (
     _extend_obround_proposals,
     _recognise_obround_from_ends,
 )
+from quiddity._recess_radii import _with_proved_corner_radius
 from quiddity._recess_records import Channel, Pocket, Slot
 from quiddity._recess_reduce import (
     _Claims,
@@ -59,6 +61,7 @@ from quiddity._recess_reduce import (
     _prism_is_empty,
     _RecessProposal,
     _region_center,
+    _replace_proposal,
 )
 from quiddity._typing import Bounds, Part
 from quiddity._wire_seed import wire_seed as _inner_wire_seed
@@ -335,6 +338,8 @@ def _slot_proposals_one(
 
     owner = FaceGraph(part, face_edges=face_edges) if graph is None else graph
     faces = _planar_faces(part, face_edges, owner)
+    # One graph-owned inventory serves obround recovery/extension and the four-corner proof.
+    cylinders = _cylinder_faces(part, owner)
     pbb = owner.solid_properties.bounding_box(part)
     part_ext = {a: getattr(pbb.size, "XYZ"[_AXES[a]]) for a in "xyz"}
     # Only straight-walled faces can be slot walls; bucket them by axis so the
@@ -362,16 +367,23 @@ def _slot_proposals_one(
     # Stubby obround through-slots (straight section < width) have no pairable flat walls, so
     # recover them from their end caps. Emitted at the straight-wall junctions like the
     # flat-wall path, so `_merge` folds any duplicate an elongated obround also produced.
-    recovered = _recognise_obround_from_ends(part, faces, graph=owner, proposals=True)
+    recovered = _recognise_obround_from_ends(
+        part, faces, graph=owner, proposals=True, cylinders=cylinders
+    )
     candidates.extend(cast(list[_RecessProposal[Slot]], recovered))
     # Recombine arms of a crossing channel split by the intersection, then extend any
     # radiused-end (obround) slot to its overall length.
-    return _extend_obround_proposals(
+    proposals = _extend_obround_proposals(
         _collapse_collinear_proposals(_merge_proposals(candidates), part),
         part,
         owner,
         strict_ambiguity=strict_cap_ambiguity,
+        cylinders=cylinders,
     )
+    return [
+        _replace_proposal(proposal, _with_proved_corner_radius(proposal.record, cylinders))
+        for proposal in proposals
+    ]
 
 
 def _recognise_slots_one(
@@ -606,6 +618,8 @@ def _pocket_proposals_one(
 
     owner = FaceGraph(part, face_edges=face_edges) if graph is None else graph
     faces = _planar_faces(part, face_edges, owner)
+    # Keep the topology scan per solid, not per proposed record or radius proof.
+    cylinders = _cylinder_faces(part, owner)
     pbb = owner.solid_properties.bounding_box(part)
     part_ext = {a: getattr(pbb.size, "XYZ"[_AXES[a]]) for a in "xyz"}
     by_axis: dict[str, list[_Face]] = {}
@@ -639,14 +653,26 @@ def _pocket_proposals_one(
     # recover them from their end caps — the blind counterpart of the through-slot path, and
     # claiming nothing for the same reason: its evidence is two cylindrical caps, which
     # `_planar_faces` never yielded and which no consumer reconciling planar walls can want.
-    recovered = _recognise_obround_from_ends(part, faces, blind=True, graph=owner, proposals=True)
+    recovered = _recognise_obround_from_ends(
+        part,
+        faces,
+        blind=True,
+        graph=owner,
+        proposals=True,
+        cylinders=cylinders,
+    )
     candidates.extend(cast(list[_RecessProposal[Pocket]], recovered))
     proposals = _extend_obround_proposals(
         _merge_proposals(candidates),
         part,
         owner,
         strict_ambiguity=strict_cap_ambiguity,
+        cylinders=cylinders,
     )
+    proposals = [
+        _replace_proposal(proposal, _with_proved_corner_radius(proposal.record, cylinders))
+        for proposal in proposals
+    ]
     return _attach_complete_pocket_regions(proposals, owner)
 
 

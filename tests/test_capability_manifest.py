@@ -104,6 +104,23 @@ def test_section_end_gradient_is_published_as_dimensionless() -> None:
     assert record["fields"]["gradient"]["units"] == "none"
 
 
+def test_slot_schema_two_publishes_optional_distinct_radius_semantics() -> None:
+    family = next(item for item in _families() if item["id"] == "slots")
+    record = next(item for item in family["records"] if item["name"] == "Slot")
+
+    assert record["schema_version"] == 2
+    assert record["fields"]["end_radius"] == {
+        "required": False,
+        "type": "float|null",
+        "units": "mm",
+    }
+    assert record["fields"]["corner_radius"] == {
+        "required": False,
+        "type": "float|null",
+        "units": "mm",
+    }
+
+
 def test_manifest_inventories_are_derived_independently_from_public_runtime() -> None:
     families = _families()
     manifest_recognisers = {

@@ -25,6 +25,8 @@ class Slot(Record):
     w_center:   ``width_axis`` coordinate of the slot centreline.
     lo, hi:     ``long_axis`` coordinates of the slot ends (lo < hi).
     d_lo, d_hi: extent on the third (depth) axis.
+    end_radius: radius of both proved semicircular obround ends, or ``None`` when unproved.
+    corner_radius: radius of all four proved rounded corners, or ``None`` when unproved.
     """
 
     width_axis: str
@@ -41,6 +43,10 @@ class Slot(Record):
     # The empty tuple preserves hand-built record compatibility. ``None`` is reserved for
     # unavailable/ambiguous recognised provenance and is ineligible for pattern grouping.
     body_key: tuple[float, ...] | None = ()
+    # Appended after the historical positional fields. ``None`` means unknown/unproved,
+    # never that the corresponding ends or corners are square.
+    end_radius: float | None = None
+    corner_radius: float | None = None
 
     @property
     def depth_axis(self) -> str:
@@ -107,6 +113,8 @@ class Pocket(Record):
     w_center:   ``width_axis`` coordinate of the recess centreline.
     lo, hi:     ``long_axis`` coordinates of the recess ends (lo < hi).
     d_lo, d_hi: extent on the depth axis (``depth == d_hi - d_lo``).
+    end_radius: radius of both proved semicircular obround ends, or ``None`` when unproved.
+    corner_radius: radius of all four proved rounded corners, or ``None`` when unproved.
     """
 
     width_axis: str
@@ -129,6 +137,10 @@ class Pocket(Record):
     edge_anchored: bool = False
     # See Slot.body_key.  Appended after the existing defaults to preserve positional callers.
     body_key: tuple[float, ...] | None = ()
+    # Appended after every historical positional field. ``None`` is an epistemic value:
+    # the shape was not proved, rather than proved square.
+    end_radius: float | None = None
+    corner_radius: float | None = None
 
     @property
     def depth_axis(self) -> str:

@@ -437,7 +437,7 @@ def test_cap_matching_refusals_leave_the_legacy_record_unextended(monkeypatch, m
         }[mutation]
         changed_end = (*target[:index], value, *target[index + 1 :])
         changed = [changed_end, *ends[1:]]
-    monkeypatch.setattr(module, "_obround_ends", lambda _part, _graph: changed)
+    monkeypatch.setattr(module, "_obround_ends", lambda _part, _graph, **_kwargs: changed)
 
     assert _extend_obround_proposals([raw], part, graph) == [raw]
 
@@ -648,13 +648,15 @@ def test_occurrence_proposal_and_cap_helper_seams_are_closed() -> None:
             ("_recess_obround.py", "_recognise_obround_from_ends"),
         ],
         "_cylinder_faces": [
+            ("_recess_core.py", "_slot_proposals_one"),
+            ("_recess_core.py", "_pocket_proposals_one"),
             ("_recess_obround.py", "_extend_obround_ends"),
             ("_recess_obround.py", "_obround_ends"),
         ],
     }
     assert imports["_slot_proposals_one"] == {"_recess_features.py"}
     assert imports["_pocket_proposals_one"] == {"_recess_features.py"}
-    assert imports["_cylinder_faces"] == {"_recess_obround.py"}
+    assert imports["_cylinder_faces"] == {"_recess_core.py", "_recess_obround.py"}
 
     for name in ("_recess_faces.py", "_recess_obround.py", "_recess_reduce.py"):
         source = (package / name).read_text(encoding="utf-8")
@@ -692,7 +694,9 @@ def test_competing_endpoint_cap_clusters_fail_closed(monkeypatch) -> None:
     low = min(ends, key=lambda end: end[5])
     spare = next(node for node in graph.nodes if node not in low[9])
     competing = (*low[:9], frozenset({spare}))
-    monkeypatch.setattr(module, "_obround_ends", lambda _part, _graph: [*ends, competing])
+    monkeypatch.setattr(
+        module, "_obround_ends", lambda _part, _graph, **_kwargs: [*ends, competing]
+    )
     with pytest.raises(ValueError, match="compete for one endpoint"):
         _extend_obround_proposals([proposal], part, graph)
     # #234 is neutral: record-only callers retain the historical deterministic

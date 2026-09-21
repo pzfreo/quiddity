@@ -91,6 +91,7 @@ def _extend_obround_ends(records: list[_R], part: Part, claims: _Claims | None =
                 lo=round(s.lo - r, 2),
                 hi=round(s.hi + r, 2),
                 length=round(s.hi - s.lo + 2 * r, 2),
+                end_radius=round(r, 2),
             )
             _absorb(claims, extended, s)
             out.append(extended)
@@ -128,10 +129,11 @@ def _extend_obround_proposals(
     graph: FaceGraph,
     *,
     strict_ambiguity: bool = True,
+    cylinders: list[tuple] | None = None,
 ) -> list[_RecessProposal[_R]]:
     """Extend records while retaining both exact cap clusters; ambiguity refuses."""
 
-    ends = _obround_ends(part, graph)
+    ends = _obround_ends(part, graph, cylinders=cylinders)
     out: list[_RecessProposal[_R]] = []
     for proposal in proposals:
         record = proposal.record
@@ -146,6 +148,7 @@ def _extend_obround_proposals(
                 lo=round(record.lo - radius, 2),
                 hi=round(record.hi + radius, 2),
                 length=round(record.hi - record.lo + 2 * radius, 2),
+                end_radius=round(radius, 2),
             )
             cap_groups = list(proposal.caps)
             for group in (low[0], high[0]):
@@ -298,7 +301,12 @@ def _obround_end(cap: tuple, patches: frozenset[FaceNode] = frozenset()) -> tupl
     )
 
 
-def _obround_ends(part: Part, graph: FaceGraph | None = None) -> list[tuple]:
+def _obround_ends(
+    part: Part,
+    graph: FaceGraph | None = None,
+    *,
+    cylinders: list[tuple] | None = None,
+) -> list[tuple]:
     """The obround end caps of *part*, robust to the imported-STEP topology that splits a
     semicircular end into two quarter-cylinder faces.
 
@@ -311,10 +319,12 @@ def _obround_ends(part: Part, graph: FaceGraph | None = None) -> list[tuple]:
     than exact-key grouping, and the UNION in-plane bbox is classified via
     :func:`_obround_end` — the union of the two quarters is the same ``2r × r`` a single
     half-cylinder gives. (A round hole is a full cylinder, ``2r × 2r``, so its union still
-    fails the ratio test.)
+    fails the ratio test.) The core may supply its graph-owned cylinder inventory so obround and
+    rounded-corner proofs share one topology scan; standalone callers retain the local scan.
     """
     clusters: list[dict] = []
-    for rad, ax, loc, bb, concave, node in _cylinder_faces(part, graph):
+    inventory = _cylinder_faces(part, graph) if cylinders is None else cylinders
+    for rad, ax, loc, bb, concave, node in inventory:
         if not concave or rad <= 0:
             continue
         o0, o1 = [a for a in "xyz" if a != ax]
@@ -363,6 +373,7 @@ def _recognise_obround_from_ends(
     blind: bool = False,
     graph: FaceGraph | None = None,
     proposals: bool = False,
+    cylinders: list[tuple] | None = None,
 ) -> list[Slot] | list[Pocket] | list[_RecessProposal]:
     """Recognise obround recesses from their semicircular end caps — the path for recesses whose
     flat walls are too short for :func:`_candidate`/:func:`_pocket_candidate` to pair.
@@ -385,7 +396,8 @@ def _recognise_obround_from_ends(
     # the local is typed as what it structurally is.
     out: list[Slot | Pocket] = []
     proposed: list[_RecessProposal] = []
-    for grp in _compatible_end_groups(_obround_ends(part, graph)):
+    ends = _obround_ends(part, graph, cylinders=cylinders)
+    for grp in _compatible_end_groups(ends):
         wa, la, _da, raw_rad, _wc, _flat, _direction, raw_dlo, raw_dhi, _patches = grp[0]
         rad, dlo, dhi = round(raw_rad, 2), round(raw_dlo, 2), round(raw_dhi, 2)
         wc = round(sum(end[4] for end in grp) / len(grp), 2)
