@@ -388,6 +388,7 @@ MODULE_SEAM_EDGES = {
     # features. Each layer may import the ones below it and none may import one above, which is
     # the property the split was for -- a family predicate cannot quietly become substrate.
     "_recess_faces": {"_adjacency", "_recess_records", "_typing"},
+    "_recess_radii": {"_recess_faces", "_recess_records", "_typing"},
     "_recess_reduce": {
         "_adjacency",
         "_body_identity",
