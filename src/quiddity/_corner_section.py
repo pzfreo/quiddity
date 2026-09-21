@@ -94,7 +94,7 @@ def prove_corner_section(
         1e-7, max(hi - lo for bounds in rectangles.values() for lo, hi in bounds) * 1e-7
     )
 
-    def same_span(left, right):
+    def same_span(left: tuple[float, float], right: tuple[float, float]) -> bool:
         return all(abs(a - b) <= tolerance for a, b in zip(left, right, strict=True))
 
     if not (
