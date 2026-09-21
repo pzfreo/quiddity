@@ -231,11 +231,19 @@ def _pattern_key(slot: OrientedSlot) -> tuple[object, ...]:
     )
 
 
-def _linear(members, pitch, direction) -> OrientedSlotArray:
+def _linear(members: Sequence[OrientedSlot], pitch: float, direction: Vector3) -> OrientedSlotArray:
     return OrientedSlotArray(tuple(members), pitch, direction)
 
 
-def _grid(members, rows, cols, row_pitch, col_pitch, angle, center) -> OrientedSlotGrid:
+def _grid(
+    members: Sequence[OrientedSlot],
+    rows: int,
+    cols: int,
+    row_pitch: float,
+    col_pitch: float,
+    angle: float,
+    center: Vector3,
+) -> OrientedSlotGrid:
     return OrientedSlotGrid(tuple(members), rows, cols, row_pitch, col_pitch, angle, center)
 
 
@@ -260,7 +268,7 @@ def recognise_oriented_slot_patterns(
             )
             for slot in members
         ]
-        candidates: list = []
+        candidates: list[tuple[OrientedSlotArray | OrientedSlotGrid, frozenset[int]]] = []
         grid = _rect_grid(members, points, _grid)
         if grid is not None:
             candidates.append((grid, frozenset(range(len(members)))))
