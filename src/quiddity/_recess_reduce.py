@@ -20,6 +20,7 @@ Reduction only. Nothing here reads a face; it works on candidates that
 from __future__ import annotations
 
 import math
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from typing import Generic, TypeVar
 
@@ -132,12 +133,12 @@ _body_signature = body_signature
 
 
 def _body_scoped_pairs(
-    sources,
-    recognise_one,
+    sources: Sequence[Part],
+    recognise_one: Callable[[Part], list[_R]],
     claims: _Claims | None = None,
     *,
     properties: SolidProperties | None = None,
-) -> list[tuple]:
+) -> list[tuple[_R, frozenset[FaceNode]]]:
     """The same, paired with the nodes each record was built from.
 
     The claim is read **per solid**, before the next one runs, and the map is cleared between
@@ -149,7 +150,7 @@ def _body_scoped_pairs(
     """
 
     keys = unambiguous_body_keys(sources, properties=properties)
-    out: list[tuple] = []
+    out: list[tuple[_R, frozenset[FaceNode]]] = []
     for solid, body_key in zip(sources, keys, strict=True):
         if claims is not None:
             claims.clear()
@@ -161,12 +162,15 @@ def _body_scoped_pairs(
 
 
 def _body_scoped_proposals(
-    sources, recognise_one, *, properties: SolidProperties | None = None
-) -> list[_RecessProposal]:
+    sources: Sequence[Part],
+    recognise_one: Callable[[Part], list[_RecessProposal[_R]]],
+    *,
+    properties: SolidProperties | None = None,
+) -> list[_RecessProposal[_R]]:
     """Body-scope exact occurrences without using record values as provenance authority."""
 
     keys = unambiguous_body_keys(sources, properties=properties)
-    out: list[_RecessProposal] = []
+    out: list[_RecessProposal[_R]] = []
     for solid, body_key in zip(sources, keys, strict=True):
         for proposal in recognise_one(solid):
             keyed = replace(
@@ -200,7 +204,7 @@ def _same_channel_line(a: Slot, b: Slot) -> tuple[float, float] | None:
     return gap if gap[1] - gap[0] > 0 else None
 
 
-def _gap_is_void(gap, arm: Slot, part: Part) -> bool:
+def _gap_is_void(gap: tuple[float, float], arm: Slot, part: Part) -> bool:
     """Whether the whole gap between collinear slot arms is near-empty.
 
     A crossing channel of matching cross-section clears it. Solid stock or a small incidental
