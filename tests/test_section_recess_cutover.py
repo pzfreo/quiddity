@@ -215,7 +215,7 @@ def test_pattern_and_refusal_contracts_validate_without_geometry_kernel():
         {"schema_version": 1},
         {"schema_version": 2},
         {"schema_version": 3},
-        {"schema_version": 3.0},
+        {"schema_version": 4.0},
         {"reference_scope": "global"},
         {"bodies": ()},
         {"faces": ()},

@@ -351,6 +351,24 @@ def test_open_profile_refuses_an_implied_or_misdirected_closure() -> None:
         )
 
 
+def test_open_profile_material_side_follows_the_canonical_boundary_winding() -> None:
+    boundary = (
+        PassageSectionVertex((-2.0, -1.0), 0.0),
+        PassageSectionVertex((-2.0, 1.0), 0.0),
+        PassageSectionVertex((2.0, 1.0), 0.0),
+        PassageSectionVertex((2.0, -1.0), 0.0),
+    )
+
+    profile = OpenSectionProfile(
+        "open",
+        boundary,
+        (boundary[-1].point, boundary[0].point),
+        "left",
+    )
+
+    assert profile.material_side == "left"
+
+
 @pytest.mark.parametrize(
     ("shape", "points"),
     [
