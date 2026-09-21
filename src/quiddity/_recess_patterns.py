@@ -44,11 +44,21 @@ def _pocket_spec_key(pk: Pocket) -> tuple:
     )
 
 
-def _mk_pocket_linear(members, pitch, direction) -> PocketArray:
+def _mk_pocket_linear(
+    members: Sequence[Pocket], pitch: float, direction: tuple[float, float, float]
+) -> PocketArray:
     return PocketArray(pockets=tuple(members), pitch=pitch, direction=direction)
 
 
-def _mk_pocket_grid(members, rows, cols, row_pitch, col_pitch, angle, center) -> PocketGrid:
+def _mk_pocket_grid(
+    members: Sequence[Pocket],
+    rows: int,
+    cols: int,
+    row_pitch: float,
+    col_pitch: float,
+    angle: float,
+    center: tuple[float, float, float],
+) -> PocketGrid:
     return PocketGrid(
         pockets=tuple(members),
         rows=rows,
@@ -125,11 +135,21 @@ def _slot_spec_key(sl: Slot) -> tuple:
     )
 
 
-def _mk_slot_linear(members, pitch, direction) -> SlotArray:
+def _mk_slot_linear(
+    members: Sequence[Slot], pitch: float, direction: tuple[float, float, float]
+) -> SlotArray:
     return SlotArray(slots=tuple(members), pitch=pitch, direction=direction)
 
 
-def _mk_slot_grid(members, rows, cols, row_pitch, col_pitch, angle, center) -> SlotGrid:
+def _mk_slot_grid(
+    members: Sequence[Slot],
+    rows: int,
+    cols: int,
+    row_pitch: float,
+    col_pitch: float,
+    angle: float,
+    center: tuple[float, float, float],
+) -> SlotGrid:
     return SlotGrid(
         slots=tuple(members),
         rows=rows,
