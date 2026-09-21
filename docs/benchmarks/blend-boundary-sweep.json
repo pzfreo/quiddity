@@ -888,6 +888,7 @@
                 ],
                 "axis": "z",
                 "radius": 1.0,
+                "side": "convex",
                 "turned": false
               },
               {
@@ -898,6 +899,7 @@
                 ],
                 "axis": "z",
                 "radius": 1.0,
+                "side": "convex",
                 "turned": false
               },
               {
@@ -908,6 +910,7 @@
                 ],
                 "axis": "z",
                 "radius": 1.0,
+                "side": "convex",
                 "turned": false
               },
               {
@@ -918,6 +921,7 @@
                 ],
                 "axis": "z",
                 "radius": 1.0,
+                "side": "convex",
                 "turned": false
               }
             ],
@@ -969,6 +973,7 @@
                 ],
                 "axis": "z",
                 "radius": 2.0,
+                "side": "convex",
                 "turned": false
               },
               {
@@ -979,6 +984,7 @@
                 ],
                 "axis": "z",
                 "radius": 2.0,
+                "side": "convex",
                 "turned": false
               },
               {
@@ -989,6 +995,7 @@
                 ],
                 "axis": "z",
                 "radius": 2.0,
+                "side": "convex",
                 "turned": false
               },
               {
@@ -999,6 +1006,7 @@
                 ],
                 "axis": "z",
                 "radius": 2.0,
+                "side": "convex",
                 "turned": false
               }
             ],
@@ -1115,6 +1123,7 @@
                 ],
                 "axis": "z",
                 "radius": 0.75,
+                "side": "convex",
                 "turned": true
               },
               {
@@ -1125,6 +1134,7 @@
                 ],
                 "axis": "z",
                 "radius": 0.75,
+                "side": "convex",
                 "turned": true
               }
             ],
@@ -1176,6 +1186,7 @@
                 ],
                 "axis": "z",
                 "radius": 1.0,
+                "side": "convex",
                 "turned": true
               },
               {
@@ -1186,6 +1197,7 @@
                 ],
                 "axis": "z",
                 "radius": 1.0,
+                "side": "convex",
                 "turned": true
               }
             ],

@@ -195,7 +195,10 @@ face. It reports face-count and surface-area totals, associated and unassociated
 per-family union contributions, and the exact within-run references left unassociated. Family
 contributions may overlap and are not additive. This is not an accuracy or recall score: accepted
 classifications may be wrong, stock faces may intentionally remain unassociated, and incomplete
-constituent publication produces incomplete association.
+constituent publication produces incomplete association. It is not a rebuildability score either:
+recognised modification faces may cover much of a part while its unmodelled outer stock controls
+the reconstruction, or a small recognised area may determine cuts completely once an envelope is
+known.
 
 Rejected-candidate faces are diagnostic evidence, not an accuracy judgment or proof of a missed
 feature. A face absent from both accepted and rejected evidence may still have been consulted by a

@@ -51,6 +51,7 @@ def test_direct_reader_recognises_conical_turned_chamfers():
         ("z", 0.8, 0.8, 45.0)
     }
     assert all(chamfer.turned for chamfer in found)
+    assert all(chamfer.corner is None for chamfer in found)
     for candidate in ledger.candidate_set(FamilyId.CHAMFERS).candidates:
         (node,) = ledger.defining_of(candidate)
         face = ledger.graph.face(node)
@@ -125,10 +126,19 @@ def test_prismatic_edge_treatments_and_legacy_constructors_default_to_not_turned
     bevelled = box.chamfer(1.0, None, vertical_edges)
     rounded = fillet(vertical_edges, 1.0)
 
-    assert all(not item.turned for item in recognise_chamfers(bevelled))
+    planar_chamfers = recognise_chamfers(bevelled)
+    assert all(not item.turned for item in planar_chamfers)
+    assert all(item.corner is not None and item.corner != item.at for item in planar_chamfers)
     assert all(not item.turned for item in recognise_fillets(rounded))
-    assert not Chamfer("z", 1.0, 1.0, 45.0, (0.0, 0.0, 0.0)).turned
-    assert not Fillet("z", 1.0, (0.0, 0.0, 0.0)).turned
+    legacy_chamfer = Chamfer("z", 1.0, 1.0, 45.0, (0.0, 0.0, 0.0))
+    legacy_fillet = Fillet("z", 1.0, (0.0, 0.0, 0.0))
+    assert not legacy_chamfer.turned and legacy_chamfer.corner is None
+    assert not legacy_fillet.turned and legacy_fillet.side == "convex"
+
+
+def test_fillet_side_uses_the_closed_blend_vocabulary():
+    with pytest.raises(ValueError, match="side must be convex"):
+        Fillet("z", 1.0, (0.0, 0.0, 0.0), side="concave")
 
 
 def test_internal_countersink_is_not_a_turned_chamfer():

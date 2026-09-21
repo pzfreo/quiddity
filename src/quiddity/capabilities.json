@@ -40,6 +40,11 @@
               "type": "str",
               "units": "none"
             },
+            "corner": {
+              "required": false,
+              "type": "tuple[float,3]|null",
+              "units": "mm"
+            },
             "leg1": {
               "required": true,
               "type": "float",
@@ -59,7 +64,7 @@
           "name": "AngledStep",
           "qualified_name": "quiddity.AngledStep",
           "role": "output",
-          "schema_version": 1
+          "schema_version": 2
         }
       ],
       "status": "supported",
@@ -270,6 +275,11 @@
               "type": "str",
               "units": "none"
             },
+            "corner": {
+              "required": false,
+              "type": "tuple[float,3]|null",
+              "units": "mm"
+            },
             "leg1": {
               "required": true,
               "type": "float",
@@ -289,7 +299,7 @@
           "name": "Chamfer",
           "qualified_name": "quiddity.Chamfer",
           "role": "output",
-          "schema_version": 2
+          "schema_version": 3
         }
       ],
       "status": "supported",
@@ -601,6 +611,11 @@
               "type": "float",
               "units": "mm"
             },
+            "side": {
+              "required": false,
+              "type": "str",
+              "units": "none"
+            },
             "turned": {
               "required": false,
               "type": "bool",
@@ -610,7 +625,7 @@
           "name": "Fillet",
           "qualified_name": "quiddity.Fillet",
           "role": "output",
-          "schema_version": 2
+          "schema_version": 3
         }
       ],
       "status": "supported",
@@ -1433,16 +1448,26 @@
               "type": "str",
               "units": "none"
             },
+            "half_width": {
+              "required": false,
+              "type": "float|null",
+              "units": "mm"
+            },
             "length": {
               "required": true,
               "type": "float",
               "units": "mm"
+            },
+            "opening_direction": {
+              "required": false,
+              "type": "tuple[float,3]|null",
+              "units": "unit-vector"
             }
           },
           "name": "PairedRampStep",
           "qualified_name": "quiddity.PairedRampStep",
           "role": "output",
-          "schema_version": 1
+          "schema_version": 2
         }
       ],
       "status": "supported",
@@ -2034,6 +2059,11 @@
               "type": "str",
               "units": "none"
             },
+            "material_side": {
+              "required": false,
+              "type": "str|null",
+              "units": "none"
+            },
             "opening": {
               "required": true,
               "type": "tuple[tuple[float,2],2]",
@@ -2043,7 +2073,7 @@
           "name": "OpenSectionProfile",
           "qualified_name": "quiddity.OpenSectionProfile",
           "role": "nested",
-          "schema_version": 1
+          "schema_version": 2
         },
         {
           "aggregate_membership": [],
@@ -2229,7 +2259,7 @@
           "name": "SectionRecess",
           "qualified_name": "quiddity.SectionRecess",
           "role": "output",
-          "schema_version": 2
+          "schema_version": 3
         },
         {
           "aggregate_membership": [
@@ -2335,7 +2365,7 @@
           "name": "SectionRecessDocument",
           "qualified_name": "quiddity.SectionRecessDocument",
           "role": "aggregate",
-          "schema_version": 3
+          "schema_version": 4
         },
         {
           "aggregate_membership": [],
@@ -2425,7 +2455,7 @@
           "name": "SectionRecessGeometry",
           "qualified_name": "quiddity.SectionRecessGeometry",
           "role": "nested",
-          "schema_version": 2
+          "schema_version": 3
         },
         {
           "aggregate_membership": [

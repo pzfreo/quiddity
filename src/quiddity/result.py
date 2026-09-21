@@ -78,6 +78,7 @@ from quiddity._section_recess import (
     SectionRecessGeometry,
     SectionRecessGrid,
     SectionRecessRefusal,
+    _open_profile_material_side,
 )
 from quiddity._section_recess_geometry import (
     _polygonal_shape,
@@ -804,6 +805,7 @@ def _canonical_open_profile(
         "open",
         canonical,
         (canonical[-1].point, canonical[0].point),
+        _open_profile_material_side(canonical),
     )
 
 
@@ -1625,7 +1627,7 @@ def build_section_recess_document(part: Part) -> SectionRecessDocument:
         replace(record, index=index) for index, record in enumerate(result.section_recesses)
     )
     return SectionRecessDocument(
-        3,
+        4,
         "result",
         tuple(SectionRecessBodyRef(index) for index, _ in enumerate(part.solids())),
         tuple(SectionRecessFaceRef(index) for index, _ in enumerate(part.faces())),

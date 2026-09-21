@@ -118,8 +118,11 @@ class Chamfer(Record):
     ``leg1``/``leg2`` are the cut depths into the two adjacent faces (equal for a 45°
     chamfer, ``leg1`` the larger); ``angle`` is the chamfer angle in degrees (45 for
     equal-leg); ``at`` is the chamfer face centre in part space (the callout leader's
-    tip). ``turned`` distinguishes a conical treatment swept around a shaft from a planar
-    prismatic bevel; it defaults to ``False`` for constructor compatibility."""
+    tip). For a prismatic bevel, ``corner`` is the point on the virtual sharp edge at the
+    midpoint of the run: the vector from it to ``at`` points into the removed wedge and fixes
+    both supporting-face signs. A turned chamfer has a circular virtual edge and leaves this
+    point-valued field absent. ``turned`` distinguishes a conical treatment swept around a shaft
+    from a planar prismatic bevel; both additive fields default for constructor compatibility."""
 
     axis: str
     leg1: float
@@ -127,6 +130,7 @@ class Chamfer(Record):
     angle: float
     at: tuple[float, float, float]
     turned: bool = False
+    corner: tuple[float, float, float] | None = None
 
 
 def recognise_chamfers(
@@ -225,6 +229,11 @@ def _discover_chamfers(
             continue
         if not convex_bevel(part, fc, edge_i, neigh_coord, properties=properties):
             continue  # concave corner — a gusset / rib / web, not a chamfer
+        corner = (
+            round(fc[0] if edge_i == 0 else neigh_coord[0], 3),
+            round(fc[1] if edge_i == 1 else neigh_coord[1], 3),
+            round(fc[2] if edge_i == 2 else neigh_coord[2], 3),
+        )
         # Anchor the leader on the bevel FACE (its centroid), not the supporting plane's
         # parametric origin: that origin is arbitrary (OCC parameterisation) and can project to
         # a chamfer endpoint/corner rather than the middle of the diagonal. The centroid
@@ -240,6 +249,7 @@ def _discover_chamfers(
                     leg2=round(leg_lo, 3),
                     angle=round(angle, 2),
                     at=(round(fctr.X, 3), round(fctr.Y, 3), round(fctr.Z, 3)),
+                    corner=corner,
                 ),
                 f,
             )

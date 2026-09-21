@@ -16,6 +16,7 @@ from quiddity._cylindrical_end_surface import CylindricalEndSurface as Cylindric
 from quiddity._record import Record
 from quiddity._sections import (
     SectionVertex,
+    _moments,
     _validate_simple,
     validate_section_end_separation,
 )
@@ -65,11 +66,19 @@ class ClosedSectionProfile(Record):
 
 @dataclass(frozen=True, order=True, slots=True)
 class OpenSectionProfile(Record):
-    """One canonical physical open line/arc chain plus its explicitly absent boundary."""
+    """One canonical physical open line/arc chain plus its explicitly absent boundary.
+
+    ``material_side`` is ``"left"`` or ``"right"`` of the directed physical boundary chain.
+    It states which side remains solid, so a reconstruction consumer need not probe the source
+    part to choose between the two possible closures. ``None`` exists only so callers written
+    against schema version 1 can still construct the record; recognition always publishes the
+    proved relation.
+    """
 
     closure: str
     boundary: tuple[PassageSectionVertex, ...]
     opening: tuple[Vector2, Vector2]
+    material_side: str | None = None
 
     def __post_init__(self) -> None:
         if self.closure != "open":
@@ -105,7 +114,26 @@ class OpenSectionProfile(Record):
         )
         if reversed_boundary < self.boundary:
             raise ValueError("open section profile must use its canonical direction")
+        if self.material_side not in {None, "left", "right"}:
+            raise ValueError("open section profile material_side must be left or right")
+        if self.material_side is not None and self.material_side != _open_profile_material_side(
+            self.boundary
+        ):
+            raise ValueError("open section profile material_side disagrees with its boundary")
         object.__setattr__(self, "opening", opening)
+
+
+def _open_profile_material_side(boundary: tuple[PassageSectionVertex, ...]) -> str:
+    """Return the solid side of a canonical recess wall chain.
+
+    Closing the absent opening only for this orientation calculation gives the removed section's
+    winding. Material is on the opposite side of its directed physical boundary.
+    """
+
+    area, _centroid = _moments(
+        tuple(SectionVertex(vertex.point, vertex.bulge) for vertex in boundary)
+    )
+    return "right" if area > 0.0 else "left"
 
 
 @dataclass(frozen=True, order=True, slots=True)
@@ -530,7 +558,7 @@ class SectionRecessDocument(Record):
     patterns: tuple[SectionRecessArray | SectionRecessGrid, ...] = ()
 
     def __post_init__(self) -> None:
-        if type(self.schema_version) is not int or self.schema_version != 3:
+        if type(self.schema_version) is not int or self.schema_version != 4:
             raise ValueError("unsupported section-recess document")
         if self.reference_scope != "result":
             raise ValueError("unsupported section-recess document")

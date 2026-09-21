@@ -36,6 +36,7 @@ from quiddity._section_recess import (
     SectionRecessGeometry,
     Vector2,
     Vector3,
+    _open_profile_material_side,
 )
 from quiddity._sections import (
     BodyRefIssuer,
@@ -1002,7 +1003,12 @@ def _cylindrical_geometry(
         start = opening_edge + 1
         chain = boundary[start:] + boundary[:start]
         chain = min(chain, tuple(reversed(chain)))
-        profile = OpenSectionProfile("open", chain, (chain[-1].point, chain[0].point))
+        profile = OpenSectionProfile(
+            "open",
+            chain,
+            (chain[-1].point, chain[0].point),
+            _open_profile_material_side(chain),
+        )
     curved_end = SectionEnd("open", surface)
     flat_end = SectionEnd("open" if planar_open or opening_edge is not None else "capped")
     centroid_end = round(surface.height((0.0, 0.0)), 3)
@@ -1064,7 +1070,12 @@ def _seat_geometry(seat: CylindricalSeatProof) -> SectionRecessGeometry:
         "section_recess",
         frame,
         interval,
-        OpenSectionProfile("open", chain, (chain[-1].point, chain[0].point)),
+        OpenSectionProfile(
+            "open",
+            chain,
+            (chain[-1].point, chain[0].point),
+            _open_profile_material_side(chain),
+        ),
         SectionRecessEnds(SectionEnd("open"), SectionEnd("open")),
     )
 

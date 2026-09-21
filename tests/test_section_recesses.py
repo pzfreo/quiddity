@@ -335,6 +335,38 @@ def test_open_profile_refuses_an_implied_or_misdirected_closure() -> None:
         )
     with pytest.raises(ValueError, match="physical chain end"):
         OpenSectionProfile("open", vertices, ((-2.0, 1.0), (2.0, 1.0)))
+    with pytest.raises(ValueError, match="material_side must be left or right"):
+        OpenSectionProfile(
+            "open",
+            vertices,
+            (vertices[-1].point, vertices[0].point),
+            "inside",
+        )
+    with pytest.raises(ValueError, match="disagrees with its boundary"):
+        OpenSectionProfile(
+            "open",
+            vertices,
+            (vertices[-1].point, vertices[0].point),
+            "left",
+        )
+
+
+def test_open_profile_material_side_follows_the_canonical_boundary_winding() -> None:
+    boundary = (
+        PassageSectionVertex((-2.0, -1.0), 0.0),
+        PassageSectionVertex((-2.0, 1.0), 0.0),
+        PassageSectionVertex((2.0, 1.0), 0.0),
+        PassageSectionVertex((2.0, -1.0), 0.0),
+    )
+
+    profile = OpenSectionProfile(
+        "open",
+        boundary,
+        (boundary[-1].point, boundary[0].point),
+        "left",
+    )
+
+    assert profile.material_side == "left"
 
 
 @pytest.mark.parametrize(

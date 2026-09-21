@@ -74,13 +74,19 @@ class PairedRampStep(Record):
     ``axis`` is the principal run direction, ``angle`` is either ramp's acute cross-section
     angle in degrees, ``length`` is the open-to-terminal run, and ``at`` is the midpoint of the
     ramps' shared ridge.  The ridge is an original topological edge and therefore a stable
-    geometry anchor rather than an inferred stock coordinate.
+    geometry anchor rather than an inferred stock coordinate. ``opening_direction`` points
+    from the internal terminal toward the exterior opening. ``half_width`` is the distance
+    from the ridge to either ramp's exterior edge along the pair's opposed cross axis; together
+    with ``angle`` it fixes the V section. The additive fields default only for constructor
+    compatibility; recognised records always populate both.
     """
 
     axis: str
     angle: float
     length: float
     at: tuple[float, float, float]
+    opening_direction: tuple[float, float, float] | None = None
+    half_width: float | None = None
 
 
 def _axis_terminal(graph: FaceGraph, node: FaceNode, axis: int) -> bool:
@@ -220,7 +226,34 @@ def _candidate(
     )
     length = shared_run[1] - shared_run[0]
     angle = math.degrees(math.atan2(abs(left_normal[opposed[0]]), abs(left_normal[same[0]])))
-    return PairedRampStep("xyz"[axis], round(angle, 2), round(length, 3), at), internal[0]
+    opening_sign = (
+        1.0
+        if _terminal_coordinate(graph, exterior[0], axis)
+        > _terminal_coordinate(graph, internal[0], axis)
+        else -1.0
+    )
+    opening_direction = (
+        opening_sign if axis == 0 else 0.0,
+        opening_sign if axis == 1 else 0.0,
+        opening_sign if axis == 2 else 0.0,
+    )
+    half_widths = (
+        left_span[opposed[0]][1] - left_span[opposed[0]][0],
+        right_span[opposed[0]][1] - right_span[opposed[0]][0],
+    )
+    if abs(half_widths[0] - half_widths[1]) > tolerance:
+        return None
+    return (
+        PairedRampStep(
+            "xyz"[axis],
+            round(angle, 2),
+            round(length, 3),
+            at,
+            opening_direction,
+            round(0.5 * sum(half_widths), 3),
+        ),
+        internal[0],
+    )
 
 
 def recognise_paired_ramp_steps(

@@ -43,7 +43,13 @@
               0.0
             ],
             "axis": "y",
-            "length": 25.0
+            "half_width": 8.0,
+            "length": 25.0,
+            "opening_direction": [
+              0.0,
+              1.0,
+              0.0
+            ]
           }
         ],
         "plates": [],
@@ -319,7 +325,13 @@
             0.0
           ],
           "axis": "y",
-          "length": 25.0
+          "half_width": 8.0,
+          "length": 25.0,
+          "opening_direction": [
+            0.0,
+            1.0,
+            0.0
+          ]
         }
       ],
       "recognise_passages": [],

@@ -290,6 +290,7 @@
           ],
           "axis": "x",
           "radius": 4.0,
+          "side": "convex",
           "turned": false
         }
       ],

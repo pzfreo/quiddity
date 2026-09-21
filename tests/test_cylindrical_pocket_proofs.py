@@ -202,7 +202,7 @@ def test_polygonal_cylindrical_pocket_keeps_complete_original_wall_ring(sides, r
 def test_public_cylindrical_pocket_preserves_source_evidence(scale, offset, rotation):
     part = Pos(3, 7, 11) * rotation * _base(scale, offset)
     document = build_section_recess_document(part)
-    assert document.schema_version == 3
+    assert document.schema_version == 4
     assert len(document.occurrences) == 1
     assert not document.refusals
     record = document.occurrences[0]

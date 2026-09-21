@@ -120,7 +120,9 @@ class AngledStep(Record):
     ("x"/"y"/"z"); ``leg1``/``leg2`` are the cut depths into the two adjacent faces
     (``leg1`` the larger); ``angle`` is the slant angle in degrees (45 for equal-leg);
     ``length`` is how far the step runs before its blind end; ``at`` is the slant face
-    centre in part space (the callout leader's tip).
+    centre in part space (the callout leader's tip). ``corner`` is the point on the virtual
+    sharp edge at the midpoint of the run. The vector from ``corner`` to ``at`` points into
+    the removed wedge and removes the otherwise ambiguous supporting-face signs.
 
     The fields mirror :class:`quiddity.Chamfer` because the geometry is the same
     read — ``length`` is the addition, and it is the field a chamfer has no use for: a
@@ -133,6 +135,7 @@ class AngledStep(Record):
     angle: float
     length: float
     at: tuple[float, float, float]
+    corner: tuple[float, float, float] | None = None
 
 
 def _closed_by_a_triangular_flat(
@@ -271,6 +274,11 @@ def _discover_angled_steps(
         if not terminals:
             continue  # runs edge to edge — a chamfer, and the reconciler leaves it to them
         fctr = f.center()
+        corner = (
+            round(fc[0] if edge_i == 0 else neigh_coord[0], 3),
+            round(fc[1] if edge_i == 1 else neigh_coord[1], 3),
+            round(fc[2] if edge_i == 2 else neigh_coord[2], 3),
+        )
         out.append(
             (
                 AngledStep(
@@ -280,6 +288,7 @@ def _discover_angled_steps(
                     angle=round(math.degrees(math.atan2(leg_lo, leg_hi)), 2),
                     length=round(span[edge_i][1] - span[edge_i][0], 3),
                     at=(round(fctr.X, 3), round(fctr.Y, 3), round(fctr.Z, 3)),
+                    corner=corner,
                 ),
                 f,
                 tuple(terminals),

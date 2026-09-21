@@ -63,7 +63,7 @@ class AssociationMeasure(Generic[MeasureValue]):
     """One explicit total and its associated/unassociated partition.
 
     ``ratio`` is undefined when ``total`` is zero. It is association coverage, never an
-    accuracy, recall or correctness score.
+    accuracy, recall, correctness or reconstructibility score.
     """
 
     total: MeasureValue

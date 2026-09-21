@@ -34,7 +34,8 @@ whole-occurrence serialization error bound and exporter/consumer reconstruction
 tests must be delivered together. Do not silently add cylinder parameters to a
 record that existing readers interpret as a plane.
 
-The implementation uses document version 3 and explicit nested surface records.
+The implementation uses document version 4 and explicit nested surface records. Version 4 adds
+the material side of an open profile's directed physical boundary chain.
 Cylindrical profile coordinates use the existing four-decimal allowance; axis,
 radius and cylinder-placement values use six decimals. Publication retains the
 0.002 mm whole-occurrence displacement limit. Its bound includes the source-axis

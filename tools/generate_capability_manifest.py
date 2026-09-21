@@ -87,22 +87,25 @@ def _registry_families() -> dict[str, dict[str, object]]:
 FAMILIES = _registry_families()
 
 RECORD_SCHEMA_VERSIONS = {
+    "AngledStep": 2,
     "Slot": 2,
     "SectionEnd": 2,
     "SectionRecessEnds": 2,
-    "SectionRecessGeometry": 2,
-    "SectionRecess": 2,
-    "SectionRecessDocument": 3,
+    "SectionRecessGeometry": 3,
+    "SectionRecess": 3,
+    "SectionRecessDocument": 4,
     "Channel": 2,
     "Blend": 3,
-    "Chamfer": 2,
+    "Chamfer": 3,
     "FaceLevel": 2,
-    "Fillet": 2,
+    "Fillet": 3,
     "Groove": 2,
     "RaisedPad": 2,
     "PassageEnds": 2,
     "Plate": 2,
     "PassageSection": 2,
+    "PairedRampStep": 2,
+    "OpenSectionProfile": 2,
     "RiserEvidence": 3,
     "TurnedProfile": 2,
     "TurnedProfileKey": 2,
@@ -191,6 +194,7 @@ def _units(field: dataclasses.Field, annotation: object) -> str:
         "row_direction",
         "col_direction",
         "normal",
+        "opening_direction",
         "run",
         "u",
         "v",
@@ -211,6 +215,7 @@ def _units(field: dataclasses.Field, annotation: object) -> str:
             "gradient",
             "low_gradient",
             "high_gradient",
+            "material_side",
         }
         or rendered in {"bool", "int", "str"}
         or rendered.startswith("record:")

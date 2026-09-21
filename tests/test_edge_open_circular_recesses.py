@@ -176,6 +176,7 @@ def test_accepted_open_circular_recess_projects_to_unified_contract() -> None:
     assert record.classification.section_shape == "obround"
     assert record.geometry.profile.closure == "open"
     assert any(vertex.bulge != 0.0 for vertex in record.geometry.profile.boundary)
+    assert record.geometry.profile.material_side == "right"
 
 
 @pytest.mark.parametrize(("x", "y"), ((14, 12), (16, 10), (18, 8)))
