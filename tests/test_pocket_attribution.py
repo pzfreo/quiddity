@@ -315,6 +315,7 @@ def _fresh_occurrences(part):
                     1 if floor_nodes[0][1] > 0 else -1,
                     False,
                     raw_key if body_keys.count(raw_key) == 1 else None,
+                    round(radius, 2),
                 )
                 # Elongated routes also own their two planar side walls; stubby routes do not.
                 walls = {
@@ -811,7 +812,7 @@ def test_opposing_d_caps_reach_and_fail_the_side_wall_gate(monkeypatch) -> None:
     opposed = [(*ends[0][:6], -1, *ends[0][7:]), (*ends[1][:6], 1, *ends[1][7:])]
     calls = []
     real = module._has_side_walls
-    monkeypatch.setattr(module, "_obround_ends", lambda _part, _graph: opposed)
+    monkeypatch.setattr(module, "_obround_ends", lambda _part, _graph, **_kwargs: opposed)
 
     def observed(faces, record):
         result = real(faces, record)
@@ -981,7 +982,7 @@ def test_blind_pocket_cap_contract_refuses_every_mismatched_endpoint(monkeypatch
             "depth": (8, target[8] + 1.0),
         }[mutation]
         changed = [(*target[:index], value, *target[index + 1 :]), *ends[1:]]
-    monkeypatch.setattr(module, "_obround_ends", lambda _part, _graph: changed)
+    monkeypatch.setattr(module, "_obround_ends", lambda _part, _graph, **_kwargs: changed)
     assert _extend_obround_proposals([raw], part, graph) == [raw]
 
 
@@ -1001,7 +1002,9 @@ def test_merge_tolerance_and_max_span_boundaries_drive_pocket_lifecycle(monkeypa
             (*ends[0][:5], -run / 2, *ends[0][6:]),
             (*ends[1][:5], run / 2, *ends[1][6:]),
         ]
-        monkeypatch.setattr(module, "_obround_ends", lambda _part, _graph, value=changed: value)
+        monkeypatch.setattr(
+            module, "_obround_ends", lambda _part, _graph, value=changed, **_kwargs: value
+        )
         records = _recognise_obround_from_ends(base, [], blind=True, graph=graph, proposals=True)
         assert bool(records) is accepted
 
@@ -1045,7 +1048,7 @@ def test_stubby_cap_direction_is_mandatory(monkeypatch) -> None:
     graph = FaceGraph(part)
     ends = _obround_ends(part, graph)
     changed = [(*ends[0][:6], -ends[0][6], *ends[0][7:]), *ends[1:]]
-    monkeypatch.setattr(module, "_obround_ends", lambda _part, _graph: changed)
+    monkeypatch.setattr(module, "_obround_ends", lambda _part, _graph, **_kwargs: changed)
     assert _recognise_obround_from_ends(part, [], blind=True, graph=graph, proposals=True) == []
 
 
@@ -1174,7 +1177,7 @@ def test_same_endpoint_distinct_cap_groups_refuse_direct_and_aggregate(monkeypat
     ]
     raw = replace(record, lo=low, hi=high, length=high - low)
     assert len(_matching_end_groups(ends, raw, low)) == 2
-    monkeypatch.setattr(module, "_obround_ends", lambda _part, _graph: ends)
+    monkeypatch.setattr(module, "_obround_ends", lambda _part, _graph, **_kwargs: ends)
     with pytest.raises(ValueError, match="multiple distinct obround cap clusters compete"):
         _extend_obround_proposals([replace(proposal, record=raw)], part, graph)
 

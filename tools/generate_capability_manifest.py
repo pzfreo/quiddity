@@ -87,6 +87,7 @@ def _registry_families() -> dict[str, dict[str, object]]:
 FAMILIES = _registry_families()
 
 RECORD_SCHEMA_VERSIONS = {
+    "Slot": 2,
     "SectionEnd": 2,
     "SectionRecessEnds": 2,
     "SectionRecessGeometry": 2,

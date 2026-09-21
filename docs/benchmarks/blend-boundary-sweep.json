@@ -22,10 +22,12 @@
               90600.0,
               16100.0
             ],
+            "corner_radius": null,
             "d_hi": 10.0,
             "d_lo": 1.0,
             "depth": 9.0,
             "edge_anchored": false,
+            "end_radius": null,
             "hi": 15.0,
             "length": 30.0,
             "lo": -15.0,

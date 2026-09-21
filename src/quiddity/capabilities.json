@@ -2646,6 +2646,11 @@
               "type": "list[float]|null",
               "units": "none"
             },
+            "corner_radius": {
+              "required": false,
+              "type": "float|null",
+              "units": "mm"
+            },
             "d_hi": {
               "required": true,
               "type": "float",
@@ -2654,6 +2659,11 @@
             "d_lo": {
               "required": true,
               "type": "float",
+              "units": "mm"
+            },
+            "end_radius": {
+              "required": false,
+              "type": "float|null",
               "units": "mm"
             },
             "hi": {
@@ -2695,7 +2705,7 @@
           "name": "Slot",
           "qualified_name": "quiddity.Slot",
           "role": "output",
-          "schema_version": 1
+          "schema_version": 2
         }
       ],
       "status": "supported",

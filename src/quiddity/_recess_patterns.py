@@ -40,6 +40,8 @@ def _pocket_spec_key(pk: Pocket) -> tuple:
         round(pk.d_hi, 3),
         pk.open_sign,  # opposite-facing pockets sharing a depth range are on different faces
         pk.edge_anchored,  # implicit-location corner recesses are a distinct feature class
+        None if pk.end_radius is None else round(pk.end_radius, 3),
+        None if pk.corner_radius is None else round(pk.corner_radius, 3),
         pk.body_key,
     )
 
@@ -131,6 +133,8 @@ def _slot_spec_key(sl: Slot) -> tuple:
         round(sl.length, 3),
         round(sl.d_lo, 3),
         round(sl.d_hi, 3),
+        None if sl.end_radius is None else round(sl.end_radius, 3),
+        None if sl.corner_radius is None else round(sl.corner_radius, 3),
         sl.body_key,
     )
 

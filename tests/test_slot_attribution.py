@@ -262,6 +262,7 @@ def _fresh_occurrences_one(solid, body_key):
                 round(depth[0], 2),
                 round(depth[1], 2),
                 body_key,
+                round(radius, 2),
             )
             # Slot recovery is the zero-floor route: its cap patches traverse the
             # entire owner depth. A blind obround has the same plan view but fails here.

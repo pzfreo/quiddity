@@ -1,5 +1,20 @@
 # Release notes
 
+## 0.3.2 — Quiddity
+
+- Preserve proved recess radii instead of discarding them. Principal-axis `Slot` and legacy
+  `Pocket` records now distinguish two semicircular obround ends (`end_radius`) from four uniform
+  rounded corners (`corner_radius`). Both optional values remain `None` when the geometry is not
+  proved; `None` does not mean square. Proved rounded rectangles now report their overall
+  `lo`/`hi`/`length`, and pattern identity includes both radius semantics (#708).
+- `Slot` capability schema 2 adds those two optional millimetre fields. Existing positional
+  construction remains valid because both fields are appended with defaults; serialization stays
+  plain JSON-compatible. `Pocket` is a legacy compatibility record rather than a separately
+  manifest-listed record.
+- ADR 0005 normally reserves optional public fields and a record schema bump for a minor release.
+  The project owner explicitly directed this additive contract to ship as patch release 0.3.2;
+  consumers must still adopt schema 2 deliberately.
+
 ## 0.3.1 — Quiddity
 
 - Add opaque, run-local `CandidateRef` evidence for rejected detector candidates. Raw, framed and
