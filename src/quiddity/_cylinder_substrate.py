@@ -3,6 +3,7 @@
 """Shared single-pass cylindrical-face substrate."""
 
 import math
+from collections.abc import Callable, Hashable
 from typing import TypeVar
 
 from OCP.Bnd import Bnd_Box
@@ -32,7 +33,7 @@ from quiddity._geometry import (
     quantise,
     unit_or_none,
 )
-from quiddity._typing import CylinderEvidence, CylinderInventory, Part
+from quiddity._typing import CylinderEvidence, CylinderInventory, FaceLike, Part, Vector3
 
 #: Whatever record type the caller groups. _merge_runs cares only about ``s_lo``/``s_hi`` and the
 #: caller's key, so it preserves the element type instead of flattening a widened record -- a
@@ -90,9 +91,7 @@ def _axis_basis(
     return across, _normalised(cross(direction, across))
 
 
-def _recovered_axis_bounds(
-    face, direction: tuple[float, float, float]
-) -> tuple[float, float] | None:
+def _recovered_axis_bounds(face: FaceLike, direction: Vector3) -> tuple[float, float] | None:
     """Use OCCT's exact-geometry optimal bounds after aligning the recovered axis to Z."""
 
     try:
@@ -136,9 +135,9 @@ def _recovered_axis_bounds(
 
 
 def _recovered_angular_lower_bound(
-    face,
-    axis_point: tuple[float, float, float],
-    direction: tuple[float, float, float],
+    face: FaceLike,
+    axis_point: Vector3,
+    direction: Vector3,
     radius: float,
 ) -> float | None:
     """Return a conservative observed angular span from exact original trim points.
@@ -313,7 +312,9 @@ def analyse_cylinders(
     return z_cyls, cross_cyls
 
 
-def _line_key(c) -> tuple:
+def _line_key(
+    c: CylinderEvidence,
+) -> tuple[int, str, float, float, float, float, float, float]:
     """Coaxial-stack key: solid, full direction, and a point on the axis line.
 
     The point is projected onto the plane perpendicular to the axis direction, making it
@@ -337,16 +338,18 @@ def _line_key(c) -> tuple:
     )
 
 
-def _cyl_group_key(c) -> tuple:
+def _cyl_group_key(
+    c: CylinderEvidence,
+) -> tuple[int, str, float, float, float, float, float, float, float]:
     """Cylinder patches of one hole/boss share an axis line and a diameter."""
     return (*_line_key(c), quantise(c["diameter"], figures=4))
 
 
-def _merge_runs(items: list[_E], key_fn) -> list[list[_E]]:
+def _merge_runs(items: list[_E], key_fn: Callable[[_E], Hashable]) -> list[list[_E]]:
     """Group *items* by *key_fn*, then split each group into runs of
     contiguous axial ranges (a gap wider than the band's own ``_STACK_GAP_FRAC`` starts a new
     run)."""
-    by_key: dict[object, list[_E]] = {}
+    by_key: dict[Hashable, list[_E]] = {}
     for item in items:
         by_key.setdefault(key_fn(item), []).append(item)
     runs: list[list[_E]] = []
