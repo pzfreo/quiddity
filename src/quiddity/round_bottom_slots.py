@@ -452,7 +452,7 @@ def _common_convex_context(
     return False
 
 
-def _empty_sweep(cap_face, part, run: int, distance: float) -> bool:
+def _empty_sweep(cap_face: Face, part: Part, run: int, distance: float) -> bool:
     direction = [0.0, 0.0, 0.0]
     direction[run] = distance
     probe = Solid.extrude(cap_face, Vector(*direction))
@@ -461,7 +461,7 @@ def _empty_sweep(cap_face, part, run: int, distance: float) -> bool:
 
 
 def _recognise_one(
-    solid, graph: FaceGraph
+    solid: Solid, graph: FaceGraph
 ) -> list[tuple[RoundBottomBlindSlot, frozenset[FaceNode]]]:
     solid_nodes = {graph.require_node(face) for face in solid.faces()}
     bounds = graph.solid_properties.bounding_box(solid)
