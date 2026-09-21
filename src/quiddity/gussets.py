@@ -7,7 +7,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 
-from build123d import extrude
+from build123d import Vertex, extrude
 from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.GeomAbs import GeomAbs_Cylinder, GeomAbs_Plane
 
@@ -35,7 +35,7 @@ from quiddity._definitions import (
 from quiddity._geometry import length_tol
 from quiddity._pattern_geometry import _pattern_tol
 from quiddity._record import Record
-from quiddity._typing import FaceLike, Part
+from quiddity._typing import EdgeLike, FaceLike, Part
 
 
 @dataclass(frozen=True, order=True)
@@ -88,13 +88,13 @@ class _Cap:
     transition: FaceLike
 
 
-def _xyz(vertex) -> tuple[float, float, float]:
+def _xyz(vertex: Vertex) -> tuple[float, float, float]:
     return tuple(float(value) for value in vertex)  # type: ignore[return-value]
 
 
 def _cap(
     face: FaceLike,
-    edge_faces: dict,
+    edge_faces: dict[EdgeLike, list[FaceLike]],
     graph: FaceGraph,
     face_edges: FaceEdges | None,
 ) -> _Cap | None:
