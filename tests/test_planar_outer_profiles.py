@@ -184,13 +184,25 @@ def test_inner_loop_is_counted_but_never_becomes_outer_adjacency():
     )
 
 
-def test_concave_and_nonplanar_profiles_refuse_with_named_reasons():
+def test_concave_profile_is_preserved_and_nonplanar_face_refuses():
     part = Box(50, 50, 6) - Pos(15, 15, 0) * Box(30, 30, 20)
     view = build_recognition_evidence(part)
-    assert view.planar_outer_profile(cap(view)).reason is Reason.CONCAVE_PROFILE
+    issued = bound(view, cap(view))
+    assert len(issued.profile.supports) == 6
+    assert issued.profile.schema_version == 2
+    assert_support_correspondence(view, issued)
     view = build_recognition_evidence(triangle())
     curved = next(ref for ref in view.faces if view.face(ref).geom_type == GeomType.CYLINDER)
     assert view.planar_outer_profile(curved).reason is Reason.NOT_PLANAR
+
+
+def test_profile_made_only_of_finite_arcs_is_preserved():
+    view = build_recognition_evidence(Cylinder(10, 6) + Pos(10, 0, 0) * Cylinder(10, 6))
+    issued = bound(view, cap(view))
+    assert len(issued.profile.supports) == 2
+    assert issued.profile.schema_version == 2
+    assert all(isinstance(support, ProfileArc) for support in issued.profile.supports)
+    assert_support_correspondence(view, issued)
 
 
 def test_mixed_freeform_wire_is_not_replaced_with_straight_supports():

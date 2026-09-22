@@ -55,8 +55,8 @@ def _read_profile(
         return RefusedPlanarOuterProfile(Reason.INVALID_BOUNDARY)
     if any(edge.geom_type not in (GeomType.LINE, GeomType.CIRCLE) for edge in edges):
         return RefusedPlanarOuterProfile(Reason.UNSUPPORTED_CURVE)
-    if sum(edge.geom_type == GeomType.LINE for edge in edges) < 2:
-        return RefusedPlanarOuterProfile(Reason.INSUFFICIENT_LINE_SUPPORTS)
+    if len(edges) < 2:
+        return RefusedPlanarOuterProfile(Reason.INVALID_BOUNDARY)
     normal: Point3 = tuple(face.normal_at())
     points: list[Point3] = [tuple(vertex.center()) for vertex in vertices]
     origin = points[0]
@@ -125,10 +125,6 @@ def _read_profile(
         winding = -winding
     if abs(winding - 2 * math.pi) > _DIRECTION_TOL:
         return RefusedPlanarOuterProfile(Reason.INVALID_BOUNDARY)
-    if any(turn < -_DIRECTION_TOL for turn in turns) or any(
-        isinstance(s, ProfileArc) and s.sweep < 0 for s in supports
-    ):
-        return RefusedPlanarOuterProfile(Reason.CONCAVE_PROFILE)
     first = min(range(len(supports)), key=lambda at: supports[at].start)
     supports = supports[first:] + supports[:first]
     edges = edges[first:] + edges[:first]

@@ -61,6 +61,7 @@ class ReconciliationReason(Enum):
     FILLET_SUPERSEDED_BY_CIRCULAR_BLIND_STEP = "blend.fillet_superseded_by_circular_blind_step"
     BLEND_SUPERSEDED_BY_FILLET = "blend.chain_superseded_by_fillet"
     HOLE_SUPERSEDED_BY_DOUBLE_D_BORE = "bore.hole_superseded_by_double_d_bore"
+    BOSS_SUPERSEDED_BY_TURNED_STEP = "turned.boss_superseded_by_step"
     TURNED_STEP_GROOVE_COMPATIBLE = "turned.step_groove_compatible"
     GROOVE_TURNED_STEP_COMPATIBLE = "turned.groove_step_compatible"
 

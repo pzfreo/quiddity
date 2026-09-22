@@ -651,22 +651,26 @@ source edge. Both references and the profile carrier are confined to the issuing
 cannot be serialized. Equal-valued bodies retain distinct face rosters. The original part must
 remain unchanged while the view is in use; this is not persistent source correspondence.
 
-Schema 1 has `origin`, outward `normal`, ordered `supports`, `inner_loop_count`,
-`schema_version=1` and `boundary_kind="outer"`. A line has `kind="line"`, finite `start`/`end`,
+The profile has `origin`, outward `normal`, ordered `supports`, `inner_loop_count`,
+`schema_version` and `boundary_kind="outer"`. Schema 1 remains the original convex profile with
+at least two lines. Schema 2 identifies the additive concave or arc-only form. A line has
+`kind="line"`, finite `start`/`end`,
 and a derived unit `direction`. An arc has `kind="arc"`, finite `start`/`end`, `center`,
 `radius` and a signed radian `sweep` about the profile normal. The complete outer wire is
 counterclockwise about that normal, starting at its least lexicographic vertex. Adjacent
 supports share endpoints, including last/first. Values preserve source floating-point precision.
 A rigid transform may change the starting index; indices are never cross-run identity.
 
-Only convex outer wires with at least two native lines and otherwise native circular arcs are
-supported. Inner loops are counted and excluded, so holes cannot be mistaken for exterior
+Outer wires with at least two finite native line or circular-arc supports are supported,
+including concave and arc-only lobed outlines. Inner loops are counted and excluded, so holes
+cannot be mistaken for exterior
 adjacency. `RefusedPlanarOuterProfile.reason` reports `not_planar`, `ambiguous_body`,
 `unsupported_curve`, `insufficient_line_supports`, `concave_profile` or `invalid_boundary`.
 There is no fitting of freeform curves, merging of coplanar patches, or assembly silhouette.
 "Outer" identifies the requested face's outer loop, not a stock/body-envelope classification.
-The finite line supports and intervening arcs allow a consumer to derive a virtual intersection
-where one exists; the API chooses no angle, sector, datum, dimension, tolerance or annotation.
+Adjacent finite line supports and intervening arcs allow a consumer to derive a virtual
+intersection where one exists; the API chooses no angle, sector, datum, dimension, tolerance or
+annotation.
 
 ```python
 from quiddity.evidence import (

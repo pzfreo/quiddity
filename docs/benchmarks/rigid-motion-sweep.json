@@ -1430,34 +1430,34 @@
       }
     },
     "turned_steps_and_grooves": {
-      "baseline_records": 6,
+      "baseline_records": 3,
       "rotations": {
         "X30": {
-          "absent": 2,
-          "absent_by_family": {
-            "step": 2
+          "absent": 0,
+          "absent_by_family": {},
+          "baseline_records": 3,
+          "introduced": 1,
+          "introduced_by_family": {
+            "boss": 1
           },
-          "baseline_records": 6,
-          "introduced": 0,
-          "introduced_by_family": {},
-          "reclassified": 0,
-          "retained_same_family": 4,
+          "reclassified": 2,
+          "retained_same_family": 1,
           "same_family": {
-            "boss": 3,
             "groove": 1
           },
-          "transitions": {}
+          "transitions": {
+            "step->boss": 2
+          }
         },
         "X90": {
           "absent": 0,
           "absent_by_family": {},
-          "baseline_records": 6,
+          "baseline_records": 3,
           "introduced": 0,
           "introduced_by_family": {},
           "reclassified": 0,
-          "retained_same_family": 6,
+          "retained_same_family": 3,
           "same_family": {
-            "boss": 3,
             "groove": 1,
             "step": 2
           },
@@ -1466,13 +1466,12 @@
         "Z30": {
           "absent": 0,
           "absent_by_family": {},
-          "baseline_records": 6,
+          "baseline_records": 3,
           "introduced": 0,
           "introduced_by_family": {},
           "reclassified": 0,
-          "retained_same_family": 6,
+          "retained_same_family": 3,
           "same_family": {
-            "boss": 3,
             "groove": 1,
             "step": 2
           },
@@ -1485,25 +1484,25 @@
   "schema": 1,
   "totals": {
     "X30": {
-      "absent": 49,
-      "baseline_records": 113,
-      "introduced": 0,
-      "reclassified": 11,
-      "retained_same_family": 53
+      "absent": 47,
+      "baseline_records": 110,
+      "introduced": 1,
+      "reclassified": 13,
+      "retained_same_family": 50
     },
     "X90": {
       "absent": 0,
-      "baseline_records": 113,
+      "baseline_records": 110,
       "introduced": 0,
       "reclassified": 0,
-      "retained_same_family": 113
+      "retained_same_family": 110
     },
     "Z30": {
       "absent": 34,
-      "baseline_records": 113,
+      "baseline_records": 110,
       "introduced": 0,
       "reclassified": 18,
-      "retained_same_family": 61
+      "retained_same_family": 58
     }
   }
 }
