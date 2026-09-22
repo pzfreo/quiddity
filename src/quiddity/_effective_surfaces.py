@@ -857,10 +857,6 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
     ),
     "_outer_profile_geometry:_read_profile:geom_type:3": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
-        "minimum two original line supports for the outer-profile contract",
-    ),
-    "_outer_profile_geometry:_read_profile:geom_type:4": (
-        SurfaceReaderDisposition.RAW_TOPOLOGY,
         "exact original line versus circular-arc value projection",
     ),
     "turned:_shoulder_stations:adaptor:1": (

@@ -88,7 +88,7 @@ class ProfileArc(Record):
 
 @dataclass(frozen=True, slots=True)
 class PlanarOuterProfile(Record):
-    """Schema 1: one convex outer wire, oriented with material left of traversal.
+    """Schema 1: one outer wire, oriented with material left of traversal.
 
     ``normal`` is the supporting face's outward normal. Coordinates are unrounded,
     in the evidence view's space. Consecutive supports (including last/first) meet
@@ -101,7 +101,7 @@ class PlanarOuterProfile(Record):
     normal: Point3
     supports: tuple[ProfileLine | ProfileArc, ...]
     inner_loop_count: int = 0
-    schema_version: Literal[1] = field(default=1, init=False)
+    schema_version: Literal[1, 2] = field(default=1, init=False)
     boundary_kind: Literal["outer"] = field(default="outer", init=False)
 
     def __post_init__(self) -> None:
@@ -111,11 +111,8 @@ class PlanarOuterProfile(Record):
             raise ValueError("inner loop count must be a nonnegative integer")
         if abs(math.hypot(*self.normal) - 1) > 1e-8:
             raise ValueError("profile normal must have unit length")
-        if (
-            not isinstance(self.supports, tuple)
-            or sum(isinstance(s, ProfileLine) for s in self.supports) < 2
-        ):
-            raise ValueError("profile requires at least two finite line supports")
+        if not isinstance(self.supports, tuple) or len(self.supports) < 2:
+            raise ValueError("profile requires at least two finite supports")
         if not all(isinstance(s, ProfileLine | ProfileArc) for s in self.supports):
             raise TypeError("profile supports must be lines or circular arcs")
         for at, support in enumerate(self.supports):
@@ -124,10 +121,6 @@ class PlanarOuterProfile(Record):
             points: tuple[Point3, ...] = (support.start, support.end)
             if isinstance(support, ProfileArc):
                 points += (support.center,)
-                if support.sweep <= 0:
-                    raise ValueError(
-                        "convex outer-profile arcs must sweep about the outward normal"
-                    )
                 radial = _sub(support.start, support.center)
                 if any(
                     abs(math.dist(point, support.center) - support.radius) > 1e-6
@@ -149,8 +142,13 @@ class PlanarOuterProfile(Record):
         winding = math.fsum(turns) + math.fsum(
             s.sweep for s in self.supports if isinstance(s, ProfileArc)
         )
-        if abs(winding - 2 * math.pi) > 2e-8 or any(turn < -2e-8 for turn in turns):
-            raise ValueError("profile must be a convex outer wire about the outward normal")
+        if abs(winding - 2 * math.pi) > 2e-8:
+            raise ValueError("profile must be an outer wire about the outward normal")
+        if (
+            any(turn < -2e-8 for turn in turns)
+            or sum(isinstance(support, ProfileLine) for support in self.supports) < 2
+        ):
+            object.__setattr__(self, "schema_version", 2)
 
 
 class OuterProfileRefusalReason(Enum):

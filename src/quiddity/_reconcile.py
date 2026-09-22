@@ -347,6 +347,37 @@ def reconcile_profiled_bore_candidates(
     return tuple(decisions)
 
 
+def reconcile_boss_turned_step_candidates(
+    bosses: CandidateSet[object],
+    steps: CandidateSet[object],
+    evidence: EvidenceIndex,
+) -> tuple[Disposition, ...]:
+    """Prefer a turned-profile rung over a duplicate cylindrical boss reading.
+
+    Exact defining-face equality proves occurrence identity without comparing
+    rounded dimensions or joining separate bodies. The turned step owns the
+    axial shoulder semantics; a standalone boss scan may still report the raw
+    cylinder, but the aggregate publishes the more complete interpretation.
+    """
+
+    decisions = []
+    for boss in bosses.candidates:
+        defining = evidence.defining_of(boss)
+        winners = tuple(
+            step for step in steps.candidates if defining and defining == evidence.defining_of(step)
+        )
+        if winners:
+            decisions.append(
+                Disposition(
+                    boss,
+                    Outcome.REJECTED,
+                    ReasonCode.BOSS_SUPERSEDED_BY_TURNED_STEP,
+                    winners,
+                )
+            )
+    return tuple(decisions)
+
+
 def reconcile_step_groove_candidates(
     steps: CandidateSet[object],
     grooves: CandidateSet[object],

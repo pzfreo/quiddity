@@ -154,15 +154,30 @@ def _end_partners(
         length_tol(seg["diameter"], rel=_STACK_GAP_FRAC),
         min(0.45 * (seg["s_hi"] - seg["s_lo"]), 0.5 * seg["diameter"]),
     )
-    partners = []
+    # Keep evidence nearest the requested end first. A curved or slanted
+    # opening may legitimately dip away from the nominal end, which is why the
+    # broad admission margin exists, but a distant edge must not outvote an
+    # exact cap merely because OCCT happened to enumerate it first.
+    ranked: list[tuple[float, int, Face]] = []
+    order = 0
     for face in seg["faces"]:
         for edge in face.edges():
             pts = [edge.center()] + [v.center() for v in edge.vertices()]
-            if not all(abs(p.X * dx + p.Y * dy + p.Z * dz - s_end) <= margin for p in pts):
+            distance = max(abs(p.X * dx + p.Y * dy + p.Z * dz - s_end) for p in pts)
+            if distance > margin:
                 continue
             for partner in edge_faces.get(edge, ()):
                 if not any(partner.is_same(f) for f in seg["faces"]):
-                    partners.append(partner)
+                    previous = next(
+                        (at for at, (_, _, found) in enumerate(ranked) if partner.is_same(found)),
+                        None,
+                    )
+                    if previous is None:
+                        ranked.append((distance, order, partner))
+                        order += 1
+                    elif distance < ranked[previous][0]:
+                        ranked[previous] = (distance, ranked[previous][1], partner)
+    partners = [partner for _, _, partner in sorted(ranked, key=lambda item: item[:2])]
     if cache is not None:
         cache[key] = (seg, partners)
     return partners

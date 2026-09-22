@@ -37,22 +37,24 @@ lifetime, as already required by ADR0010. No source identity survives serializat
 
 ## Supported geometry and schema
 
-Schema 1 is a valid native planar face's complete **convex outer wire** containing at least two
-finite native lines and otherwise only finite circular arcs. Inner loops are counted and excluded
-from this outer-wire projection; they never connect to its support roster. Concave outer wires,
-freeform or other analytic curve kinds, circle-only profiles, degenerate/incomplete boundaries,
+Schema 1 is a valid native planar face's complete **outer wire** containing at least two
+finite native line or circular-arc supports. Inner loops are counted and excluded
+from this outer-wire projection; they never connect to its support roster. Concave turns are
+retained so lobed bodies preserve their exact outline. Freeform or other analytic curve kinds,
+single-circle profiles, degenerate/incomplete boundaries,
 unowned faces and ambiguous body membership return named refusals. This does not infer an outer
 silhouette of an assembly, merge coplanar patches or connect separate bodies. "Outer" identifies
 the requested face's outer loop, not a stock/body-envelope classification.
 
 `PlanarOuterProfile` contains `origin`, outward face `normal`, ordered `supports`,
-`inner_loop_count`, `schema_version=1`, and `boundary_kind="outer"`. `ProfileLine` stores finite
+`inner_loop_count`, `schema_version`, and `boundary_kind="outer"`. Existing convex profiles with
+at least two lines remain schema 1; concave or arc-only profiles use schema 2. `ProfileLine` stores finite
 `start` and `end`, exposes their normalized `direction`, and serializes `kind="line"`.
 `ProfileArc` stores finite `start`, `end`, `center`, `radius`, signed radian `sweep`, and
-`kind="arc"`. Sweep is measured about the profile normal. The supported convex output uses
-positive sweeps. Coordinates retain source floating-point precision without display rounding. Value constructors
+`kind="arc"`. Sweep is measured about the profile normal and retains the sign required by a
+concave outline. Coordinates retain source floating-point precision without display rounding. Value constructors
 validate closed connectivity, the supporting plane, arc radius and directed sweep reconstruction,
-and convex winding; hand-built inconsistent geometry is not a valid schema-1 value.
+and complete winding; hand-built inconsistent geometry is not a valid profile value.
 
 The complete wire is oriented counterclockwise about the outward face normal, with material to
 its left, and starts at its lexicographically least start point. That starting index is a local
@@ -68,8 +70,8 @@ The same inspection is available on both lifecycles. No caller-space edge rematc
 ## Bounds and module seams
 
 Native source plane and vertex/trimmed-curve endpoint coincidence use the existing 1e-6
-model-length bound; line-direction agreement, angular winding and
-convexity use the 2e-8 directional/angular bound. These are numerical consistency bounds, not feature-size thresholds,
+model-length bound; line-direction agreement and angular winding use the 2e-8
+directional/angular bound. These are numerical consistency bounds, not feature-size thresholds,
 fit tolerances or permission to round endpoints. No minimum useful edge length or angle is chosen. An imported vertex lying farther from its
 trimmed curve endpoint refuses instead of changing the published support direction.
 

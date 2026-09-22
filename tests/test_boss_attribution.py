@@ -37,14 +37,69 @@ from quiddity._adjacency import (
 )
 from quiddity._candidates import FamilyId
 from quiddity._claims import ClaimLedger
-from quiddity._cylinder_stacks import _classify_end, _segments
+from quiddity._cylinder_stacks import _classify_end, _end_partners, _segments
 from quiddity._cylinder_substrate import analyse_cylinders, full_cylinders
 from quiddity._effective_surfaces import SurfaceKind, SurfaceProvenance
 from quiddity.bosses import _discover_bosses
+from quiddity.evidence import ReconciliationReason, build_recognition_evidence
 from quiddity.result import _take_inventory
 from tests.route_pins import assert_core_route_is_closed
 
 ROOT = Path(__file__).parents[1]
+
+
+def test_end_partners_prefer_exact_terminal_evidence_and_deduplicate() -> None:
+    class Point:
+        def __init__(self, z):
+            self.X = self.Y = 0.0
+            self.Z = z
+
+    class FakeEdge:
+        def __init__(self, z):
+            self.point = Point(z)
+
+        def center(self):
+            return self.point
+
+        def vertices(self):
+            return ()
+
+    class FakeFace:
+        def __init__(self, edges=()):
+            self._edges = edges
+
+        def edges(self):
+            return self._edges
+
+        def is_same(self, other):
+            return self is other
+
+    def edge(z):
+        return FakeEdge(z)
+
+    distant_edge = edge(41.5)
+    exact_edge = edge(52.0)
+    cylinder = FakeFace((distant_edge, exact_edge))
+    distant_partner = FakeFace()
+    exact_partner = FakeFace()
+    segment = {
+        "dir_xyz": (0.0, 0.0, 1.0),
+        "diameter": 35.0,
+        "s_lo": 28.0,
+        "s_hi": 52.0,
+        "faces": [cylinder],
+    }
+
+    partners = _end_partners(
+        segment,
+        52.0,
+        {
+            distant_edge: (cylinder, distant_partner, distant_partner),
+            exact_edge: (cylinder, exact_partner),
+        },
+    )
+
+    assert partners == [exact_partner, distant_partner]
 
 
 def test_recovered_boss_candidate_retains_original_cylinder_dependency() -> None:
@@ -397,6 +452,27 @@ def test_stepped_external_shaft_and_distinct_equal_radius_occurrences() -> None:
     assert len(equal) == 2 and equal[0].location != equal[1].location
     candidates = ledger.candidate_set(FamilyId.BOSSES).candidates
     assert len({ledger.defining_of(candidate) for candidate in candidates}) == len(candidates)
+
+
+def test_aggregate_prefers_turned_steps_with_the_same_defining_cylinders() -> None:
+    part = (
+        Cylinder(30.5, 15)
+        + Pos(0, 0, 15) * Cylinder(27.5, 15)
+        + Pos(0, 0, 30) * Cylinder(44, 15)
+        + Pos(0, 0, 45) * Cylinder(80, 25)
+    )
+    view = build_recognition_evidence(part)
+    bosses = [
+        candidate
+        for candidate in view.rejected_candidates
+        if view.candidate_family(candidate) == "bosses"
+    ]
+    assert len(bosses) == 4
+    for boss in bosses:
+        assert view.candidate_reason(boss) is ReconciliationReason.BOSS_SUPERSEDED_BY_TURNED_STEP
+        (step,) = view.related_candidates(boss)
+        assert view.candidate_family(step) == "turned_steps"
+        assert view.candidate_defining_faces(boss) == view.candidate_defining_faces(step)
 
 
 def test_mixed_axis_emission_keeps_z_before_cross_and_occurrence_binding() -> None:

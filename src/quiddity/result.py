@@ -47,6 +47,7 @@ from quiddity._open_channel_section import prove_open_channel
 from quiddity._reconcile import (
     reconcile_bevel_candidates,
     reconcile_blend_candidates,
+    reconcile_boss_turned_step_candidates,
     reconcile_circular_step_fillets,
     reconcile_oriented_slot_passages,
     reconcile_profiled_bore_candidates,
@@ -648,6 +649,11 @@ def _reconcile_existing(
     decisions += reconcile_profiled_bore_candidates(
         physical.candidate_set(FamilyId.HOLES),
         physical.candidate_set(FamilyId.DOUBLE_D_BORES),
+        evidence,
+    )
+    decisions += reconcile_boss_turned_step_candidates(
+        physical.candidate_set(FamilyId.BOSSES),
+        physical.candidate_set(FamilyId.TURNED_STEPS),
         evidence,
     )
     decisions += reconcile_step_groove_candidates(

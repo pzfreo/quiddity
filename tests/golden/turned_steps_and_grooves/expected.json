@@ -14,53 +14,7 @@
         "_type": "RecognitionResult",
         "angled_steps": [],
         "blends": [],
-        "bosses": [
-          {
-            "_type": "BossRecord",
-            "axis": [
-              0.0,
-              0.0,
-              1.0
-            ],
-            "diameter": 30.0,
-            "height": 50.5,
-            "location": [
-              0.0,
-              0.0,
-              15.5
-            ]
-          },
-          {
-            "_type": "BossRecord",
-            "axis": [
-              0.0,
-              0.0,
-              1.0
-            ],
-            "diameter": 30.0,
-            "height": 14.5,
-            "location": [
-              0.0,
-              0.0,
-              35.0
-            ]
-          },
-          {
-            "_type": "BossRecord",
-            "axis": [
-              0.0,
-              0.0,
-              1.0
-            ],
-            "diameter": 24.0,
-            "height": 5.0,
-            "location": [
-              0.0,
-              0.0,
-              20.5
-            ]
-          }
-        ],
+        "bosses": [],
         "chamfers": [],
         "channels": [],
         "circular_blind_steps": [],
@@ -344,53 +298,7 @@
         "_type": "RecognitionResult",
         "angled_steps": [],
         "blends": [],
-        "bosses": [
-          {
-            "_type": "BossRecord",
-            "axis": [
-              0.0,
-              0.0,
-              1.0
-            ],
-            "diameter": 30.0,
-            "height": 50.5,
-            "location": [
-              0.0,
-              0.0,
-              15.5
-            ]
-          },
-          {
-            "_type": "BossRecord",
-            "axis": [
-              0.0,
-              0.0,
-              1.0
-            ],
-            "diameter": 30.0,
-            "height": 14.5,
-            "location": [
-              0.0,
-              0.0,
-              35.0
-            ]
-          },
-          {
-            "_type": "BossRecord",
-            "axis": [
-              0.0,
-              0.0,
-              1.0
-            ],
-            "diameter": 24.0,
-            "height": 5.0,
-            "location": [
-              0.0,
-              0.0,
-              20.5
-            ]
-          }
-        ],
+        "bosses": [],
         "chamfers": [],
         "channels": [],
         "circular_blind_steps": [],
@@ -674,7 +582,7 @@
     "feature_census": {
       "angled_step": 0,
       "blend": 0,
-      "boss": 3,
+      "boss": 0,
       "chamfer": 0,
       "channel": 0,
       "circular_blind_step": 0,
