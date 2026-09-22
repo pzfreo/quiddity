@@ -1,5 +1,16 @@
 # Release notes
 
+## 0.3.4 — Quiddity
+
+- Prefer exact turned-step evidence over overlapping cylindrical boss candidates. Aggregate
+  recognition no longer publishes a boss whose defining faces exactly match a published
+  `TurnedStep`; rejected-candidate evidence links the weaker boss to that winner. Standalone boss
+  recognition remains unchanged (#741).
+- Inspect finite outer profiles made entirely from arcs and concave or lobed line/arc profiles,
+  while preserving ordered, body-owned source-edge correspondence. These newly supported profile
+  forms report outer-profile schema 2; existing convex profiles with at least two line supports
+  retain schema 1 (#743).
+
 ## 0.3.3 — Quiddity
 
 - Publish the material-side facts needed to reconstruct recognised cuts without probing the
