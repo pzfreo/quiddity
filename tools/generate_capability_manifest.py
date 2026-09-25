@@ -151,6 +151,12 @@ NO_MEMBERSHIP_RATIONALE = {
     "OpenCircularSectionSegment": "Nested only in OpenCircularSection.",
     "WallFacePair": "Nested only in ThinWallBody.",
     "ShellHistoryHint": "Nested heuristic interpretation in ThinWallBody.",
+    "SheetFlange": "Nested planar flange region in SheetMetalBody.",
+    "SheetBend": "Nested cylindrical bend geometry in SheetMetalBody.",
+    "FlatPatternPlan": "Nested unfolding traversal in SheetMetalBody.",
+    "FormedSheetFeature": "Nested partial forming region in SheetMetalBody.",
+    "UnfoldedFlangeFace": "Nested flat face triangulation in FlatPatternPlan.",
+    "UnfoldedBendStrip": "Nested developed bend segment in FlatPatternPlan.",
 }
 
 

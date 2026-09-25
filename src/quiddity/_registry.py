@@ -39,6 +39,7 @@ from quiddity import (
     repeating_profiles,
     round_bottom_slots,
     section_recesses,
+    sheet_metal,
     slots,
     thin_walls,
     through_steps,
@@ -110,6 +111,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
     fillets.DEFINITION,
     plates.DEFINITION,
     thin_walls.DEFINITION,
+    sheet_metal.DEFINITION,
 )
 
 

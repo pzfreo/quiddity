@@ -21,6 +21,7 @@ _POST_BASELINE_RESULT_FIELDS = frozenset(
         "oriented_slots",
         "oriented_slot_patterns",
         "thin_wall_bodies",
+        "sheet_metal_bodies",
     }
 )
 

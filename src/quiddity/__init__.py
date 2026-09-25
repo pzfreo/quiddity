@@ -216,6 +216,16 @@ from quiddity.section_recesses import (
     SectionRecessGrid,
     SectionRecessRefusal,
 )
+from quiddity.sheet_metal import (
+    FlatPatternPlan,
+    FormedSheetFeature,
+    SheetBend,
+    SheetFlange,
+    SheetMetalBody,
+    UnfoldedBendStrip,
+    UnfoldedFlangeFace,
+    recognise_sheet_metal_bodies,
+)
 from quiddity.slots import (
     Slot,
     SlotArray,
@@ -345,6 +355,13 @@ __all__ = [
     "ThinWallBody",
     "WallFacePair",
     "ShellHistoryHint",
+    "SheetFlange",
+    "SheetBend",
+    "FlatPatternPlan",
+    "FormedSheetFeature",
+    "UnfoldedFlangeFace",
+    "UnfoldedBendStrip",
+    "SheetMetalBody",
     "RecognitionResult",
     "RefusedPartFrame",
     "BevelReject",
@@ -401,6 +418,7 @@ __all__ = [
     "recognise_slots",
     "recognise_turned_steps",
     "recognise_thin_wall_bodies",
+    "recognise_sheet_metal_bodies",
     "build_recognition_result",
     "build_raw_recognition_result",
     "build_framed_recognition_result",

@@ -8,3 +8,4 @@
 # Keep these public inputs byte-identical; Git's textual whitespace check would
 # otherwise flag the STEP writer's legal trailing spaces on thousands of lines.
 tests/corpus/cadgenbench_inputs/*.step -diff
+tests/corpus/ttt_inputs/*.step -diff
