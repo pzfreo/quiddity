@@ -26,7 +26,7 @@ from quiddity._definitions import (
     PhysicalDefinition,
     always,
 )
-from quiddity._geometry import length_tol
+from quiddity._geometry import cross, dot, length_tol, unit_or_none
 from quiddity._record import Record
 from quiddity._typing import Part
 from quiddity.thin_walls import ThinWallBody, WallFacePair, _discover_thin_wall_bodies
@@ -455,10 +455,6 @@ Matrix3 = tuple[Vec3, Vec3, Vec3]
 _IDENTITY: Matrix3 = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
 
 
-def _dot(a: Vec3, b: Vec3) -> float:
-    return sum(x * y for x, y in zip(a, b, strict=True))
-
-
 def _sub(a: Vec3, b: Vec3) -> Vec3:
     return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
 
@@ -471,17 +467,8 @@ def _scale(a: Vec3, factor: float) -> Vec3:
     return (a[0] * factor, a[1] * factor, a[2] * factor)
 
 
-def _cross(a: Vec3, b: Vec3) -> Vec3:
-    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
-
-
-def _unit(a: Vec3) -> Vec3 | None:
-    size = math.sqrt(_dot(a, a))
-    return _scale(a, 1 / size) if size > 1e-9 else None
-
-
 def _matrix_vector(matrix: Matrix3, vector: Vec3) -> Vec3:
-    return (_dot(matrix[0], vector), _dot(matrix[1], vector), _dot(matrix[2], vector))
+    return (dot(matrix[0], vector), dot(matrix[1], vector), dot(matrix[2], vector))
 
 
 def _matrix_product(left: Matrix3, right: Matrix3) -> Matrix3:
@@ -592,10 +579,10 @@ def _flat_pattern_plan(
     root = flanges[base]
     root_normal = root.normal
     horizontal = (0.0, 0.0, 1.0) if abs(root_normal[2]) < 0.9 else (1.0, 0.0, 0.0)
-    x_axis = _unit(_cross(horizontal, root_normal))
+    x_axis = unit_or_none(cross(horizontal, root_normal))
     if x_axis is None:
         return None
-    y_axis = _cross(root_normal, x_axis)
+    y_axis = cross(root_normal, x_axis)
     placement: dict[int, tuple[Matrix3, Vec3]] = {base: (_IDENTITY, (0.0, 0.0, 0.0))}
     tree: list[int] = []
     pending = [base]
@@ -620,14 +607,14 @@ def _flat_pattern_plan(
             child_point = _vector(child_edge.position_at(0.5))
             cylinder_center = _vector(faces[reference].center())
             approach = _sub(cylinder_center, parent_point)
-            approach = _sub(approach, _scale(parent.normal, _dot(approach, parent.normal)))
-            unit_approach = _unit(approach)
+            approach = _sub(approach, _scale(parent.normal, dot(approach, parent.normal)))
+            unit_approach = unit_or_none(approach)
             if unit_approach is None:
                 return None
             axis = bend.axis_direction
             angle = math.atan2(
-                _dot(axis, _cross(child.normal, parent.normal)),
-                _dot(child.normal, parent.normal),
+                dot(axis, cross(child.normal, parent.normal)),
+                dot(child.normal, parent.normal),
             )
             rotation = _rotation(axis, angle)
             target = _add(parent_point, _scale(unit_approach, bend.bend_allowance))
@@ -647,8 +634,8 @@ def _flat_pattern_plan(
     def flat(point: Vec3, flange: int) -> Vec2:
         matrix, shift = placement[flange]
         placed = _sub(_add(_matrix_vector(matrix, point), shift), root.origin)
-        deviations.append(abs(_dot(placed, root_normal)))
-        return (_dot(placed, x_axis), _dot(placed, y_axis))
+        deviations.append(abs(dot(placed, root_normal)))
+        return (dot(placed, x_axis), dot(placed, y_axis))
 
     flat_faces: list[UnfoldedFlangeFace] = []
     triangles: list[tuple[int, tuple[Vec2, Vec2, Vec2]]] = []
@@ -674,8 +661,8 @@ def _flat_pattern_plan(
             p1 = _vector(edge.position_at(1))
             middle = _vector(faces[reference].center())
             approach = _sub(middle, _vector(edge.position_at(0.5)))
-            approach = _sub(approach, _scale(parent.normal, _dot(approach, parent.normal)))
-            unit_approach = _unit(approach)
+            approach = _sub(approach, _scale(parent.normal, dot(approach, parent.normal)))
+            unit_approach = unit_or_none(approach)
             if unit_approach is None:
                 return None
             q0 = _add(p0, _scale(unit_approach, bend.bend_allowance))
