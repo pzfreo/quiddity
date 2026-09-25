@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 import pytest
-from build123d import Cylinder, GeomType, Pos, Rectangle, Rot, import_step, loft
+from build123d import Box, Compound, Cylinder, GeomType, Pos, Rectangle, Rot, import_step, loft
 
 from quiddity import recognise_circular_face_patterns
 from quiddity.document import build_recognition_document
@@ -73,6 +73,19 @@ def test_rotated_fins_retain_the_physical_axis_and_count() -> None:
     assert pattern.axis_direction == pytest.approx(
         tuple(float(value) for value in cylinder.axis_of_rotation.direction), abs=1e-8
     )
+
+
+def test_document_exclusions_are_local_to_the_pattern_body() -> None:
+    part = Compound(children=[_swept_fins(), Pos(300, 0, 0) * Box(10, 10, 10)])
+    document = build_recognition_document(part)
+    (pattern,) = tuple(
+        entry for entry in document["features"] if entry["family"] == "circular_face_patterns"
+    )
+    excluded = set(pattern["excluded_faces"])
+    seed_face = pattern["instances"][0]["face_indices"][0]
+    owner = document["faces"][seed_face]["body_indices"]
+    assert len(excluded) == 3
+    assert all(document["faces"][index]["body_indices"] == owner for index in excluded)
 
 
 @pytest.mark.slow
