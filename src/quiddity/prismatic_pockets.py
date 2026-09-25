@@ -535,6 +535,8 @@ def _discover_prismatic_pockets(
     found.sort(key=lambda item: (item[0].axis, item[0].at, item[0].section))
     if ledger is not None:
         writer = ledger.writer if isinstance(ledger, ClaimLedger) else ledger
+        if writer.graph.local_degradation:
+            found = [item for item in found if writer.graph.common_valid_solid(item[2]) is not None]
         for pocket, nodes, constituent in found:
             writer.add_defining(
                 pocket,

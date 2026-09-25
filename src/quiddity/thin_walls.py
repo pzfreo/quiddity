@@ -472,24 +472,36 @@ def _discover_thin_wall_bodies(part: Part, *, graph: FaceGraph | None = None) ->
 def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
     del inputs
     records = _discover_thin_wall_bodies(services.context.part, graph=services.context.graph)
-    _claim_records(records, services.context.part, services.writer)
-    return list(records)
+    return list(_claim_records(records, services.context.part, services.writer))
 
 
-def _claim_records(records: list[ThinWallBody], part: Part, writer: EvidenceWriter) -> None:
+def _claim_records(
+    records: list[ThinWallBody], part: Part, writer: EvidenceWriter
+) -> list[ThinWallBody]:
     graph = writer.graph
     faces = tuple(part.faces())
+    retained = []
     for record in records:
         paired = {
             index for pair in record.face_pairs for index in (pair.first_face, pair.second_face)
         }
         constituent = paired | {index for region in record.rim_regions for index in region}
+        if (
+            graph.local_degradation
+            and graph.common_valid_solid(
+                graph.require_node(faces[index]) for index in sorted(constituent)
+            )
+            is None
+        ):
+            continue
         writer.add_defining(
             record,
             (graph.require_node(faces[index]) for index in sorted(paired)),
             family=FamilyId.THIN_WALL_BODIES,
             constituent=(graph.require_node(faces[index]) for index in sorted(constituent)),
         )
+        retained.append(record)
+    return retained
 
 
 DEFINITION = PhysicalDefinition(

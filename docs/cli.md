@@ -33,19 +33,25 @@ framed evidence lifecycle once, with the Python default `rotational=False`. It d
 application classification. Python callers can explicitly supply `rotational=True`.
 STEP loading is geometry-only; assembly metadata is not retained.
 
-The envelope is `format: quiddity-recognition`, `format_version: 1`. Existing feature `to_dict()`
-records are embedded unchanged, not translated to a new geometry schema. It contains:
+The envelope is `format: quiddity-recognition`, `format_version: 2`. Physical record fields
+are preserved, with document-local `named_dimensions` and `dependents` added to each record.
+It contains:
 
 - `package`: distribution name and installed version.
 - `coordinate_space: local`, `frame`: caller-space origin, orthonormal x/y/z directions and
   gauge. Map local points back as `origin + x*u + y*v + z*w` (ADR 0011).
-- `bodies`, `faces`: rosters in the exact local working shape enumeration. A face carries
+- `bodies`, `faces`: rosters in the exact local working shape enumeration. Each body carries
+  overall axis spans and its smallest span as `overall_thickness`. A face carries
   `index`, `caller_index` in the input shape's face roster, and all matching `body_indices`.
   Multiple owners are not silently collapsed; no owner is represented by an empty list.
 - `features`: accepted physical evidence in provider order, including bounded geometry refusals.
-  Each entry has an envelope `index`, `family`, `record_type`, unchanged `record`, and sorted
+  Each entry has an envelope `index`, `family`, `record_type`, enriched `record`, and sorted
   `defining_faces` / `constituent_faces` indices into `faces`.
-- `derived`: existing hole, slot, oriented-slot and section-recess patterns, plus turned profiles.
+- `derived`: existing hole, slot, oriented-slot and section-recess patterns, turned profiles,
+  and two-hole pairs. Pattern records include named centre spacing and direction when proved.
+- `proof`: `whole_solid` on ordinary valid inputs, or `local_degradation` when a malformed
+  face triggered a bounded retry. On that path, malformed faces and their edge neighbours
+  carry `proof: not_proven`; published features retain exact face IDs outside that region.
 - `association`: face-count and surface-area totals, associated/unassociated partitions, ratios,
   per-family union contributions and the `unassociated_faces` list.
 
@@ -55,7 +61,11 @@ all-family envelope feature indices. Refusals retain their explicit `SectionRece
 record type and reason; they are evidence, not reconstructible recess geometry (ADR 0019).
 
 References are document-local: they are not STEP entity numbers, random identifiers or durable
-IDs across imports, transformations or versions. The existing recess-only JSON builder remains
+IDs across imports, transformations or versions. Dependents reference these feature indices
+and carry their own defining and constituent face IDs. Relations include `edge_treatment`,
+`crossing_bore`, `pattern_sibling`, `mirror_sibling`, and `pair_sibling`; they establish
+topological contact or explicit pattern membership, not a manufacturing history. The existing
+recess-only JSON builder remains
 unchanged. This shared envelope adds transport around existing public records and evidence.
 
 Association is **not accuracy or recall**, nor a percentage of file bytes or material volume.

@@ -823,6 +823,8 @@ def _discover_rectangular_pads(
             raise ValueError("Pad occurrences share a defining top face")
         ordered = tuple(node for node in writer.graph.nodes if node in node_set)
         if writer.graph.common_valid_solid(ordered) is None:
+            if writer.graph.local_degradation:
+                continue
             raise ValueError("Pad defining faces do not belong to one valid solid")
         used_tops.add(signature[0])
         selected = alternatives[0]
@@ -843,7 +845,7 @@ def _discover_rectangular_pads(
             family=FamilyId.PADS,
             surfaces=surface_uses,
         )
-    return records
+    return [record for record, _nodes, _uses in pending]
 
 
 # What this family declares about itself; `_registry` decides where it runs.

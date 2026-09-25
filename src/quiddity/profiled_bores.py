@@ -714,6 +714,8 @@ def _discover_double_d_bores(
         node_ids = {id(node) for node in resolved}
         nodes = tuple(node for node in writer.graph.nodes if id(node) in node_ids)
         if not nodes or writer.graph.common_valid_solid(nodes) is None:
+            if writer.graph.local_degradation:
+                continue
             raise ValueError("Double-D wall evidence has no one valid owner solid")
         if assigned_nodes & node_ids:
             raise ValueError("Double-D wall evidence is assigned across occurrences")
@@ -721,7 +723,7 @@ def _discover_double_d_bores(
         pending.append((proposal.record, nodes))
     for record, nodes in pending:
         writer.add_defining(record, nodes, family=FamilyId.DOUBLE_D_BORES)
-    return ordered
+    return ordered if not writer.graph.local_degradation else [record for record, _nodes in pending]
 
 
 def read_double_d_tool(

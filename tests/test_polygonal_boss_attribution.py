@@ -1094,7 +1094,6 @@ def test_supplied_single_graph_and_multi_solid_local_graph_routes() -> None:
         extrude(RegularPolygon(20, 6), 30),
         Box(80, 80, 20) - Pos(0, 0, 10) * extrude(RegularPolygon(20, 6), 20),
         Box(30, 30, 30),
-        Box(100, 80, 10) + Pos(0, 0, 5) * extrude(RegularPolygon(20, 4), 30),
         Box(100, 80, 10) + Pos(0, 0, 5) * extrude(RegularPolygon(20, 8), 30),
         Box(100, 80, 10)
         + Pos(0, 0, 5) * (extrude(RegularPolygon(20, 6), 30) + Pos(0, 0, 32) * Cylinder(25, 4)),
@@ -1112,6 +1111,24 @@ def test_excluded_stock_recess_and_nonhex_shapes_never_publish(part) -> None:
     assert recognise_polygonal_bosses(part) == []
     assert _discover_polygonal_bosses(part, writer=ledger.writer) == []
     assert ledger.candidate_set(FamilyId.POLYGONAL_BOSSES).candidates == ()
+
+
+@pytest.mark.parametrize("corners", [4, 6])
+@pytest.mark.parametrize("rounded", [False, True])
+def test_square_and_hexagonal_bosses_with_optional_rounded_corners(corners, rounded) -> None:
+    prism = extrude(RegularPolygon(20, corners), 30)
+    if rounded:
+        vertical = [edge for edge in prism.edges() if abs(float(edge.tangent_at().Z)) > 0.99]
+        prism = fillet(vertical, 2)
+    part = Box(100, 80, 10) + Pos(0, 0, 5) * prism
+    records = recognise_polygonal_bosses(part)
+    assert len(records) == 1
+    attributed, candidates, _ledger = _claim(part)
+    assert attributed == records
+    assert len(candidates) == 1
+    assert records[0].side_count == corners
+    assert records[0].height == records[0].length == 30
+    assert len(records[0].flat_directions) == corners
 
 
 def test_private_core_has_one_declared_writer_caller_and_one_boss_constructor() -> None:

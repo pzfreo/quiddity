@@ -1,9 +1,11 @@
 """Public CLI transport and shared recognition-document contracts."""
 
+import gzip
 import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -11,7 +13,7 @@ from build123d import Axis, Box, Compound, Cylinder, Pos, export_step
 
 import quiddity.cli as cli
 import quiddity.document as document
-from quiddity import __version__
+from quiddity import __version__, import_step_geometry
 from quiddity._typing import Part
 from quiddity.capabilities import capability_manifest
 from quiddity.evidence import FramedRecognitionEvidence
@@ -115,7 +117,7 @@ def test_document_refuses_unavailable_frame(monkeypatch):
         document.build_recognition_document(cast(Part, object()))
 
 
-def test_document_projects_one_run_without_changing_records(monkeypatch):
+def test_document_projects_one_run_with_edit_fields(monkeypatch):
     part = cast(Part, Pos(12, 4, 9) * (Box(30, 20, 10) - Cylinder(3, 20)))
     view = build_framed_recognition_evidence(part)
     assert isinstance(view, FramedRecognitionEvidence)
@@ -131,6 +133,7 @@ def test_document_projects_one_run_without_changing_records(monkeypatch):
     assert calls == [part]
     encoded = json.loads(json.dumps(result, allow_nan=False))
     assert encoded["format"] == "quiddity-recognition"
+    assert encoded["format_version"] == 2
     assert len(encoded["faces"]) == len(part.faces())
     assert sorted(face["caller_index"] for face in encoded["faces"]) == list(
         range(len(part.faces()))
@@ -141,7 +144,10 @@ def test_document_projects_one_run_without_changing_records(monkeypatch):
         assert local[face["index"]].wrapped.IsPartner(caller[face["caller_index"]].wrapped)
     assert encoded["features"]
     for feature, projected in zip(view.features, encoded["features"], strict=True):
-        assert projected["record"] == json.loads(json.dumps(view.record(feature).to_dict()))
+        source_record = json.loads(json.dumps(view.record(feature).to_dict()))
+        assert {key: projected["record"][key] for key in source_record} == source_record
+        assert "named_dimensions" in projected["record"]
+        assert "dependents" in projected["record"]
         assert set(projected["defining_faces"]) <= set(projected["constituent_faces"])
         assert set(projected["constituent_faces"]) <= set(range(len(local)))
     coverage = encoded["association"]["face_count"]
@@ -201,3 +207,61 @@ def test_nonfinite_json_is_a_processing_error(tmp_path, monkeypatch, capfd):
     monkeypatch.setattr(cli, "build_recognition_document", lambda part: {"value": float("nan")})
     assert cli.main([str(source)]) == 1
     assert capfd.readouterr().out == ""
+
+
+def test_edit_document_bore_through_boss_and_hole_pair() -> None:
+    boss = Box(80, 80, 10) + Pos(0, 0, 5) * Cylinder(15, 20)
+    bore = boss - Pos(0, 0, 10) * Cylinder(3, 40)
+    features = document.build_recognition_document(cast(Part, bore))["features"]
+    hole = next(feature for feature in features if feature["record_type"] == "HoleRecord")
+    owner = next(feature for feature in features if feature["record_type"] == "BossRecord")
+    assert owner["record"]["named_dimensions"]["axial_length"] == 10
+    assert any(
+        dependent["feature_index"] == hole["index"]
+        and dependent["relation"] == "crossing_bore"
+        and dependent["defining_faces"] == hole["defining_faces"]
+        for dependent in owner["record"]["dependents"]
+    )
+
+    pair_part = Box(80, 60, 10)
+    pair_part -= Pos(-15, 0, 0) * Cylinder(3, 20)
+    pair_part -= Pos(15, 0, 0) * Cylinder(3, 20)
+    pair = document.build_recognition_document(cast(Part, pair_part))["derived"]["hole_pairs"]
+    assert len(pair) == 1
+    assert pair[0]["center_spacing"] == 30
+    assert len(pair[0]["holes"]) == 2
+
+    array_part = Box(80, 60, 10)
+    for x in (-20, 0, 20):
+        array_part -= Pos(x, 0, 0) * Cylinder(3, 20)
+    array_document = document.build_recognition_document(cast(Part, array_part))
+    pattern = array_document["derived"]["hole_patterns"][0]
+    assert pattern["named_dimensions"]["center_spacing"] == 20
+    holes = [
+        feature for feature in array_document["features"] if feature["record_type"] == "HoleRecord"
+    ]
+    assert all(
+        sum(item["relation"] == "pattern_sibling" for item in feature["record"]["dependents"]) == 2
+        for feature in holes
+    )
+
+
+@pytest.mark.slow
+def test_invalid_cadgenbench_face_degrades_locally(tmp_path) -> None:
+    fixture = Path(__file__).parent / "corpus/cadgenbench_inputs/cgb202.step.gz"
+    if not fixture.is_file():
+        pytest.skip("optional CADGenBench corpus is unavailable")
+    source = tmp_path / "cgb202.step"
+    source.write_bytes(gzip.decompress(fixture.read_bytes()))
+    part = import_step_geometry(source)
+    assert not part.is_valid
+    result = document.build_recognition_document(part)
+    assert result["proof"] == "local_degradation"
+    unproven = {face["index"] for face in result["faces"] if face["proof"] == "not_proven"}
+    assert len(unproven) == 6
+    assert sum(feature["record_type"] == "HoleRecord" for feature in result["features"]) >= 20
+    assert all(
+        not (set(feature["defining_faces"]) & unproven)
+        and not (set(feature["constituent_faces"]) & unproven)
+        for feature in result["features"]
+    )

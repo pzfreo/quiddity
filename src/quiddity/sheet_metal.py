@@ -784,16 +784,26 @@ def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[obje
         faces,
         _DEFAULT_K_FACTOR,
     )
+    retained: list[object] = []
     for record in records:
         indices = set(record.first_side_faces) | set(record.second_side_faces)
         indices.update(record.cut_edge_faces)
         indices.update(index for feature in record.formed_features for index in feature.faces)
+        if (
+            graph.local_degradation
+            and graph.common_valid_solid(
+                graph.require_node(faces[index]) for index in sorted(indices)
+            )
+            is None
+        ):
+            continue
         services.writer.add_defining(
             record,
             (graph.require_node(faces[index]) for index in sorted(indices)),
             family=FamilyId.SHEET_METAL_BODIES,
         )
-    return list(records)
+        retained.append(record)
+    return retained
 
 
 DEFINITION = PhysicalDefinition(

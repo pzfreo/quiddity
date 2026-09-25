@@ -298,6 +298,15 @@ def _discover_angled_steps(
     if sink is not None:
         if graph is None:
             raise ValueError("an evidence sink requires its graph")
+        if graph.local_degradation:
+            out = [
+                item
+                for item in out
+                if graph.common_valid_solid(
+                    (graph.require_node(item[1]), *(graph.require_node(face) for face in item[2]))
+                )
+                is not None
+            ]
         for step, face, terminal_faces in out:
             defining = graph.require_node(face)
             sink.propose(

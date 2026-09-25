@@ -522,10 +522,11 @@ def _take_inventory(
     *,
     cylinders: CylinderInventory | None = None,
     rotational: bool = False,
+    local_degradation: bool = False,
 ) -> InventoryProduct:
     """Run the explicit physical, reconciliation, derived and projection phases once."""
 
-    context = start(part, cylinders, rotational=rotational)
+    context = start(part, cylinders, rotational=rotational, local_degradation=local_degradation)
     ledger = ClaimLedger(context.graph, definitions=PHYSICAL_DEFINITIONS)
     physical = CandidateInventory.complete(_discover_all(context, ledger))
     evidence = ledger.freeze_index()

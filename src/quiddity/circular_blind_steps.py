@@ -270,11 +270,12 @@ def _discover_circular_blind_steps(
             proposals.append((record, (cylinder, terminal), (cylinder_use, terminal_use)))
     proposals.sort(key=lambda proposal: proposal[0])
     if sink is not None:
-        for _record, nodes, _uses in proposals:
-            if graph.common_valid_solid(nodes) is None:
-                raise ValueError(
-                    "CircularBlindStep defining faces do not belong to one valid solid"
-                )
+        if graph.local_degradation:
+            proposals = [
+                item for item in proposals if graph.common_valid_solid(item[1]) is not None
+            ]
+        elif any(graph.common_valid_solid(nodes) is None for _record, nodes, _uses in proposals):
+            raise ValueError("CircularBlindStep defining faces do not belong to one valid solid")
         for record, nodes, uses in proposals:
             sink.propose(
                 FamilyId.CIRCULAR_BLIND_STEPS,
