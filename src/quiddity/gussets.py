@@ -58,6 +58,11 @@ class GussetRib(Record):
     # Equal signatures on separate solids are ambiguous; see Channel.body_key.
     body_key: tuple[float, ...] | None = ()
 
+    @property
+    def thickness(self) -> float:
+        """Distance between the two rib side planes."""
+        return self.thickness_bounds[1] - self.thickness_bounds[0]
+
 
 @dataclass(frozen=True)
 class GussetRibMirrorPair(Record):

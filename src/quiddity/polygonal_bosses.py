@@ -1,10 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2024-2026 Paul Fremantle
-"""Recognition of bounded regular hexagonal bosses and whole-stock prisms.
+"""Recognition of bounded regular polygonal bosses and hexagonal whole-stock prisms.
 
-The proven capability is intentionally narrow: principal-axis hexagons with six planar side
-faces, opposed equal support planes, and unambiguous terminal caps. Other axes or polygon classes
-fail closed until independent corpus evidence establishes their geometry contract.
+Attached bosses have four or six planar sides, opposed equal support planes, and
+unambiguous terminal caps. Whole stock remains the exact six-sided prism class.
 """
 
 from __future__ import annotations
@@ -56,11 +55,10 @@ _SIDE_VERTICAL_COS = 0.02
 
 @dataclass(frozen=True, order=True)
 class PolygonalBoss(Record):
-    """A regular hexagonal principal-axis prism attached to a support face.
+    """A regular square or hexagonal principal-axis prism attached to a support face.
 
-    The recogniser emits ``axis`` as ``"x"``, ``"y"`` or ``"z"`` and exactly
-    ``side_count=6``. Other polygon classes require their own evidence before they
-    become package capability. ``flat_directions`` preserve the ordered outward
+    The recogniser emits ``axis`` as ``"x"``, ``"y"`` or ``"z"`` and
+    ``side_count`` of four or six. ``flat_directions`` preserve the ordered outward
     evidence that established the hexagon. ``flat_centres`` are real points on the
     defining side faces, so rendering can anchor a leader without reconstructing it
     from A/F.
@@ -78,6 +76,11 @@ class PolygonalBoss(Record):
     @property
     def height(self) -> float:
         return self.top - self.base
+
+    @property
+    def length(self) -> float:
+        """Axial boss length, including the end treatment excluded by side walls."""
+        return self.height
 
 
 @dataclass(frozen=True, order=True)
@@ -328,10 +331,11 @@ def _vertical_side_faces(graph: GeometryGraph, tol: float) -> list[FaceRef]:
     return _principal_side_faces(graph, tol, axis_index=2)
 
 
-def _six_support_cycle_indices(
+def _support_cycle_indices(
     pairs: tuple[frozenset[FaceRef], ...],
+    side_count: int,
 ) -> tuple[int, ...]:
-    """Indices belonging to disjoint exact six-edge/six-node degree-two components."""
+    """Indices belonging to disjoint exact degree-two support cycles."""
 
     remaining = set(range(len(pairs)))
     selected: list[int] = []
@@ -351,12 +355,21 @@ def _six_support_cycle_indices(
                     changed = True
         ordered = sorted(component)
         component_pairs = [pairs[at] for at in ordered]
-        if len(ordered) != 6 or len(supports) != 6 or len(set(component_pairs)) != 6:
+        if (
+            len(ordered) != side_count
+            or len(supports) != side_count
+            or len(set(component_pairs)) != side_count
+        ):
             continue
         if any(sum(node in pair for pair in component_pairs) != 2 for node in supports):
             continue
         selected.extend(ordered)
     return tuple(selected)
+
+
+def _six_support_cycle_indices(pairs: tuple[frozenset[FaceRef], ...]) -> tuple[int, ...]:
+    """Compatibility helper for the original six-support contract."""
+    return _support_cycle_indices(pairs, 6)
 
 
 def _polygonal_boss_blend_bridges(
@@ -366,7 +379,7 @@ def _polygonal_boss_blend_bridges(
     *,
     axis_index: int = 2,
 ) -> frozenset[frozenset[FaceRef]]:
-    """Return only provenance-complete bridges for unambiguous six-support blend cycles."""
+    """Return provenance-complete bridges for unambiguous four/six-support cycles."""
 
     side_set = set(side_faces)
     possible: list[tuple[FaceRef, frozenset[FaceRef]]] = []
@@ -388,10 +401,11 @@ def _polygonal_boss_blend_bridges(
             continue
         possible.append((node, frozenset(supports)))
 
-    def contains_six_cycle(pairs: list[frozenset[FaceRef]]) -> bool:
+    def contains_cycle(pairs: list[frozenset[FaceRef]]) -> bool:
         possible_supports = set().union(*pairs) if pairs else set()
-        return len(pairs) >= 6 and any(
-            len(component) == 6 and sum(pair <= set(component) for pair in pairs) >= 6
+        return len(pairs) >= 4 and any(
+            len(component) in (4, 6)
+            and sum(pair <= set(component) for pair in pairs) >= len(component)
             for component in _connected_components(
                 possible_supports,
                 lambda left, right: frozenset((left, right)) in pairs,
@@ -399,7 +413,7 @@ def _polygonal_boss_blend_bridges(
         )
 
     possible_pairs = [pair for _node, pair in possible]
-    if not contains_six_cycle(possible_pairs):
+    if not contains_cycle(possible_pairs):
         return frozenset()
 
     cylindrical_pairs = [
@@ -408,7 +422,7 @@ def _polygonal_boss_blend_bridges(
         if isinstance(fact := graph.surface_fact(node), AnalyticSurface)
         and fact.kind is SurfaceKind.CYLINDER
     ]
-    if not contains_six_cycle(cylindrical_pairs):
+    if not contains_cycle(cylindrical_pairs):
         return frozenset()
     eligible: list[tuple[BlendFact, FaceRef, FaceRef]] = []
     for chain in graph.blend_facts():
@@ -436,7 +450,11 @@ def _polygonal_boss_blend_bridges(
         eligible.append((chain, left, right))
 
     eligible_pairs = tuple(frozenset((left, right)) for _chain, left, right in eligible)
-    selected_indices = _six_support_cycle_indices(eligible_pairs)
+    selected_indices = tuple(
+        sorted(
+            {index for count in (4, 6) for index in _support_cycle_indices(eligible_pairs, count)}
+        )
+    )
     selected = [eligible[at][0] for at in selected_indices]
     selected_pairs = [eligible_pairs[at] for at in selected_indices]
 
@@ -587,7 +605,7 @@ def _recognise_one(
     sides = _principal_side_faces(graph, tol, axis_index=axis_index)
     if source_faces is not None:
         sides = [face for face in sides if face in source_faces]
-    if len(sides) < 6:
+    if len(sides) < (6 if whole_stock else 4):
         return []
     blend_bridges = (
         frozenset()
@@ -608,9 +626,7 @@ def _recognise_one(
     found: list[_PolygonalProposal] = []
     for component in components:
         side_count = len(component)
-        # The accepted corpus proves hexagonal bosses. Broader polygon classes need their own
-        # corpus evidence before automatic recognition can claim them.
-        if side_count != 6:
+        if side_count not in ((6,) if whole_stock else (4, 6)):
             continue
         # Whole stock is intentionally the exact-prism class: one closed solid made only
         # from this side ring and its two terminal caps. Attached bosses, recesses, holes,
@@ -739,7 +755,7 @@ def recognise_polygonal_bosses(
     angle_tol: float = math.radians(2),
     graph: GeometryGraph | None = None,
 ) -> list[PolygonalBoss]:
-    """Return regular hexagonal principal-axis bosses independently per physical solid.
+    """Return regular square and hexagonal bosses independently per physical solid.
 
     A candidate is accepted from a closed ring of outward planar side faces, opposed
     support planes with one A/F value, and common attached support/top caps. A whole prism,
@@ -798,8 +814,8 @@ def _discover_polygonal_bosses(
     for proposal, record in zip(proposals, records, strict=True):
         refs = bridge.refs(proposal.side_faces)
         resolved = set(refs)
-        if len(refs) != 6:
-            raise ValueError("a Polygonal Boss requires six distinct original side faces")
+        if len(refs) != record.side_count or len(refs) not in (4, 6):
+            raise ValueError("a Polygonal Boss requires four or six distinct original side faces")
         if used & resolved:
             raise ValueError("Polygonal Boss occurrences share defining side faces")
         used.update(resolved)
@@ -931,7 +947,7 @@ BOSSES = PhysicalDefinition(
     applicable=always,
     discover=_discover_boss_family,
     census=NotCounted("not a distinct census key"),
-    attribution=FullyAttributed("every returned Polygonal Boss claims its six original side faces"),
+    attribution=FullyAttributed("every returned Polygonal Boss claims its original side ring"),
     evidence=ManifestEvidence(goldens=("polygonal_boss",)),
 )
 

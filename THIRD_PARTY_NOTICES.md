@@ -55,8 +55,9 @@ packages along with the rest of `tests/corpus`.
 - Source: <https://huggingface.co/datasets/HuggingAI4Engineering/cadgenbench-data>
 - Licence: Open Data Commons Attribution (ODC-BY)
 - Attribution: CADGenBench by HuggingAI4Engineering; underlying CAD geometry sourced from Mecado
-- Files: unmodified `207/input.step` and `241/input.step`. The directory README records SHA-256
-  hashes. No held-out ground-truth geometry is included.
+- Files: unmodified `202/input.step` (gzip compressed), `207/input.step`, and `241/input.step`.
+  The directory README records SHA-256 hashes of the original STEP bytes. No held-out
+  ground-truth geometry is included.
 
 ### NIST MBE PMI test cases (`tests/corpus/nist`)
 

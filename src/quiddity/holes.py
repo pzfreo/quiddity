@@ -574,6 +574,8 @@ def _discover_holes(
             resolved = {writer.graph.require_node(face) for face in proposal.cylindrical_faces}
             nodes = tuple(node for node in writer.graph.nodes if node in resolved)
             if not nodes:
+                if writer.graph.local_degradation:
+                    continue
                 raise ValueError("Hole cylindrical evidence does not prove one valid solid")
             if used_nodes & resolved:
                 raise ValueError("Hole occurrences share defining cylindrical faces")
@@ -586,6 +588,8 @@ def _discover_holes(
             members = (*nodes, *terminal_nodes)
             solid = writer.graph.common_valid_solid(members)
             if solid is None:
+                if writer.graph.local_degradation:
+                    continue
                 raise ValueError("Hole cylindrical evidence does not prove one valid solid")
 
             if proposal.matching_csinks:

@@ -30,6 +30,7 @@ from typing import Literal, Protocol, TypeVar, cast
 from build123d import Edge, Solid
 from OCP.BRep import BRep_Tool
 from OCP.BRepAdaptor import BRepAdaptor_Curve, BRepAdaptor_Surface
+from OCP.BRepCheck import BRepCheck_Analyzer, BRepCheck_Status
 from OCP.GCPnts import GCPnts_AbscissaPoint
 from OCP.GeomAbs import GeomAbs_Cone, GeomAbs_Cylinder, GeomAbs_Plane, GeomAbs_Sphere
 from OCP.gp import gp_Pnt, gp_Vec
@@ -263,7 +264,9 @@ class FaceGraph:
     faces alive, and its node ids stop meaning anything the moment the part changes.
     """
 
-    def __init__(self, part: Part, *, face_edges: FaceEdges | None = None) -> None:
+    def __init__(
+        self, part: Part, *, face_edges: FaceEdges | None = None, local_degradation: bool = False
+    ) -> None:
         self._run_token = GraphRunToken()
         self._part = part
         self._faces: list[FaceLike] = list(part.faces())
@@ -274,6 +277,10 @@ class FaceGraph:
                 "FaceGraph cannot represent a face traversal with IsSame-equal occurrences"
             )
         self._face_edges = face_edges
+        self.local_degradation = local_degradation
+        self._invalid_faces: frozenset[int] = frozenset()
+        self._unsafe_faces: frozenset[int] = frozenset()
+        self._degraded_solids: frozenset[int] = frozenset()
         self._solid_properties = SolidProperties()
         self._edges: dict[int, tuple[EdgeLike, ...]] = {}
         self._surface: dict[int, int] = {}
@@ -616,6 +623,8 @@ class FaceGraph:
             return
         owned: list[list[int]] = [[] for _ in self._nodes]
         closed: set[int] = set()
+        degraded: set[int] = set()
+        invalid_faces: set[int] = set()
         try:
             solids = tuple(self._part.solids())
         except Exception:  # noqa: BLE001 - open/non-solid input has no ownership proof
@@ -626,6 +635,31 @@ class FaceGraph:
                 # ``Closed`` cache flag is not reliably populated by OCCT booleans.
                 if self._solid_properties.is_valid(solid):
                     closed.add(solid_at)
+                elif self.local_degradation:
+                    analyzer = BRepCheck_Analyzer(solid.wrapped)
+                    bad = {
+                        self._index[face]
+                        for face in solid.faces()
+                        if face in self._index
+                        and tuple(analyzer.Result(face.wrapped).Status())
+                        != (BRepCheck_Status.BRepCheck_NoError,)
+                    }
+                    # The local mode accepts only an otherwise sound solid/shell with a
+                    # small, explicit bad-face region. STEP seams need not share edge
+                    # identity, so edge-incidence counts cannot establish closure here.
+                    shells = solid.shells()
+                    if (
+                        0 < len(bad) <= 3
+                        and float(solid.volume) > 0
+                        and tuple(analyzer.Result(solid.wrapped).Status())
+                        == (BRepCheck_Status.BRepCheck_NoError,)
+                        and len(shells) == 1
+                        and tuple(analyzer.Result(shells[0].wrapped).Status())
+                        == (BRepCheck_Status.BRepCheck_NoError,)
+                    ):
+                        closed.add(solid_at)
+                        degraded.add(solid_at)
+                        invalid_faces.update(bad)
                 faces = solid.faces()
             except Exception:  # noqa: BLE001 - invalid topology cannot prove material side
                 continue
@@ -635,16 +669,26 @@ class FaceGraph:
                     owned[node_at].append(solid_at)
         self._face_solids = tuple(tuple(entries) for entries in owned)
         self._closed_solids = frozenset(closed)
+        self._degraded_solids = frozenset(degraded)
+        self._invalid_faces = frozenset(invalid_faces)
+        unsafe = set(invalid_faces)
+        unsafe.update(
+            neighbour.index
+            for at in invalid_faces
+            for neighbour in self.neighbours(self._nodes[at])
+        )
+        self._unsafe_faces = frozenset(unsafe)
         self._solids = solids
         self._solid_refs = tuple(SolidRef(at) for at in range(len(solids)))
         self._issued_solid_refs = {solid: solid.ordinal for solid in self._solid_refs}
 
     def common_valid_solid(self, nodes: Iterable[FaceNode]) -> SolidRef | None:
-        """Prove that non-empty original nodes belong to one valid closed solid.
+        """Prove one valid solid, or an isolated local region in explicit degraded mode.
 
         Foreign nodes are caller errors. Ambiguous, open, non-solid, or cross-solid sets have no
-        proof and return ``None``. The returned reference is run-owned and revalidated on every
-        read; it is not persistent identity.
+        proof and return ``None``. Degraded mode requires one otherwise sound solid/shell with
+        at most three diagnosed bad faces, and refuses those faces and their edge neighbours.
+        The returned reference is run-owned and not persistent identity.
         """
 
         defining = tuple(nodes)
@@ -658,6 +702,13 @@ class FaceGraph:
         assert self._solid_refs is not None
         memberships = tuple(self._face_solids[node.index] for node in defining)
         if (
+            memberships
+            and memberships[0]
+            and memberships[0][0] in self._degraded_solids
+            and any(node.index in self._unsafe_faces for node in defining)
+        ):
+            return None
+        if (
             any(len(membership) != 1 for membership in memberships)
             or any(membership != memberships[0] for membership in memberships[1:])
             or memberships[0][0] not in self._closed_solids
@@ -667,6 +718,12 @@ class FaceGraph:
         if self._issued_solid_refs.get(solid) != solid.ordinal:
             raise ValueError("solid reference changed after issuance")
         return solid
+
+    @property
+    def invalid_face_indices(self) -> frozenset[int]:
+        """Explicit bad-face region of an opted-in, locally degraded run."""
+        self._build_solid_ownership()
+        return self._invalid_faces
 
     def solid_shape(self, solid: SolidRef) -> Solid:
         """Return the borrowed exact solid for an issuer-owned reference.
@@ -685,7 +742,7 @@ class FaceGraph:
         if not (0 <= issued < len(self._solid_refs)) or self._solid_refs[issued] is not solid:
             raise ValueError("solid reference identity changed after issuance")
         if issued not in self._closed_solids:
-            raise ValueError("solid reference no longer maps to a valid closed solid")
+            raise ValueError("solid reference no longer maps to an accepted solid")
         return cast(Solid, self._solids[issued])
 
     def _native_continuation(self, a: FaceNode, b: FaceNode, *, local: float) -> bool:
