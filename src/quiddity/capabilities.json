@@ -2745,6 +2745,150 @@
       ]
     },
     {
+      "census_name": null,
+      "census_output": null,
+      "census_rationale": "Geometry evidence is deliberately absent from the feature census; the census is not a completeness denominator.",
+      "documentation": [
+        "docs/capabilities.md#proven-recognition-capability"
+      ],
+      "golden_evidence": [
+        "tests/thin_wall_expected.json"
+      ],
+      "id": "thin-wall-bodies",
+      "introduced_in": "0.3.4",
+      "recognisers": [
+        {
+          "entry_point": "quiddity.recognise_thin_wall_bodies",
+          "kind": "part",
+          "role": "physical"
+        }
+      ],
+      "records": [
+        {
+          "aggregate_membership": [],
+          "aggregate_membership_rationale": "Nested heuristic interpretation in ThinWallBody.",
+          "fields": {
+            "after_shell_cut_faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            },
+            "basis": {
+              "required": true,
+              "type": "str",
+              "units": "none"
+            },
+            "before_shell_collar_pairs": {
+              "required": true,
+              "type": "list[record:WallFacePair]",
+              "units": "none"
+            },
+            "direction": {
+              "required": true,
+              "type": "str|null",
+              "units": "mm"
+            },
+            "inner_faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            },
+            "opening_rims": {
+              "required": true,
+              "type": "list[list[int]]",
+              "units": "mm"
+            },
+            "outer_faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            }
+          },
+          "name": "ShellHistoryHint",
+          "qualified_name": "quiddity.ShellHistoryHint",
+          "role": "nested",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [
+            "RecognitionResult.thin_wall_bodies"
+          ],
+          "fields": {
+            "body_index": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "body_key": {
+              "required": true,
+              "type": "list[float]|null",
+              "units": "none"
+            },
+            "face_pairs": {
+              "required": true,
+              "type": "list[record:WallFacePair]",
+              "units": "none"
+            },
+            "history_hint": {
+              "required": true,
+              "type": "record:ShellHistoryHint",
+              "units": "none"
+            },
+            "paired_area_fraction": {
+              "required": true,
+              "type": "float",
+              "units": "none"
+            },
+            "rim_regions": {
+              "required": true,
+              "type": "list[list[int]]",
+              "units": "none"
+            },
+            "thickness": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "unpaired_faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "none"
+            }
+          },
+          "name": "ThinWallBody",
+          "qualified_name": "quiddity.ThinWallBody",
+          "role": "output",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [],
+          "aggregate_membership_rationale": "Nested only in ThinWallBody.",
+          "fields": {
+            "first_face": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "second_face": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            }
+          },
+          "name": "WallFacePair",
+          "qualified_name": "quiddity.WallFacePair",
+          "role": "nested",
+          "schema_version": 1
+        }
+      ],
+      "status": "supported",
+      "test_evidence": [
+        "tests/test_capability_claims.py",
+        "tests/test_recogniser_contract.py",
+        "tests/test_thin_walls.py"
+      ]
+    },
+    {
       "census_name": "through_step",
       "census_output": "RecognitionResult.through_steps",
       "documentation": [

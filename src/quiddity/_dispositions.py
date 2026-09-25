@@ -36,6 +36,9 @@ class ReasonCode(Enum):
     BLEND_SUPERSEDED_BY_FILLET = "blend.chain_superseded_by_fillet"
     HOLE_SUPERSEDED_BY_DOUBLE_D_BORE = "bore.hole_superseded_by_double_d_bore"
     BOSS_SUPERSEDED_BY_TURNED_STEP = "turned.boss_superseded_by_step"
+    PLATE_SUPERSEDED_BY_THIN_WALL = "wall.plate_superseded_by_body"
+    BOSS_SUPERSEDED_BY_THIN_WALL = "wall.boss_superseded_by_body"
+    RISER_SUPERSEDED_BY_THIN_WALL = "wall.riser_superseded_by_body"
     TURNED_STEP_GROOVE_COMPATIBLE = "turned.step_groove_compatible"
     GROOVE_TURNED_STEP_COMPATIBLE = "turned.groove_step_compatible"
 
@@ -140,6 +143,24 @@ _REASON_SPEC: dict[ReasonCode, tuple[Outcome, FamilyId | None, FamilyId | None, 
         Outcome.REJECTED,
         FamilyId.BOSSES,
         FamilyId.TURNED_STEPS,
+        True,
+    ),
+    ReasonCode.PLATE_SUPERSEDED_BY_THIN_WALL: (
+        Outcome.REJECTED,
+        FamilyId.PLATES,
+        FamilyId.THIN_WALL_BODIES,
+        True,
+    ),
+    ReasonCode.BOSS_SUPERSEDED_BY_THIN_WALL: (
+        Outcome.REJECTED,
+        FamilyId.BOSSES,
+        FamilyId.THIN_WALL_BODIES,
+        True,
+    ),
+    ReasonCode.RISER_SUPERSEDED_BY_THIN_WALL: (
+        Outcome.REJECTED,
+        FamilyId.RISERS,
+        FamilyId.THIN_WALL_BODIES,
         True,
     ),
     ReasonCode.TURNED_STEP_GROOVE_COMPATIBLE: (

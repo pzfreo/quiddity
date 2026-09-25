@@ -224,6 +224,12 @@ from quiddity.slots import (
     recognise_slots,
 )
 from quiddity.step_io import import_step_geometry
+from quiddity.thin_walls import (
+    ShellHistoryHint,
+    ThinWallBody,
+    WallFacePair,
+    recognise_thin_wall_bodies,
+)
 from quiddity.through_steps import ThroughStep, recognise_through_steps
 from quiddity.turned import (
     TurnedProfile,
@@ -336,6 +342,9 @@ __all__ = [
     "TurnedProfile",
     "TurnedProfileKey",
     "TurnedStep",
+    "ThinWallBody",
+    "WallFacePair",
+    "ShellHistoryHint",
     "RecognitionResult",
     "RefusedPartFrame",
     "BevelReject",
@@ -391,6 +400,7 @@ __all__ = [
     "recognise_slot_patterns",
     "recognise_slots",
     "recognise_turned_steps",
+    "recognise_thin_wall_bodies",
     "build_recognition_result",
     "build_raw_recognition_result",
     "build_framed_recognition_result",

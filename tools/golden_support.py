@@ -20,6 +20,7 @@ _POST_BASELINE_RESULT_FIELDS = frozenset(
         "section_recess_patterns",
         "oriented_slots",
         "oriented_slot_patterns",
+        "thin_wall_bodies",
     }
 )
 

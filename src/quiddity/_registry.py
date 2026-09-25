@@ -40,6 +40,7 @@ from quiddity import (
     round_bottom_slots,
     section_recesses,
     slots,
+    thin_walls,
     through_steps,
     turned,
 )
@@ -108,6 +109,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
     blends.DEFINITION,
     fillets.DEFINITION,
     plates.DEFINITION,
+    thin_walls.DEFINITION,
 )
 
 

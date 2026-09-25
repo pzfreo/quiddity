@@ -51,6 +51,38 @@ from quiddity.prismatic_pockets import PrismaticPocket
 from quiddity.turned import TurnedStep
 
 
+def reconcile_thin_wall_candidates(
+    walls: CandidateSet[object],
+    plates: CandidateSet[object],
+    bosses: CandidateSet[object],
+    risers: CandidateSet[object],
+    evidence: EvidenceIndex,
+) -> tuple[Disposition, ...]:
+    """Let a whole-wall reading supersede local readings contained in its paired skins.
+
+    Holes and blends remain available as potential pre-shell design features. A boss,
+    plate or riser is rejected only when all of its defining faces belong to the
+    proven offset skins; a separate post-shell protrusion keeps its own faces.
+    """
+
+    decisions = []
+    for group, reason in (
+        (plates, ReasonCode.PLATE_SUPERSEDED_BY_THIN_WALL),
+        (bosses, ReasonCode.BOSS_SUPERSEDED_BY_THIN_WALL),
+        (risers, ReasonCode.RISER_SUPERSEDED_BY_THIN_WALL),
+    ):
+        for candidate in group.candidates:
+            defining = evidence.defining_of(candidate)
+            winners = tuple(
+                wall
+                for wall in walls.candidates
+                if defining and defining <= evidence.defining_of(wall)
+            )
+            if winners:
+                decisions.append(Disposition(candidate, Outcome.REJECTED, reason, winners))
+    return tuple(decisions)
+
+
 def reconcile_recess_candidates(
     slots: CandidateSet[object],
     pockets: CandidateSet[object],

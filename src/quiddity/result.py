@@ -53,6 +53,7 @@ from quiddity._reconcile import (
     reconcile_profiled_bore_candidates,
     reconcile_recess_candidates,
     reconcile_step_groove_candidates,
+    reconcile_thin_wall_candidates,
 )
 from quiddity._registry import (
     DERIVED_DEFINITIONS,
@@ -131,6 +132,7 @@ from quiddity.slots import (
     SlotArray,
     SlotGrid,
 )
+from quiddity.thin_walls import ThinWallBody
 from quiddity.through_steps import ThroughStep
 from quiddity.turned import TurnedProfile, TurnedStep
 
@@ -367,6 +369,7 @@ class RecognitionResult:
     blends: tuple[Blend, ...]
     fillets: tuple[Fillet, ...]
     plates: tuple[Plate, ...]
+    thin_wall_bodies: tuple[ThinWallBody, ...]
 
     @property
     def turned_profiles(self) -> tuple[TurnedProfile, ...]:
@@ -665,6 +668,18 @@ def _reconcile_existing(
         physical.candidate_set(FamilyId.PASSAGES),
         physical.candidate_set(FamilyId.ORIENTED_SLOTS),
         evidence,
+    )
+    already_decided = {id(item.candidate) for item in decisions}
+    decisions += tuple(
+        item
+        for item in reconcile_thin_wall_candidates(
+            physical.candidate_set(FamilyId.THIN_WALL_BODIES),
+            physical.candidate_set(FamilyId.PLATES),
+            physical.candidate_set(FamilyId.BOSSES),
+            physical.candidate_set(FamilyId.RISERS),
+            evidence,
+        )
+        if id(item.candidate) not in already_decided
     )
     return CandidateReconciliation.complete(
         tuple(physical.candidate_set(family) for family in PHYSICAL_FAMILIES),

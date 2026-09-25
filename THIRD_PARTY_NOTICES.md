@@ -50,6 +50,14 @@ of benchmark reference drawings or third-party reference STEP models. The direct
 records the submission identities and SHA-256 hashes. They are excluded from published
 packages along with the rest of `tests/corpus`.
 
+### CADGenBench public editing inputs (`tests/corpus/cadgenbench_inputs`)
+
+- Source: <https://huggingface.co/datasets/HuggingAI4Engineering/cadgenbench-data>
+- Licence: Open Data Commons Attribution (ODC-BY)
+- Attribution: CADGenBench by HuggingAI4Engineering; underlying CAD geometry sourced from Mecado
+- Files: unmodified `207/input.step` and `241/input.step`. The directory README records SHA-256
+  hashes. No held-out ground-truth geometry is included.
+
 ### NIST MBE PMI test cases (`tests/corpus/nist`)
 
 - Source: <https://www.nist.gov/ctl/mbe-pmi-validation-and-conformance-testing-project/mbe-pmi-0>

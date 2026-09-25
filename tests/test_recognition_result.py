@@ -110,6 +110,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity.round_bottom_slots as round_bottom_slots_module
     import quiddity.section_recesses as section_recesses_module
     import quiddity.slots as slots_module
+    import quiddity.thin_walls as thin_walls_module
     import quiddity.through_steps as through_steps_module
     import quiddity.turned as turned_module
     from quiddity._candidates import EvidenceIndex
@@ -364,6 +365,11 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     # A declared family is patched where it lives; the registry no longer imports its core.
     monkeypatch.setattr(plates_module, "_discover_plates", counted(FamilyId.PLATES, "plates", []))
     monkeypatch.setattr(
+        thin_walls_module,
+        "_discover_thin_wall_bodies",
+        counted(FamilyId.THIN_WALL_BODIES, "thin_wall_bodies", []),
+    )
+    monkeypatch.setattr(
         gussets_module, "_discover_gusset_ribs", counted(FamilyId.GUSSET_RIBS, "gusset_ribs", [])
     )
 
@@ -486,6 +492,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
         "chamfers",
         "fillets",
         "plates",
+        "thin_wall_bodies",
         "gusset_ribs",
         "prismatic_pockets",
         "edge_open_circular_pockets",

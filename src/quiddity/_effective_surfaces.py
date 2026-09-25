@@ -124,6 +124,10 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "edge geom_type validates rectangular boundaries and their complete linear seam",
     ),
+    "thin_walls": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "mesh fallback samples only original planar trims before ray-proving opposed skins",
+    ),
     "circular_blind_steps": (
         SurfaceReaderDisposition.MIGRATED_EFFECTIVE,
         "planar membership and native/recovered cylinder provenance use the run-owned query",
@@ -269,6 +273,10 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
 # Every site has its own disposition and rationale, including mixed modules whose reads cannot be
 # truthfully covered by one module-level label.
 SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
+    "thin_walls:_native_surface:adaptor:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "read original analytic skin types for pairing, planar fallback and history hints",
+    ),
     "gussets:_cap:adaptor:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "require an original planar triangular end cap",
