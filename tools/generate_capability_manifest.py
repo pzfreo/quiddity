@@ -149,6 +149,8 @@ NO_MEMBERSHIP_RATIONALE = {
     "OpenSectionOpening": "Nested only in OpenPolygonalSection.",
     "OpenCircularSection": "Nested only in EdgeOpenCircularPocket.",
     "OpenCircularSectionSegment": "Nested only in OpenCircularSection.",
+    "WallFacePair": "Nested only in ThinWallBody.",
+    "ShellHistoryHint": "Nested heuristic interpretation in ThinWallBody.",
 }
 
 
@@ -216,6 +218,9 @@ def _units(field: dataclasses.Field, annotation: object) -> str:
             "low_gradient",
             "high_gradient",
             "material_side",
+            "paired_area_fraction",
+            "rim_regions",
+            "unpaired_faces",
         }
         or rendered in {"bool", "int", "str"}
         or rendered.startswith("record:")

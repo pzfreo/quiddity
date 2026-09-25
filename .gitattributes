@@ -5,3 +5,6 @@
 # by exact rung diameters rather than by counts.
 *.stp -text
 *.step -text
+# Keep these public inputs byte-identical; Git's textual whitespace check would
+# otherwise flag the STEP writer's legal trailing spaces on thousands of lines.
+tests/corpus/cadgenbench_inputs/*.step -diff

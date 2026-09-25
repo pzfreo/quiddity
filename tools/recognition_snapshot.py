@@ -12,6 +12,7 @@ POST_BASELINE = frozenset(
         "recognise_edge_open_prismatic_recesses",
         "recognise_oriented_slots",
         "recognise_oriented_slot_patterns",
+        "recognise_thin_wall_bodies",
     }
 )
 

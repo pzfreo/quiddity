@@ -1,0 +1,513 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2024-2026 Paul Fremantle
+"""Whole-body constant-wall evidence shared by shell and sheet-metal recognition.
+
+The wall evidence describes the finished B-rep. A separate history hint labels
+possible shell direction and operation order as heuristics because neither is
+uniquely recoverable from the final solid. Face indices refer to the input
+part's face roster, as in the recognition document, and are run-local.
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+
+from build123d import Face
+from OCP.BRepAdaptor import BRepAdaptor_Surface
+from OCP.BRepClass import BRepClass_FaceClassifier
+from OCP.BRepClass3d import BRepClass3d_SolidClassifier
+from OCP.GeomAbs import GeomAbs_Cylinder, GeomAbs_Plane
+from OCP.gp import gp_Dir, gp_Lin, gp_Pnt
+from OCP.IntCurvesFace import IntCurvesFace_ShapeIntersector
+from OCP.TopAbs import TopAbs_IN
+
+from quiddity._adjacency import FaceGraph
+from quiddity._body_identity import unambiguous_body_keys
+from quiddity._candidates import CompletedInputs, FamilyId
+from quiddity._claims import EvidenceWriter
+from quiddity._definitions import (
+    DiscoveryServices,
+    FullyAttributed,
+    ManifestEvidence,
+    NotCounted,
+    PhysicalDefinition,
+    always,
+)
+from quiddity._geometry import COORD_FLOOR, length_tol
+from quiddity._record import Record
+from quiddity._solid_properties import SolidProperties, solid_properties
+from quiddity._typing import Part
+
+# Five separated interior probes reject a coincidental nearest hit at a single point
+# without making the cost proportional to face tessellation density.
+_UV_PROBES = ((0.25, 0.25), (0.5, 0.5), (0.75, 0.75), (0.25, 0.75), (0.75, 0.25))
+# Imported offset B-splines on cgb241 differ by about 0.00056 mm over a 3 mm
+# nominal wall; this admits that approximation while remaining below 0.1%.
+_PAIR_REL_TOL = 3e-4
+_OPPOSED_NORMAL_COS = -0.9999
+_MIN_PAIRED_AREA_FRAC = 0.85
+
+
+@dataclass(frozen=True, slots=True)
+class WallFacePair(Record):
+    """Two original faces separated across material by the body's wall thickness."""
+
+    first_face: int
+    second_face: int
+
+
+@dataclass(frozen=True, slots=True)
+class ShellHistoryHint(Record):
+    """Explicitly heuristic construction reading, separate from proven wall evidence.
+
+    ``inward`` means the larger envelope is assumed to be the source body and
+    material was removed toward the smaller one. The finished B-rep alone cannot
+    distinguish that from an outward shell of a different source body. Faces not
+    listed on either side remain unoriented rather than acquiring a guessed role.
+    """
+
+    basis: str
+    direction: str | None
+    outer_faces: tuple[int, ...]
+    inner_faces: tuple[int, ...]
+    opening_rims: tuple[tuple[int, ...], ...]
+    before_shell_collar_pairs: tuple[WallFacePair, ...]
+    after_shell_cut_faces: tuple[int, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ThinWallBody(Record):
+    """One solid with a dominant constant material thickness.
+
+    ``unpaired_faces`` contains cut edges, mouths and any unsupported local
+    features. A caller must not treat each one as an opening without further
+    topology evidence. ``paired_area_fraction`` counts each face only once.
+    """
+
+    body_index: int
+    body_key: tuple[float, ...] | None
+    thickness: float
+    face_pairs: tuple[WallFacePair, ...]
+    unpaired_faces: tuple[int, ...]
+    rim_regions: tuple[tuple[int, ...], ...]
+    paired_area_fraction: float
+    history_hint: ShellHistoryHint
+
+
+@dataclass(frozen=True, slots=True)
+class _Hit:
+    target: int
+    distance: float
+
+
+def _native_surface(face: Face) -> BRepAdaptor_Surface:
+    """Read the original analytic type used by the wall and history heuristics."""
+
+    return BRepAdaptor_Surface(face.wrapped)
+
+
+def _samples(face: Face, *, mesh_fallback: bool) -> tuple[tuple[float, float, float], ...]:
+    classifier = BRepClass_FaceClassifier()
+    points = []
+    for u, v in _UV_PROBES:
+        try:
+            point = face.position_at(u, v)
+            classifier.Perform(face.wrapped, gp_Pnt(point.X, point.Y, point.Z), COORD_FLOOR)
+        except (RuntimeError, ValueError):
+            continue
+        if classifier.State() == TopAbs_IN:
+            points.append((point.X, point.Y, point.Z))
+    if len(points) < 2 and mesh_fallback and _native_surface(face).GetType() == GeomAbs_Plane:
+        # A long, concave imported trim can miss every point in the surface's
+        # rectangular UV range. Triangle barycentres lie inside its actual
+        # planar face, including one with holes or a disconnected-looking trim.
+        vertices, triangles = face.tessellate(0.1)
+        ranked = sorted(
+            triangles,
+            key=lambda tri: (
+                -(vertices[tri[1]] - vertices[tri[0]])
+                .cross(vertices[tri[2]] - vertices[tri[0]])
+                .length,
+                tri,
+            ),
+        )
+        for a, b, c in ranked[:5]:
+            barycentre = tuple(
+                (tuple(vertices[a])[axis] + tuple(vertices[b])[axis] + tuple(vertices[c])[axis]) / 3
+                for axis in range(3)
+            )
+            points.append(barycentre)
+    return tuple(points)
+
+
+def _first_material_hit(
+    face: Face,
+    point: tuple[float, float, float],
+    faces: tuple[Face, ...],
+    face_indices: dict[Face, int],
+    intersector: IntCurvesFace_ShapeIntersector,
+    material: BRepClass3d_SolidClassifier,
+    max_distance: float,
+) -> _Hit | None:
+    normal = face.normal_at(point)
+    for sign in (-1.0, 1.0):
+        direction = (sign * normal.X, sign * normal.Y, sign * normal.Z)
+        ray = gp_Lin(gp_Pnt(*point), gp_Dir(*direction))
+        intersector.Perform(ray, 0.0, max_distance)
+        hits = sorted(
+            (
+                (intersector.WParameter(index), intersector.Face(index))
+                for index in range(1, intersector.NbPnt() + 1)
+                if intersector.WParameter(index) > COORD_FLOOR * 10
+            ),
+            key=lambda hit: hit[0],
+        )
+        if not hits:
+            continue
+        distance, target_shape = hits[0]
+        midpoint = gp_Pnt(*(p + d * distance / 2 for p, d in zip(point, direction, strict=True)))
+        material.Perform(midpoint, COORD_FLOOR)
+        if material.State() != TopAbs_IN:
+            continue
+        target = face_indices.get(Face(target_shape))
+        if target is None:
+            continue
+        end = tuple(p + d * distance for p, d in zip(point, direction, strict=True))
+        opposite = faces[target].normal_at(end)
+        if normal.dot(opposite) > _OPPOSED_NORMAL_COS:
+            continue
+        return _Hit(target, distance)
+    return None
+
+
+def _body_pairs(
+    body: Part, properties: SolidProperties
+) -> tuple[float, tuple[tuple[int, int], ...], float] | None:
+    faces = tuple(body.faces())
+    if len(faces) < 4:
+        return None
+    bounds = properties.bounding_box(body)
+    span = max(float(bounds.size.X), float(bounds.size.Y), float(bounds.size.Z))
+    total_area = math.fsum(face.area for face in faces)
+    if total_area <= 0 or 2 * properties.volume(body) / total_area > 0.2 * span:
+        # A coarse stock body has no useful wall-thickness candidate. This is
+        # only a rejection prefilter; the ray and coverage proof decides yes.
+        return None
+    intersector = IntCurvesFace_ShapeIntersector()
+    intersector.Load(body.wrapped, COORD_FLOOR)
+    material = BRepClass3d_SolidClassifier(body.wrapped)
+    face_indices = {face: index for index, face in enumerate(faces)}
+    hits: dict[int, tuple[_Hit, ...]] = {}
+    for index, face in enumerate(faces):
+        found = []
+        for point in _samples(face, mesh_fallback=face.area >= total_area * 0.001):
+            try:
+                hit = _first_material_hit(
+                    face, point, faces, face_indices, intersector, material, span
+                )
+            except (RuntimeError, ValueError):
+                continue
+            if hit is not None and hit.target != index:
+                found.append(hit)
+        if found:
+            hits[index] = tuple(found)
+
+    # A physical wall needs support from more than one source face. This also
+    # makes the largest isolated bore or pocket distance unable to set thickness.
+    distances = sorted(hit.distance for samples in hits.values() for hit in samples)
+    if len(distances) < 4:
+        return None
+    clusters: list[list[float]] = []
+    for distance in distances:
+        if not clusters or abs(distance - clusters[-1][0]) > length_tol(
+            clusters[-1][0], rel=_PAIR_REL_TOL
+        ):
+            clusters.append([distance])
+        else:
+            clusters[-1].append(distance)
+    dominant = max(clusters, key=lambda cluster: (len(cluster), -cluster[0]))
+    thickness = math.fsum(dominant) / len(dominant)
+    tolerance = length_tol(thickness, rel=_PAIR_REL_TOL)
+    candidate_pairs: set[tuple[int, int]] = set()
+    for source, samples in hits.items():
+        matching = [hit for hit in samples if abs(hit.distance - thickness) <= tolerance]
+        if len(matching) < 2 or len(matching) * 5 < len(samples) * 4:
+            continue
+        for hit in matching:
+            target_samples = hits.get(hit.target, ())
+            if any(
+                back.target == source and abs(back.distance - thickness) <= tolerance
+                for back in target_samples
+            ):
+                candidate_pairs.add((min(source, hit.target), max(source, hit.target)))
+    paired = {index for pair in candidate_pairs for index in pair}
+    paired_fraction = math.fsum(faces[index].area for index in sorted(paired)) / total_area
+    if paired_fraction < _MIN_PAIRED_AREA_FRAC:
+        return None
+    # One opposed planar pair is a thin slab, not a shelled body. Require
+    # substantial curved skin or walls in a second planar direction. Small
+    # bores through a slab must not turn its stock faces into a shell.
+    weighted_pairs = sorted(
+        ((faces[a].area + faces[b].area, a, b) for a, b in candidate_pairs),
+        reverse=True,
+    )
+    curved_area = math.fsum(
+        area
+        for area, a, b in weighted_pairs
+        if any(_native_surface(faces[index]).GetType() != GeomAbs_Plane for index in (a, b))
+    )
+    paired_area = math.fsum(area for area, _, _ in weighted_pairs)
+    primary = _native_surface(faces[weighted_pairs[0][1]])
+    nonparallel_area = (
+        math.fsum(
+            area
+            for area, a, _ in weighted_pairs
+            if _native_surface(faces[a]).GetType() == GeomAbs_Plane
+            and abs(
+                primary.Plane()
+                .Axis()
+                .Direction()
+                .Dot(_native_surface(faces[a]).Plane().Axis().Direction())
+            )
+            < 0.95
+        )
+        if primary.GetType() == GeomAbs_Plane
+        else 0.0
+    )
+    if max(curved_area, nonparallel_area) < 0.1 * paired_area:
+        return None
+    # A block also has opposing faces. Its narrowest span is not a wall when
+    # comparable to the in-plane size of even its largest paired skin.
+    largest_skin_area = max((faces[index].area for index in paired), default=0.0)
+    if thickness > 0.3 * math.sqrt(largest_skin_area):
+        return None
+    # 2V/A is a whole-body sanity check, not the thickness measurement. Edges
+    # make it somewhat smaller than t, as on the 4 mm hanger (3.647 mm).
+    ratio = 2 * properties.volume(body) / total_area
+    if not 0.5 * thickness <= ratio <= 1.1 * thickness:
+        return None
+    return thickness, tuple(sorted(candidate_pairs)), paired_fraction
+
+
+def recognise_thin_wall_bodies(part: Part) -> list[ThinWallBody]:
+    """Report solids with a proven dominant constant wall thickness."""
+
+    return _discover_thin_wall_bodies(part)
+
+
+def _rim_regions(
+    graph: FaceGraph,
+    faces: tuple[Face, ...],
+    unpaired: tuple[int, ...],
+    pairs: tuple[WallFacePair, ...],
+) -> tuple[tuple[int, ...], ...]:
+    indices = {face: index for index, face in enumerate(faces)}
+    rims = set()
+    for index in unpaired:
+        neighbours = {
+            indices[graph.face(node)] for node in graph.neighbours(graph.require_node(faces[index]))
+        }
+        if any({pair.first_face, pair.second_face} <= neighbours for pair in pairs):
+            rims.add(index)
+    regions = []
+    while rims:
+        seed = min(rims)
+        rims.remove(seed)
+        region = {seed}
+        pending = [seed]
+        while pending:
+            for neighbour in graph.neighbours(graph.require_node(faces[pending.pop()])):
+                index = indices[graph.face(neighbour)]
+                if index in rims:
+                    rims.remove(index)
+                    region.add(index)
+                    pending.append(index)
+        regions.append(tuple(sorted(region)))
+    return tuple(regions)
+
+
+def _skin_components(graph: FaceGraph, faces: tuple[Face, ...], paired: set[int]) -> list[set[int]]:
+    indices = {face: index for index, face in enumerate(faces)}
+    remaining = set(paired)
+    components = []
+    while remaining:
+        seed = min(remaining)
+        remaining.remove(seed)
+        component = {seed}
+        pending = [seed]
+        while pending:
+            current = pending.pop()
+            for node in graph.neighbours(graph.require_node(faces[current])):
+                neighbour = indices[graph.face(node)]
+                if neighbour in remaining:
+                    remaining.remove(neighbour)
+                    component.add(neighbour)
+                    pending.append(neighbour)
+        components.append(component)
+    return sorted(components, key=lambda group: -math.fsum(faces[i].area for i in group))
+
+
+def _encloses(outer: set[int], inner: set[int], faces: tuple[Face, ...], tolerance: float) -> bool:
+    outer_bounds = [faces[index].bounding_box() for index in outer]
+    inner_bounds = [faces[index].bounding_box() for index in inner]
+    wider = 0
+    for axis in "XYZ":
+        outer_low = min(getattr(bounds.min, axis) for bounds in outer_bounds)
+        outer_high = max(getattr(bounds.max, axis) for bounds in outer_bounds)
+        inner_low = min(getattr(bounds.min, axis) for bounds in inner_bounds)
+        inner_high = max(getattr(bounds.max, axis) for bounds in inner_bounds)
+        if outer_low > inner_low + tolerance or outer_high < inner_high - tolerance:
+            return False
+        wider += int(outer_low < inner_low - tolerance or outer_high > inner_high + tolerance)
+    return wider >= 2
+
+
+def _history_hint(
+    graph: FaceGraph,
+    faces: tuple[Face, ...],
+    pairs: tuple[WallFacePair, ...],
+    unpaired: tuple[int, ...],
+    rims: tuple[tuple[int, ...], ...],
+) -> ShellHistoryHint:
+    paired = {index for pair in pairs for index in (pair.first_face, pair.second_face)}
+    components = _skin_components(graph, faces, paired)
+    outer: set[int] = set()
+    inner: set[int] = set()
+    if len(components) >= 2:
+        first, second = components[:2]
+        cross = sum(
+            (pair.first_face in first and pair.second_face in second)
+            or (pair.second_face in first and pair.first_face in second)
+            for pair in pairs
+        )
+        if cross * 2 >= min(len(first), len(second)):
+            tolerance = length_tol(max(face.area for face in faces) ** 0.5, rel=1e-6)
+            if _encloses(first, second, faces, tolerance):
+                outer, inner = first, second
+            elif _encloses(second, first, faces, tolerance):
+                outer, inner = second, first
+
+    total_paired_area = math.fsum(faces[index].area for index in paired)
+    collars = []
+    for pair in pairs:
+        a, b = (_native_surface(faces[index]) for index in (pair.first_face, pair.second_face))
+        if (
+            a.GetType() == b.GetType() == GeomAbs_Cylinder
+            and a.LastUParameter() - a.FirstUParameter() >= math.pi - 1e-3
+            and b.LastUParameter() - b.FirstUParameter() >= math.pi - 1e-3
+            and faces[pair.first_face].area + faces[pair.second_face].area < 0.2 * total_paired_area
+        ):
+            collars.append(pair)
+
+    indices = {face: index for index, face in enumerate(faces)}
+    after = []
+    for index in unpaired:
+        if not outer or not inner:
+            continue
+        if _native_surface(faces[index]).GetType() != GeomAbs_Cylinder:
+            continue
+        neighbours = {
+            indices[graph.face(node)] for node in graph.neighbours(graph.require_node(faces[index]))
+        }
+        if neighbours & outer and neighbours & inner:
+            after.append(index)
+    opening_rims = (
+        tuple(region for region in rims if not any(index in after for index in region))
+        if outer and inner
+        else ()
+    )
+    return ShellHistoryHint(
+        basis="heuristic",
+        direction="inward" if outer and inner and opening_rims else None,
+        outer_faces=tuple(sorted(outer)),
+        inner_faces=tuple(sorted(inner)),
+        opening_rims=opening_rims,
+        before_shell_collar_pairs=tuple(collars),
+        after_shell_cut_faces=tuple(after),
+    )
+
+
+def _discover_thin_wall_bodies(part: Part, *, graph: FaceGraph | None = None) -> list[ThinWallBody]:
+    bodies = tuple(part.solids())
+    properties = solid_properties(graph)
+    keys = unambiguous_body_keys(bodies, require_valid_solid=True, properties=properties)
+    all_faces = tuple(part.faces())
+    all_indices = {face: index for index, face in enumerate(all_faces)}
+    shared_graph = graph
+    records = []
+    for body_index, (body, key) in enumerate(zip(bodies, keys, strict=True)):
+        if not properties.is_valid(body):
+            continue
+        found = _body_pairs(body, properties)
+        if found is None:
+            continue
+        thickness, pairs, fraction = found
+        body_faces = tuple(body.faces())
+        translated = tuple(
+            WallFacePair(all_indices[body_faces[a]], all_indices[body_faces[b]]) for a, b in pairs
+        )
+        paired = {index for pair in translated for index in (pair.first_face, pair.second_face)}
+        unpaired = tuple(
+            all_indices[face] for face in body_faces if all_indices[face] not in paired
+        )
+        if shared_graph is None:
+            shared_graph = FaceGraph(part)
+        rims = _rim_regions(shared_graph, all_faces, unpaired, translated)
+        records.append(
+            ThinWallBody(
+                body_index=body_index,
+                body_key=key,
+                thickness=thickness,
+                face_pairs=translated,
+                unpaired_faces=unpaired,
+                rim_regions=rims,
+                paired_area_fraction=fraction,
+                history_hint=_history_hint(shared_graph, all_faces, translated, unpaired, rims),
+            )
+        )
+    return records
+
+
+def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[object]:
+    del inputs
+    records = _discover_thin_wall_bodies(services.context.part, graph=services.context.graph)
+    _claim_records(records, services.context.part, services.writer)
+    return list(records)
+
+
+def _claim_records(records: list[ThinWallBody], part: Part, writer: EvidenceWriter) -> None:
+    graph = writer.graph
+    faces = tuple(part.faces())
+    for record in records:
+        paired = {
+            index for pair in record.face_pairs for index in (pair.first_face, pair.second_face)
+        }
+        constituent = paired | {index for region in record.rim_regions for index in region}
+        writer.add_defining(
+            record,
+            (graph.require_node(faces[index]) for index in sorted(paired)),
+            family=FamilyId.THIN_WALL_BODIES,
+            constituent=(graph.require_node(faces[index]) for index in sorted(constituent)),
+        )
+
+
+DEFINITION = PhysicalDefinition(
+    family=FamilyId.THIN_WALL_BODIES,
+    record_types=(ThinWallBody,),
+    result_field="thin_wall_bodies",
+    public_entrypoint=recognise_thin_wall_bodies.__name__,
+    dependencies=(),
+    applicable=always,
+    discover=_discover,
+    census=NotCounted("whole-body construction evidence, not a machined feature count"),
+    attribution=FullyAttributed(
+        "every record defines both faces of each proven pair; rim faces are constituents"
+    ),
+    evidence=ManifestEvidence(
+        tests=("tests/test_thin_walls.py",),
+        golden_paths=("tests/thin_wall_expected.json",),
+        introduced="0.3.4",
+        extra_records=(("WallFacePair", "nested", ()), ("ShellHistoryHint", "nested", ())),
+    ),
+)

@@ -53,6 +53,7 @@ PUBLIC_MODULES = {
     "slots",
     "step_io",
     "through_steps",
+    "thin_walls",
     "turned",
 }
 
@@ -465,6 +466,7 @@ MODULE_SEAM_EDGES = {
         "pads",
         "paired_ramp_steps",
         "through_steps",
+        "thin_walls",
         "passages",
         "plates",
         "polygonal_bosses",
@@ -656,6 +658,17 @@ MODULE_SEAM_EDGES = {
         "_typing",
         "turned",
     },
+    "thin_walls": {
+        "_adjacency",
+        "_body_identity",
+        "_candidates",
+        "_claims",
+        "_definitions",
+        "_geometry",
+        "_record",
+        "_solid_properties",
+        "_typing",
+    },
     "prismatic_pockets": {
         "_adjacency",
         "_candidates",
@@ -756,6 +769,7 @@ MODULE_SEAM_EDGES = {
         "round_bottom_slots",
         "slots",
         "through_steps",
+        "thin_walls",
         "turned",
     },
     # Projections and public facades over the one result (ADR 0003/0005).
