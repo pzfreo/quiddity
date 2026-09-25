@@ -98,6 +98,7 @@ from quiddity.circular_blind_steps import (
     CircularBlindStep,
     recognise_circular_blind_steps,
 )
+from quiddity.circular_face_patterns import CircularFacePattern, recognise_circular_face_patterns
 from quiddity.countersinks import (
     CounterSink,
     cone_rims,
@@ -251,7 +252,7 @@ from quiddity.turned import (
 try:
     __version__ = version("quiddity")
 except PackageNotFoundError:  # pragma: no cover - only a bare, uninstalled source tree
-    __version__ = "0.3.6.dev0"
+    __version__ = "0.4.0.dev0"
 
 # Imported after the recognition surface because census consumes that public orchestration.
 from quiddity.capabilities import (  # noqa: E402
@@ -342,6 +343,8 @@ __all__ = [
     "PolygonalStock",
     "RaisedPad",
     "RepeatingRadialProfile",
+    "CircularFacePattern",
+    "recognise_circular_face_patterns",
     "RectGrid",
     "Slot",
     "SlotArray",

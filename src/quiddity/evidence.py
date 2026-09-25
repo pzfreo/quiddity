@@ -226,6 +226,7 @@ class RecognitionEvidence:
         "__feature_records",
         "__feature_defining",
         "__feature_constituent",
+        "__feature_groups",
         "__feature_families",
         "__candidate_projections",
         "__candidate_positions",
@@ -245,6 +246,7 @@ class RecognitionEvidence:
     __feature_records: tuple[RecognitionRecord, ...]
     __feature_defining: tuple[frozenset[FaceNode], ...]
     __feature_constituent: tuple[frozenset[FaceNode], ...]
+    __feature_groups: tuple[tuple[frozenset[FaceNode], ...], ...]
     __feature_families: tuple[str, ...]
     __candidate_projections: tuple[_CandidateProjection, ...]
     __candidate_positions: dict[int, int]
@@ -338,6 +340,14 @@ class RecognitionEvidence:
         return frozenset(
             self.__node_refs[node]
             for node in self.__feature_constituent[self.__feature_position(feature)]
+        )
+
+    def instance_faces(self, feature: FeatureRef) -> tuple[frozenset[FaceRef], ...]:
+        """Return ordered source-face groups for a circular face pattern, or empty otherwise."""
+
+        return tuple(
+            frozenset(self.__node_refs[node] for node in group)
+            for group in self.__feature_groups[self.__feature_position(feature)]
         )
 
     def candidate_family(self, candidate: CandidateRef) -> str:
@@ -556,6 +566,11 @@ class FramedRecognitionEvidence(Generic[FrameValue]):
 
         return self.__evidence.constituent_faces(feature)
 
+    def instance_faces(self, feature: FeatureRef) -> tuple[frozenset[FaceRef], ...]:
+        """Return a circular pattern's ordered local source-face groups."""
+
+        return self.__evidence.instance_faces(feature)
+
     def candidate_family(self, candidate: CandidateRef) -> str:
         """Return the stable detector family identifier for *candidate*."""
 
@@ -661,6 +676,7 @@ def _project_recognition_evidence(product: InventoryProduct) -> RecognitionEvide
     records: list[RecognitionRecord] = []
     defining_sets: list[frozenset[FaceNode]] = []
     constituent_sets: list[frozenset[FaceNode]] = []
+    feature_groups: list[tuple[frozenset[FaceNode], ...]] = []
     families: list[str] = []
     accepted = product.accepted
     for definition in PHYSICAL_DEFINITIONS:
@@ -671,6 +687,7 @@ def _project_recognition_evidence(product: InventoryProduct) -> RecognitionEvide
             records.append(cast(RecognitionRecord, candidate.record))
             defining_sets.append(product.evidence.defining_of(candidate))
             constituent_sets.append(product.evidence.constituent_of(candidate))
+            feature_groups.append(product.evidence.groups_of(candidate))
             families.append(definition.family.value)
 
     from quiddity._section_recess import SectionRecess, SectionRecessRefusal
@@ -688,6 +705,7 @@ def _project_recognition_evidence(product: InventoryProduct) -> RecognitionEvide
         constituent_sets.append(
             frozenset(nodes_by_index[i] for i in recess.evidence.constituent_faces)
         )
+        feature_groups.append(())
 
     dispositions = product.reconciliation.dispositions
     rejected_dispositions = tuple(
@@ -735,6 +753,7 @@ def _project_recognition_evidence(product: InventoryProduct) -> RecognitionEvide
     object.__setattr__(result, "_RecognitionEvidence__feature_records", tuple(records))
     object.__setattr__(result, "_RecognitionEvidence__feature_defining", tuple(defining_sets))
     object.__setattr__(result, "_RecognitionEvidence__feature_constituent", tuple(constituent_sets))
+    object.__setattr__(result, "_RecognitionEvidence__feature_groups", tuple(feature_groups))
     object.__setattr__(result, "_RecognitionEvidence__feature_families", tuple(families))
     object.__setattr__(result, "_RecognitionEvidence__candidate_projections", candidate_projections)
     object.__setattr__(

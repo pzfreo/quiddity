@@ -99,6 +99,32 @@ def test_constituent_evidence_defaults_to_the_exact_defining_set() -> None:
     assert ledger.snapshot_index().constituent_of(candidate) == candidate.evidence.defining
 
 
+def test_circular_instance_groups_are_an_exact_same_run_partition() -> None:
+    ledger = _registry_ledger()
+    first, second = ledger.graph.nodes[:2]
+    candidate = ledger.sink.propose(
+        FamilyId.CIRCULAR_FACE_PATTERNS,
+        Record(1),
+        defining=[first, second],
+        groups=([first], [second]),
+    )
+    assert ledger.snapshot_index().groups_of(candidate) == (
+        frozenset({first}),
+        frozenset({second}),
+    )
+    with pytest.raises(ValueError, match="partition"):
+        ledger.sink.propose(
+            FamilyId.CIRCULAR_FACE_PATTERNS,
+            Record(2),
+            defining=[first, second],
+            groups=([first], [first]),
+        )
+    with pytest.raises(ValueError, match="only circular face patterns"):
+        ledger.sink.propose(FamilyId.SLOTS, Record(3), defining=[first], groups=([first],))
+    with pytest.raises(ValueError, match="require instance groups"):
+        ledger.sink.propose(FamilyId.CIRCULAR_FACE_PATTERNS, Record(4), defining=[first])
+
+
 def test_constituent_membership_is_wider_non_exclusive_and_proposal_ordered() -> None:
     ledger = _registry_ledger()
     first_node, second_node, shared = ledger.graph.nodes[:3]

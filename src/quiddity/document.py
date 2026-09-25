@@ -102,6 +102,20 @@ def build_recognition_document(part: Part, *, rotational: bool = False) -> dict[
         }
         for index, feature in enumerate(view.features)
     ]
+    for feature, entry in zip(view.features, features, strict=True):
+        groups = view.instance_faces(feature)
+        if groups:
+            entry["instances"] = [
+                {
+                    "index": index,
+                    "seed": index == 0,
+                    "face_indices": sorted(indices[face] for face in group),
+                }
+                for index, group in enumerate(groups)
+            ]
+            entry["excluded_faces"] = sorted(
+                set(range(len(local_faces))) - {indices[face] for group in groups for face in group}
+            )
     derived = {
         name: [record.to_dict() for record in getattr(view.result, name)]
         for name in (
@@ -135,7 +149,7 @@ def build_recognition_document(part: Part, *, rotational: bool = False) -> dict[
         )
     return {
         "format": "quiddity-recognition",
-        "format_version": 2,
+        "format_version": 3,
         "package": {"name": "quiddity", "version": __version__},
         "coordinate_space": "local",
         "rotational": rotational,

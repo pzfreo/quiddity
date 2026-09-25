@@ -373,6 +373,75 @@
       ]
     },
     {
+      "census_name": null,
+      "census_output": null,
+      "census_rationale": "Geometry evidence is deliberately absent from the feature census; the census is not a completeness denominator.",
+      "documentation": [
+        "docs/capabilities.md#proven-recognition-capability"
+      ],
+      "golden_evidence": [
+        "tests/circular_face_pattern_expected.json"
+      ],
+      "id": "circular-face-patterns",
+      "introduced_in": "0.4.0",
+      "recognisers": [
+        {
+          "entry_point": "quiddity.recognise_circular_face_patterns",
+          "kind": "part",
+          "role": "physical"
+        }
+      ],
+      "records": [
+        {
+          "aggregate_membership": [
+            "RecognitionResult.circular_face_patterns"
+          ],
+          "fields": {
+            "axis_direction": {
+              "required": true,
+              "type": "tuple[float,3]",
+              "units": "unit-vector"
+            },
+            "axis_origin": {
+              "required": true,
+              "type": "tuple[float,3]",
+              "units": "mm"
+            },
+            "count": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "fit_error": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "pitch_degrees": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "seed_index": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            }
+          },
+          "name": "CircularFacePattern",
+          "qualified_name": "quiddity.CircularFacePattern",
+          "role": "output",
+          "schema_version": 1
+        }
+      ],
+      "status": "supported",
+      "test_evidence": [
+        "tests/test_capability_claims.py",
+        "tests/test_circular_face_patterns.py",
+        "tests/test_recogniser_contract.py"
+      ]
+    },
+    {
       "census_name": "countersink",
       "census_output": "RecognitionResult.countersinks",
       "documentation": [
@@ -3387,6 +3456,6 @@
   "format_version": 2,
   "package": {
     "name": "quiddity",
-    "version": "0.3.6.dev0"
+    "version": "0.4.0.dev0"
   }
 }

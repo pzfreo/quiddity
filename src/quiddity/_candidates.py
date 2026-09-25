@@ -48,6 +48,7 @@ class FamilyId(Enum):
     BOSSES = "bosses"
     CHAMFERS = "chamfers"
     CHANNELS = "channels"
+    CIRCULAR_FACE_PATTERNS = "circular_face_patterns"
     CIRCULAR_BLIND_STEPS = "circular_blind_steps"
     COUNTERSINKS = "countersinks"
     DOUBLE_D_BORES = "double_d_bores"
@@ -97,6 +98,7 @@ class Evidence:
     defining: frozenset[FaceNode]
     constituent: frozenset[FaceNode]
     surfaces: tuple[SurfaceUse, ...] = ()
+    groups: tuple[frozenset[FaceNode], ...] = ()
 
     def __init__(
         self,
@@ -104,6 +106,7 @@ class Evidence:
         surfaces: tuple[SurfaceUse, ...] = (),
         *,
         constituent: frozenset[FaceNode] | None = None,
+        groups: tuple[frozenset[FaceNode], ...] = (),
     ) -> None:
         # Omission is the fail-closed migration state: a family publishes no wider membership
         # than the ownership evidence it already proves. Frozen snapshots carry no three-state
@@ -111,6 +114,7 @@ class Evidence:
         object.__setattr__(self, "defining", defining)
         object.__setattr__(self, "constituent", defining if constituent is None else constituent)
         object.__setattr__(self, "surfaces", surfaces)
+        object.__setattr__(self, "groups", groups)
 
 
 class PredicateId(Enum):
@@ -272,6 +276,7 @@ class EvidenceSink:
         defining: Iterable[FaceNode] = (),
         constituent: Iterable[FaceNode] | None = None,
         surfaces: Iterable[SurfaceUse] = (),
+        groups: Iterable[Iterable[FaceNode]] = (),
         compatibility: PassageCompatibilityView | None = None,
     ) -> Candidate[RecordT]:
         """Atomically validate evidence and issue one identity-safe candidate."""
@@ -282,6 +287,7 @@ class EvidenceSink:
             defining=defining,
             constituent=constituent,
             surfaces=surfaces,
+            groups=groups,
             compatibility=compatibility,
         )
 
@@ -423,6 +429,14 @@ class EvidenceIndex:
         candidate = _record_candidate(self._by_record, subject)
         return self._validate(candidate).constituent if candidate is not None else frozenset()
 
+    def groups_of(self, subject: object) -> tuple[frozenset[FaceNode], ...]:
+        """Return one candidate's ordered source-face groups after issuer validation."""
+
+        if isinstance(subject, Candidate):
+            return self._validate(subject).groups
+        candidate = _record_candidate(self._by_record, subject)
+        return self._validate(candidate).groups if candidate is not None else ()
+
     def memberships_of(self, node: FaceNode) -> tuple[Candidate[object], ...]:
         """Return every candidate naming *node* as constituent, in proposal order."""
 
@@ -475,6 +489,7 @@ class EvidenceIndex:
             or candidate.evidence.defining is not issued.defining
             or candidate.evidence.constituent is not issued.constituent
             or candidate.evidence.surfaces is not issued.surfaces
+            or candidate.evidence.groups is not issued.groups
             or candidate.compatibility is not issued.compatibility
             or (
                 issued.compatibility is not None
@@ -515,6 +530,7 @@ class _IssuedCandidate:
     defining: frozenset[FaceNode]
     constituent: frozenset[FaceNode]
     surfaces: tuple[SurfaceUse, ...]
+    groups: tuple[frozenset[FaceNode], ...]
     compatibility: PassageCompatibilityView | None
     compatibility_snapshot: CompatibilitySnapshot | None
 
@@ -586,6 +602,7 @@ class _CandidateIssuer:
         defining: Iterable[FaceNode],
         constituent: Iterable[FaceNode] | None = None,
         surfaces: Iterable[SurfaceUse] = (),
+        groups: Iterable[Iterable[FaceNode]] = (),
         compatibility: PassageCompatibilityView | None = None,
     ) -> Candidate[RecordT]:
         if self._sealed:
@@ -595,11 +612,24 @@ class _CandidateIssuer:
         nodes = frozenset(defining)
         members = nodes if constituent is None else frozenset(constituent)
         surface_uses = tuple(surfaces)
+        face_groups = tuple(frozenset(group) for group in groups)
         foreign = [node for node in members | nodes if not self._graph.owns(node)]
         if foreign:
             raise ValueError(f"{sorted(node.index for node in foreign)} are not this graph's nodes")
         if not nodes <= members:
             raise ValueError("defining evidence must be a subset of constituent evidence")
+        if face_groups:
+            if family is not FamilyId.CIRCULAR_FACE_PATTERNS:
+                raise ValueError("only circular face patterns may carry instance groups")
+            union = frozenset().union(*face_groups)
+            if (
+                any(not group for group in face_groups)
+                or union != nodes
+                or sum(len(group) for group in face_groups) != len(nodes)
+            ):
+                raise ValueError("instance groups must partition defining evidence exactly")
+        elif family is FamilyId.CIRCULAR_FACE_PATTERNS:
+            raise ValueError("circular face patterns require instance groups")
         if (
             family is not FamilyId.LEGACY
             and members
@@ -659,7 +689,7 @@ class _CandidateIssuer:
         object.__setattr__(
             candidate,
             "evidence",
-            Evidence(nodes, constituent=members, surfaces=surface_uses),
+            Evidence(nodes, constituent=members, surfaces=surface_uses, groups=face_groups),
         )
         object.__setattr__(candidate, "compatibility", compatibility)
         object.__setattr__(candidate, "_issuer", self._token)
@@ -672,6 +702,7 @@ class _CandidateIssuer:
             candidate.evidence.defining,
             candidate.evidence.constituent,
             candidate.evidence.surfaces,
+            candidate.evidence.groups,
             compatibility,
             compatibility.issued_snapshot() if compatibility is not None else None,
         )
@@ -803,6 +834,7 @@ class _CandidateIssuer:
                             evidence.defining,
                             evidence.constituent,
                             evidence.surfaces,
+                            evidence.groups,
                             None,
                             None,
                         ),
@@ -1017,6 +1049,7 @@ class _CandidateIssuer:
             or candidate.evidence is not issued.evidence
             or candidate.evidence.defining is not issued.defining
             or candidate.evidence.constituent is not issued.constituent
+            or candidate.evidence.groups is not issued.groups
         ):
             raise ValueError("candidate no longer matches its issued state")
         return issued

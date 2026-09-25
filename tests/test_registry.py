@@ -43,7 +43,7 @@ ROOT = Path(__file__).parents[1]
 
 
 def test_registry_is_the_closed_ordered_internal_roster() -> None:
-    assert len(PHYSICAL_DEFINITIONS) == 35
+    assert len(PHYSICAL_DEFINITIONS) == 36
     assert len(DERIVED_DEFINITIONS) == 5
     assert tuple(item.family for item in PHYSICAL_DEFINITIONS) == PHYSICAL_FAMILIES
     assert set(PHYSICAL_FAMILIES) == set(FamilyId) - {FamilyId.LEGACY}
@@ -69,6 +69,7 @@ def test_registry_is_the_closed_ordered_internal_roster() -> None:
         FamilyId.PAIRED_RAMP_STEPS,
         FamilyId.THROUGH_STEPS,
         FamilyId.CIRCULAR_BLIND_STEPS,
+        FamilyId.CIRCULAR_FACE_PATTERNS,
         FamilyId.FLATS,
         FamilyId.FILLETS,
         FamilyId.COUNTERSINKS,
@@ -116,6 +117,7 @@ def test_registry_is_the_closed_ordered_internal_roster() -> None:
         FamilyId.SECTION_RECESSES,
         FamilyId.PADS,
         FamilyId.REPEATING_RADIAL_PROFILES,
+        FamilyId.CIRCULAR_FACE_PATTERNS,
         FamilyId.TURNED_STEPS,
         FamilyId.STEP_LEVELS,
         FamilyId.RISERS,
@@ -624,7 +626,7 @@ def test_a_declared_family_defines_its_own_entry_point() -> None:
             family = getattr(definition, "family", None) or definition.identifier
             elsewhere.add(family.name)
 
-    assert checked == 40
+    assert checked == 41
     # The migration is finished, with no exception left: every definition is written in the
     # module of the family it describes. The last hold-out was the PASSAGES_COMPAT projection,
     # deleted with the rest of the legacy passage surface rather than relocated.
@@ -727,7 +729,7 @@ def test_a_declared_family_defines_its_own_record_types() -> None:
             elsewhere[family.name] = strays
 
     # Guards the sweep itself: a predicate that stopped matching would otherwise pass vacuously.
-    assert declared == 40
+    assert declared == 41
 
     assert all(RECORDS_DEFINED_NEXT_DOOR.values()), "an exception needs a reason, not just a key"
     unexplained = {
