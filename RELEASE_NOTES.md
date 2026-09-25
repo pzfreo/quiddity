@@ -1,5 +1,19 @@
 # Release notes
 
+## 0.3.5 — Quiddity
+
+- Recognise constant-thickness shelled bodies with source-face wall pairs, openings, rim regions,
+  and paired-area coverage. Optional inner/outer skin labels, shell direction and feature-order
+  hints are explicitly heuristic; unclassified faces remain unlabelled (#747).
+- Recognise developable sheet-metal bodies with flange and bend groups, thickness, inner radii,
+  bend axes and angles, and a checked flat-pattern plan. The recogniser refuses ambiguous blanks
+  and material overlaps rather than publishing an unsupported development (#748).
+- Publish edit-oriented dependents with face IDs and named dimensions for holes, bosses, pockets,
+  grooves and related records. Recognise square and hexagonal bosses, including rounded corners.
+  The recognition document advances to format 2 for these additions (#751).
+- When a solid has a small locally invalid face region, retain distant proved features and mark
+  the affected faces `not_proven` instead of discarding the whole recognition document (#751).
+
 ## 0.3.4 — Quiddity
 
 - Prefer exact turned-step evidence over overlapping cylindrical boss candidates. Aggregate

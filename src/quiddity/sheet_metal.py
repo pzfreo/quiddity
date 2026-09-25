@@ -819,7 +819,7 @@ DEFINITION = PhysicalDefinition(
     evidence=ManifestEvidence(
         tests=("tests/test_sheet_metal.py",),
         golden_paths=("tests/sheet_metal_expected.json",),
-        introduced="0.3.4",
+        introduced="0.3.5",
         extra_records=(
             ("SheetFlange", "nested", ()),
             ("SheetBend", "nested", ()),

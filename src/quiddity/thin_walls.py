@@ -519,7 +519,7 @@ DEFINITION = PhysicalDefinition(
     evidence=ManifestEvidence(
         tests=("tests/test_thin_walls.py",),
         golden_paths=("tests/thin_wall_expected.json",),
-        introduced="0.3.4",
+        introduced="0.3.5",
         extra_records=(("WallFacePair", "nested", ()), ("ShellHistoryHint", "nested", ())),
     ),
 )
