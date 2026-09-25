@@ -80,3 +80,10 @@ As CC BY requires, the dataset is attributed to its authors and its paper cited:
 
 > Colligan AR, Robinson TR, Nolan DC, Hua Y, Cao W. *Hierarchical CADNet: Learning from B-Reps
 > for Machining Feature Recognition.* Computer-Aided Design, 147:103226, 2022.
+
+### Too Tall Toby / build123d sheet-metal hanger (`tests/corpus/ttt_inputs`)
+
+- Source: <https://build123d.readthedocs.io/en/latest/tttt.html>, 23-02-02 SM Hanger.
+- Reference implementation: Gumyr, copyright 2023, Apache License 2.0.
+- Drawing: Too Tall Toby, provided to the build123d tutorials.
+- Modification: geometry-only STEP export generated with build123d 0.11.0 for this regression.

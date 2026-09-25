@@ -218,9 +218,12 @@ from quiddity.section_recesses import (
 )
 from quiddity.sheet_metal import (
     FlatPatternPlan,
+    FormedSheetFeature,
     SheetBend,
     SheetFlange,
     SheetMetalBody,
+    UnfoldedBendStrip,
+    UnfoldedFlangeFace,
     recognise_sheet_metal_bodies,
 )
 from quiddity.slots import (
@@ -355,6 +358,9 @@ __all__ = [
     "SheetFlange",
     "SheetBend",
     "FlatPatternPlan",
+    "FormedSheetFeature",
+    "UnfoldedFlangeFace",
+    "UnfoldedBendStrip",
     "SheetMetalBody",
     "RecognitionResult",
     "RefusedPartFrame",

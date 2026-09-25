@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
-from build123d import Box, BuildLine, BuildSketch, Line, ThreePointArc, extrude, make_face
+from build123d import Box, BuildLine, BuildSketch, Line, Pos, ThreePointArc, extrude, make_face
 
 from quiddity import (
     build_recognition_result,
@@ -46,7 +46,9 @@ def test_formed_bracket_has_reconstructible_bend_plan():
     assert len(sheet.cut_edge_faces) == 4
     assert sheet.flat_pattern.k_factor == 0.4
     assert sheet.flat_pattern.tree_bends == (0,)
-    assert sheet.flat_pattern.cycle_bends == ()
+    assert len(sheet.flat_pattern.flat_faces) == 2
+    assert len(sheet.flat_pattern.bend_strips) == 1
+    assert len(sheet.formed_features) == 0
     assert set(sheet.first_side_faces).isdisjoint(sheet.second_side_faces)
     expected = json.loads(Path(__file__).with_name("sheet_metal_expected.json").read_text())
     assert {
@@ -75,17 +77,20 @@ def test_plain_solid_and_unsupported_k_factor_are_refused():
         recognise_sheet_metal_bodies(_formed_bracket(), k_factor=-0.1)
 
 
+def test_blind_pocket_cannot_be_explained_as_a_sheet_cut_or_form():
+    pocketed = _formed_bracket() - Pos(-20, 6.75, 50) * Box(10, 1.5, 10)
+    assert recognise_sheet_metal_bodies(pocketed) == []
+
+
 @pytest.mark.slow
-def test_local_ttt_hanger_fixture_when_available():
-    source = Path(
-        "/Users/paul/repos/dw-ttt-bench/corpus/cache/build123d-ttt-v0.11.0/"
-        "generated/step/ttt-23-02-02-sm-hanger.step"
-    )
-    if not source.exists():
-        pytest.skip("private local TTT hanger fixture is unavailable")
+def test_ttt_hanger_step_has_main_blank_and_formed_tabs():
+    source = Path(__file__).parent / "corpus" / "ttt_inputs" / "sm-hanger.step"
     (sheet,) = recognise_sheet_metal_bodies(import_step_geometry(source))
     assert sheet.thickness == pytest.approx(4, abs=1e-5)
-    assert len(sheet.flanges) == 11
-    assert len(sheet.bends) == 12
-    assert len(sheet.flat_pattern.tree_bends) == 10
-    assert len(sheet.flat_pattern.cycle_bends) == 2
+    assert len(sheet.flanges) == 7
+    assert len(sheet.bends) == 6
+    assert len(sheet.flat_pattern.tree_bends) == 6
+    assert len(sheet.flat_pattern.flat_faces) == 9
+    assert len(sheet.flat_pattern.bend_strips) == 10
+    assert len(sheet.formed_features) == 2
+    assert all(feature.paired_faces for feature in sheet.formed_features)

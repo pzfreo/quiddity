@@ -154,6 +154,9 @@ NO_MEMBERSHIP_RATIONALE = {
     "SheetFlange": "Nested planar flange region in SheetMetalBody.",
     "SheetBend": "Nested cylindrical bend geometry in SheetMetalBody.",
     "FlatPatternPlan": "Nested unfolding traversal in SheetMetalBody.",
+    "FormedSheetFeature": "Nested partial forming region in SheetMetalBody.",
+    "UnfoldedFlangeFace": "Nested flat face triangulation in FlatPatternPlan.",
+    "UnfoldedBendStrip": "Nested developed bend segment in FlatPatternPlan.",
 }
 
 

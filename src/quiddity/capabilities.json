@@ -2577,12 +2577,22 @@
               "type": "int",
               "units": "none"
             },
-            "cycle_bends": {
+            "bend_strips": {
               "required": true,
-              "type": "list[int]",
-              "units": "mm"
+              "type": "list[record:UnfoldedBendStrip]",
+              "units": "none"
+            },
+            "flat_faces": {
+              "required": true,
+              "type": "list[record:UnfoldedFlangeFace]",
+              "units": "none"
             },
             "k_factor": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "tessellation_tolerance": {
               "required": true,
               "type": "float",
               "units": "mm"
@@ -2595,6 +2605,26 @@
           },
           "name": "FlatPatternPlan",
           "qualified_name": "quiddity.FlatPatternPlan",
+          "role": "nested",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [],
+          "aggregate_membership_rationale": "Nested partial forming region in SheetMetalBody.",
+          "fields": {
+            "faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            },
+            "paired_faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            }
+          },
+          "name": "FormedSheetFeature",
+          "qualified_name": "quiddity.FormedSheetFeature",
           "role": "nested",
           "schema_version": 1
         },
@@ -2622,19 +2652,14 @@
               "type": "float",
               "units": "mm"
             },
-            "face_pair": {
+            "face_pairs": {
               "required": true,
-              "type": "record:WallFacePair",
+              "type": "list[record:WallFacePair]",
               "units": "none"
             },
             "first_flange": {
               "required": true,
               "type": "int",
-              "units": "none"
-            },
-            "fold_direction": {
-              "required": true,
-              "type": "str",
               "units": "none"
             },
             "index": {
@@ -2651,6 +2676,11 @@
               "required": true,
               "type": "float",
               "units": "mm"
+            },
+            "reference_skin": {
+              "required": true,
+              "type": "str",
+              "units": "none"
             },
             "second_flange": {
               "required": true,
@@ -2692,10 +2722,10 @@
               "type": "tuple[float,3]",
               "units": "mm"
             },
-            "reference_face": {
+            "reference_faces": {
               "required": true,
-              "type": "int",
-              "units": "none"
+              "type": "list[int]",
+              "units": "mm"
             }
           },
           "name": "SheetFlange",
@@ -2743,6 +2773,11 @@
               "type": "record:FlatPatternPlan",
               "units": "none"
             },
+            "formed_features": {
+              "required": true,
+              "type": "list[record:FormedSheetFeature]",
+              "units": "none"
+            },
             "paired_area_fraction": {
               "required": true,
               "type": "float",
@@ -2757,16 +2792,66 @@
               "required": true,
               "type": "float",
               "units": "mm"
-            },
-            "unresolved_faces": {
-              "required": true,
-              "type": "list[int]",
-              "units": "mm"
             }
           },
           "name": "SheetMetalBody",
           "qualified_name": "quiddity.SheetMetalBody",
           "role": "output",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [],
+          "aggregate_membership_rationale": "Nested developed bend segment in FlatPatternPlan.",
+          "fields": {
+            "bend": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "corners": {
+              "required": true,
+              "type": "tuple[tuple[float,2],4]",
+              "units": "mm"
+            },
+            "source_face_pair": {
+              "required": true,
+              "type": "record:WallFacePair",
+              "units": "none"
+            }
+          },
+          "name": "UnfoldedBendStrip",
+          "qualified_name": "quiddity.UnfoldedBendStrip",
+          "role": "nested",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [],
+          "aggregate_membership_rationale": "Nested flat face triangulation in FlatPatternPlan.",
+          "fields": {
+            "flange": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "source_face": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "triangles": {
+              "required": true,
+              "type": "list[tuple[int,3]]",
+              "units": "mm"
+            },
+            "vertices": {
+              "required": true,
+              "type": "list[tuple[float,2]]",
+              "units": "mm"
+            }
+          },
+          "name": "UnfoldedFlangeFace",
+          "qualified_name": "quiddity.UnfoldedFlangeFace",
+          "role": "nested",
           "schema_version": 1
         }
       ],
