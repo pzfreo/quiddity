@@ -2559,7 +2559,7 @@
         "tests/sheet_metal_expected.json"
       ],
       "id": "sheet-metal-bodies",
-      "introduced_in": "0.3.4",
+      "introduced_in": "0.3.5",
       "recognisers": [
         {
           "entry_point": "quiddity.recognise_sheet_metal_bodies",
@@ -3069,7 +3069,7 @@
         "tests/thin_wall_expected.json"
       ],
       "id": "thin-wall-bodies",
-      "introduced_in": "0.3.4",
+      "introduced_in": "0.3.5",
       "recognisers": [
         {
           "entry_point": "quiddity.recognise_thin_wall_bodies",
