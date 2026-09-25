@@ -453,6 +453,12 @@ def _discover_section_passages(
         ]
     ] = []
     for proposal in proposals:
+        if (
+            sink is not None
+            and graph.local_degradation
+            and graph.common_valid_solid(proposal.constituent or proposal.nodes) is None
+        ):
+            continue
         full_precision_projection = _proposal_legacy_projection(proposal)
         full_precision_passage = (
             passage_from_view(

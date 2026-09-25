@@ -566,9 +566,14 @@ def _discover_blends(
         )
     )
     if writer is not None:
-        for proposal in proposals:
-            if writer.graph.common_valid_solid(proposal.nodes) is None:
-                raise ValueError("blend defining faces do not belong to one valid solid")
+        if writer.graph.local_degradation:
+            proposals = [
+                proposal
+                for proposal in proposals
+                if writer.graph.common_valid_solid(proposal.nodes) is not None
+            ]
+        elif any(writer.graph.common_valid_solid(proposal.nodes) is None for proposal in proposals):
+            raise ValueError("blend defining faces do not belong to one valid solid")
         for proposal in proposals:
             writer.add_defining(
                 proposal.record,

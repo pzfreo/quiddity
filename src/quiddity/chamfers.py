@@ -332,6 +332,12 @@ def _discover_chamfers(
             )
     out.sort(key=lambda pair: (pair[0].axis, pair[0].at))
     if ledger is not None:
+        if ledger.graph.local_degradation:
+            out = [
+                (record, face)
+                for record, face in out
+                if ledger.graph.common_valid_solid((ledger.graph.require_node(face),)) is not None
+            ]
         for chamfer, face in out:
             ledger.add_defining(
                 chamfer,

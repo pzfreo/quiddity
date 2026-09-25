@@ -818,7 +818,8 @@ def _discover_polygonal_bosses(
             raise ValueError("a Polygonal Boss requires four or six distinct original side faces")
         if used & resolved:
             raise ValueError("Polygonal Boss occurrences share defining side faces")
-        used.update(resolved)
+        if bridge.local_degradation and not bridge.proves_solid(refs):
+            continue
         bridge.validate_defining(refs)
         if proposal.terminal_cap is None:
             raise ValueError("a Polygonal Boss requires one retained terminal cap")
@@ -826,7 +827,10 @@ def _discover_polygonal_bosses(
         if len(terminal) != 1 or terminal[0] in resolved:
             raise ValueError("Polygonal Boss terminal cap identity is unavailable")
         constituent: tuple[FaceRef, ...] = (*refs, *terminal)
+        if bridge.local_degradation and not bridge.proves_solid(constituent):
+            continue
         bridge.validate_defining(constituent)
+        used.update(resolved)
         pending.append((record, refs, constituent))
     for record, refs, constituent in pending:
         bridge.add_defining(
@@ -835,7 +839,7 @@ def _discover_polygonal_bosses(
             family=FamilyId.POLYGONAL_BOSSES,
             constituent=constituent,
         )
-    return records
+    return [record for record, _refs, _constituent in pending]
 
 
 def recognise_polygonal_stock(
@@ -906,11 +910,13 @@ def _discover_polygonal_stock(
         refs = bridge.refs((*proposal.side_faces, proposal.lower_cap, proposal.upper_cap))
         if len(refs) != 8 or set(refs) != set(bridge.geometry.faces):
             raise ValueError("Polygonal Stock requires its complete eight-face graph inventory")
+        if bridge.local_degradation and not bridge.proves_solid(refs):
+            continue
         bridge.validate_defining(refs)
         pending.append((record, refs))
     for record, refs in pending:
         bridge.add_defining(record, refs, family=FamilyId.POLYGONAL_STOCK)
-    return records
+    return [record for record, _refs in pending]
 
 
 # What this module's two families declare about themselves; `_registry` decides where they run.

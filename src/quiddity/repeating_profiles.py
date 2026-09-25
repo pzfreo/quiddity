@@ -461,6 +461,8 @@ def _discover_repeating_radial_profiles(
                     "repeating radial profile source face is reused by another occurrence"
                 )
             if writer.graph.common_valid_solid(nodes) is None:
+                if writer.graph.local_degradation:
+                    continue
                 raise _RepeatingRadialAttributionError(
                     "repeating radial profile faces do not prove one valid solid"
                 )
@@ -478,7 +480,7 @@ def _discover_repeating_radial_profiles(
     # pretend it can transact or roll back arbitrary failures injected into the issuer itself.
     for record, nodes in pending:
         writer.add_defining(record, nodes, family=FamilyId.REPEATING_RADIAL_PROFILES)
-    return records
+    return [record for record, _nodes in pending]
 
 
 def recognise_repeating_radial_profiles(

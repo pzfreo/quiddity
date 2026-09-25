@@ -117,7 +117,10 @@ def enrich_edit_document(
                 if touch(owner, dependent):
                     link(owner, dependent, "edge_treatment")
             elif (
-                kind in {"BossRecord", "PolygonalBoss", "Pocket", "Groove"}
+                (
+                    kind in {"BossRecord", "PolygonalBoss", "Groove", "SectionRecess"}
+                    or kind.endswith("Pocket")
+                )
                 and other_kind == "HoleRecord"
                 and touch(owner, dependent)
             ):

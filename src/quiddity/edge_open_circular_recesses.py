@@ -451,6 +451,12 @@ def _discover_edge_open_circular_pockets(
     found.sort(key=lambda item: item[0])
     if ledger is not None:
         writer = ledger.writer if isinstance(ledger, ClaimLedger) else ledger
+        if writer.graph.local_degradation:
+            found = [
+                item
+                for item in found
+                if writer.graph.common_valid_solid((*item[1], item[2])) is not None
+            ]
         for record, walls, floor in found:
             writer.add_defining(
                 record,

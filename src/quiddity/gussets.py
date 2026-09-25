@@ -303,6 +303,13 @@ def _discover_gusset_ribs(
         ]
     proposals.sort(key=lambda item: item[0])
     if sink is not None:
+        if graph.local_degradation:
+            proposals = [
+                item
+                for item in proposals
+                if graph.common_valid_solid(tuple(graph.require_node(face) for face in item[1]))
+                is not None
+            ]
         for record, defining, _ in proposals:
             sink.propose(
                 FamilyId.GUSSET_RIBS,

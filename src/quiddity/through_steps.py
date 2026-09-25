@@ -359,10 +359,12 @@ def _recognise_one(
             nodes = frozenset((*left.nodes, *right.nodes))
             if nodes in claimed:
                 continue
-            claimed.add(nodes)
             ordered = tuple(node for node in graph.nodes if node in nodes)
             if graph.common_valid_solid(ordered) is None:
+                if graph.local_degradation:
+                    continue
                 raise ValueError("ThroughStep defining faces do not belong to one valid solid")
+            claimed.add(nodes)
             at = tuple(sum(spans[_AXES[axis]]) / 2 for axis in range(3))
             rounded = tuple((round(point[0], 3), round(point[1], 3)) for point in section)
             record = ThroughStep(
@@ -405,9 +407,12 @@ def _discover_through_steps(
     if sink is not None:
         # Validate the complete batch before the first append-only issuance. A stale or foreign
         # node in a later occurrence must not leave an earlier partial family prefix.
-        for _record, nodes in proposals:
-            if graph.common_valid_solid(nodes) is None:
-                raise ValueError("ThroughStep defining faces do not belong to one valid solid")
+        if graph.local_degradation:
+            proposals = [
+                item for item in proposals if graph.common_valid_solid(item[1]) is not None
+            ]
+        elif any(graph.common_valid_solid(nodes) is None for _record, nodes in proposals):
+            raise ValueError("ThroughStep defining faces do not belong to one valid solid")
         for record, nodes in proposals:
             sink.propose(FamilyId.THROUGH_STEPS, record, defining=nodes)
     return [record for record, _nodes in proposals]
