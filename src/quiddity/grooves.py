@@ -373,6 +373,8 @@ def _discover_grooves(
             node = ledger.graph.require_node(face)
             owner = ledger.graph.common_valid_solid((node,))
             if owner is None:
+                if ledger.graph.local_degradation:
+                    continue
                 raise ValueError("groove evidence has no common valid solid")
             assert groove.profile is not None
             previous = profile_owners.setdefault(groove.profile, owner)

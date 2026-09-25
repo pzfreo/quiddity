@@ -123,6 +123,8 @@ def _discover_slots(
                 writer.graph.face(node)
             solid = writer.graph.common_valid_solid(nodes)
             if solid is None:
+                if writer.graph.local_degradation:
+                    continue
                 raise _SlotAttributionError("Slot source faces do not prove one valid solid")
             duplicate = False
             for other_record, other_nodes, other_solid in pending:
@@ -236,6 +238,8 @@ def _discover_pockets(
                 writer.graph.face(node)
             solid = writer.graph.common_valid_solid(members)
             if solid is None:
+                if writer.graph.local_degradation:
+                    continue
                 raise _PocketAttributionError("Pocket source faces do not prove one valid solid")
             staged.append((proposal.record, nodes, members, solid))
     except _PocketAttributionError:
@@ -332,6 +336,8 @@ def _discover_channels(
             writer.graph.face(nodes[1])
             members = (*nodes, *proposal.floor)
             if writer.graph.common_valid_solid(members) is None:
+                if writer.graph.local_degradation:
+                    continue
                 raise ValueError("Channel faces do not prove one valid solid")
             pending.append((proposal.record, nodes, members))
         for record, nodes, members in pending:
@@ -341,4 +347,8 @@ def _discover_channels(
                 family=FamilyId.CHANNELS,
                 constituent=members,
             )
-    return [proposal.record for proposal in retained]
+    return (
+        [record for record, _nodes, _members in pending]
+        if writer is not None
+        else [proposal.record for proposal in retained]
+    )

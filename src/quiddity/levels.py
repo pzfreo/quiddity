@@ -362,11 +362,17 @@ def _discover_step_levels(part: Part, *, writer: EvidenceWriter) -> list[FaceLev
         )
         for proposal in accepted
     )
-    if any(writer.graph.common_valid_solid(nodes) is None for _record, nodes in pending):
+    if writer.graph.local_degradation:
+        pending = tuple(
+            (record, nodes)
+            for record, nodes in pending
+            if writer.graph.common_valid_solid(nodes) is not None
+        )
+    elif any(writer.graph.common_valid_solid(nodes) is None for _record, nodes in pending):
         raise ValueError("FaceLevel defining faces have no unambiguous valid solid")
     for record, nodes in pending:
         writer.sink.propose(FamilyId.STEP_LEVELS, record, defining=nodes)
-    return [proposal.record for proposal in accepted]
+    return [record for record, _nodes in pending]
 
 
 def step_level_zs(part: Part, *, tol: float | None = None) -> list[float]:
@@ -620,6 +626,8 @@ def _discover_risers(
             nodes = tuple(writer.graph.require_node(face) for face in proposal.faces)
             solid = writer.graph.common_valid_solid(nodes)
             if solid is None:  # pragma: no cover - graph-bound nodes retain one valid owner
+                if writer.graph.local_degradation:
+                    continue
                 raise ValueError("Riser defining faces have no unambiguous valid solid")
             record = replace(
                 proposal.record,

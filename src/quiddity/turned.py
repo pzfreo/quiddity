@@ -351,17 +351,26 @@ def _discover_turned_steps(
             for step, over in proposals
         ]
         profile_owners: dict[TurnedProfileKey, object] = {}
+        kept = []
         for step, nodes in pending:
             owner = ledger.graph.common_valid_solid(nodes)
             if owner is None:
+                if ledger.graph.local_degradation:
+                    continue
                 raise ValueError("turned step evidence has no common valid solid")
             assert step.profile is not None
             previous = profile_owners.setdefault(step.profile, owner)
             if previous != owner:
                 raise ValueError("turned profile key identifies multiple valid solids")
+            kept.append((step, nodes))
+        pending = kept
         for step, nodes in pending:
             ledger.add_defining(step, nodes, family=FamilyId.TURNED_STEPS)
-    found = [step for step, _over in proposals]
+    found = (
+        [step for step, _over in proposals]
+        if ledger is None
+        else [step for step, _nodes in pending]
+    )
     return sorted(
         found,
         key=lambda step: (

@@ -49,9 +49,18 @@ class GeometryEvidenceBridge:
     def validate_defining(self, refs: Iterable[FaceRef]) -> None:
         """Validate a complete publication batch before any candidate is issued."""
 
-        nodes = tuple(self.geometry._node(ref) for ref in refs)
-        if self._writer.graph.common_valid_solid(nodes) is None:
+        if not self.proves_solid(refs):
             raise ValueError("defining faces do not belong to one valid solid")
+
+    def proves_solid(self, refs: Iterable[FaceRef]) -> bool:
+        """Whether this exact face set retains one graph-issued solid proof."""
+        nodes = tuple(self.geometry._node(ref) for ref in refs)
+        return self._writer.graph.common_valid_solid(nodes) is not None
+
+    @property
+    def local_degradation(self) -> bool:
+        """Whether invalid regions are isolated during this recognition run."""
+        return self._writer.graph.local_degradation
 
 
 __all__: list[str] = []

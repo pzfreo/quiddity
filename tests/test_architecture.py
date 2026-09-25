@@ -53,6 +53,8 @@ PUBLIC_MODULES = {
     "slots",
     "step_io",
     "through_steps",
+    "thin_walls",
+    "sheet_metal",
     "turned",
 }
 
@@ -465,6 +467,8 @@ MODULE_SEAM_EDGES = {
         "pads",
         "paired_ramp_steps",
         "through_steps",
+        "thin_walls",
+        "sheet_metal",
         "passages",
         "plates",
         "polygonal_bosses",
@@ -656,6 +660,26 @@ MODULE_SEAM_EDGES = {
         "_typing",
         "turned",
     },
+    "thin_walls": {
+        "_adjacency",
+        "_body_identity",
+        "_candidates",
+        "_claims",
+        "_definitions",
+        "_geometry",
+        "_record",
+        "_solid_properties",
+        "_typing",
+    },
+    "sheet_metal": {
+        "_adjacency",
+        "_candidates",
+        "_definitions",
+        "_geometry",
+        "_record",
+        "_typing",
+        "thin_walls",
+    },
     "prismatic_pockets": {
         "_adjacency",
         "_candidates",
@@ -756,6 +780,8 @@ MODULE_SEAM_EDGES = {
         "round_bottom_slots",
         "slots",
         "through_steps",
+        "thin_walls",
+        "sheet_metal",
         "turned",
     },
     # Projections and public facades over the one result (ADR 0003/0005).
@@ -769,7 +795,8 @@ MODULE_SEAM_EDGES = {
     },
     "frames": {"_cylinder_substrate", "_geometry", "_typing", "evidence", "explanations", "result"},
     "capabilities": {"_manifest"},
-    "document": {"_typing", "evidence", "frames"},
+    "_edit_document": {"_adjacency", "_geometry", "evidence"},
+    "document": {"_adjacency", "_edit_document", "_typing", "evidence", "frames"},
     "cli": {"_typing", "capabilities", "document"},
 }
 

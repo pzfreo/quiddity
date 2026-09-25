@@ -184,11 +184,13 @@ class PreparedFramedPart:
         )
 
     def recognise_evidence(
-        self, *, rotational: bool = False
+        self, *, rotational: bool = False, local_degradation: bool = False
     ) -> FramedRecognitionEvidence[PartFrame] | RefusedFramedEvidence[FramedRecognitionResult]:
         """Run the aggregate once and pair accepted evidence to local and caller faces."""
 
-        return _build_prepared_framed_recognition_evidence(self, rotational=rotational)
+        return _build_prepared_framed_recognition_evidence(
+            self, rotational=rotational, local_degradation=local_degradation
+        )
 
 
 FrameInference = PartFrame | RefusedPartFrame
@@ -426,6 +428,7 @@ def _build_prepared_framed_recognition_evidence(
     prepared: PreparedFramedPart,
     *,
     rotational: bool = False,
+    local_degradation: bool = False,
 ) -> FramedRecognitionEvidence[PartFrame] | RefusedFramedEvidence[FramedRecognitionResult]:
     caller_part = prepared._caller_part
     placement = prepared._placement
@@ -435,7 +438,17 @@ def _build_prepared_framed_recognition_evidence(
     if bijection is None:
         return RefusedFramedEvidence(FramedEvidenceRefusalReason.CALLER_FACE_MAPPING_UNAVAILABLE)
     cylinders = (list(prepared.cylinders[0]), list(prepared.cylinders[1]))
-    product = _take_inventory(cast(Part, prepared.part), cylinders=cylinders, rotational=rotational)
+    if local_degradation:
+        product = _take_inventory(
+            cast(Part, prepared.part),
+            cylinders=cylinders,
+            rotational=rotational,
+            local_degradation=True,
+        )
+    else:
+        product = _take_inventory(
+            cast(Part, prepared.part), cylinders=cylinders, rotational=rotational
+        )
     evidence = _project_recognition_evidence(product)
     completed = FramedRecognitionResult(prepared.frame, prepared.part, product.result)
     pairs: list[tuple[FaceRef, FaceLike]] = []
@@ -475,16 +488,21 @@ def build_framed_recognition_result(part: Part, *, rotational: bool = False) -> 
     return prepared.recognise(rotational=rotational)
 
 
-def build_framed_recognition_evidence(part: Part, *, rotational: bool = False) -> FramedEvidence:
+def build_framed_recognition_evidence(
+    part: Part, *, rotational: bool = False, local_degradation: bool = False
+) -> FramedEvidence:
     """Recognise once in an inferred local frame with exact caller-face evidence.
 
     The caller must not mutate *part* while using a successful returned view.
+    ``local_degradation`` is an explicit opt-in for a solid/shell whose only invalidity is
+    at most three diagnosable bad faces. Candidates touching those faces or their immediate
+    edge neighbours are refused; the document builder marks that region as not proven.
     """
 
     prepared = prepare_framed_part(part)
     if isinstance(prepared, RefusedPartFrame):
         return prepared
-    return prepared.recognise_evidence(rotational=rotational)
+    return prepared.recognise_evidence(rotational=rotational, local_degradation=local_degradation)
 
 
 def build_framed_recognition_report(part: Part, *, rotational: bool = False) -> FramedReport:

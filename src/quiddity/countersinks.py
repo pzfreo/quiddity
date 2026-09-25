@@ -285,11 +285,21 @@ def _discover_countersinks(
         pending = tuple(
             (proposal.record, writer.graph.require_node(proposal.face)) for proposal in out
         )
-        if any(writer.graph.common_valid_solid((node,)) is None for _record, node in pending):
+        if writer.graph.local_degradation:
+            pending = tuple(
+                (record, node)
+                for record, node in pending
+                if writer.graph.common_valid_solid((node,)) is not None
+            )
+        elif any(writer.graph.common_valid_solid((node,)) is None for _record, node in pending):
             raise ValueError("countersink defining face has no unambiguous valid solid")
         for record, node in pending:
             writer.sink.propose(FamilyId.COUNTERSINKS, record, defining=(node,))
-    return [proposal.record for proposal in out]
+    return (
+        [record for record, _node in pending]
+        if writer is not None
+        else [proposal.record for proposal in out]
+    )
 
 
 # What this family declares about itself; `_registry` decides where it runs.

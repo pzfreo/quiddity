@@ -205,6 +205,8 @@ def _from_proposals(
             found.append((record, proposal.nodes))
     found.sort(key=lambda item: item[0])
     if sink is not None:
+        if graph.local_degradation:
+            found = [item for item in found if graph.common_valid_solid(item[1]) is not None]
         for record, nodes in found:
             sink.propose(FamilyId.ORIENTED_SLOTS, record, defining=nodes)
     return [record for record, _nodes in found]
@@ -299,6 +301,11 @@ def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[obje
         if record is None:
             continue
         defining = occurrence.defining()
+        if (
+            services.context.graph.local_degradation
+            and services.context.graph.common_valid_solid(defining) is None
+        ):
+            continue
         services.writer.sink.propose(FamilyId.ORIENTED_SLOTS, record, defining=defining)
         found.append(record)
     found.sort()

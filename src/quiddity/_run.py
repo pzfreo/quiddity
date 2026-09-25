@@ -66,6 +66,7 @@ def start(
     cylinders: CylinderInventory | None = None,
     *,
     rotational: bool = False,
+    local_degradation: bool = False,
 ) -> RecognitionContext:
     """Derive the shared state for one run over *part*.
 
@@ -80,7 +81,7 @@ def start(
     """
 
     face_edges = FaceEdges()
-    graph = FaceGraph(part, face_edges=face_edges)
+    graph = FaceGraph(part, face_edges=face_edges, local_degradation=local_degradation)
     surfaces = EffectiveSurfaceIndex(graph)
     face_surfaces = effective_faces_for_graph(graph, surfaces)
     derived = (

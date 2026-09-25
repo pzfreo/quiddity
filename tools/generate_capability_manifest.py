@@ -149,6 +149,14 @@ NO_MEMBERSHIP_RATIONALE = {
     "OpenSectionOpening": "Nested only in OpenPolygonalSection.",
     "OpenCircularSection": "Nested only in EdgeOpenCircularPocket.",
     "OpenCircularSectionSegment": "Nested only in OpenCircularSection.",
+    "WallFacePair": "Nested only in ThinWallBody.",
+    "ShellHistoryHint": "Nested heuristic interpretation in ThinWallBody.",
+    "SheetFlange": "Nested planar flange region in SheetMetalBody.",
+    "SheetBend": "Nested cylindrical bend geometry in SheetMetalBody.",
+    "FlatPatternPlan": "Nested unfolding traversal in SheetMetalBody.",
+    "FormedSheetFeature": "Nested partial forming region in SheetMetalBody.",
+    "UnfoldedFlangeFace": "Nested flat face triangulation in FlatPatternPlan.",
+    "UnfoldedBendStrip": "Nested developed bend segment in FlatPatternPlan.",
 }
 
 
@@ -216,6 +224,9 @@ def _units(field: dataclasses.Field, annotation: object) -> str:
             "low_gradient",
             "high_gradient",
             "material_side",
+            "paired_area_fraction",
+            "rim_regions",
+            "unpaired_faces",
         }
         or rendered in {"bool", "int", "str"}
         or rendered.startswith("record:")

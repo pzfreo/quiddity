@@ -317,14 +317,24 @@ def _discover_fillets(
             )
             for proposal in out
         )
-        if any(
+        if writer.graph.local_degradation:
+            pending = tuple(
+                (record, node, consulted)
+                for record, node, consulted in pending
+                if writer.graph.common_valid_solid((node, *consulted)) is not None
+            )
+        elif any(
             writer.graph.common_valid_solid((node, *consulted)) is None
             for _record, node, consulted in pending
         ):
             raise ValueError("fillet defining face has no unambiguous valid solid")
         for record, node, _consulted in pending:
             writer.sink.propose(FamilyId.FILLETS, record, defining=(node,))
-    return [proposal.record for proposal in out]
+    return (
+        [record for record, _node, _consulted in pending]
+        if writer is not None
+        else [proposal.record for proposal in out]
+    )
 
 
 # What this family declares about itself; `_registry` decides where it runs.

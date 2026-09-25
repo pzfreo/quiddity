@@ -433,6 +433,10 @@ def _discover_plates(
                 high = frozenset(writer.graph.require_node(face) for face in proposal.high_faces)
                 if not low or not high or low & high:
                     raise _PlateAttributionError("Plate role groups are empty or overlap")
+                if writer.graph.local_degradation and any(
+                    writer.graph.common_valid_solid((node,)) is None for node in low | high
+                ):
+                    continue
                 low_by_solid: dict[SolidRef, set[FaceNode]] = {}
                 high_by_solid: dict[SolidRef, set[FaceNode]] = {}
                 for role, owner_groups in ((low, low_by_solid), (high, high_by_solid)):
@@ -467,6 +471,8 @@ def _discover_plates(
                 if used & resolved:
                     raise _PlateAttributionError("Plate occurrences reuse defining faces")
                 if writer.graph.common_valid_solid(nodes) is None:
+                    if writer.graph.local_degradation:
+                        continue
                     raise _PlateAttributionError(
                         "Plate defining groups do not prove one valid solid"
                     )

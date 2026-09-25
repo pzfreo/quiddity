@@ -2556,6 +2556,320 @@
         "docs/capabilities.md#proven-recognition-capability"
       ],
       "golden_evidence": [
+        "tests/sheet_metal_expected.json"
+      ],
+      "id": "sheet-metal-bodies",
+      "introduced_in": "0.3.4",
+      "recognisers": [
+        {
+          "entry_point": "quiddity.recognise_sheet_metal_bodies",
+          "kind": "part",
+          "role": "physical"
+        }
+      ],
+      "records": [
+        {
+          "aggregate_membership": [],
+          "aggregate_membership_rationale": "Nested unfolding traversal in SheetMetalBody.",
+          "fields": {
+            "base_flange": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "bend_strips": {
+              "required": true,
+              "type": "list[record:UnfoldedBendStrip]",
+              "units": "none"
+            },
+            "flat_faces": {
+              "required": true,
+              "type": "list[record:UnfoldedFlangeFace]",
+              "units": "none"
+            },
+            "k_factor": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "tessellation_tolerance": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "tree_bends": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            }
+          },
+          "name": "FlatPatternPlan",
+          "qualified_name": "quiddity.FlatPatternPlan",
+          "role": "nested",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [],
+          "aggregate_membership_rationale": "Nested partial forming region in SheetMetalBody.",
+          "fields": {
+            "faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            },
+            "paired_faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            }
+          },
+          "name": "FormedSheetFeature",
+          "qualified_name": "quiddity.FormedSheetFeature",
+          "role": "nested",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [],
+          "aggregate_membership_rationale": "Nested cylindrical bend geometry in SheetMetalBody.",
+          "fields": {
+            "angle_degrees": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "axis_direction": {
+              "required": true,
+              "type": "tuple[float,3]",
+              "units": "unit-vector"
+            },
+            "axis_origin": {
+              "required": true,
+              "type": "tuple[float,3]",
+              "units": "mm"
+            },
+            "bend_allowance": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "face_pairs": {
+              "required": true,
+              "type": "list[record:WallFacePair]",
+              "units": "none"
+            },
+            "first_flange": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "index": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "inner_radius": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "neutral_radius": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "reference_skin": {
+              "required": true,
+              "type": "str",
+              "units": "none"
+            },
+            "second_flange": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            }
+          },
+          "name": "SheetBend",
+          "qualified_name": "quiddity.SheetBend",
+          "role": "nested",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [],
+          "aggregate_membership_rationale": "Nested planar flange region in SheetMetalBody.",
+          "fields": {
+            "area": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "index": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "mate_faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            },
+            "normal": {
+              "required": true,
+              "type": "tuple[float,3]",
+              "units": "unit-vector"
+            },
+            "origin": {
+              "required": true,
+              "type": "tuple[float,3]",
+              "units": "mm"
+            },
+            "reference_faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            }
+          },
+          "name": "SheetFlange",
+          "qualified_name": "quiddity.SheetFlange",
+          "role": "nested",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [
+            "RecognitionResult.sheet_metal_bodies"
+          ],
+          "fields": {
+            "bends": {
+              "required": true,
+              "type": "list[record:SheetBend]",
+              "units": "none"
+            },
+            "body_index": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "body_key": {
+              "required": true,
+              "type": "list[float]|null",
+              "units": "none"
+            },
+            "cut_edge_faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            },
+            "first_side_faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            },
+            "flanges": {
+              "required": true,
+              "type": "list[record:SheetFlange]",
+              "units": "none"
+            },
+            "flat_pattern": {
+              "required": true,
+              "type": "record:FlatPatternPlan",
+              "units": "none"
+            },
+            "formed_features": {
+              "required": true,
+              "type": "list[record:FormedSheetFeature]",
+              "units": "none"
+            },
+            "paired_area_fraction": {
+              "required": true,
+              "type": "float",
+              "units": "none"
+            },
+            "second_side_faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            },
+            "thickness": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            }
+          },
+          "name": "SheetMetalBody",
+          "qualified_name": "quiddity.SheetMetalBody",
+          "role": "output",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [],
+          "aggregate_membership_rationale": "Nested developed bend segment in FlatPatternPlan.",
+          "fields": {
+            "bend": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "corners": {
+              "required": true,
+              "type": "tuple[tuple[float,2],4]",
+              "units": "mm"
+            },
+            "source_face_pair": {
+              "required": true,
+              "type": "record:WallFacePair",
+              "units": "none"
+            }
+          },
+          "name": "UnfoldedBendStrip",
+          "qualified_name": "quiddity.UnfoldedBendStrip",
+          "role": "nested",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [],
+          "aggregate_membership_rationale": "Nested flat face triangulation in FlatPatternPlan.",
+          "fields": {
+            "flange": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "source_face": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "triangles": {
+              "required": true,
+              "type": "list[tuple[int,3]]",
+              "units": "mm"
+            },
+            "vertices": {
+              "required": true,
+              "type": "list[tuple[float,2]]",
+              "units": "mm"
+            }
+          },
+          "name": "UnfoldedFlangeFace",
+          "qualified_name": "quiddity.UnfoldedFlangeFace",
+          "role": "nested",
+          "schema_version": 1
+        }
+      ],
+      "status": "supported",
+      "test_evidence": [
+        "tests/test_capability_claims.py",
+        "tests/test_recogniser_contract.py",
+        "tests/test_sheet_metal.py"
+      ]
+    },
+    {
+      "census_name": null,
+      "census_output": null,
+      "census_rationale": "Geometry evidence is deliberately absent from the feature census; the census is not a completeness denominator.",
+      "documentation": [
+        "docs/capabilities.md#proven-recognition-capability"
+      ],
+      "golden_evidence": [
         "tests/golden/straight_and_obround_slots/expected.json"
       ],
       "id": "slot-patterns",
@@ -2742,6 +3056,150 @@
       "test_evidence": [
         "tests/test_capability_claims.py",
         "tests/test_recogniser_contract.py"
+      ]
+    },
+    {
+      "census_name": null,
+      "census_output": null,
+      "census_rationale": "Geometry evidence is deliberately absent from the feature census; the census is not a completeness denominator.",
+      "documentation": [
+        "docs/capabilities.md#proven-recognition-capability"
+      ],
+      "golden_evidence": [
+        "tests/thin_wall_expected.json"
+      ],
+      "id": "thin-wall-bodies",
+      "introduced_in": "0.3.4",
+      "recognisers": [
+        {
+          "entry_point": "quiddity.recognise_thin_wall_bodies",
+          "kind": "part",
+          "role": "physical"
+        }
+      ],
+      "records": [
+        {
+          "aggregate_membership": [],
+          "aggregate_membership_rationale": "Nested heuristic interpretation in ThinWallBody.",
+          "fields": {
+            "after_shell_cut_faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            },
+            "basis": {
+              "required": true,
+              "type": "str",
+              "units": "none"
+            },
+            "before_shell_collar_pairs": {
+              "required": true,
+              "type": "list[record:WallFacePair]",
+              "units": "none"
+            },
+            "direction": {
+              "required": true,
+              "type": "str|null",
+              "units": "mm"
+            },
+            "inner_faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            },
+            "opening_rims": {
+              "required": true,
+              "type": "list[list[int]]",
+              "units": "mm"
+            },
+            "outer_faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            }
+          },
+          "name": "ShellHistoryHint",
+          "qualified_name": "quiddity.ShellHistoryHint",
+          "role": "nested",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [
+            "RecognitionResult.thin_wall_bodies"
+          ],
+          "fields": {
+            "body_index": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "body_key": {
+              "required": true,
+              "type": "list[float]|null",
+              "units": "none"
+            },
+            "face_pairs": {
+              "required": true,
+              "type": "list[record:WallFacePair]",
+              "units": "none"
+            },
+            "history_hint": {
+              "required": true,
+              "type": "record:ShellHistoryHint",
+              "units": "none"
+            },
+            "paired_area_fraction": {
+              "required": true,
+              "type": "float",
+              "units": "none"
+            },
+            "rim_regions": {
+              "required": true,
+              "type": "list[list[int]]",
+              "units": "none"
+            },
+            "thickness": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "unpaired_faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "none"
+            }
+          },
+          "name": "ThinWallBody",
+          "qualified_name": "quiddity.ThinWallBody",
+          "role": "output",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [],
+          "aggregate_membership_rationale": "Nested only in ThinWallBody.",
+          "fields": {
+            "first_face": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "second_face": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            }
+          },
+          "name": "WallFacePair",
+          "qualified_name": "quiddity.WallFacePair",
+          "role": "nested",
+          "schema_version": 1
+        }
+      ],
+      "status": "supported",
+      "test_evidence": [
+        "tests/test_capability_claims.py",
+        "tests/test_recogniser_contract.py",
+        "tests/test_thin_walls.py"
       ]
     },
     {

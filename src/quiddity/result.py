@@ -53,6 +53,7 @@ from quiddity._reconcile import (
     reconcile_profiled_bore_candidates,
     reconcile_recess_candidates,
     reconcile_step_groove_candidates,
+    reconcile_thin_wall_candidates,
 )
 from quiddity._registry import (
     DERIVED_DEFINITIONS,
@@ -122,6 +123,7 @@ from quiddity.profiled_bores import DoubleDBore
 from quiddity.rectangular_blind_slots import RectangularBlindSlot
 from quiddity.repeating_profiles import RepeatingRadialProfile
 from quiddity.round_bottom_slots import RoundBottomBlindSlot
+from quiddity.sheet_metal import SheetMetalBody
 from quiddity.slots import (
     Channel,
     Pocket,
@@ -131,6 +133,7 @@ from quiddity.slots import (
     SlotArray,
     SlotGrid,
 )
+from quiddity.thin_walls import ThinWallBody
 from quiddity.through_steps import ThroughStep
 from quiddity.turned import TurnedProfile, TurnedStep
 
@@ -367,6 +370,8 @@ class RecognitionResult:
     blends: tuple[Blend, ...]
     fillets: tuple[Fillet, ...]
     plates: tuple[Plate, ...]
+    thin_wall_bodies: tuple[ThinWallBody, ...]
+    sheet_metal_bodies: tuple[SheetMetalBody, ...]
 
     @property
     def turned_profiles(self) -> tuple[TurnedProfile, ...]:
@@ -517,10 +522,11 @@ def _take_inventory(
     *,
     cylinders: CylinderInventory | None = None,
     rotational: bool = False,
+    local_degradation: bool = False,
 ) -> InventoryProduct:
     """Run the explicit physical, reconciliation, derived and projection phases once."""
 
-    context = start(part, cylinders, rotational=rotational)
+    context = start(part, cylinders, rotational=rotational, local_degradation=local_degradation)
     ledger = ClaimLedger(context.graph, definitions=PHYSICAL_DEFINITIONS)
     physical = CandidateInventory.complete(_discover_all(context, ledger))
     evidence = ledger.freeze_index()
@@ -665,6 +671,18 @@ def _reconcile_existing(
         physical.candidate_set(FamilyId.PASSAGES),
         physical.candidate_set(FamilyId.ORIENTED_SLOTS),
         evidence,
+    )
+    already_decided = {id(item.candidate) for item in decisions}
+    decisions += tuple(
+        item
+        for item in reconcile_thin_wall_candidates(
+            physical.candidate_set(FamilyId.THIN_WALL_BODIES),
+            physical.candidate_set(FamilyId.PLATES),
+            physical.candidate_set(FamilyId.BOSSES),
+            physical.candidate_set(FamilyId.RISERS),
+            evidence,
+        )
+        if id(item.candidate) not in already_decided
     )
     return CandidateReconciliation.complete(
         tuple(physical.candidate_set(family) for family in PHYSICAL_FAMILIES),

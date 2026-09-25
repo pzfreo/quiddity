@@ -55,6 +55,11 @@ class BossRecord(Record):
     diameter: float
     height: float
 
+    @property
+    def length(self) -> float:
+        """Length along the boss axis."""
+        return self.height
+
 
 @dataclass(frozen=True, slots=True)
 class _BossProposal:
@@ -146,6 +151,8 @@ def _discover_bosses(
             resolved = {writer.graph.require_node(face) for face in proposal.segment_faces}
             nodes = tuple(node for node in writer.graph.nodes if node in resolved)
             if not nodes:
+                if writer.graph.local_degradation:
+                    continue
                 raise ValueError("Boss defining faces do not prove one valid solid")
             terminal_resolved = {
                 writer.graph.require_node(face) for face in proposal.terminal_faces
@@ -156,6 +163,8 @@ def _discover_bosses(
             members = (*nodes, *terminal_nodes)
             solid = writer.graph.common_valid_solid(members)
             if solid is None:
+                if writer.graph.local_degradation:
+                    continue
                 raise ValueError("Boss defining faces do not prove one valid solid")
             pending.append((proposal.record, nodes, members))
         issued_pending: list[

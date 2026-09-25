@@ -294,6 +294,8 @@ def _discover_paired_ramp_steps(
                 found.append((record, left, right, terminal))
     found.sort(key=lambda item: item[0])
     if sink is not None:
+        if graph.local_degradation:
+            found = [item for item in found if graph.common_valid_solid(item[1:]) is not None]
         for record, left, right, terminal in found:
             sink.propose(
                 FamilyId.PAIRED_RAMP_STEPS,
