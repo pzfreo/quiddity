@@ -49,6 +49,16 @@ def test_formed_bracket_has_reconstructible_bend_plan():
     assert len(sheet.flat_pattern.flat_faces) == 2
     assert len(sheet.flat_pattern.bend_strips) == 1
     assert len(sheet.formed_features) == 0
+    flat_area = sum(
+        abs(
+            (strip.corners[1][0] - strip.corners[0][0])
+            * (strip.corners[3][1] - strip.corners[0][1])
+            - (strip.corners[1][1] - strip.corners[0][1])
+            * (strip.corners[3][0] - strip.corners[0][0])
+        )
+        for strip in sheet.flat_pattern.bend_strips
+    )
+    assert flat_area == pytest.approx(sheet.bends[0].bend_allowance * 100)
     assert set(sheet.first_side_faces).isdisjoint(sheet.second_side_faces)
     expected = json.loads(Path(__file__).with_name("sheet_metal_expected.json").read_text())
     assert {
@@ -85,7 +95,8 @@ def test_blind_pocket_cannot_be_explained_as_a_sheet_cut_or_form():
 @pytest.mark.slow
 def test_ttt_hanger_step_has_main_blank_and_formed_tabs():
     source = Path(__file__).parent / "corpus" / "ttt_inputs" / "sm-hanger.step"
-    (sheet,) = recognise_sheet_metal_bodies(import_step_geometry(source))
+    part = import_step_geometry(source)
+    (sheet,) = recognise_sheet_metal_bodies(part)
     assert sheet.thickness == pytest.approx(4, abs=1e-5)
     assert len(sheet.flanges) == 7
     assert len(sheet.bends) == 6
@@ -94,3 +105,15 @@ def test_ttt_hanger_step_has_main_blank_and_formed_tabs():
     assert len(sheet.flat_pattern.bend_strips) == 10
     assert len(sheet.formed_features) == 2
     assert all(feature.paired_faces for feature in sheet.formed_features)
+    main_face = next(face for face in sheet.flat_pattern.flat_faces if face.source_face == 64)
+    area = sum(
+        abs(
+            (main_face.vertices[b][0] - main_face.vertices[a][0])
+            * (main_face.vertices[c][1] - main_face.vertices[a][1])
+            - (main_face.vertices[b][1] - main_face.vertices[a][1])
+            * (main_face.vertices[c][0] - main_face.vertices[a][0])
+        )
+        / 2
+        for a, b, c in main_face.triangles
+    )
+    assert area == pytest.approx(part.faces()[64].area, rel=0.002)

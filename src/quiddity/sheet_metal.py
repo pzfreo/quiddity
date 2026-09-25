@@ -642,9 +642,12 @@ def _flat_pattern_plan(
     if len(placement) != len(flanges):
         return None
 
+    deviations: list[float] = []
+
     def flat(point: Vec3, flange: int) -> Vec2:
         matrix, shift = placement[flange]
         placed = _sub(_add(_matrix_vector(matrix, point), shift), root.origin)
+        deviations.append(abs(_dot(placed, root_normal)))
         return (_dot(placed, x_axis), _dot(placed, y_axis))
 
     flat_faces: list[UnfoldedFlangeFace] = []
@@ -686,6 +689,8 @@ def _flat_pattern_plan(
             strips.append(UnfoldedBendStrip(bend.index, pair, corners))
             triangles.append((-(len(strips)), (corners[0], corners[1], corners[2])))
             triangles.append((-(len(strips)), (corners[0], corners[2], corners[3])))
+    if not deviations or max(deviations) > length_tol(thickness, rel=0.001):
+        return None
     for i, (first_id, first_triangle) in enumerate(triangles):
         first_x = [point[0] for point in first_triangle]
         first_y = [point[1] for point in first_triangle]
