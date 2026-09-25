@@ -191,10 +191,10 @@ valid closed solid.
 
 | Status | Physical families | Reason / next boundary |
 | --- | --- | --- |
-| Fully attributed | `angled_steps`, `bosses`, `chamfers`, `channels`, `circular_blind_steps`, `countersinks`, `double_d_bores`, `edge_open_prismatic_recesses`, `fillets`, `flats`, `grooves`, `gusset_ribs`, `holes`, `pads`, `paired_ramp_steps`, `passages`, `plates`, `pockets`, `polygonal_bosses`, `polygonal_stock`, `prismatic_pockets`, `rectangular_blind_slots`, `repeating_radial_profiles`, `risers`, `round_bottom_blind_slots`, `section_recesses`, `slots`, `step_levels`, `through_steps`, `turned_steps` | Existing writer-enabled paths claim every returned occurrence; the family audits prove exact original owner faces while preserving public output. Polygonal Stock remains stock context and is still deliberately absent from the feature census; Repeating Radial Profiles remain neutral correspondence evidence. Face Levels and Risers retain body-local multiplicity and own their complete same-solid source-face clusters. |
+| Fully attributed | `angled_steps`, `bosses`, `chamfers`, `channels`, `circular_blind_steps`, `countersinks`, `double_d_bores`, `edge_open_prismatic_recesses`, `fillets`, `flats`, `grooves`, `gusset_ribs`, `holes`, `pads`, `paired_ramp_steps`, `passages`, `plates`, `pockets`, `polygonal_bosses`, `polygonal_stock`, `prismatic_pockets`, `rectangular_blind_slots`, `repeating_radial_profiles`, `risers`, `round_bottom_blind_slots`, `section_recesses`, `sheet_metal_bodies`, `slots`, `step_levels`, `thin_wall_bodies`, `through_steps`, `turned_steps` | Existing writer-enabled paths claim every returned occurrence; the family audits prove exact original owner faces while preserving public output. Polygonal Stock remains stock context and is still deliberately absent from the feature census; Repeating Radial Profiles remain neutral correspondence evidence. Face Levels and Risers retain body-local multiplicity and own their complete same-solid source-face clusters. |
 | Incomplete | — | Every current aggregate family has complete original-face attribution. |
 
-The registry is the closed machine-checked authority for these 33 physical families. Per-face
+The registry is the closed machine-checked authority for these 35 physical families. Per-face
 tools consume the completed frozen inventory and report records, Candidates, accepted occurrences,
 attributed occurrences and defining faces separately. Corpus labels are diagnostic comparisons and
 never establish ownership.
@@ -544,6 +544,10 @@ invitation to construct values outside that evidence and call them recognized.
 | `ThinWallBody` | One body-level constant-wall reading with measured thickness, local original-face pair indices, unpaired faces, cut-rim regions, paired-area coverage, and a nested heuristic history hint. |
 | `WallFacePair` | Two original faces separated across material by the dominant wall thickness, nested in `ThinWallBody`. |
 | `ShellHistoryHint` | Heuristic shell direction, outer/inner skin faces, opening rims, pre-shell collar pairs and post-shell cut faces. Unclassified faces are omitted; these values do not assert a unique construction history. |
+| `SheetMetalBody` | One developable, two-sided sheet with thickness, flange and bend records, cut-edge face references and a flat-pattern traversal. |
+| `SheetFlange` | Planar reference skin and opposite-face references, with plane origin, normal and area. |
+| `SheetBend` | Paired cylindrical bend, incident flange indices, axis, angle, inner radius, fold direction and neutral-radius allowance. |
+| `FlatPatternPlan` | Root flange and bend traversal for a stated k-factor; extra bend connections are cycle constraints, and a manufacturing blank is not asserted. |
 | `PolygonalBoss` | One attached regular hexagonal principal-axis boss; `axis` is `"x"`, `"y"` or `"z"`, `side_count=6`, and `base`/`top` are ascending coordinates along that axis. |
 | `PolygonalStock` | One whole regular hexagonal principal-axis prism; `axis` is `"x"`, `"y"` or `"z"`, and `side_count=6`. `base`/`top` are coordinates along that axis while centre and flat geometry remain 3-D in the recognition frame. |
 | `RaisedPad` | One bounded rectangular principal-axis island. XYZ bounds locate the exact local occurrence; `axis` identifies its attachment-to-terminal coordinate and `direction` is `1` or `-1` for the material-outward terminal side. Overlapping axis readings select the unique shortest attachment span; a tied minimum is refused without a world-axis preference. |
