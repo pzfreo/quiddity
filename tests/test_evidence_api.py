@@ -8,10 +8,11 @@ import pickle
 from pathlib import Path
 
 import pytest
-from build123d import Box, Compound, Pos, RegularPolygon, Rot, extrude
+from build123d import Box, Compound, Cylinder, Pos, RegularPolygon, Rot, extrude
 
 import quiddity.evidence as evidence_module
-from quiddity import RecognitionOutcome, ReconciliationReason
+from quiddity import RecognitionOutcome, ReconciliationReason, import_step_geometry
+from quiddity.document import build_recognition_document
 from quiddity.evidence import (
     EVIDENCE_API_FORMAT,
     EVIDENCE_API_FORMAT_VERSION,
@@ -30,6 +31,7 @@ from quiddity.result import build_raw_recognition_result
 
 ROOT = Path(__file__).parents[1]
 MANIFEST = ROOT / "src" / "quiddity" / "evidence_api.json"
+THREADED_CONNECTOR = ROOT / "tests" / "corpus" / "cadgenbench" / "threaded_connector_109.step"
 
 
 def _two_equal_level_bodies() -> Compound:
@@ -179,6 +181,32 @@ def test_rejected_candidates_expose_bounded_faces_and_direct_reconciliation_link
     assert accepted_faces & rejected_faces
     assert rejected_faces - accepted_faces
     assert view.faces - accepted_faces - rejected_faces
+
+
+def test_rejected_boss_links_through_compatible_step_to_groove() -> None:
+    part = Cylinder(10, 40) - (Cylinder(10, 4) - Cylinder(8, 4))
+    view = build_recognition_evidence(part)
+
+    bosses = tuple(
+        candidate
+        for candidate in view.rejected_candidates
+        if view.candidate_reason(candidate) is ReconciliationReason.BOSS_SUPERSEDED_BY_TURNED_STEP
+    )
+    assert bosses
+    steps = tuple(related for boss in bosses for related in view.related_candidates(boss))
+    grooves = tuple(related for step in steps for related in view.related_candidates(step))
+    assert grooves
+    assert all(view.candidate_family(groove) == "grooves" for groove in grooves)
+    assert all(view.candidate_outcome(groove) is RecognitionOutcome.ACCEPTED for groove in grooves)
+    assert any(step in view.related_candidates(groove) for step in steps for groove in grooves)
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(not THREADED_CONNECTOR.exists(), reason="Vendored STEP corpus is absent")
+def test_threaded_connector_document_projects_all_candidate_links() -> None:
+    document = build_recognition_document(import_step_geometry(THREADED_CONNECTOR))
+
+    assert document["features"]
 
 
 def test_rejected_candidate_totals_reconcile_for_every_family() -> None:
