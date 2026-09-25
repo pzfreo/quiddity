@@ -693,11 +693,16 @@ def _project_recognition_evidence(product: InventoryProduct) -> RecognitionEvide
     rejected_dispositions = tuple(
         item for item in dispositions if item.outcome.value == RecognitionOutcome.REJECTED.value
     )
-    projected_candidate_ids = {
-        id(candidate)
-        for disposition in rejected_dispositions
-        for candidate in (disposition.candidate, *disposition.related)
-    }
+    projected_candidate_ids = {id(item.candidate) for item in rejected_dispositions}
+    dispositions_by_id = {id(item.candidate): item for item in dispositions}
+    # Related accepted candidates can have further links, including cycles.
+    pending = list(projected_candidate_ids)
+    while pending:
+        for related in dispositions_by_id[pending.pop()].related:
+            related_id = id(related)
+            if related_id not in projected_candidate_ids:
+                projected_candidate_ids.add(related_id)
+                pending.append(related_id)
     projected_dispositions = tuple(
         item for item in dispositions if id(item.candidate) in projected_candidate_ids
     )

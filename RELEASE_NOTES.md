@@ -1,5 +1,11 @@
 # Release notes
 
+## Unreleased
+
+- Preserve all related candidate links when projecting rejected-candidate evidence, so a
+  rejected boss linked through a compatible turned step to a groove no longer prevents the
+  recognition document from being built (#754).
+
 ## 0.3.5 — Quiddity
 
 - Recognise constant-thickness shelled bodies with source-face wall pairs, openings, rim regions,
