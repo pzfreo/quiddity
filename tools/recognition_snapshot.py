@@ -13,6 +13,7 @@ POST_BASELINE = frozenset(
         "recognise_oriented_slots",
         "recognise_oriented_slot_patterns",
         "recognise_thin_wall_bodies",
+        "recognise_sheet_metal_bodies",
     }
 )
 

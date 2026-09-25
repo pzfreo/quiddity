@@ -2556,6 +2556,235 @@
         "docs/capabilities.md#proven-recognition-capability"
       ],
       "golden_evidence": [
+        "tests/sheet_metal_expected.json"
+      ],
+      "id": "sheet-metal-bodies",
+      "introduced_in": "0.3.4",
+      "recognisers": [
+        {
+          "entry_point": "quiddity.recognise_sheet_metal_bodies",
+          "kind": "part",
+          "role": "physical"
+        }
+      ],
+      "records": [
+        {
+          "aggregate_membership": [],
+          "aggregate_membership_rationale": "Nested unfolding traversal in SheetMetalBody.",
+          "fields": {
+            "base_flange": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "cycle_bends": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            },
+            "k_factor": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "tree_bends": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            }
+          },
+          "name": "FlatPatternPlan",
+          "qualified_name": "quiddity.FlatPatternPlan",
+          "role": "nested",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [],
+          "aggregate_membership_rationale": "Nested cylindrical bend geometry in SheetMetalBody.",
+          "fields": {
+            "angle_degrees": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "axis_direction": {
+              "required": true,
+              "type": "tuple[float,3]",
+              "units": "unit-vector"
+            },
+            "axis_origin": {
+              "required": true,
+              "type": "tuple[float,3]",
+              "units": "mm"
+            },
+            "bend_allowance": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "face_pair": {
+              "required": true,
+              "type": "record:WallFacePair",
+              "units": "none"
+            },
+            "first_flange": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "fold_direction": {
+              "required": true,
+              "type": "str",
+              "units": "none"
+            },
+            "index": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "inner_radius": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "neutral_radius": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "second_flange": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            }
+          },
+          "name": "SheetBend",
+          "qualified_name": "quiddity.SheetBend",
+          "role": "nested",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [],
+          "aggregate_membership_rationale": "Nested planar flange region in SheetMetalBody.",
+          "fields": {
+            "area": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "index": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "mate_faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            },
+            "normal": {
+              "required": true,
+              "type": "tuple[float,3]",
+              "units": "unit-vector"
+            },
+            "origin": {
+              "required": true,
+              "type": "tuple[float,3]",
+              "units": "mm"
+            },
+            "reference_face": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            }
+          },
+          "name": "SheetFlange",
+          "qualified_name": "quiddity.SheetFlange",
+          "role": "nested",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [
+            "RecognitionResult.sheet_metal_bodies"
+          ],
+          "fields": {
+            "bends": {
+              "required": true,
+              "type": "list[record:SheetBend]",
+              "units": "none"
+            },
+            "body_index": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "body_key": {
+              "required": true,
+              "type": "list[float]|null",
+              "units": "none"
+            },
+            "cut_edge_faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            },
+            "first_side_faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            },
+            "flanges": {
+              "required": true,
+              "type": "list[record:SheetFlange]",
+              "units": "none"
+            },
+            "flat_pattern": {
+              "required": true,
+              "type": "record:FlatPatternPlan",
+              "units": "none"
+            },
+            "paired_area_fraction": {
+              "required": true,
+              "type": "float",
+              "units": "none"
+            },
+            "second_side_faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            },
+            "thickness": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "unresolved_faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "mm"
+            }
+          },
+          "name": "SheetMetalBody",
+          "qualified_name": "quiddity.SheetMetalBody",
+          "role": "output",
+          "schema_version": 1
+        }
+      ],
+      "status": "supported",
+      "test_evidence": [
+        "tests/test_capability_claims.py",
+        "tests/test_recogniser_contract.py",
+        "tests/test_sheet_metal.py"
+      ]
+    },
+    {
+      "census_name": null,
+      "census_output": null,
+      "census_rationale": "Geometry evidence is deliberately absent from the feature census; the census is not a completeness denominator.",
+      "documentation": [
+        "docs/capabilities.md#proven-recognition-capability"
+      ],
+      "golden_evidence": [
         "tests/golden/straight_and_obround_slots/expected.json"
       ],
       "id": "slot-patterns",

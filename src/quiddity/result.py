@@ -123,6 +123,7 @@ from quiddity.profiled_bores import DoubleDBore
 from quiddity.rectangular_blind_slots import RectangularBlindSlot
 from quiddity.repeating_profiles import RepeatingRadialProfile
 from quiddity.round_bottom_slots import RoundBottomBlindSlot
+from quiddity.sheet_metal import SheetMetalBody
 from quiddity.slots import (
     Channel,
     Pocket,
@@ -370,6 +371,7 @@ class RecognitionResult:
     fillets: tuple[Fillet, ...]
     plates: tuple[Plate, ...]
     thin_wall_bodies: tuple[ThinWallBody, ...]
+    sheet_metal_bodies: tuple[SheetMetalBody, ...]
 
     @property
     def turned_profiles(self) -> tuple[TurnedProfile, ...]:
