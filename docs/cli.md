@@ -33,7 +33,7 @@ framed evidence lifecycle once, with the Python default `rotational=False`. It d
 application classification. Python callers can explicitly supply `rotational=True`.
 STEP loading is geometry-only; assembly metadata is not retained.
 
-The envelope is `format: quiddity-recognition`, `format_version: 2`. Physical record fields
+The envelope is `format: quiddity-recognition`, `format_version: 3`. Physical record fields
 are preserved, with document-local `named_dimensions` and `dependents` added to each record.
 It contains:
 
@@ -46,7 +46,9 @@ It contains:
   Multiple owners are not silently collapsed; no owner is represented by an empty list.
 - `features`: accepted physical evidence in provider order, including bounded geometry refusals.
   Each entry has an envelope `index`, `family`, `record_type`, enriched `record`, and sorted
-  `defining_faces` / `constituent_faces` indices into `faces`.
+  `defining_faces` / `constituent_faces` indices into `faces`. A circular face pattern also has
+  ordered `instances` with one `seed` and each instance's `face_indices`, plus
+  `excluded_faces` in the local face roster. These indices are document-local.
 - `derived`: existing hole, slot, oriented-slot and section-recess patterns, turned profiles,
   and two-hole pairs. Pattern records include named centre spacing and direction when proved.
 - `proof`: `whole_solid` on ordinary valid inputs, or `local_degradation` when a malformed

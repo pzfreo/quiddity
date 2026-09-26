@@ -159,7 +159,7 @@ def sentinel_graph() -> FaceGraph:
 def test_every_adjacent_pair_of_every_corpus_part_pairs_identically() -> None:
     """The equivalence that matters, over the whole vendored corpus.
 
-    All 92 parts, every adjacent pair of every graph: 14,317 pairs and 14,966 issued
+    All 93 parts, every adjacent pair of every graph: 14,707 pairs and 15,357 issued
     occurrences -- so there is no reason to sample.
 
     The corpus exercises the grouping and the pairing, but every one of its shared groups holds
@@ -187,9 +187,9 @@ def test_every_adjacent_pair_of_every_corpus_part_pairs_identically() -> None:
                     continue  # the pair is symmetric; the second call only reads the cache
                 seen_occurrences += _assert_pairs_identically(graph, node, neighbour, path.name)
                 seen_pairs += 1
-    assert (seen_pairs, seen_occurrences) == (14317, 14966), (
+    assert (seen_pairs, seen_occurrences) == (14707, 15357), (
         f"the sweep visited {seen_pairs} adjacent pairs and paired {seen_occurrences} "
-        "occurrences; 14317 and 14966 are what the vendored corpus holds. A drop means the "
+        "occurrences; 14707 and 15357 are what the vendored corpus holds. A drop means the "
         "sweep stopped covering what it claims to, not that the pairing changed -- that would "
         "have failed inside _assert_pairs_identically first."
     )

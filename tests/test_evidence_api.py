@@ -295,10 +295,13 @@ def test_every_face_can_be_associated_without_inventing_background() -> None:
     assert summary.surface_area.unassociated == 0.0
     assert summary.surface_area.associated == summary.surface_area.total
     assert summary.surface_area.ratio == 1.0
-    assert len(summary.families) == 1
-    assert summary.families[0].family == "polygonal_stock"
-    assert summary.families[0].face_count == 8
-    assert summary.families[0].surface_area == pytest.approx(part.area)
+    assert {family.family for family in summary.families} == {
+        "polygonal_stock",
+        "circular_face_patterns",
+    }
+    stock = next(family for family in summary.families if family.family == "polygonal_stock")
+    assert stock.face_count == 8
+    assert stock.surface_area == pytest.approx(part.area)
     assert summary.unassociated_faces == frozenset()
 
 

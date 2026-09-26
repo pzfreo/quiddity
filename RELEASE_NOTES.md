@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Recognise circular repetition of connected source-face groups, including the seven swept
+  blades of CADGenBench cgb203, without assigning those groups a feature name. Publish exact
+  instance face membership and the excluded background in recognition document format 3 (#755).
 - Preserve all related candidate links when projecting rejected-candidate evidence, so a
   rejected boss linked through a compatible turned step to a groove no longer prevents the
   recognition document from being built (#754).

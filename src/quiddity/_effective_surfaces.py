@@ -136,6 +136,10 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.MIGRATED_EFFECTIVE,
         "planar membership and native/recovered cylinder provenance use the run-owned query",
     ),
+    "circular_face_patterns": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "source surface types and native axes establish rotational face correspondence",
+    ),
     "blends": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "ADR 0013 authorizes native torus parameters, UV extent and oriented differential",
@@ -277,6 +281,14 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
 # Every site has its own disposition and rationale, including mixed modules whose reads cannot be
 # truthfully covered by one module-level label.
 SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
+    "circular_face_patterns:_face_axis:geom_type:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "native cylinder or torus axes seed possible circular face correspondence",
+    ),
+    "circular_face_patterns:_recognise_solid:geom_type:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "source surface-type areas must agree between repeated groups",
+    ),
     "thin_walls:_native_surface:adaptor:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "read original analytic skin types for pairing, planar fallback and history hints",

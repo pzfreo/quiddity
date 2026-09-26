@@ -97,6 +97,7 @@ class EvidenceWriter:
         family: FamilyId = FamilyId.LEGACY,
         constituent: Iterable[FaceNode] | None = None,
         surfaces: Iterable[SurfaceUse] = (),
+        groups: Iterable[Iterable[FaceNode]] = (),
     ) -> Candidate[object]:
         """Issue defining and optional wider constituent evidence without read authority."""
 
@@ -109,6 +110,7 @@ class EvidenceWriter:
             defining=defining,
             constituent=None if constituent is None else tuple(constituent),
             surfaces=surfaces,
+            groups=groups,
         )
 
 

@@ -93,6 +93,7 @@ from quiddity.angled_steps import AngledStep
 from quiddity.blends import Blend
 from quiddity.chamfers import Chamfer
 from quiddity.circular_blind_steps import CircularBlindStep
+from quiddity.circular_face_patterns import CircularFacePattern
 from quiddity.countersinks import CounterSink
 from quiddity.edge_open_circular_recesses import EdgeOpenCircularPocket
 from quiddity.edge_open_prismatic_recesses import EdgeOpenPrismaticRecess
@@ -336,6 +337,7 @@ class RecognitionResult:
     #: Complete outer-wire cyclic correspondence.  Geometry-only: consumers may compare a
     #: declared axis/count, but this inventory never manufactures gear semantics.
     repeating_radial_profiles: tuple[RepeatingRadialProfile, ...]
+    circular_face_patterns: tuple[CircularFacePattern, ...]
     turned_steps: tuple[TurnedStep, ...]
     #: Area-filtered interior prismatic levels. The support spans remain on each record so IR
     #: assembly can preserve level-to-face correspondence; sizing and critique project the Z

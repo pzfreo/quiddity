@@ -59,17 +59,21 @@ def build_recognition_document(part: Part, *, rotational: bool = False) -> dict[
 
     bodies = tuple(view.part.solids())
     body_faces = [tuple(body.faces()) for body in bodies]
+    face_body_indices = [
+        tuple(
+            body_index
+            for body_index, members in enumerate(body_faces)
+            if any(face.wrapped.IsSame(member.wrapped) for member in members)
+        )
+        for face in local_faces
+    ]
     faces = [
         {
             "index": index,
             "caller_index": caller_indices[index],
-            "body_indices": [
-                body_index
-                for body_index, members in enumerate(body_faces)
-                if any(face.wrapped.IsSame(member.wrapped) for member in members)
-            ],
+            "body_indices": list(face_body_indices[index]),
         }
-        for index, face in enumerate(local_faces)
+        for index in range(len(local_faces))
     ]
     graph = FaceGraph(view.part)
     if degraded:
@@ -102,6 +106,27 @@ def build_recognition_document(part: Part, *, rotational: bool = False) -> dict[
         }
         for index, feature in enumerate(view.features)
     ]
+    for feature, entry in zip(view.features, features, strict=True):
+        groups = view.instance_faces(feature)
+        if groups:
+            member_indices = {indices[face] for group in groups for face in group}
+            owners = set.intersection(*(set(face_body_indices[index]) for index in member_indices))
+            if len(owners) != 1:
+                raise ValueError("circular pattern instance faces have no unique body")
+            body_index = owners.pop()
+            entry["instances"] = [
+                {
+                    "index": index,
+                    "seed": index == 0,
+                    "face_indices": sorted(indices[face] for face in group),
+                }
+                for index, group in enumerate(groups)
+            ]
+            entry["excluded_faces"] = sorted(
+                index
+                for index, memberships in enumerate(face_body_indices)
+                if body_index in memberships and index not in member_indices
+            )
     derived = {
         name: [record.to_dict() for record in getattr(view.result, name)]
         for name in (
@@ -135,7 +160,7 @@ def build_recognition_document(part: Part, *, rotational: bool = False) -> dict[
         )
     return {
         "format": "quiddity-recognition",
-        "format_version": 2,
+        "format_version": 3,
         "package": {"name": "quiddity", "version": __version__},
         "coordinate_space": "local",
         "rotational": rotational,

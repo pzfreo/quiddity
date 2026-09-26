@@ -87,6 +87,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity.bosses as bosses_module
     import quiddity.chamfers as chamfers_module
     import quiddity.circular_blind_steps as circular_blind_steps_module
+    import quiddity.circular_face_patterns as circular_face_patterns_module
     import quiddity.countersinks as countersinks_module
     import quiddity.edge_open_circular_recesses as edge_open_circular_recesses_module
     import quiddity.edge_open_prismatic_recesses as edge_open_prismatic_recesses_module
@@ -371,6 +372,11 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
         counted(FamilyId.THIN_WALL_BODIES, "thin_wall_bodies", []),
     )
     monkeypatch.setattr(
+        circular_face_patterns_module,
+        "_discover_circular_face_patterns",
+        counted(FamilyId.CIRCULAR_FACE_PATTERNS, "circular_face_patterns", []),
+    )
+    monkeypatch.setattr(
         sheet_metal_module,
         "_build_sheet_metal_records",
         counted(FamilyId.SHEET_METAL_BODIES, "sheet_metal_bodies", []),
@@ -499,6 +505,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
         "fillets",
         "plates",
         "thin_wall_bodies",
+        "circular_face_patterns",
         "sheet_metal_bodies",
         "gusset_ribs",
         "prismatic_pockets",

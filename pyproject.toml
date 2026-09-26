@@ -4,14 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "quiddity"
-version = "0.3.6.dev0"
+version = "0.4.0.dev0"
 description = "Deterministic, geometry-only feature recognition for build123d solids"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]
 authors = [{ name = "Paul Fremantle", email = "pzfreo@gmail.com" }]
 requires-python = ">=3.10,<3.15"
-dependencies = ["build123d>=0.9,<0.12"]
+dependencies = ["build123d>=0.9,<0.12", "numpy>=1.24", "scipy>=1.10"]
 keywords = ["build123d", "cad", "brep", "feature-recognition", "step"]
 classifiers = [
     "Development Status :: 3 - Alpha",

@@ -133,7 +133,7 @@ def test_document_projects_one_run_with_edit_fields(monkeypatch):
     assert calls == [part]
     encoded = json.loads(json.dumps(result, allow_nan=False))
     assert encoded["format"] == "quiddity-recognition"
-    assert encoded["format_version"] == 2
+    assert encoded["format_version"] == 3
     assert len(encoded["faces"]) == len(part.faces())
     assert sorted(face["caller_index"] for face in encoded["faces"]) == list(
         range(len(part.faces()))
