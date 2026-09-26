@@ -13,11 +13,11 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from build123d import Face
+from build123d import Face, Vector
 from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.BRepClass import BRepClass_FaceClassifier
 from OCP.BRepClass3d import BRepClass3d_SolidClassifier
-from OCP.GeomAbs import GeomAbs_Cylinder, GeomAbs_Plane
+from OCP.GeomAbs import GeomAbs_BSplineSurface, GeomAbs_Cylinder, GeomAbs_Plane
 from OCP.gp import gp_Dir, gp_Lin, gp_Pnt
 from OCP.IntCurvesFace import IntCurvesFace_ShapeIntersector
 from OCP.TopAbs import TopAbs_IN
@@ -45,6 +45,9 @@ _UV_PROBES = ((0.25, 0.25), (0.5, 0.5), (0.75, 0.75), (0.25, 0.75), (0.75, 0.25)
 # Imported offset B-splines on cgb241 differ by about 0.00056 mm over a 3 mm
 # nominal wall; this admits that approximation while remaining below 0.1%.
 _PAIR_REL_TOL = 3e-4
+# cgb207's small imported blend splines depart from a nominal 3 mm offset by
+# at most 0.013 mm. Reciprocal material rays and opposed normals remain required.
+_SPLINE_BLEND_REL_TOL = 5e-3
 _OPPOSED_NORMAL_COS = -0.9999
 _MIN_PAIRED_AREA_FRAC = 0.85
 
@@ -55,6 +58,26 @@ class WallFacePair(Record):
 
     first_face: int
     second_face: int
+
+
+@dataclass(frozen=True, slots=True)
+class UnpairedWallFace(Record):
+    """A bounded interpretation of one face outside the proven wall-pair set.
+
+    ``non_wall_feature`` is the residual class: the current wall proof cannot
+    safely bridge or repeat it, so a consumer must model it separately.
+    """
+
+    face: int
+    kind: str
+
+    def __post_init__(self) -> None:
+        if self.face < 0 or self.kind not in {
+            "cut_edge",
+            "joint_blend",
+            "non_wall_feature",
+        }:
+            raise ValueError("unpaired wall face needs a nonnegative index and a closed kind")
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,9 +103,10 @@ class ShellHistoryHint(Record):
 class ThinWallBody(Record):
     """One solid with a dominant constant material thickness.
 
-    ``unpaired_faces`` contains cut edges, mouths and any unsupported local
-    features. A caller must not treat each one as an opening without further
-    topology evidence. ``paired_area_fraction`` counts each face only once.
+    ``unpaired_faces`` contains cut edges, mouths and unsupported local features.
+    ``unpaired_face_classes`` gives each one a bounded topology-based reading;
+    the residual non-wall class is not permission to fill that face as a wall.
+    ``paired_area_fraction`` counts each face only once.
     """
 
     body_index: int
@@ -93,6 +117,7 @@ class ThinWallBody(Record):
     rim_regions: tuple[tuple[int, ...], ...]
     paired_area_fraction: float
     history_hint: ShellHistoryHint
+    unpaired_face_classes: tuple[UnpairedWallFace, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,7 +132,7 @@ def _native_surface(face: Face) -> BRepAdaptor_Surface:
     return BRepAdaptor_Surface(face.wrapped)
 
 
-def _samples(face: Face, *, mesh_fallback: bool) -> tuple[tuple[float, float, float], ...]:
+def _samples(face: Face) -> tuple[tuple[float, float, float], ...]:
     classifier = BRepClass_FaceClassifier()
     points = []
     for u, v in _UV_PROBES:
@@ -118,10 +143,10 @@ def _samples(face: Face, *, mesh_fallback: bool) -> tuple[tuple[float, float, fl
             continue
         if classifier.State() == TopAbs_IN:
             points.append((point.X, point.Y, point.Z))
-    if len(points) < 2 and mesh_fallback and _native_surface(face).GetType() == GeomAbs_Plane:
-        # A long, concave imported trim can miss every point in the surface's
-        # rectangular UV range. Triangle barycentres lie inside its actual
-        # planar face, including one with holes or a disconnected-looking trim.
+    if len(points) < 2:
+        # Narrow imported blend patches and long concave trims can miss every
+        # point in the surface's rectangular UV range. Triangle barycentres
+        # lie inside the actual trimmed face, including curved joint rounds.
         vertices, triangles = face.tessellate(0.1)
         ranked = sorted(
             triangles,
@@ -137,7 +162,13 @@ def _samples(face: Face, *, mesh_fallback: bool) -> tuple[tuple[float, float, fl
                 (tuple(vertices[a])[axis] + tuple(vertices[b])[axis] + tuple(vertices[c])[axis]) / 3
                 for axis in range(3)
             )
-            points.append(barycentre)
+            # The triangle lies slightly inside a convex analytic surface; use
+            # the exact nearest point before measuring an opposing wall gap.
+            try:
+                projected, _ = face.closest_points(Vector(*barycentre))
+            except (RuntimeError, ValueError):
+                continue
+            points.append(tuple(projected))
     return tuple(points)
 
 
@@ -198,10 +229,11 @@ def _body_pairs(
     intersector.Load(body.wrapped, COORD_FLOOR)
     material = BRepClass3d_SolidClassifier(body.wrapped)
     face_indices = {face: index for index, face in enumerate(faces)}
+    surface_types = tuple(_native_surface(face).GetType() for face in faces)
     hits: dict[int, tuple[_Hit, ...]] = {}
     for index, face in enumerate(faces):
         found = []
-        for point in _samples(face, mesh_fallback=face.area >= total_area * 0.001):
+        for point in _samples(face):
             try:
                 hit = _first_material_hit(
                     face, point, faces, face_indices, intersector, material, span
@@ -228,18 +260,23 @@ def _body_pairs(
             clusters[-1].append(distance)
     dominant = max(clusters, key=lambda cluster: (len(cluster), -cluster[0]))
     thickness = math.fsum(dominant) / len(dominant)
-    tolerance = length_tol(thickness, rel=_PAIR_REL_TOL)
+
+    def matches(source: int, hit: _Hit) -> bool:
+        rel = (
+            _SPLINE_BLEND_REL_TOL
+            if surface_types[source] == surface_types[hit.target] == GeomAbs_BSplineSurface
+            else _PAIR_REL_TOL
+        )
+        return abs(hit.distance - thickness) <= length_tol(thickness, rel=rel)
+
     candidate_pairs: set[tuple[int, int]] = set()
     for source, samples in hits.items():
-        matching = [hit for hit in samples if abs(hit.distance - thickness) <= tolerance]
+        matching = [hit for hit in samples if matches(source, hit)]
         if len(matching) < 2 or len(matching) * 5 < len(samples) * 4:
             continue
         for hit in matching:
             target_samples = hits.get(hit.target, ())
-            if any(
-                back.target == source and abs(back.distance - thickness) <= tolerance
-                for back in target_samples
-            ):
+            if any(back.target == source and matches(hit.target, back) for back in target_samples):
                 candidate_pairs.add((min(source, hit.target), max(source, hit.target)))
     paired = {index for pair in candidate_pairs for index in pair}
     paired_fraction = math.fsum(faces[index].area for index in sorted(paired)) / total_area
@@ -325,6 +362,37 @@ def _rim_regions(
                     pending.append(index)
         regions.append(tuple(sorted(region)))
     return tuple(regions)
+
+
+def _classify_unpaired(
+    graph: FaceGraph,
+    faces: tuple[Face, ...],
+    unpaired: tuple[int, ...],
+    pairs: tuple[WallFacePair, ...],
+    rims: tuple[tuple[int, ...], ...],
+    history_hint: ShellHistoryHint,
+) -> tuple[UnpairedWallFace, ...]:
+    indices = {face: index for index, face in enumerate(faces)}
+    paired = {index for pair in pairs for index in (pair.first_face, pair.second_face)}
+    rim_faces = {index for region in rims for index in region} | set(
+        history_hint.after_shell_cut_faces
+    )
+    result = []
+    for index in unpaired:
+        neighbours = {
+            indices[graph.face(node)] for node in graph.neighbours(graph.require_node(faces[index]))
+        }
+        if index in rim_faces:
+            kind = "cut_edge"
+        elif (
+            _native_surface(faces[index]).GetType() != GeomAbs_Plane
+            and len(neighbours & paired) >= 2
+        ):
+            kind = "joint_blend"
+        else:
+            kind = "non_wall_feature"
+        result.append(UnpairedWallFace(index, kind))
+    return tuple(result)
 
 
 def _skin_components(graph: FaceGraph, faces: tuple[Face, ...], paired: set[int]) -> list[set[int]]:
@@ -454,6 +522,7 @@ def _discover_thin_wall_bodies(part: Part, *, graph: FaceGraph | None = None) ->
         if shared_graph is None:
             shared_graph = FaceGraph(part)
         rims = _rim_regions(shared_graph, all_faces, unpaired, translated)
+        history_hint = _history_hint(shared_graph, all_faces, translated, unpaired, rims)
         records.append(
             ThinWallBody(
                 body_index=body_index,
@@ -463,7 +532,10 @@ def _discover_thin_wall_bodies(part: Part, *, graph: FaceGraph | None = None) ->
                 unpaired_faces=unpaired,
                 rim_regions=rims,
                 paired_area_fraction=fraction,
-                history_hint=_history_hint(shared_graph, all_faces, translated, unpaired, rims),
+                history_hint=history_hint,
+                unpaired_face_classes=_classify_unpaired(
+                    shared_graph, all_faces, unpaired, translated, rims, history_hint
+                ),
             )
         )
     return records
@@ -520,6 +592,10 @@ DEFINITION = PhysicalDefinition(
         tests=("tests/test_thin_walls.py",),
         golden_paths=("tests/thin_wall_expected.json",),
         introduced="0.3.5",
-        extra_records=(("WallFacePair", "nested", ()), ("ShellHistoryHint", "nested", ())),
+        extra_records=(
+            ("WallFacePair", "nested", ()),
+            ("ShellHistoryHint", "nested", ()),
+            ("UnpairedWallFace", "nested", ()),
+        ),
     ),
 )

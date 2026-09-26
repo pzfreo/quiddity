@@ -9,6 +9,7 @@ import pytest
 from build123d import Box, Compound, Cylinder, Pos, Rot
 
 from quiddity import (
+    UnpairedWallFace,
     build_recognition_result,
     import_step_geometry,
     recognise_thin_wall_bodies,
@@ -21,6 +22,13 @@ def _open_shell():
     return Box(100, 80, 40) - Box(94, 74, 40)
 
 
+def test_unpaired_wall_face_uses_closed_labels_and_source_indices() -> None:
+    with pytest.raises(ValueError, match="closed kind"):
+        UnpairedWallFace(0, "unknown")
+    with pytest.raises(ValueError, match="nonnegative"):
+        UnpairedWallFace(-1, "cut_edge")
+
+
 def test_open_shell_exposes_wall_pairs_and_leaves_mouth_faces_unpaired():
     shell = _open_shell()
     (record,) = recognise_thin_wall_bodies(shell)
@@ -29,6 +37,7 @@ def test_open_shell_exposes_wall_pairs_and_leaves_mouth_faces_unpaired():
     assert len(record.face_pairs) == 4
     assert len(record.unpaired_faces) == 2
     assert len(record.rim_regions) == 2
+    assert {item.kind for item in record.unpaired_face_classes} == {"cut_edge"}
     assert record.history_hint.basis == "heuristic"
     assert record.history_hint.direction == "inward"
     assert len(record.history_hint.outer_faces) == 4
@@ -129,6 +138,8 @@ def test_unpaired_through_cut_is_heuristically_after_shell_and_not_an_opening():
     assert set(hint.after_shell_cut_faces).isdisjoint(
         {index for region in hint.opening_rims for index in region}
     )
+    classes = {item.face: item.kind for item in record.unpaired_face_classes}
+    assert all(classes[index] == "cut_edge" for index in hint.after_shell_cut_faces)
 
 
 @pytest.mark.slow
@@ -161,3 +172,29 @@ def test_public_cadgenbench_shell_inputs_keep_imported_wall_evidence(
         assert len(record.history_hint.inner_faces) == 25
         assert len(record.history_hint.before_shell_collar_pairs) == 6
         assert record.history_hint.opening_rims == record.rim_regions
+
+
+@pytest.mark.slow
+@pytest.mark.timeout(120)
+def test_cgb207_joint_rounds_are_paired_and_every_remainder_is_classified() -> None:
+    source = Path(__file__).parent / "corpus/cadgenbench_inputs/cgb207.step"
+    part = import_step_geometry(source)
+    (record,) = recognise_thin_wall_bodies(part)
+    pairs = {frozenset((pair.first_face, pair.second_face)) for pair in record.face_pairs}
+    assert record.paired_area_fraction >= 0.894
+    assert len(record.face_pairs) >= 58
+    assert len(record.unpaired_faces) <= 170
+    assert frozenset((153, 242)) in pairs  # concentric cylindrical joint
+    assert frozenset((127, 198)) in pairs  # concentric toroidal joint
+    assert frozenset((129, 200)) in pairs
+    assert {item.face for item in record.unpaired_face_classes} == set(record.unpaired_faces)
+    assert {item.kind for item in record.unpaired_face_classes} <= {
+        "cut_edge",
+        "joint_blend",
+        "non_wall_feature",
+    }
+    assert {item.kind for item in record.unpaired_face_classes} == {
+        "cut_edge",
+        "joint_blend",
+        "non_wall_feature",
+    }

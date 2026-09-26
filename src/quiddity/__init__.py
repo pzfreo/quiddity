@@ -238,6 +238,7 @@ from quiddity.step_io import import_step_geometry
 from quiddity.thin_walls import (
     ShellHistoryHint,
     ThinWallBody,
+    UnpairedWallFace,
     WallFacePair,
     recognise_thin_wall_bodies,
 )
@@ -356,6 +357,7 @@ __all__ = [
     "TurnedProfileKey",
     "TurnedStep",
     "ThinWallBody",
+    "UnpairedWallFace",
     "WallFacePair",
     "ShellHistoryHint",
     "SheetFlange",

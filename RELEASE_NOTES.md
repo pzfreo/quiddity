@@ -5,6 +5,10 @@
 - Recognise circular repetition of connected source-face groups, including the seven swept
   blades of CADGenBench cgb203, without assigning those groups a feature name. Publish exact
   instance face membership and the excluded background in recognition document format 3 (#755).
+- Pair cgb207's previously missed cylindrical, toroidal and small B-spline joint rounds using
+  exact surface-projected material rays. The paired-area share rises from 0.8822 to 0.8948 and
+  unpaired faces fall from 188 to 170. Each remaining face receives a cut-edge, joint-blend or
+  residual non-wall reading; `ThinWallBody` advances to schema 2 (#756).
 - Preserve all related candidate links when projecting rejected-candidate evidence, so a
   rejected boss linked through a compatible turned step to a groove no longer prevents the
   recognition document from being built (#754).

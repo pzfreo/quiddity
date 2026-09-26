@@ -110,6 +110,7 @@ RECORD_SCHEMA_VERSIONS = {
     "TurnedProfile": 2,
     "TurnedProfileKey": 2,
     "TurnedStep": 2,
+    "ThinWallBody": 2,
     "ThroughStep": 2,
     "SectionPassage": 2,
 }
@@ -150,6 +151,7 @@ NO_MEMBERSHIP_RATIONALE = {
     "OpenCircularSection": "Nested only in EdgeOpenCircularPocket.",
     "OpenCircularSectionSegment": "Nested only in OpenCircularSection.",
     "WallFacePair": "Nested only in ThinWallBody.",
+    "UnpairedWallFace": "One classified residual face nested only in ThinWallBody.",
     "ShellHistoryHint": "Nested heuristic interpretation in ThinWallBody.",
     "SheetFlange": "Nested planar flange region in SheetMetalBody.",
     "SheetBend": "Nested cylindrical bend geometry in SheetMetalBody.",

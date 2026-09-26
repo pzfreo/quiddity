@@ -3232,6 +3232,11 @@
               "type": "float",
               "units": "mm"
             },
+            "unpaired_face_classes": {
+              "required": false,
+              "type": "list[record:UnpairedWallFace]",
+              "units": "none"
+            },
             "unpaired_faces": {
               "required": true,
               "type": "list[int]",
@@ -3241,6 +3246,26 @@
           "name": "ThinWallBody",
           "qualified_name": "quiddity.ThinWallBody",
           "role": "output",
+          "schema_version": 2
+        },
+        {
+          "aggregate_membership": [],
+          "aggregate_membership_rationale": "One classified residual face nested only in ThinWallBody.",
+          "fields": {
+            "face": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "kind": {
+              "required": true,
+              "type": "str",
+              "units": "none"
+            }
+          },
+          "name": "UnpairedWallFace",
+          "qualified_name": "quiddity.UnpairedWallFace",
+          "role": "nested",
           "schema_version": 1
         },
         {
