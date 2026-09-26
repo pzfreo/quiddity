@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Report multiple locally constant wall thicknesses in one `ThinWallBody`, with a measured
+  offset on each `WallFacePair`. A synthetic 2 mm side / 4 mm floor shell now qualifies.
+  CADGenBench cgb249 remains a bounded refusal: its proved pairs cover only 0.330 of face area,
+  below the 0.85 body threshold (#757).
 - Recognise circular repetition of connected source-face groups, including the seven swept
   blades of CADGenBench cgb203, without assigning those groups a feature name. Publish exact
   instance face membership and the excluded background in recognition document format 3 (#755).

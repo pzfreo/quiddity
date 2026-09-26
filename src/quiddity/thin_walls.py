@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2024-2026 Paul Fremantle
-"""Whole-body constant-wall evidence shared by shell and sheet-metal recognition.
+"""Whole-body wall evidence shared by shell and sheet-metal recognition.
 
 The wall evidence describes the finished B-rep. A separate history hint labels
 possible shell direction and operation order as heuristics because neither is
@@ -50,14 +50,22 @@ _PAIR_REL_TOL = 3e-4
 _SPLINE_BLEND_REL_TOL = 5e-3
 _OPPOSED_NORMAL_COS = -0.9999
 _MIN_PAIRED_AREA_FRAC = 0.85
+_MIN_CLASS_AREA_FRAC = 0.05
 
 
 @dataclass(frozen=True, slots=True)
 class WallFacePair(Record):
-    """Two original faces separated across material by the body's wall thickness."""
+    """Two original faces separated by one measured local wall thickness."""
 
     first_face: int
     second_face: int
+    thickness: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.thickness is not None and (
+            not math.isfinite(self.thickness) or self.thickness <= 0
+        ):
+            raise ValueError("wall pair thickness must be positive and finite")
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,8 +109,10 @@ class ShellHistoryHint(Record):
 
 @dataclass(frozen=True, slots=True)
 class ThinWallBody(Record):
-    """One solid with a dominant constant material thickness.
+    """One solid with proved locally constant wall thicknesses.
 
+    ``thickness`` remains the dominant class for older consumers. Each
+    recogniser-produced ``face_pairs`` entry gives its own measured offset.
     ``unpaired_faces`` contains cut edges, mouths and unsupported local features.
     ``unpaired_face_classes`` gives each one a bounded topology-based reading;
     the residual non-wall class is not permission to fill that face as a wall.
@@ -124,6 +134,17 @@ class ThinWallBody(Record):
 class _Hit:
     target: int
     distance: float
+
+
+def _matches_offset(
+    source: int, hit: _Hit, thickness: float, surface_types: tuple[object, ...]
+) -> bool:
+    rel = (
+        _SPLINE_BLEND_REL_TOL
+        if surface_types[source] == surface_types[hit.target] == GeomAbs_BSplineSurface
+        else _PAIR_REL_TOL
+    )
+    return abs(hit.distance - thickness) <= length_tol(thickness, rel=rel)
 
 
 def _native_surface(face: Face) -> BRepAdaptor_Surface:
@@ -214,7 +235,7 @@ def _first_material_hit(
 
 def _body_pairs(
     body: Part, properties: SolidProperties
-) -> tuple[float, tuple[tuple[int, int], ...], float] | None:
+) -> tuple[float, tuple[tuple[int, int, float], ...], float] | None:
     faces = tuple(body.faces())
     if len(faces) < 4:
         return None
@@ -258,26 +279,64 @@ def _body_pairs(
             clusters.append([distance])
         else:
             clusters[-1].append(distance)
-    dominant = max(clusters, key=lambda cluster: (len(cluster), -cluster[0]))
-    thickness = math.fsum(dominant) / len(dominant)
-
-    def matches(source: int, hit: _Hit) -> bool:
-        rel = (
-            _SPLINE_BLEND_REL_TOL
-            if surface_types[source] == surface_types[hit.target] == GeomAbs_BSplineSurface
-            else _PAIR_REL_TOL
-        )
-        return abs(hit.distance - thickness) <= length_tol(thickness, rel=rel)
-
-    candidate_pairs: set[tuple[int, int]] = set()
-    for source, samples in hits.items():
-        matching = [hit for hit in samples if matches(source, hit)]
-        if len(matching) < 2 or len(matching) * 5 < len(samples) * 4:
+    pair_thickness: dict[tuple[int, int], float] = {}
+    class_areas: list[tuple[float, float]] = []
+    class_pair_counts: list[int] = []
+    for cluster in sorted(clusters, key=lambda values: (-len(values), values[0])):
+        if len(cluster) < 4:
             continue
-        for hit in matching:
-            target_samples = hits.get(hit.target, ())
-            if any(back.target == source and matches(hit.target, back) for back in target_samples):
-                candidate_pairs.add((min(source, hit.target), max(source, hit.target)))
+        thickness = math.fsum(cluster) / len(cluster)
+
+        local_pairs: set[tuple[int, int]] = set()
+        for source, samples in hits.items():
+            matching = [
+                hit for hit in samples if _matches_offset(source, hit, thickness, surface_types)
+            ]
+            if len(matching) < 2 or len(matching) * 5 < len(samples) * 4:
+                continue
+            for hit in matching:
+                target_samples = hits.get(hit.target, ())
+                if any(
+                    back.target == source
+                    and _matches_offset(hit.target, back, thickness, surface_types)
+                    for back in target_samples
+                ):
+                    local_pairs.add((min(source, hit.target), max(source, hit.target)))
+        owned_faces = {index for pair in pair_thickness for index in pair}
+        new_pairs = {
+            pair
+            for pair in local_pairs - pair_thickness.keys()
+            if not owned_faces.intersection(pair)
+        }
+        if not new_pairs:
+            continue
+        class_faces = {index for pair in new_pairs for index in pair}
+        class_area = math.fsum(faces[index].area for index in sorted(class_faces))
+        largest_skin_area = max(faces[index].area for index in class_faces)
+        if thickness > 0.3 * math.sqrt(largest_skin_area):
+            continue
+        # Each thickness must describe a material wall region, not a few
+        # incidental bore or joint hits at another distance.
+        if class_area < _MIN_CLASS_AREA_FRAC * total_area:
+            continue
+        class_areas.append((class_area, thickness))
+        class_pair_counts.append(len(new_pairs))
+        for a, b in sorted(new_pairs):
+            distances = [
+                hit.distance
+                for source, target in ((a, b), (b, a))
+                for hit in hits.get(source, ())
+                if hit.target == target and _matches_offset(source, hit, thickness, surface_types)
+            ]
+            pair_thickness[(a, b)] = math.fsum(distances) / len(distances)
+    if not pair_thickness:
+        return None
+    # Several one-pair gaps can be the unrelated spans of adjacent slabs.
+    # A multi-thickness body needs at least one repeated local wall class.
+    if len(class_areas) > 1 and max(class_pair_counts) < 2:
+        return None
+    thickness = max(class_areas, key=lambda item: (item[0], -item[1]))[1]
+    candidate_pairs = set(pair_thickness)
     paired = {index for pair in candidate_pairs for index in pair}
     paired_fraction = math.fsum(faces[index].area for index in sorted(paired)) / total_area
     if paired_fraction < _MIN_PAIRED_AREA_FRAC:
@@ -314,21 +373,22 @@ def _body_pairs(
     )
     if max(curved_area, nonparallel_area) < 0.1 * paired_area:
         return None
-    # A block also has opposing faces. Its narrowest span is not a wall when
-    # comparable to the in-plane size of even its largest paired skin.
-    largest_skin_area = max((faces[index].area for index in paired), default=0.0)
-    if thickness > 0.3 * math.sqrt(largest_skin_area):
-        return None
     # 2V/A is a whole-body sanity check, not the thickness measurement. Edges
     # make it somewhat smaller than t, as on the 4 mm hanger (3.647 mm).
     ratio = 2 * properties.volume(body) / total_area
-    if not 0.5 * thickness <= ratio <= 1.1 * thickness:
+    minimum = min(pair_thickness.values())
+    maximum = max(pair_thickness.values())
+    if not 0.5 * minimum <= ratio <= 1.1 * maximum:
         return None
-    return thickness, tuple(sorted(candidate_pairs)), paired_fraction
+    return (
+        thickness,
+        tuple((a, b, pair_thickness[a, b]) for a, b in sorted(candidate_pairs)),
+        paired_fraction,
+    )
 
 
 def recognise_thin_wall_bodies(part: Part) -> list[ThinWallBody]:
-    """Report solids with a proven dominant constant wall thickness."""
+    """Report solids whose paired skins have proved local wall offsets."""
 
     return _discover_thin_wall_bodies(part)
 
@@ -513,7 +573,8 @@ def _discover_thin_wall_bodies(part: Part, *, graph: FaceGraph | None = None) ->
         thickness, pairs, fraction = found
         body_faces = tuple(body.faces())
         translated = tuple(
-            WallFacePair(all_indices[body_faces[a]], all_indices[body_faces[b]]) for a, b in pairs
+            WallFacePair(all_indices[body_faces[a]], all_indices[body_faces[b]], distance)
+            for a, b, distance in pairs
         )
         paired = {index for pair in translated for index in (pair.first_face, pair.second_face)}
         unpaired = tuple(
@@ -521,6 +582,24 @@ def _discover_thin_wall_bodies(part: Part, *, graph: FaceGraph | None = None) ->
         )
         if shared_graph is None:
             shared_graph = FaceGraph(part)
+        components = _skin_components(shared_graph, all_faces, paired)
+        if len(components) < 2:
+            continue
+        component_of = {index: order for order, group in enumerate(components) for index in group}
+        # The two main skins must account for a majority of paired area. Small
+        # local forms can join back into one skin, but a stack of plates with
+        # unrelated opposed faces does not establish one body-level wall.
+        core_area = math.fsum(
+            all_faces[pair.first_face].area + all_faces[pair.second_face].area
+            for pair in translated
+            if {component_of[pair.first_face], component_of[pair.second_face]} == {0, 1}
+        )
+        paired_area = math.fsum(
+            all_faces[pair.first_face].area + all_faces[pair.second_face].area
+            for pair in translated
+        )
+        if core_area * 2 <= paired_area:
+            continue
         rims = _rim_regions(shared_graph, all_faces, unpaired, translated)
         history_hint = _history_hint(shared_graph, all_faces, translated, unpaired, rims)
         records.append(

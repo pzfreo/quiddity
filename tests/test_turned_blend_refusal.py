@@ -47,6 +47,7 @@ def test_false_steps_do_not_suppress_sheet_plates():
     assert len(plates) == 3
     result = build_recognition_result(part)
     assert result.turned_steps == ()
+    assert result.thin_wall_bodies == ()
     assert result.plates == tuple(plates)
     assert len(result.fillets) == 8
 
