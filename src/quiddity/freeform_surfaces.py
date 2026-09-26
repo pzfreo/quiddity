@@ -145,6 +145,7 @@ def _records(
         index: surface
         for index, face in enumerate(faces)
         if isinstance(surface := BRep_Tool.Surface_s(face.wrapped), Geom_BSplineSurface)
+        and graph.common_valid_solid((graph.require_node(face),)) is not None
     }
     indices = {face: index for index, face in enumerate(faces)}
     links: dict[int, list[SurfaceContinuityLink]] = {index: [] for index in surfaces}
@@ -210,7 +211,7 @@ def _records(
 
 
 def recognise_freeform_surfaces(part: Part) -> list[FreeformSurface]:
-    """Read native B-spline supports on claimed and unclaimed source faces."""
+    """Read native B-spline supports on faces of valid source solids."""
 
     faces = tuple(part.faces())
     if not any(
@@ -228,8 +229,6 @@ def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[obje
     retained: list[object] = []
     for record in records:
         node = graph.require_node(faces[record.face])
-        if graph.common_valid_solid((node,)) is None:
-            continue
         services.writer.add_defining(record, (node,), family=FamilyId.FREEFORM_SURFACES)
         retained.append(record)
     return retained

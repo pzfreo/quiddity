@@ -6,12 +6,10 @@ import json
 from pathlib import Path
 
 import pytest
-from build123d import Cylinder, Face, GeomType, Pos
+from build123d import Cylinder, Face, Solid
 from OCP.BRep import BRep_Tool
-from OCP.BRepAdaptor import BRepAdaptor_Surface
-from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace
-from OCP.Geom import Geom_BSplineSurface, Geom_RectangularTrimmedSurface
-from OCP.GeomConvert import GeomConvert
+from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace, BRepBuilderAPI_NurbsConvert
+from OCP.Geom import Geom_BSplineSurface
 from OCP.gp import gp_Pnt
 from OCP.TColgp import TColgp_Array2OfPnt
 from OCP.TColStd import (
@@ -26,6 +24,7 @@ from quiddity import (
     recognise_freeform_surfaces,
     recognise_thin_wall_bodies,
 )
+from quiddity.freeform_surfaces import _construction, _support
 
 
 def _array1(values, cls):
@@ -57,31 +56,12 @@ def _rebuild(support):
     )
 
 
-def test_unclaimed_native_bspline_face_still_has_full_support():
-    source = Cylinder(8, 12).faces().filter_by(GeomType.CYLINDER)[0]
-    adaptor = BRepAdaptor_Surface(source.wrapped)
-    trimmed = Geom_RectangularTrimmedSurface(
-        BRep_Tool.Surface_s(source.wrapped),
-        adaptor.FirstUParameter(),
-        adaptor.LastUParameter(),
-        adaptor.FirstVParameter(),
-        adaptor.LastVParameter(),
-    )
-    native = GeomConvert.SurfaceToBSplineSurface_s(trimmed)
-    face = type(source)(
-        BRepBuilderAPI_MakeFace(
-            native,
-            adaptor.FirstUParameter(),
-            adaptor.LastUParameter(),
-            adaptor.FirstVParameter(),
-            adaptor.LastVParameter(),
-            1e-7,
-        ).Face()
-    )
-    placed = Pos(13, -4, 7) * face
-    (record,) = recognise_freeform_surfaces(placed)
-    assert record.face == 0
-    assert record.continuity_group == (0,)
+def test_unclaimed_native_bspline_solid_has_full_support_and_entrypoint_parity():
+    part = Solid(BRepBuilderAPI_NurbsConvert(Cylinder(8, 12).wrapped, True).Shape())
+    records = recognise_freeform_surfaces(part)
+    assert tuple(records) == build_recognition_result(part).freeform_surfaces
+    record = next(item for item in records if item.construction_vector == (0, 0, 12))
+    assert record.continuity_group == (record.face,)
     assert record.offset_partner is None
     assert record.construction_kind == "linear_extrusion"
     assert record.construction_axis == "v"
@@ -90,7 +70,7 @@ def test_unclaimed_native_bspline_face_still_has_full_support():
     assert (
         _rebuild(record.support)
         .Value(0.3, 2)
-        .Distance(BRep_Tool.Surface_s(placed.wrapped).Value(0.3, 2))
+        .Distance(BRep_Tool.Surface_s(part.faces()[record.face].wrapped).Value(0.3, 2))
         < 1e-6
     )
 
@@ -110,11 +90,11 @@ def test_two_nontranslated_sections_report_ruled_construction():
         3,
     )
     face = Face(BRepBuilderAPI_MakeFace(native, 0, 1, 0, 1, 1e-7).Face())
-    (record,) = recognise_freeform_surfaces(face)
-    assert record.construction_kind == "ruled"
-    assert record.construction_axis == "u"
-    assert record.construction_vector is None
-    assert _rebuild(record.support).Value(0.4, 0.6).Distance(native.Value(0.4, 0.6)) < 1e-6
+    support = _support(BRep_Tool.Surface_s(face.wrapped))
+    assert _construction(support) == ("ruled", "u", None)
+    assert recognise_freeform_surfaces(face) == []
+    assert build_recognition_result(face).freeform_surfaces == ()
+    assert _rebuild(support).Value(0.4, 0.6).Distance(native.Value(0.4, 0.6)) < 1e-6
 
 
 @pytest.mark.slow
