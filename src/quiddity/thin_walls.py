@@ -577,13 +577,22 @@ def _discover_thin_wall_bodies(part: Part, *, graph: FaceGraph | None = None) ->
         if shared_graph is None:
             shared_graph = FaceGraph(part)
         components = _skin_components(shared_graph, all_faces, paired)
+        if len(components) < 2:
+            continue
         component_of = {index: order for order, group in enumerate(components) for index in group}
-        # Opposite wall skins must stay separated by material. A pair whose
-        # faces are connected through other paired faces describes a folded
-        # plate assembly, not the two sides of one wall.
-        if any(
-            component_of[pair.first_face] == component_of[pair.second_face] for pair in translated
-        ):
+        # The two main skins must account for a majority of paired area. Small
+        # local forms can join back into one skin, but a stack of plates with
+        # unrelated opposed faces does not establish one body-level wall.
+        core_area = math.fsum(
+            all_faces[pair.first_face].area + all_faces[pair.second_face].area
+            for pair in translated
+            if {component_of[pair.first_face], component_of[pair.second_face]} == {0, 1}
+        )
+        paired_area = math.fsum(
+            all_faces[pair.first_face].area + all_faces[pair.second_face].area
+            for pair in translated
+        )
+        if core_area * 2 <= paired_area:
             continue
         rims = _rim_regions(shared_graph, all_faces, unpaired, translated)
         history_hint = _history_hint(shared_graph, all_faces, translated, unpaired, rims)
