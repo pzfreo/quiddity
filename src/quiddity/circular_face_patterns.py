@@ -122,9 +122,8 @@ def _same_axis(left: _Axis, right: _Axis, *, scale: float) -> bool:
     ) <= max(COORD_FLOOR, scale * _AXIS_LINE_FRAC)
 
 
-def _axes(facts: tuple[_FaceFact, ...], solid: Part, *, scale: float) -> tuple[_Axis, ...]:
+def _axes(facts: tuple[_FaceFact, ...], centre: Vector3, *, scale: float) -> tuple[_Axis, ...]:
     merged: list[_Axis] = []
-    centre = _vector(solid.bounding_box().center())
     for fact in facts:
         if fact.axis is None:
             continue
@@ -271,7 +270,8 @@ def _recognise_solid(
 ) -> _Proposal | None:
     if len(nodes) < _MIN_COUNT * 2 or len(nodes) > _MAX_FACES:
         return None
-    scale = part_scale(solid.bounding_box())
+    bounds = graph.solid_properties.bounding_box(solid)
+    scale = part_scale(bounds)
     if scale <= COORD_FLOOR:
         return None
     mesh_deflection = scale * _MESH_DEFLECTION_FRAC
@@ -286,7 +286,7 @@ def _recognise_solid(
         )
         for node in nodes
     )
-    axes = _axes(facts, solid, scale=scale)
+    axes = _axes(facts, _vector(bounds.center()), scale=scale)
     clouds: dict[FaceNode, object] = {}
     point_count = 0
     all_meshed = False
