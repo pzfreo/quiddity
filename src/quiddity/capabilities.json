@@ -3190,7 +3190,7 @@
           "name": "ShellHistoryHint",
           "qualified_name": "quiddity.ShellHistoryHint",
           "role": "nested",
-          "schema_version": 1
+          "schema_version": 2
         },
         {
           "aggregate_membership": [
@@ -3246,7 +3246,7 @@
           "name": "ThinWallBody",
           "qualified_name": "quiddity.ThinWallBody",
           "role": "output",
-          "schema_version": 2
+          "schema_version": 3
         },
         {
           "aggregate_membership": [],
@@ -3281,12 +3281,17 @@
               "required": true,
               "type": "int",
               "units": "none"
+            },
+            "thickness": {
+              "required": false,
+              "type": "float|null",
+              "units": "mm"
             }
           },
           "name": "WallFacePair",
           "qualified_name": "quiddity.WallFacePair",
           "role": "nested",
-          "schema_version": 1
+          "schema_version": 2
         }
       ],
       "status": "supported",

@@ -10,6 +10,7 @@ from build123d import Box, Compound, Cylinder, Pos, Rot
 
 from quiddity import (
     UnpairedWallFace,
+    WallFacePair,
     build_recognition_result,
     import_step_geometry,
     recognise_thin_wall_bodies,
@@ -20,6 +21,31 @@ from quiddity.evidence import build_recognition_evidence
 
 def _open_shell():
     return Box(100, 80, 40) - Box(94, 74, 40)
+
+
+@pytest.mark.timeout(120)
+def test_open_shell_with_two_thicknesses_reports_each_wall_pair() -> None:
+    shell = Box(100, 80, 40) - Pos(0, 0, 4) * Box(96, 76, 40)
+
+    (record,) = recognise_thin_wall_bodies(shell)
+
+    assert record.thickness == 2.0
+    assert len(record.face_pairs) == 5
+    assert {round(pair.thickness, 6) for pair in record.face_pairs} == {2.0, 4.0}
+    assert record.paired_area_fraction > 0.85
+    assert len(record.rim_regions) == 1
+    assert record.history_hint.direction == "inward"
+    assert len(record.history_hint.outer_faces) == len(record.history_hint.inner_faces) == 5
+    document = build_recognition_document(shell)
+    (feature,) = [f for f in document["features"] if f["family"] == "thin_wall_bodies"]
+    assert {pair["thickness"] for pair in feature["record"]["face_pairs"]} == {2.0, 4.0}
+
+
+def test_wall_pair_rejects_nonphysical_thickness() -> None:
+    with pytest.raises(ValueError, match="positive and finite"):
+        WallFacePair(0, 1, 0.0)
+    with pytest.raises(ValueError, match="positive and finite"):
+        WallFacePair(0, 1, float("nan"))
 
 
 def test_unpaired_wall_face_uses_closed_labels_and_source_indices() -> None:
@@ -34,6 +60,7 @@ def test_open_shell_exposes_wall_pairs_and_leaves_mouth_faces_unpaired():
     (record,) = recognise_thin_wall_bodies(shell)
 
     assert record.thickness == 3.0
+    assert {pair.thickness for pair in record.face_pairs} == {3.0}
     assert len(record.face_pairs) == 4
     assert len(record.unpaired_faces) == 2
     assert len(record.rim_regions) == 2
@@ -162,6 +189,10 @@ def test_public_cadgenbench_shell_inputs_keep_imported_wall_evidence(
     else:
         (record,) = recognise_thin_wall_bodies(part)
     assert abs(record.thickness - 3.0) < 0.001
+    assert all(
+        pair.thickness is not None and abs(pair.thickness - 3.0) < 0.02
+        for pair in record.face_pairs
+    )
     assert record.paired_area_fraction >= minimum_paired_fraction
     assert len(record.face_pairs) >= minimum_pairs
     assert record.rim_regions

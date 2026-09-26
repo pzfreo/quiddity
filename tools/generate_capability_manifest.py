@@ -110,7 +110,9 @@ RECORD_SCHEMA_VERSIONS = {
     "TurnedProfile": 2,
     "TurnedProfileKey": 2,
     "TurnedStep": 2,
-    "ThinWallBody": 2,
+    "ThinWallBody": 3,
+    "WallFacePair": 2,
+    "ShellHistoryHint": 2,
     "ThroughStep": 2,
     "SectionPassage": 2,
 }
