@@ -420,7 +420,7 @@ DEFINITION = PhysicalDefinition(
     evidence=ManifestEvidence(
         golden_paths=("tests/circular_face_pattern_expected.json",),
         tests=("tests/test_circular_face_patterns.py",),
-        introduced="0.4.0",
+        introduced="0.3.6",
     ),
 )
 

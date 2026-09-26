@@ -247,7 +247,7 @@ DEFINITION = PhysicalDefinition(
     evidence=ManifestEvidence(
         tests=("tests/test_freeform_surfaces.py",),
         golden_paths=("tests/freeform_surfaces_expected.json",),
-        introduced="0.4.0",
+        introduced="0.3.6",
         extra_records=(
             ("BSplineSurfaceSupport", "nested", ()),
             ("SurfaceContinuityLink", "nested", ()),

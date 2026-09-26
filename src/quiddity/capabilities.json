@@ -383,7 +383,7 @@
         "tests/circular_face_pattern_expected.json"
       ],
       "id": "circular-face-patterns",
-      "introduced_in": "0.4.0",
+      "introduced_in": "0.3.6",
       "recognisers": [
         {
           "entry_point": "quiddity.recognise_circular_face_patterns",
@@ -782,7 +782,7 @@
         "tests/freeform_surfaces_expected.json"
       ],
       "id": "freeform-surfaces",
-      "introduced_in": "0.4.0",
+      "introduced_in": "0.3.6",
       "recognisers": [
         {
           "entry_point": "quiddity.recognise_freeform_surfaces",
@@ -3740,6 +3740,6 @@
   "format_version": 2,
   "package": {
     "name": "quiddity",
-    "version": "0.4.0.dev0"
+    "version": "0.3.6.dev0"
   }
 }
