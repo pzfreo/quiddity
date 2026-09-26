@@ -85,11 +85,13 @@ rules are the consumer's own record; this one governs package releases only.
 | `ReconciliationReason` value added | Public enum addition with a private/public parity guard; not a schema or manifest event. Removing or changing a value is a compatibility event |
 | Any `format_version` increase | New schema major; readers reject until upgraded |
 
-Pre-1.0 is not permission for silent drift. Three recorded exceptions shipped by explicit owner
-direction: the free-axis Slot successor in patch release 0.4.12; the optional principal-axis
-Slot/Pocket end and corner radii in patch release 0.3.2; and the material-side reconstruction facts
-in patch release 0.3.3. Their additive requirements and explicit consumer adoption still stand;
-the lower release numbers do not make unknown fields safe to consume implicitly.
+Pre-1.0 is not permission for silent drift. Recorded exceptions shipped by explicit owner
+direction: the circular face and freeform surface families, new document format and updated wall
+and sheet schemas in patch release 0.3.6; the free-axis Slot successor in patch release 0.4.12;
+the optional principal-axis Slot/Pocket end and corner radii in patch release 0.3.2; and the
+material-side reconstruction facts in patch release 0.3.3. Their additive requirements and
+explicit consumer adoption still stand; the lower release numbers do not make unknown fields safe
+to consume implicitly.
 
 ## Enforced by
 

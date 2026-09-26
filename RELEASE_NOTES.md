@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.3.6 — Quiddity
+
 - Publish each native B-spline face's untrimmed support parameters, source-face continuity
   links and locally measured paired-skin offsets. Degree-one sweeps also report proved ruled
   or constant-vector extrusion construction. CADGenBench cgb241's four large outer
@@ -26,6 +28,11 @@
 - Preserve all related candidate links when projecting rejected-candidate evidence, so a
   rejected boss linked through a compatible turned step to a groove no longer prevents the
   recognition document from being built (#754).
+
+ADR 0005 normally classifies new public families and record schema changes as a minor release.
+The project owner explicitly directed these additions to ship as patch release 0.3.6. Consumers
+must opt in to the new families, document format 3, and updated record schemas deliberately;
+the patch number does not make unknown records or fields safe to consume implicitly.
 
 ## 0.3.5 — Quiddity
 
