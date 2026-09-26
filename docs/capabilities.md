@@ -547,10 +547,12 @@ invitation to construct values outside that evidence and call them recognized.
 | `WallFacePair` | Two original faces with a measured local material thickness, nested in `ThinWallBody`. The optional offset is populated on recogniser-produced pairs. |
 | `UnpairedWallFace` | One original residual face with a cut-edge, joint-blend or non-wall-feature reading. The latter is the residual class for separately modelled geometry, not a proved boss or rib subtype. |
 | `ShellHistoryHint` | Heuristic shell direction, outer/inner skin faces, opening rims, pre-shell collar pairs and post-shell cut faces. Unclassified faces are omitted; these values do not assert a unique construction history. |
-| `SheetMetalBody` | One developable, two-sided sheet with thickness, flange and bend records, thickness-proved cut faces and separately retained formed regions. |
+| `SheetMetalBody` | One predominantly developable, two-sided sheet with thickness, flange and bend records, thickness-proved cut faces and separately retained formed regions. `flat_pattern_status` is `checked`, `overlap`, `non_tree` or `not_proven`; `flat_pattern` is absent when a full traversal was not proved. Local edge treatments retain source faces without claiming they can be flattened. |
 | `SheetFlange` | One or more coplanar reference skin faces and their opposite faces, with plane origin, normal and area. |
 | `SheetBend` | One or more coaxial cylindrical bend pairs, incident flange indices, axis, angle, inner radius, reference-skin side and neutral-radius allowance. |
-| `FlatPatternPlan` | Rooted bend traversal and non-overlapping 2D flange triangles and developed bend strips for a stated k-factor. |
+| `FlatPatternPlan` | Rooted bend traversal of 2D flange triangles and developed bend strips for a stated k-factor. `valid_blank` is true only when the overlap check passes; otherwise `overlap_witnesses` prove a conflict and the plan is not a manufacturing blank. |
+| `FlatOverlapWitness` | A positive area from one pair of intersecting unfolded triangles, identified by source face or bend strip. Its area is a witness, not the union of all overlaps. |
+| `SheetEdgeTreatment` | A rounded or chamfered cut contour, or a small rounded/freeform corner, retaining its original face and measured radius where analytic. It does not imply a manufacturing operation or flattenability. |
 | `FormedSheetFeature` | Local partially paired curved region kept apart from the main unfoldable sheet blank. |
 | `UnfoldedFlangeFace` | Tessellated source planar face with transformed 2D vertices and triangles, preserving trimmed holes. |
 | `UnfoldedBendStrip` | One developed neutral-axis rectangle associated with its original cylindrical face pair. |

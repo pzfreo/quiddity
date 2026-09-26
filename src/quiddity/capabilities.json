@@ -2639,6 +2639,41 @@
       "records": [
         {
           "aggregate_membership": [],
+          "aggregate_membership_rationale": "Nested triangle-overlap evidence in FlatPatternPlan.",
+          "fields": {
+            "area": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "first_index": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "first_kind": {
+              "required": true,
+              "type": "str",
+              "units": "none"
+            },
+            "second_index": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "second_kind": {
+              "required": true,
+              "type": "str",
+              "units": "none"
+            }
+          },
+          "name": "FlatOverlapWitness",
+          "qualified_name": "quiddity.FlatOverlapWitness",
+          "role": "nested",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [],
           "aggregate_membership_rationale": "Nested unfolding traversal in SheetMetalBody.",
           "fields": {
             "base_flange": {
@@ -2661,6 +2696,11 @@
               "type": "float",
               "units": "mm"
             },
+            "overlap_witnesses": {
+              "required": false,
+              "type": "list[record:FlatOverlapWitness]",
+              "units": "none"
+            },
             "tessellation_tolerance": {
               "required": true,
               "type": "float",
@@ -2670,12 +2710,17 @@
               "required": true,
               "type": "list[int]",
               "units": "mm"
+            },
+            "valid_blank": {
+              "required": false,
+              "type": "bool",
+              "units": "none"
             }
           },
           "name": "FlatPatternPlan",
           "qualified_name": "quiddity.FlatPatternPlan",
           "role": "nested",
-          "schema_version": 1
+          "schema_version": 2
         },
         {
           "aggregate_membership": [],
@@ -2764,6 +2809,31 @@
         },
         {
           "aggregate_membership": [],
+          "aggregate_membership_rationale": "Nested rounded or chamfered contour face in SheetMetalBody.",
+          "fields": {
+            "face": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "kind": {
+              "required": true,
+              "type": "str",
+              "units": "none"
+            },
+            "radius": {
+              "required": false,
+              "type": "float|null",
+              "units": "mm"
+            }
+          },
+          "name": "SheetEdgeTreatment",
+          "qualified_name": "quiddity.SheetEdgeTreatment",
+          "role": "nested",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [],
           "aggregate_membership_rationale": "Nested planar flange region in SheetMetalBody.",
           "fields": {
             "area": {
@@ -2827,6 +2897,11 @@
               "type": "list[int]",
               "units": "mm"
             },
+            "edge_treatments": {
+              "required": false,
+              "type": "list[record:SheetEdgeTreatment]",
+              "units": "none"
+            },
             "first_side_faces": {
               "required": true,
               "type": "list[int]",
@@ -2839,7 +2914,12 @@
             },
             "flat_pattern": {
               "required": true,
-              "type": "record:FlatPatternPlan",
+              "type": "record:FlatPatternPlan|null",
+              "units": "none"
+            },
+            "flat_pattern_status": {
+              "required": false,
+              "type": "str",
               "units": "none"
             },
             "formed_features": {
@@ -2866,7 +2946,7 @@
           "name": "SheetMetalBody",
           "qualified_name": "quiddity.SheetMetalBody",
           "role": "output",
-          "schema_version": 1
+          "schema_version": 2
         },
         {
           "aggregate_membership": [],

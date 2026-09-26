@@ -14,7 +14,13 @@ from dataclasses import dataclass, replace
 
 from build123d import Edge, Face
 from OCP.BRepAdaptor import BRepAdaptor_Surface
-from OCP.GeomAbs import GeomAbs_Cylinder, GeomAbs_Plane
+from OCP.GeomAbs import (
+    GeomAbs_BSplineSurface,
+    GeomAbs_Cylinder,
+    GeomAbs_Plane,
+    GeomAbs_Sphere,
+    GeomAbs_Torus,
+)
 
 from quiddity._adjacency import FaceGraph
 from quiddity._candidates import CompletedInputs, FamilyId
@@ -90,11 +96,23 @@ class UnfoldedBendStrip(Record):
 
 
 @dataclass(frozen=True, slots=True)
+class FlatOverlapWitness(Record):
+    """One triangle overlap proving the development is not a single blank."""
+
+    first_kind: str
+    first_index: int
+    second_kind: str
+    second_index: int
+    area: float
+
+
+@dataclass(frozen=True, slots=True)
 class FlatPatternPlan(Record):
-    """A checked neutral flat layout of flange faces and developed bend strips.
+    """A neutral development of flange faces and bend strips.
 
     Triangulated flange faces preserve boundary cutouts from the source B-rep. A
-    formed feature remains a separate child, not a manufacturing blank claim.
+    false ``valid_blank`` retains overlap witnesses and is not a manufacturing
+    blank claim.
     """
 
     k_factor: float
@@ -103,6 +121,8 @@ class FlatPatternPlan(Record):
     flat_faces: tuple[UnfoldedFlangeFace, ...]
     bend_strips: tuple[UnfoldedBendStrip, ...]
     tessellation_tolerance: float
+    valid_blank: bool = True
+    overlap_witnesses: tuple[FlatOverlapWitness, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,6 +131,26 @@ class FormedSheetFeature(Record):
 
     faces: tuple[int, ...]
     paired_faces: tuple[int, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class SheetEdgeTreatment(Record):
+    """One rounded or chamfered contour face retained by source-face identity."""
+
+    face: int
+    kind: str
+    radius: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.face < 0 or self.kind not in {
+            "rounded_cut",
+            "rounded_corner",
+            "chamfered_cut",
+            "freeform_corner",
+        }:
+            raise ValueError("edge treatment needs a source face and a closed kind")
+        if self.radius is not None and (not math.isfinite(self.radius) or self.radius <= 0):
+            raise ValueError("edge treatment radius must be positive and finite")
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,8 +166,10 @@ class SheetMetalBody(Record):
     formed_features: tuple[FormedSheetFeature, ...]
     flanges: tuple[SheetFlange, ...]
     bends: tuple[SheetBend, ...]
-    flat_pattern: FlatPatternPlan
+    flat_pattern: FlatPatternPlan | None
     paired_area_fraction: float
+    flat_pattern_status: str = "checked"
+    edge_treatments: tuple[SheetEdgeTreatment, ...] = ()
 
 
 def _surface(face: Face) -> BRepAdaptor_Surface:
@@ -226,6 +268,68 @@ def _cut_faces(
     if total <= 0 or bridged / total < _MIN_CUT_BRIDGE_AREA:
         return None
     return tuple(cut), tuple(sorted(remaining - set(cut)))
+
+
+def _edge_treatments(
+    cut: tuple[int, ...],
+    unresolved: tuple[int, ...],
+    wall: ThinWallBody,
+    graph: FaceGraph,
+    faces: tuple[Face, ...],
+    first: set[int],
+    second: set[int],
+) -> tuple[tuple[SheetEdgeTreatment, ...], tuple[int, ...]]:
+    indices = {face: index for index, face in enumerate(faces)}
+    treatments: list[SheetEdgeTreatment] = []
+    for index in cut:
+        surface = _surface(faces[index])
+        kind = surface.GetType()
+        if kind == GeomAbs_Cylinder and (
+            surface.LastUParameter() - surface.FirstUParameter() < 2 * math.pi - 1e-4
+        ):
+            # A full cylindrical cut wall may be a hole. A partial arc retains
+            # the observed rounded contour without assigning a hole operation.
+            treatments.append(
+                SheetEdgeTreatment(index, "rounded_cut", float(surface.Cylinder().Radius()))
+            )
+        elif kind == GeomAbs_Torus:
+            treatments.append(
+                SheetEdgeTreatment(index, "rounded_cut", float(surface.Torus().MinorRadius()))
+            )
+        elif kind == GeomAbs_Plane:
+            normal = faces[index].normal_at()
+            neighbours = (
+                indices[graph.face(node)]
+                for node in graph.neighbours(graph.require_node(faces[index]))
+            )
+            if any(
+                0.1 < abs(normal.dot(faces[other].normal_at())) < 0.9
+                for other in neighbours
+                if other in first or other in second
+            ):
+                treatments.append(SheetEdgeTreatment(index, "chamfered_cut"))
+
+    remaining = []
+    for index in unresolved:
+        face = faces[index]
+        bounds = face.bounding_box()
+        corner_neighbours = {
+            indices[graph.face(node)] for node in graph.neighbours(graph.require_node(face))
+        }
+        types = {_surface(faces[other]).GetType() for other in corner_neighbours}
+        local_corner = (
+            _surface(face).GetType() == GeomAbs_BSplineSurface
+            and face.area <= 10 * wall.thickness**2
+            and min(bounds.size.X, bounds.size.Y, bounds.size.Z) <= wall.thickness
+            and len(corner_neighbours) >= 3
+            and (corner_neighbours <= first or corner_neighbours <= second)
+            and {GeomAbs_Plane, GeomAbs_Cylinder} <= types
+        )
+        if local_corner:
+            treatments.append(SheetEdgeTreatment(index, "freeform_corner"))
+        else:
+            remaining.append(index)
+    return tuple(sorted(treatments, key=lambda item: item.face)), tuple(remaining)
 
 
 def _formed_features(
@@ -678,6 +782,7 @@ def _flat_pattern_plan(
             triangles.append((-(len(strips)), (corners[0], corners[2], corners[3])))
     if not deviations or max(deviations) > length_tol(thickness, rel=0.001):
         return None
+    overlaps: dict[tuple[int, int], float] = {}
     for i, (first_id, first_triangle) in enumerate(triangles):
         first_x = [point[0] for point in first_triangle]
         first_y = [point[1] for point in first_triangle]
@@ -692,9 +797,28 @@ def _flat_pattern_plan(
                 continue
             if max(point[1] for point in second_triangle) <= min(first_y) + 1e-6:
                 continue
-            if _overlap_area(first_triangle, second_triangle) > 0.01 * thickness**2:
-                return None
-    return FlatPatternPlan(k_factor, base, tuple(tree), tuple(flat_faces), tuple(strips), 0.1)
+            area = _overlap_area(first_triangle, second_triangle)
+            if area > 0.01 * thickness**2:
+                key = (min(first_id, second_id), max(first_id, second_id))
+                overlaps[key] = max(area, overlaps.get(key, 0.0))
+
+    def source(identifier: int) -> tuple[str, int]:
+        return ("flange_face", identifier) if identifier >= 0 else ("bend_strip", -identifier - 1)
+
+    witnesses = tuple(
+        FlatOverlapWitness(*source(a), *source(b), area)
+        for (a, b), area in sorted(overlaps.items())
+    )
+    return FlatPatternPlan(
+        k_factor,
+        base,
+        tuple(tree),
+        tuple(flat_faces),
+        tuple(strips),
+        0.1,
+        valid_blank=not witnesses,
+        overlap_witnesses=witnesses,
+    )
 
 
 def _body(
@@ -703,16 +827,22 @@ def _body(
     faces: tuple[Face, ...],
     k_factor: float,
 ) -> SheetMetalBody | None:
-    skin_types = {
-        _surface(faces[index]).GetType()
-        for pair in wall.face_pairs
-        for index in (pair.first_face, pair.second_face)
-    }
-    if not skin_types <= {GeomAbs_Plane, GeomAbs_Cylinder} or GeomAbs_Cylinder not in skin_types:
+    paired = {index for pair in wall.face_pairs for index in (pair.first_face, pair.second_face)}
+    skin_types = {_surface(faces[index]).GetType() for index in paired}
+    if GeomAbs_Cylinder not in skin_types:
         return None
-    if any(
-        _surface(faces[index]).GetType() not in {GeomAbs_Plane, GeomAbs_Cylinder}
-        for index in wall.unpaired_faces
+    nondevelopable = {
+        index
+        for index in paired
+        if _surface(faces[index]).GetType() not in {GeomAbs_Plane, GeomAbs_Cylinder}
+    }
+    paired_area = math.fsum(faces[index].area for index in paired)
+    if (
+        any(
+            _surface(faces[index]).GetType() not in {GeomAbs_Sphere, GeomAbs_BSplineSurface}
+            for index in nondevelopable
+        )
+        or math.fsum(faces[index].area for index in nondevelopable) > 0.005 * paired_area
     ):
         return None
     sides = _sides(wall, graph, faces)
@@ -723,20 +853,75 @@ def _body(
     if cut is None:
         return None
     cut_faces, unresolved = cut
-    formed_features = _formed_features(unresolved, wall, graph, faces)
-    if formed_features is None:
+    if any(
+        _surface(faces[index]).GetType() not in {GeomAbs_Plane, GeomAbs_Cylinder, GeomAbs_Torus}
+        for index in cut_faces
+    ):
         return None
-    excluded = {index for feature in formed_features for index in feature.faces}
-    flange_result = _flanges(wall, graph, faces, first, second, excluded)
-    if flange_result is None:
+    edge_treatments, unresolved = _edge_treatments(
+        cut_faces, unresolved, wall, graph, faces, first, second
+    )
+    treatments_by_face = {item.face: item for item in edge_treatments}
+    for index in sorted(nondevelopable - treatments_by_face.keys()):
+        surface = _surface(faces[index])
+        if surface.GetType() == GeomAbs_Sphere:
+            item = SheetEdgeTreatment(index, "rounded_corner", float(surface.Sphere().Radius()))
+        else:
+            item = SheetEdgeTreatment(index, "freeform_corner")
+        treatments_by_face[index] = item
+    edge_treatments = tuple(treatments_by_face[index] for index in sorted(treatments_by_face))
+    if any(
+        _surface(faces[index]).GetType() not in {GeomAbs_Plane, GeomAbs_Cylinder}
+        for index in unresolved
+    ):
         return None
-    flanges, face_to_flange = flange_result
-    bends = _bends(wall, graph, faces, first, face_to_flange, k_factor, excluded)
-    if bends is None:
+    formed_candidates = _formed_features(unresolved, wall, graph, faces)
+    if formed_candidates is None:
         return None
-    plan = _flat_pattern_plan(flanges, bends, k_factor, wall.thickness, first, graph, faces)
-    if plan is None:
+
+    def build(
+        excluded: set[int],
+    ) -> tuple[tuple[SheetFlange, ...], tuple[SheetBend, ...], FlatPatternPlan | None] | None:
+        flange_result = _flanges(wall, graph, faces, first, second, excluded)
+        if flange_result is None:
+            return None
+        flanges, face_to_flange = flange_result
+        bends = _bends(wall, graph, faces, first, face_to_flange, k_factor, excluded)
+        if bends is None:
+            return None
+        return (
+            flanges,
+            bends,
+            _flat_pattern_plan(flanges, bends, k_factor, wall.thickness, first, graph, faces),
+        )
+
+    full = build(set())
+    if full is not None and (
+        (full[2] is not None and (full[2].valid_blank or bool(formed_candidates)))
+        or (full[2] is None and bool(edge_treatments))
+    ):
+        flanges, bends, plan = full
+        formed_features: tuple[FormedSheetFeature, ...] = ()
+        excluded: set[int] = set()
+    else:
+        formed_features = formed_candidates
+        excluded = {index for feature in formed_features for index in feature.faces}
+        fallback = build(excluded)
+        if fallback is None or fallback[2] is None or not fallback[2].valid_blank:
+            return None
+        flanges, bends, plan = fallback
+
+    if plan is None and not edge_treatments:
         return None
+    status = (
+        "checked"
+        if plan is not None and plan.valid_blank
+        else "overlap"
+        if plan is not None
+        else "non_tree"
+        if len(bends) != len(flanges) - 1
+        else "not_proven"
+    )
     return SheetMetalBody(
         body_index=wall.body_index,
         body_key=wall.body_key,
@@ -749,6 +934,8 @@ def _body(
         bends=bends,
         flat_pattern=plan,
         paired_area_fraction=wall.paired_area_fraction,
+        flat_pattern_status=status,
+        edge_treatments=edge_treatments,
     )
 
 
@@ -788,7 +975,16 @@ def _discover(services: DiscoveryServices, inputs: CompletedInputs) -> list[obje
     for record in records:
         indices = set(record.first_side_faces) | set(record.second_side_faces)
         indices.update(record.cut_edge_faces)
+        indices.update(item.face for item in record.edge_treatments)
         indices.update(index for feature in record.formed_features for index in feature.faces)
+        indices.update(index for flange in record.flanges for index in flange.reference_faces)
+        indices.update(index for flange in record.flanges for index in flange.mate_faces)
+        indices.update(
+            index
+            for bend in record.bends
+            for pair in bend.face_pairs
+            for index in (pair.first_face, pair.second_face)
+        )
         if (
             graph.local_degradation
             and graph.common_valid_solid(
@@ -824,7 +1020,9 @@ DEFINITION = PhysicalDefinition(
             ("SheetFlange", "nested", ()),
             ("SheetBend", "nested", ()),
             ("FlatPatternPlan", "nested", ()),
+            ("FlatOverlapWitness", "nested", ()),
             ("FormedSheetFeature", "nested", ()),
+            ("SheetEdgeTreatment", "nested", ()),
             ("UnfoldedFlangeFace", "nested", ()),
             ("UnfoldedBendStrip", "nested", ()),
         ),
