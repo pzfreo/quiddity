@@ -24,6 +24,7 @@ from quiddity import (
     edge_open_prismatic_recesses,
     fillets,
     flats,
+    freeform_surfaces,
     grooves,
     gussets,
     holes,
@@ -113,6 +114,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
     fillets.DEFINITION,
     plates.DEFINITION,
     thin_walls.DEFINITION,
+    freeform_surfaces.DEFINITION,
     sheet_metal.DEFINITION,
 )
 

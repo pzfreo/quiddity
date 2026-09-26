@@ -93,6 +93,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity.edge_open_prismatic_recesses as edge_open_prismatic_recesses_module
     import quiddity.fillets as fillets_module
     import quiddity.flats as flats_module
+    import quiddity.freeform_surfaces as freeform_surfaces_module
     import quiddity.grooves as grooves_module
     import quiddity.gussets as gussets_module
     import quiddity.holes as holes_module
@@ -372,6 +373,11 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
         counted(FamilyId.THIN_WALL_BODIES, "thin_wall_bodies", []),
     )
     monkeypatch.setattr(
+        freeform_surfaces_module,
+        "_records",
+        counted(FamilyId.FREEFORM_SURFACES, "freeform_surfaces", []),
+    )
+    monkeypatch.setattr(
         circular_face_patterns_module,
         "_discover_circular_face_patterns",
         counted(FamilyId.CIRCULAR_FACE_PATTERNS, "circular_face_patterns", []),
@@ -505,6 +511,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
         "fillets",
         "plates",
         "thin_wall_bodies",
+        "freeform_surfaces",
         "circular_face_patterns",
         "sheet_metal_bodies",
         "gusset_ribs",

@@ -143,6 +143,12 @@ from quiddity.frames import (
     infer_part_frame,
     prepare_framed_part,
 )
+from quiddity.freeform_surfaces import (
+    BSplineSurfaceSupport,
+    FreeformSurface,
+    SurfaceContinuityLink,
+    recognise_freeform_surfaces,
+)
 from quiddity.grooves import Groove, floor_face_anchor, recognise_grooves
 from quiddity.gussets import (
     GussetRib,
@@ -359,6 +365,9 @@ __all__ = [
     "TurnedProfileKey",
     "TurnedStep",
     "ThinWallBody",
+    "BSplineSurfaceSupport",
+    "SurfaceContinuityLink",
+    "FreeformSurface",
     "UnpairedWallFace",
     "WallFacePair",
     "ShellHistoryHint",
@@ -427,6 +436,7 @@ __all__ = [
     "recognise_slots",
     "recognise_turned_steps",
     "recognise_thin_wall_bodies",
+    "recognise_freeform_surfaces",
     "recognise_sheet_metal_bodies",
     "build_recognition_result",
     "build_raw_recognition_result",

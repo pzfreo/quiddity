@@ -77,6 +77,7 @@ class FamilyId(Enum):
     STEP_LEVELS = "step_levels"
     THROUGH_STEPS = "through_steps"
     THIN_WALL_BODIES = "thin_wall_bodies"
+    FREEFORM_SURFACES = "freeform_surfaces"
     SHEET_METAL_BODIES = "sheet_metal_bodies"
     TURNED_STEPS = "turned_steps"
 
