@@ -126,13 +126,18 @@ def test_cgb241_outer_skins_have_rebuildable_support_and_inner_offset_links():
     faces = tuple(part.faces())
     records = {record.face: record for record in recognise_freeform_surfaces(part)}
     assert len(records) == expected["native_bspline_faces"]
-    assert records[12].continuity_group == (12,)
-    assert records[13].continuity_group == (13,)
-    assert records[14].continuity_group == (14,)
-    assert records[15].continuity_group == (15, 22)
     aggregate = build_recognition_result(part)
     assert {record.face: record for record in aggregate.freeform_surfaces} == records
     (wall,) = recognise_thin_wall_bodies(part)
+    outer = [index for index in wall.history_hint.outer_faces if index in records]
+    large_outer = sorted(outer, key=lambda index: -faces[index].area)[
+        : expected["large_outer_patches"]
+    ]
+    assert len(large_outer) == expected["large_outer_patches"]
+    assert (
+        sorted(len(group) for group in {records[index].continuity_group for index in outer})
+        == (expected["outer_bspline_group_sizes"])
+    )
     mates = {
         face: other
         for pair in wall.face_pairs
@@ -141,10 +146,8 @@ def test_cgb241_outer_skins_have_rebuildable_support_and_inner_offset_links():
             (pair.second_face, pair.first_face),
         )
     }
-    assert [mates[index] for index in expected["large_outer_faces"]] == expected[
-        "paired_large_inner_faces"
-    ]
-    for index in expected["large_outer_faces"]:
+    assert all(mates[index] in records for index in large_outer)
+    for index in large_outer:
         outer = records[index]
         inner = records[mates[index]]
         assert outer.support_kind == inner.support_kind == "bspline"

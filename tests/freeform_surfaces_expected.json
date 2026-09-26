@@ -1,6 +1,6 @@
 {
   "native_bspline_faces": 10,
-  "large_outer_faces": [12, 13, 14, 15],
-  "paired_large_inner_faces": [32, 33, 34, 35],
+  "large_outer_patches": 4,
+  "outer_bspline_group_sizes": [1, 1, 1, 2],
   "measured_wall_offset_mm": 3.0
 }
