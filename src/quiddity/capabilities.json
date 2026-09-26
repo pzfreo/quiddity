@@ -772,6 +772,180 @@
       ]
     },
     {
+      "census_name": null,
+      "census_output": null,
+      "census_rationale": "Geometry evidence is deliberately absent from the feature census; the census is not a completeness denominator.",
+      "documentation": [
+        "docs/capabilities.md#proven-recognition-capability"
+      ],
+      "golden_evidence": [
+        "tests/freeform_surfaces_expected.json"
+      ],
+      "id": "freeform-surfaces",
+      "introduced_in": "0.4.0",
+      "recognisers": [
+        {
+          "entry_point": "quiddity.recognise_freeform_surfaces",
+          "kind": "part",
+          "role": "physical"
+        }
+      ],
+      "records": [
+        {
+          "aggregate_membership": [],
+          "aggregate_membership_rationale": "Native untrimmed support nested in FreeformSurface.",
+          "fields": {
+            "poles": {
+              "required": true,
+              "type": "list[list[tuple[float,3]]]",
+              "units": "mm"
+            },
+            "u_degree": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "u_knots": {
+              "required": true,
+              "type": "list[float]",
+              "units": "none"
+            },
+            "u_multiplicities": {
+              "required": true,
+              "type": "list[int]",
+              "units": "none"
+            },
+            "u_periodic": {
+              "required": true,
+              "type": "bool",
+              "units": "none"
+            },
+            "v_degree": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "v_knots": {
+              "required": true,
+              "type": "list[float]",
+              "units": "none"
+            },
+            "v_multiplicities": {
+              "required": true,
+              "type": "list[int]",
+              "units": "none"
+            },
+            "v_periodic": {
+              "required": true,
+              "type": "bool",
+              "units": "none"
+            },
+            "weights": {
+              "required": true,
+              "type": "list[list[float]]",
+              "units": "none"
+            }
+          },
+          "name": "BSplineSurfaceSupport",
+          "qualified_name": "quiddity.BSplineSurfaceSupport",
+          "role": "nested",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [
+            "RecognitionResult.freeform_surfaces"
+          ],
+          "fields": {
+            "construction_axis": {
+              "required": true,
+              "type": "str|null",
+              "units": "none"
+            },
+            "construction_kind": {
+              "required": true,
+              "type": "str|null",
+              "units": "none"
+            },
+            "construction_vector": {
+              "required": true,
+              "type": "tuple[float,3]|null",
+              "units": "mm"
+            },
+            "continuity_group": {
+              "required": true,
+              "type": "list[int]",
+              "units": "none"
+            },
+            "continuity_links": {
+              "required": true,
+              "type": "list[record:SurfaceContinuityLink]",
+              "units": "none"
+            },
+            "face": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "offset_basis": {
+              "required": true,
+              "type": "str|null",
+              "units": "none"
+            },
+            "offset_distance": {
+              "required": true,
+              "type": "float|null",
+              "units": "mm"
+            },
+            "offset_partner": {
+              "required": true,
+              "type": "int|null",
+              "units": "none"
+            },
+            "support": {
+              "required": true,
+              "type": "record:BSplineSurfaceSupport",
+              "units": "none"
+            },
+            "support_kind": {
+              "required": true,
+              "type": "str",
+              "units": "none"
+            }
+          },
+          "name": "FreeformSurface",
+          "qualified_name": "quiddity.FreeformSurface",
+          "role": "output",
+          "schema_version": 1
+        },
+        {
+          "aggregate_membership": [],
+          "aggregate_membership_rationale": "Direct shared-edge relation nested in FreeformSurface.",
+          "fields": {
+            "kind": {
+              "required": true,
+              "type": "str",
+              "units": "none"
+            },
+            "other_face": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            }
+          },
+          "name": "SurfaceContinuityLink",
+          "qualified_name": "quiddity.SurfaceContinuityLink",
+          "role": "nested",
+          "schema_version": 1
+        }
+      ],
+      "status": "supported",
+      "test_evidence": [
+        "tests/test_capability_claims.py",
+        "tests/test_freeform_surfaces.py",
+        "tests/test_recogniser_contract.py"
+      ]
+    },
+    {
       "census_name": "groove",
       "census_output": "RecognitionResult.grooves",
       "documentation": [

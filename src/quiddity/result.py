@@ -99,6 +99,7 @@ from quiddity.edge_open_circular_recesses import EdgeOpenCircularPocket
 from quiddity.edge_open_prismatic_recesses import EdgeOpenPrismaticRecess
 from quiddity.fillets import Fillet
 from quiddity.flats import Flat
+from quiddity.freeform_surfaces import FreeformSurface
 from quiddity.grooves import Groove
 from quiddity.gussets import GussetRib, GussetRibArray, GussetRibMirrorPair
 from quiddity.levels import (
@@ -373,6 +374,7 @@ class RecognitionResult:
     fillets: tuple[Fillet, ...]
     plates: tuple[Plate, ...]
     thin_wall_bodies: tuple[ThinWallBody, ...]
+    freeform_surfaces: tuple[FreeformSurface, ...]
     sheet_metal_bodies: tuple[SheetMetalBody, ...]
 
     @property

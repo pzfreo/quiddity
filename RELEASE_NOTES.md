@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Publish each native B-spline face's untrimmed support parameters, source-face continuity
+  links and locally measured paired-skin offsets. Degree-one sweeps also report proved ruled
+  or constant-vector extrusion construction. CADGenBench cgb241's four large outer
+  patches can be rebuilt from their control nets and linked to their inner mates without
+  inventing a unique loft or extrusion history. New `FreeformSurface` family (#759).
 - Retain cgb245's rounded cut contours and bounded flange/bend geometry even though its bend
   graph has no proved single-blank unfolding. Report the sm-hanger tabs as flanges and bends;
   its full flat traversal carries measured overlap witnesses and `valid_blank=False`. Optional

@@ -55,6 +55,7 @@ PUBLIC_MODULES = {
     "step_io",
     "through_steps",
     "thin_walls",
+    "freeform_surfaces",
     "sheet_metal",
     "turned",
 }
@@ -479,6 +480,7 @@ MODULE_SEAM_EDGES = {
         "paired_ramp_steps",
         "through_steps",
         "thin_walls",
+        "freeform_surfaces",
         "sheet_metal",
         "passages",
         "plates",
@@ -682,6 +684,15 @@ MODULE_SEAM_EDGES = {
         "_solid_properties",
         "_typing",
     },
+    "freeform_surfaces": {
+        "_adjacency",
+        "_candidates",
+        "_definitions",
+        "_geometry",
+        "_record",
+        "_typing",
+        "thin_walls",
+    },
     "sheet_metal": {
         "_adjacency",
         "_candidates",
@@ -793,6 +804,7 @@ MODULE_SEAM_EDGES = {
         "slots",
         "through_steps",
         "thin_walls",
+        "freeform_surfaces",
         "sheet_metal",
         "turned",
     },
@@ -813,6 +825,8 @@ MODULE_SEAM_EDGES = {
 }
 
 ARC_READER_SITES = {
+    "src/quiddity/freeform_surfaces:_records:arc:1": "legacy-source",
+    "src/quiddity/freeform_surfaces:_records:is_any_smooth:1": "any-smooth",
     "src/quiddity/gussets:_cap:arc:1": "exact-nonsmooth",
     "src/quiddity/gussets:_cap:arc:2": "exact-nonsmooth",
     "src/quiddity/gussets:_cap:arc:3": "legacy-contract",

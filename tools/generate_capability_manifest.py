@@ -155,6 +155,8 @@ NO_MEMBERSHIP_RATIONALE = {
     "OpenCircularSection": "Nested only in EdgeOpenCircularPocket.",
     "OpenCircularSectionSegment": "Nested only in OpenCircularSection.",
     "WallFacePair": "Nested only in ThinWallBody.",
+    "BSplineSurfaceSupport": "Native untrimmed support nested in FreeformSurface.",
+    "SurfaceContinuityLink": "Direct shared-edge relation nested in FreeformSurface.",
     "UnpairedWallFace": "One classified residual face nested only in ThinWallBody.",
     "ShellHistoryHint": "Nested heuristic interpretation in ThinWallBody.",
     "SheetFlange": "Nested planar flange region in SheetMetalBody.",
@@ -235,6 +237,16 @@ def _units(field: dataclasses.Field, annotation: object) -> str:
             "paired_area_fraction",
             "rim_regions",
             "unpaired_faces",
+            "u_knots",
+            "v_knots",
+            "u_multiplicities",
+            "v_multiplicities",
+            "weights",
+            "continuity_group",
+            "construction_kind",
+            "construction_axis",
+            "offset_basis",
+            "offset_partner",
         }
         or rendered in {"bool", "int", "str"}
         or rendered.startswith("record:")
