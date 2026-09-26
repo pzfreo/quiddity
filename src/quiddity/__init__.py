@@ -218,9 +218,11 @@ from quiddity.section_recesses import (
     SectionRecessRefusal,
 )
 from quiddity.sheet_metal import (
+    FlatOverlapWitness,
     FlatPatternPlan,
     FormedSheetFeature,
     SheetBend,
+    SheetEdgeTreatment,
     SheetFlange,
     SheetMetalBody,
     UnfoldedBendStrip,
@@ -362,6 +364,8 @@ __all__ = [
     "ShellHistoryHint",
     "SheetFlange",
     "SheetBend",
+    "SheetEdgeTreatment",
+    "FlatOverlapWitness",
     "FlatPatternPlan",
     "FormedSheetFeature",
     "UnfoldedFlangeFace",

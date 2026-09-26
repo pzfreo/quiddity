@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Retain cgb245's rounded cut contours and bounded flange/bend geometry even though its bend
+  graph has no proved single-blank unfolding. Report the sm-hanger tabs as flanges and bends;
+  its full flat traversal carries measured overlap witnesses and `valid_blank=False`. Optional
+  flat plans, status and edge treatments advance `SheetMetalBody` to schema 2; overlap witnesses
+  advance `FlatPatternPlan` to schema 2 (#758).
 - Report multiple locally constant wall thicknesses in one `ThinWallBody`, with a measured
   offset on each `WallFacePair`. A synthetic 2 mm side / 4 mm floor shell now qualifies.
   CADGenBench cgb249 remains a bounded refusal: its proved pairs cover only 0.330 of face area,

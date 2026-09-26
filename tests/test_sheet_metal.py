@@ -45,6 +45,8 @@ def test_formed_bracket_has_reconstructible_bend_plan():
     assert sheet.bends[0].bend_allowance == pytest.approx(4.6 * 3.141592653589793 / 2)
     assert len(sheet.cut_edge_faces) == 4
     assert sheet.flat_pattern.k_factor == 0.4
+    assert sheet.flat_pattern.valid_blank
+    assert sheet.flat_pattern.overlap_witnesses == ()
     assert sheet.flat_pattern.tree_bends == (0,)
     assert len(sheet.flat_pattern.flat_faces) == 2
     assert len(sheet.flat_pattern.bend_strips) == 1
@@ -98,13 +100,18 @@ def test_ttt_hanger_step_has_main_blank_and_formed_tabs():
     part = import_step_geometry(source)
     (sheet,) = recognise_sheet_metal_bodies(part)
     assert sheet.thickness == pytest.approx(4, abs=1e-5)
-    assert len(sheet.flanges) == 7
-    assert len(sheet.bends) == 6
-    assert len(sheet.flat_pattern.tree_bends) == 6
-    assert len(sheet.flat_pattern.flat_faces) == 9
-    assert len(sheet.flat_pattern.bend_strips) == 10
-    assert len(sheet.formed_features) == 2
-    assert all(feature.paired_faces for feature in sheet.formed_features)
+    assert len(sheet.flanges) == 9
+    assert len(sheet.bends) == 8
+    assert sheet.formed_features == ()
+    assert sheet.flat_pattern is not None
+    assert len(sheet.flat_pattern.tree_bends) == 8
+    assert len(sheet.flat_pattern.flat_faces) == 11
+    assert len(sheet.flat_pattern.bend_strips) == 12
+    assert {66, 79} <= {face.source_face for face in sheet.flat_pattern.flat_faces}
+    assert not sheet.flat_pattern.valid_blank
+    assert sheet.flat_pattern_status == "overlap"
+    assert sheet.flat_pattern.overlap_witnesses
+    assert all(item.area > 0 for item in sheet.flat_pattern.overlap_witnesses)
     main_face = next(face for face in sheet.flat_pattern.flat_faces if face.source_face == 64)
     area = sum(
         abs(
@@ -117,3 +124,24 @@ def test_ttt_hanger_step_has_main_blank_and_formed_tabs():
         for a, b, c in main_face.triangles
     )
     assert area == pytest.approx(part.faces()[64].area, rel=0.002)
+
+
+@pytest.mark.slow
+def test_cgb245_rounded_cut_edges_keep_flange_and_bend_evidence():
+    part = import_step_geometry(
+        Path(__file__).parent / "corpus" / "cadgenbench_inputs" / "cgb245.step"
+    )
+    (sheet,) = recognise_sheet_metal_bodies(part)
+    assert sheet.thickness == pytest.approx(2, abs=1e-4)
+    assert len(sheet.flanges) >= 20
+    assert len(sheet.bends) >= 20
+    assert sum(item.kind == "rounded_cut" for item in sheet.edge_treatments) >= 62
+    assert all(
+        item.face in sheet.cut_edge_faces or item.kind.endswith("corner")
+        for item in sheet.edge_treatments
+    )
+    assert sheet.flat_pattern is None
+    assert sheet.flat_pattern_status == "non_tree"
+    document = build_recognition_document(part)
+    assert any(item["family"] == "sheet_metal_bodies" for item in document["features"])
+    json.dumps(document, allow_nan=False)

@@ -113,6 +113,8 @@ RECORD_SCHEMA_VERSIONS = {
     "ThinWallBody": 3,
     "WallFacePair": 2,
     "ShellHistoryHint": 2,
+    "SheetMetalBody": 2,
+    "FlatPatternPlan": 2,
     "ThroughStep": 2,
     "SectionPassage": 2,
 }
@@ -158,7 +160,9 @@ NO_MEMBERSHIP_RATIONALE = {
     "SheetFlange": "Nested planar flange region in SheetMetalBody.",
     "SheetBend": "Nested cylindrical bend geometry in SheetMetalBody.",
     "FlatPatternPlan": "Nested unfolding traversal in SheetMetalBody.",
+    "FlatOverlapWitness": "Nested triangle-overlap evidence in FlatPatternPlan.",
     "FormedSheetFeature": "Nested partial forming region in SheetMetalBody.",
+    "SheetEdgeTreatment": "Nested rounded or chamfered contour face in SheetMetalBody.",
     "UnfoldedFlangeFace": "Nested flat face triangulation in FlatPatternPlan.",
     "UnfoldedBendStrip": "Nested developed bend segment in FlatPatternPlan.",
 }
