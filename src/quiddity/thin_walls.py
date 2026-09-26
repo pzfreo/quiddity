@@ -281,6 +281,7 @@ def _body_pairs(
             clusters[-1].append(distance)
     pair_thickness: dict[tuple[int, int], float] = {}
     class_areas: list[tuple[float, float]] = []
+    class_pair_counts: list[int] = []
     for cluster in sorted(clusters, key=lambda values: (-len(values), values[0])):
         if len(cluster) < 4:
             continue
@@ -319,6 +320,7 @@ def _body_pairs(
         if class_area < _MIN_CLASS_AREA_FRAC * total_area:
             continue
         class_areas.append((class_area, thickness))
+        class_pair_counts.append(len(new_pairs))
         for a, b in sorted(new_pairs):
             distances = [
                 hit.distance
@@ -328,6 +330,10 @@ def _body_pairs(
             ]
             pair_thickness[(a, b)] = math.fsum(distances) / len(distances)
     if not pair_thickness:
+        return None
+    # Several one-pair gaps can be the unrelated spans of adjacent slabs.
+    # A multi-thickness body needs at least one repeated local wall class.
+    if len(class_areas) > 1 and max(class_pair_counts) < 2:
         return None
     thickness = max(class_areas, key=lambda item: (item[0], -item[1]))[1]
     candidate_pairs = set(pair_thickness)
