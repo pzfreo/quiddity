@@ -64,6 +64,7 @@ second recognition site.
 
 from __future__ import annotations
 
+import os
 from importlib.metadata import PackageNotFoundError, version
 
 from quiddity._adjacency import FaceEdges
@@ -273,6 +274,30 @@ from quiddity.capabilities import (  # noqa: E402
     validate_capability_manifest,
 )
 from quiddity.census import feature_census  # noqa: E402
+
+
+def _configure_occt_threads() -> None:
+    """Apply the opt-in, process-wide OCCT thread cap before the first recognition."""
+
+    raw = os.environ.get("QUIDDITY_THREADS")
+    if raw is None:
+        return
+    if not raw.isdecimal() or int(raw) < 1:
+        raise ValueError("QUIDDITY_THREADS must be a positive integer")
+
+    from OCP.OSD import OSD_Parallel, OSD_ThreadPool
+
+    threads = int(raw)
+    pool = OSD_ThreadPool.DefaultPool_s()
+    if pool.NbThreads() != threads:
+        pool.Init(threads)
+    # Init() changes the pool size but preserves the prior per-launch default.
+    pool.SetNbDefaultThreadsToLaunch(threads)
+    # OCCT builds with TBB may otherwise bypass the pool we have just sized.
+    OSD_Parallel.SetUseOcctThreads_s(True)
+
+
+_configure_occt_threads()
 
 __all__ = [
     "__version__",
