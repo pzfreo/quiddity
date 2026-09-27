@@ -632,6 +632,9 @@ def _discover_holes(
                 constituent=members,
                 surfaces=uses,
             )
+        # Local degradation may have refused individual proposals above. Only
+        # records with staged source evidence can enter the aggregate inventory.
+        return [record for record, _nodes, _members, _uses in issued_pending]
 
     return [proposal.record for proposal in proposals]
 

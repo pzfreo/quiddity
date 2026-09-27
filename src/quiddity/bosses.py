@@ -186,6 +186,9 @@ def _discover_bosses(
                 constituent=members,
                 surfaces=uses,
             )
+        # Local degradation may reject one segment while retaining another.
+        # The aggregate can only receive records whose evidence was staged.
+        return [record for record, _nodes, _members, _uses in issued_pending]
 
     return [proposal.record for proposal in proposals]
 

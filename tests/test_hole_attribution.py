@@ -1343,6 +1343,26 @@ def test_later_common_solid_failure_is_prefix_free(monkeypatch) -> None:
     assert ledger.candidate_set(FamilyId.HOLES).candidates == ()
 
 
+def test_local_degradation_returns_only_holes_with_staged_evidence(monkeypatch) -> None:
+    part = Compound([Pos(-50, 0, 0) * _through(), Pos(50, 0, 0) * _through()])
+    ledger = ClaimLedger(FaceGraph(part, local_degradation=True))
+    original = ledger.graph.common_valid_solid
+    calls = 0
+
+    def fail_second(nodes):
+        nonlocal calls
+        calls += 1
+        return None if calls == 2 else original(nodes)
+
+    monkeypatch.setattr(ledger.graph, "common_valid_solid", fail_second)
+    records = _discover_holes(part, writer=ledger.writer)
+    candidates = ledger.candidate_set(FamilyId.HOLES).candidates
+
+    assert len(records) == len(candidates) == 1
+    assert candidates[0].record is records[0]
+    assert ledger.defining_of(candidates[0])
+
+
 def test_open_shell_public_compatibility_refuses_aggregate_without_prefix() -> None:
     shell = Shell(_through().faces())
     assert recognise_holes(shell)

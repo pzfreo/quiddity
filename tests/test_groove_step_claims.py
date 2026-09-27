@@ -198,6 +198,27 @@ def test_all_groove_ownership_validates_before_any_candidate_is_published(
     assert ledger.claims == ()
 
 
+def test_local_degradation_returns_only_grooves_with_staged_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    part = Compound(children=[Pos(-30, 0, 0) * _grooved_shaft(), Pos(30, 0, 0) * _grooved_shaft()])
+    ledger = ClaimLedger(FaceGraph(part, local_degradation=True))
+    original = ledger.graph.common_valid_solid
+    calls = 0
+
+    def fail_second(nodes):
+        nonlocal calls
+        calls += 1
+        return None if calls == 2 else original(nodes)
+
+    monkeypatch.setattr(ledger.graph, "common_valid_solid", fail_second)
+    records = _discover_grooves(part, ledger=ledger)
+
+    assert len(records) == len(ledger.claims) == 1
+    assert ledger.claims[0].claimant is records[0]
+    assert ledger.claims[0].defining
+
+
 @pytest.mark.parametrize("invalid_solid_idx", (1, "not-an-index"))
 def test_injected_groove_inventory_must_name_a_real_owning_solid(
     invalid_solid_idx,

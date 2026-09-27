@@ -387,6 +387,7 @@ def _discover_grooves(
                 [node],
                 family=FamilyId.GROOVES,
             )
+        return [groove for groove, _node in pending]
     return [groove for groove, _ in out]
 
 

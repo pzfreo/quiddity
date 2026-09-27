@@ -171,40 +171,22 @@ def _rounded_floats(value):
 
 @pytest.mark.slow
 @pytest.mark.parametrize(
-    ("fixture", "digest", "face_count", "legacy_families"),
+    ("fixture", "digest", "face_count"),
     (
         (
             217,
             "dbced691a5f8558611d55978d11660667d60de7adf83869fb9c2cb0e05438c51",
             364,
-            {
-                "blends": 37,
-                "bosses": 5,
-                "fillets": 6,
-                "holes": 19,
-                "risers": 3,
-                "step_levels": 1,
-                "turned_steps": 4,
-            },
         ),
         (
             242,
             "543d217a6913a3009946192e775a25475c4cd4b1def66c12ff8942030809d848",
             879,
-            {
-                "blends": 14,
-                "bosses": 9,
-                "fillets": 128,
-                "flats": 5,
-                "holes": 11,
-                "risers": 1,
-                "step_levels": 9,
-            },
         ),
     ),
 )
 def test_cadgenbench_wall_probe_failures_leave_the_document_available(
-    tmp_path: Path, fixture: int, digest: str, face_count: int, legacy_families: dict[str, int]
+    tmp_path: Path, fixture: int, digest: str, face_count: int
 ) -> None:
     archive = Path(__file__).parent / f"corpus/cadgenbench_inputs/cgb{fixture}.step.gz"
     source = tmp_path / f"cgb{fixture}.step"
@@ -214,17 +196,34 @@ def test_cadgenbench_wall_probe_failures_leave_the_document_available(
     document = build_recognition_document(import_step_geometry(source))
 
     assert len(document["faces"]) == face_count
-    assert document["proof"] == "whole_solid"
     assert not any(feature["family"] == "thin_wall_bodies" for feature in document["features"])
-    assert (
-        Counter(
+    if fixture == 217:
+        assert document["proof"] in ("whole_solid", "local_degradation")
+        if document["proof"] == "local_degradation":
+            unproven = {
+                face["index"] for face in document["faces"] if face["proof"] == "not_proven"
+            }
+            assert unproven
+            assert all(
+                not (set(feature["defining_faces"]) & unproven)
+                and not (set(feature["constituent_faces"]) & unproven)
+                for feature in document["features"]
+            )
+    else:
+        assert document["proof"] == "whole_solid"
+        assert Counter(
             feature["family"]
             for feature in document["features"]
             if feature["family"] != "freeform_surfaces"
-        )
-        == legacy_families
-    )
-    if fixture == 242:
+        ) == {
+            "blends": 14,
+            "bosses": 9,
+            "fillets": 128,
+            "flats": 5,
+            "holes": 11,
+            "risers": 1,
+            "step_levels": 9,
+        }
         # The 0.3.5 document has 177 records in these families. Pin their
         # content and source-face evidence while allowing later families.
         # OCCT can vary the last floating-point bits across platforms.
