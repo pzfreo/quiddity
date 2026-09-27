@@ -2,13 +2,16 @@
 
 ## Unreleased
 
+## 0.3.7 — Quiddity
+
 - Honour the opt-in `QUIDDITY_THREADS` process setting for OCCT's worker pool, allowing batch
   consumers to cap each recognition's kernel threads without changing the default (#770).
 - Treat a failed thin-wall material ray or missing face triangulation as absent local wall
   evidence, allowing CADGenBench editing inputs 217 and 242 to produce recognition documents.
   In local degradation, omit hole, boss, and groove candidates when their source faces have no
   valid-solid evidence instead of returning records without attribution. Existing non-wall
-  features on 242 remain available (#769).
+  features on 242 remain available. ADR 0002 now records this degraded-mode parity exception
+  explicitly (#769).
 
 ## 0.3.6 — Quiddity
 
