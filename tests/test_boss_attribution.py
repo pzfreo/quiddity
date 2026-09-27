@@ -571,6 +571,28 @@ def test_late_body_validation_refuses_before_publication(monkeypatch: pytest.Mon
     assert ledger.candidate_set(FamilyId.BOSSES).candidates == ()
 
 
+def test_local_degradation_returns_only_bosses_with_staged_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    part = Compound([_bossed_plate(-80), _bossed_plate(80)])
+    ledger = ClaimLedger(FaceGraph(part, local_degradation=True))
+    original = ledger.graph.common_valid_solid
+    calls = 0
+
+    def fail_second(nodes):
+        nonlocal calls
+        calls += 1
+        return None if calls == 2 else original(nodes)
+
+    monkeypatch.setattr(ledger.graph, "common_valid_solid", fail_second)
+    records = _discover_bosses(part, writer=ledger.writer)
+    candidates = ledger.candidate_set(FamilyId.BOSSES).candidates
+
+    assert len(records) == len(candidates) == 1
+    assert candidates[0].record is records[0]
+    assert ledger.defining_of(candidates[0])
+
+
 def test_late_binding_refuses_before_publication(monkeypatch: pytest.MonkeyPatch) -> None:
     part = Compound([_bossed_plate(-80), _bossed_plate(80)])
     ledger = ClaimLedger(FaceGraph(part))
