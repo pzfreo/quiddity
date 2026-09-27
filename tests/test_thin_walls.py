@@ -157,6 +157,18 @@ def test_document_serializes_pairs_in_its_local_face_index_space():
     json.dumps(document, allow_nan=False)
 
 
+def _rounded_floats(value):
+    """Ignore last-bit OCCT platform noise in a legacy record projection."""
+
+    if isinstance(value, float):
+        return round(value, 10)
+    if isinstance(value, (list, tuple)):
+        return [_rounded_floats(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _rounded_floats(item) for key, item in value.items()}
+    return value
+
+
 @pytest.mark.slow
 @pytest.mark.parametrize(
     ("fixture", "digest", "face_count", "legacy_families"),
@@ -215,6 +227,7 @@ def test_cadgenbench_wall_probe_failures_leave_the_document_available(
     if fixture == 242:
         # The 0.3.5 document has 177 records in these families. Pin their
         # content and source-face evidence while allowing later families.
+        # OCCT can vary the last floating-point bits across platforms.
         legacy_records = [
             {
                 key: feature[key]
@@ -224,9 +237,11 @@ def test_cadgenbench_wall_probe_failures_leave_the_document_available(
             if feature["family"] != "freeform_surfaces"
         ]
         digest = hashlib.sha256(
-            json.dumps(legacy_records, sort_keys=True, separators=(",", ":")).encode()
+            json.dumps(
+                _rounded_floats(legacy_records), sort_keys=True, separators=(",", ":")
+            ).encode()
         ).hexdigest()
-        assert digest == "00a10f539756759b64aba7a87c45a2a2d717e54a3978ddccefdade4461525c9a"
+        assert digest == "d63bb9ee17df78c9a2953de03ca195c7ab0b93075f4dc73c45313f482633ee7e"
     json.dumps(document, allow_nan=False)
 
 

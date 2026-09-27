@@ -21,7 +21,7 @@ from OCP.BRepClass3d import BRepClass3d_SolidClassifier
 from OCP.GeomAbs import GeomAbs_BSplineSurface, GeomAbs_Cylinder, GeomAbs_Plane
 from OCP.gp import gp_Dir, gp_Lin, gp_Pnt
 from OCP.IntCurvesFace import IntCurvesFace_ShapeIntersector
-from OCP.Standard import Standard_Failure
+from OCP.Standard import Standard_Failure, Standard_NullObject
 from OCP.TopAbs import TopAbs_IN
 from OCP.TopLoc import TopLoc_Location
 
@@ -163,7 +163,7 @@ def _samples(face: Face) -> tuple[tuple[float, float, float], ...]:
         try:
             point = face.position_at(u, v)
             classifier.Perform(face.wrapped, gp_Pnt(point.X, point.Y, point.Z), COORD_FLOOR)
-        except (Standard_Failure, RuntimeError, ValueError):
+        except (Standard_Failure, Standard_NullObject, RuntimeError, ValueError):
             continue
         if classifier.State() == TopAbs_IN:
             points.append((point.X, point.Y, point.Z))
@@ -182,7 +182,7 @@ def _samples(face: Face) -> tuple[tuple[float, float, float], ...]:
             ):
                 raise
             return tuple(points)
-        except (Standard_Failure, RuntimeError, ValueError):
+        except (Standard_Failure, Standard_NullObject, RuntimeError, ValueError):
             return tuple(points)
         ranked = sorted(
             triangles,
@@ -202,7 +202,7 @@ def _samples(face: Face) -> tuple[tuple[float, float, float], ...]:
             # the exact nearest point before measuring an opposing wall gap.
             try:
                 projected, _ = face.closest_points(Vector(*barycentre))
-            except (Standard_Failure, RuntimeError, ValueError):
+            except (Standard_Failure, Standard_NullObject, RuntimeError, ValueError):
                 continue
             points.append(tuple(projected))
     return tuple(points)
@@ -270,11 +270,13 @@ def _body_pairs(
     for index, face in enumerate(faces):
         found = []
         for point in _samples(face):
+            # OCP exposes NullObject separately from Failure in Python. Both
+            # mean this one material ray supplied no wall evidence.
             try:
                 hit = _first_material_hit(
                     face, point, faces, face_indices, intersector, material, span
                 )
-            except (Standard_Failure, RuntimeError, ValueError):
+            except (Standard_Failure, Standard_NullObject, RuntimeError, ValueError):
                 continue
             if hit is not None and hit.target != index:
                 found.append(hit)
