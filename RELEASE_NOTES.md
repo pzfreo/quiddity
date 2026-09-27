@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Honour the opt-in `QUIDDITY_THREADS` process setting for OCCT's worker pool, allowing batch
+  consumers to cap each recognition's kernel threads without changing the default (#770).
 - Treat a failed thin-wall material ray or missing face triangulation as absent local wall
   evidence, allowing CADGenBench editing inputs 217 and 242 to produce recognition documents.
   In local degradation, omit hole, boss, and groove candidates when their source faces have no

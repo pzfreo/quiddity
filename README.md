@@ -60,6 +60,33 @@ The CLI uses the same framed recognition and evidence as Python; it does not app
 taxonomies or score accuracy. `quiddity-capabilities` remains available.
 See [the CLI and document contract](docs/cli.md) for coordinates, face references and exit codes.
 
+### Concurrent recognition jobs
+
+Set `QUIDDITY_THREADS` before starting each process to cap that process's OCCT worker pool:
+
+```bash
+QUIDDITY_THREADS=1 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 quiddity part.step -o recognition.json
+```
+
+The value must be a positive integer. When it is unset, Quiddity leaves OCCT's parallel
+configuration unchanged. The setting is process-wide and applies to recognition through both
+the Python API and CLI; set it before importing `quiddity`, while no OCCT jobs are active.
+Plan batch size so concurrent processes times `QUIDDITY_THREADS` fits the available cores.
+
+| Stage | Parallel work |
+| --- | --- |
+| STEP import, frame setup, and face inventory | No Quiddity worker fanout. |
+| Feature discovery | Families run in sequence; build123d Boolean volume probes can use OCCT workers. |
+| Surface sampling | Build123d face meshing can use OCCT workers; Quiddity's explicit material-side mesh runs serially. |
+| Document projection and JSON encoding | No Quiddity worker fanout. |
+
+The setting sizes OCCT's pool and selects its controlled worker backend, including when an
+existing pool was created by an earlier build123d operation. It does not cap unrelated libraries
+or other processes. If NumPy or another dependency uses a separate native thread pool, set its
+own thread environment variables at process startup as in the example.
+The [CADGenBench 206 check](benchmarks/recognition-thread-cap-cgb206.md) records measured
+single and concurrent capped runs.
+
 ## Recognise an imported model
 
 Load a STEP file through the package's geometry-only reader, then run the shared recognition
