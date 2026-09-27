@@ -14,13 +14,16 @@ import math
 from dataclasses import dataclass
 
 from build123d import Face, Vector
+from OCP.BRep import BRep_Tool
 from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.BRepClass import BRepClass_FaceClassifier
 from OCP.BRepClass3d import BRepClass3d_SolidClassifier
 from OCP.GeomAbs import GeomAbs_BSplineSurface, GeomAbs_Cylinder, GeomAbs_Plane
 from OCP.gp import gp_Dir, gp_Lin, gp_Pnt
 from OCP.IntCurvesFace import IntCurvesFace_ShapeIntersector
+from OCP.Standard import Standard_Failure
 from OCP.TopAbs import TopAbs_IN
+from OCP.TopLoc import TopLoc_Location
 
 from quiddity._adjacency import FaceGraph
 from quiddity._body_identity import unambiguous_body_keys
@@ -160,7 +163,7 @@ def _samples(face: Face) -> tuple[tuple[float, float, float], ...]:
         try:
             point = face.position_at(u, v)
             classifier.Perform(face.wrapped, gp_Pnt(point.X, point.Y, point.Z), COORD_FLOOR)
-        except (RuntimeError, ValueError):
+        except (Standard_Failure, RuntimeError, ValueError):
             continue
         if classifier.State() == TopAbs_IN:
             points.append((point.X, point.Y, point.Z))
@@ -168,7 +171,19 @@ def _samples(face: Face) -> tuple[tuple[float, float, float], ...]:
         # Narrow imported blend patches and long concave trims can miss every
         # point in the surface's rectangular UV range. Triangle barycentres
         # lie inside the actual trimmed face, including curved joint rounds.
-        vertices, triangles = face.tessellate(0.1)
+        try:
+            vertices, triangles = face.tessellate(0.1)
+        except AttributeError as error:
+            # build123d dereferences a null OCCT triangulation. Only that
+            # specific missing-mesh case is a bounded absence of evidence.
+            if (
+                error.name != "NbNodes"
+                or BRep_Tool.Triangulation_s(face.wrapped, TopLoc_Location()) is not None
+            ):
+                raise
+            return tuple(points)
+        except (Standard_Failure, RuntimeError, ValueError):
+            return tuple(points)
         ranked = sorted(
             triangles,
             key=lambda tri: (
@@ -187,7 +202,7 @@ def _samples(face: Face) -> tuple[tuple[float, float, float], ...]:
             # the exact nearest point before measuring an opposing wall gap.
             try:
                 projected, _ = face.closest_points(Vector(*barycentre))
-            except (RuntimeError, ValueError):
+            except (Standard_Failure, RuntimeError, ValueError):
                 continue
             points.append(tuple(projected))
     return tuple(points)
@@ -259,7 +274,7 @@ def _body_pairs(
                 hit = _first_material_hit(
                     face, point, faces, face_indices, intersector, material, span
                 )
-            except (RuntimeError, ValueError):
+            except (Standard_Failure, RuntimeError, ValueError):
                 continue
             if hit is not None and hit.target != index:
                 found.append(hit)

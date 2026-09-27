@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import gzip
+import hashlib
 import json
+from collections import Counter
 from pathlib import Path
 
 import pytest
 from build123d import Box, Compound, Cylinder, Pos, Rot
 
+import quiddity.thin_walls as thin_walls
 from quiddity import (
     UnpairedWallFace,
     WallFacePair,
@@ -53,6 +57,18 @@ def test_unpaired_wall_face_uses_closed_labels_and_source_indices() -> None:
         UnpairedWallFace(0, "unknown")
     with pytest.raises(ValueError, match="nonnegative"):
         UnpairedWallFace(-1, "cut_edge")
+
+
+def test_unexpected_tessellation_attribute_error_remains_visible(monkeypatch) -> None:
+    face = Box(10, 10, 10).faces()[0]
+    monkeypatch.setattr(thin_walls, "_UV_PROBES", ())
+
+    def fail_tessellation(*_args, **_kwargs):
+        raise AttributeError("unexpected tessellation failure")
+
+    monkeypatch.setattr(type(face), "tessellate", fail_tessellation)
+    with pytest.raises(AttributeError, match="unexpected tessellation failure"):
+        thin_walls._samples(face)
 
 
 def test_open_shell_exposes_wall_pairs_and_leaves_mouth_faces_unpaired():
@@ -138,6 +154,79 @@ def test_document_serializes_pairs_in_its_local_face_index_space():
     assert indices == set(feature["defining_faces"])
     assert indices | rim_indices == set(feature["constituent_faces"])
     assert rim_indices == set(record["unpaired_faces"])
+    json.dumps(document, allow_nan=False)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    ("fixture", "digest", "face_count", "legacy_families"),
+    (
+        (
+            217,
+            "dbced691a5f8558611d55978d11660667d60de7adf83869fb9c2cb0e05438c51",
+            364,
+            {
+                "blends": 37,
+                "bosses": 5,
+                "fillets": 6,
+                "holes": 19,
+                "risers": 3,
+                "step_levels": 1,
+                "turned_steps": 4,
+            },
+        ),
+        (
+            242,
+            "543d217a6913a3009946192e775a25475c4cd4b1def66c12ff8942030809d848",
+            879,
+            {
+                "blends": 14,
+                "bosses": 9,
+                "fillets": 128,
+                "flats": 5,
+                "holes": 11,
+                "risers": 1,
+                "step_levels": 9,
+            },
+        ),
+    ),
+)
+def test_cadgenbench_wall_probe_failures_leave_the_document_available(
+    tmp_path: Path, fixture: int, digest: str, face_count: int, legacy_families: dict[str, int]
+) -> None:
+    archive = Path(__file__).parent / f"corpus/cadgenbench_inputs/cgb{fixture}.step.gz"
+    source = tmp_path / f"cgb{fixture}.step"
+    source.write_bytes(gzip.decompress(archive.read_bytes()))
+    assert hashlib.sha256(source.read_bytes()).hexdigest() == digest
+
+    document = build_recognition_document(import_step_geometry(source))
+
+    assert len(document["faces"]) == face_count
+    assert document["proof"] == "whole_solid"
+    assert not any(feature["family"] == "thin_wall_bodies" for feature in document["features"])
+    assert (
+        Counter(
+            feature["family"]
+            for feature in document["features"]
+            if feature["family"] != "freeform_surfaces"
+        )
+        == legacy_families
+    )
+    if fixture == 242:
+        # The 0.3.5 document has 177 records in these families. Pin their
+        # content and source-face evidence while allowing later families.
+        legacy_records = [
+            {
+                key: feature[key]
+                for key in ("record_type", "record", "defining_faces", "constituent_faces")
+            }
+            for feature in document["features"]
+            if feature["family"] != "freeform_surfaces"
+        ]
+        digest = hashlib.sha256(
+            json.dumps(legacy_records, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        assert digest == "00a10f539756759b64aba7a87c45a2a2d717e54a3978ddccefdade4461525c9a"
     json.dumps(document, allow_nan=False)
 
 
