@@ -1345,6 +1345,7 @@ def test_later_common_solid_failure_is_prefix_free(monkeypatch) -> None:
 
 def test_local_degradation_returns_only_holes_with_staged_evidence(monkeypatch) -> None:
     part = Compound([Pos(-50, 0, 0) * _through(), Pos(50, 0, 0) * _through()])
+    assert len(recognise_holes(part)) == 2
     ledger = ClaimLedger(FaceGraph(part, local_degradation=True))
     original = ledger.graph.common_valid_solid
     calls = 0

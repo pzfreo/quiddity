@@ -575,6 +575,7 @@ def test_local_degradation_returns_only_bosses_with_staged_evidence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     part = Compound([_bossed_plate(-80), _bossed_plate(80)])
+    assert len(recognise_bosses(part)) == 2
     ledger = ClaimLedger(FaceGraph(part, local_degradation=True))
     original = ledger.graph.common_valid_solid
     calls = 0

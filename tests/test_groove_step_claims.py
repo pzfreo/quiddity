@@ -202,6 +202,7 @@ def test_local_degradation_returns_only_grooves_with_staged_evidence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     part = Compound(children=[Pos(-30, 0, 0) * _grooved_shaft(), Pos(30, 0, 0) * _grooved_shaft()])
+    assert len(r.recognise_grooves(part)) == 2
     ledger = ClaimLedger(FaceGraph(part, local_degradation=True))
     original = ledger.graph.common_valid_solid
     calls = 0
