@@ -45,6 +45,16 @@ which family ran first. Passing a writer changes nothing about the return value.
 from a different part is refused, not silently ignored: the core labels it a source-identity
 failure and chains the original reason rather than replacing it.
 
+The parity rule above applies to normal proof mode on valid supported solids. The document builder
+has one explicit exception. If ordinary framed recognition refuses and the input contains an
+invalid solid, it may retry in `local_degradation` mode when a small diagnosed bad-face region can
+be isolated. In that mode a writer-backed core returns only proposals whose source faces pass the
+shared graph's same-solid proof and whose evidence it staged. A writer-free public recogniser has
+no degraded-mode option, so it may return a broader geometry-only list for the same invalid part.
+This difference reflects a different proof mode; it does not let sibling claims affect discovery.
+The aggregate must never publish an unstaged record (ADR 0003); the document marks refused faces
+as `not_proven`. Issue #769 exposed this boundary for holes, bosses and grooves.
+
 **One private core, one public facade.** The public function is a writer-free facade over a
 private core that takes the writer, and the registry calls the core. Every *registered* family
 entry point -- the `public_entrypoint` each `PhysicalDefinition` names -- carries no `ledger`,
@@ -62,8 +72,8 @@ authority over a run's claims -- a capability nothing outside the package should
 can still import those types and construct one; that is unsupported private usage, not a reason
 to advertise it. The legitimate read-side need is the evidence API, which is separately public.
 
-Across the two calls parity means record type, value, order and `to_dict()`, not Python
-identity. Within a writer-enabled run each Candidate retains the exact returned record
+Across the two calls in normal proof mode parity means record type, value, order and `to_dict()`,
+not Python identity. Within a writer-enabled run each Candidate retains the exact returned record
 occurrence, so equal-valued occurrences stay distinct.
 
 **`public_entrypoint` names the function a consumer calls**, which is a different question from

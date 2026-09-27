@@ -654,10 +654,12 @@ PARITY_EXCEPTIONS = {
 
 
 def test_writing_claims_changes_nothing_about_the_records():
-    """ADR 0002: the claim sidecar is write-only, so records are identical with and without it.
+    """ADR 0002: normal-mode records agree with and without the claim sidecar.
 
-    Every physical family over every golden fixture, so the guarantee is checked for the whole
-    roster rather than per family in each claims test.
+    Every physical family over every valid golden fixture, so the normal-mode guarantee is
+    checked for the whole roster rather than per family in each claims test. The document's
+    explicit local-degradation retry can drop proposals that lack staged valid-solid evidence;
+    the public writer-free entry point does not offer that proof mode.
 
     This used to parametrise over public recognisers taking a `ledger=`. Under ADR 0002's
     writer-free rule none does, so that roster became empty and the test skipped itself --
