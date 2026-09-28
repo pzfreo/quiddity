@@ -1504,6 +1504,84 @@
       ]
     },
     {
+      "census_name": "oblique_through_step",
+      "census_output": "RecognitionResult.oblique_through_steps",
+      "documentation": [
+        "docs/capabilities.md#proven-recognition-capability"
+      ],
+      "golden_evidence": [
+        "tests/golden/oblique_through_step/expected.json"
+      ],
+      "id": "oblique-through-steps",
+      "introduced_in": "0.4.0",
+      "recognisers": [
+        {
+          "entry_point": "quiddity.recognise_oblique_through_steps",
+          "kind": "part",
+          "role": "physical"
+        }
+      ],
+      "records": [
+        {
+          "aggregate_membership": [
+            "RecognitionResult.oblique_through_steps"
+          ],
+          "fields": {
+            "across_direction": {
+              "required": true,
+              "type": "tuple[float,3]",
+              "units": "unit-vector"
+            },
+            "at": {
+              "required": true,
+              "type": "tuple[float,3]",
+              "units": "mm"
+            },
+            "body_key": {
+              "required": false,
+              "type": "list[float]|null",
+              "units": "none"
+            },
+            "depth": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "depth_direction": {
+              "required": true,
+              "type": "tuple[float,3]",
+              "units": "unit-vector"
+            },
+            "length": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "run": {
+              "required": true,
+              "type": "tuple[float,3]",
+              "units": "unit-vector"
+            },
+            "wall_outline": {
+              "required": true,
+              "type": "tuple[tuple[float,2],4]",
+              "units": "mm"
+            }
+          },
+          "name": "ObliqueThroughStep",
+          "qualified_name": "quiddity.ObliqueThroughStep",
+          "role": "output",
+          "schema_version": 1
+        }
+      ],
+      "status": "supported",
+      "test_evidence": [
+        "tests/test_capability_claims.py",
+        "tests/test_oblique_through_steps.py",
+        "tests/test_recogniser_contract.py"
+      ]
+    },
+    {
       "census_name": null,
       "census_output": null,
       "census_rationale": "Geometry evidence is deliberately absent from the feature census; the census is not a completeness denominator.",

@@ -99,6 +99,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity.holes as holes_module
     import quiddity.interior_voids as interior_voids_module
     import quiddity.levels as levels_module
+    import quiddity.oblique_through_steps as oblique_through_steps_module
     import quiddity.oriented_slots as oriented_slots_module
     import quiddity.pads as pads_module
     import quiddity.paired_ramp_steps as paired_ramp_steps_module
@@ -286,6 +287,11 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
         through_steps_module,
         "_discover_through_steps",
         counted(FamilyId.THROUGH_STEPS, "through_steps", []),
+    )
+    monkeypatch.setattr(
+        oblique_through_steps_module,
+        "_discover_oblique_through_steps",
+        counted(FamilyId.OBLIQUE_THROUGH_STEPS, "oblique_through_steps", []),
     )
     monkeypatch.setattr(
         circular_blind_steps_module,
@@ -482,6 +488,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
         "angled_steps",
         "paired_ramp_steps",
         "through_steps",
+        "oblique_through_steps",
         "circular_blind_steps",
         "rectangular_blind_slots",
         "round_bottom_blind_slots",

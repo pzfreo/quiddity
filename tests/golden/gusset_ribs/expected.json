@@ -289,6 +289,7 @@
             "spotface": null
           }
         ],
+        "oblique_through_steps": [],
         "pads": [],
         "paired_ramp_steps": [],
         "plates": [
@@ -782,6 +783,7 @@
             "spotface": null
           }
         ],
+        "oblique_through_steps": [],
         "pads": [],
         "paired_ramp_steps": [],
         "plates": [],
@@ -1048,6 +1050,7 @@
       "gusset_rib": 2,
       "hole": 3,
       "hole_pattern": 0,
+      "oblique_through_step": 0,
       "paired_ramp_step": 0,
       "passage": 0,
       "plate": 2,
@@ -1356,6 +1359,7 @@
           "spotface": null
         }
       ],
+      "recognise_oblique_through_steps": [],
       "recognise_paired_ramp_steps": [],
       "recognise_passages": [],
       "recognise_plates": [

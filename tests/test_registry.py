@@ -43,7 +43,7 @@ ROOT = Path(__file__).parents[1]
 
 
 def test_registry_is_the_closed_ordered_internal_roster() -> None:
-    assert len(PHYSICAL_DEFINITIONS) == 38
+    assert len(PHYSICAL_DEFINITIONS) == 39
     assert len(DERIVED_DEFINITIONS) == 5
     assert tuple(item.family for item in PHYSICAL_DEFINITIONS) == PHYSICAL_FAMILIES
     assert set(PHYSICAL_FAMILIES) == set(FamilyId) - {FamilyId.LEGACY}
@@ -68,6 +68,7 @@ def test_registry_is_the_closed_ordered_internal_roster() -> None:
         FamilyId.ANGLED_STEPS,
         FamilyId.PAIRED_RAMP_STEPS,
         FamilyId.THROUGH_STEPS,
+        FamilyId.OBLIQUE_THROUGH_STEPS,
         FamilyId.CIRCULAR_BLIND_STEPS,
         FamilyId.CIRCULAR_FACE_PATTERNS,
         FamilyId.FLATS,
@@ -128,6 +129,7 @@ def test_registry_is_the_closed_ordered_internal_roster() -> None:
         FamilyId.PAIRED_RAMP_STEPS,
         FamilyId.GUSSET_RIBS,
         FamilyId.THROUGH_STEPS,
+        FamilyId.OBLIQUE_THROUGH_STEPS,
         FamilyId.CIRCULAR_BLIND_STEPS,
         FamilyId.PASSAGES,
         FamilyId.ORIENTED_SLOTS,
@@ -372,7 +374,7 @@ def test_registry_applicability_is_pinned_per_family() -> None:
     A separate test from the `projected` pin above, so that a regression in one does not
     short-circuit before the other is evaluated.
 
-    The eight are written out rather than read off the registry: widening the set has to be a
+    The nine are written out rather than read off the registry: widening the set has to be a
     visible edit to this list, not something the code can grant itself.
     """
 
@@ -387,6 +389,7 @@ def test_registry_applicability_is_pinned_per_family() -> None:
         FamilyId.PAIRED_RAMP_STEPS: prismatic,
         FamilyId.GUSSET_RIBS: prismatic,
         FamilyId.THROUGH_STEPS: prismatic,
+        FamilyId.OBLIQUE_THROUGH_STEPS: prismatic,
         FamilyId.CIRCULAR_BLIND_STEPS: prismatic,
         FamilyId.ORIENTED_SLOTS: prismatic,
     }
@@ -631,7 +634,7 @@ def test_a_declared_family_defines_its_own_entry_point() -> None:
             family = getattr(definition, "family", None) or definition.identifier
             elsewhere.add(family.name)
 
-    assert checked == 43
+    assert checked == 44
     # The migration is finished, with no exception left: every definition is written in the
     # module of the family it describes. The last hold-out was the PASSAGES_COMPAT projection,
     # deleted with the rest of the legacy passage surface rather than relocated.
@@ -734,7 +737,7 @@ def test_a_declared_family_defines_its_own_record_types() -> None:
             elsewhere[family.name] = strays
 
     # Guards the sweep itself: a predicate that stopped matching would otherwise pass vacuously.
-    assert declared == 43
+    assert declared == 44
 
     assert all(RECORDS_DEFINED_NEXT_DOOR.values()), "an exception needs a reason, not just a key"
     unexplained = {
