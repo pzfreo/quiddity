@@ -356,6 +356,9 @@ def _section_and_spans(
         (endpoint[a], corner[b]) if right.normal_axis == b else (corner[a], endpoint[b]),
     )
     scopes: EndpointScopes = (scope[b], scope[a]) if left.normal_axis == a else (scope[a], scope[b])
+    # Two local ends describe an internal staircase/groove, not an open step at the part edge.
+    if scopes == ("local", "local"):
+        return None
     if tuple(reversed(points)) < points:
         points = (points[2], points[1], points[0])
         scopes = (scopes[1], scopes[0])

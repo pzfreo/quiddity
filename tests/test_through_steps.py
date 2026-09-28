@@ -153,6 +153,25 @@ def test_neighbouring_steps_report_proved_local_leg_endpoints():
     assert feature_census(part)["through_step"] == 2
 
 
+def test_two_local_legs_in_an_internal_staircase_are_not_a_through_step():
+    stock = Box(40, 30, 20)
+    part = (
+        stock
+        - Pos(7.5, 5, 0) * Box(25, 20, 30)
+        - Pos(12.5, -7.5, 0) * Box(15, 5, 30)
+        - Pos(15, -11, 0) * Box(10, 2, 30)
+    )
+
+    assert part.is_valid
+    steps = recognise_through_steps(part)
+    assert len(steps) == 2
+    assert {step.endpoint_scopes for step in steps} == {
+        ("solid", "local"),
+        ("local", "solid"),
+    }
+    assert all(step.section[1] != (5.0, -10.0) for step in steps)
+
+
 def test_local_leg_endpoints_survive_rotation_scale_step_and_face_order(tmp_path):
     part = _neighbouring_steps()
     expected = _geometry_only(recognise_through_steps(part))
