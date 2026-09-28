@@ -18,6 +18,8 @@ from enum import Enum
 from types import MappingProxyType
 from typing import Any, Protocol, TypeVar, cast
 
+from OCP.BRepCheck import BRepCheck_Analyzer
+
 from quiddity._candidates import Candidate, CandidateSet, DerivedId, EvidenceIndex, FamilyId
 from quiddity._claims import ClaimLedger
 from quiddity._corner_section import prove_corner_section
@@ -528,7 +530,41 @@ def _take_inventory(
     *,
     cylinders: CylinderInventory | None = None,
     rotational: bool = False,
-    local_degradation: bool = False,
+    local_degradation: bool | None = None,
+) -> InventoryProduct:
+    """Complete one inventory, retrying an unproved hole on an invalid or open input.
+
+    ``None`` applies the bounded ownership fallback used by aggregate callers. Explicit
+    ``False`` retains strict proof for the framed document's first pass; ``True`` requests
+    the graph's local degradation rules directly. A valid solid's attribution error still
+    raises, and the retry cannot publish an unowned occurrence.
+    """
+
+    if local_degradation is not None:
+        return _take_inventory_once(
+            part, cylinders=cylinders, rotational=rotational, local_degradation=local_degradation
+        )
+    try:
+        return _take_inventory_once(
+            part, cylinders=cylinders, rotational=rotational, local_degradation=False
+        )
+    except ValueError as error:
+        if str(error) != "Hole cylindrical evidence does not prove one valid solid":
+            raise
+        solids = tuple(part.solids())
+        if solids and all(BRepCheck_Analyzer(solid.wrapped).IsValid() for solid in solids):
+            raise
+        return _take_inventory_once(
+            part, cylinders=cylinders, rotational=rotational, local_degradation=True
+        )
+
+
+def _take_inventory_once(
+    part: Part,
+    *,
+    cylinders: CylinderInventory | None = None,
+    rotational: bool = False,
+    local_degradation: bool,
 ) -> InventoryProduct:
     """Run the explicit physical, reconciliation, derived and projection phases once."""
 
