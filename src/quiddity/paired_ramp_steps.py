@@ -2,7 +2,7 @@
 # Copyright 2024-2026 Paul Fremantle
 """Conservative recognition of a two-ramp through step cut into a stock side.
 
-This family deliberately starts with one original mirror-symmetric planar pair. Two non-principal
+This family deliberately starts with one original equal-angle planar pair. Two non-principal
 planar faces meet along the run axis, share one convex exterior opening and one concave planar
 terminal, and belong to one valid solid. Their angle may be shallow: Chamfer's draft-angle
 exclusion is not part of this paired geometry contract. A ramp or terminal boundary may be
@@ -69,7 +69,7 @@ def _read_ramp(
 
 @dataclass(frozen=True, order=True)
 class PairedRampStep(Record):
-    """One mirror-symmetric, two-sided through step.
+    """One equal-angle, two-sided through step.
 
     ``axis`` is the principal run direction, ``angle`` is either ramp's acute cross-section
     angle in degrees, ``length`` is the open-to-terminal run, and ``at`` is the midpoint of the
@@ -77,8 +77,11 @@ class PairedRampStep(Record):
     geometry anchor rather than an inferred stock coordinate. ``opening_direction`` points
     from the internal terminal toward the exterior opening. ``half_width`` is the distance
     from the ridge to either ramp's exterior edge along the pair's opposed cross axis; together
-    with ``angle`` it fixes the V section. The additive fields default only for constructor
-    compatibility; recognised records always populate both.
+    with ``angle`` it fixes an equal-width V section. For unequal observed
+    spans, ``half_width`` is their arithmetic mean for older consumers and
+    ``half_widths`` gives the negative and positive sides of the opposed
+    principal coordinate respectively. An absent ``half_widths`` means the
+    two observed spans agree. Optional fields retain constructor compatibility.
     """
 
     axis: str
@@ -87,6 +90,7 @@ class PairedRampStep(Record):
     at: tuple[float, float, float]
     opening_direction: tuple[float, float, float] | None = None
     half_width: float | None = None
+    half_widths: tuple[float, float] | None = None
 
 
 def _axis_terminal(graph: FaceGraph, node: FaceNode, axis: int) -> bool:
@@ -127,7 +131,7 @@ def _candidate(
     same = tuple(index for index in cross if left_normal[index] * right_normal[index] > 0.0)
     if len(opposed) != 1 or len(same) != 1:
         return None
-    # The first supported domain is a mirror pair.  This is an angular equality tolerance, not
+    # The supported pair has equal angles. This is an angular equality tolerance, not
     # a dataset-fitted feature-size threshold (ADR 0008).
     if any(
         abs(abs(left_normal[index]) - abs(right_normal[index])) > SMOOTH_ARC_GAP for index in cross
@@ -241,8 +245,18 @@ def _candidate(
         left_span[opposed[0]][1] - left_span[opposed[0]][0],
         right_span[opposed[0]][1] - right_span[opposed[0]][0],
     )
-    if abs(half_widths[0] - half_widths[1]) > tolerance:
-        return None
+    unequal = abs(half_widths[0] - half_widths[1]) > tolerance
+    side_widths = None
+    if unequal:
+        ridge = 0.5 * sum(edge_bounds[opposed[0]])
+        left_middle = 0.5 * sum(left_span[opposed[0]])
+        right_middle = 0.5 * sum(right_span[opposed[0]])
+        if left_middle < ridge - tolerance and right_middle > ridge + tolerance:
+            side_widths = (round(half_widths[0], 3), round(half_widths[1], 3))
+        elif right_middle < ridge - tolerance and left_middle > ridge + tolerance:
+            side_widths = (round(half_widths[1], 3), round(half_widths[0], 3))
+        else:
+            return None
     return (
         PairedRampStep(
             "xyz"[axis],
@@ -251,6 +265,7 @@ def _candidate(
             at,
             opening_direction,
             round(0.5 * sum(half_widths), 3),
+            side_widths,
         ),
         internal[0],
     )

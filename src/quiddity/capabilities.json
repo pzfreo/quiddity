@@ -1780,6 +1780,11 @@
               "type": "float|null",
               "units": "mm"
             },
+            "half_widths": {
+              "required": false,
+              "type": "tuple[float,2]|null",
+              "units": "mm"
+            },
             "length": {
               "required": true,
               "type": "float",
@@ -1794,7 +1799,7 @@
           "name": "PairedRampStep",
           "qualified_name": "quiddity.PairedRampStep",
           "role": "output",
-          "schema_version": 2
+          "schema_version": 3
         }
       ],
       "status": "supported",
