@@ -4,7 +4,7 @@
 
 from dataclasses import replace
 
-from build123d import Box, Pos, Rot, Shell, Solid, chamfer, export_step, import_step
+from build123d import Axis, Box, Pos, Rot, Shell, Solid, chamfer, export_step, import_step
 
 from quiddity import build_recognition_result, feature_census
 from quiddity._adjacency import FaceGraph
@@ -14,6 +14,7 @@ from quiddity.oriented_chamfers import (
     _discover_oriented_chamfers,
     recognise_oriented_chamfers,
 )
+from tests.golden.chamfers_fillets_and_flats.fixture import build_fixture as mixed_bevel_fixture
 from tests.golden.gusset_ribs.fixture import build_fixture as gusset_fixture
 
 
@@ -95,3 +96,11 @@ def test_rotated_blind_step_and_gussets_are_not_oriented_chamfers():
     )
     assert recognise_oriented_chamfers(wedge) == []
     assert recognise_oriented_chamfers(Rot(0, 0, 30) * gusset_fixture()) == []
+
+
+def test_rotated_chamfered_box_keeps_four_edge_breaks_without_end_faces():
+    part = mixed_bevel_fixture().rotate(Axis.X, 30)
+    records = recognise_oriented_chamfers(part)
+
+    assert len(records) == 4
+    assert all(record.leg1 == record.leg2 == 3.0 for record in records)

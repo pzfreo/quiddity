@@ -137,6 +137,7 @@ def _pair(
     body_key: BodyKey | None,
     max_leg_frac: float,
     stock_size: float,
+    box: Any,
 ) -> OrientedChamfer | None:
     lhs = _edge_info(graph, bevel, left)
     rhs = _edge_info(graph, bevel, right)
@@ -199,6 +200,20 @@ def _pair(
     leg1 = leg_vec1.length
     leg2 = leg_vec2.length
     if min(leg1, leg2) <= COORD_FLOOR or max(leg1, leg2) > max_leg_frac * stock_size:
+        return None
+    # A broad terminal face between two real bevel strips can imitate a bevel.
+    # Its reconstructed sharp edge lies beyond this solid's bounding envelope;
+    # a proved local edge break must stay within that same body's envelope.
+    envelope_tol = max(COORD_FLOOR, stock_size * 1e-6)
+    if any(
+        coordinate < lower - envelope_tol or coordinate > upper + envelope_tol
+        for coordinate, lower, upper in zip(
+            (corner.X, corner.Y, corner.Z),
+            (box.min.X, box.min.Y, box.min.Z),
+            (box.max.X, box.max.Y, box.max.Z),
+            strict=True,
+        )
+    ):
         return None
     if abs(leg_vec1.normalized().dot(leg_vec2.normalized())) > SMOOTH_ARC_GAP:
         return None
@@ -280,7 +295,15 @@ def _discover_oriented_chamfers(
                 for right in neighbours[i + 1 :]
                 if (
                     record := _pair(
-                        probe_shape, graph, bevel, left, right, body_key, max_leg_frac, stock_size
+                        probe_shape,
+                        graph,
+                        bevel,
+                        left,
+                        right,
+                        body_key,
+                        max_leg_frac,
+                        stock_size,
+                        box,
                     )
                 )
                 is not None
@@ -300,7 +323,7 @@ def _discover_oriented_chamfers(
 
 
 def recognise_oriented_chamfers(part: Part, *, max_leg_frac: float = 0.45) -> list[OrientedChamfer]:
-    """Recognise proved external chamfers along oblique straight edges."""
+    """Recognise external oblique-edge chamfers with a body-local corner proof."""
 
     return _discover_oriented_chamfers(
         part, graph=FaceGraph(part), sink=None, max_leg_frac=max_leg_frac
