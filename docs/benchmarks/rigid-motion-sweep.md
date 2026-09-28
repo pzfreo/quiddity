@@ -9,9 +9,9 @@ evidence containment. Reclassification is therefore observed, not inferred from 
 
 | rotation | baseline | same family | reclassified | absent | introduced |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Z30 | 111 | 58 | 18 | 35 | 0 |
-| X30 | 111 | 50 | 13 | 48 | 1 |
-| X90 | 111 | 111 | 0 | 0 | 0 |
+| Z30 | 112 | 58 | 18 | 36 | 0 |
+| X30 | 112 | 50 | 13 | 49 | 1 |
+| X90 | 112 | 112 | 0 | 0 | 0 |
 
 ## Affected fixtures
 
@@ -21,6 +21,7 @@ evidence containment. Reclassification is therefore observed, not inferred from 
 - **circular_blind_step** — Z30: 0 reclassified, 1 absent; absent circular_blind_step ×1; X30: 0 reclassified, 1 absent; absent circular_blind_step ×1
 - **gusset_rib_patterns** — Z30: 0 reclassified, 3 absent; absent gusset_rib ×2, plate ×1; X30: 0 reclassified, 4 absent; absent gusset_rib ×2, plate ×2
 - **gusset_ribs** — Z30: 0 reclassified, 4 absent; absent gusset_rib ×2, plate ×1, slot ×1; X30: 0 reclassified, 5 absent; absent gusset_rib ×2, plate ×2, slot ×1
+- **oblique_through_step** — Z30: 0 reclassified, 1 absent; absent oblique_through_step ×1; X30: 0 reclassified, 1 absent; absent oblique_through_step ×1
 - **open_channels** — Z30: 0 reclassified, 3 absent; absent channel ×1, plate ×2; X30: 0 reclassified, 4 absent; absent channel ×1, plate ×3
 - **paired_ramp_step** — Z30: 0 reclassified, 1 absent; absent paired_ramp_step ×1; X30: 0 reclassified, 1 absent; absent paired_ramp_step ×1
 - **plates_pads_levels_and_slanted_steps** — Z30: 0 reclassified, 4 absent; absent plate ×1, pocket ×2, through_step ×1; X30: 0 reclassified, 4 absent; absent plate ×1, pocket ×2, through_step ×1
