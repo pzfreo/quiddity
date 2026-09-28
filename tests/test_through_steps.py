@@ -49,6 +49,18 @@ def _step(scale: float = 1.0):
     return stock - removal
 
 
+def _notched_terminal(kind: str):
+    """Cut one end face while leaving both complete step walls and the empty prism."""
+
+    if kind == "step":
+        cut = Pos(15, 0, 9) * Box(10, 30, 2)
+    elif kind == "pocket":
+        cut = Pos(15, -7.5, 9) * Box(10, 15, 2)
+    else:
+        cut = Pos(15, 0, 10) * Rot(90, 0, 0) * Cylinder(4, 30)
+    return _step() - cut
+
+
 def _geometry_only(records):
     return [replace(record, body_key=()) for record in records]
 
@@ -192,6 +204,32 @@ def test_coplanar_terminal_subdivision_is_representation_only():
     )
 
 
+@pytest.mark.parametrize("kind", ("step", "pocket", "hole"))
+def test_notched_terminal_needs_presence_and_convex_joins_not_full_section_coverage(kind):
+    part = _notched_terminal(kind)
+    assert part.is_valid
+    assert _geometry_only(recognise_through_steps(part)) == _geometry_only(
+        recognise_through_steps(_step())
+    )
+    assert feature_census(part)["through_step"] == 1
+
+
+@pytest.mark.parametrize("kind", ("step", "pocket", "hole"))
+def test_notched_terminal_survives_frame_scale_step_and_face_order(kind, tmp_path):
+    part = _notched_terminal(kind)
+    expected = _geometry_only(recognise_through_steps(part))
+    for rotation in (Rot(90, 0, 0), Rot(0, 90, 0), Rot(0, 0, 180)):
+        assert len(recognise_through_steps(rotation * part)) == 1
+    for scale in (0.05, 100.0):
+        assert len(recognise_through_steps(part.scale(scale))) == 1
+    reordered = Solid(Shell(list(reversed(part.faces()))))
+    assert reordered.is_valid
+    assert _geometry_only(recognise_through_steps(reordered)) == expected
+    path = tmp_path / f"notched-{kind}.step"
+    export_step(part, path)
+    assert _geometry_only(recognise_through_steps(import_step(path))) == expected
+
+
 def test_channels_pockets_and_slots_are_not_through_steps():
     stock = Box(40, 30, 20)
     channel = stock - Box(20, 10, 30)
@@ -206,6 +244,7 @@ def test_a_third_cospanning_concave_wall_is_not_one_open_step():
     channel = Box(40, 30, 20) - Box(20, 10, 30)
 
     assert recognise_through_steps(channel) == []
+    assert recognise_through_steps(channel - Pos(15, -7.5, 9) * Box(10, 15, 2)) == []
 
 
 def test_material_inside_the_inferred_removed_prism_fails_closed():
@@ -214,6 +253,9 @@ def test_material_inside_the_inferred_removed_prism_fails_closed():
 
     assert obstructed.is_valid
     assert recognise_through_steps(obstructed) == []
+    notched = _notched_terminal("pocket") + rib_into_void
+    assert notched.is_valid
+    assert recognise_through_steps(notched) == []
 
 
 def test_an_additive_l_solid_has_the_same_history_free_geometry():
@@ -229,6 +271,23 @@ def test_a_step_capped_at_one_run_end_is_blind_not_through():
     removal = Pos(15, 10, 5) * Box(20, 20, 10)
 
     assert recognise_through_steps(stock - removal) == []
+
+
+def test_notched_terminal_with_partial_cap_is_not_through():
+    cap = Pos(10, 7.5, 9.5) * Box(10, 10, 1)
+    part = _notched_terminal("pocket") + cap
+
+    assert part.is_valid
+    assert recognise_through_steps(part) == []
+
+
+def test_a_terminal_reduced_to_one_small_island_does_not_prove_the_step():
+    mostly_removed = (
+        _step() - Pos(12.5, -7.5, 9) * Box(15, 15, 2) - Pos(-7.5, 7.5, 9) * Box(25, 15, 2)
+    )
+
+    assert mostly_removed.is_valid
+    assert recognise_through_steps(mostly_removed) == []
 
 
 def test_a_convex_straight_boundary_notch_preserves_the_step_proof():

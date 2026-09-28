@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-from build123d import Box, Pos, Rot
+from build123d import Box, Pos, Rot, Shell
 
 from quiddity._adjacency import FaceGraph
 from quiddity._candidates import FamilyId
@@ -87,6 +87,16 @@ def test_single_authored_face_has_no_inferred_rectangular_pair() -> None:
     assert anatomy.face_count == 1
     assert anatomy.first_failed_gate == "no_orthogonal_rectangular_pair"
     assert anatomy.inferred_run_axis is None
+    assert anatomy.exact_empty_prism is None
+
+
+def test_open_shell_is_recorded_as_unproven_anatomy() -> None:
+    graph = FaceGraph(Shell(list(_step().faces())))
+
+    anatomy = describe_component(graph, tuple(graph.nodes[:2]))
+
+    assert anatomy.face_count == 2
+    assert anatomy.first_failed_gate == "unproven_solid"
     assert anatomy.exact_empty_prism is None
 
 
