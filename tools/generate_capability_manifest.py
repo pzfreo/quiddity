@@ -213,6 +213,8 @@ def _units(field: dataclasses.Field, annotation: object) -> str:
         "depth_direction",
         "flat_direction",
         "flat_directions",
+        "leg1_direction",
+        "leg2_direction",
         "long_direction",
         "row_direction",
         "col_direction",

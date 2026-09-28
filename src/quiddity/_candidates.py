@@ -47,6 +47,7 @@ class FamilyId(Enum):
     BLENDS = "blends"
     BOSSES = "bosses"
     CHAMFERS = "chamfers"
+    ORIENTED_CHAMFERS = "oriented_chamfers"
     CHANNELS = "channels"
     CIRCULAR_FACE_PATTERNS = "circular_face_patterns"
     CIRCULAR_BLIND_STEPS = "circular_blind_steps"

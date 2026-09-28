@@ -9,15 +9,15 @@ evidence containment. Reclassification is therefore observed, not inferred from 
 
 | rotation | baseline | same family | reclassified | absent | introduced |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Z30 | 112 | 58 | 18 | 36 | 0 |
-| X30 | 112 | 50 | 13 | 49 | 1 |
-| X90 | 112 | 112 | 0 | 0 | 0 |
+| Z30 | 113 | 59 | 19 | 35 | 0 |
+| X30 | 113 | 51 | 17 | 45 | 1 |
+| X90 | 113 | 113 | 0 | 0 | 0 |
 
 ## Affected fixtures
 
-- **angled_blind_step** — Z30: 0 reclassified, 2 absent; absent angled_step ×1, chamfer ×1; X30: 0 reclassified, 2 absent; absent angled_step ×1, chamfer ×1
+- **angled_blind_step** — Z30: 1 reclassified, 1 absent; transitions chamfer->oriented_chamfer ×1; absent angled_step ×1; X30: 0 reclassified, 2 absent; absent angled_step ×1, chamfer ×1
 - **blind_pockets_and_pocket_patterns** — Z30: 6 reclassified, 0 absent; transitions pocket->prismatic_pocket ×6; X30: 0 reclassified, 6 absent; absent pocket ×6
-- **chamfers_fillets_and_flats** — Z30: 4 reclassified, 4 absent; transitions fillet->blend ×4; absent chamfer ×4; X30: 4 reclassified, 4 absent; transitions fillet->blend ×4; absent chamfer ×4
+- **chamfers_fillets_and_flats** — Z30: 4 reclassified, 4 absent; transitions fillet->blend ×4; absent chamfer ×4; X30: 8 reclassified, 0 absent; transitions chamfer->oriented_chamfer ×4, fillet->blend ×4
 - **circular_blind_step** — Z30: 0 reclassified, 1 absent; absent circular_blind_step ×1; X30: 0 reclassified, 1 absent; absent circular_blind_step ×1
 - **gusset_rib_patterns** — Z30: 0 reclassified, 3 absent; absent gusset_rib ×2, plate ×1; X30: 0 reclassified, 4 absent; absent gusset_rib ×2, plate ×2
 - **gusset_ribs** — Z30: 0 reclassified, 4 absent; absent gusset_rib ×2, plate ×1, slot ×1; X30: 0 reclassified, 5 absent; absent gusset_rib ×2, plate ×2, slot ×1

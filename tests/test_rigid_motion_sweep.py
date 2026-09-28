@@ -45,22 +45,22 @@ def test_checked_in_rigid_motion_evidence_is_current(report) -> None:
 def test_rigid_motion_baseline_separates_absence_from_reclassification(report) -> None:
     assert report["totals"] == {
         "Z30": {
-            "baseline_records": 112,
-            "retained_same_family": 58,
-            "reclassified": 18,
-            "absent": 36,
+            "baseline_records": 113,
+            "retained_same_family": 59,
+            "reclassified": 19,
+            "absent": 35,
             "introduced": 0,
         },
         "X30": {
-            "baseline_records": 112,
-            "retained_same_family": 50,
-            "reclassified": 13,
-            "absent": 49,
+            "baseline_records": 113,
+            "retained_same_family": 51,
+            "reclassified": 17,
+            "absent": 45,
             "introduced": 1,
         },
         "X90": {
-            "baseline_records": 112,
-            "retained_same_family": 112,
+            "baseline_records": 113,
+            "retained_same_family": 113,
             "reclassified": 0,
             "absent": 0,
             "introduced": 0,
@@ -78,3 +78,6 @@ def test_rigid_motion_baseline_separates_absence_from_reclassification(report) -
     assert fixtures["straight_and_obround_slots"]["rotations"]["Z30"]["transitions"] == {
         "slot->oriented_slot": 4
     }
+    rotated_bevels = fixtures["chamfers_fillets_and_flats"]["rotations"]["X30"]
+    assert rotated_bevels["transitions"]["chamfer->oriented_chamfer"] == 4
+    assert rotated_bevels["introduced_by_family"].get("oriented_chamfer", 0) == 0
