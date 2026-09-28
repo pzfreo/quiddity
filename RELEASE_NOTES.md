@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.3.8 — Quiddity
+
+- Keep aggregate recognition available for invalid or open MFCAD++ inputs whose hole cylinders
+  cannot be attributed to one valid solid. Retry with bounded local degradation and omit
+  unproved hole occurrences; valid-solid attribution errors still raise (#781).
+- Recognise rectangular through steps when another feature notches an end face but leaves a
+  coplanar terminal region joined to both step walls. The complete seam and empty removed
+  prism remain required (#777).
+
 ## 0.3.7 — Quiddity
 
 - Honour the opt-in `QUIDDITY_THREADS` process setting for OCCT's worker pool, allowing batch
