@@ -45,15 +45,18 @@ which family ran first. Passing a writer changes nothing about the return value.
 from a different part is refused, not silently ignored: the core labels it a source-identity
 failure and chains the original reason rather than replacing it.
 
-The parity rule above applies to normal proof mode on valid supported solids. The document builder
-has one explicit exception. If ordinary framed recognition refuses and the input contains an
-invalid solid, it may retry in `local_degradation` mode when a small diagnosed bad-face region can
-be isolated. In that mode a writer-backed core returns only proposals whose source faces pass the
-shared graph's same-solid proof and whose evidence it staged. A writer-free public recogniser has
-no degraded-mode option, so it may return a broader geometry-only list for the same invalid part.
-This difference reflects a different proof mode; it does not let sibling claims affect discovery.
-The aggregate must never publish an unstaged record (ADR 0003); the document marks refused faces
-as `not_proven`. Issue #769 exposed this boundary for holes, bosses and grooves.
+The parity rule above applies to normal proof mode on valid supported solids. If ordinary framed
+recognition refuses and the input contains an invalid solid, the document builder may retry in
+`local_degradation` mode when a small diagnosed bad-face region can be isolated. The shared
+inventory also retries a hole ownership refusal for an invalid solid or an input with no solid;
+an open shell then has no same-solid proof and contributes no unowned records. It does not retry
+unrelated attribution errors or a valid solid. In local degradation mode a writer-backed core
+returns only proposals whose source faces pass the shared graph's same-solid proof and whose
+evidence it staged. A writer-free public recogniser has no degraded-mode option, so it may return
+a broader geometry-only list for the same invalid part. This difference reflects a different
+proof mode; it does not let sibling claims affect discovery. The aggregate must never publish an
+unstaged record (ADR 0003); the document marks refused faces as `not_proven`. Issues #769 and
+#781 exposed this boundary for holes, bosses, grooves and aggregate callers.
 
 **One private core, one public facade.** The public function is a writer-free facade over a
 private core that takes the writer, and the registry calls the core. Every *registered* family

@@ -134,9 +134,14 @@ def test_prepared_evidence_runs_one_aggregate_and_never_calls_the_raw_entrypoint
     original = frames._take_inventory
     calls = []
 
-    def counted(part, *, cylinders=None, rotational=False):
-        calls.append((part, cylinders, rotational))
-        return original(part, cylinders=cylinders, rotational=rotational)
+    def counted(part, *, cylinders=None, rotational=False, local_degradation=None):
+        calls.append((part, cylinders, rotational, local_degradation))
+        return original(
+            part,
+            cylinders=cylinders,
+            rotational=rotational,
+            local_degradation=local_degradation,
+        )
 
     def forbidden(*_args, **_kwargs):
         raise AssertionError("framed evidence must not call the raw evidence entrypoint")
@@ -150,6 +155,7 @@ def test_prepared_evidence_runs_one_aggregate_and_never_calls_the_raw_entrypoint
     assert len(calls) == 1
     assert calls[0][0] is prepared.part
     assert calls[0][2] is True
+    assert calls[0][3] is False
     assert framed.result.rotational is True
 
 
