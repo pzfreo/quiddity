@@ -579,6 +579,7 @@ def test_10060_legacy_false_positive_is_omitted_with_only_the_named_census_narro
         # that B-Rep presentation variant part of the same physical contract.
         "paired_ramp_step": 2,
         "through_step": 0,
+        "oblique_through_step": 0,
         "circular_blind_step": 0,
         "blend": 0,
         "fillet": 0,
