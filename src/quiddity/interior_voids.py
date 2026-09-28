@@ -266,7 +266,8 @@ def _discover_interior_voids(part: Part, *, graph: FaceGraph | None = None) -> l
         intersector = IntCurvesFace_ShapeIntersector()
         intersector.Load(body.wrapped, COORD_FLOOR)
         material = BRepClass3d_SolidClassifier(body.wrapped)
-        max_distance = math.sqrt(sum(size * size for size in body.bounding_box().size)) * 2
+        bounds = properties.bounding_box(body)
+        max_distance = math.sqrt(sum(size * size for size in bounds.size)) * 2
         # A cheap original-face witness gates the much larger volume sample.
         # No bounded air face means no core skin to report.
         if not any(
@@ -277,7 +278,7 @@ def _discover_interior_voids(part: Part, *, graph: FaceGraph | None = None) -> l
             for face in body.faces()
         ):
             continue
-        grid = sample_void_grid(body)
+        grid = sample_void_grid(body, bounds=bounds)
         if grid is None or not grid.components:
             continue
         if shared_graph is None:

@@ -22,7 +22,7 @@ from OCP.IntCurvesFace import IntCurvesFace_ShapeIntersector
 from OCP.Standard import Standard_Failure, Standard_NullObject
 
 from quiddity._geometry import COORD_FLOOR, length_tol
-from quiddity._typing import Part
+from quiddity._typing import Bounds, Part
 
 _CELLS_ON_LONGEST_AXIS = 64
 _MIN_COMPONENT_SPAN = 3  # fewer cells cannot establish a three-dimensional region
@@ -139,10 +139,11 @@ def _components(cells: set[Cell]) -> tuple[frozenset[Cell], ...]:
     return tuple(sorted(result, key=lambda cells: min(cells)))
 
 
-def sample_void_grid(body: Part) -> VoidGrid | None:
+def sample_void_grid(body: Part, *, bounds: Bounds | None = None) -> VoidGrid | None:
     """Sample material and bounded air in one body's caller-supplied XYZ frame."""
 
-    bounds = body.bounding_box()
+    if bounds is None:
+        bounds = body.bounding_box()
     origin = (float(bounds.min.X), float(bounds.min.Y), float(bounds.min.Z))
     extents = (float(bounds.size.X), float(bounds.size.Y), float(bounds.size.Z))
     longest = max(extents)
