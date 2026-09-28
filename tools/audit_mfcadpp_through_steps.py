@@ -170,10 +170,11 @@ def _probe_pair(
         return _PairProbe(1, run, full_run_faces, None, None)
     if _relation(graph, left, right) != "concave":
         return _PairProbe(2, run, full_run_faces, None, None)
-    measured = _section_and_spans(left, right, run, bounds)
+    solid_nodes = {graph.require_node(face) for face in solid.faces()}
+    measured = _section_and_spans(graph, left, right, run, bounds, solid_nodes)
     if measured is None:
         return _PairProbe(3, run, full_run_faces, None, None)
-    _section, spans = measured
+    _section, spans, _endpoint_scopes = measured
     if not _shared_run_is_complete(graph, left, right, run, low, high):
         return _PairProbe(4, run, full_run_faces, None, None)
     terminals = sum(

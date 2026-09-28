@@ -3683,6 +3683,11 @@
               "type": "list[float]|null",
               "units": "none"
             },
+            "endpoint_scopes": {
+              "required": false,
+              "type": "tuple[str,2]",
+              "units": "none"
+            },
             "length": {
               "required": true,
               "type": "float",
@@ -3697,7 +3702,7 @@
           "name": "ThroughStep",
           "qualified_name": "quiddity.ThroughStep",
           "role": "output",
-          "schema_version": 2
+          "schema_version": 3
         }
       ],
       "status": "supported",

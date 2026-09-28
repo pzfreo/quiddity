@@ -67,6 +67,8 @@ def _type_name(annotation: object) -> str:
         return f"record:{typing.cast(type, annotation).__name__}"
     origin = typing.get_origin(annotation)
     args = typing.get_args(annotation)
+    if origin is typing.Literal:
+        return "|".join(sorted({_type_name(type(value)) for value in args}))
     if origin in {typing.Union, types.UnionType}:
         return "|".join(
             sorted({_type_name(arg) for arg in args}, key=lambda item: (item == "null", item))

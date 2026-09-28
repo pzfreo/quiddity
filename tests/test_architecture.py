@@ -872,6 +872,7 @@ ARC_READER_SITES = {
     "src/quiddity/paired_ramp_steps:_is_concave:arc:1": "exact-nonsmooth",
     "src/quiddity/paired_ramp_steps:_is_convex:arc:1": "exact-nonsmooth",
     "src/quiddity/through_steps:_relation:arc:1": "legacy-contract",
+    "src/quiddity/through_steps:_convex_local_boundary:arc:1": "exact-nonsmooth",
     "src/quiddity/through_steps:_coplanar_region:arc:1": "legacy-contract",
     "src/quiddity/through_steps:_common_terminal:arc:1": "legacy-contract",
     "src/quiddity/through_steps:_common_terminal:arc:2": "legacy-contract",

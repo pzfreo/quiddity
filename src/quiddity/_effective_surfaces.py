@@ -758,6 +758,10 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "edge curve kind validates a complete linear defining seam",
     ),
+    "through_steps:_convex_local_boundary:geom_type:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "edge curve kind validates an original straight local material boundary",
+    ),
     "chamfers:_discover_chamfers:adaptor:1": (
         SurfaceReaderDisposition.ORIENTATION_DEFERRED,
         "cone family gate uses oriented neighbours",

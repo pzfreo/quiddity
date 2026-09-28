@@ -1056,14 +1056,15 @@
       }
     },
     "slanted_steps": {
-      "baseline_records": 2,
+      "baseline_records": 3,
       "rotations": {
         "X30": {
-          "absent": 2,
+          "absent": 3,
           "absent_by_family": {
-            "pocket": 2
+            "pocket": 2,
+            "through_step": 1
           },
-          "baseline_records": 2,
+          "baseline_records": 3,
           "introduced": 0,
           "introduced_by_family": {},
           "reclassified": 0,
@@ -1074,22 +1075,24 @@
         "X90": {
           "absent": 0,
           "absent_by_family": {},
-          "baseline_records": 2,
+          "baseline_records": 3,
           "introduced": 0,
           "introduced_by_family": {},
           "reclassified": 0,
-          "retained_same_family": 2,
+          "retained_same_family": 3,
           "same_family": {
-            "pocket": 2
+            "pocket": 2,
+            "through_step": 1
           },
           "transitions": {}
         },
         "Z30": {
-          "absent": 2,
+          "absent": 3,
           "absent_by_family": {
-            "pocket": 2
+            "pocket": 2,
+            "through_step": 1
           },
-          "baseline_records": 2,
+          "baseline_records": 3,
           "introduced": 0,
           "introduced_by_family": {},
           "reclassified": 0,
@@ -1484,22 +1487,22 @@
   "schema": 1,
   "totals": {
     "X30": {
-      "absent": 47,
-      "baseline_records": 110,
+      "absent": 48,
+      "baseline_records": 111,
       "introduced": 1,
       "reclassified": 13,
       "retained_same_family": 50
     },
     "X90": {
       "absent": 0,
-      "baseline_records": 110,
+      "baseline_records": 111,
       "introduced": 0,
       "reclassified": 0,
-      "retained_same_family": 110
+      "retained_same_family": 111
     },
     "Z30": {
-      "absent": 34,
-      "baseline_records": 110,
+      "absent": 35,
+      "baseline_records": 111,
       "introduced": 0,
       "reclassified": 18,
       "retained_same_family": 58

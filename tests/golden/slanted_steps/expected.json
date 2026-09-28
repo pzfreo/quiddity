@@ -425,7 +425,46 @@
             "z": 20.0
           }
         ],
-        "through_steps": [],
+        "through_steps": [
+          {
+            "_type": "ThroughStep",
+            "at": [
+              45.0,
+              -25.0,
+              16.5
+            ],
+            "axis": "y",
+            "body_key": [
+              0.0,
+              -50.0,
+              0.0,
+              50.0,
+              0.0,
+              25.0,
+              52440.0,
+              9436.0
+            ],
+            "endpoint_scopes": [
+              "local",
+              "solid"
+            ],
+            "length": 50.0,
+            "section": [
+              [
+                40.0,
+                19.0
+              ],
+              [
+                40.0,
+                14.0
+              ],
+              [
+                50.0,
+                14.0
+              ]
+            ]
+          }
+        ],
         "turned_steps": []
       },
       "rotational": {
@@ -872,7 +911,7 @@
       "round_bottom_blind_slot": 0,
       "slot": 0,
       "step": 0,
-      "through_step": 0
+      "through_step": 1
     },
     "individual": {
       "recognise_angled_steps": [],
@@ -1326,7 +1365,46 @@
       "recognise_round_bottom_blind_slots": [],
       "recognise_slot_patterns": [],
       "recognise_slots": [],
-      "recognise_through_steps": [],
+      "recognise_through_steps": [
+        {
+          "_type": "ThroughStep",
+          "at": [
+            45.0,
+            -25.0,
+            16.5
+          ],
+          "axis": "y",
+          "body_key": [
+            0.0,
+            -50.0,
+            0.0,
+            50.0,
+            0.0,
+            25.0,
+            52440.0,
+            9436.0
+          ],
+          "endpoint_scopes": [
+            "local",
+            "solid"
+          ],
+          "length": 50.0,
+          "section": [
+            [
+              40.0,
+              19.0
+            ],
+            [
+              40.0,
+              14.0
+            ],
+            [
+              50.0,
+              14.0
+            ]
+          ]
+        }
+      ],
       "recognise_turned_steps": []
     },
     "substrates": {

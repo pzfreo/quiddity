@@ -426,6 +426,10 @@
               114512.0,
               28166.0
             ],
+            "endpoint_scopes": [
+              "solid",
+              "solid"
+            ],
             "length": 70.0,
             "section": [
               [
@@ -1288,6 +1292,10 @@
             36.0,
             114512.0,
             28166.0
+          ],
+          "endpoint_scopes": [
+            "solid",
+            "solid"
           ],
           "length": 70.0,
           "section": [

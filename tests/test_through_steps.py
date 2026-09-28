@@ -61,6 +61,13 @@ def _notched_terminal(kind: str):
     return _step() - cut
 
 
+def _neighbouring_steps():
+    stock = Box(40, 30, 20)
+    upper = Pos(12.5, 10, 0) * Box(15, 10, 30)
+    lower = Pos(17.5, 2.5, 0) * Box(5, 5, 30)
+    return stock - upper - lower
+
+
 def _geometry_only(records):
     return [replace(record, body_key=()) for record in records]
 
@@ -118,6 +125,66 @@ def test_rectangular_through_step_has_one_canonical_open_section_and_claim():
     ]
     assert len(ledger.claims) == 1
     assert len(ledger.claims[0].defining) == 2
+
+
+def test_neighbouring_steps_report_proved_local_leg_endpoints():
+    part = _neighbouring_steps()
+    steps = _geometry_only(recognise_through_steps(part))
+
+    assert steps == [
+        ThroughStep(
+            "z",
+            20.0,
+            (10.0, 10.0, 0.0),
+            ((5.0, 15.0), (5.0, 5.0), (15.0, 5.0)),
+            endpoint_scopes=("solid", "local"),
+        ),
+        ThroughStep(
+            "z",
+            20.0,
+            (17.5, 2.5, 0.0),
+            ((15.0, 5.0), (15.0, 0.0), (20.0, 0.0)),
+            endpoint_scopes=("local", "solid"),
+        ),
+    ]
+    product = _take_inventory(part)
+    assert product.result.through_steps == tuple(recognise_through_steps(part))
+    assert len(product.physical.candidate_set(FamilyId.THROUGH_STEPS).candidates) == 2
+    assert feature_census(part)["through_step"] == 2
+
+
+def test_two_local_legs_in_an_internal_staircase_are_not_a_through_step():
+    stock = Box(40, 30, 20)
+    part = (
+        stock
+        - Pos(7.5, 5, 0) * Box(25, 20, 30)
+        - Pos(12.5, -7.5, 0) * Box(15, 5, 30)
+        - Pos(15, -11, 0) * Box(10, 2, 30)
+    )
+
+    assert part.is_valid
+    steps = recognise_through_steps(part)
+    assert len(steps) == 2
+    assert {step.endpoint_scopes for step in steps} == {
+        ("solid", "local"),
+        ("local", "solid"),
+    }
+    assert all(step.section[1] != (5.0, -10.0) for step in steps)
+
+
+def test_local_leg_endpoints_survive_rotation_scale_step_and_face_order(tmp_path):
+    part = _neighbouring_steps()
+    expected = _geometry_only(recognise_through_steps(part))
+    path = tmp_path / "neighbouring-steps.step"
+    export_step(part, path)
+    assert _geometry_only(recognise_through_steps(import_step(path))) == expected
+    reordered = Solid(Shell(list(reversed(part.faces()))))
+    assert reordered.is_valid
+    assert _geometry_only(recognise_through_steps(reordered)) == expected
+    for rotation in (Rot(90, 0, 0), Rot(0, 90, 0), Rot(0, 0, 180)):
+        assert len(recognise_through_steps(rotation * part)) == 2
+    for scale in (0.05, 100.0):
+        assert len(recognise_through_steps(part.scale(scale))) == 2
 
 
 def test_aggregate_candidate_result_and_census_are_one_accepted_occurrence():
@@ -247,15 +314,21 @@ def test_a_third_cospanning_concave_wall_is_not_one_open_step():
     assert recognise_through_steps(channel - Pos(15, -7.5, 9) * Box(10, 15, 2)) == []
 
 
-def test_material_inside_the_inferred_removed_prism_fails_closed():
+def test_material_inside_the_original_removed_prism_changes_the_proved_local_section():
     rib_into_void = Pos(10, 7.5, 0) * Box(10, 2, 20)
     obstructed = _step() + rib_into_void
 
     assert obstructed.is_valid
-    assert recognise_through_steps(obstructed) == []
+    steps = recognise_through_steps(obstructed)
+    assert len(steps) == 1
+    assert steps[0].endpoint_scopes == ("solid", "local")
+    assert steps[0].section != recognise_through_steps(_step())[0].section
     notched = _notched_terminal("pocket") + rib_into_void
     assert notched.is_valid
-    assert recognise_through_steps(notched) == []
+    assert all(
+        step.section != recognise_through_steps(_step())[0].section
+        for step in recognise_through_steps(notched)
+    )
 
 
 def test_an_additive_l_solid_has_the_same_history_free_geometry():
