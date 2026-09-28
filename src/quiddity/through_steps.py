@@ -5,8 +5,9 @@
 The supported occurrence is exactly two principal-plane regions joined by one concave seam, open
 across the complete run of one valid source solid.  The open section records the removed quadrant
 explicitly. Boundary interruptions from independent geometry are permitted only when the complete
-seam, envelope, terminals and empty removed prism remain proved. Channels, pockets, capped cuts,
-tapered or curved walls, seam interruptions and partial-run steps remain outside this family.
+seam, envelope, terminal presence and empty removed prism remain proved. Channels, pockets,
+capped cuts, tapered or curved walls, seam interruptions and partial-run steps remain outside
+this family.
 """
 
 from __future__ import annotations
@@ -220,7 +221,6 @@ def _common_terminal(
     right: _Region,
     run: int,
     station: float,
-    spans: dict[str, tuple[float, float]],
     planes: dict[FaceNode, tuple[int, float] | None],
 ) -> bool:
     left_neighbours = {node for source in left.nodes for node in graph.neighbours(source)}
@@ -235,20 +235,6 @@ def _common_terminal(
         if plane is None or plane[0] != run or abs(plane[1] - station) > SPAN_EPS:
             continue
         if not (region & left_neighbours and region & right_neighbours):
-            continue
-        measured = tuple(
-            (
-                min(graph.bounds(node)[axis][0] for node in region),
-                max(graph.bounds(node)[axis][1] for node in region),
-            )
-            for axis in range(3)
-        )
-        if any(
-            measured[axis][0] > spans[_AXES[axis]][0] + SPAN_EPS
-            or measured[axis][1] < spans[_AXES[axis]][1] - SPAN_EPS
-            for axis in range(3)
-            if axis != run
-        ):
             continue
         left_arcs = []
         for source in left.nodes:
@@ -339,8 +325,8 @@ def _recognise_one(
             section, spans = measured
             if (
                 not _shared_run_is_complete(graph, left, right, run, low, high)
-                or not _common_terminal(graph, left, right, run, low, spans, planes)
-                or not _common_terminal(graph, left, right, run, high, spans, planes)
+                or not _common_terminal(graph, left, right, run, low, planes)
+                or not _common_terminal(graph, left, right, run, high, planes)
             ):
                 continue
             if any(
