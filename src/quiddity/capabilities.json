@@ -4005,6 +4005,6 @@
   "format_version": 2,
   "package": {
     "name": "quiddity",
-    "version": "0.4.0.dev0"
+    "version": "0.4.1.dev0"
   }
 }
