@@ -135,7 +135,10 @@ dataset/version, lexical selection and limit, resolved input paths and hashes, r
 and invalid-model policy. Any mismatch, foreign row, malformed row, or missing authority manifest
 is refused rather than ignored. Deleting the explicitly named checkpoint directory starts a fresh
 run. The known MFCAD++-2,500 selection is refused before recognition unless `--allow-invalid` is
-present, because its seven invalid IDs and policy are recorded below.
+present, because seven historically unproved IDs and their policy are recorded below. Issue
+#781 makes their shared inventory calls complete with bounded ownership refusal; the frozen
+earlier baseline still records them as invalid. A new report must state its evaluated and invalid
+denominators explicitly rather than compare percentages across those different populations.
 
 The runner imports production recognition code from the environment that launches it. When an
 existing virtual environment is reused to replay another worktree, put that worktree's `src`

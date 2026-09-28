@@ -447,7 +447,10 @@ def _build_prepared_framed_recognition_evidence(
         )
     else:
         product = _take_inventory(
-            cast(Part, prepared.part), cylinders=cylinders, rotational=rotational
+            cast(Part, prepared.part),
+            cylinders=cylinders,
+            rotational=rotational,
+            local_degradation=False,
         )
     evidence = _project_recognition_evidence(product)
     completed = FramedRecognitionResult(prepared.frame, prepared.part, product.result)
