@@ -5,7 +5,7 @@
 The supported occurrence is exactly two principal-plane regions joined by one concave seam, open
 across the complete run of one valid source solid.  The open section records the removed quadrant
 explicitly. Boundary interruptions from independent geometry are permitted only when the complete
-seam, envelope, terminal presence and empty removed prism remain proved. Channels, pockets,
+seam, material boundary, terminal presence and empty removed prism remain proved. Channels, pockets,
 capped cuts, tapered or curved walls, seam interruptions and partial-run steps remain outside
 this family.
 """
@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import total_ordering
-from typing import Any
+from typing import Any, Literal
 
 from build123d import GeomType, Wire
 
@@ -36,6 +36,8 @@ from quiddity._volume_probe import prism_is_empty
 
 _AXES = "xyz"
 SPAN_EPS = COORD_FLOOR
+EndpointScope = Literal["solid", "local"]
+EndpointScopes = tuple[EndpointScope, EndpointScope]
 
 
 @total_ordering
@@ -43,9 +45,11 @@ SPAN_EPS = COORD_FLOOR
 class ThroughStep(Record):
     """One principal-axis rectangular open-profile step spanning a source solid.
 
-    ``section`` is the canonical three-point open polyline perpendicular to ``axis``: envelope
-    endpoint, concave corner, envelope endpoint. Each pair uses the two non-run coordinates in
-    ascending ``x``, ``y``, ``z`` order (``yz`` for an x run, ``xz`` for y, ``xy`` for z).
+    ``section`` is the canonical three-point open polyline perpendicular to ``axis``: proved
+    boundary endpoint, concave corner, proved boundary endpoint. ``endpoint_scopes`` names each
+    endpoint as the whole-solid envelope or a convex local material boundary. Each pair uses the
+    two non-run coordinates in ascending ``x``, ``y``, ``z`` order (``yz`` for an x run, ``xz``
+    for y, ``xy`` for z).
     ``at`` is the caller-coordinate midpoint of the proved empty removed prism. Its orientation,
     anchor and both leg dimensions are therefore explicit rather than inferred from unsigned
     widths.
@@ -60,6 +64,16 @@ class ThroughStep(Record):
         tuple[float, float],
     ]
     body_key: BodyKey | None = ()
+    endpoint_scopes: EndpointScopes = (
+        "solid",
+        "solid",
+    )
+
+    def __post_init__(self) -> None:
+        if len(self.endpoint_scopes) != 2 or any(
+            scope not in ("solid", "local") for scope in self.endpoint_scopes
+        ):
+            raise ValueError("through-step endpoint scopes must be solid or local")
 
     def __lt__(self, other: object) -> bool:
         if not isinstance(other, ThroughStep):
@@ -72,6 +86,7 @@ class ThroughStep(Record):
             self.length,
             self.at,
             self.section,
+            self.endpoint_scopes,
             self.body_key is not None,
             self.body_key or (),
         )
@@ -251,41 +266,105 @@ def _common_terminal(
     return False
 
 
+def _convex_local_boundary(
+    graph: FaceGraph,
+    region: _Region,
+    varying: int,
+    endpoint: float,
+    run: int,
+    low: float,
+    high: float,
+    solid_nodes: set[FaceNode],
+) -> bool:
+    """Prove that a local leg ends at a convex, same-solid edge for the complete run."""
+
+    intervals: list[tuple[float, float]] = []
+    for source in region.nodes:
+        for neighbour in graph.neighbours(source):
+            if neighbour not in solid_nodes:
+                continue
+            if graph.arc(source, neighbour) == "convex":
+                for edge in graph.shared_edges(source, neighbour):
+                    if edge.geom_type != GeomType.LINE:
+                        continue
+                    bounds = edge.bounding_box()
+                    axes = (
+                        (bounds.min.X, bounds.max.X),
+                        (bounds.min.Y, bounds.max.Y),
+                        (bounds.min.Z, bounds.max.Z),
+                    )
+                    if (
+                        abs(axes[varying][0] - endpoint) > SPAN_EPS
+                        or abs(axes[varying][1] - endpoint) > SPAN_EPS
+                        or abs(axes[region.normal_axis][0] - region.coordinate) > SPAN_EPS
+                        or abs(axes[region.normal_axis][1] - region.coordinate) > SPAN_EPS
+                    ):
+                        continue
+                    intervals.append(axes[run])
+    if not intervals:
+        return False
+    merged: list[list[float]] = []
+    for start, end in sorted(intervals):
+        if not merged or start > merged[-1][1] + SPAN_EPS:
+            merged.append([start, end])
+        else:
+            merged[-1][1] = max(merged[-1][1], end)
+    return (
+        len(merged) == 1
+        and abs(merged[0][0] - low) <= SPAN_EPS
+        and abs(merged[0][1] - high) <= SPAN_EPS
+    )
+
+
 def _section_and_spans(
-    left: _Region, right: _Region, run: int, solid_bounds: tuple[tuple[float, float], ...]
-) -> tuple[tuple[tuple[float, float], ...], dict[str, tuple[float, float]]] | None:
+    graph: FaceGraph,
+    left: _Region,
+    right: _Region,
+    run: int,
+    solid_bounds: tuple[tuple[float, float], ...],
+    solid_nodes: set[FaceNode],
+) -> tuple[tuple[tuple[float, float], ...], dict[str, tuple[float, float]], EndpointScopes] | None:
     section_axes = [axis for axis in range(3) if axis != run]
     if {left.normal_axis, right.normal_axis} != set(section_axes):
         return None
     corner = {left.normal_axis: left.coordinate, right.normal_axis: right.coordinate}
     endpoint: dict[int, float] = {}
+    scope: dict[int, EndpointScope] = {}
+    low_run, high_run = solid_bounds[run]
     for region, varying in ((left, right.normal_axis), (right, left.normal_axis)):
         low, high = region.bounds[varying]
         at = corner[varying]
-        candidates = [
-            value
-            for value, envelope in (
-                (low, solid_bounds[varying][0]),
-                (high, solid_bounds[varying][1]),
-            )
-            if abs(value - envelope) <= SPAN_EPS and abs(value - at) > SPAN_EPS
-        ]
-        if len(candidates) != 1:
+        if abs(low - at) <= SPAN_EPS and high - at > SPAN_EPS:
+            value, envelope = high, solid_bounds[varying][1]
+        elif abs(high - at) <= SPAN_EPS and at - low > SPAN_EPS:
+            value, envelope = low, solid_bounds[varying][0]
+        else:
             return None
-        endpoint[varying] = candidates[0]
+        endpoint[varying] = value
+        if abs(value - envelope) <= SPAN_EPS:
+            scope[varying] = "solid"
+        elif _convex_local_boundary(
+            graph, region, varying, value, run, low_run, high_run, solid_nodes
+        ):
+            scope[varying] = "local"
+        else:
+            return None
     a, b = section_axes
     points = (
         (corner[a], endpoint[b]) if left.normal_axis == a else (endpoint[a], corner[b]),
         (corner[a], corner[b]),
         (endpoint[a], corner[b]) if right.normal_axis == b else (corner[a], endpoint[b]),
     )
-    canonical = min(points, tuple(reversed(points)))
+    scopes: EndpointScopes = (scope[b], scope[a]) if left.normal_axis == a else (scope[a], scope[b])
+    if tuple(reversed(points)) < points:
+        points = (points[2], points[1], points[0])
+        scopes = (scopes[1], scopes[0])
     spans: dict[str, tuple[float, float]] = {
         _AXES[run]: (left.bounds[run][0], left.bounds[run][1]),
         _AXES[a]: (min(corner[a], endpoint[a]), max(corner[a], endpoint[a])),
         _AXES[b]: (min(corner[b], endpoint[b]), max(corner[b], endpoint[b])),
     }
-    return canonical, spans
+    return points, spans, scopes
 
 
 def _recognise_one(
@@ -319,10 +398,10 @@ def _recognise_one(
                 or _relation(graph, left, right) != "concave"
             ):
                 continue
-            measured = _section_and_spans(left, right, run, solid_bounds)
+            measured = _section_and_spans(graph, left, right, run, solid_bounds, solid_nodes)
             if measured is None:
                 continue
-            section, spans = measured
+            section, spans, endpoint_scopes = measured
             if (
                 not _shared_run_is_complete(graph, left, right, run, low, high)
                 or not _common_terminal(graph, left, right, run, low, planes)
@@ -359,6 +438,7 @@ def _recognise_one(
                 (round(at[0], 3), round(at[1], 3), round(at[2], 3)),
                 (rounded[0], rounded[1], rounded[2]),
                 body_key,
+                endpoint_scopes,
             )
             out.append((record, ordered))
     return out
