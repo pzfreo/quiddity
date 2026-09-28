@@ -4,6 +4,8 @@
 This is repository evidence tooling, not a recogniser.  Dataset labels select the faces to
 describe, but never alter production candidates or predicates.  "Component" consistently means
 the non-native shared-edge same-class proxy documented by Epic 0005.
+Partly covered components keep both their claimed and total face sets; an unproved source solid
+is recorded as an anatomy refusal rather than aborting the audit.
 """
 
 from __future__ import annotations
@@ -175,7 +177,7 @@ def _probe_pair(
     if not _shared_run_is_complete(graph, left, right, run, low, high):
         return _PairProbe(4, run, full_run_faces, None, None)
     terminals = sum(
-        _common_terminal(graph, left, right, run, station, spans, planes) for station in (low, high)
+        _common_terminal(graph, left, right, run, station, planes) for station in (low, high)
     )
     if terminals != 2:
         return _PairProbe(5, run, full_run_faces, terminals, None)
@@ -199,9 +201,6 @@ def describe_component(graph: FaceGraph, nodes: tuple[FaceNode, ...]) -> Compone
 
     ordered = tuple(sorted(nodes, key=lambda node: node.index))
     solid_ref = graph.common_valid_solid(ordered)
-    if solid_ref is None:
-        raise ValueError("component faces do not belong to exactly one valid solid")
-    solid = graph.solid_shape(solid_ref)
     planes = {node: axis_aligned_axis(graph.face(node).wrapped) for node in graph.nodes}
     component = set(ordered)
     surface_counts = _counts([graph.face(node).geom_type.name for node in ordered])
@@ -233,6 +232,24 @@ def describe_component(graph: FaceGraph, nodes: tuple[FaceNode, ...]) -> Compone
             if (kind := _arc_name(graph, node, neighbour)) is not None
         ]
     )
+    if solid_ref is None:
+        return ComponentAnatomy(
+            face_count=len(ordered),
+            surface_counts=surface_counts,
+            principal_plane_axes=principal,
+            nonprincipal_planar_faces=nonprincipal,
+            rectangular_outer_faces=rectangular_outer,
+            faces_with_inner_wires=faces_with_inner_wires,
+            faces_with_curved_edges=faces_with_curved_edges,
+            internal_arc_counts=internal,
+            boundary_arc_counts=boundary,
+            inferred_run_axis=None,
+            full_run_faces=None,
+            terminal_count=None,
+            exact_empty_prism=None,
+            first_failed_gate="unproven_solid",
+        )
+    solid = graph.solid_shape(solid_ref)
     regions = _regions(graph, {graph.require_node(face) for face in solid.faces()}, planes)
     touching = [region for region in regions if component.intersection(region.nodes)]
     probes = [
@@ -394,6 +411,7 @@ def main() -> int:
     if not paths:
         parser.error("the selected workload contains no STEP files")
     items: list[dict[str, Any]] = []
+    partial: list[dict[str, Any]] = []
     recalled_components = recalled_faces = labelled_faces = 0
     derived_components = 0
     for path in paths:
@@ -420,7 +438,13 @@ def main() -> int:
             recalled = bool(claimed_nodes)
             if recalled:
                 if claimed_nodes != set(component):
-                    raise RuntimeError(f"{path.stem}: partially recalled component proxy")
+                    partial.append(
+                        {
+                            "model_id": path.stem,
+                            "face_indices": sorted(node.index for node in component),
+                            "claimed_face_indices": sorted(node.index for node in claimed_nodes),
+                        }
+                    )
                 recalled_components += 1
                 recalled_faces += len(claimed_nodes)
                 continue
@@ -434,10 +458,10 @@ def main() -> int:
                     "anatomy": asdict(anatomy),
                 }
             )
-    unrecalled_faces = sum(item["face_count"] for item in items)
+    unrecalled_faces = labelled_faces - recalled_faces
     report = {
         "format": "b123d-recognisers-mfcadpp-through-step-miss-audit",
-        "format_version": 1,
+        "format_version": 2,
         "implementation_commit": _commit(),
         "dataset": {
             "name": "MFCAD++",
@@ -460,11 +484,13 @@ def main() -> int:
             "unrecalled_faces": unrecalled_faces,
             "derived_components": derived_components,
             "recalled_components": recalled_components,
+            "partially_recalled_components": len(partial),
             "unrecalled_components": len(items),
         },
         "ranked_broad_motifs": _rank_broad_motifs(items),
         "clusters": _rank_clusters(items),
         "unrecalled_components": items,
+        "partially_recalled_components": partial,
     }
     if recalled_faces + unrecalled_faces != labelled_faces:
         raise RuntimeError("face reconciliation failed")
@@ -472,7 +498,11 @@ def main() -> int:
         raise RuntimeError("component reconciliation failed")
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    summary = {key: value for key, value in report.items() if key != "unrecalled_components"}
+    summary = {
+        key: value
+        for key, value in report.items()
+        if key not in {"unrecalled_components", "partially_recalled_components"}
+    }
     print(json.dumps(summary, indent=2))
     return 0
 
