@@ -22,6 +22,7 @@ EXPECTED_CASES = {
     "interrupted_and_cross_bores",
     "open_channels",
     "oblique_through_step",
+    "oriented_chamfer",
     "oriented_slots",
     "paired_ramp_step",
     "rectangular_blind_slot",

@@ -1582,6 +1582,99 @@
       ]
     },
     {
+      "census_name": "oriented_chamfer",
+      "census_output": "RecognitionResult.oriented_chamfers",
+      "documentation": [
+        "docs/capabilities.md#proven-recognition-capability"
+      ],
+      "golden_evidence": [
+        "tests/golden/oriented_chamfer/expected.json"
+      ],
+      "id": "oriented-chamfers",
+      "introduced_in": "0.4.0",
+      "recognisers": [
+        {
+          "entry_point": "quiddity.recognise_oriented_chamfers",
+          "kind": "part",
+          "role": "physical"
+        }
+      ],
+      "records": [
+        {
+          "aggregate_membership": [
+            "RecognitionResult.oriented_chamfers"
+          ],
+          "fields": {
+            "angle": {
+              "required": true,
+              "type": "float",
+              "units": "deg"
+            },
+            "at": {
+              "required": true,
+              "type": "tuple[float,3]",
+              "units": "mm"
+            },
+            "body_key": {
+              "required": false,
+              "type": "list[float]|null",
+              "units": "none"
+            },
+            "corner": {
+              "required": true,
+              "type": "tuple[float,3]",
+              "units": "mm"
+            },
+            "leg1": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "leg1_direction": {
+              "required": true,
+              "type": "tuple[float,3]",
+              "units": "unit-vector"
+            },
+            "leg2": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "leg2_direction": {
+              "required": true,
+              "type": "tuple[float,3]",
+              "units": "unit-vector"
+            },
+            "length": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "run": {
+              "required": true,
+              "type": "tuple[float,3]",
+              "units": "unit-vector"
+            },
+            "support_spans": {
+              "required": true,
+              "type": "tuple[tuple[float,2],2]",
+              "units": "mm"
+            }
+          },
+          "name": "OrientedChamfer",
+          "qualified_name": "quiddity.OrientedChamfer",
+          "role": "output",
+          "schema_version": 1
+        }
+      ],
+      "status": "supported",
+      "test_evidence": [
+        "tests/test_capability_claims.py",
+        "tests/test_oriented_chamfers.py",
+        "tests/test_recogniser_contract.py"
+      ]
+    },
+    {
       "census_name": null,
       "census_output": null,
       "census_rationale": "Geometry evidence is deliberately absent from the feature census; the census is not a completeness denominator.",

@@ -111,6 +111,7 @@ from quiddity.levels import (
     bounded_end_margin,
 )
 from quiddity.oblique_through_steps import ObliqueThroughStep
+from quiddity.oriented_chamfers import OrientedChamfer
 from quiddity.oriented_slots import OrientedSlot, OrientedSlotArray, OrientedSlotGrid
 from quiddity.pads import RaisedPad
 from quiddity.paired_ramp_steps import PairedRampStep
@@ -363,6 +364,8 @@ class RecognitionResult:
     #: occurrences and excludes only their owning solids. The dependency lives in the one
     #: orchestration rather than at each call site.
     chamfers: tuple[Chamfer, ...]
+    #: External planar bevels on oblique straight edges with an explicit run and leg frame.
+    oriented_chamfers: tuple[OrientedChamfer, ...]
     #: Prismatic-only: an angled blind step is the same planar oblique-bevel read as a
     #: chamfer, while the conical bevel on a rotational part cannot establish one.
     angled_steps: tuple[AngledStep, ...]

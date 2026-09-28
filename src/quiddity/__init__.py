@@ -171,6 +171,7 @@ from quiddity.levels import (
     step_level_zs,
 )
 from quiddity.oblique_through_steps import ObliqueThroughStep, recognise_oblique_through_steps
+from quiddity.oriented_chamfers import OrientedChamfer, recognise_oriented_chamfers
 from quiddity.oriented_slots import (
     OrientedSlot,
     OrientedSlotArray,
@@ -335,6 +336,7 @@ __all__ = [
     "Blend",
     "CircularBlendPath",
     "Chamfer",
+    "OrientedChamfer",
     "Fillet",
     "Flat",
     "FrameGauge",
@@ -437,6 +439,7 @@ __all__ = [
     "recognise_through_steps",
     "recognise_oblique_through_steps",
     "ObliqueThroughStep",
+    "recognise_oriented_chamfers",
     "recognise_section_recesses",
     "OpenSectionProfile",
     "build_section_recess_document",

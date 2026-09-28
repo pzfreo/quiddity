@@ -1,10 +1,10 @@
 {
   "canonicalizer_version": 1,
-  "fixture": "rectangular_blind_slot",
+  "fixture": "oriented_chamfer",
   "provenance": {
     "creator": "Paul Fremantle",
     "license": "Apache-2.0",
-    "source_path": "tests/test_rectangular_blind_slots.py",
+    "source_path": "tests/test_oriented_chamfers.py",
     "source_repository": "https://github.com/pzfreo/b123d-recognisers.git"
   },
   "recognition": {
@@ -33,7 +33,60 @@
         "hole_patterns": [],
         "holes": [],
         "oblique_through_steps": [],
-        "oriented_chamfers": [],
+        "oriented_chamfers": [
+          {
+            "_type": "OrientedChamfer",
+            "angle": 45.0,
+            "at": [
+              -16.454,
+              -9.5,
+              9.0
+            ],
+            "body_key": [
+              -24.820508,
+              -22.990381,
+              -10.0,
+              24.820508,
+              22.990381,
+              10.0,
+              23940.0,
+              5160.85281374
+            ],
+            "corner": [
+              -17.321,
+              -10.0,
+              10.0
+            ],
+            "leg1": 2.0,
+            "leg1_direction": [
+              0.0,
+              0.0,
+              -1.0
+            ],
+            "leg2": 2.0,
+            "leg2_direction": [
+              0.866025,
+              0.5,
+              0.0
+            ],
+            "length": 30.0,
+            "run": [
+              0.5,
+              -0.866025,
+              0.0
+            ],
+            "support_spans": [
+              [
+                -15.0,
+                15.0
+              ],
+              [
+                -15.0,
+                15.0
+              ]
+            ]
+          }
+        ],
         "pads": [],
         "paired_ramp_steps": [],
         "plates": [],
@@ -42,54 +95,14 @@
         "polygonal_bosses": [],
         "polygonal_stock": [],
         "prismatic_pockets": [],
-        "rectangular_blind_slots": [
-          {
-            "_type": "RectangularBlindSlot",
-            "at": [
-              0.0,
-              7.5,
-              10.0
-            ],
-            "axis": "z",
-            "depth": 5.0,
-            "depth_axis": "y",
-            "depth_sign": 1,
-            "length": 20.0,
-            "open_sign": -1,
-            "width": 10.0,
-            "width_axis": "x"
-          }
-        ],
+        "rectangular_blind_slots": [],
         "repeating_radial_profiles": [],
         "risers": [],
         "rotational": false,
         "round_bottom_blind_slots": [],
         "slot_patterns": [],
         "slots": [],
-        "step_levels": [
-          {
-            "_type": "FaceLevel",
-            "body_key": [
-              -15.0,
-              -10.0,
-              0.0,
-              15.0,
-              10.0,
-              40.0,
-              23000.0,
-              5400.0
-            ],
-            "x_span": [
-              -5.0,
-              5.0
-            ],
-            "y_span": [
-              5.0,
-              10.0
-            ],
-            "z": 20.0
-          }
-        ],
+        "step_levels": [],
         "through_steps": [],
         "turned_steps": []
       },
@@ -122,35 +135,7 @@
         "paired_ramp_steps": [],
         "plates": [],
         "pocket_patterns": [],
-        "pockets": [
-          {
-            "_type": "Pocket",
-            "body_key": [
-              -15.0,
-              -10.0,
-              0.0,
-              15.0,
-              10.0,
-              40.0,
-              23000.0,
-              5400.0
-            ],
-            "corner_radius": null,
-            "d_hi": 10.0,
-            "d_lo": 5.0,
-            "depth": 5.0,
-            "edge_anchored": false,
-            "end_radius": null,
-            "hi": 20.0,
-            "length": 20.0,
-            "lo": 0.0,
-            "long_axis": "z",
-            "open_sign": 1,
-            "w_center": 0.0,
-            "width": 10.0,
-            "width_axis": "x"
-          }
-        ],
+        "pockets": [],
         "polygonal_bosses": [],
         "polygonal_stock": [],
         "prismatic_pockets": [],
@@ -161,30 +146,7 @@
         "round_bottom_blind_slots": [],
         "slot_patterns": [],
         "slots": [],
-        "step_levels": [
-          {
-            "_type": "FaceLevel",
-            "body_key": [
-              -15.0,
-              -10.0,
-              0.0,
-              15.0,
-              10.0,
-              40.0,
-              23000.0,
-              5400.0
-            ],
-            "x_span": [
-              -5.0,
-              5.0
-            ],
-            "y_span": [
-              5.0,
-              10.0
-            ],
-            "z": 20.0
-          }
-        ],
+        "step_levels": [],
         "through_steps": [],
         "turned_steps": []
       }
@@ -206,13 +168,13 @@
       "hole": 0,
       "hole_pattern": 0,
       "oblique_through_step": 0,
-      "oriented_chamfer": 0,
+      "oriented_chamfer": 1,
       "paired_ramp_step": 0,
       "passage": 0,
       "plate": 0,
       "pocket": 0,
       "prismatic_pocket": 0,
-      "rectangular_blind_slot": 1,
+      "rectangular_blind_slot": 0,
       "round_bottom_blind_slot": 0,
       "slot": 0,
       "step": 0,
@@ -231,68 +193,46 @@
         {
           "_type": "FaceLevel",
           "body_key": [
-            -15.0,
+            -24.820508,
+            -22.990381,
             -10.0,
-            0.0,
-            15.0,
+            24.820508,
+            22.990381,
             10.0,
-            40.0,
-            23000.0,
-            5400.0
+            23940.0,
+            5160.85281374
           ],
           "x_span": [
-            -15.0,
-            15.0
+            -24.82050808,
+            24.82050808
           ],
           "y_span": [
-            -10.0,
-            10.0
+            -22.99038106,
+            22.99038106
           ],
-          "z": 0.0
+          "z": -10.0
         },
         {
           "_type": "FaceLevel",
           "body_key": [
-            -15.0,
+            -24.820508,
+            -22.990381,
             -10.0,
-            0.0,
-            15.0,
+            24.820508,
+            22.990381,
             10.0,
-            40.0,
-            23000.0,
-            5400.0
+            23940.0,
+            5160.85281374
           ],
           "x_span": [
-            -5.0,
-            5.0
+            -23.08845727,
+            24.82050808
           ],
           "y_span": [
-            5.0,
-            10.0
+            -21.99038106,
+            22.99038106
           ],
-          "z": 20.0
-        },
-        {
-          "_type": "FaceLevel",
-          "body_key": [
-            -15.0,
-            -10.0,
-            0.0,
-            15.0,
-            10.0,
-            40.0,
-            23000.0,
-            5400.0
-          ],
-          "x_span": [
-            -15.0,
-            15.0
-          ],
-          "y_span": [
-            -10.0,
-            10.0
-          ],
-          "z": 40.0
+          "z": 10.0
         }
       ],
       "recognise_fillets": [],
@@ -303,61 +243,69 @@
       "recognise_hole_patterns": [],
       "recognise_holes": [],
       "recognise_oblique_through_steps": [],
-      "recognise_oriented_chamfers": [],
+      "recognise_oriented_chamfers": [
+        {
+          "_type": "OrientedChamfer",
+          "angle": 45.0,
+          "at": [
+            -16.454,
+            -9.5,
+            9.0
+          ],
+          "body_key": [
+            -24.820508,
+            -22.990381,
+            -10.0,
+            24.820508,
+            22.990381,
+            10.0,
+            23940.0,
+            5160.85281374
+          ],
+          "corner": [
+            -17.321,
+            -10.0,
+            10.0
+          ],
+          "leg1": 2.0,
+          "leg1_direction": [
+            0.0,
+            0.0,
+            -1.0
+          ],
+          "leg2": 2.0,
+          "leg2_direction": [
+            0.866025,
+            0.5,
+            0.0
+          ],
+          "length": 30.0,
+          "run": [
+            0.5,
+            -0.866025,
+            0.0
+          ],
+          "support_spans": [
+            [
+              -15.0,
+              15.0
+            ],
+            [
+              -15.0,
+              15.0
+            ]
+          ]
+        }
+      ],
       "recognise_paired_ramp_steps": [],
       "recognise_passages": [],
       "recognise_plates": [],
       "recognise_pocket_patterns": [],
-      "recognise_pockets": [
-        {
-          "_type": "Pocket",
-          "body_key": [
-            -15.0,
-            -10.0,
-            0.0,
-            15.0,
-            10.0,
-            40.0,
-            23000.0,
-            5400.0
-          ],
-          "corner_radius": null,
-          "d_hi": 10.0,
-          "d_lo": 5.0,
-          "depth": 5.0,
-          "edge_anchored": false,
-          "end_radius": null,
-          "hi": 20.0,
-          "length": 20.0,
-          "lo": 0.0,
-          "long_axis": "z",
-          "open_sign": 1,
-          "w_center": 0.0,
-          "width": 10.0,
-          "width_axis": "x"
-        }
-      ],
+      "recognise_pockets": [],
       "recognise_polygonal_bosses": [],
       "recognise_polygonal_stock": [],
       "recognise_prismatic_pockets": [],
-      "recognise_rectangular_blind_slots": [
-        {
-          "_type": "RectangularBlindSlot",
-          "at": [
-            0.0,
-            7.5,
-            10.0
-          ],
-          "axis": "z",
-          "depth": 5.0,
-          "depth_axis": "y",
-          "depth_sign": 1,
-          "length": 20.0,
-          "open_sign": -1,
-          "width": 10.0,
-          "width_axis": "x"
-        }
-      ],
+      "recognise_rectangular_blind_slots": [],
       "recognise_rectangular_pads": [],
       "recognise_repeating_radial_profiles": [],
       "recognise_risers": [],
@@ -377,33 +325,7 @@
         [],
         []
       ],
-      "step_level_records": [
-        {
-          "_type": "FaceLevel",
-          "body_key": [
-            -15.0,
-            -10.0,
-            0.0,
-            15.0,
-            10.0,
-            40.0,
-            23000.0,
-            5400.0
-          ],
-          "x_span": [
-            -5.0,
-            5.0
-          ],
-          "y_span": [
-            5.0,
-            10.0
-          ],
-          "z": 20.0
-        }
-      ]
+      "step_level_records": []
     }
-  },
-  "source": {
-    "repository": "https://github.com/pzfreo/b123d-recognisers.git"
   }
 }

@@ -34,6 +34,7 @@
         "hole_patterns": [],
         "holes": [],
         "oblique_through_steps": [],
+        "oriented_chamfers": [],
         "pads": [
           {
             "_type": "RaisedPad",
@@ -474,6 +475,7 @@
         "hole_patterns": [],
         "holes": [],
         "oblique_through_steps": [],
+        "oriented_chamfers": [],
         "pads": [
           {
             "_type": "RaisedPad",
@@ -832,6 +834,7 @@
       "hole": 0,
       "hole_pattern": 0,
       "oblique_through_step": 0,
+      "oriented_chamfer": 0,
       "paired_ramp_step": 0,
       "passage": 0,
       "plate": 2,
@@ -972,6 +975,7 @@
       "recognise_hole_patterns": [],
       "recognise_holes": [],
       "recognise_oblique_through_steps": [],
+      "recognise_oriented_chamfers": [],
       "recognise_paired_ramp_steps": [],
       "recognise_passages": [],
       "recognise_plates": [

@@ -1,0 +1,40 @@
+{
+  "format": "b123d-recognisers-effectiveness-taxonomy",
+  "format_version": 1,
+  "datasets": {
+    "mfcadpp": {
+      "classes": {
+        "0": {"families": ["chamfers", "countersinks", "oriented-chamfers"], "name": "Chamfer", "status": "supported"},
+        "1": {"families": ["holes"], "name": "Through hole", "status": "supported"},
+        "2": {"families": ["passages"], "name": "Triangular passage", "status": "supported"},
+        "3": {"families": ["oriented-slots", "passages"], "name": "Rectangular passage", "status": "supported"},
+        "4": {"families": ["passages"], "name": "6-sided passage", "status": "supported"},
+        "5": {"families": [], "name": "Triangular through slot", "status": "unsupported"},
+        "6": {"families": ["channels", "slots"], "name": "Rectangular through slot", "status": "partial"},
+        "7": {"families": [], "name": "Circular through slot", "status": "unsupported"},
+        "8": {"families": ["through-steps"], "name": "Rectangular through step", "status": "supported"},
+        "9": {"families": ["paired-ramp-steps"], "name": "2-sided through step", "status": "supported"},
+        "10": {"families": ["oblique-through-steps"], "name": "Slanted through step", "status": "supported"},
+        "11": {"families": ["bosses"], "name": "O-ring", "status": "supported"},
+        "12": {"families": ["holes"], "name": "Blind hole", "status": "supported"},
+        "13": {"families": ["edge-open-prismatic-recesses", "prismatic-pockets"], "name": "Triangular pocket", "status": "supported"},
+        "14": {"families": ["edge-open-prismatic-recesses", "pockets", "prismatic-pockets"], "name": "Rectangular pocket", "status": "supported"},
+        "15": {"families": ["edge-open-prismatic-recesses", "prismatic-pockets"], "name": "6-sided pocket", "status": "supported"},
+        "16": {"families": ["edge-open-circular-pockets", "pockets"], "name": "Circular end pocket", "status": "supported"},
+        "17": {"families": ["rectangular-blind-slots"], "name": "Rectangular blind slot", "status": "supported"},
+        "18": {"families": ["pockets"], "name": "Vertical circular end blind slot", "status": "supported"},
+        "19": {"families": ["round-bottom-blind-slots"], "name": "Horizontal circular end blind slot", "status": "supported"},
+        "20": {"families": ["angled-steps"], "name": "Triangular blind step", "status": "supported"},
+        "21": {"families": ["circular-blind-steps"], "name": "Circular blind step", "status": "supported"},
+        "22": {"families": ["pockets"], "name": "Rectangular blind step", "status": "supported"},
+        "23": {"families": ["blends", "fillets"], "name": "Round", "status": "supported"},
+        "24": {"families": [], "name": "Stock", "status": "incomparable"}
+      },
+      "notes": "Single-assignment face labels compare with defining evidence but never decide candidate ownership. Version 15 retains version 14 and additionally maps the conservative OrientedChamfer family to Chamfer. This is a vocabulary translation for scoring, not a geometry predicate; family-specific occurrence counts remain separate. Earlier versions remain immutable for historical reports."
+    },
+    "mfinstseg": {
+      "classes_from": "mfcadpp",
+      "notes": "MFInstSeg uses the same 25-class feature vocabulary and adds instance and bottom-face labels. Reports using earlier taxonomy versions retain their historical mappings."
+    }
+  }
+}

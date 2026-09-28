@@ -128,6 +128,10 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "original straight wall boundaries and the complete oblique seam prove this subset",
     ),
+    "oriented_chamfers": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "four original straight edges and their convex support joins prove an external bevel",
+    ),
     "thin_walls": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "mesh fallback samples only original planar trims before ray-proving opposed skins",
@@ -769,6 +773,26 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
     "oblique_through_steps:_one_pair:geom_type:2": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "the shared original seam must be one straight edge",
+    ),
+    "oriented_chamfers:_linear_quad:geom_type:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "the defining bevel is one original planar face",
+    ),
+    "oriented_chamfers:_linear_quad:geom_type:2": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "the four original bevel sides must be straight",
+    ),
+    "oriented_chamfers:_edge_info:geom_type:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "each support is one original planar face",
+    ),
+    "oriented_chamfers:_edge_info:geom_type:2": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "each original support edge must be straight",
+    ),
+    "oriented_chamfers:_discover_oriented_chamfers:geom_type:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "an original triangular planar terminal excludes a blind angled step",
     ),
     "through_steps:_shared_run_is_complete:geom_type:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
