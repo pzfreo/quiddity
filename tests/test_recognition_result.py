@@ -97,6 +97,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
     import quiddity.grooves as grooves_module
     import quiddity.gussets as gussets_module
     import quiddity.holes as holes_module
+    import quiddity.interior_voids as interior_voids_module
     import quiddity.levels as levels_module
     import quiddity.oriented_slots as oriented_slots_module
     import quiddity.pads as pads_module
@@ -373,6 +374,11 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
         counted(FamilyId.THIN_WALL_BODIES, "thin_wall_bodies", []),
     )
     monkeypatch.setattr(
+        interior_voids_module,
+        "_discover_interior_voids",
+        counted(FamilyId.INTERIOR_VOIDS, "interior_voids", []),
+    )
+    monkeypatch.setattr(
         freeform_surfaces_module,
         "_records",
         counted(FamilyId.FREEFORM_SURFACES, "freeform_surfaces", []),
@@ -511,6 +517,7 @@ def test_orchestrator_injects_each_shared_dependency_once(monkeypatch):
         "fillets",
         "plates",
         "thin_wall_bodies",
+        "interior_voids",
         "freeform_surfaces",
         "circular_face_patterns",
         "sheet_metal_bodies",

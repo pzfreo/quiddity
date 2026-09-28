@@ -57,6 +57,7 @@ class FamilyId(Enum):
     FILLETS = "fillets"
     FLATS = "flats"
     GROOVES = "grooves"
+    INTERIOR_VOIDS = "interior_voids"
     GUSSET_RIBS = "gusset_ribs"
     HOLES = "holes"
     ORIENTED_SLOTS = "oriented_slots"

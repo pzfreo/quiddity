@@ -158,6 +158,7 @@ from quiddity.gussets import (
     recognise_gusset_rib_patterns,
     recognise_gusset_ribs,
 )
+from quiddity.interior_voids import InteriorVoid, recognise_interior_voids
 from quiddity.levels import (
     STEP_LADDER_BOUNDARY_MARGIN,
     FaceLevel,
@@ -262,7 +263,7 @@ from quiddity.turned import (
 try:
     __version__ = version("quiddity")
 except PackageNotFoundError:  # pragma: no cover - only a bare, uninstalled source tree
-    __version__ = "0.3.8.dev0"
+    __version__ = "0.4.0.dev0"
 
 # Imported after the recognition surface because census consumes that public orchestration.
 from quiddity.capabilities import (  # noqa: E402
@@ -390,6 +391,7 @@ __all__ = [
     "TurnedProfileKey",
     "TurnedStep",
     "ThinWallBody",
+    "InteriorVoid",
     "BSplineSurfaceSupport",
     "SurfaceContinuityLink",
     "FreeformSurface",
@@ -461,6 +463,7 @@ __all__ = [
     "recognise_slots",
     "recognise_turned_steps",
     "recognise_thin_wall_bodies",
+    "recognise_interior_voids",
     "recognise_freeform_surfaces",
     "recognise_sheet_metal_bodies",
     "build_recognition_result",

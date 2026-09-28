@@ -199,6 +199,8 @@ def _type_name(annotation: object) -> str:
 def _units(field: dataclasses.Field, annotation: object) -> str:
     name = field.name
     rendered = _type_name(annotation)
+    if name == "estimated_volume":
+        return "mm^3"
     if name == "sweep":
         return "rad"
     if name in {"angle", "included_angle"}:
@@ -234,6 +236,8 @@ def _units(field: dataclasses.Field, annotation: object) -> str:
             "low_gradient",
             "high_gradient",
             "material_side",
+            "openings",
+            "void_faces",
             "paired_area_fraction",
             "rim_regions",
             "unpaired_faces",

@@ -102,6 +102,7 @@ from quiddity.flats import Flat
 from quiddity.freeform_surfaces import FreeformSurface
 from quiddity.grooves import Groove
 from quiddity.gussets import GussetRib, GussetRibArray, GussetRibMirrorPair
+from quiddity.interior_voids import InteriorVoid
 from quiddity.levels import (
     FaceLevel,
     RiserEvidence,
@@ -374,6 +375,7 @@ class RecognitionResult:
     fillets: tuple[Fillet, ...]
     plates: tuple[Plate, ...]
     thin_wall_bodies: tuple[ThinWallBody, ...]
+    interior_voids: tuple[InteriorVoid, ...]
     freeform_surfaces: tuple[FreeformSurface, ...]
     sheet_metal_bodies: tuple[SheetMetalBody, ...]
 

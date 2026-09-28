@@ -128,6 +128,10 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "mesh fallback samples only original planar trims before ray-proving opposed skins",
     ),
+    "interior_voids": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "original cylinder axes and spherical core faces bound void and opening evidence",
+    ),
     "sheet_metal": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "original planar and cylindrical skins define flanges, bends and neutral-axis allowance",
@@ -281,6 +285,14 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
 # Every site has its own disposition and rationale, including mixed modules whose reads cannot be
 # truthfully covered by one module-level label.
 SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
+    "interior_voids:_escape_directions:adaptor:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "read an original cylinder axis as an additional escape-ray direction",
+    ),
+    "interior_voids:_discover_interior_voids:adaptor:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "count original spherical faces on a sampled core boundary",
+    ),
     "circular_face_patterns:_face_axis:geom_type:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "native cylinder or torus axes seed possible circular face correspondence",
