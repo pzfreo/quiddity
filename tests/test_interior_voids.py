@@ -45,6 +45,16 @@ def test_open_pockets_and_through_bores_are_not_cores() -> None:
     assert expanded_air_components(grid) == frozenset()
 
 
+def test_polyhedral_core_with_small_port_survives_rigid_rotation() -> None:
+    core = Box(100, 100, 100) - Box(40, 40, 40) - Pos(0, 0, 35) * Cylinder(5, 30)
+    for part in (core, Rot(22, 17, 13) * core):
+        records = recognise_interior_voids(part)
+        assert len(records) == 1
+        assert len(records[0].void_faces) >= 6
+        assert len(records[0].openings) == 1
+        assert 55_000 < records[0].estimated_volume < 75_000
+
+
 def test_cgb243_core_is_original_body_evidence(tmp_path: Path) -> None:
     compressed = CORPUS / "cgb243.step.gz"
     raw = gzip.decompress(compressed.read_bytes())
