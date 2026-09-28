@@ -375,6 +375,36 @@
         "orientation_preserved": true
       }
     },
+    "oriented_chamfer": {
+      "faces": 7,
+      "raised_pads": {
+        "absent": 0,
+        "changed_record": 0,
+        "converted_occurrences": 0,
+        "converted_provenance": [],
+        "converted_records": [],
+        "introduced": 0,
+        "native_occurrences": 0,
+        "native_records": [],
+        "reclassified": 0,
+        "same_family": 0
+      },
+      "surfaces": {
+        "ambiguous": 0,
+        "kind_correspondence_preserved": true,
+        "parameters_within_reviewed_bounds": true,
+        "recovered_by_primitive": {
+          "plane": 7
+        },
+        "refused_by_reason": {}
+      },
+      "topology": {
+        "adjacency_preserved": true,
+        "boundary_structure_preserved": true,
+        "evaluated_geometry_within_reviewed_bounds": true,
+        "orientation_preserved": true
+      }
+    },
     "oriented_slots": {
       "faces": 18,
       "raised_pads": {
@@ -1006,15 +1036,15 @@
     "absent": 0,
     "changed_record": 0,
     "converted_occurrences": 1,
-    "faces": 429,
-    "fixtures": 29,
+    "faces": 436,
+    "fixtures": 30,
     "introduced": 0,
     "native_occurrences": 1,
     "reclassified": 0,
     "recovered_by_primitive": {
       "cone": 1,
       "cylinder": 46,
-      "plane": 382
+      "plane": 389
     },
     "refused_by_reason": {},
     "same_family": 1

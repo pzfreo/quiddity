@@ -189,8 +189,10 @@ def _pair(
     denominator = 1 - dot * dot
     offset1 = (mid1 - cross).dot(normal1)
     offset2 = (mid2 - cross).dot(normal2)
-    corner = cross + normal1 * ((offset1 - dot * offset2) / denominator) + normal2 * (
-        (offset2 - dot * offset1) / denominator
+    corner = (
+        cross
+        + normal1 * ((offset1 - dot * offset2) / denominator)
+        + normal2 * ((offset2 - dot * offset1) / denominator)
     )
     leg_vec1 = mid1 - corner
     leg_vec2 = mid2 - corner
@@ -256,9 +258,7 @@ def _discover_oriented_chamfers(
         probe_shape = part if len(solids) == 1 else solid
         solid_nodes = {graph.require_node(face) for face in solid.faces()}
         box = graph.solid_properties.bounding_box(solid)
-        stock_size = max(
-            box.max.X - box.min.X, box.max.Y - box.min.Y, box.max.Z - box.min.Z
-        )
+        stock_size = max(box.max.X - box.min.X, box.max.Y - box.min.Y, box.max.Z - box.min.Z)
         for bevel in sorted(solid_nodes, key=lambda node: node.index):
             face = graph.face(bevel)
             if not _linear_quad(face):
@@ -299,9 +299,7 @@ def _discover_oriented_chamfers(
     return [record for record, _node in proposals]
 
 
-def recognise_oriented_chamfers(
-    part: Part, *, max_leg_frac: float = 0.45
-) -> list[OrientedChamfer]:
+def recognise_oriented_chamfers(part: Part, *, max_leg_frac: float = 0.45) -> list[OrientedChamfer]:
     """Recognise proved external chamfers along oblique straight edges."""
 
     return _discover_oriented_chamfers(

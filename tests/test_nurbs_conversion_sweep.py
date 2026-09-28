@@ -65,8 +65,8 @@ def test_conversion_sweep_proves_face_and_raised_pad_precision(report) -> None:
         }
     )
     assert report["totals"] == {
-        "fixtures": 29,
-        "faces": 429,
+        "fixtures": 30,
+        "faces": 436,
         "native_occurrences": 1,
         "converted_occurrences": 1,
         "same_family": 1,
@@ -74,7 +74,7 @@ def test_conversion_sweep_proves_face_and_raised_pad_precision(report) -> None:
         "changed_record": 0,
         "absent": 0,
         "introduced": 0,
-        "recovered_by_primitive": {"cone": 1, "cylinder": 46, "plane": 382},
+        "recovered_by_primitive": {"cone": 1, "cylinder": 46, "plane": 389},
         "refused_by_reason": {},
     }
     assert all(all(fixture["topology"].values()) for fixture in report["fixtures"].values())
