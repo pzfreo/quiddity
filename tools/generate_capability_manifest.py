@@ -115,7 +115,7 @@ RECORD_SCHEMA_VERSIONS = {
     "ShellHistoryHint": 2,
     "SheetMetalBody": 2,
     "FlatPatternPlan": 2,
-    "ThroughStep": 2,
+    "ThroughStep": 3,
     "SectionPassage": 2,
 }
 
@@ -184,6 +184,8 @@ def _type_name(annotation: object) -> str:
         return f"record:{typing.cast(type, annotation).__name__}"
     origin = typing.get_origin(annotation)
     args = typing.get_args(annotation)
+    if origin is typing.Literal:
+        return _union_type(tuple(type(value) for value in args))
     if origin in {typing.Union, types.UnionType}:
         return _union_type(args)
     if origin is tuple:
@@ -249,6 +251,7 @@ def _units(field: dataclasses.Field, annotation: object) -> str:
             "continuity_group",
             "construction_kind",
             "construction_axis",
+            "endpoint_scopes",
             "offset_basis",
             "offset_partner",
         }
