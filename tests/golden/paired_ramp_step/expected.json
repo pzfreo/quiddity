@@ -44,6 +44,7 @@
             ],
             "axis": "y",
             "half_width": 8.0,
+            "half_widths": null,
             "length": 25.0,
             "opening_direction": [
               0.0,
@@ -326,6 +327,7 @@
           ],
           "axis": "y",
           "half_width": 8.0,
+          "half_widths": null,
           "length": 25.0,
           "opening_direction": [
             0.0,

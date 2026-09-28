@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Report body-owned internal core skin and opening faces with bounded six-axis volume estimates, including the variable-wall cgb243 input. This new public `InteriorVoid` family is slated for the 0.4.0 minor release under ADR 0005 (#775).
+- Restore equal-angle paired-ramp steps whose original ramp faces have unequal observed widths after a side is clipped. Publish both transverse widths when they differ; `PairedRampStep` advances to schema 3 for the 0.4.0 minor release (#776).
 
 ## 0.3.7 — Quiddity
 

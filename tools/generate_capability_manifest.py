@@ -104,7 +104,7 @@ RECORD_SCHEMA_VERSIONS = {
     "PassageEnds": 2,
     "Plate": 2,
     "PassageSection": 2,
-    "PairedRampStep": 2,
+    "PairedRampStep": 3,
     "OpenSectionProfile": 2,
     "RiserEvidence": 3,
     "TurnedProfile": 2,

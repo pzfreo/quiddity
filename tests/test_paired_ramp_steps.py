@@ -260,6 +260,27 @@ def test_an_asymmetric_v_is_outside_the_first_supported_domain() -> None:
     assert recognise_paired_ramp_steps(_side_cut(asymmetric=True)) == []
 
 
+def test_equal_angle_pair_with_unequal_observed_ramp_widths() -> None:
+    # A later cut clips one original ramp without changing either ramp plane,
+    # the shared ridge, the complete run, or the terminal/opening evidence.
+    upper_clipped = _side_cut() - Pos(18, 7.5, 8) * Box(5, 25, 4)
+    lower_clipped = _side_cut() - Pos(18, 7.5, -8) * Box(5, 25, 4)
+
+    upper = recognise_paired_ramp_steps(upper_clipped)
+    lower = recognise_paired_ramp_steps(lower_clipped)
+    assert len(upper) == len(lower) == 1
+    assert upper[0].angle == lower[0].angle == 51.34
+    assert upper[0].half_widths == (8.0, 6.0)
+    assert lower[0].half_widths == (6.0, 8.0)
+    assert upper[0].half_width == lower[0].half_width == 7.0
+    assert upper[0].to_dict()["half_widths"] == (8.0, 6.0)
+    assert recognise_paired_ramp_steps(Rot(0, 0, 90) * upper_clipped)[0].half_widths == (
+        8.0,
+        6.0,
+    )
+    assert build_recognition_result(upper_clipped).paired_ramp_steps == tuple(upper)
+
+
 def test_one_or_two_unrelated_chamfers_do_not_form_a_paired_cut() -> None:
     box = Box(40, 40, 30)
     vertical = box.edges().filter_by(Axis.Z)
