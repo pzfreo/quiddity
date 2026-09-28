@@ -43,7 +43,7 @@ ROOT = Path(__file__).parents[1]
 
 
 def test_registry_is_the_closed_ordered_internal_roster() -> None:
-    assert len(PHYSICAL_DEFINITIONS) == 37
+    assert len(PHYSICAL_DEFINITIONS) == 38
     assert len(DERIVED_DEFINITIONS) == 5
     assert tuple(item.family for item in PHYSICAL_DEFINITIONS) == PHYSICAL_FAMILIES
     assert set(PHYSICAL_FAMILIES) == set(FamilyId) - {FamilyId.LEGACY}
@@ -83,6 +83,7 @@ def test_registry_is_the_closed_ordered_internal_roster() -> None:
         FamilyId.PADS,
         FamilyId.PLATES,
         FamilyId.THIN_WALL_BODIES,
+        FamilyId.INTERIOR_VOIDS,
         FamilyId.FREEFORM_SURFACES,
         FamilyId.SHEET_METAL_BODIES,
         FamilyId.REPEATING_RADIAL_PROFILES,
@@ -134,6 +135,7 @@ def test_registry_is_the_closed_ordered_internal_roster() -> None:
         FamilyId.FILLETS,
         FamilyId.PLATES,
         FamilyId.THIN_WALL_BODIES,
+        FamilyId.INTERIOR_VOIDS,
         FamilyId.FREEFORM_SURFACES,
         FamilyId.SHEET_METAL_BODIES,
     )
