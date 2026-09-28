@@ -16,6 +16,7 @@ A new family that needs a design record adds a file here and a row below, not an
 | [Unify constant-section recesses in one JSON geometry](section-recess-json.md) | 0019 | `section_recesses`, `document` | Accepted |
 | [Native cylindrical SectionRecess ends](cylindrical-section-ends.md) | 0020 | `_cylindrical_pockets`, `_cylindrical_end_surface` | Accepted |
 | [Independently proved interior support apertures](interior-support-apertures.md) | 0021 | `_support_apertures` | Accepted |
+| [Body-owned internal void evidence](interior-voids.md) | — | `interior_voids`, `_interior_void_grid` | Accepted |
 | [Observed cylindrical channel terminations](cylindrical-channel-ends.md) | 0022 | `_cylindrical_channels` | Proposed |
 | [Polygonal passages ending on an observed bore](cylindrical-passage-ends.md) | 0023 | `_cylindrical_passages` | Accepted |
 | [Observed convex two-plane passage ends](plane-envelope-passage-ends.md) | 0024 | `_plane_envelope_passages` | Accepted |

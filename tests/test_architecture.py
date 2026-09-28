@@ -37,6 +37,7 @@ PUBLIC_MODULES = {
     "gussets",
     "holes",
     "inspection",
+    "interior_voids",
     "levels",
     "oriented_slots",
     "pads",
@@ -120,6 +121,19 @@ MODULE_SEAM_EDGES = {
     # The run's whole-solid query cache: a leaf over part typing, below everything that
     # asks a solid for its box, validity, volume or area.
     "_solid_properties": {"_typing"},
+    "_interior_void_grid": {"_geometry", "_typing"},
+    "interior_voids": {
+        "_adjacency",
+        "_body_identity",
+        "_candidates",
+        "_claims",
+        "_definitions",
+        "_geometry",
+        "_interior_void_grid",
+        "_record",
+        "_solid_properties",
+        "_typing",
+    },
     "_analytic_surfaces": {"_geometry"},
     "_adjacency": {
         "_analytic_surfaces",
@@ -480,6 +494,7 @@ MODULE_SEAM_EDGES = {
         "paired_ramp_steps",
         "through_steps",
         "thin_walls",
+        "interior_voids",
         "freeform_surfaces",
         "sheet_metal",
         "passages",
@@ -804,6 +819,7 @@ MODULE_SEAM_EDGES = {
         "slots",
         "through_steps",
         "thin_walls",
+        "interior_voids",
         "freeform_surfaces",
         "sheet_metal",
         "turned",

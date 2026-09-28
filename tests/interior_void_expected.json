@@ -1,0 +1,14 @@
+{
+  "cgb243": {
+    "expected_core_count": 1,
+    "expected_face_count": 588,
+    "estimated_volume_mm3_interval": [50000, 65000],
+    "has_opening_groups": true
+  },
+  "cgb207": {
+    "expected_core_count": 0
+  },
+  "authored_oblique_blind_pocket": {
+    "expected_core_count": 0
+  }
+}

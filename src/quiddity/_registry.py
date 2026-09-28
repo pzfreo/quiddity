@@ -28,6 +28,7 @@ from quiddity import (
     grooves,
     gussets,
     holes,
+    interior_voids,
     levels,
     oriented_slots,
     pads,
@@ -114,6 +115,7 @@ PHYSICAL_DEFINITIONS: tuple[PhysicalDefinition, ...] = (
     fillets.DEFINITION,
     plates.DEFINITION,
     thin_walls.DEFINITION,
+    interior_voids.DEFINITION,
     freeform_surfaces.DEFINITION,
     sheet_metal.DEFINITION,
 )

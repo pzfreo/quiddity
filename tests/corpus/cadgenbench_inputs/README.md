@@ -4,7 +4,7 @@ These are unmodified starting STEP solids from the public
 [CADGenBench input dataset](https://huggingface.co/datasets/HuggingAI4Engineering/cadgenbench-data),
 released under ODC-BY. CADGenBench's solved ground truth is held out and is not present here.
 The geometry was sourced by the dataset maintainers from Mecado. These files are regression
-inputs for Quiddity issues #747, #751, #755, #758 and #769 and are excluded from the published
+inputs for Quiddity issues #747, #751, #755, #758, #769 and #775 and are excluded from the published
 package.
 
 | File | Dataset path | SHA-256 |
@@ -16,6 +16,7 @@ package.
 | `cgb202.step.gz` | `202/input.step` | `661210dec702f8347603884bec0476da0a1af5376a55bf842c45ba25181e2860` (decompressed) |
 | `cgb217.step.gz` | `217/input.step` | `dbced691a5f8558611d55978d11660667d60de7adf83869fb9c2cb0e05438c51` (decompressed) |
 | `cgb242.step.gz` | `242/input.step` | `543d217a6913a3009946192e775a25475c4cd4b1def66c12ff8942030809d848` (decompressed) |
+| `cgb243.step.gz` | `243/input.step` | `4d57202dd151423930d469be8d5d76c508aae127dbf7c5530790cdc23fe629f0` (decompressed) |
 
 The case 202 input is gzip compressed without changing the STEP bytes. Its one unorientable
 1.7366 mm² face exercises bounded document degradation while distant holes remain readable.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Report body-owned internal core skin and opening faces with bounded six-axis volume estimates, including the variable-wall cgb243 input. This new public `InteriorVoid` family is slated for the 0.4.0 minor release under ADR 0005 (#775).
+
 ## 0.3.7 — Quiddity
 
 - Honour the opt-in `QUIDDITY_THREADS` process setting for OCCT's worker pool, allowing batch

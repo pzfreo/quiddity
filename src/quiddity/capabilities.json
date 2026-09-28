@@ -1427,6 +1427,90 @@
         "docs/capabilities.md#proven-recognition-capability"
       ],
       "golden_evidence": [
+        "tests/interior_void_expected.json"
+      ],
+      "id": "interior-voids",
+      "introduced_in": "0.4.0",
+      "recognisers": [
+        {
+          "entry_point": "quiddity.recognise_interior_voids",
+          "kind": "part",
+          "role": "physical"
+        }
+      ],
+      "records": [
+        {
+          "aggregate_membership": [
+            "RecognitionResult.interior_voids"
+          ],
+          "fields": {
+            "air_samples": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "body_index": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "body_key": {
+              "required": true,
+              "type": "list[float]|null",
+              "units": "none"
+            },
+            "enclosed_samples": {
+              "required": true,
+              "type": "int",
+              "units": "none"
+            },
+            "estimated_volume": {
+              "required": true,
+              "type": "float",
+              "units": "mm^3"
+            },
+            "grid_pitch": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "openings": {
+              "required": true,
+              "type": "list[list[int]]",
+              "units": "none"
+            },
+            "void_faces": {
+              "required": true,
+              "type": "list[int]",
+              "units": "none"
+            },
+            "volume_method": {
+              "required": true,
+              "type": "str",
+              "units": "none"
+            }
+          },
+          "name": "InteriorVoid",
+          "qualified_name": "quiddity.InteriorVoid",
+          "role": "output",
+          "schema_version": 1
+        }
+      ],
+      "status": "supported",
+      "test_evidence": [
+        "tests/test_capability_claims.py",
+        "tests/test_interior_voids.py",
+        "tests/test_recogniser_contract.py"
+      ]
+    },
+    {
+      "census_name": null,
+      "census_output": null,
+      "census_rationale": "Geometry evidence is deliberately absent from the feature census; the census is not a completeness denominator.",
+      "documentation": [
+        "docs/capabilities.md#proven-recognition-capability"
+      ],
+      "golden_evidence": [
         "tests/golden/oriented_slots/contract.json"
       ],
       "id": "oriented-slot-patterns",
@@ -3740,6 +3824,6 @@
   "format_version": 2,
   "package": {
     "name": "quiddity",
-    "version": "0.3.8.dev0"
+    "version": "0.4.0.dev0"
   }
 }
