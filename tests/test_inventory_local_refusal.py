@@ -1,4 +1,9 @@
-"""MFCAD++ inputs with unprovable holes must keep the aggregate available."""
+"""MFCAD++ inputs with unprovable holes must keep the aggregate available.
+
+Test-split models 13975 and 14052 are vendored under CC BY. Their uncompressed source
+SHA-256 values are 20226562f507df001a322a3eccde6826690598ed97798d5e81be2dc2b058dd8c
+and 91456bd801b9ebc6f8f13c8b19aba71e9dea2b7a7426f86fa56bafc17c13afef.
+"""
 
 import gzip
 from pathlib import Path
