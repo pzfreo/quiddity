@@ -61,6 +61,7 @@ class FamilyId(Enum):
     GUSSET_RIBS = "gusset_ribs"
     HOLES = "holes"
     ORIENTED_SLOTS = "oriented_slots"
+    OBLIQUE_THROUGH_STEPS = "oblique_through_steps"
     PADS = "pads"
     PAIRED_RAMP_STEPS = "paired_ramp_steps"
     PASSAGES = "passages"

@@ -209,6 +209,7 @@ def _units(field: dataclasses.Field, annotation: object) -> str:
         return "deg"
     if name in {
         "axis_direction",
+        "across_direction",
         "depth_direction",
         "flat_direction",
         "flat_directions",

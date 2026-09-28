@@ -43,8 +43,10 @@ XYZ iteration order: Polygonal Stock and Boss accept X, Y or Z and carry `axis`;
 evaluate all six signed directions and carry `axis` and `direction`; rectangular recesses evaluate
 both perpendicular interpretations and accept exactly one, refusing a tie; Plate eligibility uses
 a body-intrinsic transverse envelope that rotates with the solid. Internally oblique geometry stays
-outside the principal-axis contract, except `OrientedSlot`, which expresses its directions in the
-one supplied frame. Body keys are derived after framing and are local to that result.
+outside the principal-axis contract, except records with explicit vector frames:
+`OrientedSlot` and `ObliqueThroughStep`. Both express their directions in the one supplied frame;
+neither changes the axis-string contract of existing principal families. Body keys are derived
+after framing and are local to that result.
 
 **Compounds.** A working shape may hold several valid solids; body-owned families scope
 denominators, grouping and deduplication per solid and keep equal records on separate bodies.

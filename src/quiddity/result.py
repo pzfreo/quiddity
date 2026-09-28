@@ -110,6 +110,7 @@ from quiddity.levels import (
     RiserEvidence,
     bounded_end_margin,
 )
+from quiddity.oblique_through_steps import ObliqueThroughStep
 from quiddity.oriented_slots import OrientedSlot, OrientedSlotArray, OrientedSlotGrid
 from quiddity.pads import RaisedPad
 from quiddity.paired_ramp_steps import PairedRampStep
@@ -370,6 +371,8 @@ class RecognitionResult:
     paired_ramp_steps: tuple[PairedRampStep, ...]
     #: Prismatic-only rectangular open-profile steps spanning a source solid.
     through_steps: tuple[ThroughStep, ...]
+    #: Oblique-run two-wall open steps with an explicit caller-frame wall outline.
+    oblique_through_steps: tuple[ObliqueThroughStep, ...]
     #: Prismatic-only quarter-cylindrical corner cuts with one interior blind terminal.
     circular_blind_steps: tuple[CircularBlindStep, ...]
     #: Complete straight or circular rolling-ball paths not superseded by a specific family.

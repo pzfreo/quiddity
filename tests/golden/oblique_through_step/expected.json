@@ -1,10 +1,10 @@
 {
   "canonicalizer_version": 1,
-  "fixture": "paired_ramp_step",
+  "fixture": "oblique_through_step",
   "provenance": {
     "creator": "Paul Fremantle",
     "license": "Apache-2.0",
-    "source_path": "tests/test_paired_ramp_steps.py",
+    "source_path": "tests/test_oblique_through_steps.py",
     "source_repository": "https://github.com/pzfreo/b123d-recognisers.git"
   },
   "recognition": {
@@ -32,28 +32,63 @@
         "gusset_ribs": [],
         "hole_patterns": [],
         "holes": [],
-        "oblique_through_steps": [],
-        "pads": [],
-        "paired_ramp_steps": [
+        "oblique_through_steps": [
           {
-            "_type": "PairedRampStep",
-            "angle": 51.34,
+            "_type": "ObliqueThroughStep",
+            "across_direction": [
+              0.0,
+              -0.707107,
+              -0.707107
+            ],
             "at": [
-              10.0,
-              7.5,
+              20.0,
+              30.0,
+              10.0
+            ],
+            "body_key": [
+              0.0,
+              0.0,
+              0.0,
+              40.0,
+              40.0,
+              20.0,
+              20000.0,
+              5365.68542495
+            ],
+            "depth": 20.0,
+            "depth_direction": [
+              -1.0,
+              0.0,
               0.0
             ],
-            "axis": "y",
-            "half_width": 8.0,
-            "half_widths": null,
-            "length": 25.0,
-            "opening_direction": [
+            "length": 28.284,
+            "run": [
               0.0,
-              1.0,
-              0.0
+              0.707107,
+              -0.707107
+            ],
+            "wall_outline": [
+              [
+                -14.142,
+                14.142
+              ],
+              [
+                0.0,
+                0.0
+              ],
+              [
+                28.284,
+                0.0
+              ],
+              [
+                0.0,
+                28.284
+              ]
             ]
           }
         ],
+        "pads": [],
+        "paired_ramp_steps": [],
         "plates": [],
         "pocket_patterns": [],
         "pockets": [],
@@ -65,58 +100,56 @@
         "risers": [
           {
             "_type": "RiserEvidence",
-            "axis": "x",
+            "axis": "y",
             "body_key": [
-              -20.0,
-              -20.0,
-              -15.0,
+              0.0,
+              0.0,
+              0.0,
+              40.0,
+              40.0,
               20.0,
-              20.0,
-              15.0,
-              46000.0,
-              8240.31242374
+              20000.0,
+              5365.68542495
             ],
             "body_levels": [],
-            "hi_at_envelope": false,
-            "lo_at_envelope": false,
-            "other_axis": "y",
+            "hi_at_envelope": true,
+            "lo_at_envelope": true,
+            "other_axis": "x",
             "other_positions": [
-              -5.0
+              20.0
             ],
             "positions": [
-              10.0
+              20.0
             ],
             "tol": 0.5,
             "vertical": false,
-            "z_hi": 0.0,
-            "z_lo": -8.0
+            "z_hi": 20.0,
+            "z_lo": 0.0
           },
           {
             "_type": "RiserEvidence",
             "axis": "x",
             "body_key": [
-              -20.0,
-              -20.0,
-              -15.0,
+              0.0,
+              0.0,
+              0.0,
+              40.0,
+              40.0,
               20.0,
-              20.0,
-              15.0,
-              46000.0,
-              8240.31242374
+              20000.0,
+              5365.68542495
             ],
             "body_levels": [],
-            "hi_at_envelope": false,
-            "lo_at_envelope": false,
+            "hi_at_envelope": true,
+            "lo_at_envelope": true,
             "other_axis": "y",
-            "other_positions": [
-              -5.0
-            ],
+            "other_positions": [],
             "positions": [
-              10.0
+              20.0
             ],
             "tol": 0.5,
-            "vertical": false,
-            "z_hi": 8.0,
+            "vertical": true,
+            "z_hi": 20.0,
             "z_lo": 0.0
           }
         ],
@@ -165,58 +198,56 @@
         "risers": [
           {
             "_type": "RiserEvidence",
-            "axis": "x",
+            "axis": "y",
             "body_key": [
-              -20.0,
-              -20.0,
-              -15.0,
+              0.0,
+              0.0,
+              0.0,
+              40.0,
+              40.0,
               20.0,
-              20.0,
-              15.0,
-              46000.0,
-              8240.31242374
+              20000.0,
+              5365.68542495
             ],
             "body_levels": [],
-            "hi_at_envelope": false,
-            "lo_at_envelope": false,
-            "other_axis": "y",
+            "hi_at_envelope": true,
+            "lo_at_envelope": true,
+            "other_axis": "x",
             "other_positions": [
-              -5.0
+              20.0
             ],
             "positions": [
-              10.0
+              20.0
             ],
             "tol": 0.5,
             "vertical": false,
-            "z_hi": 0.0,
-            "z_lo": -8.0
+            "z_hi": 20.0,
+            "z_lo": 0.0
           },
           {
             "_type": "RiserEvidence",
             "axis": "x",
             "body_key": [
-              -20.0,
-              -20.0,
-              -15.0,
+              0.0,
+              0.0,
+              0.0,
+              40.0,
+              40.0,
               20.0,
-              20.0,
-              15.0,
-              46000.0,
-              8240.31242374
+              20000.0,
+              5365.68542495
             ],
             "body_levels": [],
-            "hi_at_envelope": false,
-            "lo_at_envelope": false,
+            "hi_at_envelope": true,
+            "lo_at_envelope": true,
             "other_axis": "y",
-            "other_positions": [
-              -5.0
-            ],
+            "other_positions": [],
             "positions": [
-              10.0
+              20.0
             ],
             "tol": 0.5,
-            "vertical": false,
-            "z_hi": 8.0,
+            "vertical": true,
+            "z_hi": 20.0,
             "z_lo": 0.0
           }
         ],
@@ -245,8 +276,8 @@
       "gusset_rib": 0,
       "hole": 0,
       "hole_pattern": 0,
-      "oblique_through_step": 0,
-      "paired_ramp_step": 1,
+      "oblique_through_step": 1,
+      "paired_ramp_step": 0,
       "passage": 0,
       "plate": 0,
       "pocket": 0,
@@ -270,46 +301,46 @@
         {
           "_type": "FaceLevel",
           "body_key": [
-            -20.0,
-            -20.0,
-            -15.0,
+            0.0,
+            0.0,
+            0.0,
+            40.0,
+            40.0,
             20.0,
-            20.0,
-            15.0,
-            46000.0,
-            8240.31242374
+            20000.0,
+            5365.68542495
           ],
           "x_span": [
-            -20.0,
-            20.0
+            20.0,
+            40.0
           ],
           "y_span": [
-            -20.0,
-            20.0
+            0.0,
+            40.0
           ],
-          "z": -15.0
+          "z": 0.0
         },
         {
           "_type": "FaceLevel",
           "body_key": [
-            -20.0,
-            -20.0,
-            -15.0,
+            0.0,
+            0.0,
+            0.0,
+            40.0,
+            40.0,
             20.0,
-            20.0,
-            15.0,
-            46000.0,
-            8240.31242374
+            20000.0,
+            5365.68542495
           ],
           "x_span": [
-            -20.0,
-            20.0
+            0.0,
+            40.0
           ],
           "y_span": [
-            -20.0,
-            20.0
+            0.0,
+            40.0
           ],
-          "z": 15.0
+          "z": 20.0
         }
       ],
       "recognise_fillets": [],
@@ -319,27 +350,62 @@
       "recognise_gusset_ribs": [],
       "recognise_hole_patterns": [],
       "recognise_holes": [],
-      "recognise_oblique_through_steps": [],
-      "recognise_paired_ramp_steps": [
+      "recognise_oblique_through_steps": [
         {
-          "_type": "PairedRampStep",
-          "angle": 51.34,
+          "_type": "ObliqueThroughStep",
+          "across_direction": [
+            0.0,
+            -0.707107,
+            -0.707107
+          ],
           "at": [
-            10.0,
-            7.5,
+            20.0,
+            30.0,
+            10.0
+          ],
+          "body_key": [
+            0.0,
+            0.0,
+            0.0,
+            40.0,
+            40.0,
+            20.0,
+            20000.0,
+            5365.68542495
+          ],
+          "depth": 20.0,
+          "depth_direction": [
+            -1.0,
+            0.0,
             0.0
           ],
-          "axis": "y",
-          "half_width": 8.0,
-          "half_widths": null,
-          "length": 25.0,
-          "opening_direction": [
+          "length": 28.284,
+          "run": [
             0.0,
-            1.0,
-            0.0
+            0.707107,
+            -0.707107
+          ],
+          "wall_outline": [
+            [
+              -14.142,
+              14.142
+            ],
+            [
+              0.0,
+              0.0
+            ],
+            [
+              28.284,
+              0.0
+            ],
+            [
+              0.0,
+              28.284
+            ]
           ]
         }
       ],
+      "recognise_paired_ramp_steps": [],
       "recognise_passages": [],
       "recognise_plates": [],
       "recognise_pocket_patterns": [],
@@ -353,58 +419,56 @@
       "recognise_risers": [
         {
           "_type": "RiserEvidence",
-          "axis": "x",
+          "axis": "y",
           "body_key": [
-            -20.0,
-            -20.0,
-            -15.0,
+            0.0,
+            0.0,
+            0.0,
+            40.0,
+            40.0,
             20.0,
-            20.0,
-            15.0,
-            46000.0,
-            8240.31242374
+            20000.0,
+            5365.68542495
           ],
           "body_levels": [],
-          "hi_at_envelope": false,
-          "lo_at_envelope": false,
-          "other_axis": "y",
+          "hi_at_envelope": true,
+          "lo_at_envelope": true,
+          "other_axis": "x",
           "other_positions": [
-            -5.0
+            20.0
           ],
           "positions": [
-            10.0
+            20.0
           ],
           "tol": 0.5,
           "vertical": false,
-          "z_hi": 0.0,
-          "z_lo": -8.0
+          "z_hi": 20.0,
+          "z_lo": 0.0
         },
         {
           "_type": "RiserEvidence",
           "axis": "x",
           "body_key": [
-            -20.0,
-            -20.0,
-            -15.0,
+            0.0,
+            0.0,
+            0.0,
+            40.0,
+            40.0,
             20.0,
-            20.0,
-            15.0,
-            46000.0,
-            8240.31242374
+            20000.0,
+            5365.68542495
           ],
           "body_levels": [],
-          "hi_at_envelope": false,
-          "lo_at_envelope": false,
+          "hi_at_envelope": true,
+          "lo_at_envelope": true,
           "other_axis": "y",
-          "other_positions": [
-            -5.0
-          ],
+          "other_positions": [],
           "positions": [
-            10.0
+            20.0
           ],
           "tol": 0.5,
-          "vertical": false,
-          "z_hi": 8.0,
+          "vertical": true,
+          "z_hi": 20.0,
           "z_lo": 0.0
         }
       ],
@@ -426,9 +490,5 @@
       ],
       "step_level_records": []
     }
-  },
-  "source": {
-    "commit": "3fe20b0f71a71deced06b310943dd44cc66e355e",
-    "repository": "https://github.com/pzfreo/draftwright.git"
   }
 }

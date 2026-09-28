@@ -124,6 +124,10 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "edge geom_type validates rectangular boundaries and their complete linear seam",
     ),
+    "oblique_through_steps": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "original straight wall boundaries and the complete oblique seam prove this subset",
+    ),
     "thin_walls": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "mesh fallback samples only original planar trims before ray-proving opposed skins",
@@ -753,6 +757,18 @@ SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
     "through_steps:_four_principal_runs:geom_type:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "edge curve kind validates a rectangular boundary",
+    ),
+    "oblique_through_steps:_linear_quad:geom_type:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "the four original straight wall edges define the supported profile",
+    ),
+    "oblique_through_steps:_one_pair:geom_type:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "the supported oblique wall is one original planar face",
+    ),
+    "oblique_through_steps:_one_pair:geom_type:2": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "the shared original seam must be one straight edge",
     ),
     "through_steps:_shared_run_is_complete:geom_type:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,

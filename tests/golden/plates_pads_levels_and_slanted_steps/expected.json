@@ -33,6 +33,7 @@
         "gusset_ribs": [],
         "hole_patterns": [],
         "holes": [],
+        "oblique_through_steps": [],
         "pads": [
           {
             "_type": "RaisedPad",
@@ -472,6 +473,7 @@
         "gusset_ribs": [],
         "hole_patterns": [],
         "holes": [],
+        "oblique_through_steps": [],
         "pads": [
           {
             "_type": "RaisedPad",
@@ -829,6 +831,7 @@
       "gusset_rib": 0,
       "hole": 0,
       "hole_pattern": 0,
+      "oblique_through_step": 0,
       "paired_ramp_step": 0,
       "passage": 0,
       "plate": 2,
@@ -968,6 +971,7 @@
       "recognise_gusset_ribs": [],
       "recognise_hole_patterns": [],
       "recognise_holes": [],
+      "recognise_oblique_through_steps": [],
       "recognise_paired_ramp_steps": [],
       "recognise_passages": [],
       "recognise_plates": [

@@ -170,6 +170,7 @@ from quiddity.levels import (
     step_level_records,
     step_level_zs,
 )
+from quiddity.oblique_through_steps import ObliqueThroughStep, recognise_oblique_through_steps
 from quiddity.oriented_slots import (
     OrientedSlot,
     OrientedSlotArray,
@@ -434,6 +435,8 @@ __all__ = [
     "recognise_paired_ramp_steps",
     "ThroughStep",
     "recognise_through_steps",
+    "recognise_oblique_through_steps",
+    "ObliqueThroughStep",
     "recognise_section_recesses",
     "OpenSectionProfile",
     "build_section_recess_document",
