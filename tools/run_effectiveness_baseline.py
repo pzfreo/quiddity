@@ -90,6 +90,9 @@ class _RunAuthority:
     worktree_sha256: str | None = None
 
 
+# Frozen pre-#781 corpus policy: these inputs previously produced invalid report rows.
+# The shared inventory now contains their hole ownership refusals, so a new report may
+# evaluate them; retaining the opt-in prevents an accidental denominator change.
 _KNOWN_MFCADPP_2500_INVALID = frozenset(
     {"12939", "13975", "14052", "14307", "18628", "22386", "22439"}
 )
@@ -271,7 +274,7 @@ def _require_known_invalid_policy(dataset: str, ids: list[str], allow_invalid: b
         and not allow_invalid
     ):
         raise EffectivenessDataError(
-            "the known MFCAD++-2,500 selection contains seven invalid models; "
+            "the known MFCAD++-2,500 selection contains seven historically unproved models; "
             "supply the documented --allow-invalid policy before recognition"
         )
 
