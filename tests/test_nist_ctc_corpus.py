@@ -104,6 +104,17 @@ _SUPPORTED_PATTERN_DIMENSIONALITY = {
     "nist_ftc_07": {"hole_patterns": -1},
 }
 
+# Issue #791 recognises four equal, coplanar holes at rectangle corners as a
+# RectangularHoleSet.  Keep the resulting real-part movement explicit instead of
+# rewriting the observed counts below, whose purpose is to record the pre-change
+# recogniser output.
+_SUPPORTED_RECTANGULAR_HOLE_SETS = {
+    "nist_ftc_07": {"hole_patterns": 4},
+    "nist_ftc_08": {"hole_patterns": 1},
+    "nist_ftc_09": {"hole_patterns": 1},
+    "nist_ftc_10": {"hole_patterns": 1},
+}
+
 
 def _expected_after_supported_changes(stem: str, baseline: dict[str, int]) -> dict[str, int]:
     expected = dict(baseline)
@@ -112,6 +123,7 @@ def _expected_after_supported_changes(stem: str, baseline: dict[str, int]) -> di
         _SUPPORTED_RECESS_CORRECTIONS.get(stem, {}),
         _SUPPORTED_RECESS_AXIS_COVARIANCE.get(stem, {}),
         _SUPPORTED_PATTERN_DIMENSIONALITY.get(stem, {}),
+        _SUPPORTED_RECTANGULAR_HOLE_SETS.get(stem, {}),
     ):
         for family, change in changes.items():
             expected[family] += change
