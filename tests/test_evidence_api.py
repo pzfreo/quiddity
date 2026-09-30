@@ -8,7 +8,18 @@ import pickle
 from pathlib import Path
 
 import pytest
-from build123d import Box, Compound, Cylinder, Pos, RegularPolygon, Rot, extrude
+from build123d import (
+    Box,
+    BuildPart,
+    Compound,
+    Cylinder,
+    Mode,
+    PolarLocations,
+    Pos,
+    RegularPolygon,
+    Rot,
+    extrude,
+)
 
 import quiddity.evidence as evidence_module
 from quiddity import RecognitionOutcome, ReconciliationReason, import_step_geometry
@@ -66,6 +77,39 @@ def test_equal_valued_occurrences_keep_distinct_feature_references() -> None:
     assert len({id(reference) for reference in levels}) == 2
     assert len(set(records)) == 1
     assert all(view.defining_faces(reference) for reference in levels)
+
+
+def test_hole_pattern_is_a_derived_feature_bound_to_accepted_member_identity() -> None:
+    with BuildPart() as part:
+        Box(100, 60, 10)
+        with PolarLocations(20, 6):
+            Cylinder(3, 10, mode=Mode.SUBTRACT)
+    view = build_recognition_evidence(part.part)
+
+    (pattern,) = tuple(
+        feature for feature in view.features if view.family(feature) == "hole_patterns"
+    )
+    members = view.members(pattern)
+    groups = view.instance_faces(pattern)
+
+    assert len(members) == len(groups) == 6
+    assert all(member in view.features for member in members)
+    assert all(
+        view.record(member) is record
+        for member, record in zip(members, view.record(pattern).holes, strict=True)
+    )
+    assert all(view.family(member) == "holes" for member in members)
+    assert groups == tuple(view.constituent_faces(member) for member in members)
+    assert view.defining_faces(pattern) == frozenset().union(
+        *(view.defining_faces(member) for member in members)
+    )
+    assert view.constituent_faces(pattern) == frozenset().union(*groups)
+    assert all(view.members(member) == () for member in members)
+    assert all(summary.family != "hole_patterns" for summary in view.association.families)
+
+    document = build_recognition_document(part.part)
+    assert document["derived"]["hole_patterns"]
+    assert all(feature["family"] != "hole_patterns" for feature in document["features"])
 
 
 def test_references_are_exactly_view_local_and_unforgeable() -> None:
