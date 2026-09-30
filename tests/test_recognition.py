@@ -703,16 +703,19 @@ class TestFindHolePatterns:
         assert recognise_hole_patterns(recognise_holes(part)) == []
 
     @pytest.mark.timeout(60)
-    def test_rectangle_corners_are_not_a_bolt_circle(self):
+    def test_rectangle_corners_are_a_rectangular_set_not_a_bolt_circle(self):
         # 100×80 rectangle corners are equidistant from the centre but not
         # equally spaced (77.3°/102.7°) — must not read as EQ SP ON BC.
-        from quiddity import recognise_hole_patterns
+        from quiddity import BoltCircle, RectangularHoleSet, recognise_hole_patterns
 
         part = Box(140, 120, 10)
         for sx in (-50, 50):
             for sy in (-40, 40):
                 part = part - Pos(sx, sy, 0) * Cylinder(3, 10)
-        assert recognise_hole_patterns(recognise_holes(part)) == []
+        (pattern,) = recognise_hole_patterns(recognise_holes(part))
+        assert isinstance(pattern, RectangularHoleSet)
+        assert not isinstance(pattern, BoltCircle)
+        assert (pattern.width, pattern.height) == (100.0, 80.0)
 
     @pytest.mark.timeout(60)
     def test_axis_epsilon_noise_does_not_split_a_pattern(self):
