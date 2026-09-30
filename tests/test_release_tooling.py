@@ -170,7 +170,7 @@ def test_a_failure_after_the_manifest_is_written_still_restores_it(tmp_path, mon
 
     That one raises inside the `uv version` stub, i.e. before the manifest and fallback are
     touched -- so a rollback restoring only `pyproject.toml` and `uv.lock` passed it. Failing
-    at the *last* write is what actually requires all six snapshots to be honoured.
+    at the *last* write is what actually requires all seven snapshots to be honoured.
     """
 
     module = _load()
