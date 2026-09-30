@@ -50,6 +50,14 @@ from quiddity import (
     recognise_paired_ramp_steps,
     recognise_plates,
 )
+from quiddity.correspondence import (
+    CorrespondenceReceipt,
+    CorrespondenceResolution,
+    ReceiptSubjectKind,
+    ResolutionStatus,
+    issue_correspondence_receipt,
+    resolve_correspondence_receipts,
+)
 from quiddity.evidence import (
     AssociationMeasure,
     CandidateRef,
@@ -123,6 +131,13 @@ def consume(part: Solid, face: Face, bounds: BoundBox) -> None:
     assert_type(evidence.association.face_count.ratio, float | None)
     assert_type(evidence.association.families, tuple[FamilyAssociation, ...])
     assert_type(evidence.association.unassociated_faces, frozenset[FaceRef])
+    if evidence.features:
+        receipt = issue_correspondence_receipt(evidence, evidence.features[0], lineage="part-1")
+        assert_type(receipt, CorrespondenceReceipt)
+        assert_type(receipt.subject_kind, ReceiptSubjectKind)
+        resolutions = resolve_correspondence_receipts((receipt,), evidence, lineage="part-1")
+        assert_type(resolutions, tuple[CorrespondenceResolution, ...])
+        assert_type(resolutions[0].status, ResolutionStatus)
     for feature in evidence.features:
         assert_type(evidence.family(feature), str)
         assert_type(evidence.record(feature), RecognitionRecord)

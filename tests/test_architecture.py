@@ -22,6 +22,7 @@ PUBLIC_MODULES = {
     "circular_blind_steps",
     "circular_face_patterns",
     "cli",
+    "correspondence",
     "countersinks",
     "diameters",
     "document",
@@ -64,8 +65,8 @@ PUBLIC_MODULES = {
 }
 
 
-def test_cross_run_correspondence_is_absent() -> None:
-    """The F6 matcher was removed; nothing may reintroduce it without a consumer and an ADR."""
+def test_withdrawn_f6_does_not_return_behind_the_correspondence_sidecar() -> None:
+    """ADR 0026 publishes a bounded facade without restoring the removed F6 substrate."""
 
     assert not hasattr(recognition, "correspondence_changes")
     assert not hasattr(recognition, "CorrespondenceResult")
@@ -591,6 +592,9 @@ MODULE_SEAM_EDGES = {
         "explanations",
         "result",
     },
+    # ADR 0026's optional, versioned sidecar consumes only completed public evidence and the
+    # two reviewed analytic-v1 value contracts. It cannot construct a recognition run.
+    "correspondence": {"_outer_profile", "evidence", "holes"},
     # The only graph/evidence translation seam. Feature consumers receive facade refs and
     # cannot import the concrete graph or writer themselves.
     "_geometry_evidence": {

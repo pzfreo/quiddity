@@ -61,10 +61,11 @@ for a rule includes what the losing family recognises. There is no fourth verb. 
 emits no Candidate; it may emit an `Observation`, which the private residual reducer joins to
 accepted candidates after reconciliation without searching geometry.
 
-**Cross-run correspondence is not provided.** The F6 matcher was withdrawn on 2026-09-14: it
-covered one uncounted family and had no consumer. Accepted records carry run-local identity only.
-A successor must re-prove identity geometrically, fail closed on ambiguity, never use tuple
-position, object identity, hash or nearest distance, and arrive with a named consumer.
+**Cross-run correspondence is a sidecar, never a result phase.** The old F6 matcher was withdrawn
+on 2026-09-14 because it covered one uncounted family and had no consumer. ADR 0026's later
+consumer-backed receipt resolver consumes two completed evidence lifecycles without entering
+discovery, reconciliation or `RecognitionResult`. Accepted records still carry run-local identity
+only; durable receipts re-prove a current `FeatureRef`/`FaceRef` or fail closed.
 
 Consumer lifecycle caches are outside the result.
 
@@ -72,7 +73,7 @@ Consumer lifecycle caches are outside the result.
 
 - `tests/test_architecture.py`: the reconciler never imports or calls discovery; phase functions
   have one-way capability boundaries; only orchestration creates restricted completed inputs;
-  every result field is registry-owned or a reviewed exception; correspondence stays absent;
+  every result field is registry-owned or a reviewed exception; correspondence stays outside it;
   the reconciler reads constituent evidence at exactly one reviewed site.
 - `tests/test_run_context.py`: one aggregate run derives each shared substrate once.
 - Fixture tests for each named rule, and for the fact that ambiguous or unsupported geometry

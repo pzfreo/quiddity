@@ -1,0 +1,26 @@
+{
+  "api": {
+    "major": 1,
+    "namespace": "quiddity.correspondence",
+    "symbols": [
+      "CORRESPONDENCE_API_FORMAT",
+      "CORRESPONDENCE_API_FORMAT_VERSION",
+      "CorrespondenceApiManifestError",
+      "CorrespondenceReceipt",
+      "CorrespondenceReceiptError",
+      "CorrespondenceResolution",
+      "ReceiptSubjectKind",
+      "ResolutionStatus",
+      "correspondence_api_manifest",
+      "correspondence_api_manifest_json",
+      "issue_correspondence_receipt",
+      "resolve_correspondence_receipts"
+    ]
+  },
+  "format": "quiddity-correspondence-api",
+  "format_version": 1,
+  "package": {
+    "name": "quiddity",
+    "version": "0.4.0.dev0"
+  }
+}

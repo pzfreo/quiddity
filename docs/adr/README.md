@@ -12,10 +12,10 @@ citations of its number in source and tests keep resolving. Numbers are never re
 **A record here is architecture.** A decision about one recogniser family is a
 [family record](../families/README.md), not an ADR.
 
-## The eight live records
+## The nine live records
 
-Read them in this order. The first seven are how recognition is built; the eighth is what leaves
-the package. Every commit is answerable to them.
+Read them in this order. The first seven are how recognition is built; ADR 0005 governs what
+leaves the package, and ADR 0026 governs cross-run identity. Every commit is answerable to them.
 
 | ADR | Decides | Status |
 | --- | --- | --- |
@@ -26,7 +26,8 @@ the package. Every commit is answerable to them.
 | [0007](0007-recogniser-module-seams.md) | Private modules, the enforced seam table, the layering | Accepted |
 | [0008](0008-length-tolerance-policy.md) | Tolerances scale, thresholds do not, absolute constants are justified and bounded | Accepted |
 | [0011](0011-explicit-part-relative-recognition-frame.md) | Recognition in an explicit part frame; families covariant with it | Accepted |
-| [0005](0005-versioned-cross-repository-capability-contract.md) | The four published surfaces and how their contracts are versioned | Accepted |
+| [0005](0005-versioned-cross-repository-capability-contract.md) | The five published surfaces and how their contracts are versioned | Accepted |
+| [0026](0026-versioned-correspondence-receipts.md) | Versioned, replaceable face and feature correspondence receipts | Accepted |
 
 ## Superseded
 
