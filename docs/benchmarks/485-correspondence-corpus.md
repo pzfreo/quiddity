@@ -14,8 +14,10 @@ predicate or numerical bound.
 | One old hole and two equal moved alternatives | ambiguous |
 | Coincident equal bodies | equal face alternatives are ambiguous |
 | Two old holes competing for one current hole | neither silently steals the occurrence |
+| Seventeen independent exact holes | all resolve without enumerating assignment subsets |
 | Removed hole | missing |
 | Different caller lineage | incompatible |
+| Receipt issued by an unknown strategy | preserved and reported incompatible |
 | Modified or malformed payload | rejected before matching |
 
 The corpus pins `analytic-v1`, not the public protocol's future ceiling. A later matcher adds its

@@ -80,7 +80,8 @@ All decoded fields are validated as untrusted input before matching.
 - `tests/test_correspondence.py`, the authored revised-geometry corpus described in
   `docs/benchmarks/485-correspondence-corpus.md`: datum faces with changed inner loops, face sets,
   unchanged/resized/moved/added/removed holes, coincident and symmetric ambiguity, global
-  competition, lineage mismatch and malformed receipts.
+  competition, non-enumerative larger batches, strategy and lineage mismatch, and malformed
+  receipts.
 - `correspondence_api.json` and its installed-wheel/package/version tests.
 - Architecture guards keep correspondence out of discovery, reconciliation and result records;
   the resolver consumes a completed evidence view and cannot construct a run.

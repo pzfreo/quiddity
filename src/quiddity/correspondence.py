@@ -30,7 +30,7 @@ _STRATEGY = "analytic-v1"
 _PAYLOAD_SCHEMA = 1
 _LENGTH_DIGITS = 6
 _DIRECTION_DIGITS = 8
-_SEARCH_BUDGET = 100_000
+_FACE_SET_SEARCH_BUDGET = 100_000
 
 
 class CorrespondenceApiManifestError(ValueError):
@@ -80,9 +80,10 @@ class CorrespondenceReceipt:
     intentionally available only through :meth:`to_dict` and :meth:`to_json` for persistence.
     """
 
-    __slots__ = ("__lineage", "__payload", "__subject_kind")
+    __slots__ = ("__lineage", "__payload", "__strategy", "__subject_kind")
     __lineage: str
     __payload: str
+    __strategy: str
     __subject_kind: ReceiptSubjectKind
 
     def __init__(self) -> None:
@@ -98,7 +99,7 @@ class CorrespondenceReceipt:
 
     @property
     def strategy(self) -> str:
-        return _STRATEGY
+        return self.__strategy
 
     @property
     def format_version(self) -> int:
@@ -110,7 +111,7 @@ class CorrespondenceReceipt:
             "format_version": CORRESPONDENCE_API_FORMAT_VERSION,
             "lineage": self.__lineage,
             "payload": self.__payload,
-            "strategy": _STRATEGY,
+            "strategy": self.__strategy,
             "subject_kind": self.__subject_kind.value,
         }
 
@@ -128,14 +129,14 @@ class CorrespondenceReceipt:
             "subject_kind",
         }:
             raise CorrespondenceReceiptError("receipt has an invalid closed shape")
-        if (
-            value["format"] != CORRESPONDENCE_API_FORMAT
+        if value["format"] != CORRESPONDENCE_API_FORMAT or (
+            type(value["format_version"]) is not int
             or value["format_version"] != CORRESPONDENCE_API_FORMAT_VERSION
-            or value["strategy"] != _STRATEGY
         ):
-            raise CorrespondenceReceiptError("receipt format or strategy is incompatible")
+            raise CorrespondenceReceiptError("receipt format is incompatible")
         lineage = value["lineage"]
         payload = value["payload"]
+        strategy = value["strategy"]
         try:
             kind = ReceiptSubjectKind(value["subject_kind"])
         except (TypeError, ValueError) as error:
@@ -144,10 +145,15 @@ class CorrespondenceReceipt:
             raise CorrespondenceReceiptError("receipt lineage must be a non-empty string")
         if not isinstance(payload, str) or not payload:
             raise CorrespondenceReceiptError("receipt payload must be a non-empty string")
-        _decode_payload(payload, expected_kind=kind)
+        if not isinstance(strategy, str) or not strategy:
+            raise CorrespondenceReceiptError("receipt strategy must be a non-empty string")
+        decoded_payload = _decode_payload_json(payload)
+        if strategy == _STRATEGY:
+            _validate_payload(decoded_payload, expected_kind=kind)
         receipt = object.__new__(cls)
         object.__setattr__(receipt, "_CorrespondenceReceipt__lineage", lineage)
         object.__setattr__(receipt, "_CorrespondenceReceipt__payload", payload)
+        object.__setattr__(receipt, "_CorrespondenceReceipt__strategy", strategy)
         object.__setattr__(receipt, "_CorrespondenceReceipt__subject_kind", kind)
         return receipt
 
@@ -156,8 +162,8 @@ class CorrespondenceReceipt:
         if not isinstance(value, str):
             raise TypeError("receipt JSON must be a string")
         try:
-            decoded = json.loads(value)
-        except json.JSONDecodeError as error:
+            decoded = _strict_json_loads(value)
+        except (json.JSONDecodeError, ValueError) as error:
             raise CorrespondenceReceiptError("receipt is not valid JSON") from error
         return cls.from_dict(decoded)
 
@@ -186,10 +192,22 @@ def _finite_number(value: object) -> bool:
     return type(value) in (int, float) and math.isfinite(cast(float, value))
 
 
+def _reject_json_constant(value: str) -> object:
+    raise ValueError(f"non-standard JSON constant {value}")
+
+
+def _strict_json_loads(value: str | bytes) -> object:
+    return json.loads(value, parse_constant=_reject_json_constant)
+
+
 def _validate_payload(value: object, expected_kind: ReceiptSubjectKind) -> dict[str, object]:
     if not isinstance(value, dict) or set(value) != {"kind", "schema", "subject"}:
         raise CorrespondenceReceiptError("receipt payload has an invalid closed shape")
-    if value["schema"] != _PAYLOAD_SCHEMA or value["kind"] != expected_kind.value:
+    if (
+        type(value["schema"]) is not int
+        or value["schema"] != _PAYLOAD_SCHEMA
+        or value["kind"] != expected_kind.value
+    ):
         raise CorrespondenceReceiptError("receipt payload schema or subject kind is incompatible")
     subject = value["subject"]
     if expected_kind in (ReceiptSubjectKind.FACE, ReceiptSubjectKind.FACE_SET):
@@ -251,12 +269,42 @@ def _valid_hole_descriptor(value: object) -> bool:
         and len(value["location"]) == 3
         and all(_finite_number(item) for item in value["location"])
         and isinstance(value["bottom"], str)
+        and value["bottom"] in {"through", "flat", "drill_point", "unknown"}
         and _finite_number(value["depth"])
         and _finite_number(value["diameter"])
-        and all(
-            value[name] is None or isinstance(value[name], dict)
-            for name in ("cbore", "csink", "spotface")
-        )
+        and all(_valid_counterbore(value[name]) for name in ("cbore", "spotface"))
+        and _valid_countersink(value["csink"])
+    )
+
+
+def _valid_counterbore(value: object) -> bool:
+    return value is None or (
+        isinstance(value, dict)
+        and set(value) == {"depth", "diameter"}
+        and all(_finite_number(item) for item in value.values())
+    )
+
+
+def _valid_countersink(value: object) -> bool:
+    if value is None:
+        return True
+    if not isinstance(value, dict) or set(value) != {
+        "axis",
+        "depth",
+        "drill_diameter",
+        "included_angle",
+        "location",
+        "major_diameter",
+    }:
+        return False
+    return all(
+        isinstance(value[name], list)
+        and len(value[name]) == 3
+        and all(_finite_number(item) for item in value[name])
+        for name in ("axis", "location")
+    ) and all(
+        _finite_number(value[name])
+        for name in ("depth", "drill_diameter", "included_angle", "major_diameter")
     )
 
 
@@ -266,7 +314,7 @@ def _encode_payload(value: dict[str, object]) -> str:
     return base64.urlsafe_b64encode(digest + raw).decode("ascii")
 
 
-def _decode_payload(payload: str, *, expected_kind: ReceiptSubjectKind) -> dict[str, object]:
+def _decode_payload_json(payload: str) -> object:
     try:
         packed = base64.b64decode(payload.encode("ascii"), altchars=b"-_", validate=True)
     except (ValueError, UnicodeEncodeError) as error:
@@ -277,10 +325,13 @@ def _decode_payload(payload: str, *, expected_kind: ReceiptSubjectKind) -> dict[
     if hashlib.sha256(raw).digest()[:16] != digest:
         raise CorrespondenceReceiptError("receipt payload integrity check failed")
     try:
-        value = json.loads(raw)
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        return _strict_json_loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
         raise CorrespondenceReceiptError("receipt payload JSON is invalid") from error
-    return _validate_payload(value, expected_kind)
+
+
+def _decode_payload(payload: str, *, expected_kind: ReceiptSubjectKind) -> dict[str, object]:
+    return _validate_payload(_decode_payload_json(payload), expected_kind)
 
 
 def _rounded(value: float, *, direction: bool = False) -> float:
@@ -377,6 +428,7 @@ def issue_correspondence_receipt(
     receipt = object.__new__(CorrespondenceReceipt)
     object.__setattr__(receipt, "_CorrespondenceReceipt__lineage", lineage)
     object.__setattr__(receipt, "_CorrespondenceReceipt__payload", payload)
+    object.__setattr__(receipt, "_CorrespondenceReceipt__strategy", _STRATEGY)
     object.__setattr__(receipt, "_CorrespondenceReceipt__subject_kind", kind)
     return receipt
 
@@ -405,7 +457,7 @@ def _face_candidates(
         return ()
     found: set[frozenset[FaceRef]] = set()
     for attempts, selection in enumerate(itertools.product(*rosters), start=1):
-        if attempts > _SEARCH_BUDGET:
+        if attempts > _FACE_SET_SEARCH_BUDGET:
             raise CorrespondenceReceiptError("face-set correspondence search budget is exhausted")
         chosen = frozenset(selection)
         if len(chosen) == len(descriptors):
@@ -419,38 +471,45 @@ def _candidate_key(candidate: FeatureRef | frozenset[FaceRef]) -> tuple[object, 
     return ("faces", *(sorted(id(reference) for reference in candidate)))
 
 
-def _maximum_assignments(
+def _matching_size(
     candidates: list[tuple[FeatureRef | frozenset[FaceRef], ...]],
-) -> list[tuple[FeatureRef | frozenset[FaceRef] | None, ...]]:
-    best: list[tuple[FeatureRef | frozenset[FaceRef] | None, ...]] = []
-    best_count = -1
-    attempts = 0
+    *,
+    omit: int | None = None,
+    unavailable: tuple[object, ...] | None = None,
+) -> int:
+    """Return maximum bipartite cardinality with optional forced-edge exclusions."""
 
-    def visit(
-        at: int,
-        used: set[tuple[object, ...]],
-        assigned: list[FeatureRef | frozenset[FaceRef] | None],
-    ) -> None:
-        nonlocal attempts, best, best_count
-        attempts += 1
-        if attempts > _SEARCH_BUDGET:
-            raise CorrespondenceReceiptError("correspondence assignment search budget is exhausted")
-        if at == len(candidates):
-            count = sum(item is not None for item in assigned)
-            value = tuple(assigned)
-            if count > best_count:
-                best_count, best = count, [value]
-            elif count == best_count:
-                best.append(value)
-            return
-        visit(at + 1, used, [*assigned, None])
-        for candidate in candidates[at]:
+    owners: dict[tuple[object, ...], int] = {}
+
+    def augment(left: int, seen: set[tuple[object, ...]]) -> bool:
+        for candidate in candidates[left]:
             key = _candidate_key(candidate)
-            if key not in used:
-                visit(at + 1, used | {key}, [*assigned, candidate])
+            if key == unavailable or key in seen:
+                continue
+            seen.add(key)
+            owner = owners.get(key)
+            if owner is None or augment(owner, seen):
+                owners[key] = left
+                return True
+        return False
 
-    visit(0, set(), [])
-    return best
+    return sum(augment(left, set()) for left in range(len(candidates)) if left != omit)
+
+
+def _forced_candidates(
+    candidates: list[tuple[FeatureRef | frozenset[FaceRef], ...]], index: int
+) -> tuple[tuple[FeatureRef | frozenset[FaceRef], ...], bool]:
+    """Return candidates and absence that occur in at least one maximum assignment."""
+
+    maximum = _matching_size(candidates)
+    unmatched = _matching_size(candidates, omit=index) == maximum
+    possible = tuple(
+        candidate
+        for candidate in candidates[index]
+        if 1 + _matching_size(candidates, omit=index, unavailable=_candidate_key(candidate))
+        == maximum
+    )
+    return possible, unmatched
 
 
 def resolve_correspondence_receipts(
@@ -507,24 +566,17 @@ def resolve_correspondence_receipts(
         compatible_indices.append(index)
         candidate_rosters.append(roster)
 
-    assignments = _maximum_assignments(candidate_rosters) if candidate_rosters else []
     for local, original in enumerate(compatible_indices):
         receipt = receipts[original]
-        values = {
-            None
-            if assignment[local] is None
-            else _candidate_key(cast(FeatureRef | frozenset[FaceRef], assignment[local]))
-            for assignment in assignments
-        }
-        nonempty = {value for value in values if value is not None}
-        if not nonempty:
+        roster = candidate_rosters[local]
+        if not roster:
             immediate[original] = CorrespondenceResolution(receipt, ResolutionStatus.MISSING)
-        elif len(nonempty) != 1 or None in values:
+            continue
+        possible, unmatched = _forced_candidates(candidate_rosters, local)
+        if len(possible) != 1 or unmatched:
             immediate[original] = CorrespondenceResolution(receipt, ResolutionStatus.AMBIGUOUS)
         else:
-            chosen = next(
-                assignment[local] for assignment in assignments if assignment[local] is not None
-            )
+            chosen = possible[0]
             if type(chosen) is FeatureRef:
                 immediate[original] = CorrespondenceResolution(
                     receipt, ResolutionStatus.RESOLVED, feature=chosen

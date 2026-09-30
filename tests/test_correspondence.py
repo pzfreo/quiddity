@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import base64
 import copy
+import hashlib
 import json
 
 import pytest
@@ -49,6 +51,16 @@ def _face_at(view, *, z: float) -> FaceRef:
     return matches[0]
 
 
+def _replace_payload(
+    receipt: CorrespondenceReceipt, payload: dict[str, object]
+) -> dict[str, object]:
+    raw = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
+    packed = hashlib.sha256(raw).digest()[:16] + raw
+    encoded = receipt.to_dict()
+    encoded["payload"] = base64.urlsafe_b64encode(packed).decode("ascii")
+    return encoded
+
+
 def test_receipt_round_trip_is_closed_strict_json() -> None:
     view = build_recognition_evidence(_plate_with_holes(((0, 0, 6),)))
     receipt = issue_correspondence_receipt(view, _hole_features(view)[0], lineage="part-42")
@@ -68,6 +80,20 @@ def test_receipt_round_trip_is_closed_strict_json() -> None:
         "strategy",
         "subject_kind",
     }
+
+
+def test_unknown_strategy_round_trips_and_resolves_as_incompatible() -> None:
+    view = build_recognition_evidence(_plate_with_holes(((0, 0, 6),)))
+    original = issue_correspondence_receipt(view, _hole_features(view)[0], lineage="plate")
+    encoded = original.to_dict()
+    encoded["strategy"] = "history-v2"
+
+    receipt = CorrespondenceReceipt.from_dict(encoded)
+    (resolution,) = resolve_correspondence_receipts((receipt,), view, lineage="plate")
+
+    assert receipt.strategy == "history-v2"
+    assert receipt.to_dict() == encoded
+    assert resolution.status is ResolutionStatus.INCOMPATIBLE
 
 
 def test_plain_datum_face_survives_an_added_inner_loop() -> None:
@@ -170,6 +196,23 @@ def test_global_batch_does_not_assign_one_current_hole_twice() -> None:
     ]
 
 
+def test_large_independent_batch_resolves_without_enumerating_the_power_set() -> None:
+    holes = tuple(
+        (float(x), float(y), 3.0) for y in (-15, -5, 5, 15) for x in (-30, -15, 0, 15, 30)
+    )[:17]
+    before = build_recognition_evidence(_plate_with_holes(holes))
+    receipts = tuple(
+        issue_correspondence_receipt(before, feature, lineage="many-holes")
+        for feature in _hole_features(before)
+    )
+    after = build_recognition_evidence(_plate_with_holes(holes))
+
+    result = resolve_correspondence_receipts(receipts, after, lineage="many-holes")
+
+    assert len(result) == 17
+    assert all(item.status is ResolutionStatus.RESOLVED for item in result)
+
+
 def test_removed_subject_and_foreign_lineage_are_typed() -> None:
     before = build_recognition_evidence(_plate_with_holes(((0, 0, 6),)))
     receipt = issue_correspondence_receipt(before, _hole_features(before)[0], lineage="plate")
@@ -194,6 +237,24 @@ def test_malformed_and_modified_receipts_fail_before_matching() -> None:
         CorrespondenceReceipt.from_dict({**receipt.to_dict(), "unknown": True})
     with pytest.raises(TypeError, match="issued"):
         CorrespondenceReceipt()
+
+
+@pytest.mark.parametrize(
+    "treatment",
+    [
+        {"diameter": 8.0, "depth": 2.0, "extra": 1.0},
+        {"diameter": float("nan"), "depth": 2.0},
+    ],
+)
+def test_recomputed_payload_with_malformed_nested_treatment_is_rejected(treatment) -> None:
+    view = build_recognition_evidence(_plate_with_holes(((0, 0, 6),)))
+    receipt = issue_correspondence_receipt(view, _hole_features(view)[0], lineage="plate")
+    packed = base64.urlsafe_b64decode(str(receipt.to_dict()["payload"]))
+    payload = json.loads(packed[16:])
+    payload["subject"]["cbore"] = treatment
+
+    with pytest.raises(CorrespondenceReceiptError, match="JSON|malformed"):
+        CorrespondenceReceipt.from_dict(_replace_payload(receipt, payload))
 
 
 def test_correspondence_manifest_matches_the_installed_contract() -> None:
