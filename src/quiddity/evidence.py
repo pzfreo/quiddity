@@ -48,7 +48,7 @@ class EvidenceApiManifestError(ValueError):
 
 
 class RecognitionRecord(Protocol):
-    """Common serializable surface of every physical recognition record."""
+    """Common serializable surface of every physical or derived recognition record."""
 
     def to_dict(self) -> dict[str, object]: ...
 
@@ -134,7 +134,7 @@ class FaceRef:
 
 
 class FeatureRef:
-    """Opaque identity for one accepted feature occurrence within one evidence view."""
+    """Opaque identity for one accepted occurrence or derived pattern within one evidence view."""
 
     __slots__ = ("__authority",)
     __authority: object
@@ -282,10 +282,12 @@ class RecognitionEvidence:
 
     @property
     def features(self) -> tuple[FeatureRef, ...]:
-        """Accepted physical evidence, including explicit unified-geometry refusals.
+        """Accepted physical evidence followed by derived pattern relations.
 
         A SectionRecessRefusal preserves an accepted detector's source association but is not
-        reconstructible geometry. Consumers must distinguish it from a SectionRecess.
+        reconstructible geometry. Consumers must distinguish it from a SectionRecess. Derived
+        patterns expose their accepted occurrences through :meth:`members` and do not add
+        physical association coverage.
         """
 
         return self.__features
@@ -531,7 +533,7 @@ class FramedRecognitionEvidence(Generic[FrameValue]):
 
     @property
     def features(self) -> tuple[FeatureRef, ...]:
-        """Accepted occurrences in stable registry/source order."""
+        """Accepted occurrences followed by derived patterns in stable source order."""
 
         return self.__evidence.features
 
@@ -723,14 +725,20 @@ def _project_recognition_evidence(product: InventoryProduct) -> RecognitionEvide
         feature_members.append(())
 
     physical_feature_count = len(feature_refs)
-    positions_by_record_identity = {id(record): position for position, record in enumerate(records)}
+    positions_by_record_identity: dict[int, list[int]] = {}
+    for position, record in enumerate(records):
+        positions_by_record_identity.setdefault(id(record), []).append(position)
     for pattern in product.result.hole_patterns:
         try:
             member_positions = tuple(
-                positions_by_record_identity[id(member)] for member in pattern.holes
+                positions_by_record_identity[id(member)][0] for member in pattern.holes
             )
         except KeyError as error:
             raise ValueError("hole pattern member is not an accepted evidence feature") from error
+        if any(len(positions_by_record_identity[id(member)]) != 1 for member in pattern.holes):
+            raise ValueError("hole pattern member does not have one accepted evidence identity")
+        if len(set(member_positions)) != len(member_positions):
+            raise ValueError("hole pattern repeats an accepted evidence member")
         members = tuple(feature_refs[position] for position in member_positions)
         member_defining = tuple(defining_sets[position] for position in member_positions)
         member_constituent = tuple(constituent_sets[position] for position in member_positions)
