@@ -705,6 +705,22 @@ class RectGrid(Record):
 
 
 @dataclass(frozen=True)
+class RectangularHoleSet(Record):
+    """Four identical holes at the corners of one proved rectangle.
+
+    ``width`` is the longer side and ``height`` the shorter. ``angle`` is the width direction
+    in the holes' opening-plane frame modulo 180 degrees; a square uses its smaller equivalent
+    axis angle modulo 90 degrees. ``holes`` follow counter-clockwise order around ``center``.
+    """
+
+    holes: tuple[HoleRecord, HoleRecord, HoleRecord, HoleRecord]
+    center: Vector3
+    width: float
+    height: float
+    angle: float
+
+
+@dataclass(frozen=True)
 class HoleSpec(Record):
     """The machining spec shared by holes that are the *same drilled feature*.
 
@@ -885,9 +901,76 @@ def _mk_hole_grid(
     )
 
 
+def _rectangular_hole_set(
+    holes: Sequence[HoleRecord], pts: Sequence[tuple[float, float]]
+) -> RectangularHoleSet | None:
+    """Return the four-corner rectangle proved by diagonal and adjacent-side invariants."""
+
+    if len(holes) != 4 or len(pts) != 4:
+        return None
+    span = max(math.dist(a, b) for a in pts for b in pts)
+    if span <= _PATTERN_ABS_TOL:
+        return None
+    tol = _pattern_tol(span)
+    opposite: tuple[tuple[int, int], tuple[int, int]] | None = None
+    for first, second in (
+        ((0, 1), (2, 3)),
+        ((0, 2), (1, 3)),
+        ((0, 3), (1, 2)),
+    ):
+        midpoint_a = tuple((pts[first[0]][axis] + pts[first[1]][axis]) / 2 for axis in (0, 1))
+        midpoint_b = tuple((pts[second[0]][axis] + pts[second[1]][axis]) / 2 for axis in (0, 1))
+        if (
+            math.dist(midpoint_a, midpoint_b) <= tol
+            and abs(
+                math.dist(pts[first[0]], pts[first[1]]) - math.dist(pts[second[0]], pts[second[1]])
+            )
+            <= tol
+        ):
+            opposite = first, second
+            break
+    if opposite is None:
+        return None
+    center_2d = tuple(sum(point[axis] for point in pts) / 4 for axis in (0, 1))
+    order = sorted(
+        range(4),
+        key=lambda index: math.atan2(pts[index][1] - center_2d[1], pts[index][0] - center_2d[0]),
+    )
+    vectors = [
+        (
+            pts[order[(index + 1) % 4]][0] - pts[order[index]][0],
+            pts[order[(index + 1) % 4]][1] - pts[order[index]][1],
+        )
+        for index in range(4)
+    ]
+    lengths = [math.hypot(*vector) for vector in vectors]
+    if (
+        min(lengths) <= tol
+        or abs(lengths[0] - lengths[2]) > tol
+        or abs(lengths[1] - lengths[3]) > tol
+    ):
+        return None
+    if abs(vectors[0][0] * vectors[1][0] + vectors[0][1] * vectors[1][1]) > tol * span:
+        return None
+    long_index = 0 if lengths[0] >= lengths[1] else 1
+    width, height = lengths[long_index], lengths[1 - long_index]
+    angle = math.degrees(math.atan2(vectors[long_index][1], vectors[long_index][0])) % 180.0
+    if abs(width - height) <= tol:
+        angle %= 90.0
+    center = tuple(sum(value) / 4 for value in zip(*(hole.location for hole in holes), strict=True))
+    ordered_holes = tuple(holes[index] for index in order)
+    return RectangularHoleSet(
+        holes=cast(tuple[HoleRecord, HoleRecord, HoleRecord, HoleRecord], ordered_holes),
+        center=cast(Vector3, center),
+        width=round(width, 2),
+        height=round(height, 2),
+        angle=round(angle, 2),
+    )
+
+
 def recognise_hole_patterns(
     holes: Sequence[HoleRecord],
-) -> list[BoltCircle | LinearArray | RectGrid]:
+) -> list[BoltCircle | LinearArray | RectGrid | RectangularHoleSet]:
     """Recognise :class:`BoltCircle`, :class:`LinearArray`, and
     :class:`RectGrid` patterns among *holes* (``HoleRecord`` records, e.g.
     from :func:`recognise_holes`).
@@ -911,7 +994,7 @@ def recognise_hole_patterns(
     for h in holes:
         groups.setdefault(_spec_key(h), []).append(h)
 
-    patterns: list[BoltCircle | LinearArray | RectGrid] = []
+    patterns: list[BoltCircle | LinearArray | RectGrid | RectangularHoleSet] = []
     for spec, members in groups.items():
         if len(members) < 3:
             continue
@@ -941,6 +1024,9 @@ def recognise_hole_patterns(
                 continue
             plane_members = [members[index] for index in indices]
             plane_points = [pts[index] for index in indices]
+            rectangle = _rectangular_hole_set(plane_members, plane_points)
+            if rectangle is not None:
+                candidates.append((rectangle, frozenset(indices)))
             grid = _rect_grid(plane_members, plane_points, _mk_hole_grid)
             if grid is not None:
                 candidates.append((grid, frozenset(indices)))
@@ -1015,7 +1101,7 @@ DEFINITION = PhysicalDefinition(
 
 PATTERNS = DerivedDefinition(
     identifier=DerivedId.HOLE_PATTERNS,
-    record_types=(BoltCircle, LinearArray, RectGrid),
+    record_types=(BoltCircle, LinearArray, RectGrid, RectangularHoleSet),
     result_field="hole_patterns",
     public_entrypoint=recognise_hole_patterns.__name__,
     sources=(FamilyId.HOLES,),

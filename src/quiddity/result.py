@@ -42,6 +42,7 @@ from quiddity._features import (
     BossRecord,
     HoleRecord,
     LinearArray,
+    RectangularHoleSet,
     RectGrid,
 )
 from quiddity._geometry import plane_axes
@@ -260,7 +261,7 @@ class CandidateInventory:
 class DerivedInventory:
     """Post-reconciliation projections; these are not physical candidates."""
 
-    hole_patterns: tuple[BoltCircle | LinearArray | RectGrid, ...]
+    hole_patterns: tuple[BoltCircle | LinearArray | RectGrid | RectangularHoleSet, ...]
     slot_patterns: tuple[SlotArray | SlotGrid, ...]
     oriented_slot_patterns: tuple[OrientedSlotArray | OrientedSlotGrid, ...]
     pocket_patterns: tuple[PocketArray | PocketGrid, ...]
@@ -320,7 +321,7 @@ class RecognitionResult:
     countersinks: tuple[CounterSink, ...]
     holes: tuple[HoleRecord, ...]
     double_d_bores: tuple[DoubleDBore, ...]
-    hole_patterns: tuple[BoltCircle | LinearArray | RectGrid, ...]
+    hole_patterns: tuple[BoltCircle | LinearArray | RectGrid | RectangularHoleSet, ...]
     bosses: tuple[BossRecord, ...]
     polygonal_bosses: tuple[PolygonalBoss, ...]
     polygonal_stock: tuple[PolygonalStock, ...]
@@ -751,7 +752,7 @@ def _derive_patterns(accepted: CandidateInventory) -> DerivedInventory:
         derived[definition.identifier] = tuple(records)
     return DerivedInventory(
         hole_patterns=cast(
-            tuple[BoltCircle | LinearArray | RectGrid, ...],
+            tuple[BoltCircle | LinearArray | RectGrid | RectangularHoleSet, ...],
             derived[DerivedId.HOLE_PATTERNS],
         ),
         slot_patterns=cast(tuple[SlotArray | SlotGrid, ...], derived[DerivedId.SLOT_PATTERNS]),
