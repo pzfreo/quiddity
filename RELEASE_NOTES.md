@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Recognise four identical same-plane holes at rectangle corners as a `RectangularHoleSet`,
-  ahead of the equivalent four-point bolt circle, while refusing non-rectangular quadrilaterals
+  with square sets ahead of the equally spaced four-point circle they also satisfy, while refusing non-rectangular quadrilaterals
   and leaving existing grids and linear arrays unchanged (#791).
 - Publish recognised hole patterns as derived evidence features with exact ordered member
   references and one source-face group per member. Pattern projection preserves physical

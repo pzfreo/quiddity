@@ -846,6 +846,43 @@ class TestFindHolePatterns:
             isinstance(pattern, RectangularHoleSet) for pattern in recognise_hole_patterns(holes)
         )
 
+    @pytest.mark.parametrize(
+        ("width", "height", "rotation", "expected_angle"),
+        [(20.0, 20.0, 0.0, 0.0), (40.0, 20.0, 30.0, 30.0)],
+    )
+    def test_square_precedence_and_rotated_rectangle_contract(
+        self, width, height, rotation, expected_angle
+    ):
+        from quiddity import RectangularHoleSet, recognise_hole_patterns
+
+        radians = math.radians(rotation)
+        corners = [
+            (-width / 2, -height / 2),
+            (width / 2, -height / 2),
+            (width / 2, height / 2),
+            (-width / 2, height / 2),
+        ]
+        holes = [
+            HoleRecord(
+                axis=(0.0, 0.0, -1.0),
+                location=(
+                    x * math.cos(radians) - y * math.sin(radians),
+                    x * math.sin(radians) + y * math.cos(radians),
+                    0.0,
+                ),
+                diameter=5.0,
+                depth=10.0,
+                bottom="through",
+            )
+            for x, y in corners
+        ]
+
+        (pattern,) = recognise_hole_patterns(holes)
+        assert isinstance(pattern, RectangularHoleSet)
+        assert pattern.width == pytest.approx(width)
+        assert pattern.height == pytest.approx(height)
+        assert pattern.angle == pytest.approx(expected_angle)
+
     @pytest.mark.timeout(60)
     def test_near_axis_array_with_float_noise_is_found(self):
         # A near-axis-aligned row whose coordinates carry sub-micron
