@@ -1961,6 +1961,7 @@ def test_compatibility_facades_preserve_export_identity_and_module_paths() -> No
                 "HoleSpec",
                 "LinearArray",
                 "RectGrid",
+                "RectangularHoleSet",
                 "recognise_hole_patterns",
                 "recognise_holes",
             )
@@ -2004,6 +2005,7 @@ def test_compatibility_facades_preserve_export_identity_and_module_paths() -> No
         "HoleSpec",
         "LinearArray",
         "RectGrid",
+        "RectangularHoleSet",
     ):
         assert getattr(recognition, name).__module__ == "quiddity._features"
 
@@ -2019,6 +2021,7 @@ def test_compatibility_facades_preserve_export_identity_and_module_paths() -> No
         "PocketArray",
         "PocketGrid",
         "RectGrid",
+        "RectangularHoleSet",
         "Slot",
         "SlotArray",
         "SlotGrid",

@@ -1266,6 +1266,42 @@
           "qualified_name": "quiddity.RectGrid",
           "role": "output",
           "schema_version": 1
+        },
+        {
+          "aggregate_membership": [
+            "RecognitionResult.hole_patterns"
+          ],
+          "fields": {
+            "angle": {
+              "required": true,
+              "type": "float",
+              "units": "deg"
+            },
+            "center": {
+              "required": true,
+              "type": "tuple[float,3]",
+              "units": "mm"
+            },
+            "height": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            },
+            "holes": {
+              "required": true,
+              "type": "tuple[record:HoleRecord,4]",
+              "units": "none"
+            },
+            "width": {
+              "required": true,
+              "type": "float",
+              "units": "mm"
+            }
+          },
+          "name": "RectangularHoleSet",
+          "qualified_name": "quiddity.RectangularHoleSet",
+          "role": "output",
+          "schema_version": 1
         }
       ],
       "status": "supported",

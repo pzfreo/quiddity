@@ -804,6 +804,48 @@ class TestFindHolePatterns:
             assert {round(grid.row_pitch), round(grid.col_pitch)} == {20, 30}
             assert len(grid.holes) == nx * ny
 
+    def test_four_rectangle_corners_are_a_rectangular_set_before_a_bolt_circle(self):
+        from quiddity import RectangularHoleSet, recognise_hole_patterns
+
+        holes = [
+            HoleRecord(
+                axis=(0.0, 0.0, -1.0),
+                location=(x, y, 0.0),
+                diameter=5.0,
+                depth=10.0,
+                bottom="through",
+            )
+            for x, y in ((-20.0, -10.0), (20.0, -10.0), (20.0, 10.0), (-20.0, 10.0))
+        ]
+
+        assert recognise_hole_patterns(holes) == [
+            RectangularHoleSet(
+                holes=(holes[0], holes[1], holes[2], holes[3]),
+                center=(0.0, 0.0, 0.0),
+                width=40.0,
+                height=20.0,
+                angle=0.0,
+            )
+        ]
+
+    def test_non_rectangular_quadrilateral_is_not_a_rectangular_set(self):
+        from quiddity import RectangularHoleSet, recognise_hole_patterns
+
+        holes = [
+            HoleRecord(
+                axis=(0.0, 0.0, -1.0),
+                location=(x, y, 0.0),
+                diameter=5.0,
+                depth=10.0,
+                bottom="through",
+            )
+            for x, y in ((-20.0, -10.0), (22.0, -8.0), (15.0, 12.0), (-20.0, 10.0))
+        ]
+
+        assert not any(
+            isinstance(pattern, RectangularHoleSet) for pattern in recognise_hole_patterns(holes)
+        )
+
     @pytest.mark.timeout(60)
     def test_near_axis_array_with_float_noise_is_found(self):
         # A near-axis-aligned row whose coordinates carry sub-micron
