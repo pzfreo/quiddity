@@ -22,7 +22,13 @@ from build123d import (
 )
 
 import quiddity.evidence as evidence_module
-from quiddity import RecognitionOutcome, ReconciliationReason, import_step_geometry
+from quiddity import (
+    FramedRecognitionEvidence,
+    RecognitionOutcome,
+    ReconciliationReason,
+    build_framed_recognition_evidence,
+    import_step_geometry,
+)
 from quiddity.document import build_recognition_document
 from quiddity.evidence import (
     EVIDENCE_API_FORMAT,
@@ -142,6 +148,28 @@ def test_non_axial_feature_has_an_explicit_empty_host_relation() -> None:
     level = next(feature for feature in view.features if view.family(feature) == "step_levels")
 
     assert view.host_faces(level) == frozenset()
+
+
+def test_host_faces_are_axis_covariant_and_delegate_through_framed_evidence() -> None:
+    part = Rot(23, 31, 17) * (Box(60, 60, 20) - Cylinder(5, 20))
+    view = build_recognition_evidence(part)
+    hole = next(feature for feature in view.features if view.family(feature) == "holes")
+    axis = view.record(hole).axis
+    hosts = view.host_faces(hole)
+
+    assert len(hosts) == 2
+    assert all(
+        abs(sum(a * float(b) for a, b in zip(axis, view.face(host).normal_at(), strict=True)))
+        > 1.0 - 1e-6
+        for host in hosts
+    )
+
+    framed = build_framed_recognition_evidence(part)
+    assert isinstance(framed, FramedRecognitionEvidence)
+    framed_hole = next(feature for feature in framed.features if framed.family(feature) == "holes")
+    framed_hosts = framed.host_faces(framed_hole)
+    assert len(framed_hosts) == 2
+    assert all(framed.face(host) and framed.caller_face(host) for host in framed_hosts)
 
 
 def test_references_are_exactly_view_local_and_unforgeable() -> None:

@@ -120,7 +120,8 @@ initial adapters cover holes and cylindrical bosses: blind holes expose their op
 through holes expose both opening faces, counterbore shoulders remain part of the hole rather than
 hosts, and a boss exposes its support face. Other families return an empty set until a bounded
 adapter proves their mouth or base; pattern consumers compose `members()` with each member's host
-relation.
+relation. A supported axial record with no distinct proved support, such as a whole-shaft boss,
+also returns empty; absence never triggers a nearest-plane fallback.
 
 `view.report` provides the existing immutable `RecognitionReport` from that exact inventory,
 including family evaluation, proposal/acceptance/rejection counts, disposition reasons and
