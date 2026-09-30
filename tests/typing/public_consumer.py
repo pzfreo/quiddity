@@ -128,6 +128,7 @@ def consume(part: Solid, face: Face, bounds: BoundBox) -> None:
         assert_type(evidence.record(feature), RecognitionRecord)
         assert_type(evidence.defining_faces(feature), frozenset[FaceRef])
         assert_type(evidence.constituent_faces(feature), frozenset[FaceRef])
+        assert_type(evidence.members(feature), tuple[FeatureRef, ...])
     for candidate in evidence.rejected_candidates:
         assert_type(evidence.candidate_family(candidate), str)
         assert_type(evidence.candidate_outcome(candidate), RecognitionOutcome)
@@ -155,6 +156,8 @@ def consume(part: Solid, face: Face, bounds: BoundBox) -> None:
         for reference in framed_evidence.faces:
             assert_type(framed_evidence.face(reference), Face)
             assert_type(framed_evidence.caller_face(reference), Face)
+        for feature in framed_evidence.features:
+            assert_type(framed_evidence.members(feature), tuple[FeatureRef, ...])
     if isinstance(framed_evidence, RefusedFramedEvidence):
         assert_type(framed_evidence.reason, FramedEvidenceRefusalReason)
         assert_type(framed_evidence.result, FramedRecognitionResult | None)

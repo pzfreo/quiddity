@@ -108,6 +108,13 @@ view while the caller leaves the part unchanged. Forged, copied, stale and cross
 fail closed. The view runs the aggregate once, exposes its existing `RecognitionResult`, and does
 not discover or reconcile anything itself.
 
+Published hole patterns also receive `FeatureRef` values as derived relations over those accepted
+holes. `members(pattern)` returns the exact accepted hole references in the pattern record's order,
+and `instance_faces(pattern)` returns each member's constituent faces in the same order. Both are
+empty for an ordinary physical feature. Pattern union evidence remains available through the
+ordinary defining/constituent reads, while physical association coverage and recognition-document
+feature lists remain unchanged.
+
 `view.report` provides the existing immutable `RecognitionReport` from that exact inventory,
 including family evaluation, proposal/acceptance/rejection counts, disposition reasons and
 bounded diagnostics. This is also available on framed and prepared evidence views, where

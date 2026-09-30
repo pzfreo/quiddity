@@ -5,7 +5,7 @@
     "references": {
       "CandidateRef": "opaque identity for one detector candidate within one view",
       "FaceRef": "opaque identity for one source-part face within one view",
-      "FeatureRef": "opaque identity for one accepted physical occurrence within one view"
+      "FeatureRef": "opaque identity for one accepted physical occurrence or derived pattern within one view"
     },
     "symbols": [
       "AssociationMeasure",

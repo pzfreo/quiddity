@@ -227,6 +227,7 @@ class RecognitionEvidence:
         "__feature_defining",
         "__feature_constituent",
         "__feature_groups",
+        "__feature_members",
         "__feature_families",
         "__candidate_projections",
         "__candidate_positions",
@@ -247,6 +248,7 @@ class RecognitionEvidence:
     __feature_defining: tuple[frozenset[FaceNode], ...]
     __feature_constituent: tuple[frozenset[FaceNode], ...]
     __feature_groups: tuple[tuple[frozenset[FaceNode], ...], ...]
+    __feature_members: tuple[tuple[FeatureRef, ...], ...]
     __feature_families: tuple[str, ...]
     __candidate_projections: tuple[_CandidateProjection, ...]
     __candidate_positions: dict[int, int]
@@ -343,12 +345,17 @@ class RecognitionEvidence:
         )
 
     def instance_faces(self, feature: FeatureRef) -> tuple[frozenset[FaceRef], ...]:
-        """Return ordered source-face groups for a circular face pattern, or empty otherwise."""
+        """Return ordered source-face groups for a pattern, or empty otherwise."""
 
         return tuple(
             frozenset(self.__node_refs[node] for node in group)
             for group in self.__feature_groups[self.__feature_position(feature)]
         )
+
+    def members(self, feature: FeatureRef) -> tuple[FeatureRef, ...]:
+        """Return a derived pattern's accepted members in record order, or empty otherwise."""
+
+        return self.__feature_members[self.__feature_position(feature)]
 
     def candidate_family(self, candidate: CandidateRef) -> str:
         """Return the stable detector family identifier for *candidate*."""
@@ -567,9 +574,14 @@ class FramedRecognitionEvidence(Generic[FrameValue]):
         return self.__evidence.constituent_faces(feature)
 
     def instance_faces(self, feature: FeatureRef) -> tuple[frozenset[FaceRef], ...]:
-        """Return a circular pattern's ordered local source-face groups."""
+        """Return a pattern's ordered local source-face groups."""
 
         return self.__evidence.instance_faces(feature)
+
+    def members(self, feature: FeatureRef) -> tuple[FeatureRef, ...]:
+        """Return a derived pattern's accepted members in record order."""
+
+        return self.__evidence.members(feature)
 
     def candidate_family(self, candidate: CandidateRef) -> str:
         """Return the stable detector family identifier for *candidate*."""
@@ -677,6 +689,7 @@ def _project_recognition_evidence(product: InventoryProduct) -> RecognitionEvide
     defining_sets: list[frozenset[FaceNode]] = []
     constituent_sets: list[frozenset[FaceNode]] = []
     feature_groups: list[tuple[frozenset[FaceNode], ...]] = []
+    feature_members: list[tuple[FeatureRef, ...]] = []
     families: list[str] = []
     accepted = product.accepted
     for definition in PHYSICAL_DEFINITIONS:
@@ -688,6 +701,7 @@ def _project_recognition_evidence(product: InventoryProduct) -> RecognitionEvide
             defining_sets.append(product.evidence.defining_of(candidate))
             constituent_sets.append(product.evidence.constituent_of(candidate))
             feature_groups.append(product.evidence.groups_of(candidate))
+            feature_members.append(())
             families.append(definition.family.value)
 
     from quiddity._section_recess import SectionRecess, SectionRecessRefusal
@@ -706,6 +720,27 @@ def _project_recognition_evidence(product: InventoryProduct) -> RecognitionEvide
             frozenset(nodes_by_index[i] for i in recess.evidence.constituent_faces)
         )
         feature_groups.append(())
+        feature_members.append(())
+
+    physical_feature_count = len(feature_refs)
+    positions_by_record_identity = {id(record): position for position, record in enumerate(records)}
+    for pattern in product.result.hole_patterns:
+        try:
+            member_positions = tuple(
+                positions_by_record_identity[id(member)] for member in pattern.holes
+            )
+        except KeyError as error:
+            raise ValueError("hole pattern member is not an accepted evidence feature") from error
+        members = tuple(feature_refs[position] for position in member_positions)
+        member_defining = tuple(defining_sets[position] for position in member_positions)
+        member_constituent = tuple(constituent_sets[position] for position in member_positions)
+        feature_refs.append(cast(FeatureRef, _issue_reference(FeatureRef, authority)))
+        records.append(pattern)
+        defining_sets.append(frozenset().union(*member_defining))
+        constituent_sets.append(frozenset().union(*member_constituent))
+        feature_groups.append(member_constituent)
+        feature_members.append(members)
+        families.append("hole_patterns")
 
     dispositions = product.reconciliation.dispositions
     rejected_dispositions = tuple(
@@ -754,6 +789,7 @@ def _project_recognition_evidence(product: InventoryProduct) -> RecognitionEvide
     object.__setattr__(result, "_RecognitionEvidence__feature_defining", tuple(defining_sets))
     object.__setattr__(result, "_RecognitionEvidence__feature_constituent", tuple(constituent_sets))
     object.__setattr__(result, "_RecognitionEvidence__feature_groups", tuple(feature_groups))
+    object.__setattr__(result, "_RecognitionEvidence__feature_members", tuple(feature_members))
     object.__setattr__(result, "_RecognitionEvidence__feature_families", tuple(families))
     object.__setattr__(result, "_RecognitionEvidence__candidate_projections", candidate_projections)
     object.__setattr__(
@@ -776,7 +812,9 @@ def _project_recognition_evidence(product: InventoryProduct) -> RecognitionEvide
     object.__setattr__(result, "_RecognitionEvidence__node_faces", node_faces)
     family_nodes: dict[str, set[FaceNode]] = {}
     associated_nodes: set[FaceNode] = set()
-    for member_nodes, family in zip(constituent_sets, families, strict=True):
+    for member_nodes, family in zip(
+        constituent_sets[:physical_feature_count], families[:physical_feature_count], strict=True
+    ):
         constituent = set(member_nodes)
         family_nodes.setdefault(family, set()).update(constituent)
         associated_nodes.update(constituent)

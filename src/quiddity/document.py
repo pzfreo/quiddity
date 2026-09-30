@@ -95,6 +95,9 @@ def build_recognition_document(part: Part, *, rotational: bool = False) -> dict[
         }
         for face in faces:
             face["proof"] = "not_proven" if face["index"] in unproven else "local"
+    document_features = tuple(
+        feature for feature in view.features if view.family(feature) != "hole_patterns"
+    )
     features = [
         {
             "index": index,
@@ -104,9 +107,9 @@ def build_recognition_document(part: Part, *, rotational: bool = False) -> dict[
             "defining_faces": sorted(indices[face] for face in view.defining_faces(feature)),
             "constituent_faces": sorted(indices[face] for face in view.constituent_faces(feature)),
         }
-        for index, feature in enumerate(view.features)
+        for index, feature in enumerate(document_features)
     ]
-    for feature, entry in zip(view.features, features, strict=True):
+    for feature, entry in zip(document_features, features, strict=True):
         groups = view.instance_faces(feature)
         if groups:
             member_indices = {indices[face] for group in groups for face in group}
