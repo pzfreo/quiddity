@@ -152,6 +152,10 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "source surface types and native axes establish rotational face correspondence",
     ),
+    "evidence": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "host relations classify exact original boundary faces after recognition completes",
+    ),
     "blends": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "ADR 0013 authorizes native torus parameters, UV extent and oriented differential",
@@ -293,6 +297,10 @@ SURFACE_READER_ROSTER: dict[str, tuple[SurfaceReaderDisposition, str]] = {
 # Every site has its own disposition and rationale, including mixed modules whose reads cannot be
 # truthfully covered by one module-level label.
 SURFACE_READER_SITES: dict[str, tuple[SurfaceReaderDisposition, str]] = {
+    "evidence:_axial_host_nodes:geom_type:1": (
+        SurfaceReaderDisposition.RAW_TOPOLOGY,
+        "retain original planar faces adjacent to an accepted hole or boss boundary",
+    ),
     "interior_voids:_escape_directions:adaptor:1": (
         SurfaceReaderDisposition.RAW_TOPOLOGY,
         "read an original cylinder axis as an additional escape-ray direction",

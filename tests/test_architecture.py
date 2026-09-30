@@ -582,6 +582,7 @@ MODULE_SEAM_EDGES = {
     "evidence": {
         "_adjacency",
         "_candidates",
+        "_geometry",
         "_outer_profile",
         "_outer_profile_geometry",
         "_registry",

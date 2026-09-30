@@ -112,6 +112,38 @@ def test_hole_pattern_is_a_derived_feature_bound_to_accepted_member_identity() -
     assert all(feature["family"] != "hole_patterns" for feature in document["features"])
 
 
+@pytest.mark.parametrize(
+    ("part", "family", "expected_z"),
+    [
+        (Box(60, 60, 20) - Pos(0, 0, 4) * Cylinder(5, 12), "holes", {10.0}),
+        (Box(60, 60, 20) - Cylinder(5, 20), "holes", {-10.0, 10.0}),
+        (
+            Box(60, 60, 20) - Cylinder(5, 20) - Pos(0, 0, 7) * Cylinder(9, 6),
+            "holes",
+            {-10.0, 10.0},
+        ),
+        (Box(80, 60, 10) + Pos(0, 0, 5) * Cylinder(10, 20), "bosses", {5.0}),
+    ],
+)
+def test_hole_and_boss_hosts_are_exact_axial_boundary_faces(part, family, expected_z) -> None:
+    view = build_recognition_evidence(part)
+    (feature,) = tuple(item for item in view.features if view.family(item) == family)
+
+    hosts = view.host_faces(feature)
+
+    assert hosts <= view.faces
+    assert hosts.isdisjoint(view.constituent_faces(feature))
+    assert {round(float(view.face(host).center().Z), 6) for host in hosts} == expected_z
+    assert all(abs(float(view.face(host).normal_at().Z)) > 0.99 for host in hosts)
+
+
+def test_non_axial_feature_has_an_explicit_empty_host_relation() -> None:
+    view = build_recognition_evidence(_two_equal_level_bodies())
+    level = next(feature for feature in view.features if view.family(feature) == "step_levels")
+
+    assert view.host_faces(level) == frozenset()
+
+
 def test_references_are_exactly_view_local_and_unforgeable() -> None:
     part = Box(60, 40, 20) - Box(30, 10, 30)
     first = build_recognition_evidence(part)

@@ -16,11 +16,12 @@ from enum import Enum
 from importlib.resources import files
 from typing import Generic, NoReturn, Protocol, SupportsIndex, TypeVar, cast
 
-from build123d import Edge, Shape
+from build123d import Edge, GeomType, Shape
 from OCP.TopoDS import TopoDS_Shape
 
 from quiddity._adjacency import FaceNode
 from quiddity._candidates import FamilyId
+from quiddity._geometry import length_tol
 from quiddity._outer_profile import (
     OuterProfileRefusalReason,
     PlanarOuterProfile,
@@ -51,6 +52,22 @@ class RecognitionRecord(Protocol):
     """Common serializable surface of every physical or derived recognition record."""
 
     def to_dict(self) -> dict[str, object]: ...
+
+
+class _AxialRecord(Protocol):
+    axis: tuple[float, float, float]
+
+
+class _LocatedAxialRecord(_AxialRecord, Protocol):
+    location: tuple[float, float, float]
+
+
+class _HoleHostRecord(_LocatedAxialRecord, Protocol):
+    bottom: str
+
+
+class _BossHostRecord(_LocatedAxialRecord, Protocol):
+    height: float
 
 
 MeasureValue = TypeVar("MeasureValue", int, float)
@@ -227,6 +244,7 @@ class RecognitionEvidence:
         "__feature_defining",
         "__feature_constituent",
         "__feature_groups",
+        "__feature_hosts",
         "__feature_members",
         "__feature_families",
         "__candidate_projections",
@@ -248,6 +266,7 @@ class RecognitionEvidence:
     __feature_defining: tuple[frozenset[FaceNode], ...]
     __feature_constituent: tuple[frozenset[FaceNode], ...]
     __feature_groups: tuple[tuple[frozenset[FaceNode], ...], ...]
+    __feature_hosts: tuple[frozenset[FaceNode], ...]
     __feature_members: tuple[tuple[FeatureRef, ...], ...]
     __feature_families: tuple[str, ...]
     __candidate_projections: tuple[_CandidateProjection, ...]
@@ -358,6 +377,14 @@ class RecognitionEvidence:
         """Return a derived pattern's accepted members in record order, or empty otherwise."""
 
         return self.__feature_members[self.__feature_position(feature)]
+
+    def host_faces(self, feature: FeatureRef) -> frozenset[FaceRef]:
+        """Return proved source faces the feature opens from or stands on, or empty."""
+
+        return frozenset(
+            self.__node_refs[node]
+            for node in self.__feature_hosts[self.__feature_position(feature)]
+        )
 
     def candidate_family(self, candidate: CandidateRef) -> str:
         """Return the stable detector family identifier for *candidate*."""
@@ -585,6 +612,11 @@ class FramedRecognitionEvidence(Generic[FrameValue]):
 
         return self.__evidence.members(feature)
 
+    def host_faces(self, feature: FeatureRef) -> frozenset[FaceRef]:
+        """Return proved local faces the feature opens from or stands on, or empty."""
+
+        return self.__evidence.host_faces(feature)
+
     def candidate_family(self, candidate: CandidateRef) -> str:
         """Return the stable detector family identifier for *candidate*."""
 
@@ -666,6 +698,58 @@ def _issue_framed_recognition_evidence(
     object.__setattr__(result, "_FramedRecognitionEvidence__evidence", evidence)
     object.__setattr__(result, "_FramedRecognitionEvidence__caller_faces", caller_faces)
     return result
+
+
+def _axial_host_nodes(
+    product: InventoryProduct,
+    constituent: frozenset[FaceNode],
+    record: RecognitionRecord,
+    family: str,
+) -> frozenset[FaceNode]:
+    """Planar axial neighbours immediately outside one feature's constituent evidence."""
+
+    axial = cast(_LocatedAxialRecord, record)
+    boundary = {
+        neighbour
+        for node in constituent
+        for neighbour in product.context.graph.neighbours(node)
+        if neighbour not in constituent
+    }
+    hosts: set[FaceNode] = set()
+    for node in boundary:
+        face = product.context.graph.face(node)
+        if face.geom_type is not GeomType.PLANE:
+            continue
+        normal = tuple(float(component) for component in face.normal_at())
+        if abs(sum(a * b for a, b in zip(normal, axial.axis, strict=True))) >= 1.0 - 1e-6:
+            hosts.add(node)
+    if not hosts:
+        return frozenset()
+    offsets = {
+        node: sum(
+            (float(value) - origin) * direction
+            for value, origin, direction in zip(
+                product.context.graph.face(node).center(),
+                axial.location,
+                axial.axis,
+                strict=True,
+            )
+        )
+        for node in hosts
+    }
+    if family == FamilyId.HOLES.value:
+        targets = {min(offsets.values())}
+        if cast(_HoleHostRecord, record).bottom == "through":
+            targets.add(max(offsets.values()))
+    else:
+        target = -float(cast(_BossHostRecord, record).height)
+        targets = {min(offsets.values(), key=lambda value: abs(value - target))}
+    tolerance = length_tol(max(abs(value) for value in offsets.values()), rel=1e-9)
+    return frozenset(
+        node
+        for node, offset in offsets.items()
+        if any(abs(offset - target) <= tolerance for target in targets)
+    )
 
 
 def _project_recognition_evidence(product: InventoryProduct) -> RecognitionEvidence:
@@ -750,6 +834,13 @@ def _project_recognition_evidence(product: InventoryProduct) -> RecognitionEvide
         feature_members.append(members)
         families.append("hole_patterns")
 
+    feature_hosts = [
+        _axial_host_nodes(product, constituent, record, family)
+        if family in {FamilyId.HOLES.value, FamilyId.BOSSES.value}
+        else frozenset()
+        for record, constituent, family in zip(records, constituent_sets, families, strict=True)
+    ]
+
     dispositions = product.reconciliation.dispositions
     rejected_dispositions = tuple(
         item for item in dispositions if item.outcome.value == RecognitionOutcome.REJECTED.value
@@ -797,6 +888,7 @@ def _project_recognition_evidence(product: InventoryProduct) -> RecognitionEvide
     object.__setattr__(result, "_RecognitionEvidence__feature_defining", tuple(defining_sets))
     object.__setattr__(result, "_RecognitionEvidence__feature_constituent", tuple(constituent_sets))
     object.__setattr__(result, "_RecognitionEvidence__feature_groups", tuple(feature_groups))
+    object.__setattr__(result, "_RecognitionEvidence__feature_hosts", tuple(feature_hosts))
     object.__setattr__(result, "_RecognitionEvidence__feature_members", tuple(feature_members))
     object.__setattr__(result, "_RecognitionEvidence__feature_families", tuple(families))
     object.__setattr__(result, "_RecognitionEvidence__candidate_projections", candidate_projections)
