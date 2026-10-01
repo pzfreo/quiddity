@@ -21,7 +21,7 @@ from OCP.BRepClass3d import BRepClass3d_SolidClassifier
 from OCP.GeomAbs import GeomAbs_BSplineSurface, GeomAbs_Cylinder, GeomAbs_Plane
 from OCP.gp import gp_Dir, gp_Lin, gp_Pnt
 from OCP.IntCurvesFace import IntCurvesFace_ShapeIntersector
-from OCP.Standard import Standard_Failure, Standard_NullObject
+from OCP.Standard import Standard_ConstructionError, Standard_Failure, Standard_NullObject
 from OCP.TopAbs import TopAbs_IN
 from OCP.TopLoc import TopLoc_Location
 
@@ -270,13 +270,19 @@ def _body_pairs(
     for index, face in enumerate(faces):
         found = []
         for point in _samples(face):
-            # OCP exposes NullObject separately from Failure in Python. Both
-            # mean this one material ray supplied no wall evidence.
+            # OCP exposes NullObject and ConstructionError separately from
+            # Failure in Python. A degenerate face normal supplies no wall ray.
             try:
                 hit = _first_material_hit(
                     face, point, faces, face_indices, intersector, material, span
                 )
-            except (Standard_Failure, Standard_NullObject, RuntimeError, ValueError):
+            except (
+                Standard_ConstructionError,
+                Standard_Failure,
+                Standard_NullObject,
+                RuntimeError,
+                ValueError,
+            ):
                 continue
             if hit is not None and hit.target != index:
                 found.append(hit)

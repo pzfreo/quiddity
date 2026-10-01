@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 from build123d import Box, Compound, Cylinder, Pos, Rot
+from OCP.Standard import Standard_ConstructionError
 
 import quiddity.thin_walls as thin_walls
 from quiddity import (
@@ -69,6 +70,36 @@ def test_unexpected_tessellation_attribute_error_remains_visible(monkeypatch) ->
     monkeypatch.setattr(type(face), "tessellate", fail_tessellation)
     with pytest.raises(AttributeError, match="unexpected tessellation failure"):
         thin_walls._samples(face)
+
+
+def test_degenerate_wall_ray_normal_discards_only_unproved_evidence(monkeypatch) -> None:
+    shell = _open_shell()
+    assert recognise_thin_wall_bodies(shell)
+    original = thin_walls._first_material_hit
+    calls = 0
+
+    def zero_normal(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        raise Standard_ConstructionError("gp_Vec::Normalized() - vector has zero norm")
+
+    monkeypatch.setattr(thin_walls, "_first_material_hit", zero_normal)
+    assert recognise_thin_wall_bodies(shell) == []
+    assert calls > 0
+
+    calls = 0
+
+    def one_zero_normal(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise Standard_ConstructionError("gp_Vec::Normalized() - vector has zero norm")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(thin_walls, "_first_material_hit", one_zero_normal)
+    (record,) = recognise_thin_wall_bodies(shell)
+    assert len(record.face_pairs) == 4
+    assert calls > 1
 
 
 def test_open_shell_exposes_wall_pairs_and_leaves_mouth_faces_unpaired():
