@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Expose exact source `host_faces()` for blind, through and counterbored holes and cylindrical
+  bosses, using same-view adjacency and axial evidence; unsupported families return an empty set
+  rather than inferring a nearby plane (#792).
 - Recognise four identical same-plane holes at rectangle corners as a `RectangularHoleSet`,
   with square sets ahead of the equally spaced four-point circle they also satisfy, while refusing non-rectangular quadrilaterals
   and leaving existing grids and linear arrays unchanged (#791).

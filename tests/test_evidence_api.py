@@ -22,7 +22,13 @@ from build123d import (
 )
 
 import quiddity.evidence as evidence_module
-from quiddity import RecognitionOutcome, ReconciliationReason, import_step_geometry
+from quiddity import (
+    FramedRecognitionEvidence,
+    RecognitionOutcome,
+    ReconciliationReason,
+    build_framed_recognition_evidence,
+    import_step_geometry,
+)
 from quiddity.document import build_recognition_document
 from quiddity.evidence import (
     EVIDENCE_API_FORMAT,
@@ -110,6 +116,60 @@ def test_hole_pattern_is_a_derived_feature_bound_to_accepted_member_identity() -
     document = build_recognition_document(part.part)
     assert document["derived"]["hole_patterns"]
     assert all(feature["family"] != "hole_patterns" for feature in document["features"])
+
+
+@pytest.mark.parametrize(
+    ("part", "family", "expected_z"),
+    [
+        (Box(60, 60, 20) - Pos(0, 0, 4) * Cylinder(5, 12), "holes", {10.0}),
+        (Box(60, 60, 20) - Cylinder(5, 20), "holes", {-10.0, 10.0}),
+        (
+            Box(60, 60, 20) - Cylinder(5, 20) - Pos(0, 0, 7) * Cylinder(9, 6),
+            "holes",
+            {-10.0, 10.0},
+        ),
+        (Box(80, 60, 10) + Pos(0, 0, 5) * Cylinder(10, 20), "bosses", {5.0}),
+    ],
+)
+def test_hole_and_boss_hosts_are_exact_axial_boundary_faces(part, family, expected_z) -> None:
+    view = build_recognition_evidence(part)
+    (feature,) = tuple(item for item in view.features if view.family(item) == family)
+
+    hosts = view.host_faces(feature)
+
+    assert hosts <= view.faces
+    assert hosts.isdisjoint(view.constituent_faces(feature))
+    assert {round(float(view.face(host).center().Z), 6) for host in hosts} == expected_z
+    assert all(abs(float(view.face(host).normal_at().Z)) > 0.99 for host in hosts)
+
+
+def test_non_axial_feature_has_an_explicit_empty_host_relation() -> None:
+    view = build_recognition_evidence(_two_equal_level_bodies())
+    level = next(feature for feature in view.features if view.family(feature) == "step_levels")
+
+    assert view.host_faces(level) == frozenset()
+
+
+def test_host_faces_are_axis_covariant_and_delegate_through_framed_evidence() -> None:
+    part = Rot(23, 31, 17) * (Box(60, 60, 20) - Cylinder(5, 20))
+    view = build_recognition_evidence(part)
+    hole = next(feature for feature in view.features if view.family(feature) == "holes")
+    axis = view.record(hole).axis
+    hosts = view.host_faces(hole)
+
+    assert len(hosts) == 2
+    assert all(
+        abs(sum(a * float(b) for a, b in zip(axis, view.face(host).normal_at(), strict=True)))
+        > 1.0 - 1e-6
+        for host in hosts
+    )
+
+    framed = build_framed_recognition_evidence(part)
+    assert isinstance(framed, FramedRecognitionEvidence)
+    framed_hole = next(feature for feature in framed.features if framed.family(feature) == "holes")
+    framed_hosts = framed.host_faces(framed_hole)
+    assert len(framed_hosts) == 2
+    assert all(framed.face(host) and framed.caller_face(host) for host in framed_hosts)
 
 
 def test_references_are_exactly_view_local_and_unforgeable() -> None:
