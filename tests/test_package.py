@@ -70,6 +70,10 @@ def test_every_copy_of_the_version_agrees() -> None:
         (ROOT / "src" / "quiddity" / "evidence_api.json").read_text(encoding="utf-8")
     )
     assert evidence["package"]["version"] == version
+    correspondence = json.loads(
+        (ROOT / "src" / "quiddity" / "correspondence_api.json").read_text(encoding="utf-8")
+    )
+    assert correspondence["package"]["version"] == version
 
 
 def test_release_notes_preserve_quiddity_cutover_and_legacy_history() -> None:
@@ -164,6 +168,7 @@ def test_sdist_excludes_untracked_workspace_files(tmp_path) -> None:
     assert any(name.endswith("/src/quiddity/capabilities.json") for name in names)
     assert any(name.endswith("/src/quiddity/inspection_api.json") for name in names)
     assert any(name.endswith("/src/quiddity/evidence_api.json") for name in names)
+    assert any(name.endswith("/src/quiddity/correspondence_api.json") for name in names)
     assert any(name.endswith("/RELEASE_NOTES.md") for name in names)
     # The vendored STEP corpora are excluded: 9 MB of third-party geometry the tests read and
     # no consumer of the sdist needs. Deleting that exclusion would otherwise pass silently
@@ -229,6 +234,10 @@ def test_installed_wheel_imports_without_the_repository_on_sys_path(tmp_path) ->
         encoding="utf-8"
     )
     evidence_digest = hashlib.sha256(evidence_manifest.encode()).hexdigest()
+    correspondence_manifest = (ROOT / "src" / "quiddity" / "correspondence_api.json").read_text(
+        encoding="utf-8"
+    )
+    correspondence_digest = hashlib.sha256(correspondence_manifest.encode()).hexdigest()
     completed = subprocess.run(
         [
             sys.executable,
@@ -242,6 +251,7 @@ def test_installed_wheel_imports_without_the_repository_on_sys_path(tmp_path) ->
                 "from quiddity.document import build_recognition_document; "
                 "import quiddity.experimental_geometry as e; "
                 "import quiddity.evidence as v; "
+                "import quiddity.correspondence as c; "
                 "import quiddity.inspection as i; "
                 "from build123d import Box, Compound, Pos, RegularPolygon, Rot, extrude; "
                 "import hashlib; "
@@ -264,6 +274,9 @@ def test_installed_wheel_imports_without_the_repository_on_sys_path(tmp_path) ->
                 "evidence = hashlib.sha256("
                 "v.evidence_api_manifest_json().encode()).hexdigest(); "
                 f"assert evidence == {evidence_digest!r}; "
+                "correspondence = hashlib.sha256("
+                "c.correspondence_api_manifest_json().encode()).hexdigest(); "
+                f"assert correspondence == {correspondence_digest!r}; "
                 "evidence_view = v.build_recognition_evidence(Box(2, 3, 4)); "
                 "assert evidence_view.result == raw; "
                 "assert isinstance(evidence_view.report, r.RecognitionReport); "

@@ -23,7 +23,7 @@ substrate only when an installed-wheel consumer operation needs it. Sufficiency 
 spike that could serve every family through a `GeometryGraph` facade was still a no-go because the
 consumer's workflow needed one analytic fact off one face.
 
-**Four published surfaces, each with an independent closed manifest or contract.**
+**Five published surfaces, each with an independent closed manifest or contract.**
 
 1. **Recognition.** The `recognise_*` entry points, public records, `RecognitionResult`, census
    and the framed routes. Contract: `capabilities.json` (`quiddity-capabilities`, format 2),
@@ -49,11 +49,16 @@ consumer's workflow needed one analytic fact off one face.
    identity, never serialise, and fail closed when forged or crossed. Framed evidence maps
    working-shape faces to caller faces only by exact OCCT identity under the retained placement,
    requiring a bijection. Contract: `evidence_api.json` (`quiddity-evidence-api`, format 1).
+5. **Correspondence.** ADR 0026's optional projection issues strict-JSON opaque receipts for an
+   accepted feature, source face or explicit face set and resolves batches against one supplied
+   current evidence view. Outcomes are closed and fail on ambiguity; resolved references are
+   current-run values. Strategy payloads and matching facts remain private and replaceable.
+   Contract: `correspondence_api.json` (`quiddity-correspondence-api`, format 1).
 
 `experimental_geometry` stays out of the root and every manifest until a consumer need graduates
 part of it, as `inspect_face` did. Not published: graph construction, adjacency, blend collapse,
 private `Candidate` values and records, `EvidenceIndex`, the registry, reconciliation, run tokens,
-and cross-run correspondence, withdrawn on 2026-09-14 for want of a consumer.
+and any correspondence matcher outside ADR 0026's versioned strategy boundary.
 
 **The capability manifest.** Families are named by permanent lower-case identifiers
 (`holes`, `hole-patterns`) that survive any rename of module, function or class; a rename is an

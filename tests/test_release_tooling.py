@@ -67,6 +67,15 @@ def _project(root: Path, version: str = "0.2.5") -> None:
         + "\n",
         encoding="utf-8",
     )
+    (root / "src/quiddity/correspondence_api.json").write_text(
+        json.dumps(
+            {"api": {}, "package": {"name": "quiddity", "version": version}},
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     (root / "src/quiddity/__init__.py").write_text(
         "try:\n"
         '    __version__ = version("quiddity")\n'
@@ -80,11 +89,13 @@ def _versions(root: Path) -> dict[str, str]:
     manifest = json.loads((root / "src/quiddity/capabilities.json").read_text())
     inspection = json.loads((root / "src/quiddity/inspection_api.json").read_text())
     evidence = json.loads((root / "src/quiddity/evidence_api.json").read_text())
+    correspondence = json.loads((root / "src/quiddity/correspondence_api.json").read_text())
     init = (root / "src/quiddity/__init__.py").read_text(encoding="utf-8")
     return {
         "manifest": manifest["package"]["version"],
         "inspection": inspection["package"]["version"],
         "evidence": evidence["package"]["version"],
+        "correspondence": correspondence["package"]["version"],
         "fallback": init.split('__version__ = "')[-1].split('"')[0],
     }
 
@@ -103,6 +114,7 @@ def test_every_embedded_copy_moves_together(tmp_path, monkeypatch, target) -> No
         "manifest": target,
         "inspection": target,
         "evidence": target,
+        "correspondence": target,
         "fallback": target,
     }
 
@@ -158,7 +170,7 @@ def test_a_failure_after_the_manifest_is_written_still_restores_it(tmp_path, mon
 
     That one raises inside the `uv version` stub, i.e. before the manifest and fallback are
     touched -- so a rollback restoring only `pyproject.toml` and `uv.lock` passed it. Failing
-    at the *last* write is what actually requires all six snapshots to be honoured.
+    at the *last* write is what actually requires all seven snapshots to be honoured.
     """
 
     module = _load()

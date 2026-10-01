@@ -368,6 +368,6 @@ DEFINITION = PhysicalDefinition(
     evidence=ManifestEvidence(
         goldens=("oblique_through_step",),
         tests=("tests/test_oblique_through_steps.py",),
-        introduced="0.4.0",
+        introduced="0.3.9",
     ),
 )

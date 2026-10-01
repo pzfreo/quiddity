@@ -7,7 +7,7 @@ them and not others fails silently. It did -- ``__init__``'s ``PackageNotFoundEr
 fallback sat at 0.2.2 through both the 0.2.3 and 0.2.4 releases, because nothing exercises
 it outside a bare source tree and nothing compared it to anything.
 
-Six places hold it here:
+Seven places hold it here:
 
 * ``pyproject.toml`` and ``uv.lock`` -- both moved by ``uv version --no-sync``;
 * ``capabilities.json``'s ``package.version``, which ADR 0005 validates against the
@@ -15,9 +15,10 @@ Six places hold it here:
 * ``inspection_api.json``'s ``package.version``, which the supported inspection API
   validates against the same installed distribution;
 * ``evidence_api.json``'s ``package.version``, which the run-local evidence API validates;
+* ``correspondence_api.json``'s ``package.version``, which the cross-run receipt API validates;
 * ``__init__``'s fallback literal.
 
-Either all five move or none do: the originals are restored if any step raises.
+Either all seven move or none do: the originals are restored if any step raises.
 """
 
 from __future__ import annotations
@@ -51,9 +52,18 @@ def update(root: Path, target: str) -> None:
     manifest = root / "src/quiddity/capabilities.json"
     inspection_manifest = root / "src/quiddity/inspection_api.json"
     evidence_manifest = root / "src/quiddity/evidence_api.json"
+    correspondence_manifest = root / "src/quiddity/correspondence_api.json"
     init = root / "src/quiddity/__init__.py"
 
-    version_files = (project, lock, manifest, inspection_manifest, evidence_manifest, init)
+    version_files = (
+        project,
+        lock,
+        manifest,
+        inspection_manifest,
+        evidence_manifest,
+        correspondence_manifest,
+        init,
+    )
     missing = [path.name for path in version_files if not path.is_file()]
     if missing:
         raise RuntimeError(f"not a quiddity checkout: missing {', '.join(missing)}")
@@ -71,7 +81,12 @@ def update(root: Path, target: str) -> None:
     snapshots = {path: path.read_bytes() for path in version_files}
     try:
         subprocess.run(["uv", "version", "--no-sync", target], cwd=root, check=True)
-        for embedded_manifest in (manifest, inspection_manifest, evidence_manifest):
+        for embedded_manifest in (
+            manifest,
+            inspection_manifest,
+            evidence_manifest,
+            correspondence_manifest,
+        ):
             payload = json.loads(embedded_manifest.read_text(encoding="utf-8"))
             payload["package"]["version"] = target
             embedded_manifest.write_text(

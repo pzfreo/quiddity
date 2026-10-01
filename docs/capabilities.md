@@ -80,8 +80,8 @@ The old `experimental_geometry.inspect_face` and surface-value names are exact-o
 are the existing root or family-module paths for the other four reads. New code should use the
 inspection namespace. This graduation does not publish `GeometryGraph`, adjacency, blend collapse,
 sections, private Candidate values, registry, or reconciliation. Those remain private
-or experimental. Cross-run correspondence is not offered at all: the F6 matcher was removed
-because it reached no consumer. See [ADR 0003](adr/0003-one-recognition-result-and-explicit-reconciliation.md).
+or experimental. The separately versioned correspondence sidecar below consumes only completed
+evidence; it does not publish those internals.
 
 ## Within-run recognition evidence API
 
@@ -122,6 +122,23 @@ hosts, and a boss exposes its support face. Other families return an empty set u
 adapter proves their mouth or base; pattern consumers compose `members()` with each member's host
 relation. A supported axial record with no distinct proved support, such as a whole-shaft boss,
 also returns empty; absence never triggers a nearest-plane fallback.
+
+## Cross-run correspondence receipts
+
+[`quiddity.correspondence`](adr/0026-versioned-correspondence-receipts.md) issues durable,
+strict-JSON receipts for an accepted feature, one source face, or an explicit source-face set.
+Callers keep a stable model-lineage string and resolve a batch against a separately completed
+current evidence view. A successful result returns current-run references; missing, ambiguous and
+incompatible outcomes expose no guessed geometry.
+
+The initial `analytic-v1` strategy supports proved planar line/arc outer boundaries and accepted
+holes in the same evidence coordinate/frame contract. Exact holes outrank resized holes at the same
+opening, which outrank uniquely specified moved holes. Planar matching deliberately ignores inner
+loops so a datum face survives an unrelated new bore. Equal or symmetric alternatives refuse. The
+strategy does not promise freeform faces, arbitrary rigid registration, non-hole feature families,
+or split/merge relations. Those can be added behind later strategy versions without changing the
+receipt-and-resolution workflow. The executable authored corpus and its boundaries are recorded in
+[`docs/benchmarks/485-correspondence-corpus.md`](benchmarks/485-correspondence-corpus.md).
 
 `view.report` provides the existing immutable `RecognitionReport` from that exact inventory,
 including family evaluation, proposal/acceptance/rejection counts, disposition reasons and

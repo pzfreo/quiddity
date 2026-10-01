@@ -354,6 +354,6 @@ DEFINITION = PhysicalDefinition(
     evidence=ManifestEvidence(
         goldens=("oriented_chamfer",),
         tests=("tests/test_oriented_chamfers.py",),
-        introduced="0.4.0",
+        introduced="0.3.9",
     ),
 )
