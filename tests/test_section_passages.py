@@ -475,7 +475,7 @@ def test_legacy_ledger_refuses_before_any_geometry_work(monkeypatch) -> None:
     monkeypatch.setattr(module, "FaceGraph", lambda *args, **kwargs: pytest.fail("geometry ran"))
     with pytest.raises(
         PassageCompatibilityError,
-        match=r"recognise_passages\(\.\.\., ledger=\.\.\.\) is unavailable from 0\.4\.0",
+        match=r"recognise_passages\(\.\.\., ledger=\.\.\.\) is unavailable from 0\.3\.9",
     ):
         recognise_passages(object(), ledger=ledger)  # type: ignore[arg-type]
     assert ledger.candidate_set(FamilyId.PASSAGES).candidates == ()
