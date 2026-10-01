@@ -338,7 +338,7 @@ class PassageCompatibilityError(RuntimeError):
 
 
 _LEDGER_ERROR = (
-    "recognise_passages(..., ledger=...) is unavailable from 0.4.0; "
+    "recognise_passages(..., ledger=...) is unavailable from 0.3.9; "
     "use quiddity.passages.recognise_section_passages(part) -- it is not root-exported -- "
     "whose SectionPassage records carry the section, frame and ends the legacy value "
     "approximated. For the faces each was established by, a run publishes passages through "

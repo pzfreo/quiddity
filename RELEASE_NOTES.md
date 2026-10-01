@@ -1,6 +1,6 @@
 # Release notes
 
-## Unreleased
+## 0.3.9 — Quiddity
 
 - Expose exact source `host_faces()` for blind, through and counterbored holes and cylindrical
   bosses, using same-view adjacency and axial evidence; unsupported families return an empty set
@@ -15,8 +15,12 @@
   faces, planar face sets, and recognised holes. Batch resolution reports resolved, missing,
   ambiguous, or incompatible outcomes without guessing; the authored #485 corpus fixes the
   supported edit envelope and ambiguity rules.
-- Report body-owned internal core skin and opening faces with bounded six-axis volume estimates, including the variable-wall cgb243 input. This new public `InteriorVoid` family is slated for the 0.4.0 minor release under ADR 0005 (#775).
-- Restore equal-angle paired-ramp steps whose original ramp faces have unequal observed widths after a side is clipped. Publish both transverse widths when they differ; `PairedRampStep` advances to schema 3 for the 0.4.0 minor release (#776).
+- Report body-owned internal core skin and opening faces with bounded six-axis volume estimates,
+  including the variable-wall cgb243 input. This new public `InteriorVoid` family is included in
+  the owner-directed 0.3.9 patch release under ADR 0005 (#775).
+- Restore equal-angle paired-ramp steps whose original ramp faces have unequal observed widths
+  after a side is clipped. Publish both transverse widths when they differ; `PairedRampStep`
+  advances to schema 3 in the owner-directed 0.3.9 patch release (#776).
 
 ## 0.3.7 — Quiddity
 

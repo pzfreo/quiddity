@@ -406,6 +406,6 @@ DEFINITION = PhysicalDefinition(
     evidence=ManifestEvidence(
         tests=("tests/test_interior_voids.py",),
         golden_paths=("tests/interior_void_expected.json",),
-        introduced="0.4.0",
+        introduced="0.3.9",
     ),
 )
