@@ -1,5 +1,11 @@
 # Release notes
 
+## 0.3.10 — Quiddity
+
+- Treat a material ray that reaches a face with no defined normal as absent local thin-wall
+  evidence. Other ray samples can still establish wall pairs; all-invalid samples produce no
+  thin-wall claim instead of raising an OCP construction error (#798).
+
 ## 0.3.9 — Quiddity
 
 - Expose exact source `host_faces()` for blind, through and counterbored holes and cylindrical

@@ -15,7 +15,7 @@ name: Publish distributions
 # dev snapshot to TestPyPI, so the publish path is exercised continuously rather than once per
 # release.
 #
-# The one adaptation the port needs: this package keeps its version in five files rather than
+# The one adaptation the port needs: this package keeps its version in seven files rather than
 # three, which is what `scripts/update-recogniser-version` exists to move atomically.
 
 on:
