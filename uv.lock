@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.10, <3.15"
 resolution-markers = [
     "python_full_version >= '3.12'",
@@ -1301,7 +1301,7 @@ wheels = [
 
 [[package]]
 name = "quiddity"
-version = "0.3.10.dev0"
+version = "0.3.11.dev0"
 source = { editable = "." }
 dependencies = [
     { name = "build123d" },
