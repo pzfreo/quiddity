@@ -190,12 +190,10 @@ def test_material_side_sampling_refuses_face_downcast_type_mismatch(monkeypatch)
 
     top = max(Box(10, 8, 4).faces(), key=lambda face: face.center().Z)
 
-    class TypeMismatchTopoDS:
-        @staticmethod
-        def Face_s(_shape):
-            raise Standard_TypeMismatch("TopoDS::Face")
+    def type_mismatch(_shape):
+        raise Standard_TypeMismatch("TopoDS::Face")
 
-    monkeypatch.setattr(module, "TopoDS", TypeMismatchTopoDS)
+    monkeypatch.setattr(module, "to_face", type_mismatch)
 
     assert (
         module._triangle_samples(top, probe_distance=1e-3)

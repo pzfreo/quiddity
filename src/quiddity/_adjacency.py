@@ -37,7 +37,7 @@ from OCP.gp import gp_Pnt, gp_Vec
 from OCP.ShapeAnalysis import ShapeAnalysis_Surface
 from OCP.TopAbs import TopAbs_EDGE, TopAbs_Orientation, TopAbs_WIRE
 from OCP.TopExp import TopExp_Explorer
-from OCP.TopoDS import TopoDS, TopoDS_Face
+from OCP.TopoDS import TopoDS_Face
 
 from quiddity._analytic_surfaces import (
     SurfaceKind,
@@ -46,6 +46,7 @@ from quiddity._analytic_surfaces import (
     validated_parameters,
 )
 from quiddity._geometry import AXIS_ALIGNED_COS, SMOOTH_ARC_GAP, length_tol
+from quiddity._ocp_compat import to_edge
 from quiddity._solid_properties import SolidProperties
 from quiddity._typing import EdgeLike, FaceLike, Part, Vector3
 
@@ -963,7 +964,7 @@ class FaceGraph:
             ordinal = 0
             while edges.More():
                 current = edges.Current()
-                edge = Edge(TopoDS.Edge_s(current))
+                edge = Edge(to_edge(current))
                 occurrence = EdgeOccurrenceRef(
                     owner=node,
                     wire_ordinal=wire_ordinal,

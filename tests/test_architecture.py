@@ -141,6 +141,7 @@ MODULE_SEAM_EDGES = {
     "_adjacency": {
         "_analytic_surfaces",
         "_geometry",
+        "_ocp_compat",
         "_solid_properties",
         "_typing",
     },
@@ -552,7 +553,13 @@ MODULE_SEAM_EDGES = {
     "_sections": {"_geometry"},
     "_section_adapters": {"_sections", "_section_recess", "passages", "prismatic_pockets"},
     # Effective analytic facts sit above original graph identity and below run orchestration.
-    "_effective_surfaces": {"_adjacency", "_analytic_surfaces", "_geometry", "_typing"},
+    "_effective_surfaces": {
+        "_adjacency",
+        "_analytic_surfaces",
+        "_geometry",
+        "_ocp_compat",
+        "_typing",
+    },
     # Neutral opt-in support bridges consume only original graph and effective-surface facts.
     "_blend_view": {"_adjacency", "_analytic_surfaces", "_effective_surfaces"},
     # Provisional F7 spike facade: explicitly public-by-module but absent from root exports.
@@ -617,6 +624,8 @@ MODULE_SEAM_EDGES = {
     "_typing": set(),
     "_record": set(),
     "_passage_compat": set(),
+    # OCP 7/8 downcast shim (build123d 0.12+ runs on OCP 8).
+    "_ocp_compat": set(),
     "step_io": set(),
     "_geometry": {"_body_identity", "_typing"},
     # Public family modules that had no entry. Edges are the imports each had on the day it was

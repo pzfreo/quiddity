@@ -36,7 +36,7 @@ importing `result` inside a function, `_run` reaching `experimental_geometry`) a
 modules that sit between layers are recorded as comments in the table:
 
 1. Leaves and near-leaves: `_typing`, `_record`, `_manifest`, `_solid_properties`,
-   `_body_identity`, `_geometry`.
+   `_body_identity`, `_geometry`, `_ocp_compat`.
 2. The graph: `_analytic_surfaces`, `_adjacency`.
 3. Shared substrates and evidence primitives that scan or probe once and publish no record:
    `_effective_surfaces`, `_surface_facts`, `_blend_view`, `_cylinder_substrate`, `_volume_probe`, `_wire_seed`,
