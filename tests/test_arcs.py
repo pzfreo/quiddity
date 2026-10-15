@@ -45,8 +45,6 @@ from build123d import (
 from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace, BRepBuilderAPI_Sewing
 from OCP.Geom import Geom_BezierSurface
 from OCP.gp import gp_Pnt
-from OCP.TColgp import TColgp_Array2OfPnt
-from OCP.TopoDS import TopoDS
 
 from quiddity._adjacency import (
     FaceEdges,
@@ -57,6 +55,7 @@ from quiddity._adjacency import (
     same_arc_kind,
 )
 from quiddity._geometry import SMOOTH_ARC_GAP
+from quiddity._ocp_compat import Array2OfPnt, to_edge, to_shell
 from tests.golden._common import load_fixture
 
 _CORPUS = Path(__file__).parent / "corpus" / "mfcadpp"
@@ -246,7 +245,7 @@ def test_tangent_higher_order_bezier_is_not_a_neutral_continuation(monkeypatch) 
     authorized only by the native-analytic equivalence seam, never by sampled D2 equality.
     """
 
-    poles = TColgp_Array2OfPnt(1, 5, 1, 2)
+    poles = Array2OfPnt(1, 5, 1, 2)
     for u in range(1, 6):
         for v in range(1, 3):
             poles.SetValue(
@@ -260,7 +259,7 @@ def test_tangent_higher_order_bezier_is_not_a_neutral_continuation(monkeypatch) 
     sewing.Add(curved.wrapped)
     sewing.Add(plane.wrapped)
     sewing.Perform()
-    graph = FaceGraph(Shell(TopoDS.Shell_s(sewing.SewedShape())))
+    graph = FaceGraph(Shell(to_shell(sewing.SewedShape())))
     a, b = graph.nodes
     (edge,) = graph.shared_edges(a, b)
 
@@ -517,7 +516,7 @@ def test_normal_curvature_ignores_the_input_edge_wrapper_orientation() -> None:
     graph = FaceGraph(_filleted())
     a, b = _smooth_pairs(graph)[0]
     edge = graph.shared_edges(a, b)[0]
-    reversed_edge = Edge(TopoDS.Edge_s(edge.wrapped.Reversed()))
+    reversed_edge = Edge(to_edge(edge.wrapped.Reversed()))
 
     for node in (a, b):
         forward = graph._normal_curvature(node, edge, 0.5)
@@ -559,7 +558,7 @@ def test_non_manifold_three_face_edge_is_side_unproven() -> None:
     for face in faces:
         sewing.Add(face.wrapped)
     sewing.Perform()
-    graph = FaceGraph(Shell(TopoDS.Shell_s(sewing.SewedShape())))
+    graph = FaceGraph(Shell(to_shell(sewing.SewedShape())))
     pair = next((a, b) for a, b in _smooth_pairs(graph))
     (edge,) = graph.shared_edges(*pair)
     assert len(graph._edge_face_map()[edge]) == 3

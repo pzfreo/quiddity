@@ -30,14 +30,14 @@ from typing import Literal, Protocol, TypeVar, cast
 from build123d import Edge, Solid
 from OCP.BRep import BRep_Tool
 from OCP.BRepAdaptor import BRepAdaptor_Curve, BRepAdaptor_Surface
-from OCP.BRepCheck import BRepCheck_Analyzer, BRepCheck_Status
+from OCP.BRepCheck import BRepCheck_Analyzer
 from OCP.GCPnts import GCPnts_AbscissaPoint
 from OCP.GeomAbs import GeomAbs_Cone, GeomAbs_Cylinder, GeomAbs_Plane, GeomAbs_Sphere
 from OCP.gp import gp_Pnt, gp_Vec
 from OCP.ShapeAnalysis import ShapeAnalysis_Surface
 from OCP.TopAbs import TopAbs_EDGE, TopAbs_Orientation, TopAbs_WIRE
 from OCP.TopExp import TopExp_Explorer
-from OCP.TopoDS import TopoDS, TopoDS_Face
+from OCP.TopoDS import TopoDS_Face
 
 from quiddity._analytic_surfaces import (
     SurfaceKind,
@@ -46,6 +46,7 @@ from quiddity._analytic_surfaces import (
     validated_parameters,
 )
 from quiddity._geometry import AXIS_ALIGNED_COS, SMOOTH_ARC_GAP, length_tol
+from quiddity._ocp_compat import brepcheck_status_ok, to_edge
 from quiddity._solid_properties import SolidProperties
 from quiddity._typing import EdgeLike, FaceLike, Part, Vector3
 
@@ -637,25 +638,25 @@ class FaceGraph:
                     closed.add(solid_at)
                 elif self.local_degradation:
                     analyzer = BRepCheck_Analyzer(solid.wrapped)
-                    bad = {
-                        self._index[face]
+                    face_ok = {
+                        self._index[face]: brepcheck_status_ok(analyzer, face.wrapped)
                         for face in solid.faces()
                         if face in self._index
-                        and tuple(analyzer.Result(face.wrapped).Status())
-                        != (BRepCheck_Status.BRepCheck_NoError,)
                     }
+                    bad = {at for at, ok in face_ok.items() if ok is not True}
                     # The local mode accepts only an otherwise sound solid/shell with a
                     # small, explicit bad-face region. STEP seams need not share edge
                     # identity, so edge-incidence counts cannot establish closure here.
+                    # Where the kernel statuses are unreadable (OCP 8), there is no proof,
+                    # so the solid is refused rather than degraded.
                     shells = solid.shells()
                     if (
-                        0 < len(bad) <= 3
+                        None not in face_ok.values()
+                        and 0 < len(bad) <= 3
                         and float(solid.volume) > 0
-                        and tuple(analyzer.Result(solid.wrapped).Status())
-                        == (BRepCheck_Status.BRepCheck_NoError,)
+                        and brepcheck_status_ok(analyzer, solid.wrapped) is True
                         and len(shells) == 1
-                        and tuple(analyzer.Result(shells[0].wrapped).Status())
-                        == (BRepCheck_Status.BRepCheck_NoError,)
+                        and brepcheck_status_ok(analyzer, shells[0].wrapped) is True
                     ):
                         closed.add(solid_at)
                         degraded.add(solid_at)
@@ -963,7 +964,7 @@ class FaceGraph:
             ordinal = 0
             while edges.More():
                 current = edges.Current()
-                edge = Edge(TopoDS.Edge_s(current))
+                edge = Edge(to_edge(current))
                 occurrence = EdgeOccurrenceRef(
                     owner=node,
                     wire_ordinal=wire_ordinal,

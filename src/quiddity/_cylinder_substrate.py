@@ -114,8 +114,8 @@ def _recovered_axis_bounds(face: FaceLike, direction: Vector3) -> tuple[float, f
         aligned = BRepBuilderAPI_Transform(face.wrapped, transform, True).Shape()
         bounds = Bnd_Box()
         BRepBndLib.AddOptimal_s(aligned, bounds, False, False)
-        values = bounds.Get()
-        lo, hi = float(values[2]), float(values[5])
+        # CornerMin/CornerMax rather than Get(): OCP 8 returns an unconvertible struct from Get().
+        lo, hi = float(bounds.CornerMin().Z()), float(bounds.CornerMax().Z())
         if not math.isfinite(lo) or not math.isfinite(hi) or hi < lo:
             return None
         vertex_coordinates = tuple(

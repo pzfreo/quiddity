@@ -1,6 +1,7 @@
 import math
 from dataclasses import replace
 
+import OCP
 import pytest
 from build123d import (
     Axis,
@@ -25,7 +26,6 @@ from OCP.GeomAbs import GeomAbs_Cylinder
 from OCP.GeomConvert import GeomConvert
 from OCP.gp import gp_Ax3, gp_Cylinder, gp_Dir, gp_Pnt, gp_Pnt2d
 from OCP.Standard import Standard_Failure, Standard_TypeMismatch
-from OCP.TColgp import TColgp_Array2OfPnt
 from OCP.TopAbs import TopAbs_IN, TopAbs_OUT
 from OCP.TopLoc import TopLoc_Location
 
@@ -46,6 +46,7 @@ from quiddity._effective_surfaces import (
     recovery_tolerance,
 )
 from quiddity._geometry import COORD_FLOOR
+from quiddity._ocp_compat import Array2OfPnt
 
 
 def test_recovery_nominal_is_width_controlled_and_rotation_invariant() -> None:
@@ -190,12 +191,10 @@ def test_material_side_sampling_refuses_face_downcast_type_mismatch(monkeypatch)
 
     top = max(Box(10, 8, 4).faces(), key=lambda face: face.center().Z)
 
-    class TypeMismatchTopoDS:
-        @staticmethod
-        def Face_s(_shape):
-            raise Standard_TypeMismatch("TopoDS::Face")
+    def type_mismatch(_shape):
+        raise Standard_TypeMismatch("TopoDS::Face")
 
-    monkeypatch.setattr(module, "TopoDS", TypeMismatchTopoDS)
+    monkeypatch.setattr(module, "to_face", type_mismatch)
 
     assert (
         module._triangle_samples(top, probe_distance=1e-3)
@@ -492,7 +491,8 @@ def test_exact_bspline_plane_recovers_as_unoriented_original_node() -> None:
     assert fact.kernel_reported_gap == 0.0
     assert fact.requested_tolerance > 0.0
     assert fact.certificate is not None
-    assert fact.certificate.occt_version == "7.9.3.1"
+    assert fact.certificate.occt_version == OCP.__version__
+    assert OCP.__version__ in {"7.9.3.1", "8.0.1.1"}
     assert fact.certificate.maximum_distance_bound == fact.requested_tolerance
 
     with pytest.raises(ValueError, match="ORIENTATION_UNPROVEN"):
@@ -697,7 +697,7 @@ def test_native_and_exact_bspline_use_the_same_canonical_parameters(native: Face
 
 
 def test_locally_bumped_bezier_surface_fails_closed() -> None:
-    poles = TColgp_Array2OfPnt(1, 3, 1, 3)
+    poles = Array2OfPnt(1, 3, 1, 3)
     for u in range(1, 4):
         for v in range(1, 4):
             poles.SetValue(u, v, gp_Pnt(u - 1, v - 1, 0.2 if (u, v) == (2, 2) else 0.0))
@@ -834,7 +834,7 @@ def test_standard_failure_during_recovered_primitive_read_refuses(monkeypatch) -
 
 
 def test_exact_planar_bezier_recovers_with_canonical_zero() -> None:
-    poles = TColgp_Array2OfPnt(1, 2, 1, 2)
+    poles = Array2OfPnt(1, 2, 1, 2)
     for u in range(1, 3):
         for v in range(1, 3):
             poles.SetValue(u, v, gp_Pnt(u - 1, v - 1, 0))

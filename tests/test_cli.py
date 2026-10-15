@@ -14,6 +14,7 @@ from build123d import Axis, Box, Compound, Cylinder, Pos, export_step
 import quiddity.cli as cli
 import quiddity.document as document
 from quiddity import __version__, import_step_geometry
+from quiddity._ocp_compat import brepcheck_statuses_readable
 from quiddity._typing import Part
 from quiddity.capabilities import capability_manifest
 from quiddity.evidence import FramedRecognitionEvidence
@@ -258,6 +259,11 @@ def test_invalid_cadgenbench_face_degrades_locally(tmp_path) -> None:
     result = document.build_recognition_document(part)
     assert result["proof"] == "local_degradation"
     unproven = {face["index"] for face in result["faces"] if face["proof"] == "not_proven"}
+    if not brepcheck_statuses_readable():
+        # OCP 8.0.1.1 cannot read BRepCheck statuses: nothing is proven and nothing is issued.
+        assert len(unproven) == len(result["faces"])
+        assert not result["features"]
+        return
     assert len(unproven) == 6
     assert sum(feature["record_type"] == "HoleRecord" for feature in result["features"]) >= 20
     assert all(

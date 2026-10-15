@@ -596,12 +596,13 @@ def _generator_face_order(part: Any) -> tuple[Any, ...]:
 
     from OCP.TopAbs import TopAbs_FACE
     from OCP.TopExp import TopExp_Explorer
-    from OCP.TopoDS import TopoDS
+
+    from quiddity._ocp_compat import to_face
 
     explorer = TopExp_Explorer(part.wrapped, TopAbs_FACE)
     faces: list[Any] = []
     while explorer.More():
-        faces.append(TopoDS.Face_s(explorer.Current()))
+        faces.append(to_face(explorer.Current()))
         explorer.Next()
     return tuple(faces)
 

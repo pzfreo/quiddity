@@ -161,7 +161,7 @@ def test_ci_has_one_coverage_authority_and_a_separate_exhaustive_matrix() -> Non
     assert "--cov" not in " ".join(_steps(ci["jobs"]["compatibility"]))
     assert _steps(ci["jobs"]["compatibility"])[-1] == 'uv run pytest -n 2 -m "not slow"'
     assert ci["jobs"]["compatibility"]["strategy"]["matrix"]["include"] == [
-        {"os": "ubuntu-latest", "python": "3.10"},
+        {"os": "ubuntu-latest", "python": "3.11"},
         {"os": "ubuntu-latest", "python": "3.14"},
         {"os": "macos-latest", "python": "3.12"},
         {"os": "windows-latest", "python": "3.12"},
@@ -170,7 +170,7 @@ def test_ci_has_one_coverage_authority_and_a_separate_exhaustive_matrix() -> Non
     matrix = full["jobs"]["test"]["strategy"]["matrix"]
     assert matrix == {
         "os": ["ubuntu-latest", "macos-latest", "windows-latest"],
-        "python": ["3.10", "3.12", "3.14"],
+        "python": ["3.11", "3.12", "3.14"],
     }
     exhaustive = FULL_MATRIX_WORKFLOW.read_text(encoding="utf-8")
     assert _triggers(full) == {"schedule", "workflow_dispatch"}

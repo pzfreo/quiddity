@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
+import gc
 import json
 import os
 import sys
@@ -20,6 +22,15 @@ from quiddity.capabilities import capability_manifest_json
 from quiddity.document import build_recognition_document
 
 
+def _flush_native_stdio() -> None:
+    """Flush C stdio buffers so native text written under the redirect cannot surface later."""
+    try:
+        libc = ctypes.CDLL(None)
+    except Exception:  # noqa: BLE001 - no process-wide C library handle (Windows)
+        return
+    libc.fflush(None)
+
+
 @contextmanager
 def _diagnostics_to_stderr() -> Iterator[None]:
     """Keep Python and native CAD-kernel messages out of the JSON stdout stream."""
@@ -30,6 +41,10 @@ def _diagnostics_to_stderr() -> Iterator[None]:
         with redirect_stdout(sys.stderr):
             yield
     finally:
+        # Native readers can report from their destructors (OCP 8), and C stdio may still
+        # hold buffered text; both must land while fd 1 is still the diagnostics stream.
+        gc.collect()
+        _flush_native_stdio()
         os.dup2(saved, 1)
         os.close(saved)
 
@@ -77,9 +92,19 @@ def main(argv: list[str] | None = None) -> int:
                 or (args.output.exists() and args.output.samefile(args.step))
             ):
                 raise ValueError("output must not overwrite the input STEP file")
+            failure: str | None = None
             with _diagnostics_to_stderr():
-                document = build_recognition_document(cast(Part, import_step_geometry(args.step)))
-                encoded = json.dumps(document, indent=2, sort_keys=True, allow_nan=False) + "\n"
+                try:
+                    document = build_recognition_document(
+                        cast(Part, import_step_geometry(args.step))
+                    )
+                    encoded = json.dumps(document, indent=2, sort_keys=True, allow_nan=False) + "\n"
+                except Exception as error:  # noqa: BLE001 - reported below, after the redirect
+                    # Handled inside the redirect so the traceback, and the native objects its
+                    # frames hold, are released while kernel output still goes to stderr.
+                    failure = str(error)
+            if failure is not None:
+                raise ValueError(failure)
         else:
             encoded = capability_manifest_json()
         _write_output(encoded, args.output)

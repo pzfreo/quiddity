@@ -11,12 +11,6 @@ from OCP.BRep import BRep_Tool
 from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace, BRepBuilderAPI_NurbsConvert
 from OCP.Geom import Geom_BSplineSurface
 from OCP.gp import gp_Pnt
-from OCP.TColgp import TColgp_Array2OfPnt
-from OCP.TColStd import (
-    TColStd_Array1OfInteger,
-    TColStd_Array1OfReal,
-    TColStd_Array2OfReal,
-)
 
 from quiddity import (
     build_recognition_result,
@@ -24,6 +18,7 @@ from quiddity import (
     recognise_freeform_surfaces,
     recognise_thin_wall_bodies,
 )
+from quiddity._ocp_compat import Array1OfInteger, Array1OfReal, Array2OfPnt, Array2OfReal
 from quiddity.freeform_surfaces import _construction, _support
 
 
@@ -36,8 +31,8 @@ def _array1(values, cls):
 
 def _rebuild(support):
     nu, nv = len(support.poles), len(support.poles[0])
-    poles = TColgp_Array2OfPnt(1, nu, 1, nv)
-    weights = TColStd_Array2OfReal(1, nu, 1, nv)
+    poles = Array2OfPnt(1, nu, 1, nv)
+    weights = Array2OfReal(1, nu, 1, nv)
     for u, row in enumerate(support.poles, 1):
         for v, point in enumerate(row, 1):
             poles.SetValue(u, v, gp_Pnt(*point))
@@ -45,10 +40,10 @@ def _rebuild(support):
     return Geom_BSplineSurface(
         poles,
         weights,
-        _array1(support.u_knots, TColStd_Array1OfReal),
-        _array1(support.v_knots, TColStd_Array1OfReal),
-        _array1(support.u_multiplicities, TColStd_Array1OfInteger),
-        _array1(support.v_multiplicities, TColStd_Array1OfInteger),
+        _array1(support.u_knots, Array1OfReal),
+        _array1(support.v_knots, Array1OfReal),
+        _array1(support.u_multiplicities, Array1OfInteger),
+        _array1(support.v_multiplicities, Array1OfInteger),
         support.u_degree,
         support.v_degree,
         support.u_periodic,
@@ -76,16 +71,16 @@ def test_unclaimed_native_bspline_solid_has_full_support_and_entrypoint_parity()
 
 
 def test_two_nontranslated_sections_report_ruled_construction():
-    poles = TColgp_Array2OfPnt(1, 2, 1, 4)
+    poles = Array2OfPnt(1, 2, 1, 4)
     for v, z in enumerate((0, 2, 1, 0), 1):
         poles.SetValue(1, v, gp_Pnt(0, v * 5, 0))
         poles.SetValue(2, v, gp_Pnt(10, v * 5, z))
     native = Geom_BSplineSurface(
         poles,
-        _array1((0.0, 1.0), TColStd_Array1OfReal),
-        _array1((0.0, 1.0), TColStd_Array1OfReal),
-        _array1((2, 2), TColStd_Array1OfInteger),
-        _array1((4, 4), TColStd_Array1OfInteger),
+        _array1((0.0, 1.0), Array1OfReal),
+        _array1((0.0, 1.0), Array1OfReal),
+        _array1((2, 2), Array1OfInteger),
+        _array1((4, 4), Array1OfInteger),
         1,
         3,
     )
