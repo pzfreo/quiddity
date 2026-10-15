@@ -88,10 +88,10 @@ def dot(left: Sequence[float], right: Sequence[float]) -> float:
     """Return the exactly-rounded dot product of two equal-length vectors.
 
     ``math.fsum`` rather than the builtin ``sum``: fsum is correctly rounded on every
-    supported interpreter, while ``sum`` summed naively on 3.10 and 3.11 and only gained
+    supported interpreter, while ``sum`` sums naively on 3.11 and only gained
     Neumaier compensation in 3.12. The copies replaced here were split between the two, so how
     accurately a cancelling comparison was made depended both on which module owned the helper
-    and on which Python was running it. This package pins byte-exact goldens across a 3.10 to
+    and on which Python was running it. This package pins byte-exact goldens across a 3.11 to
     3.14 CI matrix, so that second dependency is the one worth removing.
     """
 

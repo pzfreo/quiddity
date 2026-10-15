@@ -22,8 +22,8 @@ own CI on the pull request that moves its exact dependency pin, not in this repo
 
 ## Local checks
 
-Mypy 1.x on Python 3.12 is the supported type checker. Python 3.10 compatibility is enforced by
-the runtime CI matrix and Ruff's `py310` syntax target. `uv run mypy` checks every typed implementation body
+Mypy 1.x on Python 3.12 is the supported type checker. Python 3.11 compatibility is enforced by
+the runtime CI matrix and Ruff's `py311` syntax target. `uv run mypy` checks every typed implementation body
 with incomplete private definitions admitted as the incremental baseline. That allowance does
 not extend to the published boundary: `tests/test_public_typing.py` independently rejects any
 missing, bare-container, or direct `Any` annotation on an exported function, class method,

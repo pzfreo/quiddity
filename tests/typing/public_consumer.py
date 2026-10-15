@@ -1,10 +1,9 @@
 """Strict external-consumer fixture, checked against the built wheel."""
 
-from typing import Literal
+from typing import Literal, assert_type
 
 from build123d import BoundBox, Compound, Edge, Face, Shape, Solid
 from OCP.TopoDS import TopoDS_Shape
-from typing_extensions import assert_type
 
 from quiddity import (
     BossRecord,

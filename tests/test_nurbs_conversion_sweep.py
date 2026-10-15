@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 
+import OCP
 import pytest
 
 from quiddity._analytic_surfaces import SurfaceKind
@@ -27,7 +28,10 @@ def report():
 
 
 def test_checked_in_nurbs_conversion_evidence_is_current(report) -> None:
-    assert report == json.loads(JSON_REPORT.read_text(encoding="utf-8"))
+    # The report stamps the OCCT version into each recovery certificate. On another certified
+    # OCCT (8.0.1.1), that stamp is the only permitted difference.
+    stamped = json.dumps(report).replace(f'"{OCP.__version__}"', '"7.9.3.1"')
+    assert json.loads(stamped) == json.loads(JSON_REPORT.read_text(encoding="utf-8"))
     assert markdown(report) == MARKDOWN_REPORT.read_text(encoding="utf-8")
 
 

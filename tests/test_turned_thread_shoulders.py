@@ -12,13 +12,13 @@ from OCP.BRepBuilderAPI import (
     BRepBuilderAPI_NurbsConvert,
     BRepBuilderAPI_Sewing,
 )
-from OCP.TopoDS import TopoDS
 
 from quiddity import recognise_turned_steps
 from quiddity._adjacency import FaceGraph
 from quiddity._candidates import FamilyId
 from quiddity._claims import ClaimLedger
 from quiddity._effective_surfaces import effective_faces_for_part
+from quiddity._ocp_compat import to_shell
 from quiddity.turned import _discover_turned_steps
 
 CORPUS = Path(__file__).parent / "corpus" / "cadgenbench"
@@ -95,7 +95,7 @@ def _nurbs_shouldered_shaft():
             else face.wrapped
         )
     sewing.Perform()
-    nurbs = Solid(BRepBuilderAPI_MakeSolid(TopoDS.Shell_s(sewing.SewedShape())).Solid())
+    nurbs = Solid(BRepBuilderAPI_MakeSolid(to_shell(sewing.SewedShape())).Solid())
     assert nurbs.is_valid
     assert len(nurbs.solids()) == 1
     return nurbs

@@ -317,7 +317,8 @@ correspondence before comparing topology, complete records and exact defining ev
 goldens it recovers 319/319 faces and retains the one native Pad with no changed, absent or
 introduced occurrence. Converted-input adversaries cover a positive Pad, pockets/voids, tier
 suppression, envelope contact, open ownership and multiple solids. This claim is limited to exact
-OCCT conversion under the reviewed OCP/OCCT 7.9.3.1 contract.
+OCCT conversion under the reviewed OCP/OCCT 7.9.3.1 and 8.0.1.1 contracts; the sweep's report is
+identical on both.
 
 The [external NURBS corpus spike](benchmarks/nurbs-external-corpus-spike.md) scans the complete
 42,912-model Fusion 360 Gallery Extended STEP archive, fixes an evenly spaced 1,000-model sample

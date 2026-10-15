@@ -35,16 +35,17 @@ from OCP.ShapeAnalysis import ShapeAnalysis_CanonicalRecognition, ShapeAnalysis_
 from OCP.Standard import Standard_Failure, Standard_TypeMismatch
 from OCP.TopAbs import TopAbs_IN, TopAbs_OUT
 from OCP.TopLoc import TopLoc_Location
-from OCP.TopoDS import TopoDS
 
 from quiddity._adjacency import FaceGraph, FaceNode, GraphRunToken, SolidRef
 from quiddity._analytic_surfaces import SurfaceKind as SurfaceKind
 from quiddity._analytic_surfaces import native_primitive, validated_parameters
 from quiddity._geometry import COORD_FLOOR
+from quiddity._ocp_compat import to_face
 from quiddity._typing import FaceLike, Part
 
 _RECOVERY_REL = 1e-6
-_SUPPORTED_OCCT_CERTIFICATE_VERSIONS = frozenset({"7.9.3.1"})
+# 8.0.1.1 (build123d 0.12+): the golden-corpus NURBS-conversion sweep is identical to 7.9.3.1.
+_SUPPORTED_OCCT_CERTIFICATE_VERSIONS = frozenset({"7.9.3.1", "8.0.1.1"})
 _CERTIFICATE_AUTHORITY = "OCCT ShapeAnalysis_CanonicalRecognition face maximum-distance contract"
 _MATERIAL_SIDE_AUTHORITY = "original-face triangulation and OCCT closed-solid side probes"
 _MATERIAL_PROBE_REL = 1e-4
@@ -1145,7 +1146,7 @@ def _triangle_samples(
         # Meshing a TopoDS_Face attaches triangulation to that face.  Recognition
         # is observational, so work on an independent geometry copy and leave the
         # graph-owned input topology (and any caller-owned mesh state) untouched.
-        mesh_face = TopoDS.Face_s(BRepBuilderAPI_Copy(face.wrapped, True, False).Shape())
+        mesh_face = to_face(BRepBuilderAPI_Copy(face.wrapped, True, False).Shape())
         BRepMesh_IncrementalMesh(
             mesh_face,
             max(probe_distance, COORD_FLOOR),
