@@ -41,13 +41,13 @@ class CorrespondenceReceiptError(ValueError):
     """A receipt cannot be issued, decoded, or used under its declared contract."""
 
 
-class ReceiptSubjectKind(str, Enum):
+class ReceiptSubjectKind(str, Enum):  # noqa: UP042 - StrEnum would change str() output
     FACE = "face"
     FACE_SET = "face-set"
     FEATURE = "feature"
 
 
-class ResolutionStatus(str, Enum):
+class ResolutionStatus(str, Enum):  # noqa: UP042 - StrEnum would change str() output
     RESOLVED = "resolved"
     MISSING = "missing"
     AMBIGUOUS = "ambiguous"

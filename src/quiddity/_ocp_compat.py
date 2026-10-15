@@ -8,7 +8,8 @@ first so behaviour on older stacks is unchanged.
 from collections.abc import Callable
 from typing import Any
 
-from OCP.BRepCheck import BRepCheck_Status
+from OCP.BRepCheck import BRepCheck_Analyzer, BRepCheck_Status
+from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
 from OCP.TopoDS import TopoDS
 
 try:
@@ -28,6 +29,7 @@ __all__ = [
     "Array2OfPnt",
     "Array2OfReal",
     "brepcheck_status_ok",
+    "brepcheck_statuses_readable",
     "to_edge",
     "to_face",
     "to_shell",
@@ -35,7 +37,8 @@ __all__ = [
 
 
 def _downcast(name: str) -> Callable[..., Any]:
-    return getattr(TopoDS, f"{name}_s", None) or getattr(TopoDS, name)
+    downcast: Callable[..., Any] = getattr(TopoDS, f"{name}_s", None) or getattr(TopoDS, name)
+    return downcast
 
 
 to_face = _downcast("Face")
@@ -56,3 +59,10 @@ def brepcheck_status_ok(analyzer: Any, shape: Any) -> bool | None:
     except TypeError:
         return None
     return statuses == (BRepCheck_Status.BRepCheck_NoError,)
+
+
+def brepcheck_statuses_readable() -> bool:
+    """Whether this OCP can read ``BRepCheck_Result.Status()`` at all (False on OCP 8.0.1.1)."""
+
+    box = BRepPrimAPI_MakeBox(1.0, 1.0, 1.0).Solid()
+    return brepcheck_status_ok(BRepCheck_Analyzer(box), box) is not None

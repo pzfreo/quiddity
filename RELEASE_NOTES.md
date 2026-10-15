@@ -1,5 +1,16 @@
 # Release notes
 
+## 0.3.11 — Quiddity
+
+- Support build123d 0.12 and 0.13, which run on OCP 8 (`build123d>=0.9,<0.14`). Static
+  `TopoDS` downcasts go through a version-neutral shim, and cylinder axial bounds no longer
+  use `Bnd_Box.Get()`, which OCP 8 cannot convert.
+- Certify NURBS surface recovery for OCCT 8.0.1.1 as well as 7.9.3.1; the golden-corpus
+  NURBS-conversion sweep is identical on both.
+- On OCP 8.0.1.1, local degradation refuses an invalid solid explicitly (no records, every face
+  `not_proven`), because OCP cannot read `BRepCheck_Result.Status()`. OCP 7 is unchanged.
+- Require Python 3.11 or later; CI now tests 3.11, 3.12 and 3.14.
+
 ## 0.3.10 — Quiddity
 
 - Treat a material ray that reaches a face with no defined normal as absent local thin-wall
