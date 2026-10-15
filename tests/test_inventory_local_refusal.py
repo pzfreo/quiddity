@@ -9,12 +9,18 @@ import gzip
 from pathlib import Path
 
 import pytest
+from build123d import Box
+from OCP.BRepCheck import BRepCheck_Analyzer
 
 from quiddity import feature_census, import_step_geometry
+from quiddity._ocp_compat import brepcheck_status_ok
 from quiddity.document import build_recognition_document
 from quiddity.result import _take_inventory
 
 _CORPUS = Path(__file__).parent / "corpus" / "inventory_refusal"
+_BOX = Box(1, 1, 1).solids()[0].wrapped
+# OCP 8.0.1.1 cannot read BRepCheck statuses, so local degradation has no proof there.
+_STATUS_READABLE = brepcheck_status_ok(BRepCheck_Analyzer(_BOX), _BOX) is not None
 
 
 def _part(model_id: str, tmp_path: Path):
@@ -39,9 +45,14 @@ def test_inventory_contains_unproved_hole_on_invalid_solid_or_open_shell(
     assert product.result == _take_inventory(part, local_degradation=True).result
     counts = feature_census(part)
     assert counts["hole"] == len(product.result.holes)
-    if model_id == "14052":
+    if model_id == "14052" and _STATUS_READABLE:
         assert len(product.result.holes) == 1
         assert build_recognition_document(part)["proof"] == "local_degradation"
+    elif model_id == "14052":
+        assert not product.result.holes
+        document = build_recognition_document(part)
+        assert document["proof"] == "local_degradation"
+        assert {face["proof"] for face in document["faces"]} == {"not_proven"}
     else:
         assert not part.solids()
         assert not product.result.holes

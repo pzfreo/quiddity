@@ -876,7 +876,14 @@ MODULE_SEAM_EDGES = {
     "frames": {"_cylinder_substrate", "_geometry", "_typing", "evidence", "explanations", "result"},
     "capabilities": {"_manifest"},
     "_edit_document": {"_adjacency", "_geometry", "evidence"},
-    "document": {"_adjacency", "_edit_document", "_typing", "evidence", "frames"},
+    "document": {
+        "_adjacency",
+        "_edit_document",
+        "_ocp_compat",
+        "_typing",
+        "evidence",
+        "frames",
+    },
     "cli": {"_typing", "capabilities", "document"},
 }
 

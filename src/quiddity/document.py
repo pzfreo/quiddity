@@ -6,11 +6,12 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-from OCP.BRepCheck import BRepCheck_Analyzer, BRepCheck_Status
+from OCP.BRepCheck import BRepCheck_Analyzer
 
 from quiddity import __version__
 from quiddity._adjacency import FaceGraph
 from quiddity._edit_document import enrich_edit_document
+from quiddity._ocp_compat import brepcheck_status_ok
 from quiddity._typing import Part
 from quiddity.evidence import FaceRef, FramedRecognitionEvidence
 from quiddity.frames import build_framed_recognition_evidence
@@ -85,8 +86,8 @@ def build_recognition_document(part: Part, *, rotational: bool = False) -> dict[
                 by_face[face]
                 for face in body.faces()
                 if face in by_face
-                and tuple(analyzer.Result(face.wrapped).Status())
-                != (BRepCheck_Status.BRepCheck_NoError,)
+                # An unreadable status (OCP 8) is not proof, so the face is defective.
+                and brepcheck_status_ok(analyzer, face.wrapped) is not True
             )
         unproven = defective | {
             neighbour.index

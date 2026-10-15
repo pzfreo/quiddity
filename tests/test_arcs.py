@@ -45,7 +45,6 @@ from build123d import (
 from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace, BRepBuilderAPI_Sewing
 from OCP.Geom import Geom_BezierSurface
 from OCP.gp import gp_Pnt
-from OCP.TColgp import TColgp_Array2OfPnt
 
 from quiddity._adjacency import (
     FaceEdges,
@@ -56,7 +55,7 @@ from quiddity._adjacency import (
     same_arc_kind,
 )
 from quiddity._geometry import SMOOTH_ARC_GAP
-from quiddity._ocp_compat import to_edge, to_shell
+from quiddity._ocp_compat import Array2OfPnt, to_edge, to_shell
 from tests.golden._common import load_fixture
 
 _CORPUS = Path(__file__).parent / "corpus" / "mfcadpp"
@@ -246,7 +245,7 @@ def test_tangent_higher_order_bezier_is_not_a_neutral_continuation(monkeypatch) 
     authorized only by the native-analytic equivalence seam, never by sampled D2 equality.
     """
 
-    poles = TColgp_Array2OfPnt(1, 5, 1, 2)
+    poles = Array2OfPnt(1, 5, 1, 2)
     for u in range(1, 6):
         for v in range(1, 3):
             poles.SetValue(

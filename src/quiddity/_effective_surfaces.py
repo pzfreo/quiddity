@@ -44,7 +44,8 @@ from quiddity._ocp_compat import to_face
 from quiddity._typing import FaceLike, Part
 
 _RECOVERY_REL = 1e-6
-_SUPPORTED_OCCT_CERTIFICATE_VERSIONS = frozenset({"7.9.3.1"})
+# 8.0.1.1 (build123d 0.12+): the golden-corpus NURBS-conversion sweep is identical to 7.9.3.1.
+_SUPPORTED_OCCT_CERTIFICATE_VERSIONS = frozenset({"7.9.3.1", "8.0.1.1"})
 _CERTIFICATE_AUTHORITY = "OCCT ShapeAnalysis_CanonicalRecognition face maximum-distance contract"
 _MATERIAL_SIDE_AUTHORITY = "original-face triangulation and OCCT closed-solid side probes"
 _MATERIAL_PROBE_REL = 1e-4
