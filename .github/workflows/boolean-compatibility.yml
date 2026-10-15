@@ -32,6 +32,8 @@ jobs:
       # Installing both old/new OCP distributions into one venv would invalidate this evidence.
       # build123d 0.9/0.10 leave ocpsvg and ocp-gordon uncapped; on Python >= 3.11 their OCP 8
       # releases (which import OCP.collections) resolve and break `import build123d`.
+      # The OCP 8 leg (0.13.0) also runs the tests whose OCP-8 branches the lockfile's OCP 7
+      # never reaches: explicit local-degradation refusal and the 8.0.1.1 recovery certificate.
       - name: Test installed provider with explicit build123d version
         run: >-
           uv run --isolated --no-project --python 3.11
@@ -40,4 +42,6 @@ jobs:
           --with pytest --with pytest-timeout
           python -m pytest tests/test_boolean_support_compat.py
           tests/test_open_channel_section.py tests/test_corner_section.py
-          tests/test_planar_outer_profiles.py -q
+          tests/test_planar_outer_profiles.py
+          ${{ matrix.build123d == '0.13.0' && 'tests/test_inventory_local_refusal.py tests/test_cli.py tests/test_effective_surfaces.py tests/test_nurbs_conversion_sweep.py tests/test_freeform_surfaces.py' || '' }}
+          -q

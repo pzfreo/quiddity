@@ -9,6 +9,7 @@ import gzip
 from pathlib import Path
 
 import pytest
+from build123d import Box, Compound, Cylinder, Pos
 
 from quiddity import feature_census, import_step_geometry
 from quiddity._ocp_compat import brepcheck_status_ok, brepcheck_statuses_readable
@@ -84,3 +85,26 @@ def test_local_degradation_refuses_when_statuses_are_unreadable(monkeypatch, tmp
     assert built["proof"] == "local_degradation"
     assert {face["proof"] for face in built["faces"]} == {"not_proven"}
     assert not built["features"]
+
+
+def test_unreadable_statuses_do_not_taint_valid_bodies(monkeypatch, tmp_path) -> None:
+    """A valid body next to an invalid one keeps local proof when statuses are unreadable."""
+
+    if not (_CORPUS / "14052.step.gz").is_file():
+        pytest.skip("the optional MFCAD++ corpus is unavailable")
+    import quiddity._adjacency as adjacency
+    import quiddity.document as document
+
+    monkeypatch.setattr(adjacency, "brepcheck_status_ok", lambda *_args: None)
+    monkeypatch.setattr(document, "brepcheck_status_ok", lambda *_args: None)
+    invalid = _part("14052", tmp_path)
+    valid = Pos(500, 0, 0) * (Box(20, 20, 10) - Cylinder(3, 10))
+    part = Compound(children=[*invalid.solids(), *valid.solids()])
+
+    built = build_recognition_document(part)
+    assert built["proof"] == "local_degradation"
+    holes = [feature for feature in built["features"] if feature["record_type"] == "HoleRecord"]
+    assert len(holes) == 1
+    proofs = {face["index"]: face["proof"] for face in built["faces"]}
+    assert {proofs[index] for index in holes[0]["defining_faces"]} == {"local"}
+    assert "not_proven" in proofs.values()

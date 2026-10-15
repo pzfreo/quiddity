@@ -1,6 +1,6 @@
 """OCP 7.x / 8.x compatibility.
 
-OCP 8 (build123d 0.12+) made ``TopoDS`` a namespace, so the static downcasts lost
+OCP 8 (build123d 0.13+) made ``TopoDS`` a namespace, so the static downcasts lost
 their ``_s`` suffix (``TopoDS.Face_s`` -> ``TopoDS.Face``).  The OCP 7 name is tried
 first so behaviour on older stacks is unchanged.
 """

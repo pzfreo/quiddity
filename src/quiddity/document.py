@@ -82,6 +82,10 @@ def build_recognition_document(part: Part, *, rotational: bool = False) -> dict[
         defective: set[int] = set()
         for body in bodies:
             analyzer = BRepCheck_Analyzer(body.wrapped)
+            if analyzer.IsValid():
+                # A valid body has no defective face. Checked first so that unreadable
+                # per-face statuses (OCP 8) cannot taint a body that is proven whole.
+                continue
             defective.update(
                 by_face[face]
                 for face in body.faces()
