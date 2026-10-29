@@ -16,7 +16,7 @@ from quiddity._diagnostics import ResidualDiagnostic
 from quiddity._dispositions import Outcome, ReasonCode
 from quiddity._registry import PHYSICAL_DEFINITIONS
 from quiddity._typing import CylinderInventory, Part
-from quiddity.result import InventoryProduct, RecognitionResult, _take_inventory
+from quiddity.result import InventoryProduct, RecognitionFailure, RecognitionResult, _take_inventory
 
 
 class ExplanationCoverage(Enum):
@@ -30,6 +30,8 @@ class FamilyEvaluation(Enum):
 
     EVALUATED = "evaluated"
     NOT_APPLICABLE = "not-applicable"
+    FAILED = "failed"
+    DEPENDENCY_FAILED = "dependency-failed"
 
 
 class RecognitionOutcome(Enum):
@@ -137,6 +139,12 @@ class RecognitionReport:
     result: RecognitionResult
     families: tuple[FamilyExplanation, ...]
     diagnostics: tuple[RecognitionDiagnostic, ...]
+    failures: tuple[RecognitionFailure, ...] = ()
+
+    @property
+    def execution_complete(self) -> bool:
+        """Whether no detector failed or was dependency-skipped; not geometric completeness."""
+        return not self.failures
 
     @property
     def detector_families(self) -> tuple[FamilyExplanation, ...]:
@@ -164,6 +172,7 @@ def _project_diagnostic(item: ResidualDiagnostic) -> RecognitionDiagnostic:
 
 def _project_report(product: InventoryProduct) -> RecognitionReport:
     families: list[FamilyExplanation] = []
+    failures = {item.family: item for item in product.failures if item.stage == "discovery"}
     for definition in PHYSICAL_DEFINITIONS:
         candidates = product.physical.candidate_set(definition.family).candidates
         dispositions = product.reconciliation.for_family(definition.family)
@@ -186,14 +195,23 @@ def _project_report(product: InventoryProduct) -> RecognitionReport:
         )
         accepted = sum(item.outcome is Outcome.ACCEPTED for item in dispositions)
         rejected = sum(item.outcome is Outcome.REJECTED for item in dispositions)
+        failure = failures.get(definition.family.value)
+        if failure is not None:
+            evaluation = (
+                FamilyEvaluation.DEPENDENCY_FAILED
+                if failure.blocked_by
+                else FamilyEvaluation.FAILED
+            )
+        else:
+            evaluation = (
+                FamilyEvaluation.EVALUATED
+                if definition.applicable(product.context)
+                else FamilyEvaluation.NOT_APPLICABLE
+            )
         families.append(
             FamilyExplanation(
                 family=definition.family.value,
-                evaluation=(
-                    FamilyEvaluation.EVALUATED
-                    if definition.applicable(product.context)
-                    else FamilyEvaluation.NOT_APPLICABLE
-                ),
+                evaluation=evaluation,
                 proposed=len(candidates),
                 accepted=accepted,
                 rejected=rejected,
@@ -205,6 +223,7 @@ def _project_report(product: InventoryProduct) -> RecognitionReport:
         result=product.result,
         families=tuple(families),
         diagnostics=tuple(_project_diagnostic(item) for item in product.diagnostics),
+        failures=product.failures,
     )
 
 
@@ -213,15 +232,28 @@ def build_raw_recognition_report(
     *,
     cylinders: CylinderInventory | None = None,
     rotational: bool = False,
+    continue_on_error: bool = False,
 ) -> RecognitionReport:
     """Recognise once in caller coordinates and return bounded lifecycle explanations.
 
     An absent diagnostic is not proof that the part contains no unsupported geometry. Families
     marked ``evaluated`` completed their current recogniser and may still exclude geometry outside
     its documented supported domain.
+
+    ``continue_on_error=True`` isolates detector discovery/derivation exceptions and returns
+    their value-only diagnostics in ``failures``. Required dependents are skipped. Resource,
+    cancellation, shared setup, validation, reconciliation and projection errors still raise.
+    Inspect ``execution_complete`` before interpreting an empty collection as evaluated absence.
     """
 
-    return _project_report(_take_inventory(part, cylinders=cylinders, rotational=rotational))
+    return _project_report(
+        _take_inventory(
+            part,
+            cylinders=cylinders,
+            rotational=rotational,
+            continue_on_error=continue_on_error,
+        )
+    )
 
 
 def build_recognition_report(
@@ -229,6 +261,7 @@ def build_recognition_report(
     *,
     cylinders: CylinderInventory | None = None,
     rotational: bool = False,
+    continue_on_error: bool = False,
 ) -> RecognitionReport:
     """Compatibility name for a caller-coordinate bounded report.
 
@@ -240,6 +273,7 @@ def build_recognition_report(
         part,
         cylinders=cylinders,
         rotational=rotational,
+        continue_on_error=continue_on_error,
     )
 
 
@@ -251,6 +285,7 @@ __all__ = [
     "RecognitionDiagnostic",
     "RecognitionDiagnosticCode",
     "RecognitionDiagnosticStatus",
+    "RecognitionFailure",
     "RecognitionOutcome",
     "RecognitionReport",
     "ReconciliationReason",

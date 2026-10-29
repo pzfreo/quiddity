@@ -125,8 +125,10 @@ def test_caller_mapping_distinguishes_located_occurrences_that_share_one_tshape(
     )
 
 
+@pytest.mark.parametrize("continue_on_error", [False, True])
 def test_prepared_evidence_runs_one_aggregate_and_never_calls_the_raw_entrypoint(
     monkeypatch,
+    continue_on_error,
 ) -> None:
     caller = Pos(13, -7, 5) * _axial_part().rotate(Axis.X, 37)
     prepared = prepare_framed_part(cast(Part, caller))
@@ -134,13 +136,21 @@ def test_prepared_evidence_runs_one_aggregate_and_never_calls_the_raw_entrypoint
     original = frames._take_inventory
     calls = []
 
-    def counted(part, *, cylinders=None, rotational=False, local_degradation=None):
-        calls.append((part, cylinders, rotational, local_degradation))
+    def counted(
+        part,
+        *,
+        cylinders=None,
+        rotational=False,
+        local_degradation=None,
+        continue_on_error=False,
+    ):
+        calls.append((part, cylinders, rotational, local_degradation, continue_on_error))
         return original(
             part,
             cylinders=cylinders,
             rotational=rotational,
             local_degradation=local_degradation,
+            continue_on_error=continue_on_error,
         )
 
     def forbidden(*_args, **_kwargs):
@@ -149,13 +159,14 @@ def test_prepared_evidence_runs_one_aggregate_and_never_calls_the_raw_entrypoint
     monkeypatch.setattr(frames, "_take_inventory", counted)
     monkeypatch.setattr(evidence_module, "build_recognition_evidence", forbidden)
 
-    framed = prepared.recognise_evidence(rotational=True)
+    framed = prepared.recognise_evidence(rotational=True, continue_on_error=continue_on_error)
 
     assert isinstance(framed, FramedRecognitionEvidence)
     assert len(calls) == 1
     assert calls[0][0] is prepared.part
     assert calls[0][2] is True
     assert calls[0][3] is False
+    assert calls[0][4] is continue_on_error
     assert framed.result.rotational is True
 
 

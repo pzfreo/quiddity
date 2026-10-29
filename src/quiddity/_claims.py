@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2024-2026 Paul Fremantle
-"""Which faces established which candidate: run-local and append-only during discovery.
+"""Which faces established which candidate: run-local and append-only to recognisers.
 
 Two recognisers can describe the same physical region, and until now the package could only ask
 *where* their records were, not *what they were built from*. `recognise_passages` suppressed a
@@ -23,6 +23,9 @@ Standalone compatibility code may still take a point-in-time snapshot without cl
 Aggregate orchestration instead seals once after every physical family has completed. A recogniser
 that declined a face because another family had claimed it would make output order-dependent, and
 that stays forbidden by ADR 0003.
+
+Only orchestration may revoke an unfinished failed family's proposals before completing it empty.
+Completed families and sealed evidence cannot be discarded.
 
 **A claim is defining ownership, not every face a predicate touched.** Treating contextual stock
 as consumed would manufacture conflicts between features that legitimately share it. Candidate
@@ -223,6 +226,11 @@ class ClaimLedger:
         """Issue an opaque view of exactly one consumer's completed predecessors."""
 
         return self._issuer.restricted_inputs(definition)
+
+    def discard_family(self, family: FamilyId) -> None:
+        """Orchestration-only revocation of unfinished proposals and legacy claims."""
+        for candidate in self._issuer.discard_family(family):
+            self._claims.pop(id(candidate), None)
 
     def snapshot_index(self) -> EvidenceIndex:
         """Freeze the evidence issued so far into a point-in-time read capability.

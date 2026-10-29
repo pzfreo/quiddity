@@ -112,6 +112,15 @@ to consume implicitly.
 
 ## Consequences
 
+Proposed for #806: report/evidence routes add the optional `continue_on_error` keyword;
+`RecognitionReport` adds a default-empty `failures` tuple of immutable `RecognitionFailure`
+values and an `execution_complete` property. `FamilyEvaluation` adds `FAILED` and
+`DEPENDENCY_FAILED`. These are Python explanation-contract additions; feature records,
+`RecognitionResult`, and the evidence reference roster/manifest major stay unchanged.
+The [proposed failure contract](../family-failure-isolation.md) requires preserving the report
+alongside partial results. This additive change needs minor-release review and explicit consumer
+adoption; no release exception or production dependency update is authorized by the proposal.
+
 A recogniser cannot become public without a stable identifier, record contract, evidence and
 documentation, and a consumer cannot silently ignore a family or keep a dead declaration.
 Geometry-only evidence is a first-class state, not a hole in a checklist. Adding a family is

@@ -41,6 +41,8 @@ def test_inventory_contains_unproved_hole_on_invalid_solid_or_open_shell(
 
     product = _take_inventory(part)
     assert product.result == _take_inventory(part, local_degradation=True).result
+    isolated = _take_inventory(part, continue_on_error=True)
+    assert isolated.result == product.result and isolated.failures == ()
     counts = feature_census(part)
     assert counts["hole"] == len(product.result.holes)
     if model_id == "14052" and _STATUS_READABLE:

@@ -1314,10 +1314,10 @@ def test_recess_reconciler_accepts_completed_records_and_frozen_evidence_only() 
 def test_aggregate_phase_functions_have_one_way_capability_boundaries() -> None:
     module = importlib.import_module("quiddity.result")
     expected = {
-        "_discover_all": {"context", "ledger", "return"},
+        "_discover_all": {"context", "ledger", "continue_on_error", "failures", "return"},
         "_reconcile_existing": {"physical", "evidence", "return"},
         "diagnose_residuals": {"reconciliation", "evidence", "return"},
-        "_derive_patterns": {"accepted", "return"},
+        "_derive_patterns": {"accepted", "continue_on_error", "failures", "return"},
         "_project_result": {"context", "accepted", "derived", "evidence", "return"},
     }
     for name, parameters in expected.items():

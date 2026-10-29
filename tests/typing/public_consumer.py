@@ -22,6 +22,7 @@ from quiddity import (
     Plate,
     PreparedFramedPart,
     RaisedPad,
+    RecognitionFailure,
     RecognitionOutcome,
     RecognitionReport,
     RecognitionResult,
@@ -108,6 +109,16 @@ def consume(part: Solid, face: Face, bounds: BoundBox) -> None:
     raw_report = build_raw_recognition_report(part)
     evidence = build_recognition_evidence(part)
     framed_evidence: FramedEvidence = build_framed_recognition_evidence(part)
+    partial_report = build_raw_recognition_report(part, continue_on_error=True)
+    partial_evidence = build_recognition_evidence(part, continue_on_error=True)
+    assert_type(partial_report.failures, tuple[RecognitionFailure, ...])
+    assert_type(partial_report.execution_complete, bool)
+    assert_type(partial_evidence.report.failures, tuple[RecognitionFailure, ...])
+    for failure in partial_report.failures:
+        assert_type(failure.stage, Literal["discovery", "derivation"])
+        assert_type(failure.exception_type, str | None)
+        assert_type(failure.message, str | None)
+        assert_type(failure.blocked_by, tuple[str, ...])
 
     assert_type(holes, list[HoleRecord])
     assert_type(bosses, list[BossRecord])

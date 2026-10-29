@@ -128,7 +128,8 @@ class FramedEvidenceRefusalReason(Enum):
 class RefusedFramedEvidence(Generic[_ResultValue]):
     """Mapping refusal, retaining a completed result when recognition already ran.
 
-    Provider-issued values carry ``None`` only when refused before inventory.
+    Provider-issued values carry ``None`` when refused before inventory or when a partial
+    inventory cannot be accompanied by its failure report on this refusal surface.
     No partially authorized evidence or references are exposed.
     """
 
@@ -958,16 +959,23 @@ def build_recognition_evidence(
     *,
     cylinders: CylinderInventory | None = None,
     rotational: bool = False,
+    continue_on_error: bool = False,
 ) -> RecognitionEvidence:
     """Recognise *part* once and project outcomes to its exact original faces.
 
     The caller must not mutate *part* while using the returned view. This is the explicit
     raw/caller-coordinate route; use :func:`build_framed_recognition_evidence` for the ordinary
     part-relative lifecycle.
+
+    With ``continue_on_error=True``, independent detectors may finish after a family fails.
+    Read ``view.report.failures`` and ``view.report.execution_complete`` with the results;
+    an unsuccessful detector's empty collection is not evidence of absence.
     """
 
     return _project_recognition_evidence(
-        _take_inventory(part, cylinders=cylinders, rotational=rotational)
+        _take_inventory(
+            part, cylinders=cylinders, rotational=rotational, continue_on_error=continue_on_error
+        )
     )
 
 

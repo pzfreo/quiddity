@@ -32,6 +32,7 @@ from quiddity._effective_surfaces import (
 from quiddity._passage_compat import CompatibilitySnapshot, PassageCompatibilityView
 
 RecordT = TypeVar("RecordT")
+IndexKey = TypeVar("IndexKey")
 
 
 class FamilyId(Enum):
@@ -570,6 +571,18 @@ class _IssuedObservation:
     effective_outer_sides: int
 
 
+def _discard_index_entries(
+    index: dict[IndexKey, list[Candidate[object]]],
+    removed: set[int],
+) -> None:
+    for key, candidates in tuple(index.items()):
+        retained = [candidate for candidate in candidates if id(candidate) not in removed]
+        if retained:
+            index[key] = retained
+        else:
+            del index[key]
+
+
 class _CandidateIssuer:
     """Mutable run store owned by the legacy ledger until its read/write views split."""
 
@@ -782,6 +795,38 @@ class _CandidateIssuer:
             if (issued := self._validate(candidate)).family is family
         )
         return self._make_candidate_set(family, candidates)
+
+    def discard_family(self, family: FamilyId) -> tuple[Candidate[object], ...]:
+        """Revoke unfinished issuance; completed and sealed evidence remains immutable."""
+        if self._sealed or family in self._completed:
+            raise RuntimeError("cannot discard completed or sealed family evidence")
+        discarded = tuple(
+            candidate
+            for candidate in self._candidates
+            if self._issued[id(candidate)].family is family
+        )
+        removed = {id(candidate) for candidate in discarded}
+        self._candidates = [c for c in self._candidates if id(c) not in removed]
+        for key in removed:
+            del self._issued[key]
+        # Keep every other family's exact identities; no discovery or reissuance is needed.
+        _discard_index_entries(self._by_record, removed)
+        _discard_index_entries(self._by_node, removed)
+        _discard_index_entries(self._by_constituent, removed)
+        observations = [
+            observation
+            for observation in self._observations
+            if self._issued_observations[id(observation)].family is family
+        ]
+        removed_observations = {id(observation) for observation in observations}
+        self._observations = [
+            observation
+            for observation in self._observations
+            if id(observation) not in removed_observations
+        ]
+        for key in removed_observations:
+            del self._issued_observations[key]
+        return discarded
 
     def candidate_set_for(
         self, family: FamilyId, records: Iterable[object]

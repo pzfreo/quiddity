@@ -69,6 +69,17 @@ only; durable receipts re-prove a current `FeatureRef`/`FaceRef` or fail closed.
 
 Consumer lifecycle caches are outside the result.
 
+## Proposed amendment — detector failures (#806)
+
+Report/evidence callers may explicitly opt into family isolation as described in
+[the failure contract](../family-failure-isolation.md). Only orchestration can revoke an
+unfinished family's issued prefix, including observations and all reverse indexes. Completed
+families and sealed indexes remain immutable. Failed families terminate with empty candidate sets
+plus explicit failure values; dependency consumers are skipped rather than consuming those sets
+as evaluated absence. Successful family identities remain unchanged, and the shared context is
+not rebuilt. Reconciliation sees surviving candidates and the public report remains incomplete.
+Output/provenance validation and shared phases still fail closed. Maintainer review is pending.
+
 ## Enforced by
 
 - `tests/test_architecture.py`: the reconciler never imports or calls discovery; phase functions

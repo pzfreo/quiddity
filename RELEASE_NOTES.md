@@ -1,5 +1,13 @@
 # Release notes
 
+## Unreleased — proposed additive API (#806)
+
+- Add opt-in `continue_on_error` to report/evidence routes. Failed physical families revoke
+  unfinished evidence; independent families continue and required dependents are explicitly
+  skipped. Immutable report failures distinguish errors from evaluated absence, including
+  derived-pattern failures. Strict defaults, proof validation and result-only routes are unchanged.
+  See [the proposed contract](docs/family-failure-isolation.md); minor-release review is pending.
+
 ## 0.3.11 — Quiddity
 
 - Support build123d 0.12 and 0.13 (`build123d>=0.9,<0.14`); 0.13 runs on OCP 8. Static

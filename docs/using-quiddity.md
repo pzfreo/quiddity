@@ -147,3 +147,10 @@ Every recogniser is deterministic with respect to equivalent input geometry and 
 tolerance, and no recogniser's *discovery* calls a sibling. (A view over a completed run, such as
 `recognise_section_recesses`, necessarily runs them all -- that is what makes it a view.) The same part gives the same records in the same
 order, run to run and machine to machine.
+
+## Optional partial results
+
+Report and evidence routes can opt into detector failure isolation with
+`continue_on_error=True`. Retain `view.report.failures` with every partial inventory and check
+`view.report.execution_complete`; a failed detector's empty output does not prove absence.
+See [the proposed contract and boundaries](family-failure-isolation.md).

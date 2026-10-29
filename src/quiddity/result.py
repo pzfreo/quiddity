@@ -13,10 +13,11 @@ from __future__ import annotations
 import math
 import warnings
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from concurrent.futures import CancelledError
 from dataclasses import dataclass, fields, replace
 from enum import Enum
 from types import MappingProxyType
-from typing import Any, Protocol, TypeVar, cast
+from typing import Any, Literal, Protocol, TypeVar, cast
 
 from OCP.BRepCheck import BRepCheck_Analyzer
 
@@ -269,6 +270,22 @@ class DerivedInventory:
 
 
 @dataclass(frozen=True, slots=True)
+class RecognitionFailure:
+    """A failed or dependency-skipped detector, without exception or geometry objects.
+
+    ``family`` is the physical detector or derived-pattern identifier. ``blocked_by``
+    names its unavailable direct inputs in declared order. A skipped detector has no
+    exception type/message; a failed detector has the qualified exception type and message.
+    """
+
+    family: str
+    stage: Literal["discovery", "derivation"]
+    exception_type: str | None = None
+    message: str | None = None
+    blocked_by: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class InventoryProduct:
     """The one internal inventory consumed by result, census and attribution views."""
 
@@ -280,6 +297,7 @@ class InventoryProduct:
     derived: DerivedInventory
     result: RecognitionResult
     _legacy_result: _LegacyRecognitionResult
+    failures: tuple[RecognitionFailure, ...] = ()
 
     @property
     def accepted(self) -> CandidateInventory:
@@ -538,6 +556,7 @@ def _take_inventory(
     cylinders: CylinderInventory | None = None,
     rotational: bool = False,
     local_degradation: bool | None = None,
+    continue_on_error: bool = False,
 ) -> InventoryProduct:
     """Complete one inventory, retrying an unproved hole on an invalid or open input.
 
@@ -549,11 +568,19 @@ def _take_inventory(
 
     if local_degradation is not None:
         return _take_inventory_once(
-            part, cylinders=cylinders, rotational=rotational, local_degradation=local_degradation
+            part,
+            cylinders=cylinders,
+            rotational=rotational,
+            local_degradation=local_degradation,
+            continue_on_error=continue_on_error,
         )
     try:
         return _take_inventory_once(
-            part, cylinders=cylinders, rotational=rotational, local_degradation=False
+            part,
+            cylinders=cylinders,
+            rotational=rotational,
+            local_degradation=False,
+            continue_on_error=continue_on_error,
         )
     except ValueError as error:
         if str(error) != "Hole cylindrical evidence does not prove one valid solid":
@@ -562,7 +589,11 @@ def _take_inventory(
         if solids and all(BRepCheck_Analyzer(solid.wrapped).IsValid() for solid in solids):
             raise
         return _take_inventory_once(
-            part, cylinders=cylinders, rotational=rotational, local_degradation=True
+            part,
+            cylinders=cylinders,
+            rotational=rotational,
+            local_degradation=True,
+            continue_on_error=continue_on_error,
         )
 
 
@@ -572,12 +603,16 @@ def _take_inventory_once(
     cylinders: CylinderInventory | None = None,
     rotational: bool = False,
     local_degradation: bool,
+    continue_on_error: bool = False,
 ) -> InventoryProduct:
     """Run the explicit physical, reconciliation, derived and projection phases once."""
 
     context = start(part, cylinders, rotational=rotational, local_degradation=local_degradation)
     ledger = ClaimLedger(context.graph, definitions=PHYSICAL_DEFINITIONS)
-    physical = CandidateInventory.complete(_discover_all(context, ledger))
+    failures: list[RecognitionFailure] = []
+    physical = CandidateInventory.complete(
+        _discover_all(context, ledger, continue_on_error=continue_on_error, failures=failures)
+    )
     evidence = ledger.freeze_index()
     evidence.validate_complete_inventory(
         tuple(physical.candidate_set(family) for family in PHYSICAL_FAMILIES)
@@ -588,7 +623,7 @@ def _take_inventory_once(
     accepted = CandidateInventory.complete(
         reconciliation.accepted_set(physical.candidate_set(family)) for family in PHYSICAL_FAMILIES
     )
-    derived = _derive_patterns(accepted)
+    derived = _derive_patterns(accepted, continue_on_error=continue_on_error, failures=failures)
     result = _project_result(context, accepted, derived, evidence)
     return InventoryProduct(
         context=context,
@@ -601,27 +636,100 @@ def _take_inventory_once(
             **{item.name: getattr(result, item.name) for item in fields(RecognitionResult)}
         ),
         _legacy_result=result,
+        failures=tuple(failures),
     )
 
 
 def _discover_all(
-    context: RecognitionContext, ledger: ClaimLedger
+    context: RecognitionContext,
+    ledger: ClaimLedger,
+    *,
+    continue_on_error: bool = False,
+    failures: list[RecognitionFailure] | None = None,
 ) -> tuple[CandidateSet[object], ...]:
     """Discover and atomically complete each physical family in registry order."""
 
+    if failures is None:
+        failures = []
     services = DiscoveryServices(
         context=context,
         writer=ledger.writer,
         cylinders=(list(context.cylinders[0]), list(context.cylinders[1])),
     )
     completed: list[CandidateSet[object]] = []
+    unavailable: set[FamilyId] = set()
     for definition in PHYSICAL_DEFINITIONS:
-        inputs = ledger.restricted_inputs(definition)
         applicable = definition.applicable(context)
-        records = definition.discover(services, inputs) if applicable else []
+        blocked = tuple(dep.value for dep in definition.dependencies if dep in unavailable)
+        records: list[object] = []
+        if applicable and blocked:
+            failures.append(
+                RecognitionFailure(definition.family.value, "discovery", blocked_by=blocked)
+            )
+            unavailable.add(definition.family)
+        elif applicable:
+            inputs = ledger.restricted_inputs(definition)
+            try:
+                records = definition.discover(services, inputs)
+            except Exception as error:
+                if not continue_on_error or _family_error_is_fatal(error):
+                    raise
+                ledger.discard_family(definition.family)
+                failures.append(_family_failure(definition.family.value, "discovery", error))
+                unavailable.add(definition.family)
+        # Output and evidence contract validation remain outside the recovery boundary.
         validate_output(definition, records)
         completed.append(ledger.candidate_set_for(definition.family, records))
     return tuple(completed)
+
+
+def _family_error_is_fatal(error: BaseException) -> bool:
+    """Preserve resource/control failures and the existing bounded ownership retry."""
+    pending = [error]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        if (
+            not isinstance(current, Exception)
+            or isinstance(
+                current, (MemoryError, OSError, RecursionError, SystemError, CancelledError)
+            )
+            or any(cls.__name__ == "Standard_OutOfMemory" for cls in type(current).__mro__)
+            or (
+                isinstance(current, ValueError)
+                and str(current) == "Hole cylindrical evidence does not prove one valid solid"
+            )
+        ):
+            return True
+        if isinstance(current, BaseExceptionGroup):
+            pending.extend(current.exceptions)
+        traceback = current.__traceback__
+        while traceback is not None:
+            # These layers enforce issuance/input authority. A detector cannot downgrade
+            # a broken proof contract into an ordinary local geometry failure.
+            if traceback.tb_frame.f_globals.get("__name__") in {
+                "quiddity._candidates",
+                "quiddity._claims",
+                "quiddity._definitions",
+            }:
+                return True
+            traceback = traceback.tb_next
+        pending.extend(
+            item for item in (current.__cause__, current.__context__) if item is not None
+        )
+    return False
+
+
+def _family_failure(
+    family: str,
+    stage: Literal["discovery", "derivation"],
+    error: Exception,
+) -> RecognitionFailure:
+    kind = type(error)
+    return RecognitionFailure(family, stage, f"{kind.__module__}.{kind.__qualname__}", str(error))
 
 
 def _validate_attribution(
@@ -740,14 +848,36 @@ def _reconcile_existing(
     )
 
 
-def _derive_patterns(accepted: CandidateInventory) -> DerivedInventory:
+def _derive_patterns(
+    accepted: CandidateInventory,
+    *,
+    continue_on_error: bool = False,
+    failures: list[RecognitionFailure] | None = None,
+) -> DerivedInventory:
     """Derive pattern projections only from accepted member records."""
 
+    if failures is None:
+        failures = []
     accepted_records = {family: tuple(accepted.records(family)) for family in PHYSICAL_FAMILIES}
     derived: dict[DerivedId, tuple[object, ...]] = {}
+    unavailable = {failure.family for failure in failures}
     for definition in DERIVED_DEFINITIONS:
-        inputs = AcceptedInputs.restricted(definition.sources, accepted_records)
-        records = definition.derive(inputs)
+        blocked = tuple(
+            source.value for source in definition.sources if source.value in unavailable
+        )
+        records: list[object] = []
+        if blocked:
+            failures.append(
+                RecognitionFailure(definition.identifier.value, "derivation", blocked_by=blocked)
+            )
+        else:
+            inputs = AcceptedInputs.restricted(definition.sources, accepted_records)
+            try:
+                records = definition.derive(inputs)
+            except Exception as error:
+                if not continue_on_error or _family_error_is_fatal(error):
+                    raise
+                failures.append(_family_failure(definition.identifier.value, "derivation", error))
         validate_output(definition, records)
         derived[definition.identifier] = tuple(records)
     return DerivedInventory(
