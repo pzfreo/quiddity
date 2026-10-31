@@ -349,7 +349,14 @@ def test_installed_wheel_imports_without_the_repository_on_sys_path(tmp_path) ->
         text=True,
         timeout=30,
     )
-    assert completed.stderr == ""
+    # The installed wheel announces retirement once; unrelated diagnostics still fail.
+    diagnostics = completed.stderr.splitlines()
+    assert len(diagnostics) == 1
+    assert diagnostics[0].startswith(
+        "<string>:1: FutureWarning: quiddity 0.3.12 is the final release "
+        "of the Python implementation."
+    )
+    assert 'pip install "quiddity<0.4"' in diagnostics[0]
 
     consumer = ROOT / "tests" / "typing" / "public_consumer.py"
     environment = os.environ.copy()
