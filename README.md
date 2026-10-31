@@ -1,5 +1,13 @@
 # Quiddity
 
+> **Deprecated: 0.3.12 is the final release of the Python implementation.**
+> `quiddity` 0.4.0 is a Rust-built wheel under the same PyPI name, with a new file-based
+> API: STEP path or bytes in, JSON (`quiddity-rust/recognition/6`) out. It does not accept
+> build123d/OCP shapes or provide this package's dataclasses or per-family `recognise_*`
+> functions. To keep this API, run `pip install "quiddity<0.4"`.
+> See the [migration notes](https://github.com/pzfreo/quiddity-rust/blob/main/docs/python.md)
+> in [quiddity-rust](https://github.com/pzfreo/quiddity-rust) (`crates/quiddity-py`).
+
 [![CI](https://github.com/pzfreo/quiddity/actions/workflows/ci.yml/badge.svg)](https://github.com/pzfreo/quiddity/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/pzfreo/quiddity/graph/badge.svg)](https://codecov.io/gh/pzfreo/quiddity)
 [![PyPI](https://img.shields.io/pypi/v/quiddity.svg)](https://pypi.org/project/quiddity/)

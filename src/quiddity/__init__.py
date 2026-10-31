@@ -65,6 +65,7 @@ second recognition site.
 from __future__ import annotations
 
 import os
+import warnings as _warnings
 from importlib.metadata import PackageNotFoundError, version
 
 from quiddity._adjacency import FaceEdges
@@ -266,7 +267,7 @@ from quiddity.turned import (
 try:
     __version__ = version("quiddity")
 except PackageNotFoundError:  # pragma: no cover - only a bare, uninstalled source tree
-    __version__ = "0.3.11.dev0"
+    __version__ = "0.3.12"
 
 # Imported after the recognition surface because census consumes that public orchestration.
 from quiddity.capabilities import (  # noqa: E402
@@ -302,6 +303,17 @@ def _configure_occt_threads() -> None:
 
 
 _configure_occt_threads()
+
+_warnings.warn(
+    "quiddity 0.3.12 is the final release of the Python implementation. "
+    "quiddity 0.4.0 is a Rust-built wheel with a new file-based API: "
+    "STEP path or bytes in, JSON (quiddity-rust/recognition/6) out. "
+    "It does not accept build123d/OCP shapes or provide this package's dataclasses "
+    'or recognise_* functions. To keep this API, run: pip install "quiddity<0.4". '
+    "Migration notes: https://github.com/pzfreo/quiddity-rust/blob/main/docs/python.md",
+    FutureWarning,
+    stacklevel=2,
+)
 
 __all__ = [
     "__version__",

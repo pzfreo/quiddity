@@ -1,5 +1,17 @@
 # Release notes
 
+## 0.3.12 — Quiddity
+
+- Retire the Python implementation: 0.3.12 is its final release. Emit a `FutureWarning`
+  once on import, also shown once on stderr by the CLI, and mark the package inactive.
+- The replacement, `quiddity` 0.4.0, is a Rust-built wheel under the same PyPI name from
+  [quiddity-rust](https://github.com/pzfreo/quiddity-rust) (`crates/quiddity-py`). Its new
+  file-based API takes a STEP path or bytes and returns JSON (`quiddity-rust/recognition/6`).
+  It does not accept build123d/OCP shapes or provide this package's dataclasses or per-family
+  `recognise_*` functions. Keep this API with `pip install "quiddity<0.4"`; see the
+  [migration notes](https://github.com/pzfreo/quiddity-rust/blob/main/docs/python.md).
+- Recognition behavior is unchanged.
+
 ## 0.3.11 — Quiddity
 
 - Support build123d 0.12 and 0.13 (`build123d>=0.9,<0.14`); 0.13 runs on OCP 8. Static
