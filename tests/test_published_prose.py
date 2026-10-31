@@ -77,10 +77,11 @@ def test_runtime_prose_has_no_consumer_internal_paths() -> None:
         "Draftwright",
         "draftwright",
     }
+    # The replacement package's public JSON format ID is not a consumer-internal path.
     unresolved = {
         path.relative_to(ROOT).as_posix(): sorted(token for token in private_paths if token in text)
         for path in _runtime_sources()
-        if (text := path.read_text(encoding="utf-8"))
+        if (text := path.read_text(encoding="utf-8").replace("quiddity-rust/recognition/6", ""))
         and any(token in text for token in private_paths)
     }
     assert unresolved == {}
