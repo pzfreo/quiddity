@@ -32,7 +32,9 @@ print(json.dumps([(item.category.__name__, str(item.message)) for item in caught
         timeout=60,
         check=True,
     )
-    notices = json.loads(completed.stdout)
+    # Only quiddity's notice: dependencies may raise their own DeprecationWarnings
+    # (lib3mf does on Python 3.14).
+    notices = [item for item in json.loads(completed.stdout) if NOTICE in item[1]]
     assert len(notices) == 1
     category, message = notices[0]
     assert category == "FutureWarning"
