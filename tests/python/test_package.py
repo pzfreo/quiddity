@@ -142,3 +142,19 @@ def test_nist_ctc_counts():
         assert Counter(feature["family"] for feature in actual["features"]) == expected, item["file"]
         recognised = json.loads(quiddity.recognise(str(Path(corpus) / item["file"])))
         assert recognised["document"]["face_count"] == actual["face_count"]
+
+
+def test_helical_spring_record():
+    data = json.loads(quiddity.recognise(str(FIXTURES / "helical_springs/segmented.step.gz")))
+    spring, = data["helical_springs"]
+    assert spring["wire_diameter"] == pytest.approx(1.5)
+    assert spring["mean_diameter"] == pytest.approx(24)
+    assert spring["pitch"] == pytest.approx(4)
+    assert spring["active_coils"] is None
+    assert "unknown" in spring["active_coils_basis"]
+    records = [r for r in data["document"]["records"] if r["family"] == "helical_springs"]
+    record, = records
+    assert record["record_type"] == "HelicalSpring"
+    assert record["faces"] == spring["faces"]
+    assert record["evidence_status"] == "verified"
+    assert not data["holes"] and not data["bosses"] and not data["fillets"]

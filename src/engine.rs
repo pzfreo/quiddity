@@ -60,6 +60,7 @@ pub use features::freeform_surfaces::{
 };
 pub use features::grooves::Groove;
 pub use features::gussets::{GussetRib, GussetRibPattern};
+pub use features::helical_springs::{HelicalSpring, SpringTolerances};
 pub use features::hole_patterns::HolePattern;
 pub use features::holes::{HoleOptions, HoleRecord};
 pub use features::interior_voids::InteriorVoid;
