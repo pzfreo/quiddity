@@ -745,12 +745,7 @@ fn stroke(
         .iter()
         .map(|l| l.iter().map(|&p| at(p)).collect())
         .collect();
-    let mut end = geom::sub(chosen, geom::scale(outward, height / 2.));
-    if feature {
-        // Attach to the nearest point on the frame edge, not its midpoint.
-        let a = geom::dot(geom::sub(anchor, end), along).clamp(-width / 2., width / 2.);
-        end = geom::add(end, geom::scale(along, a));
-    }
+    let end = leader_end(anchor, chosen, [along, outward], [width, height], feature);
     lines.extend(leader_lines(
         anchor,
         end,
@@ -804,13 +799,12 @@ pub(crate) fn source(
     c: &Callout,
     [origin, normal, along]: [V3; 3],
     height: f64,
+    text_anchor: [f64; 2],
     leader: Option<V3>,
 ) -> Vec<Vec<V3>> {
     let up = geom::cross(normal, along);
     let scale = height / 3.;
-    // TextPlacement origins are readable-run centres in generated companions,
-    // rather than the padded callout rectangle's lower-left corner.
-    let anchor = c.runs.first().map_or([0.; 2], |run| run.at);
+    let anchor = text_anchor;
     let at = |p: [f64; 2]| {
         geom::add(
             origin,
@@ -820,15 +814,32 @@ pub(crate) fn source(
             ),
         )
     };
-    let mut lines: Vec<_> = c
-        .polylines()
+    let local = c.polylines();
+    let mut bounds = Bounds::empty();
+    for &p in local.iter().flatten() {
+        bounds.add([p[0], p[1], 0.]);
+    }
+    if !bounds.max_extent().is_finite() {
+        bounds.add([0.; 3]);
+        bounds.add([c.size[0], c.size[1], 0.]);
+    }
+    let mut lines: Vec<_> = local
         .into_iter()
         .map(|l| l.into_iter().map(at).collect())
         .collect();
     if let Some(anchor) = leader {
+        let centre = bounds.centre();
+        let size = [bounds.max[0] - bounds.min[0], bounds.max[1] - bounds.min[1]];
+        let end = leader_end(
+            anchor,
+            at([centre[0], centre[1]]),
+            [along, up],
+            size.map(|v| v * scale),
+            true,
+        );
         lines.extend(leader_lines(
             anchor,
-            at([0., 0.]),
+            end,
             [along, up, up],
             c.leader_rings,
             (scale, height),
@@ -836,6 +847,23 @@ pub(crate) fn source(
         ));
     }
     lines
+}
+
+/// The generated and supplied placements use the same bottom-edge attachment.
+fn leader_end(
+    anchor: V3,
+    centre: V3,
+    [along, outward]: [V3; 2],
+    [width, height]: [f64; 2],
+    feature: bool,
+) -> V3 {
+    let mut end = geom::sub(centre, geom::scale(outward, height / 2.));
+    if feature {
+        // Attach to the nearest point on the frame edge, not its midpoint.
+        let a = geom::dot(geom::sub(anchor, end), along).clamp(-width / 2., width / 2.);
+        end = geom::add(end, geom::scale(along, a));
+    }
+    end
 }
 
 fn leader_lines(

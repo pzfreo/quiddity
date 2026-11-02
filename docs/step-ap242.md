@@ -2002,19 +2002,25 @@ endpoint wrappers does not restore the redundant ordinary-feature wrappers.
 
 With both `json-import` and `presentation` enabled, `pmi::write::write_with_presentation` accepts
 `&[(PartId, json::presentation::Presentation)]` after the existing write arguments.
-Keys are the ids returned by `json::identify(standard_form(pmi), None)`; the JSON
-route, `json::write_with_presentation`, uses the submitted semantic document's ids.
+Rust-route ids come from `json::identify(standard_form(pmi), None)`; migrated notes key as `attributes`.
+The JSON route, `json::write_with_presentation`, uses the submitted semantic document's ids.
 Both existing `write` entry points retain their behavior. Python accepts
 `pmi.write(geometry, document, presentation=companion)` (dict or JSON string).
-The CLI exposes `--source-presentation FILE` only with `json-import`, for a single selected part; its PMI
-input remains the CLI's `quiddity-pmi` document, with the Rust route's semantic ids.
+With `json-import`, `pmi json import geometry.step pmi.json -o out.step
+--source-presentation companion.json` accepts xcaf-pmi's requirement ids and named
+face anchors. The flag is also retained on `pmi write`, whose `quiddity-pmi` input
+uses the Rust route's canonical semantic ids. Both routes select one part.
 `--presentation refuse|remove` still controls removal of existing presentation.
 
 The companion is `haecceity.presentation/1`. Each item's first graphic with a
 `plane_id`, `text_placements` or `leader` supplies its main placement. It must
 have a text position; the plane defaults to that text frame when omitted.
-The text origin centres the first readable run, as in generated companions;
-axes are orthonormalized and omitted height uses the generated layout's text size. A new optional
+The text origin aligns the first readable run using the companion's `alignment`;
+absent alignment defaults to centre. All /1 left/centre/right and baseline/bottom/
+middle/top aliases are honoured against the run's ink bounds; other values are
+refused with the item id. Supplied leaders use the generated bottom-edge attachment,
+clamped towards the tip. Two placements sharing one datum symbol are refused.
+Axes are orthonormalized and omitted height uses the generated layout's text size. A new optional
 `Graphic.leader: [x, y, z]` gives the tip in model-space millimetres. Existing
 source polylines, triangles and saved views are not copied. Subsequent per-view
 placements use the item's main position for this phase.

@@ -12,6 +12,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[path = "presentation_layout.rs"]
 mod layout;
+#[cfg(all(feature = "json-import", feature = "presentation"))]
+pub(crate) use layout::alignment_lower;
 pub use layout::{Plane, TextPlacement, View};
 
 /// Geometry purpose; dimension includes arrowheads, extension includes witnesses.

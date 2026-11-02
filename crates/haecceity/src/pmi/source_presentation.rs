@@ -23,6 +23,7 @@ pub(super) struct Placement {
     id: String,
     plane: [[f64; 3]; 3],
     text: TextPlacement,
+    text_anchor: [f64; 2],
     leader: Option<[f64; 3]>,
     callout: Callout,
 }
@@ -87,6 +88,41 @@ pub(super) fn validate_parts(
         }
     }
     Ok(())
+}
+
+/// Bounds of the first readable cell's actual strokes, excluding its frame.
+/// Native GD&T symbols can be asymmetric about their nominal run centre.
+fn text_bounds(callout: &Callout) -> Option<[[f64; 2]; 2]> {
+    let run = callout.runs.first()?;
+    let is_lettering = callout
+        .letters
+        .iter()
+        .any(|letter| letter.text == run.text && letter.at == run.at && letter.size == run.size);
+    if !is_lettering && let Some(cell) = callout.cell_boxes.first() {
+        let mut bounds = geom::Bounds::empty();
+        for line in callout.polylines().iter().skip(callout.frame_strokes) {
+            if line
+                .iter()
+                .all(|p| (0..2).all(|k| p[k] >= cell[0][k] - 1e-9 && p[k] <= cell[1][k] + 1e-9))
+            {
+                for p in line {
+                    bounds.add([p[0], p[1], 0.]);
+                }
+            }
+        }
+        return bounds.max_extent().is_finite().then_some([
+            [bounds.min[0], bounds.min[1]],
+            [bounds.max[0], bounds.max[1]],
+        ]);
+    }
+    let ink = presentation::font().text(&run.text, run.size);
+    if ink.lines.is_empty() {
+        return None;
+    }
+    Some([
+        std::array::from_fn(|k| run.at[k] + ink.min[k]),
+        std::array::from_fn(|k| run.at[k] + ink.max[k]),
+    ])
 }
 
 pub(super) fn prepare(
@@ -159,6 +195,9 @@ pub(super) fn prepare(
             .first()
             .ok_or_else(|| invalid(id, "placed item is missing a text position"))?;
         let text_frame = frame(id, text.origin, text.x_axis, text.normal)?;
+        let alignment = text.alignment.as_deref().unwrap_or("centre");
+        let lower = json::presentation::alignment_lower(alignment)
+            .ok_or_else(|| invalid(id, &format!("unsupported text alignment {alignment:?}")))?;
         if text.height.is_some_and(|h| !h.is_finite() || h <= 0.) {
             return Err(invalid(id, "text height must be positive"));
         }
@@ -220,6 +259,10 @@ pub(super) fn prepare(
             }
             _ => return Err(invalid(id, "item has no drawable callout")),
         };
+        let bounds = text_bounds(&callout)
+            .ok_or_else(|| invalid(id, "no readable text ink for alignment"))?;
+        let text_anchor =
+            std::array::from_fn(|k| bounds[0][k] - lower[k] * (bounds[1][k] - bounds[0][k]));
         let mut text = text.clone();
         text.x_axis = text_frame[2];
         text.normal = text_frame[1];
@@ -229,6 +272,7 @@ pub(super) fn prepare(
                 id: id.clone(),
                 plane,
                 text,
+                text_anchor,
                 leader: g.leader,
                 callout,
             },
@@ -259,6 +303,7 @@ impl Placement {
                 self.text.x_axis,
             ],
             self.scale(default_height) * 3. / factor,
+            self.text_anchor,
             self.leader.map(|p| p.map(|v| v / factor)),
         )
     }
@@ -301,7 +346,13 @@ impl Placement {
         let placeholder = em.simple(
             "annotation_placeholder_occurrence",
             &[
-                ("name", s("haecceity placed text")),
+                (
+                    "name",
+                    s(&self.text.alignment.as_ref().map_or_else(
+                        || "haecceity placed text".into(),
+                        |a| format!("haecceity placed text: {a}"),
+                    )),
+                ),
                 ("styles", refs([style])),
                 ("item", set.a()),
                 ("role", en("annotation_text")),
@@ -382,12 +433,16 @@ impl PartPlan<'_> {
         default_height: f64,
         report: &mut WriteReport,
     ) -> Result<Vec<Graphic>, WriteError> {
+        let mut owners = BTreeMap::new();
         self.source
             .iter()
             .map(|(key, p)| {
                 let definition = self
                     .source_definition(key, symbols, st)
                     .ok_or_else(|| invalid(&p.id, "item has no written callout owner"))?;
+                if let Some(first) = owners.insert(definition, &p.id) {
+                    return Err(invalid(&p.id, &format!("shares a callout definition with {first}; only one placement is supported")));
+                }
                 if geom::dot(p.text.normal, p.plane[1]).abs() < 1e-6 {
                     report.presentation_warnings.push(format!(
                         "{}: placed text is edge-on to the annotation plane normal",

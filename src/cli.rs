@@ -72,7 +72,7 @@ mod pmi_interchange;
 const JSON_USAGE: &str = "PMI interchange (--features json-import):
        quiddity pmi json export <file.step> [--part N]
        quiddity pmi json import <geometry.step> <pmi.json> -o <out.step> [--part N]
-                         [--anchors <verified-face-namespace.json>]
+                         [--anchors <verified-face-namespace.json>] [--source-presentation FILE]
        quiddity pmi json validate <pmi-or-presentation.json>
        quiddity pmi json presentation <file.step> [--part N]
        quiddity pmi write <file.step> <pmi.json> -o <out.step> --source-presentation FILE";

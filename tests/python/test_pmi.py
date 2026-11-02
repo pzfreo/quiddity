@@ -269,3 +269,35 @@ def test_source_presentation_missing_text_origin_names_item(producer):
     del companion["items"]["thickness"][0]["text_placements"][0]["origin"]
     with pytest.raises(pmi.PmiError, match="thickness.*origin"):
         pmi.write(geometry, semantic, presentation=companion)
+
+
+@pytest.mark.parametrize("alignment,fraction", [(None, (0.5, 0.5)), ("bottom left", (0, 0)), ("top right", (1, 1))])
+def test_source_alignment_and_leader_are_verified_on_ink(producer, alignment, fraction):
+    geometry, _ = producer
+    source_root = ROOT / "crates/haecceity/tests/fixtures/xcaf"
+    semantic = json.loads((source_root / "pmi_plate.source.pmi.json").read_text())
+    companion = json.loads((source_root / "pmi_plate.source.presentation.json").read_text())
+    note = semantic["pmi"]["notes"][1]["id"]
+    graphic = deepcopy(companion["items"]["hole-diameter"][0])
+    origin, tip = [25, 35, 5], [5, 0, 5]
+    graphic["text_placements"][0]["origin"] = origin
+    if alignment is not None:
+        graphic["text_placements"][0]["alignment"] = alignment
+    graphic["leader"] = tip
+    companion["items"] = {note: [graphic]}
+    output = pmi.write(geometry, semantic, presentation=companion)
+    lines = pmi.presentation(output)["items"][note][0]["polylines"]
+    assert len(lines) > 2
+    # This plain note has no frame: all strokes before the final leader are text.
+    ink = [point for line in lines[:-1] for point in line]
+    lower = [min(p[k] for p in ink) for k in range(3)]
+    upper = [max(p[k] for p in ink) for k in range(3)]
+    aligned = [lower[0] + fraction[0] * (upper[0] - lower[0]), lower[1] + fraction[1] * (upper[1] - lower[1]), (lower[2] + upper[2]) / 2]
+    assert aligned == pytest.approx(origin, rel=0, abs=1e-9)
+    leader = lines[-1]
+    assert leader[0] == pytest.approx(tip, rel=0, abs=1e-9)
+    assert leader[-1] == pytest.approx([max(lower[0], min(tip[0], upper[0])), lower[1], 5], rel=0, abs=1e-9)
+    if alignment is not None:
+        graphic["text_placements"][0]["alignment"] = "justify"
+        with pytest.raises(pmi.PmiError, match=note + ".*alignment"):
+            pmi.write(geometry, semantic, presentation=companion)

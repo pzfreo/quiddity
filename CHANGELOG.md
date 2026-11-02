@@ -6,6 +6,10 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+- Source callouts honour /1 text alignment, attach leaders to the box edge towards
+  the tip, and refuse conflicting placements on a shared datum symbol. JSON CLI
+  import accepts `--source-presentation` with xcaf requirement ids.
+
 - Source placement requires the `json-import` and `presentation` features.
   The CLI source flag is hidden without `json-import`; builds without presentation
   drawing refuse source input clearly. Minimal builds retain their previous features.
