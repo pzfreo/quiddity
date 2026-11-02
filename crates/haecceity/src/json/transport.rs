@@ -576,6 +576,11 @@ pub(crate) fn restore(doc: &Document, read: &mut PmiRead) -> Result<()> {
         pmi.validate()
             .map_err(|e| Error(format!("invalid ordered PMI: {e:?}")))?;
         let old_carriers = read.json_carriers.clone();
+        // Compare resolved content, including group/derived references, rather than
+        // native member indices: a legacy forwarding group can have private children.
+        let feature_keys: Vec<_> = (0..read.parts[part].features.len())
+            .map(|i| key(&raw, "features", i))
+            .collect::<Result<_>>()?;
         for &c in COLLECTIONS {
             let order = &maps[c];
             if let Some(prov) = provenance_mut(&mut read.provenance.parts[part], c) {
@@ -590,7 +595,7 @@ pub(crate) fn restore(doc: &Document, read: &mut PmiRead) -> Result<()> {
                             let mut ids: Vec<_> = old
                                 .iter()
                                 .enumerate()
-                                .filter(|(j, _)| raw[c][*j] == raw[c][i])
+                                .filter(|(j, _)| feature_keys[*j] == feature_keys[i])
                                 .flat_map(|(_, ids)| ids.iter().copied())
                                 .collect();
                             ids.sort_unstable();

@@ -358,3 +358,143 @@ fn uniqueness_check_catches_gisu_and_set_iiru_duplicate_ownership() {
         );
     }
 }
+
+#[cfg(feature = "json-import")]
+#[test]
+fn legacy_json_group_forwarders_keep_all_consumed_provenance() {
+    use common::pmi_usage::{is_a, reference, violations};
+    use haecceity::{
+        json,
+        p21::{self, Attribute as A, Edit, RawEntity},
+        pmi::*,
+    };
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/xcaf");
+    let b = bytes(&root.join("pmi_plate.geom.step.gz"));
+    let parts = read_part_definitions(&b).unwrap();
+    let doc = Document::parse(b).unwrap();
+    let faces = |i| Feature::Items(vec![Anchor::Face(FaceIndex(i))]);
+    let datum =
+        |name, f| Datum::new(DatumLabel::new(name).unwrap(), Some(FeatureId(f)), vec![]).unwrap();
+    let p = PartPmi {
+        features: vec![
+            faces(0),
+            faces(1),
+            Feature::Group {
+                kind: GroupKind::PatternOfFeatures,
+                members: vec![FeatureId(0), FeatureId(1)],
+            },
+            faces(2),
+        ],
+        datums: vec![datum("A", 0), datum("B", 1), datum("C", 2)],
+        dimensions: vec![Dimension {
+            kind: DimensionKind::Location {
+                from: FeatureId(2),
+                to: FeatureId(3),
+                kind: LocationKind::LinearDistance,
+                path: None,
+                directed: false,
+                angle: None,
+            },
+            nominal: Some(Value::length(
+                Decimal::parse("10.").unwrap(),
+                LengthUnit::Millimetre,
+            )),
+            tolerance: DimTolerance::Basic,
+            qualifier: None,
+            modifiers: vec![],
+            principle: None,
+        }],
+        ..PartPmi::default()
+    };
+    let (output, _) = json::write(
+        &doc,
+        &parts,
+        &[(PartId(0), json::identify(p, None).unwrap())],
+        PresentationPolicy::RemovePresentation,
+    )
+    .unwrap();
+    let doc = Document::parse(output).unwrap();
+    let before = pmi::read(&doc, &parts).unwrap();
+    let loc = doc
+        .ids()
+        .find(|id| is_a(&doc, *id, "dimensional_location"))
+        .unwrap();
+    let owner = reference(
+        &doc,
+        loc,
+        "shape_aspect_relationship",
+        "relating_shape_aspect",
+    )
+    .unwrap();
+    let shape = reference(&doc, owner, "shape_aspect", "of_shape").unwrap();
+    let members: Vec<_> = doc
+        .referrers(owner)
+        .iter()
+        .copied()
+        .filter(|r| !is_a(&doc, *r, "dimensional_location"))
+        .filter(|r| {
+            reference(
+                &doc,
+                *r,
+                "shape_aspect_relationship",
+                "relating_shape_aspect",
+            ) == Some(owner)
+        })
+        .filter_map(|r| reference(&doc, r, "shape_aspect_relationship", "related_shape_aspect"))
+        .filter(|id| !is_a(&doc, *id, "datum"))
+        .collect();
+    assert_eq!(members.len(), 2);
+    let mut edit = Edit::new();
+    let base = |description| {
+        vec![
+            A::String("DIMENSION".into()),
+            A::String(description),
+            A::EntityRef(shape),
+            A::Enum("T".into()),
+        ]
+    };
+    let group = edit.add(p21::simple(
+        "COMPOSITE_GROUP_SHAPE_ASPECT",
+        base("pattern of features".into()),
+    ));
+    for member in members {
+        let alias = edit.add(p21::simple("SHAPE_ASPECT", base("".into())));
+        for (from, to) in [
+            (alias.to_ref(), A::EntityRef(member)),
+            (group.to_ref(), alias.to_ref()),
+        ] {
+            edit.add(p21::simple(
+                "SHAPE_ASPECT_RELATIONSHIP",
+                vec![A::String("".into()), A::String("".into()), from, to],
+            ));
+        }
+    }
+    let mut record = doc.get(loc).unwrap().clone();
+    let RawEntity::Simple { attributes, .. } = &mut record else {
+        panic!("location")
+    };
+    attributes[2] = group.to_ref();
+    edit.replace(loc, record);
+    let legacy = Document::parse(doc.apply(&edit).unwrap().bytes).unwrap();
+    let read = pmi::read(&legacy, &parts).unwrap();
+    assert_eq!(
+        read.parts, before.parts,
+        "legacy group semantics are unchanged"
+    );
+    let models: Vec<_> = read
+        .parts
+        .into_iter()
+        .enumerate()
+        .map(|(i, p)| (PartId(i), p))
+        .collect();
+    let (edit, _) = pmi::write(
+        &legacy,
+        &parts,
+        &models,
+        Mode::Replace,
+        PresentationPolicy::RemovePresentation,
+    )
+    .unwrap();
+    let after = Document::parse(legacy.apply(&edit).unwrap().bytes).unwrap();
+    assert!(violations(&after).is_empty());
+}
