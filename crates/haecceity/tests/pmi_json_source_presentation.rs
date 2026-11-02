@@ -585,50 +585,65 @@ fn boxed_datum_lettering_is_not_clipped_for_alignment() {
     assert_point(bounds.max, [80., 90., 70.]);
 }
 
-fn front_overlap(a: haecceity::geom::Bounds, b: haecceity::geom::Bounds) -> bool {
-    [0, 2]
-        .into_iter()
-        .all(|k| a.min[k] < b.max[k] - 1e-9 && b.min[k] < a.max[k] - 1e-9)
-}
-
-// Convex footprints built from the actual drawn strokes, independent of the
-// layout's reserved boxes. Compare them in each existing readable projection.
+// Compare the actual projected segments, preserving every strip boundary.
+// A hull would fill the empty space this layout change must keep available.
 fn projected_ink_overlap(a: &[Vec<[f64; 3]>], b: &[Vec<[f64; 3]>], view: [f64; 3]) -> bool {
-    use haecceity::{geom, presentation::linear};
+    use haecceity::geom;
     let x = geom::unit(geom::cross([0., 0., 1.], view)).unwrap();
     let y = geom::unit(geom::cross(view, x)).unwrap();
-    let hull = |lines: &[Vec<[f64; 3]>]| {
-        let mut points: Vec<[f64; 3]> = lines
-            .iter()
-            .flatten()
-            .map(|&p| [geom::dot(p, x), geom::dot(p, y), 0.])
-            .collect();
-        points.sort_by(|a, b| a[0].total_cmp(&b[0]).then(a[1].total_cmp(&b[1])));
-        points.dedup();
-        let mut result = Vec::new();
-        for ordered in [points.clone(), points.into_iter().rev().collect()] {
-            let start = result.len();
-            for p in ordered {
-                while result.len() >= start + 2 {
-                    let n = result.len();
-                    if geom::cross(
-                        geom::sub(result[n - 1], result[n - 2]),
-                        geom::sub(p, result[n - 1]),
-                    )[2] > 1e-12
-                    {
-                        break;
-                    }
-                    result.pop();
-                }
-                result.push(p);
-            }
-            result.pop();
-        }
-        result
+    let project = |p| [geom::dot(p, x), geom::dot(p, y)];
+    let a: Vec<_> = a
+        .iter()
+        .flat_map(|line| line.windows(2))
+        .map(|s| [project(s[0]), project(s[1])])
+        .collect();
+    let b: Vec<_> = b
+        .iter()
+        .flat_map(|line| line.windows(2))
+        .map(|s| [project(s[0]), project(s[1])])
+        .collect();
+    let cross = |a: [f64; 2], b: [f64; 2]| a[0] * b[1] - a[1] * b[0];
+    let sub = |a: [f64; 2], b: [f64; 2]| [a[0] - b[0], a[1] - b[1]];
+    let point_distance = |p: [f64; 2], s: [[f64; 2]; 2]| {
+        let d = sub(s[1], s[0]);
+        let q = sub(p, s[0]);
+        let length2 = d[0] * d[0] + d[1] * d[1];
+        let t = if length2 > 0. {
+            ((q[0] * d[0] + q[1] * d[1]) / length2).clamp(0., 1.)
+        } else {
+            0.
+        };
+        (q[0] - t * d[0]).hypot(q[1] - t * d[1])
     };
-    let a = hull(a);
-    let b = hull(b);
-    a.len() >= 3 && b.len() >= 3 && linear::projected_clearance(&a, &b, [0., 0., 1.]) < -1e-9
+    a.iter().any(|a| {
+        b.iter().any(|b| {
+            if (0..2).any(|k| {
+                a[0][k].min(a[1][k]) > b[0][k].max(b[1][k]) + 1e-8
+                    || b[0][k].min(b[1][k]) > a[0][k].max(a[1][k]) + 1e-8
+            }) {
+                return false;
+            }
+            let u = sub(a[1], a[0]);
+            let v = sub(b[1], b[0]);
+            let q = sub(b[0], a[0]);
+            let denominator = cross(u, v);
+            if denominator.abs() > 1e-12 {
+                let t = cross(q, v) / denominator;
+                let s = cross(q, u) / denominator;
+                if (0. ..=1.).contains(&t) && (0. ..=1.).contains(&s) {
+                    return true;
+                }
+            }
+            [
+                point_distance(a[0], *b),
+                point_distance(a[1], *b),
+                point_distance(b[0], *a),
+                point_distance(b[1], *a),
+            ]
+            .into_iter()
+            .any(|d| d < 1e-8)
+        })
+    })
 }
 
 #[test]
@@ -856,17 +871,16 @@ fn notes_block_moves_past_a_kept_dimension_in_its_old_slot() {
         .items
         .get_mut(&semantic.ids["dimensions"][0])
         .unwrap()[0];
-    graphic.leader = None;
+    // Put real leader ink into the old slot, rather than merely enclosing
+    // the block in a dimension's empty frame or coordinate bounds.
+    graphic.leader = Some(unreserved.lines[0][0]);
     graphic.text_placements[0].origin = ink_bounds(&unreserved.lines).centre();
     graphic.text_placements[0].normal = [0., -1., 0.];
     let (bytes, _) = write(&doc, &defs, &semantic, source).unwrap();
     let before = read_placed(bytes.clone());
     let dimension = &before.items[&semantic.ids["dimensions"][0]][0];
     assert!(
-        front_overlap(
-            ink_bounds(&unreserved.lines),
-            ink_bounds(&dimension.polylines)
-        ),
+        projected_ink_overlap(&unreserved.lines, &dimension.polylines, [0., 1., 0.]),
         "fixture must obstruct the old notes slot"
     );
     let defs = read_part_definitions(&bytes).unwrap();
@@ -890,10 +904,7 @@ fn notes_block_moves_past_a_kept_dimension_in_its_old_slot() {
     assert!(!blocks.is_empty());
     for block in blocks {
         assert!(
-            !front_overlap(
-                ink_bounds(&block.polylines),
-                ink_bounds(&dimension.polylines)
-            ),
+            !projected_ink_overlap(&block.polylines, &dimension.polylines, [0., 1., 0.]),
             "kept dimension must be an obstacle"
         );
     }
@@ -935,5 +946,55 @@ fn feature_text_without_drawable_ink_warns_without_losing_semantics() {
                 .any(|n| n.text == text && n.on.is_some()),
             "retain the original annotation text"
         );
+    }
+}
+
+#[test]
+fn string_post_short_dimension_does_not_push_notes_out_of_empty_space() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/ap242/write-presentation/string_post_tapped_intent.step.gz");
+    let mut bytes = Vec::new();
+    flate2::read::GzDecoder::new(std::fs::File::open(path).unwrap())
+        .read_to_end(&mut bytes)
+        .unwrap();
+    let read = read_placed(bytes.clone());
+    let graphics: Vec<_> = read
+        .items
+        .values()
+        .flatten()
+        .chain(&read.unlinked)
+        .collect();
+    assert!(
+        graphics.iter().any(|g| g.name == "1.2"),
+        "exercise the short dimension from the review"
+    );
+    let blocks: Vec<_> = graphics
+        .iter()
+        .copied()
+        .filter(|g| g.name == "General notes")
+        .collect();
+    assert!(!blocks.is_empty());
+    let lines: Vec<_> = blocks.iter().flat_map(|g| g.polylines.clone()).collect();
+    let defs = read_part_definitions(&bytes).unwrap();
+    let part = haecceity::step::read_part(&bytes, &defs[0]).unwrap();
+    let expected_top = part.bounds().min[2]
+        - 2. * haecceity::presentation::placement::text_height(part.bounds().max_extent());
+    assert!(
+        (ink_bounds(&lines).max[2] - expected_top).abs() < 1e-9,
+        "no slide is needed where the ink is clear"
+    );
+    for block in blocks {
+        for other in graphics.iter().filter(|g| g.name != "General notes") {
+            for view in haecceity::presentation::linear::VIEWS
+                .into_iter()
+                .filter(|v| v[1].abs() > 1e-8)
+            {
+                assert!(
+                    !projected_ink_overlap(&block.polylines, &other.polylines, view),
+                    "notes intersect {}",
+                    other.name
+                );
+            }
+        }
     }
 }
