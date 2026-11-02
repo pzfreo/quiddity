@@ -620,7 +620,7 @@ anchors continue to refer to the original defining faces. No PMI schema changes.
 
 ## Incomplete recognition (For #161)
 
-The design follows xu9299's proposal in Python quiddity [#806](https://github.com/pzfreo/quiddity/issues/806) and [PR #807](https://github.com/pzfreo/quiddity/pull/807).
+The design follows xu9299's proposal in Python quiddity [#806](https://github.com/pzfreo/quiddity-python/issues/806) and [PR #807](https://github.com/pzfreo/quiddity-python/pull/807).
 
 Family isolation is always on in native builds with unwinding. If discovery or a
 family post-pass panics, independent families still return results. Only incomplete
