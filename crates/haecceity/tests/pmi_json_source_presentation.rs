@@ -138,7 +138,7 @@ fn bad_source_is_refused_with_item_and_original_is_untouched() {
     let (doc, defs, semantic) = cube();
     let original = doc.bytes().to_vec();
     let id = &semantic.ids["dimensions"][0];
-    for fault in 0..5 {
+    for fault in 0..6 {
         let mut source = input(&semantic);
         match fault {
             0 => {
@@ -147,7 +147,11 @@ fn bad_source_is_refused_with_item_and_original_is_untouched() {
             1 => source.planes[0].normal = [0.; 3],
             2 => source.planes[0].x_axis = [0., 0., 1.],
             3 => source.items.get_mut(id).unwrap()[0].text_placements.clear(),
-            _ => source.items.get_mut(id).unwrap()[0].text_placements[0].x_axis = [0.; 3],
+            4 => source.items.get_mut(id).unwrap()[0].text_placements[0].x_axis = [0.; 3],
+            _ => {
+                source.planes[0].normal = [1.; 3];
+                source.planes[0].x_axis = [1.; 3];
+            }
         }
         let error = write(&doc, &defs, &semantic, source)
             .unwrap_err()
@@ -283,4 +287,28 @@ fn amys_source_companion_and_handmade_flag_note_roundtrip() {
         std::fs::write(std::path::Path::new(&dir).join("plate-source.step"), bytes).unwrap();
         std::fs::write(std::path::Path::new(&dir).join("plate-flag.step"), placed).unwrap();
     }
+}
+
+#[test]
+fn text_frame_can_supply_the_plane_and_later_view_variants_use_main_position() {
+    let (doc, defs, semantic) = cube();
+    let mut source = input(&semantic);
+    let dim = semantic.ids["dimensions"][0].clone();
+    source.items.retain(|id, _| id == &dim);
+    source.planes.clear();
+    let main = &mut source.items.get_mut(&dim).unwrap()[0];
+    main.plane_id = None;
+    let mut variant = main.clone();
+    variant.text_placements[0].origin = [999., 998., 997.];
+    source.items.get_mut(&dim).unwrap().push(variant);
+    let (bytes, _) = write(&doc, &defs, &semantic, source).unwrap();
+    let read = read_placed(bytes);
+    let g = &read.items[&dim][0];
+    assert_eq!(g.text_placements[0].origin, [80., 90., 70.]);
+    let plane = read
+        .planes
+        .iter()
+        .find(|p| Some(&p.id) == g.plane_id.as_ref())
+        .unwrap();
+    assert_eq!(plane.origin, [80., 90., 70.]);
 }

@@ -3380,7 +3380,15 @@ impl<'a> PartPlan<'a> {
             st.datums.insert(i, datum);
         }
         #[cfg(not(feature = "presentation"))]
-        self.datum_symbols(em, &symbols, &st, report, presentation_reader)?;
+        {
+            #[cfg(feature = "json-import")]
+            let generated_only = self.source.is_empty();
+            #[cfg(not(feature = "json-import"))]
+            let generated_only = true;
+            if generated_only {
+                self.datum_symbols(em, &symbols, &st, report, presentation_reader)?;
+            }
+        }
         for i in 0..p.dimensions.len() {
             self.dimension(em, &mut st, pds, i)?;
         }
@@ -3608,6 +3616,10 @@ impl<'a> PartPlan<'a> {
         }
         #[cfg(feature = "presentation")]
         self.datum_symbols(em, &symbols, &st, report, presentation_reader)?;
+        #[cfg(all(feature = "json-import", not(feature = "presentation")))]
+        if !self.source.is_empty() {
+            self.datum_symbols(em, &symbols, &st, report, presentation_reader)?;
+        }
         Ok(())
     }
 

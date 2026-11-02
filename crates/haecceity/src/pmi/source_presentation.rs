@@ -63,6 +63,10 @@ fn frame(
         return Err(invalid(id, "non-finite placement"));
     }
     let normal = geom::unit(normal).ok_or_else(|| invalid(id, "degenerate plane normal"))?;
+    let x = geom::unit(x).ok_or_else(|| invalid(id, "degenerate plane x axis"))?;
+    if geom::norm(geom::cross(x, normal)) < 1e-12 {
+        return Err(invalid(id, "degenerate plane x axis"));
+    }
     let x = geom::unit(geom::sub(x, geom::scale(normal, geom::dot(x, normal))))
         .ok_or_else(|| invalid(id, "degenerate plane x axis"))?;
     Ok([origin, normal, x])
