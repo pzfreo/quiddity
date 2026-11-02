@@ -3090,7 +3090,7 @@
     "tests/fixtures/references/occt_corpus.json": "d9de41b694e690c20691fec1f599fa6334869ffc3506e0ce1acf40221df86c9a",
     "tests/fixtures/references/outer_profile_motion.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
     "tests/fixtures/references/pmi.json": "be4f3fd142c61f9b70a9955d2f7508698783dc2ee722581c6ee00cbefaad1cbf",
-    "tests/fixtures/references/pmi_geometry_exemptions.json": "80b7b786361312a030a06c0f8923460c92effe5a4191efa62e727106da26a14d",
+    "tests/fixtures/references/pmi_geometry_exemptions.json": "f9b1c013307e48bc993a144543dcdfe18452d909355a6691bf300e6c51a04735",
     "tests/fixtures/references/pmi_write-presentation.json": "27802339622f8c8a8fbb80063f5681860fabb8887425e87ed0aefeb1b00a97f3",
     "tests/fixtures/references/pmi_write.json": "ada6fb5e89786384aa0fbc4a1517930e529e18b5340a836d3819b14a3e4fcaf3",
     "tests/fixtures/references/probe_evidence.json": "dba3e1cfbd3eff5301143c768fe21b9c35fc0d9216ece048fa6cb946bf50f6bc",
@@ -5882,5 +5882,5 @@
     "sections/test/parts/fc9cb0ef3d518aa4.step.gz.json.gz": "ad246bd3ca231dda3e7fe1fc54cd798984e7dcd9da376dcb609c3c42001086f8",
     "step_levels.json.gz": "b1d837579387b475bfb90cc5670098890fdfe83fddcbf0e2236a24207c2de1ff"
   },
-  "source_commit": "3471ba32094bd37d140a4ef3f072ef1bec7ce4c9"
+  "source_commit": "0287227f65dfad87b6dd65b270b5288a6cd09050"
 }
