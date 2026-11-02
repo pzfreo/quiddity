@@ -1934,10 +1934,37 @@ The 2026-10-09 OCCT decision remains: one GISU per face. IIRU UR2 permits only o
 usage per (representation, definition), so several GISUs cannot identify one
 aspect in one representation. A multi-face feature is gathered by a composite of
 per-face aspects. Properly overlapping face sets share those same members; an
-exact match reuses the entire aspect. A kept ordinary carrier gaining a datum is
-specialized at the same id (and reported in `rewritten`), preserving its attributes
-and GISUs. A kept pattern similarly gains `datum_feature` in its existing complex
-group record, preserving its member semantics (§6.5.2).
+exact match reuses the entire aspect unless doing so would specialize a kept
+carrier to a datum feature. Adding a datum is append-only: a new `.T.`
+`datum_feature` composes the kept carrier through a plain SAR and reaches the face
+through that carrier's original GISU/IIRU (the 0.4.4 form). It does not duplicate
+usages: IIRU UR1/UR2 still apply. A kept pattern gets a separate complex group/datum
+feature with the same member scope, rather than a nested group. Existing controls
+and presentation retain their original ids and bytes. Add with datums also leaves
+legacy endpoint wrappers and functional SARs untouched; it does not normalize them
+as a side effect of establishing the datum.
+
+This is the narrow §5.1 exception `kept-carrier-datum-feature`, reported for each
+added datum aspect and preserved carrier/group in
+`WriteReport.geometry_carrier_exemptions` (`part`, `condition`, `aspect`, `feature`).
+The independent graph checker requires a `.T.` datum feature, exactly one datum
+establishment, the same part and nonempty geometry, and either an actual
+composition link or identical group scope. It permits the old carrier's semantic
+consumers to remain unchanged. A scalar datum on a proper subset of a kept
+`SET_REPRESENTATION_ITEM` usage gets its own GISU: the scalar and the full set are
+distinct IIRU UR1 keys, so the original set usage remains intact. Only this
+structurally checked subset sharing is exempt from semantic face uniqueness;
+duplicate scalar GISUs and bare dimension shells remain errors. This is not an
+EXPRESS rule exemption.
+
+Kept `.F.` (or unknown) product-definitional aspects are never promoted in any
+mode: doing so violates `datum_feature.WR2`. Promotion of kept `.T.` aspects is
+also removed, since their identity belongs to the input file. Carriers created
+in the same write remain safe to reuse: the planner assigns datum roles before
+emission, emits `.T.` datum leaves directly, and reuses those leaves within that
+write. No source record is rewritten in that case. These decisions supersede
+#181's review-round-4 in-place Add promotion assertions; the kept-face and
+kept-pattern tests now require exact original entity text instead.
 
 Without presentation, §6.5.3's datum combined with its own size remains a
 `dimensional_size_with_datum_feature`, including on a kept face. It composes the

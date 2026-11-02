@@ -6,6 +6,15 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+- **Add datum carrier preservation:** adding a datum on a kept face or pattern now
+  emits a separate `datum_feature`, leaving the original carrier, usages, foreign
+  controls and presentation byte-identical at their original ids. This fixes Add
+  on NIST CTC-01's `.F.` perpendicularity carrier (`datum_feature.WR2` requires
+  `.T.`). Kept carriers are never promoted in any mode; datum leaves created in
+  the same write remain reusable. The narrow CAx-IF §5.1 exception is reported as
+  `WriteReport.geometry_carrier_exemptions.condition = "kept-carrier-datum-feature"`.
+  No EXPRESS validation rule is exempted.
+
 ## 0.4.5 (2026-11-02)
 
 Upgrading from 0.4.4: recognition schema `/6`, fingerprints `/3` and the `haecceity.pmi/1` schema are unchanged. The PMI reader string advances to `haecceity-pmi-read/15`. Semantic PMI reads as before, with two exceptions: the datum findings below, and aspects that 0.4.5 writes named `haecceity.feature/1`. Old files are unaffected by the second.

@@ -372,6 +372,111 @@ pub fn exemptions(doc: &Document) -> Vec<Exemption> {
             }
         }
     }
+    // An independently established datum may compose a preserved carrier. For
+    // groups it repeats the same member scope instead of nesting another group.
+    // This exception never excuses a duplicate GISU or a bare §6.5.3 size shell.
+    let aspects: Vec<_> = doc
+        .ids()
+        .filter(|id| is_a(doc, *id, "shape_aspect"))
+        .collect();
+    let content: BTreeMap<_, _> = aspects.iter().map(|id| (*id, geometry(doc, *id))).collect();
+    let mut signatures = BTreeMap::new();
+    for &id in &aspects {
+        signature(doc, id, &content, &mut signatures, &mut BTreeSet::new());
+    }
+    for &aspect in &aspects {
+        if !is_a(doc, aspect, "datum_feature")
+            || is_a(doc, aspect, "dimensional_size_with_datum_feature")
+            || attr(doc, aspect, "shape_aspect", "product_definitional")
+                != Some(&Attribute::Enum("T".into()))
+            || content[&aspect].is_empty()
+        {
+            continue;
+        }
+        let establishments: Vec<_> = doc
+            .referrers(aspect)
+            .iter()
+            .copied()
+            .filter(|r| {
+                composition(doc, *r)
+                    && reference(
+                        doc,
+                        *r,
+                        "shape_aspect_relationship",
+                        "relating_shape_aspect",
+                    ) == Some(aspect)
+                    && reference(doc, *r, "shape_aspect_relationship", "related_shape_aspect")
+                        .is_some_and(|d| is_a(doc, d, "datum"))
+            })
+            .collect();
+        let [establishment] = establishments[..] else {
+            continue;
+        };
+        let group = is_a(doc, aspect, "composite_group_shape_aspect")
+            || is_a(doc, aspect, "all_around_shape_aspect")
+            || is_a(doc, aspect, "between_shape_aspect");
+        for &feature in &aspects {
+            if feature == aspect
+                || is_a(doc, feature, "datum_feature")
+                || is_a(doc, feature, "datum")
+                || is_a(doc, feature, "datum_target")
+                || !content[&aspect].is_subset(&content[&feature])
+                || reference(doc, aspect, "shape_aspect", "of_shape")
+                    != reference(doc, feature, "shape_aspect", "of_shape")
+            {
+                continue;
+            }
+            let link = doc.referrers(aspect).iter().copied().find(|r| {
+                composition(doc, *r)
+                    && reference(
+                        doc,
+                        *r,
+                        "shape_aspect_relationship",
+                        "relating_shape_aspect",
+                    ) == Some(aspect)
+                    && reference(doc, *r, "shape_aspect_relationship", "related_shape_aspect")
+                        == Some(feature)
+            });
+            // A scalar datum on a proper subset of a kept SET usage cannot
+            // compose the entire set. Its own GISU is distinct under IIRU UR1.
+            let set_subset = owns_gisu(doc, aspect)
+                && content[&aspect].len() == 1
+                && doc.referrers(feature).iter().any(|u| {
+                    if reference(
+                        doc,
+                        *u,
+                        "item_identified_representation_usage",
+                        "definition",
+                    ) != Some(feature)
+                        || !is_a(doc, *u, "item_identified_representation_usage")
+                        || is_a(doc, *u, "draughting_model_item_association")
+                    {
+                        return false;
+                    }
+                    let mut items = Vec::new();
+                    if let Some(a) = attr(
+                        doc,
+                        *u,
+                        "item_identified_representation_usage",
+                        "identified_item",
+                    ) {
+                        references(a, &mut items);
+                    }
+                    items.len() > 1 && content[&aspect].iter().all(|i| items.contains(i))
+                });
+            if let Some(association) = link.or_else(|| {
+                ((group && signatures[&aspect] == signatures[&feature]) || set_subset)
+                    .then_some(establishment)
+            }) {
+                out.push(Exemption {
+                    condition: "kept-carrier-datum-feature",
+                    aspect,
+                    feature,
+                    association,
+                });
+            }
+        }
+    }
     out.sort();
     // A presentation-only face carrier must stay independent when sharing the
     // semantic carrier would make XCAF suppress its callout (ReadGDT). It has no
@@ -599,10 +704,22 @@ pub fn violations(doc: &Document) -> Vec<String> {
     let exceptions = exemptions(doc);
     let graphical: BTreeSet<_> = exceptions
         .iter()
-        .filter(|e| e.condition == "shared-carrier-graphical-presentation")
+        .filter(|e| {
+            e.condition == "shared-carrier-graphical-presentation"
+                || e.condition == "kept-carrier-datum-feature" && owns_gisu(doc, e.aspect)
+        })
         .map(|e| e.aspect)
         .collect();
-    let exempt: BTreeSet<_> = exceptions.into_iter().map(|e| e.aspect).collect();
+    let exempt: BTreeSet<_> = exceptions
+        .into_iter()
+        .flat_map(|e| {
+            if e.condition == "kept-carrier-datum-feature" {
+                vec![e.aspect, e.feature]
+            } else {
+                vec![e.aspect]
+            }
+        })
+        .collect();
     let mut out = vec![];
     for (item, owners) in identified {
         if owners
