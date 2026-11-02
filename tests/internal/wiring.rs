@@ -103,6 +103,9 @@ fn parts() -> (Vec<PathBuf>, bool) {
         .filter(|p| p.extension().is_some_and(|e| e == "step"))
         .collect();
     out.sort();
+    // Nested compressed positives must participate in the field-by-field family audit.
+    // No corpus part contains a spring, so the registry otherwise appears unused.
+    out.push(common::fixtures().join("helical_springs/segmented.step.gz"));
     let corpus = common::corpus_dir();
     assert!(
         corpus.is_some() || std::env::var_os("QUIDDITY_CORPUS_REQUIRED").is_none(),
