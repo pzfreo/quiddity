@@ -102,7 +102,7 @@
     "corpus/nist/nist_ftc_10_asme1_rb.stp": "2bd726f9fe86aeb96ab517ce876e5696e7951310df5c4fbca36276d65879067b",
     "corpus/ttt_inputs/sm-hanger.step": "8247dc2eb7ed6f423fba35b177cc1abeb6358922dab54a486050bfa0ba857f6b",
     "tests/fixtures/annular_face_groove.step": "51c9794d044590e49f11e8611e20a9b213108d04f70994a4bcd24e627ea3e9f0",
-    "tests/fixtures/ap242/README.md": "476daef4e7f7d29b8eb6ad9c957a11fe7dc036d22152e1267bebda60cbe0efb6",
+    "tests/fixtures/ap242/README.md": "d34208eb651070f863882949b0f643d8005615aaa822051c10a51b19ce214667",
     "tests/fixtures/ap242/assembly/README.md": "24fc352662f1ccb4b021f42453fd9611de2318528b35bf9cc74c5fa3c69b6ca2",
     "tests/fixtures/ap242/assembly/assembly.step": "ca5711668102f0e8bb9920469a46008e8a51d60e0bea7eb89a03089b0e464291",
     "tests/fixtures/ap242/assembly/editor_assembly.step": "8bcf7a6500f889884b09edecaa73a95953a41fe77d5c85785382eff8589cd716",
@@ -162,6 +162,8 @@
     "tests/fixtures/ap242/presentation-placement/plate.step.gz": "7334abcbf5128a26768fb896d386a9b282d7d99fd221755598c142d4df5b2188",
     "tests/fixtures/ap242/presentation-placement/spindle.step.gz": "4ef62b408cb99a1addb9ab17bf43ac50d8d7a0f9b46db9121ba7677b48d47395",
     "tests/fixtures/ap242/read/findings.json": "a50fad98fed236f443b9b472dc8d5b5a8fc8eec60283edf42c228b6c3c27b046",
+    "tests/fixtures/ap242/reexport/01-NIST-control-ctc01.stp.gz": "42276d82f4d8551a748ebc487a686de6aade2be2c326490388f90e873c105642",
+    "tests/fixtures/ap242/reexport/09-NIST-reexported-by-SE.stp.gz": "ccd886dc21959632b2ee99db6f3036b239948848d63b7c131d7b3b0fb6899be9",
     "tests/fixtures/ap242/removal/handmade.stp": "c1050f2d9ef07e4ad9e0d832c5263aeb5e4426486c7c931b49eb72c4b5c5e689",
     "tests/fixtures/ap242/removal/nist_refuse.json": "4bf76b1e19117f1fc585ddee95997fd823d4bac6e4d63d1a5c56492fc58ee402",
     "tests/fixtures/ap242/removal/nist_remove.json": "9e726f9f97893eeafc250ab01df249c55a4977b59dbe6af369b0299aee05f374",
@@ -5881,5 +5883,5 @@
     "sections/test/parts/fc9cb0ef3d518aa4.step.gz.json.gz": "ad246bd3ca231dda3e7fe1fc54cd798984e7dcd9da376dcb609c3c42001086f8",
     "step_levels.json.gz": "b1d837579387b475bfb90cc5670098890fdfe83fddcbf0e2236a24207c2de1ff"
   },
-  "source_commit": "e2d7d0dc1d5e66dfa05cef78476cb205a5631296"
+  "source_commit": "61c90cdfc9118ec758635a26f80953597f9f08f4"
 }
