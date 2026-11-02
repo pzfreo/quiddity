@@ -9416,6 +9416,80 @@ fn shared_carrier_isolation_tracks_add_sharing_and_datum_promotion() {
             assert!(is_a(&w.doc, target, "datum_feature"));
         }
     }
+    // Older writers could leave a private shell around a stopping datum carrier.
+    // An unrelated Add must retain that shell and report the skipped unwrapping.
+    let mut simple = common::pmi_gaps::every_kind();
+    simple.datums.push(datum("Z", 0));
+    let initial = written(&f, &simple);
+    let pair = initial
+        .doc
+        .ids()
+        .find_map(|id| {
+            is_a(&initial.doc, id, "geometric_tolerance")
+                .then(|| {
+                    reference(
+                        &initial.doc,
+                        id,
+                        "geometric_tolerance",
+                        "toleranced_shape_aspect",
+                    )
+                })
+                .flatten()
+                .filter(|id| is_a(&initial.doc, *id, "shape_aspect_relationship"))
+        })
+        .unwrap();
+    let carrier = reference(
+        &initial.doc,
+        pair,
+        "shape_aspect_relationship",
+        "relating_shape_aspect",
+    )
+    .unwrap();
+    assert!(is_a(&initial.doc, carrier, "datum_feature"));
+    let mut edit = haecceity::p21::Edit::new();
+    let shell = edit.add(haecceity::p21::simple(
+        "SHAPE_ASPECT",
+        vec![
+            Attribute::String("".into()),
+            Attribute::String("".into()),
+            Attribute::EntityRef(f.parts[0].shape),
+            Attribute::Enum("T".into()),
+        ],
+    ));
+    edit.add(haecceity::p21::simple(
+        "SHAPE_ASPECT_RELATIONSHIP",
+        vec![
+            Attribute::String("".into()),
+            Attribute::String("".into()),
+            shell.to_ref(),
+            Attribute::EntityRef(carrier),
+        ],
+    ));
+    let mut record = initial.doc.get(pair).unwrap().clone();
+    let RawEntity::Simple { attributes, .. } = &mut record else {
+        panic!("plain controlled pair")
+    };
+    attributes[2] = shell.to_ref();
+    edit.replace(pair, record);
+    let input = open_bytes(initial.doc.apply(&edit).unwrap().bytes);
+    let add = PartPmi {
+        material: Some(Material {
+            id: "6061-T6".into(),
+            name: None,
+            density: None,
+        }),
+        ..PartPmi::default()
+    };
+    let retained = write(&input, &[(PartId(0), add.clone())], Mode::Add).unwrap();
+    assert_verified_as(&input, &retained, &add, Mode::Add);
+    assert_original_entities_unchanged(&input.doc, &retained.doc);
+    assert!(
+        retained
+            .report
+            .preserved_normalizations
+            .contains(&(pair, "functional-sar-unwrapping"))
+    );
+
     if let Some(dir) = std::env::var_os("HAECCEITY_OCCT_ADD_OUTPUT") {
         std::fs::create_dir_all(&dir).unwrap();
         for (name, w) in [
