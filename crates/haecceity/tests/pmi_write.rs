@@ -7313,29 +7313,31 @@ fn assert_general_notes_names(doc: &Document, callout: u64, expected: &str) {
 #[cfg(feature = "presentation")]
 fn assert_notes_clear(doc: &Document) {
     use haecceity::{geom, presentation::placement};
-    // Notes are readable in their own front plane. Requiring clearance in all
-    // seven projections forced the old search arbitrarily far from the part.
+    // Keep the part-relative column, but test actual strokes and the new small
+    // clearance. Whole block bounds need not have two capital heights between
+    // them: their unused space is allowed to overlap.
     let defs = read_part_definitions(doc.bytes()).unwrap();
     let part = haecceity::step::read_part(doc.bytes(), &defs[0]).unwrap();
     let bounds = part.bounds();
     let gap = 2. * placement::text_height(bounds.max_extent());
-    let mut notes = Vec::new();
+    let mut notes: Vec<Vec<Vec<[f64; 3]>>> = Vec::new();
     for id in doc.ids().filter(|&id| {
         test_attribute(doc, id, "representation_item", "name")
             == Some(&Attribute::String("General notes".into()))
             && matches!(doc.get(id), Some(RawEntity::Simple { name, .. }) if name.eq_ignore_ascii_case("draughting_callout"))
     }) {
+        let lines = graphic_lines(doc, id);
         let mut ink = geom::Bounds::empty();
-        for p in graphic_lines(doc, id).into_iter().flatten() { ink.add(p); }
+        for &p in lines.iter().flatten() { ink.add(p); }
         assert!((ink.min[0] - bounds.max[0] - gap).abs() < 1e-6);
         assert!(ink.max[2] <= bounds.min[2] - gap + 1e-6);
         assert!((ink.min[1] - bounds.centre()[1]).abs() < 1e-6);
         for other in &notes {
-            let other: &geom::Bounds = other;
-            assert!(other.min[2] >= ink.max[2] + gap - 1e-6
-                || ink.min[2] >= other.max[2] + gap - 1e-6);
+            for view in haecceity::presentation::linear::VIEWS.into_iter().filter(|v| v[1].abs() > 1e-8) {
+                assert!(!common::ink::within_clearance(&lines, other, view, 0.05 * gap - 1e-6), "notes ink must retain clearance in {view:?}");
+            }
         }
-        notes.push(ink);
+        notes.push(lines);
     }
 }
 
