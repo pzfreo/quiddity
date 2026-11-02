@@ -1534,6 +1534,11 @@ fn add_set_subset_is_independent_and_reported_with_or_without_datums() {
         assert!(w.report.rewritten.is_empty());
         assert!(w.report.removed.is_empty());
         assert!(violations(&w.doc).is_empty(), "{:?}", violations(&w.doc));
+        assert!(
+            w.report
+                .preserved_normalizations
+                .contains(&(usage, "kept-usage-factoring"))
+        );
         assert_eq!(w.report.geometry_carrier_exemptions.len(), 1);
         let e = &w.report.geometry_carrier_exemptions[0];
         assert_eq!(

@@ -1988,7 +1988,8 @@ source's unrelated duplicates. No EXPRESS rule is exempted.
 
 `WriteReport.preserved_normalizations` records source `id` and skipped
 `normalization`: `legacy-endpoint-retirement`, `functional-sar-isolation`,
-`functional-sar-unwrapping`, or `legacy-text-rechunking`. CLI/Python reports expose the same optional collection.
+`functional-sar-unwrapping`, `kept-usage-factoring` (a retained SET or specialized
+usage), or `legacy-text-rechunking`. CLI/Python reports expose the same optional collection.
 Add verifies every original entity's exact bytes before returning an edit. AP203
 or AP214 upgrades needing original-entity repairs fail atomically with
 `WriteError::AddPreservation` and the affected ids; Replace can perform those

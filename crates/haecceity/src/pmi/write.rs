@@ -5440,6 +5440,34 @@ impl<'a> PartPlan<'a> {
         )?;
         em.carrier_exemptions
             .push((self.id, condition, member, carrier));
+        if em.preserve_kept
+            && condition == "kept-carrier-independent-feature"
+            && let (R::Old(owner), R::Old(item)) = (carrier, item)
+        {
+            for &usage in self.doc.referrers(owner) {
+                if !is_a(self.doc, usage, "item_identified_representation_usage")
+                    || is_a(self.doc, usage, "draughting_model_item_association")
+                    || attr_ref(
+                        self.doc,
+                        usage,
+                        "item_identified_representation_usage",
+                        "definition",
+                    ) != Some(owner)
+                {
+                    continue;
+                }
+                let items = attr_refs(
+                    self.doc,
+                    usage,
+                    "item_identified_representation_usage",
+                    "identified_item",
+                );
+                if items.contains(&item) && (items.len() > 1 || !reusable_aspect(self.doc, owner)) {
+                    em.preserved_normalizations
+                        .insert((usage, "kept-usage-factoring"));
+                }
+            }
+        }
         for sar in self.kept_functional_sars(carrier) {
             em.preserved_normalizations
                 .insert((sar, "functional-sar-isolation"));
