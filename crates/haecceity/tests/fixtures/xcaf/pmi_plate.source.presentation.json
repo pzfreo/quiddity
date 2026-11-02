@@ -1,0 +1,795 @@
+{
+ "schema": "haecceity.presentation/1",
+ "length_unit": "millimetre",
+ "items": {
+  "thickness": [
+   {
+    "id": "graphic/0",
+    "source": "file",
+    "name": "thickness",
+    "polylines": [
+     [
+      [
+       50.0,
+       30.0,
+       0.0
+      ],
+      [
+       65.0,
+       30.0,
+       0.0
+      ]
+     ]
+    ],
+    "triangles": [],
+    "text": [],
+    "step_ids": [],
+    "unsupported": [],
+    "plane_id": "plane/0",
+    "text_placements": [
+     {
+      "origin": [
+       65.0,
+       30.0,
+       0.0
+      ],
+      "x_axis": [
+       1.0,
+       0.0,
+       -0.0
+      ],
+      "normal": [
+       0.0,
+       0.0,
+       1.0
+      ]
+     }
+    ]
+   }
+  ],
+  "hole-diameter": [
+   {
+    "id": "graphic/1",
+    "source": "file",
+    "name": "hole-diameter",
+    "polylines": [
+     [
+      [
+       5.0,
+       0.0,
+       5.0
+      ],
+      [
+       20.0,
+       15.000000000000002,
+       5.0
+      ]
+     ]
+    ],
+    "triangles": [],
+    "text": [],
+    "step_ids": [],
+    "unsupported": [],
+    "plane_id": "plane/1",
+    "text_placements": [
+     {
+      "origin": [
+       20.0,
+       15.0,
+       5.0
+      ],
+      "x_axis": [
+       1.0,
+       0.0,
+       -0.0
+      ],
+      "normal": [
+       0.0,
+       0.0,
+       1.0
+      ]
+     }
+    ]
+   }
+  ],
+  "hole-from-B": [
+   {
+    "id": "graphic/2",
+    "source": "file",
+    "name": "hole-from-B",
+    "polylines": [
+     [
+      [
+       0.0,
+       -15.0,
+       5.0
+      ],
+      [
+       6.0,
+       -15.0,
+       5.0
+      ]
+     ]
+    ],
+    "triangles": [],
+    "text": [],
+    "step_ids": [],
+    "unsupported": [],
+    "plane_id": "plane/2",
+    "text_placements": [
+     {
+      "origin": [
+       6.0,
+       -15.0,
+       5.0
+      ],
+      "x_axis": [
+       1.0,
+       0.0,
+       -0.0
+      ],
+      "normal": [
+       0.0,
+       0.0,
+       1.0
+      ]
+     }
+    ]
+   }
+  ],
+  "hole-from-C": [
+   {
+    "id": "graphic/3",
+    "source": "file",
+    "name": "hole-from-C",
+    "polylines": [
+     [
+      [
+       -25.0,
+       0.0,
+       5.0
+      ],
+      [
+       -25.0,
+       6.0,
+       5.0
+      ]
+     ]
+    ],
+    "triangles": [],
+    "text": [],
+    "step_ids": [],
+    "unsupported": [],
+    "plane_id": "plane/3",
+    "text_placements": [
+     {
+      "origin": [
+       -25.0,
+       6.0,
+       5.0
+      ],
+      "x_axis": [
+       1.0,
+       0.0,
+       -0.0
+      ],
+      "normal": [
+       0.0,
+       0.0,
+       1.0
+      ]
+     }
+    ]
+   }
+  ],
+  "top-flatness": [
+   {
+    "id": "graphic/4",
+    "source": "file",
+    "name": "top-flatness",
+    "polylines": [
+     [
+      [
+       -30.0,
+       20.0,
+       5.0
+      ],
+      [
+       -30.0,
+       35.0,
+       5.0
+      ]
+     ]
+    ],
+    "triangles": [],
+    "text": [],
+    "step_ids": [],
+    "unsupported": [],
+    "plane_id": "plane/4",
+    "text_placements": [
+     {
+      "origin": [
+       -30.0,
+       35.0,
+       5.0
+      ],
+      "x_axis": [
+       1.0,
+       0.0,
+       -0.0
+      ],
+      "normal": [
+       0.0,
+       0.0,
+       1.0
+      ]
+     }
+    ]
+   }
+  ],
+  "hole-position": [
+   {
+    "id": "graphic/5",
+    "source": "file",
+    "name": "hole-position",
+    "polylines": [
+     [
+      [
+       -5.0,
+       0.0,
+       5.0
+      ],
+      [
+       -20.0,
+       15.000000000000002,
+       5.0
+      ]
+     ]
+    ],
+    "triangles": [],
+    "text": [],
+    "step_ids": [],
+    "unsupported": [],
+    "plane_id": "plane/5",
+    "text_placements": [
+     {
+      "origin": [
+       -20.0,
+       15.0,
+       5.0
+      ],
+      "x_axis": [
+       1.0,
+       0.0,
+       -0.0
+      ],
+      "normal": [
+       0.0,
+       0.0,
+       1.0
+      ]
+     }
+    ]
+   }
+  ],
+  "B-profile": [
+   {
+    "id": "graphic/6",
+    "source": "file",
+    "name": "B-profile",
+    "polylines": [
+     [
+      [
+       -20.0,
+       -30.0,
+       0.0
+      ],
+      [
+       -20.0,
+       -45.0,
+       5.000000000000001
+      ]
+     ]
+    ],
+    "triangles": [],
+    "text": [],
+    "step_ids": [],
+    "unsupported": [],
+    "plane_id": "plane/6",
+    "text_placements": [
+     {
+      "origin": [
+       -20.0,
+       -45.0,
+       5.0
+      ],
+      "x_axis": [
+       -0.0,
+       0.0,
+       1.0
+      ],
+      "normal": [
+       1.0,
+       0.0,
+       0.0
+      ]
+     }
+    ]
+   }
+  ],
+  "C-profile": [
+   {
+    "id": "graphic/7",
+    "source": "file",
+    "name": "C-profile",
+    "polylines": [
+     [
+      [
+       -50.0,
+       -10.0,
+       0.0
+      ],
+      [
+       -65.0,
+       -10.0,
+       5.000000000000001
+      ]
+     ]
+    ],
+    "triangles": [],
+    "text": [],
+    "step_ids": [],
+    "unsupported": [],
+    "plane_id": "plane/7",
+    "text_placements": [
+     {
+      "origin": [
+       -65.0,
+       -10.0,
+       5.0
+      ],
+      "x_axis": [
+       0.0,
+       -0.0,
+       1.0
+      ],
+      "normal": [
+       0.0,
+       1.0,
+       0.0
+      ]
+     }
+    ]
+   }
+  ],
+  "datum/A": [
+   {
+    "id": "graphic/8",
+    "source": "file",
+    "name": "A",
+    "polylines": [
+     [
+      [
+       40.0,
+       -20.0,
+       -5.0
+      ],
+      [
+       40.0,
+       -35.0,
+       -15.0
+      ]
+     ]
+    ],
+    "triangles": [],
+    "text": [],
+    "step_ids": [],
+    "unsupported": [],
+    "plane_id": "plane/8",
+    "text_placements": [
+     {
+      "origin": [
+       40.0,
+       -35.0,
+       -15.0
+      ],
+      "x_axis": [
+       -0.0,
+       0.0,
+       1.0
+      ],
+      "normal": [
+       1.0,
+       0.0,
+       0.0
+      ]
+     }
+    ]
+   }
+  ],
+  "datum/B": [
+   {
+    "id": "graphic/9",
+    "source": "file",
+    "name": "B",
+    "polylines": [
+     [
+      [
+       40.0,
+       -30.0,
+       0.0
+      ],
+      [
+       40.0,
+       -45.0,
+       0.0
+      ]
+     ]
+    ],
+    "triangles": [],
+    "text": [],
+    "step_ids": [],
+    "unsupported": [],
+    "plane_id": "plane/9",
+    "text_placements": [
+     {
+      "origin": [
+       40.0,
+       -45.0,
+       0.0
+      ],
+      "x_axis": [
+       1.0,
+       0.0,
+       -0.0
+      ],
+      "normal": [
+       0.0,
+       0.0,
+       1.0
+      ]
+     }
+    ]
+   }
+  ],
+  "datum/C": [
+   {
+    "id": "graphic/10",
+    "source": "file",
+    "name": "C",
+    "polylines": [
+     [
+      [
+       -50.0,
+       20.0,
+       0.0
+      ],
+      [
+       -65.0,
+       20.0,
+       0.0
+      ]
+     ]
+    ],
+    "triangles": [],
+    "text": [],
+    "step_ids": [],
+    "unsupported": [],
+    "plane_id": "plane/10",
+    "text_placements": [
+     {
+      "origin": [
+       -65.0,
+       20.0,
+       0.0
+      ],
+      "x_axis": [
+       1.0,
+       0.0,
+       -0.0
+      ],
+      "normal": [
+       0.0,
+       0.0,
+       1.0
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "unlinked": [],
+ "semantic_ids": [
+  "0:1:9:1:1",
+  "0:1:9:1:2",
+  "0:1:9:1:3",
+  "B-profile",
+  "C-profile",
+  "datum/A",
+  "datum/B",
+  "datum/C",
+  "feature/0",
+  "feature/1",
+  "feature/10",
+  "feature/11",
+  "feature/12",
+  "feature/13",
+  "feature/14",
+  "feature/15",
+  "feature/2",
+  "feature/3",
+  "feature/4",
+  "feature/5",
+  "feature/6",
+  "feature/7",
+  "feature/8",
+  "feature/9",
+  "general",
+  "hole-diameter",
+  "hole-from-B",
+  "hole-from-C",
+  "hole-position",
+  "thickness",
+  "top-flatness"
+ ],
+ "planes": [
+  {
+   "id": "plane/0",
+   "name": "thickness",
+   "origin": [
+    65.0,
+    30.0,
+    0.0
+   ],
+   "normal": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "x_axis": [
+    1.0,
+    0.0,
+    -0.0
+   ]
+  },
+  {
+   "id": "plane/1",
+   "name": "hole-diameter",
+   "origin": [
+    20.0,
+    15.0,
+    5.0
+   ],
+   "normal": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "x_axis": [
+    1.0,
+    0.0,
+    -0.0
+   ]
+  },
+  {
+   "id": "plane/2",
+   "name": "hole-from-B",
+   "origin": [
+    6.0,
+    -15.0,
+    5.0
+   ],
+   "normal": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "x_axis": [
+    1.0,
+    0.0,
+    -0.0
+   ]
+  },
+  {
+   "id": "plane/3",
+   "name": "hole-from-C",
+   "origin": [
+    -25.0,
+    6.0,
+    5.0
+   ],
+   "normal": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "x_axis": [
+    1.0,
+    0.0,
+    -0.0
+   ]
+  },
+  {
+   "id": "plane/4",
+   "name": "top-flatness",
+   "origin": [
+    -30.0,
+    35.0,
+    5.0
+   ],
+   "normal": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "x_axis": [
+    1.0,
+    0.0,
+    -0.0
+   ]
+  },
+  {
+   "id": "plane/5",
+   "name": "hole-position",
+   "origin": [
+    -20.0,
+    15.0,
+    5.0
+   ],
+   "normal": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "x_axis": [
+    1.0,
+    0.0,
+    -0.0
+   ]
+  },
+  {
+   "id": "plane/6",
+   "name": "B-profile",
+   "origin": [
+    -20.0,
+    -45.0,
+    5.0
+   ],
+   "normal": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "x_axis": [
+    -0.0,
+    0.0,
+    1.0
+   ]
+  },
+  {
+   "id": "plane/7",
+   "name": "C-profile",
+   "origin": [
+    -65.0,
+    -10.0,
+    5.0
+   ],
+   "normal": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "x_axis": [
+    0.0,
+    -0.0,
+    1.0
+   ]
+  },
+  {
+   "id": "plane/8",
+   "name": "A",
+   "origin": [
+    40.0,
+    -35.0,
+    -15.0
+   ],
+   "normal": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "x_axis": [
+    -0.0,
+    0.0,
+    1.0
+   ]
+  },
+  {
+   "id": "plane/9",
+   "name": "B",
+   "origin": [
+    40.0,
+    -45.0,
+    0.0
+   ],
+   "normal": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "x_axis": [
+    1.0,
+    0.0,
+    -0.0
+   ]
+  },
+  {
+   "id": "plane/10",
+   "name": "C",
+   "origin": [
+    -65.0,
+    20.0,
+    0.0
+   ],
+   "normal": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "x_axis": [
+    1.0,
+    0.0,
+    -0.0
+   ]
+  }
+ ],
+ "views": [
+  {
+   "id": "view/0",
+   "name": "A-A",
+   "direction": [
+    -0.0,
+    1.0,
+    -0.0
+   ],
+   "up": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "graphics": [
+    "graphic/0",
+    "graphic/1",
+    "graphic/5",
+    "graphic/3"
+   ]
+  },
+  {
+   "id": "view/1",
+   "name": "iso",
+   "direction": [
+    -0.6154574548966637,
+    0.6154574548966637,
+    -0.49236596391733095
+   ],
+   "up": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "graphics": [
+    "graphic/8",
+    "graphic/9",
+    "graphic/10",
+    "graphic/0",
+    "graphic/1",
+    "graphic/4",
+    "graphic/5",
+    "graphic/2",
+    "graphic/3",
+    "graphic/6",
+    "graphic/7"
+   ]
+  }
+ ]
+}

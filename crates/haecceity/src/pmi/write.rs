@@ -96,6 +96,10 @@ pub(crate) use authoring::model_refusals;
 
 type A = Attribute;
 
+#[cfg(all(feature = "json-import", feature = "presentation"))]
+#[path = "source_presentation.rs"]
+mod source_presentation;
+
 /// Maximum generated Part 21 string literal size, including the quotes. Long
 /// descriptive values use ordered text chunks; generated indivisible strings are
 /// refused. Carried source strings exceeding it produce [`LongStringWarning`]s.
@@ -336,6 +340,8 @@ pub struct WriteReport {
     pub schema: SchemaChange,
     /// Oversized carried literals, in output order; non-fatal scanner compatibility warnings.
     pub long_strings: Vec<LongStringWarning>,
+    /// Source placement diagnostics; placed callouts are never moved.
+    pub presentation_warnings: Vec<String>,
     /// R1/R2 upgrade repairs, in instance id order; empty whenever no upgrade occurs.
     pub repairs: Vec<UpgradeRepair>,
     /// Closed AP214 subtype-to-supertype keyword rewrites, ascending by instance id.
@@ -555,10 +561,26 @@ pub fn write(
         mode,
         policy,
         #[cfg(feature = "json-import")]
-        None,
+        &[],
         #[cfg(feature = "json-import")]
         None,
     )
+}
+
+/// Write using source callout positions keyed by the semantic ids produced by
+/// `json::identify(standard_form(pmi), None)`. Existing `write` behavior is unchanged.
+/// Source input requires the `presentation` feature; without it, nonempty input
+/// is refused. All input is validated before an edit is returned. Saved views are not written.
+#[cfg(feature = "json-import")]
+pub fn write_with_presentation(
+    doc: &Document,
+    parts: &[PartDefinition],
+    pmi: &[(PartId, PartPmi)],
+    mode: Mode,
+    policy: PresentationPolicy,
+    presentation: &[(PartId, crate::json::presentation::Presentation)],
+) -> Result<(Edit, WriteReport), WriteError> {
+    write_inner(doc, parts, pmi, mode, policy, presentation, None)
 }
 
 /// The JSON path supplies item ids; the ordinary writer always supplies None.
@@ -570,6 +592,7 @@ pub(crate) fn write_identified(
     ids: &BTreeMap<PartId, BTreeMap<String, Vec<String>>>,
     protected: &BTreeSet<u64>,
     policy: PresentationPolicy,
+    presentation: &[(PartId, crate::json::presentation::Presentation)],
 ) -> Result<(Edit, WriteReport), WriteError> {
     write_inner(
         doc,
@@ -577,10 +600,16 @@ pub(crate) fn write_identified(
         pmi,
         Mode::Replace,
         policy,
-        Some(ids),
-        Some(protected),
+        presentation,
+        Some((ids, protected)),
     )
 }
+
+#[cfg(feature = "json-import")]
+type IdentityInput<'a> = (
+    &'a BTreeMap<PartId, BTreeMap<String, Vec<String>>>,
+    &'a BTreeSet<u64>,
+);
 
 fn write_inner(
     doc: &Document,
@@ -588,11 +617,23 @@ fn write_inner(
     pmi: &[(PartId, PartPmi)],
     mode: Mode,
     policy: PresentationPolicy,
-    #[cfg(feature = "json-import")] identifiers: Option<
-        &BTreeMap<PartId, BTreeMap<String, Vec<String>>>,
-    >,
-    #[cfg(feature = "json-import")] protected: Option<&BTreeSet<u64>>,
+    #[cfg(feature = "json-import")] presentation: &[(
+        PartId,
+        crate::json::presentation::Presentation,
+    )],
+    #[cfg(feature = "json-import")] identity: Option<IdentityInput<'_>>,
 ) -> Result<(Edit, WriteReport), WriteError> {
+    #[cfg(feature = "json-import")]
+    let (identifiers, protected) =
+        identity.map_or((None, None), |(ids, kept)| (Some(ids), Some(kept)));
+    #[cfg(all(feature = "json-import", not(feature = "presentation")))]
+    if !presentation.is_empty() {
+        return Err(WriteError::Parts(
+            "source presentation requires the `presentation` feature".into(),
+        ));
+    }
+    #[cfg(all(feature = "json-import", feature = "presentation"))]
+    source_presentation::validate_parts(presentation, pmi, mode)?;
     // Validate the input before migration (in particular every note's owner).
     for (part, p) in pmi {
         p.validate().map_err(|errors| WriteError::Invalid {
@@ -656,16 +697,23 @@ fn write_inner(
     // characterized_definition. JSON keeps their exact owner by using edition 4's
     // characterized_item SELECT (CAx-IF PMI v4.1 §§7.4.2, 10.1.2.1–2).
     #[cfg(feature = "json-import")]
-    let json_upgrade = identifiers.is_some()
-        && express::edition(&first).is_some_and(|e| std::ptr::eq(e, &express::AP242_ED1))
-        && pmi.iter().any(|(_, p)| {
-            !p.tolerance_relations.is_empty()
-                || p.notes
-                    .iter()
-                    .filter_map(|n| n.on)
-                    .chain(p.attributes.iter().filter_map(|a| a.on))
-                    .any(|owner| matches!(owner, NoteOwner::Dimension(_) | NoteOwner::Tolerance(_)))
-        });
+    let json_upgrade = express::edition(&first)
+        .is_some_and(|e| std::ptr::eq(e, &express::AP242_ED1))
+        && (presentation.iter().any(|(_, p)| {
+            p.items.values().flatten().any(|g| {
+                g.plane_id.is_some() || !g.text_placements.is_empty() || g.leader.is_some()
+            })
+        }) || (identifiers.is_some()
+            && pmi.iter().any(|(_, p)| {
+                !p.tolerance_relations.is_empty()
+                    || p.notes
+                        .iter()
+                        .filter_map(|n| n.on)
+                        .chain(p.attributes.iter().filter_map(|a| a.on))
+                        .any(|owner| {
+                            matches!(owner, NoteOwner::Dimension(_) | NoteOwner::Tolerance(_))
+                        })
+            })));
     #[cfg(not(feature = "json-import"))]
     let json_upgrade = false;
     let edition: &'static Edition = if json_upgrade {
@@ -685,6 +733,12 @@ fn write_inner(
         let plan = {
             let mut plan = PartPlan {
                 identifiers: identifiers.and_then(|ids| ids.get(p)),
+                #[cfg(feature = "presentation")]
+                source: source_presentation::prepare(
+                    part_pmi,
+                    identifiers.and_then(|ids| ids.get(p)),
+                    presentation.iter().find(|(id, _)| id == p).map(|(_, p)| p),
+                )?,
                 ..plan
             };
             if plan.identifiers.is_some() {
@@ -756,6 +810,7 @@ fn write_inner(
     let mut report = WriteReport {
         schema: SchemaChange::Kept(schema.clone()),
         long_strings: Vec::new(),
+        presentation_warnings: Vec::new(),
         repairs: Vec::new(),
         edition_rewrites: Vec::new(),
         validated_against: edition.file_schema,
@@ -2392,6 +2447,8 @@ enum Role {
 }
 
 struct PartPlan<'a> {
+    #[cfg(all(feature = "json-import", feature = "presentation"))]
+    source: source_presentation::Placements,
     #[cfg(feature = "json-import")]
     identifiers: Option<&'a BTreeMap<String, Vec<String>>>,
     doc: &'a Document,
@@ -2499,6 +2556,8 @@ impl<'a> PartPlan<'a> {
         let mut plan = PartPlan {
             #[cfg(feature = "json-import")]
             identifiers: None,
+            #[cfg(all(feature = "json-import", feature = "presentation"))]
+            source: BTreeMap::new(),
             doc,
             def,
             id,
@@ -3879,7 +3938,16 @@ impl<'a> PartPlan<'a> {
         report: &mut WriteReport,
         presentation_reader: Option<&crate::step::PartReader>,
     ) -> Result<(), WriteError> {
-        if symbols.is_empty() && !needs_callouts(self.pmi) {
+        if symbols.is_empty() && !needs_callouts(self.pmi) && {
+            #[cfg(all(feature = "json-import", feature = "presentation"))]
+            {
+                self.source.is_empty()
+            }
+            #[cfg(not(all(feature = "json-import", feature = "presentation")))]
+            {
+                true
+            }
+        } {
             return Ok(());
         }
         let presentation_part = presentation_reader.and_then(|r| r.part(self.def).ok());
@@ -3920,11 +3988,29 @@ impl<'a> PartPlan<'a> {
         let measurements = presentation_part
             .as_ref()
             .map(|part| crate::presentation::linear::measurements(part, self.def, self.pmi));
+        #[cfg(all(feature = "json-import", feature = "presentation"))]
+        let source_height = local_layout.text_height() * factor;
+        #[cfg(all(feature = "json-import", feature = "presentation"))]
+        let placed = self.source_graphics(symbols, _st, factor, source_height, report)?;
+        #[cfg(all(feature = "json-import", feature = "presentation"))]
+        let is_placed = |definition: R| placed.iter().any(|g| g.0.contains(&definition));
+        #[cfg(all(not(feature = "json-import"), feature = "presentation"))]
+        let is_placed = |_: R| false;
+        #[cfg(all(feature = "json-import", feature = "presentation"))]
+        for (_, _, _, plane, lines) in &placed {
+            local_layout.reserve_ink(lines, plane[1], plane[2]);
+        }
         let mut graphics = Vec::new();
         #[cfg(feature = "presentation")]
         let mut note_pieces: BTreeMap<R, Vec<Vec<[f64; 3]>>> = BTreeMap::new();
         for ((feature, labels, _feature_index), tip) in symbols.iter().zip(&tips) {
             let label = labels.join(",");
+            #[cfg(all(feature = "json-import", feature = "presentation"))]
+            if let Some(g) = placed.iter().find(|g| g.0.contains(feature)) {
+                graphics.push(g.clone());
+                report.datum_symbols.push((self.id, label));
+                continue;
+            }
             #[cfg(not(feature = "presentation"))]
             let (plane, lines) = if let Some((point, normal, _)) =
                 presentation_part.as_ref().and_then(|part| {
@@ -3968,6 +4054,11 @@ impl<'a> PartPlan<'a> {
                 DimensionKind::Location { from, .. } => from,
             };
             for (i, d) in self.pmi.dimensions.iter().enumerate() {
+                #[cfg(feature = "json-import")]
+                if let Some(g) = placed.iter().find(|g| g.0.contains(&_st.dimensions[&i])) {
+                    graphics.push(g.clone());
+                    continue;
+                }
                 let f = feature_of_dimension(d);
                 let tip = self
                     .feature_point(f.0)
@@ -3999,6 +4090,11 @@ impl<'a> PartPlan<'a> {
                 ));
             }
             for (i, t) in self.pmi.tolerances.iter().enumerate() {
+                #[cfg(feature = "json-import")]
+                if let Some(g) = placed.iter().find(|g| g.0.contains(&_st.tolerances[&i])) {
+                    graphics.push(g.clone());
+                    continue;
+                }
                 let f = match &t.target {
                     ToleranceTarget::Feature(f) => Some(*f),
                     ToleranceTarget::Dimension(d) => {
@@ -4080,7 +4176,9 @@ impl<'a> PartPlan<'a> {
             };
             let mut stacks = BTreeMap::<usize, Vec<(usize, presentation::Callout)>>::new();
             for (i, d) in self.pmi.dimensions.iter().enumerate() {
-                if measurements.as_ref().is_some_and(|m| m[i].is_some()) {
+                if is_placed(_st.dimensions[&i])
+                    || measurements.as_ref().is_some_and(|m| m[i].is_some())
+                {
                     continue;
                 }
                 if let DimensionKind::Size { feature, .. } = d.kind
@@ -4093,6 +4191,11 @@ impl<'a> PartPlan<'a> {
                 }
             }
             for (i, t) in self.pmi.threads.iter().enumerate() {
+                #[cfg(feature = "json-import")]
+                if let Some(g) = placed.iter().find(|g| g.0.contains(&_st.threads[&i])) {
+                    graphics.push(g.clone());
+                    continue;
+                }
                 let c = presentation::thread(t, self.pmi);
                 let index = graphics.len();
                 graphics.push((
@@ -4107,6 +4210,9 @@ impl<'a> PartPlan<'a> {
                 stacks.entry(f.0).or_default().push((index, c));
             }
             for (i, t) in self.pmi.tolerances.iter().enumerate() {
+                if is_placed(_st.tolerances[&i]) {
+                    continue;
+                }
                 let feature = match t.target {
                     ToleranceTarget::Feature(f) | ToleranceTarget::Relation { relating: f, .. } => {
                         Some(f)
@@ -4136,6 +4242,10 @@ impl<'a> PartPlan<'a> {
                 }
             }
             let mut packed = presentation::placement::Layout::with_unit(bounds, factor);
+            #[cfg(feature = "json-import")]
+            for (_, _, _, plane, lines) in &placed {
+                packed.reserve_ink(lines, plane[1], plane[2]);
+            }
             for (i, (_, _, _, plane, lines)) in graphics.iter().enumerate() {
                 if !stacked.contains(&i) {
                     packed.reserve_ink(&lines[..lines.len().saturating_sub(1)], plane[1], plane[2]);
@@ -4185,6 +4295,14 @@ impl<'a> PartPlan<'a> {
             }
             local_layout = packed;
         }
+        // The measured ladder already avoids annotations. Include placed notes
+        // and finishes before that pass, even though generated ones follow it.
+        #[cfg(all(feature = "presentation", feature = "json-import"))]
+        for g in &placed {
+            if !graphics.iter().any(|old| old.0 == g.0) {
+                graphics.push(g.clone());
+            }
+        }
         #[cfg(feature = "presentation")]
         if let Some(part) = &presentation_part {
             use crate::presentation::{self, linear};
@@ -4195,6 +4313,7 @@ impl<'a> PartPlan<'a> {
             for (i, (_, _, _, plane, lines)) in graphics.iter().enumerate() {
                 if i < symbols.len()
                     || i >= symbols.len() + self.pmi.dimensions.len()
+                    || is_placed(graphics[i].0[0])
                     || measurements[i - symbols.len()].is_none()
                 {
                     let mut b = crate::geom::Bounds::empty();
@@ -4211,6 +4330,7 @@ impl<'a> PartPlan<'a> {
             let mut order: Vec<_> = measurements
                 .iter()
                 .enumerate()
+                .filter(|(i, _)| !is_placed(_st.dimensions[i]))
                 .filter_map(|(i, m)| m.as_ref().map(|m| (i, m)))
                 .collect();
             order.sort_by(|a, b| a.1.length().total_cmp(&b.1.length()).then(a.0.cmp(&b.0)));
@@ -4241,6 +4361,9 @@ impl<'a> PartPlan<'a> {
                 .enumerate()
                 .filter(|(_, t)| t.on.is_some())
             {
+                if is_placed(_st.properties[&notes::Source::Texture(i)]) {
+                    continue;
+                }
                 let f =
                     t.on.ok_or_else(|| WriteError::Internal("missing texture feature".into()))?;
                 let part = presentation_part
@@ -4266,7 +4389,10 @@ impl<'a> PartPlan<'a> {
                     p.lines,
                 ));
             }
-            let rows = notes::general_notes(self.pmi);
+            let rows: Vec<_> = notes::general_notes(self.pmi)
+                .into_iter()
+                .filter(|r| !is_placed(_st.properties[&r.source]))
+                .collect();
             if !rows.is_empty() {
                 let c = notes::notes_block(&rows);
                 // Appended annotations stay byte-identical, but still occupy space.
@@ -4302,6 +4428,8 @@ impl<'a> PartPlan<'a> {
                 ));
             }
         }
+        #[cfg(all(feature = "json-import", feature = "presentation"))]
+        source_presentation::overlap_warnings(&graphics, &placed, report);
         let context = em.reference(self.context)?;
         let font = em.simple(
             "draughting_pre_defined_curve_font",
@@ -4385,6 +4513,15 @@ impl<'a> PartPlan<'a> {
                 };
                 #[cfg(not(feature = "presentation"))]
                 let source_lines = &lines;
+                #[cfg(all(feature = "json-import", feature = "presentation"))]
+                let source_lines = if self
+                    .source_for_definitions(symbols, _st, &[definition])
+                    .is_some_and(|p| p.has_leader())
+                {
+                    &source_lines[..source_lines.len().saturating_sub(1)]
+                } else {
+                    source_lines.as_slice()
+                };
                 // Blank note rows still occupy their measured height in the block,
                 // but AP242 tessellated_curve_set requires nonempty line strips.
                 #[cfg(feature = "presentation")]
@@ -4452,6 +4589,10 @@ impl<'a> PartPlan<'a> {
                 if annotation_type == "note" {
                     callouts.push((vec![definition], occurrence, annotation_type));
                 }
+            }
+            #[cfg(all(feature = "json-import", feature = "presentation"))]
+            if let Some(source) = self.source_for_definitions(symbols, _st, &definition) {
+                occurrences.extend(source.emit_metadata(em, line_style, factor, source_height)?);
             }
             let callout = em.simple(
                 "draughting_callout",

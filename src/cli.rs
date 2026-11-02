@@ -72,9 +72,10 @@ mod pmi_interchange;
 const JSON_USAGE: &str = "PMI interchange (--features json-import):
        quiddity pmi json export <file.step> [--part N]
        quiddity pmi json import <geometry.step> <pmi.json> -o <out.step> [--part N]
-                         [--anchors <verified-face-namespace.json>]
+                         [--anchors <verified-face-namespace.json>] [--source-presentation FILE]
        quiddity pmi json validate <pmi-or-presentation.json>
-       quiddity pmi json presentation <file.step> [--part N]";
+       quiddity pmi json presentation <file.step> [--part N]
+       quiddity pmi write <file.step> <pmi.json> -o <out.step> --source-presentation FILE";
 
 const USAGE: &str = "usage: quiddity <file.step>
        quiddity correspond <old.json|old.step> <new.json|new.step>
@@ -477,6 +478,8 @@ struct WriteArgs {
     out: String,
     mode: Mode,
     policy: PresentationPolicy,
+    #[cfg(feature = "json-import")]
+    source_presentation: Option<String>,
 }
 
 impl WriteArgs {
@@ -489,6 +492,8 @@ impl WriteArgs {
             Ok(())
         }
         let mut positional = Vec::new();
+        #[cfg(feature = "json-import")]
+        let mut source_presentation = None;
         let (mut out, mut mode, mut policy) = (None, None, None);
         let mut it = args.iter();
         while let Some(a) = it.next() {
@@ -509,6 +514,8 @@ impl WriteArgs {
                     };
                     once(&mut mode, a, m)?;
                 }
+                #[cfg(feature = "json-import")]
+                "--source-presentation" => once(&mut source_presentation, a, value()?)?,
                 "--presentation" => {
                     let v = value()?;
                     let p = match v.as_str() {
@@ -539,6 +546,8 @@ impl WriteArgs {
             out,
             mode,
             policy: policy.unwrap_or(PresentationPolicy::RemovePresentation),
+            #[cfg(feature = "json-import")]
+            source_presentation,
         })
     }
 }
@@ -590,8 +599,26 @@ fn pmi_write(w: &WriteArgs) -> Result<String, String> {
             (p.part, pmi)
         })
         .collect();
-    let (edit, report) = crate::kernel::pmi::write(&doc, &defs, &pmi, w.mode, w.policy)
-        .map_err(|e| format!("{step}: write refused: {e}"))?;
+    #[cfg(feature = "json-import")]
+    let source = if let Some(path) = &w.source_presentation {
+        if pmi.len() != 1 {
+            return Err("--source-presentation requires exactly one selected part".into());
+        }
+        let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
+        let value = crate::kernel::json::parse(&text).map_err(|e| format!("{path}: {e}"))?;
+        let presentation = crate::kernel::json::presentation::from_value(value)
+            .map_err(|e| format!("{path}: {e}"))?;
+        vec![(pmi[0].0, presentation)]
+    } else {
+        Vec::new()
+    };
+    #[cfg(feature = "json-import")]
+    let result = crate::kernel::pmi::write::write_with_presentation(
+        &doc, &defs, &pmi, w.mode, w.policy, &source,
+    );
+    #[cfg(not(feature = "json-import"))]
+    let result = crate::kernel::pmi::write(&doc, &defs, &pmi, w.mode, w.policy);
+    let (edit, report) = result.map_err(|e| format!("{step}: write refused: {e}"))?;
     let written = doc
         .apply(&edit)
         .map_err(|e| format!("{step}: write refused: {e}"))?;

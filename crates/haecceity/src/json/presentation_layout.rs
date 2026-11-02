@@ -125,6 +125,25 @@ fn style_height(doc: &Document, owner: u64) -> Option<f64> {
     }
     None
 }
+/// Lower-left offset from the alignment point, in fractions of the text box.
+/// Shared by source placement and literal extraction so /1 aliases stay consistent.
+pub(crate) fn alignment_lower(alignment: &str) -> Option<[f64; 2]> {
+    match alignment.replace('_', " ").to_ascii_lowercase().as_str() {
+        "baseline left" | "bottom left" => Some([0., 0.]),
+        "baseline centre" | "baseline center" | "bottom centre" | "bottom center" => {
+            Some([-0.5, 0.])
+        }
+        "baseline right" | "bottom right" => Some([-1., 0.]),
+        "centre" | "center" | "middle centre" | "middle center" => Some([-0.5, -0.5]),
+        "middle left" => Some([0., -0.5]),
+        "middle right" => Some([-1., -0.5]),
+        "top left" => Some([0., -1.]),
+        "top centre" | "top center" => Some([-0.5, -1.]),
+        "top right" => Some([-1., -1.]),
+        _ => None,
+    }
+}
+
 pub(super) fn literal(
     doc: &Document,
     id: u64,
@@ -171,26 +190,7 @@ pub(super) fn literal(
     {
         // A literal's extent is a box, distinct from its font/style height.
         // Unknown alignment cannot locate that box relative to its anchor.
-        let alignment = placed
-            .alignment
-            .as_deref()
-            .unwrap_or("")
-            .replace('_', " ")
-            .to_ascii_lowercase();
-        let lower = match alignment.as_str() {
-            "baseline left" | "bottom left" => Some([0., 0.]),
-            "baseline centre" | "baseline center" | "bottom centre" | "bottom center" => {
-                Some([-0.5, 0.])
-            }
-            "baseline right" | "bottom right" => Some([-1., 0.]),
-            "centre" | "center" | "middle centre" | "middle center" => Some([-0.5, -0.5]),
-            "middle left" => Some([0., -0.5]),
-            "middle right" => Some([-1., -0.5]),
-            "top left" => Some([0., -1.]),
-            "top centre" | "top center" => Some([-0.5, -1.]),
-            "top right" => Some([-1., -1.]),
-            _ => None,
-        };
+        let lower = alignment_lower(placed.alignment.as_deref().unwrap_or(""));
         if let Some([x, y]) = lower {
             let w = width * geom::norm(frame.axes[0]) * scale;
             let h = height * geom::norm(frame.axes[1]) * scale;
@@ -239,6 +239,11 @@ pub(super) fn placeholder(
             if is(doc, member, "planar_box") {
                 placed.height = positive(attr(doc, member, "planar_extent", "size_in_y"))
                     .map(|height| height * scale * geom::norm(transform.axes[1]));
+            }
+            if let Some(alignment) = text(attr(doc, id, "representation_item", "name"))
+                .strip_prefix("haecceity placed text: ")
+            {
+                placed.alignment = Some(alignment.into());
             }
             graphic.step_ids.push(member);
             graphic.text_placements.push(placed);

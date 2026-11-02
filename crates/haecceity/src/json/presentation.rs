@@ -12,6 +12,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[path = "presentation_layout.rs"]
 mod layout;
+#[cfg(all(feature = "json-import", feature = "presentation"))]
+pub(crate) use layout::alignment_lower;
 pub use layout::{Plane, TextPlacement, View};
 
 /// Geometry purpose; dimension includes arrowheads, extension includes witnesses.
@@ -38,6 +40,9 @@ pub struct Graphic {
     pub plane_id: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub text_placements: Vec<TextPlacement>,
+    /// Optional model-space leader tip, in millimetres.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub leader: Option<[f64; 3]>,
     pub source: Source,
     pub name: String,
     pub polylines: Vec<Vec<[f64; 3]>>,
@@ -82,12 +87,33 @@ impl Default for Presentation {
         }
     }
 }
+/// Decode a companion while retaining the semantic owner in malformed-item errors.
+#[cfg(feature = "json-import")]
+pub fn from_value(mut value: Value) -> Result<Presentation> {
+    let items = value
+        .get_mut("items")
+        .map(|items| std::mem::replace(items, serde_json::json!({})));
+    let mut presentation: Presentation = serde_json::from_value(value)?;
+    if let Some(items) = items {
+        let Value::Object(items) = items else {
+            return Err(Error("presentation items must be an object".into()));
+        };
+        for (id, graphics) in items {
+            let graphics = serde_json::from_value(graphics)
+                .map_err(|e| Error(format!("presentation item {id}: {e}")))?;
+            presentation.items.insert(id, graphics);
+        }
+    }
+    Ok(presentation)
+}
+
 impl Graphic {
     fn new(source: Source, name: String) -> Self {
         Self {
             id: None,
             plane_id: None,
             text_placements: vec![],
+            leader: None,
             source,
             name,
             polylines: vec![],
@@ -365,6 +391,9 @@ fn draw(
         let points = refs(attr(doc, id, "polyline", "points"));
         let line: Option<Vec<_>> = points.iter().map(|r| point(doc, *r).map(at)).collect();
         if let Some(line) = line {
+            if text(attr(doc, id, "representation_item", "name")) == "haecceity leader" {
+                g.leader = line.first().copied();
+            }
             g.polylines.push(line);
         } else {
             g.unsupported
@@ -1211,7 +1240,7 @@ fn generated_graphic(
     (g, plane)
 }
 
-fn id_set(semantic: &Semantic) -> Result<Vec<String>> {
+pub(crate) fn id_set(semantic: &Semantic) -> Result<Vec<String>> {
     let mut ids: Vec<_> = semantic.ids.values().flatten().cloned().collect();
     let encoded = super::to_value(semantic)?;
     for table in ["length", "angle", "density", "other"] {

@@ -213,3 +213,132 @@ fn every_accepted_semantic_fixture_imports() {
         "the xcaf fixture and all three #142 producer regressions must be accepted"
     );
 }
+
+#[cfg(feature = "presentation")]
+#[test]
+fn plate_companion_import_uses_requirement_ids_and_places_actual_ink() {
+    use quiddity::kernel::{geom::Bounds, presentation};
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("crates/haecceity/tests/fixtures/xcaf");
+    let geometry = root.join("pmi_plate.geom.step.gz");
+    let semantic_path = root.join("pmi_plate.source.pmi.json");
+    let source_path = root.join("pmi_plate.source.presentation.json");
+    let output = scratch().join("plate-source-positions.step");
+    let imported = cli(&[
+        "pmi",
+        "json",
+        "import",
+        geometry.to_str().unwrap(),
+        semantic_path.to_str().unwrap(),
+        "-o",
+        output.to_str().unwrap(),
+        "--source-presentation",
+        source_path.to_str().unwrap(),
+    ]);
+    assert!(
+        imported.status.success(),
+        "{}",
+        String::from_utf8_lossy(&imported.stderr)
+    );
+    let drawn = cli(&["pmi", "json", "presentation", output.to_str().unwrap()]);
+    assert!(
+        drawn.status.success(),
+        "{}",
+        String::from_utf8_lossy(&drawn.stderr)
+    );
+    let drawn: json::presentation::Presentation = serde_json::from_slice(&drawn.stdout).unwrap();
+    let source: json::presentation::Presentation =
+        serde_json::from_slice(&std::fs::read(&source_path).unwrap()).unwrap();
+    assert_eq!(source.items.len(), 11);
+    for (id, graphics) in &source.items {
+        assert_eq!(
+            drawn.items[id][0].text_placements[0].origin, graphics[0].text_placements[0].origin,
+            "{id}"
+        );
+    }
+    let bytes = std::fs::read(&output).unwrap();
+    let defs = read_part_definitions(&bytes).unwrap();
+    let doc = Document::parse(bytes.clone()).unwrap();
+    let semantic = json::from_value(
+        &serde_json::from_slice(&std::fs::read(&semantic_path).unwrap()).unwrap(),
+        &Anchors::read(&doc, &defs[0]),
+    )
+    .unwrap();
+    for (i, dimension) in semantic.pmi.dimensions.iter().enumerate() {
+        let id = &semantic.ids["dimensions"][i];
+        let callout = presentation::dimension(dimension);
+        let lines = &drawn.items[id][0].polylines;
+        assert_eq!(lines.len(), callout.polylines().len(), "{id}: missing ink");
+        let mut ink = Bounds::empty();
+        for &p in lines[callout.frame_strokes..].iter().flatten() {
+            ink.add(p);
+        }
+        let expected = source.items[id][0].text_placements[0].origin;
+        for (actual, expected) in ink.centre().iter().zip(expected) {
+            assert!(
+                (actual - expected).abs() < 1e-9,
+                "{id}: {:?} != {expected:?}",
+                ink.centre()
+            );
+        }
+    }
+    // Bad source alignment refuses without replacing an existing output.
+    let mut bad: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&source_path).unwrap()).unwrap();
+    bad["items"]["thickness"][0]["text_placements"][0]["alignment"] = json!("justify");
+    let bad_path = scratch().join("plate-bad-alignment.presentation.json");
+    std::fs::write(&bad_path, bad.to_string()).unwrap();
+    let refused = cli(&[
+        "pmi",
+        "json",
+        "import",
+        geometry.to_str().unwrap(),
+        semantic_path.to_str().unwrap(),
+        "-o",
+        output.to_str().unwrap(),
+        "--source-presentation",
+        bad_path.to_str().unwrap(),
+    ]);
+    assert!(!refused.status.success());
+    let error = String::from_utf8_lossy(&refused.stderr);
+    assert!(
+        error.contains("thickness") && error.contains("alignment"),
+        "{error}"
+    );
+    assert_eq!(std::fs::read(&output).unwrap(), bytes);
+}
+
+#[cfg(not(feature = "presentation"))]
+#[test]
+fn json_import_source_requires_presentation_drawing() {
+    let cube = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/ties/cube.step");
+    let input = scratch().join("source-disabled.pmi.json");
+    let source = scratch().join("source-disabled.presentation.json");
+    let output = scratch().join("source-disabled-output.step");
+    let _ = std::fs::remove_file(&output);
+    std::fs::write(
+        &input,
+        json::to_string(&json::identify(model(), None).unwrap()).unwrap(),
+    )
+    .unwrap();
+    std::fs::write(
+        &source,
+        serde_json::to_string(&json::presentation::Presentation::default()).unwrap(),
+    )
+    .unwrap();
+    let result = cli(&[
+        "pmi",
+        "json",
+        "import",
+        cube,
+        input.to_str().unwrap(),
+        "-o",
+        output.to_str().unwrap(),
+        "--source-presentation",
+        source.to_str().unwrap(),
+    ]);
+    assert!(!result.status.success());
+    assert!(
+        String::from_utf8_lossy(&result.stderr).contains("requires the `presentation` feature")
+    );
+    assert!(!output.exists());
+}

@@ -43,7 +43,7 @@ pub(super) fn run(args: &[String]) -> Result<String, String> {
         }
         "import" => {
             let [step, json_path, options @ ..] = rest else {
-                return Err("usage: quiddity pmi json import <geometry.step> <pmi.json> -o <out.step> [--part N] [--anchors <anchors.json>]".into());
+                return Err("usage: quiddity pmi json import <geometry.step> <pmi.json> -o <out.step> [--part N] [--anchors <anchors.json>] [--source-presentation FILE]".into());
             };
             if part_input::is_f3d(step) {
                 return Err("json import requires original STEP geometry".into());
@@ -70,9 +70,24 @@ pub(super) fn run(args: &[String]) -> Result<String, String> {
             let semantic = interchange::from_value(&read_json(json_path)?, &anchors)
                 .map_err(|e| e.to_string())?;
             let expected = semantic.pmi.clone();
-            let (output, report) =
-                interchange::write_preserving(&doc, &defs, &[(PartId(part), semantic)])
-                    .map_err(|e| e.to_string())?;
+            let source = opts
+                .source_presentation
+                .map(|path| {
+                    interchange::presentation::from_value(read_json(path)?)
+                        .map(|p| (PartId(part), p))
+                        .map_err(|e| format!("{path}: {e}"))
+                })
+                .transpose()?
+                .into_iter()
+                .collect::<Vec<_>>();
+            let (output, report) = interchange::write_with_presentation(
+                &doc,
+                &defs,
+                &[(PartId(part), semantic)],
+                PresentationPolicy::RemovePresentation,
+                &source,
+            )
+            .map_err(|e| e.to_string())?;
             let after = p21::Document::parse(output.clone()).map_err(|e| e.to_string())?;
             let after_defs = read_part_definitions(&output).map_err(|e| e.to_string())?;
             let after_read = pmi::read(&after, &after_defs).map_err(|e| e.to_string())?;
@@ -81,9 +96,11 @@ pub(super) fn run(args: &[String]) -> Result<String, String> {
                 return Err(format!("output does not verify: {differences:?}"));
             }
             atomic_write(out, &output)?;
-            Ok(
-                json!({"schema":"haecceity.pmi/1","part":part,"output":out,"added":report.added,"differences":differences,"presentation_removed":report.presentation_removed}),
-            )
+            let mut result = json!({"schema":"haecceity.pmi/1","part":part,"output":out,"added":report.added,"differences":differences,"presentation_removed":report.presentation_removed});
+            if !report.presentation_warnings.is_empty() {
+                result["presentation_warnings"] = json!(report.presentation_warnings);
+            }
+            Ok(result)
         }
         _ => Err(format!("unknown PMI JSON command {command:?}")),
     }?;
@@ -93,12 +110,14 @@ struct Options<'a> {
     part: Option<usize>,
     out: Option<&'a str>,
     anchors: Option<&'a str>,
+    source_presentation: Option<&'a str>,
 }
 fn options_parse(args: &[String], import: bool) -> Result<Options<'_>, String> {
     let mut opts = Options {
         part: None,
         out: None,
         anchors: None,
+        source_presentation: None,
     };
     let mut rest = args;
     while let [flag, value, tail @ ..] = rest {
@@ -108,6 +127,9 @@ fn options_parse(args: &[String], import: bool) -> Result<Options<'_>, String> {
             }
             "-o" if import && opts.out.is_none() => opts.out = Some(value),
             "--anchors" if import && opts.anchors.is_none() => opts.anchors = Some(value),
+            "--source-presentation" if import && opts.source_presentation.is_none() => {
+                opts.source_presentation = Some(value)
+            }
             _ => return Err(format!("unknown or repeated option {flag:?}")),
         };
         rest = tail;
