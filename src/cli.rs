@@ -86,7 +86,7 @@ const USAGE: &str = "usage: quiddity <file.step>
        quiddity pmi read <file.step> [--part N]
        quiddity pmi check <file.step> <pmi.json>
        quiddity pmi write <file.step> <pmi.json> -o <out.step> [--mode add|replace|remove]
-                          [--presentation refuse|remove]
+                          [--presentation refuse|remove] [--source-presentation FILE]
        quiddity brep <file.step> -o <out.step> [--pmi <pmi.json>]
                           (B-rep and PMI to a new AP242 file; --pmi: that PMI, not the file's)
 
@@ -477,6 +477,7 @@ struct WriteArgs {
     out: String,
     mode: Mode,
     policy: PresentationPolicy,
+    source_presentation: Option<String>,
 }
 
 impl WriteArgs {
@@ -489,6 +490,7 @@ impl WriteArgs {
             Ok(())
         }
         let mut positional = Vec::new();
+        let mut source_presentation = None;
         let (mut out, mut mode, mut policy) = (None, None, None);
         let mut it = args.iter();
         while let Some(a) = it.next() {
@@ -509,6 +511,7 @@ impl WriteArgs {
                     };
                     once(&mut mode, a, m)?;
                 }
+                "--source-presentation" => once(&mut source_presentation, a, value()?)?,
                 "--presentation" => {
                     let v = value()?;
                     let p = match v.as_str() {
@@ -539,6 +542,7 @@ impl WriteArgs {
             out,
             mode,
             policy: policy.unwrap_or(PresentationPolicy::RemovePresentation),
+            source_presentation,
         })
     }
 }
@@ -590,8 +594,21 @@ fn pmi_write(w: &WriteArgs) -> Result<String, String> {
             (p.part, pmi)
         })
         .collect();
-    let (edit, report) = crate::kernel::pmi::write(&doc, &defs, &pmi, w.mode, w.policy)
-        .map_err(|e| format!("{step}: write refused: {e}"))?;
+    let source = if let Some(path) = &w.source_presentation {
+        if pmi.len() != 1 {
+            return Err("--source-presentation requires exactly one selected part".into());
+        }
+        let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
+        let value = crate::kernel::json::parse(&text).map_err(|e| format!("{path}: {e}"))?;
+        let presentation = serde_json::from_value(value).map_err(|e| format!("{path}: {e}"))?;
+        vec![(pmi[0].0, presentation)]
+    } else {
+        Vec::new()
+    };
+    let (edit, report) = crate::kernel::pmi::write::write_with_presentation(
+        &doc, &defs, &pmi, w.mode, w.policy, &source,
+    )
+    .map_err(|e| format!("{step}: write refused: {e}"))?;
     let written = doc
         .apply(&edit)
         .map_err(|e| format!("{step}: write refused: {e}"))?;

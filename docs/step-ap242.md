@@ -1997,3 +1997,34 @@ specified under writer gaps above. The former round-1 compatibility failures
 are resolved by that form; all other §5.1 fixes remain in place. Reader binding
 `/15` is still needed for independent standalone members: restoring functional
 endpoint wrappers does not restore the redundant ordinary-feature wrappers.
+
+### Source callout positions (phase 1)
+
+With the `json-import` feature, `pmi::write::write_with_presentation` accepts
+`&[(PartId, json::presentation::Presentation)]` after the existing write arguments.
+Keys are the ids returned by `json::identify(standard_form(pmi), None)`; the JSON
+route, `json::write_with_presentation`, uses the submitted semantic document's ids.
+Both existing `write` entry points retain their behavior. Python accepts
+`pmi.write(geometry, document, presentation=companion)` (dict or JSON string).
+The CLI accepts `--source-presentation FILE` for a single selected part; its PMI
+input remains the CLI's `quiddity-pmi` document, with the Rust route's semantic ids.
+`--presentation refuse|remove` still controls removal of existing presentation.
+
+The companion is `haecceity.presentation/1`. Each item's first graphic with a
+`plane_id`, `text_placements` or `leader` supplies its main placement. It must
+have a text position; the plane defaults to that text frame when omitted.
+The text origin is the insertion origin of the shared local callout geometry;
+axes are orthonormalized and height defaults to 3 mm. A new optional
+`Graphic.leader: [x, y, z]` gives the tip in model-space millimetres. Existing
+source polylines, triangles and saved views are not copied. Subsequent per-view
+placements use the item's main position for this phase.
+
+Placed notes get independent callouts linked to their note properties and leave
+the generated general-notes block. Unplaced items keep the generated layout,
+whose existing packing passes reserve placed callouts. Invalid ids, degenerate
+frames and missing text positions fail before output is returned or a CLI file
+is replaced. `WriteReport.presentation_warnings` (also an optional report JSON
+field) reports edge-on text and overlapping callouts without moving them.
+Placed text insertion frames are carried by AP242 annotation placeholders beside
+the tessellated strokes; edition-1 inputs with placements upgrade to edition 4.
+Documents without placements keep existing output bytes and schemas.

@@ -1,0 +1,688 @@
+{
+ "schema": "haecceity.pmi/1",
+ "units": {
+  "length": [
+   {
+    "id": "unit/mm",
+    "value": "millimetre"
+   }
+  ],
+  "angle": [],
+  "density": [
+   {
+    "id": "unit/g-per-cm3",
+    "value": [
+     [
+      "gram",
+      "1."
+     ],
+     [
+      "centimetre",
+      "-3."
+     ]
+    ]
+   }
+  ],
+  "other": []
+ },
+ "pmi": {
+  "standards": [],
+  "decimal_places": null,
+  "features": [
+   {
+    "id": "feature/0",
+    "value": {
+     "items": [
+      {
+       "face": {
+        "name": "f:pmi_plate.body_make_box1.5;M:pmi_plate.body"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "feature/1",
+    "value": {
+     "items": [
+      {
+       "face": {
+        "name": "f:pmi_plate.body_make_box1.3"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "feature/2",
+    "value": {
+     "items": [
+      {
+       "face": {
+        "name": "f:pmi_plate.body_make_box1.1"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "feature/3",
+    "value": {
+     "items": [
+      {
+       "face": {
+        "name": "f:pmi_plate.body_make_box1.5;M:pmi_plate.body"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "feature/4",
+    "value": {
+     "items": [
+      {
+       "face": {
+        "name": "f:pmi_plate.body_make_box1.6;M:pmi_plate.body"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "feature/5",
+    "value": {
+     "items": [
+      {
+       "face": {
+        "name": "f:pmi_plate.body_make_cylinder1.1;M:pmi_plate.body"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "feature/6",
+    "value": {
+     "items": [
+      {
+       "face": {
+        "name": "f:pmi_plate.body_make_box1.3"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "feature/7",
+    "value": {
+     "items": [
+      {
+       "face": {
+        "name": "f:pmi_plate.body_make_cylinder1.1;M:pmi_plate.body"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "feature/8",
+    "value": {
+     "items": [
+      {
+       "face": {
+        "name": "f:pmi_plate.body_make_box1.1"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "feature/9",
+    "value": {
+     "items": [
+      {
+       "face": {
+        "name": "f:pmi_plate.body_make_cylinder1.1;M:pmi_plate.body"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "feature/10",
+    "value": {
+     "items": [
+      {
+       "face": {
+        "name": "f:pmi_plate.body_make_box1.6;M:pmi_plate.body"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "feature/11",
+    "value": {
+     "items": [
+      {
+       "face": {
+        "name": "f:pmi_plate.body_make_cylinder1.1;M:pmi_plate.body"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "feature/12",
+    "value": {
+     "items": [
+      {
+       "face": {
+        "name": "f:pmi_plate.body_make_box1.3"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "feature/13",
+    "value": {
+     "items": [
+      {
+       "face": {
+        "name": "f:pmi_plate.body_make_box1.1"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "feature/14",
+    "value": {
+     "items": [
+      {
+       "face": {
+        "name": "f:pmi_plate.body_make_box1.4"
+       }
+      },
+      {
+       "face": {
+        "name": "f:pmi_plate.body_make_box1.2"
+       }
+      }
+     ]
+    }
+   },
+   {
+    "id": "feature/15",
+    "value": {
+     "items": [
+      {
+       "face": {
+        "name": "f:pmi_plate.body_make_cylinder1.1;M:pmi_plate.body"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "datum_targets": [],
+  "datums": [
+   {
+    "id": "datum/A",
+    "value": {
+     "feature": "feature/0",
+     "label": "A",
+     "targets": []
+    }
+   },
+   {
+    "id": "datum/B",
+    "value": {
+     "feature": "feature/1",
+     "label": "B",
+     "targets": []
+    }
+   },
+   {
+    "id": "datum/C",
+    "value": {
+     "feature": "feature/2",
+     "label": "C",
+     "targets": []
+    }
+   }
+  ],
+  "material": {
+   "id": "Alu_G6061_T6",
+   "name": null,
+   "density": {
+    "value": "2.7",
+    "unit": "unit/g-per-cm3"
+   }
+  },
+  "geometry": [],
+  "dimensions": [
+   {
+    "id": "thickness",
+    "value": {
+     "kind": {
+      "location": {
+       "angle": null,
+       "directed": false,
+       "from": "feature/3",
+       "path": null,
+       "to": "feature/4",
+       "kind": "linear distance"
+      }
+     },
+     "modifiers": [],
+     "nominal": {
+      "decimal_places": null,
+      "quantity": {
+       "length": {
+        "unit": "unit/mm",
+        "value": "10.0"
+       }
+      }
+     },
+     "principle": null,
+     "qualifier": null,
+     "tolerance": {
+      "deviations": {
+       "lower": {
+        "decimal_places": null,
+        "quantity": {
+         "length": {
+          "unit": "unit/mm",
+          "value": "-0.2"
+         }
+        }
+       },
+       "upper": {
+        "decimal_places": null,
+        "quantity": {
+         "length": {
+          "unit": "unit/mm",
+          "value": "0.2"
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   {
+    "id": "hole-diameter",
+    "value": {
+     "kind": {
+      "size": {
+       "angle": null,
+       "feature": "feature/5",
+       "path": null,
+       "kind": "diameter"
+      }
+     },
+     "modifiers": [],
+     "nominal": {
+      "decimal_places": null,
+      "quantity": {
+       "length": {
+        "unit": "unit/mm",
+        "value": "10.0"
+       }
+      }
+     },
+     "principle": null,
+     "qualifier": null,
+     "tolerance": {
+      "deviations": {
+       "lower": {
+        "decimal_places": null,
+        "quantity": {
+         "length": {
+          "unit": "unit/mm",
+          "value": "0.0"
+         }
+        }
+       },
+       "upper": {
+        "decimal_places": null,
+        "quantity": {
+         "length": {
+          "unit": "unit/mm",
+          "value": "0.1"
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   {
+    "id": "hole-from-B",
+    "value": {
+     "kind": {
+      "location": {
+       "angle": null,
+       "directed": false,
+       "from": "feature/6",
+       "path": null,
+       "to": "feature/7",
+       "kind": "linear distance"
+      }
+     },
+     "modifiers": [],
+     "nominal": {
+      "decimal_places": null,
+      "quantity": {
+       "length": {
+        "unit": "unit/mm",
+        "value": "30.0"
+       }
+      }
+     },
+     "principle": null,
+     "qualifier": null,
+     "tolerance": "basic"
+    }
+   },
+   {
+    "id": "hole-from-C",
+    "value": {
+     "kind": {
+      "location": {
+       "angle": null,
+       "directed": false,
+       "from": "feature/8",
+       "path": null,
+       "to": "feature/9",
+       "kind": "linear distance"
+      }
+     },
+     "modifiers": [],
+     "nominal": {
+      "decimal_places": null,
+      "quantity": {
+       "length": {
+        "unit": "unit/mm",
+        "value": "50.0"
+       }
+      }
+     },
+     "principle": null,
+     "qualifier": null,
+     "tolerance": "basic"
+    }
+   }
+  ],
+  "tolerances": [
+   {
+    "id": "top-flatness",
+    "value": {
+     "auxiliary": [],
+     "datums": null,
+     "description": null,
+     "kind": "flatness_tolerance",
+     "magnitude": {
+      "decimal_places": null,
+      "quantity": {
+       "length": {
+        "unit": "unit/mm",
+        "value": "0.05"
+       }
+      }
+     },
+     "maximum": null,
+     "modifiers": [],
+     "target": {
+      "feature": "feature/10"
+     },
+     "unequal": null,
+     "unit_basis": null,
+     "zone": null
+    }
+   },
+   {
+    "id": "hole-position",
+    "value": {
+     "auxiliary": [],
+     "datums": [
+      {
+       "modifiers": [],
+       "references": [
+        {
+         "datum": "datum/A",
+         "modifiers": []
+        }
+       ]
+      },
+      {
+       "modifiers": [],
+       "references": [
+        {
+         "datum": "datum/B",
+         "modifiers": []
+        }
+       ]
+      },
+      {
+       "modifiers": [],
+       "references": [
+        {
+         "datum": "datum/C",
+         "modifiers": []
+        }
+       ]
+      }
+     ],
+     "description": null,
+     "kind": "position_tolerance",
+     "magnitude": {
+      "decimal_places": null,
+      "quantity": {
+       "length": {
+        "unit": "unit/mm",
+        "value": "0.1"
+       }
+      }
+     },
+     "maximum": null,
+     "modifiers": [],
+     "target": {
+      "feature": "feature/11"
+     },
+     "unequal": null,
+     "unit_basis": null,
+     "zone": {
+      "affected_plane": null,
+      "affected_plane_kind": null,
+      "form": "cylindrical or circular",
+      "non_uniform": null,
+      "projected": null,
+      "runout_angle": null
+     }
+    }
+   },
+   {
+    "id": "B-profile",
+    "value": {
+     "auxiliary": [],
+     "datums": [
+      {
+       "modifiers": [],
+       "references": [
+        {
+         "datum": "datum/A",
+         "modifiers": []
+        }
+       ]
+      }
+     ],
+     "description": null,
+     "kind": "surface_profile_tolerance",
+     "magnitude": {
+      "decimal_places": null,
+      "quantity": {
+       "length": {
+        "unit": "unit/mm",
+        "value": "0.1"
+       }
+      }
+     },
+     "maximum": null,
+     "modifiers": [],
+     "target": {
+      "feature": "feature/12"
+     },
+     "unequal": null,
+     "unit_basis": null,
+     "zone": null
+    }
+   },
+   {
+    "id": "C-profile",
+    "value": {
+     "auxiliary": [],
+     "datums": [
+      {
+       "modifiers": [],
+       "references": [
+        {
+         "datum": "datum/A",
+         "modifiers": []
+        }
+       ]
+      },
+      {
+       "modifiers": [],
+       "references": [
+        {
+         "datum": "datum/B",
+         "modifiers": []
+        }
+       ]
+      }
+     ],
+     "description": null,
+     "kind": "surface_profile_tolerance",
+     "magnitude": {
+      "decimal_places": null,
+      "quantity": {
+       "length": {
+        "unit": "unit/mm",
+        "value": "0.1"
+       }
+      }
+     },
+     "maximum": null,
+     "modifiers": [],
+     "target": {
+      "feature": "feature/13"
+     },
+     "unequal": null,
+     "unit_basis": null,
+     "zone": null
+    }
+   },
+   {
+    "id": "general",
+    "value": {
+     "auxiliary": [],
+     "datums": [
+      {
+       "modifiers": [],
+       "references": [
+        {
+         "datum": "datum/A",
+         "modifiers": []
+        }
+       ]
+      },
+      {
+       "modifiers": [],
+       "references": [
+        {
+         "datum": "datum/B",
+         "modifiers": []
+        }
+       ]
+      },
+      {
+       "modifiers": [],
+       "references": [
+        {
+         "datum": "datum/C",
+         "modifiers": []
+        }
+       ]
+      }
+     ],
+     "description": null,
+     "kind": "surface_profile_tolerance",
+     "magnitude": {
+      "decimal_places": null,
+      "quantity": {
+       "length": {
+        "unit": "unit/mm",
+        "value": "0.5"
+       }
+      }
+     },
+     "maximum": null,
+     "modifiers": [],
+     "target": {
+      "feature": "feature/14"
+     },
+     "unequal": null,
+     "unit_basis": null,
+     "zone": null
+    }
+   }
+  ],
+  "notes": [
+   {
+    "id": "0:1:9:1:1",
+    "value": {
+     "kind": "semantic text",
+     "text": "Remove all burrs and break sharp edges",
+     "on": null,
+     "callouts": []
+    }
+   },
+   {
+    "id": "0:1:9:1:2",
+    "value": {
+     "kind": "semantic text",
+     "text": "Mask these features before coating with primer",
+     "on": {
+      "feature": "feature/15"
+     },
+     "callouts": []
+    }
+   }
+  ],
+  "attributes": [],
+  "general": [
+   {
+    "id": "0:1:9:1:3",
+    "value": {
+     "class": {
+      "text": "ISO 2768-mK",
+      "standard": {
+       "linear": "m",
+       "geometric": "K"
+      }
+     }
+    }
+   }
+  ],
+  "threads": [],
+  "knurls": [],
+  "holes": [],
+  "surface_textures": [],
+  "tolerance_relations": [],
+  "derived_geometry": []
+ }
+}

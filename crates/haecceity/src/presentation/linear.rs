@@ -618,6 +618,7 @@ impl Ladder {
     }
     /// Compact packing for generated per-plane saved views. The writer uses
     /// `compact` and continues to check every readable principal/isometric view.
+    #[cfg(feature = "presentation")]
     pub(crate) fn for_views(bounds: Bounds) -> Self {
         Self {
             view_local: true,

@@ -34,9 +34,9 @@ def _part(part: int | None) -> int | None:
     return part
 
 
-def write(geometry: str | os.PathLike | bytes, document: str | dict, *, part: int | None = None, report: bool = False) -> bytes | tuple[bytes, dict]:
+def write(geometry: str | os.PathLike | bytes, document: str | dict, *, part: int | None = None, report: bool = False, presentation: str | dict | None = None) -> bytes | tuple[bytes, dict]:
     """Return verified AP242 bytes, or (bytes, import-report dict) with report=True; no files written."""
-    output, details = pmi_write(_step(geometry), _document(document), _part(part), report)
+    output, details = pmi_write(_step(geometry), _document(document), _part(part), report, None if presentation is None else _document(presentation))
     return (output, json.loads(details)) if report else output
 
 

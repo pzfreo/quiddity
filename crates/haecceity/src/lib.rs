@@ -55,7 +55,7 @@ pub mod express_rules;
 pub mod removal;
 
 /// Shared PMI notation and local callout geometry.
-#[cfg(feature = "presentation")]
+#[cfg(any(feature = "presentation", feature = "json-import"))]
 pub mod presentation;
 
 mod stroke_font;

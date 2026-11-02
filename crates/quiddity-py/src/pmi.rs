@@ -155,6 +155,13 @@ fn writer_findings(writer: &Value) -> Vec<Value> {
             }
         }
     }
+    if let Some(warnings) = writer["presentation_warnings"].as_array() {
+        out.extend(
+            warnings
+                .iter()
+                .map(|message| value!({"category": "presentation_warnings", "message": message})),
+        );
+    }
     if let Some(schema) = writer.get("edition_undetermined") {
         out.push(
             value!({"category": "edition_undetermined", "file_schema": schema,
@@ -199,13 +206,14 @@ fn import_report(
 }
 
 #[pyfunction]
-#[pyo3(signature = (geometry, document, part=None, report=false))]
+#[pyo3(signature = (geometry, document, part=None, report=false, presentation=None))]
 fn pmi_write<'py>(
     py: Python<'py>,
     geometry: &Bound<'_, PyAny>,
     document: String,
     part: Option<usize>,
     report: bool,
+    presentation: Option<String>,
 ) -> PyResult<(Bound<'py, PyBytes>, Option<String>)> {
     let input = super::Input::extract(geometry)?;
     let (output, details) = py
@@ -221,7 +229,22 @@ fn pmi_write<'py>(
                 let requested = [(PartId(selected), semantic)];
                 // write_preserving already verifies exact model, requirement ids and units by
                 // reading the candidate back. Presentation is enabled by the dependency defaults.
-                let (output, written) = json::write_preserving(&doc, &parts, &requested)?;
+                let presentation = presentation
+                    .as_deref()
+                    .map(|text| {
+                        let value = json::parse(text)?;
+                        Ok::<_, json::Error>((PartId(selected), serde_json::from_value(value)?))
+                    })
+                    .transpose()?
+                    .into_iter()
+                    .collect::<Vec<_>>();
+                let (output, written) = json::write_with_presentation(
+                    &doc,
+                    &parts,
+                    &requested,
+                    pmi::write::PresentationPolicy::RemovePresentation,
+                    &presentation,
+                )?;
                 let details = if report {
                     Some(serde_json::to_string(&import_report(
                         &doc,

@@ -6,6 +6,15 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+- PMI writing accepts optional source callout planes, text positions and leader
+  tips through Rust/JSON `write_with_presentation`, Python `presentation=`, and
+  CLI `--source-presentation FILE`. Placed notes have their own note-linked
+  callouts. Invalid placements fail atomically; edge-on text and overlaps warn
+  without moving supplied positions. Saved views remain a later phase.
+- `haecceity.presentation/1` adds optional `Graphic.leader` (a model-space point
+  in millimetres). Old companions still read. `WriteReport` adds
+  `presentation_warnings`; existing writer goldens remain unchanged.
+
 ## 0.4.5 (2026-11-02)
 
 Upgrading from 0.4.4: recognition schema `/6`, fingerprints `/3` and the `haecceity.pmi/1` schema are unchanged. The PMI reader string advances to `haecceity-pmi-read/15`. Semantic PMI reads as before, with two exceptions: the datum findings below, and aspects that 0.4.5 writes named `haecceity.feature/1`. Old files are unaffected by the second.

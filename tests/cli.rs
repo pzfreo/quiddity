@@ -46,6 +46,7 @@ fn help_prints_usage_and_succeeds() {
             "quiddity pmi check <file.step> <pmi.json>",
             "quiddity pmi write <file.step> <pmi.json> -o <out.step> [--mode add|replace|remove]",
             "[--presentation refuse|remove]",
+            "[--source-presentation FILE]",
         ] {
             assert!(usage.contains(command), "{flag}: {usage}");
         }
