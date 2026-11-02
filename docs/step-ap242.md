@@ -616,8 +616,11 @@ plane variants and table-value qualifiers are held, the anonymous decimal-only c
 projected to the part default, semantic text on targets is read separately from parameters, and
 toleranced relationships are no longer misread as feature composition; document format version 2 is unchanged.
 
-- **Shared-carrier traversal (§5.1), maintainer decision 2026-11-02.** Keep the
-  OCCT-readable form only when an ordinary carrier is also reached by another
+- **Shared-carrier relationship ambiguity (§5.1), maintainer decision 2026-11-02.**
+  A plain SAR out of a shared bare per-face carrier is read as composition by both
+  independent readers checked: OCCT 7.9.3 XCAF and NIST STEP File Analyzer (SFA) 5.41.
+  The direct functional relationship is therefore ambiguous in practice. Retain
+  private functional endpoints only when an ordinary carrier is also reached by another
   semantic characteristic (dimension, feature-target tolerance, datum feature,
   thread/knurl or feature-owned property), including gathering/deriving members
   and shared per-item carriers. A controlled-pair target whose relating endpoint
@@ -638,16 +641,23 @@ toleranced relationships are no longer misread as feature composition; document 
   shell when datum promotion makes it unnecessary. Rewritten associations are
   reported in `rewritten`; forwarding shells are never promoted or reused.
 
-  [OCCT 7.9.3 `collectShapeAspect`, lines 2723–2774](https://github.com/Open-Cascade-SAS/OCCT/blob/V7_9_3/src/STEPCAFControl/STEPCAFControl_Reader.cxx#L2723-L2774)
-  treats outgoing non-dimensional SARs as composition and ignores the carrier's
-  own GISU whenever one exists. Strict shared endpoints therefore move the two
-  ordinary Position tolerances in `pmi_gaps`/`pmi_gaps_gram` from face #17 to #129,
-  and hide the control and supported targets in `datum_targets_shared_support`.
-  The authorized form restores main's XCAF reading without relaxing its oracle.
+  [OCCT 7.9.3 `collectShapeAspect`, lines 2889–2940](https://github.com/Open-Cascade-SAS/OCCT/blob/V7_9_3/src/STEPCAFControl/STEPCAFControl_Reader.cxx#L2889-L2940)
+  takes the ordinary carrier's outgoing non-dimensional-location SARs as children
+  (lines 2918–2938), excluding null and datum related endpoints. It appends the
+  carrier itself only if it finds no such children, omitting its own GISU otherwise.
+  In `pmi_gaps-strict.stp`, SAR #6530 (6515→6517) therefore moves XCAF's two ordinary
+  Position tolerances from face #17 to #129; SFA's `pmi_gaps-strict-sfa.xlsx` includes
+  face #129 alongside #17 as their toleranced geometry. In
+  `datum_targets_shared_support-strict.stp`, XCAF drops the 0.05 Position tolerance
+  on face #17 (datum A); `datum_targets_shared_support-strict-sfa.xlsx` retains it
+  but includes the five placed datum targets as its toleranced geometry. The
+  corresponding `-main.stp`/`-main-sfa.xlsx` controls retain the intended geometry.
+  Private endpoints separate functional context from geometric composition,
+  preserving that reading without relaxing the XCAF oracle.
 
   `WriteReport.geometry_carrier_exemptions` lists actual additions with part,
-  structural condition (`occt-7.9.3-controlled-pair` or
-  `occt-7.9.3-shared-datum-target-support`), private aspect id and original carrier
+  structural condition (`shared-carrier-controlled-pair` or
+  `shared-carrier-datum-target-support`), private aspect id and original carrier
   id. CLI/Python expose the same optional report field. This is not an EXPRESS
   schema/rule exemption; their existing backstops remain unchanged.
   `pmi_face_usage` independently recognizes the graph conditions and checks the
@@ -757,10 +767,10 @@ their labels. That environment has no `specify_core` module, so the separate app
 check is recorded as unavailable, not passed. `references/pmi_write.json` retains every earlier
 verdict except the review corrections described below, and adds the new differences. XCAF reads 7850 kg/m³ as 0.00785 g/cm³ instead of 7.85;
 its `ReadMaterials` handles conversion-based mass units but omits SI mass prefixes
-([7.9.3 source](https://github.com/Open-Cascade-SAS/OCCT/blob/V7_9_3/src/STEPCAFControl/STEPCAFControl_Reader.cxx#L5053)).
+([7.9.3 source, lines 5048–5079](https://github.com/Open-Cascade-SAS/OCCT/blob/V7_9_3/src/STEPCAFControl/STEPCAFControl_Reader.cxx#L5048-L5079)).
 The gram/cm³ control reads 7.85 correctly: the kilogram file is correct and OCCT misreads it.
 The review traced the earlier wrong-face tolerances to shared relationship endpoints, not
-projection origins (OCCT `collectShapeAspect`, lines 2918–2934). With isolated endpoints, both
+projection origins (OCCT `collectShapeAspect`, lines 2918–2938). With isolated endpoints, both
 ordinary Position tolerances remain on face #17; their obsolete wrong-face/missing pins are
 removed on that evidence. XCAF does not read the edition 4 relationship target. It never reads
 affected planes in 7.9.3, so that difference is **not-applicable**, along with absent XCAF APIs

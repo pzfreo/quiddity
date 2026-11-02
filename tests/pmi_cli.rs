@@ -1019,6 +1019,31 @@ fn spool_writable() -> (Json, String) {
     spool()
 }
 
+#[test]
+fn shared_carrier_exemptions_use_structural_report_conditions() {
+    for (case, condition, count) in [
+        ("pmi_gaps", "shared-carrier-controlled-pair", 2),
+        (
+            "datum_targets_shared_support",
+            "shared-carrier-datum-target-support",
+            5,
+        ),
+    ] {
+        let source = ap242().join(format!("write-presentation/{case}.step.gz"));
+        let step = source.to_str().unwrap();
+        let (doc, _) = ok(&["pmi", "read", step]);
+        let (_, output) = write_cli(step, &doc, case, &["--mode", "replace"]);
+        let (report, _) = write_ok(&output, case);
+        let exemptions = report["geometry_carrier_exemptions"].as_array().unwrap();
+        assert_eq!(exemptions.len(), count, "{case}");
+        for exemption in exemptions {
+            assert_eq!(exemption["condition"], condition, "{case}");
+            assert_eq!(exemption["part"], 0, "{case}");
+            assert_ne!(exemption["aspect"], exemption["feature"], "{case}");
+        }
+    }
+}
+
 /// The same write twice gives the same bytes and the same report; a `.gz` output is the same
 /// text gzipped; the inch NIST fixtures' values keep their text through read → replace → read
 /// (every inch value read back is a REAL token of the written file and was in the JSON written).

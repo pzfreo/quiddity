@@ -23,8 +23,9 @@ in [docs/alpha1.md](docs/alpha1.md).
   in place. Legacy endpoint wrappers are retired on Add; independent same-content
   features retain separate removal provenance. A second datum label on an already
   established feature is refused under `datum_feature.WR1`.
-  For shared controlled-pair and datum-target-support endpoints that OCCT 7.9.3
-  misreads, retain private forwarding aspects under a narrow §5.1 exemption.
+  For ambiguous shared controlled-pair and datum-target-support SARs that both
+  OCCT 7.9.3 XCAF and NIST SFA 5.41 read as composition, retain private forwarding
+  aspects under a narrow §5.1 exemption.
   `WriteReport.geometry_carrier_exemptions` and the optional CLI/Python report field
   list each actual exempt addition by structural condition and endpoint/carrier id.
   Datum-feature endpoints stay direct; face/GISU uniqueness remains mandatory.

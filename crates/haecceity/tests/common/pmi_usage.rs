@@ -210,7 +210,7 @@ fn signature(
     cache.insert(id, s.clone());
     s
 }
-/// A structurally verified OCCT forwarding exception. No names/markers grant exemptions.
+/// A structurally verified shared-carrier exception. No names/markers grant exemptions.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Exemption {
     pub condition: &'static str,
@@ -331,7 +331,7 @@ pub fn exemptions(doc: &Document) -> Vec<Exemption> {
                     .is_some_and(|m| is_a(doc, m, "datum_target"))
             {
                 out.push(Exemption {
-                    condition: "occt-7.9.3-shared-datum-target-support",
+                    condition: "shared-carrier-datum-target-support",
                     aspect: a,
                     feature: member,
                     association: r,
@@ -347,7 +347,7 @@ pub fn exemptions(doc: &Document) -> Vec<Exemption> {
                     && let Some(member) = private_member(doc, endpoint)
                 {
                     out.push(Exemption {
-                        condition: "occt-7.9.3-controlled-pair",
+                        condition: "shared-carrier-controlled-pair",
                         aspect: endpoint,
                         feature: member,
                         association: r,

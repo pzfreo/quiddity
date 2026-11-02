@@ -317,11 +317,12 @@ impl std::fmt::Display for LongStringWarning {
     }
 }
 
-/// A private forwarding aspect needed for OCCT 7.9.3 SAR traversal (PMI §5.1 exception).
+/// A private forwarding aspect disambiguating a shared carrier's functional SAR (PMI §5.1).
+/// Both OCCT 7.9.3 XCAF and NIST SFA 5.41 read the direct SAR as composition.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GeometryCarrierExemption {
     pub part: PartId,
-    /// `occt-7.9.3-controlled-pair` or `occt-7.9.3-shared-datum-target-support`.
+    /// `shared-carrier-controlled-pair` or `shared-carrier-datum-target-support`.
     pub condition: &'static str,
     /// The added private aspect, and the actual geometric carrier it composes.
     pub aspect: u64,
@@ -347,7 +348,7 @@ pub struct WriteReport {
     pub removed: Vec<u64>,
     /// Kept instances rewritten without removed members, own legacy text rechunked,
     /// geometric carriers specialized to datum features, or functional SAR endpoints
-    /// isolated/unwrapped for OCCT interoperability.
+    /// isolated/unwrapped to disambiguate shared-carrier relationships.
     pub rewritten: Vec<u64>,
     /// Presentation and validation properties removed with the replaced PMI.
     pub presentation_removed: Vec<(u64, String)>,
@@ -376,7 +377,7 @@ pub struct WriteReport {
     /// Actual violations of the named practice/schema conflicts on newly added instances
     /// (maintainer decision 2026-10-20). The rule engine itself remains unchanged.
     pub practice_schema_conflicts: Vec<RuleViolation>,
-    /// Exact private endpoint additions authorized for OCCT interoperability (2026-11-02).
+    /// Exact private endpoint additions authorized for ambiguous shared-carrier SARs (2026-11-02).
     pub geometry_carrier_exemptions: Vec<GeometryCarrierExemption>,
 }
 
@@ -3235,7 +3236,7 @@ impl<'a> PartPlan<'a> {
             self.feature(em, &mut st, pds, i)?;
         }
         // Resolve the graph of carriers reached by other semantic PMI only when an
-        // outgoing controlled/support SAR might hide their own GISU from OCCT.
+        // outgoing controlled/support SAR might be read as composition by XCAF or SFA.
         if self.mode == Mode::Add
             || p.tolerances
                 .iter()
@@ -3678,7 +3679,7 @@ impl<'a> PartPlan<'a> {
                 st,
                 pds,
                 f,
-                isolate.then_some("occt-7.9.3-shared-datum-target-support"),
+                isolate.then_some("shared-carrier-datum-target-support"),
             )?;
             em.simple(
                 "feature_for_datum_target_relationship",
@@ -5756,7 +5757,7 @@ impl<'a> PartPlan<'a> {
         Ok(dim)
     }
 
-    /// Semantic feature roots that OCCT must still be able to collect independently.
+    /// Semantic feature roots that readers must still be able to collect independently.
     /// Controlled-pair endpoints and datum-target supports are deliberately not roots:
     /// without another characteristic, a direct outgoing SAR needs no exception.
     fn occt_protected_features(&self) -> BTreeSet<usize> {
@@ -5830,7 +5831,8 @@ impl<'a> PartPlan<'a> {
             em,
             pds,
             member,
-            condition.ok_or_else(|| WriteError::Internal("missing OCCT condition".into()))?,
+            condition
+                .ok_or_else(|| WriteError::Internal("missing shared-carrier condition".into()))?,
         )
     }
 
@@ -5961,9 +5963,9 @@ impl<'a> PartPlan<'a> {
                 && !self.occt_record_stops_at(em, R::Old(actual_left))
                 && (!support || self.occt_has_direct_gisu(em, R::Old(actual_left)));
             let condition = if support {
-                "occt-7.9.3-shared-datum-target-support"
+                "shared-carrier-datum-target-support"
             } else {
-                "occt-7.9.3-controlled-pair"
+                "shared-carrier-controlled-pair"
             };
             for (slot, old, shell) in [
                 (2, left, left_shell),
@@ -6023,7 +6025,7 @@ impl<'a> PartPlan<'a> {
                 let carrier = self.feature(em, st, pds, relating.0)?;
                 let condition = self
                     .occt_needs_isolation(em, st, carrier)
-                    .then_some("occt-7.9.3-controlled-pair");
+                    .then_some("shared-carrier-controlled-pair");
                 let a = self.relationship_endpoint(em, st, pds, *relating, condition)?;
                 let b = self.relationship_endpoint(em, st, pds, *related, condition)?;
                 em.simple(

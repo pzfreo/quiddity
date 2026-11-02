@@ -8128,7 +8128,7 @@ fn add_on_legacy_plate_prefers_datums_and_retires_forwarders() {
 }
 
 #[test]
-fn occt_compatibility_goldens_have_only_explicit_geometry_exemptions() {
+fn shared_carrier_goldens_have_only_explicit_geometry_exemptions() {
     let mut problems = Vec::new();
     let mut names = Vec::new();
     let prefix = if cfg!(feature = "presentation") {
@@ -8164,7 +8164,7 @@ fn occt_compatibility_goldens_have_only_explicit_geometry_exemptions() {
 }
 
 #[test]
-fn occt_geometry_exemptions_are_structural_and_reported() {
+fn shared_carrier_exemptions_are_structural_and_reported() {
     use common::pmi_usage::{exemptions, violations};
     let f = gap_spool();
     for p in [
@@ -8187,7 +8187,7 @@ fn occt_geometry_exemptions_are_structural_and_reported() {
         structural.sort();
         assert_eq!(reported, structural);
         assert!(!actual.is_empty());
-        if actual[0].condition == "occt-7.9.3-shared-datum-target-support" {
+        if actual[0].condition == "shared-carrier-datum-target-support" {
             let mut edit = haecceity::p21::Edit::new();
             for e in &actual {
                 let Some(RawEntity::Simple { attributes, .. }) = w.doc.get(e.association) else {
@@ -8214,7 +8214,7 @@ fn occt_geometry_exemptions_are_structural_and_reported() {
     let w = written(&f, &support);
     assert!(
         w.report.geometry_carrier_exemptions.is_empty(),
-        "datum support needs no OCCT exception"
+        "datum support needs no shared-carrier exception"
     );
     assert!(violations(&w.doc).is_empty());
     // An unshared controlled pair stays strict. Merely having the functional SAR
@@ -8243,7 +8243,7 @@ fn occt_geometry_exemptions_are_structural_and_reported() {
 }
 
 #[test]
-fn occt_isolation_tracks_add_sharing_and_datum_promotion() {
+fn shared_carrier_isolation_tracks_add_sharing_and_datum_promotion() {
     use common::pmi_usage::{exemptions, is_a, reference, violations};
     let f = gap_spool();
     let mut pair = common::pmi_gaps::every_kind();

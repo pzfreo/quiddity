@@ -25,8 +25,9 @@ reference their datum features directly. The default CI matrix checks both files
 including datum-face dimension and tolerance targets, without excluded local plates.
 
 `tests/fixtures/references/pmi_geometry_exemptions.json` pins the exact private
-functional endpoint instances authorized for the OCCT 7.9.3 SAR traversal issue
-(PMI §5.1). Keys name the structural condition; tuples are private aspect,
+functional endpoint instances authorized for ambiguous shared-carrier SARs
+(PMI §5.1), read as composition by both OCCT 7.9.3 XCAF and NIST SFA 5.41.
+Keys name the structural condition; tuples are private aspect,
 original carrier and functional association. The independent Part 21 checker
 verifies those structures before comparing the per-file list. Cardinality of
 face/item GISU ownership is never exempted.
