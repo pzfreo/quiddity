@@ -60,6 +60,37 @@ second transcription pass applies; there are no transcription errors to record. 
 result differs from a row, the difference is to be resolved against the row, the drawing (CTC
 and FTC models) and the file text, and recorded with its verdict.
 
+## Solid Edge re-export pair (`reexport/`)
+
+These are the maintainer-supplied NIST MBE PMI CTC-01 test model (US government work,
+redistributed on the same basis as `nist/`) and its AP242 re-export made by the maintainer
+in **Solid Edge 2026**. The re-export header states originating system `Solid Edge` and
+preprocessor `ST-DEVELOPER v20`. Both inputs are stored unchanged, compressed with
+`gzip.compress(..., compresslevel=9, mtime=0)`.
+
+| File (under `reexport/`) | SHA-256 of uncompressed file |
+|---|---|
+| `01-NIST-control-ctc01.stp.gz` | `85a5752da05f53c456ca3a9e038c90358e1d5a3141d1f0d6e5f0970f2356e821` |
+| `09-NIST-reexported-by-SE.stp.gz` | `1441bd2f98cea7ec6337b3bba7f1f50d8215d9063c1344c9b37ec02ecccb4e95` |
+
+The control is the exact input used for this re-export. It shares its header with
+`nist/nist_ctc_01_asme1_ap242-e1.stp.gz` but differs in entity layout and is **not
+byte-identical** to that copy. The control's datums A, B and C resolve to faces; after the
+re-export exactly B's datum feature resolves to no faces. Reader tests pin that loss by
+label, including its unresolved diagnostic, so silently repairing or hiding it fails.
+The reader omits the unestablished B from its valid semantic model and emits
+`Unresolved` (`unresolved-reference`):
+`datum B is not read: what establishes it does not resolve`.
+The shared check includes that public finding as an unresolved datum as well as walking
+the retained datums' feature graphs. Writer round trips independently check that resolved
+datum features still reach faces.
+
+The same check covers all seven committed `nist/` models. CTC-02 is the sole exception:
+A, B, C and K are established only by placed datum targets (3 points, 4 points, 1 point,
+and 1 circle respectively), with no datum feature. Their target support and placements
+are retained; they are pinned as lacking datum-feature faces, rather than treating a
+placement as a face. Every other datum in the committed NIST models resolves to a face.
+
 ## OpenCascade (`occt/`)
 
 `tools/capture_pmi_occt.py`, specify-core's venv (OCP 7.9.3.1), `STEPCAFControl_Reader` with
