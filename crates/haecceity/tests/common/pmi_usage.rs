@@ -210,6 +210,205 @@ fn signature(
     cache.insert(id, s.clone());
     s
 }
+/// A structurally verified OCCT forwarding exception. No names/markers grant exemptions.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Exemption {
+    pub condition: &'static str,
+    pub aspect: u64,
+    pub feature: u64,
+    pub association: u64,
+}
+
+// Independently mirror OCCT's runtime stopping types, not EXPRESS multiple inheritance.
+fn occt_stops(doc: &Document, id: u64) -> bool {
+    matches!(doc.get(id),Some(RawEntity::Simple{name,..}) if ["datum_feature","datum_target","placed_datum_target_feature","derived_shape_aspect","apex","centre_of_symmetry","geometric_alignment","perpendicular_to","extension","tangent","parallel_offset","dimensional_size_with_datum_feature"].iter().any(|ty|name.eq_ignore_ascii_case(ty)))
+}
+fn owns_gisu(doc: &Document, id: u64) -> bool {
+    doc.referrers(id).iter().any(|r| {
+        is_a(doc, *r, "geometric_item_specific_usage")
+            && reference(
+                doc,
+                *r,
+                "item_identified_representation_usage",
+                "definition",
+            ) == Some(id)
+    })
+}
+
+fn private_member(doc: &Document, id: u64) -> Option<u64> {
+    if !matches!(doc.get(id), Some(RawEntity::Simple { name, .. }) if name.eq_ignore_ascii_case("shape_aspect"))
+        || ["name", "description"].iter().any(|field| {
+            attr(doc, id, "shape_aspect", field) != Some(&Attribute::String(String::new()))
+        })
+        || attr(doc, id, "shape_aspect", "product_definitional")
+            != Some(&Attribute::Enum("T".into()))
+    {
+        return None;
+    }
+    let mut members = Vec::new();
+    for &r in doc.referrers(id) {
+        if is_a(doc, r, "item_identified_representation_usage")
+            && !is_a(doc, r, "draughting_model_item_association")
+            && reference(doc, r, "item_identified_representation_usage", "definition") == Some(id)
+        {
+            return None;
+        }
+        if composition(doc, r)
+            && reference(doc, r, "shape_aspect_relationship", "relating_shape_aspect") == Some(id)
+            && let Some(m) = reference(doc, r, "shape_aspect_relationship", "related_shape_aspect")
+        {
+            members.push(m);
+        }
+        // Direct dimensions/tolerances must always reference the actual carrier.
+        if reference(doc, r, "dimensional_size", "applies_to") == Some(id)
+            || reference(doc, r, "geometric_tolerance", "toleranced_shape_aspect") == Some(id)
+            || is_a(doc, r, "dimensional_location")
+            || reference(doc, r, "property_definition", "definition") == Some(id)
+        {
+            return None;
+        }
+    }
+    let [member] = members[..] else {
+        return None;
+    };
+    (reference(doc, id, "shape_aspect", "of_shape")
+        == reference(doc, member, "shape_aspect", "of_shape")
+        && !occt_stops(doc, member)
+        && !geometry(doc, member).is_empty())
+    .then_some(member)
+}
+
+/// Is the carrier also reachable from independent semantic PMI? Follow gathering and
+/// deriving links upward, not controlled relationships or target-support associations.
+fn independently_used(doc: &Document, carrier: u64) -> bool {
+    let mut todo = vec![carrier];
+    let mut seen = BTreeSet::new();
+    while let Some(id) = todo.pop() {
+        if !seen.insert(id) {
+            continue;
+        }
+        for &r in doc.referrers(id) {
+            if reference(doc, r, "dimensional_size", "applies_to") == Some(id)
+                || reference(doc, r, "geometric_tolerance", "toleranced_shape_aspect") == Some(id)
+                || is_a(doc, r, "dimensional_location")
+                || reference(doc, r, "property_definition", "definition") == Some(id)
+            {
+                return true;
+            }
+            if composition(doc, r) || is_a(doc, r, "shape_aspect_deriving_relationship") {
+                if reference(doc, r, "shape_aspect_relationship", "related_shape_aspect")
+                    == Some(id)
+                    && let Some(parent) =
+                        reference(doc, r, "shape_aspect_relationship", "relating_shape_aspect")
+                {
+                    todo.push(parent);
+                }
+                if reference(doc, r, "shape_aspect_relationship", "relating_shape_aspect")
+                    == Some(id)
+                    && reference(doc, r, "shape_aspect_relationship", "related_shape_aspect")
+                        .is_some_and(|m| is_a(doc, m, "datum"))
+                {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+pub fn exemptions(doc: &Document) -> Vec<Exemption> {
+    let mut out = Vec::new();
+    for r in doc.ids() {
+        let Some(a) = reference(doc, r, "shape_aspect_relationship", "relating_shape_aspect")
+        else {
+            continue;
+        };
+        if is_a(doc, r, "feature_for_datum_target_relationship") {
+            if let Some(member) = private_member(doc, a)
+                && independently_used(doc, member)
+                && owns_gisu(doc, member)
+                && reference(doc, r, "shape_aspect_relationship", "related_shape_aspect")
+                    .is_some_and(|m| is_a(doc, m, "datum_target"))
+            {
+                out.push(Exemption {
+                    condition: "occt-7.9.3-shared-datum-target-support",
+                    aspect: a,
+                    feature: member,
+                    association: r,
+                });
+            }
+        } else if doc.referrers(r).iter().any(|t| {
+            reference(doc, *t, "geometric_tolerance", "toleranced_shape_aspect") == Some(r)
+        }) && let Some(relating) = private_member(doc, a)
+            && independently_used(doc, relating)
+        {
+            for field in ["relating_shape_aspect", "related_shape_aspect"] {
+                if let Some(endpoint) = reference(doc, r, "shape_aspect_relationship", field)
+                    && let Some(member) = private_member(doc, endpoint)
+                {
+                    out.push(Exemption {
+                        condition: "occt-7.9.3-controlled-pair",
+                        aspect: endpoint,
+                        feature: member,
+                        association: r,
+                    });
+                }
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
+/// The exact per-file allow-list is keyed by the independently checked structural condition.
+/// Each entry is [private aspect, original carrier, functional association].
+pub fn check_exemptions(name: &str, doc: &Document) -> Vec<String> {
+    let list: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(super::fixtures().join("references/pmi_geometry_exemptions.json")).unwrap(),
+    )
+    .unwrap();
+    let mut actual: BTreeMap<&str, Vec<[u64; 3]>> = BTreeMap::new();
+    for e in exemptions(doc) {
+        actual
+            .entry(e.condition)
+            .or_default()
+            .push([e.aspect, e.feature, e.association]);
+    }
+    let actual = serde_json::to_value(actual).unwrap();
+    if actual.as_object().is_some_and(|o| !o.is_empty()) {
+        eprintln!("EXEMPTIONS {name} {actual}");
+    }
+    let expected = list
+        .get(name)
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
+    if actual == expected {
+        Vec::new()
+    } else {
+        vec![format!(
+            "{name}: exemption allow-list differs: expected {expected}, actual {actual}"
+        )]
+    }
+}
+
+pub fn check_exemption_files(prefix: &str, names: &[String]) {
+    let list: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(super::fixtures().join("references/pmi_geometry_exemptions.json")).unwrap(),
+    )
+    .unwrap();
+    for name in list
+        .as_object()
+        .unwrap()
+        .keys()
+        .filter(|k| k.starts_with(prefix))
+    {
+        assert!(
+            names.contains(name),
+            "unexercised exemption allow-list entry: {name}"
+        );
+    }
+}
+
 /// Includes kept GISU/IIRU and SET items, all geometric items, redundant multi-member
 /// wrappers, and the requirement to reference an exactly matching datum feature directly.
 pub fn violations(doc: &Document) -> Vec<String> {
@@ -287,6 +486,7 @@ pub fn violations(doc: &Document) -> Vec<String> {
     for &id in &aspects {
         signature(doc, id, &content, &mut signatures, &mut BTreeSet::new());
     }
+    let exempt: BTreeSet<_> = exemptions(doc).into_iter().map(|e| e.aspect).collect();
     let mut out = vec![];
     for (item, owners) in identified {
         if owners.len() > 1 {
@@ -301,6 +501,7 @@ pub fn violations(doc: &Document) -> Vec<String> {
         if !(neutral(doc, id) || legacy)
             || is_a(doc, id, "datum_feature")
             || direct.contains(&id)
+            || exempt.contains(&id)
             || content[&id].is_empty()
         {
             continue;
@@ -322,6 +523,7 @@ pub fn violations(doc: &Document) -> Vec<String> {
             continue;
         };
         if is_a(doc, target, "datum_feature")
+            || exempt.contains(&target)
             || !items.iter().any(|id| is_a(doc, *id, "advanced_face"))
         {
             continue;

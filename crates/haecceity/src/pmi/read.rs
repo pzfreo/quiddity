@@ -1162,7 +1162,7 @@ impl<'a> Reader<'a> {
             // Preserve an explicitly authored independent feature even when its one
             // geometry carrier is also used as a composition member (§5.1).
             if !st.features.contains_key(&a)
-                && self.get_str(a, "shape_aspect", "name").as_deref() == Some("haecceity.feature/1")
+                && matches!(self.get(a, "shape_aspect", "name"), Some(Attribute::String(name)) if name == "haecceity.feature/1")
             {
                 self.feature(st, a);
                 continue;

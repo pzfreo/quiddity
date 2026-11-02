@@ -616,6 +616,51 @@ plane variants and table-value qualifiers are held, the anonymous decimal-only c
 projected to the part default, semantic text on targets is read separately from parameters, and
 toleranced relationships are no longer misread as feature composition; document format version 2 is unchanged.
 
+- **Shared-carrier traversal (§5.1), maintainer decision 2026-11-02.** Keep the
+  OCCT-readable form only when an ordinary carrier is also reached by another
+  semantic characteristic (dimension, feature-target tolerance, datum feature,
+  thread/knurl or feature-owned property), including gathering/deriving members
+  and shared per-item carriers. A controlled-pair target whose relating endpoint
+  is such a carrier retains its previous pair of private endpoint aspects; a
+  `feature_for_datum_target_relationship` whose support is such a carrier with
+  its own direct GISU retains a private support endpoint. A composite support
+  without its own GISU keeps the direct form: its geometric members remain readable. Each private aspect has exactly one plain SAR to
+  the original carrier and no GISU of its own. The original carrier and its GISU
+  remain unique: only the redundant-forwarder part of the §5.1 check is exempt.
+  Unshared forms remain direct. OCCT's simple datum features, targets and derived
+  entities stay direct because they stop before ordinary SAR traversal. Its
+  composite/datum-feature complex records inherit `ShapeAspect`, not
+  `DatumFeature`, and can need controlled-pair isolation. Dimension endpoints
+  and direct tolerance targets still reference the actual datum feature; only
+  the functional relationship's context is private. §6.5 reuse remains mandatory.
+  Add evaluates kept as well as new characteristics. It isolates a kept functional
+  SAR if a new characteristic makes its carrier shared, and removes a private
+  shell when datum promotion makes it unnecessary. Rewritten associations are
+  reported in `rewritten`; forwarding shells are never promoted or reused.
+
+  [OCCT 7.9.3 `collectShapeAspect`, lines 2723–2774](https://github.com/Open-Cascade-SAS/OCCT/blob/V7_9_3/src/STEPCAFControl/STEPCAFControl_Reader.cxx#L2723-L2774)
+  treats outgoing non-dimensional SARs as composition and ignores the carrier's
+  own GISU whenever one exists. Strict shared endpoints therefore move the two
+  ordinary Position tolerances in `pmi_gaps`/`pmi_gaps_gram` from face #17 to #129,
+  and hide the control and supported targets in `datum_targets_shared_support`.
+  The authorized form restores main's XCAF reading without relaxing its oracle.
+
+  `WriteReport.geometry_carrier_exemptions` lists actual additions with part,
+  structural condition (`occt-7.9.3-controlled-pair` or
+  `occt-7.9.3-shared-datum-target-support`), private aspect id and original carrier
+  id. CLI/Python expose the same optional report field. This is not an EXPRESS
+  schema/rule exemption; their existing backstops remain unchanged.
+  `pmi_face_usage` independently recognizes the graph conditions and checks the
+  exact per-file instances in `references/pmi_geometry_exemptions.json`; no marker
+  or report entry alone exempts an aspect. The list contains two pair endpoints
+  for each `pmi_gaps` variant, five supports for the shared-support golden (both
+  presentation configurations), and one circular-target support in the full
+  NIST CTC-02 round trip (carrier face #3148). All other round-trip outputs,
+  including Specify, the local plates and committed plate fixtures, have no
+  exceptions. The unshared-support golden is also checked as a zero-exception
+  control. Existing producer-only Add outputs retain their original, unrewritten
+  PMI; the Specify inputs are checked in full read/Replace/write form.
+
 - **Relations (§6.9.9)**: all three model kinds are written with the stated endpoints. A
   tolerance whose target is a relationship uses the edition 4 SELECT member. Edition 1
   excludes that member, so such a write into edition 1 is refused instead of changing its
@@ -1884,9 +1929,9 @@ can be factored onto neutral per-item members, preserving their own scope. Kept
 neutral composites gain `datum_feature` at their existing id even in complex form.
 Existing datum features are preferred to legacy `DIMENSION` copies; Add also
 retargets and removes those legacy wrappers. A second datum label on an already
-established feature is refused (`datum_feature.WR1`). Relationship targets and
-affected-plane links use the actual endpoints; the reader excludes both from
-composition, so private forwarding aspects are unnecessary.
+established feature is refused (`datum_feature.WR1`). Relationship-target and datum-target-support endpoints follow the narrow
+shared-carrier exemption in the writer gaps section; affected-plane links remain
+direct. The reader excludes these functional relationships from composition.
 
 An explicitly authored independent single-item feature shared by a composite is
 named `haecceity.feature/1`. The reader retains it as an independent feature,
@@ -1903,17 +1948,8 @@ Specify removes its stamps before Replace (`specify-core-rust/src/writer.rs:748`
 transfer authorship to its replacement. Specify reads dimension ownership from
 the exact SDR's stamp (`provenance.rs:33`); its own replacement writer re-stamps.
 
-The stricter no-forwarder rule conflicts with OCCT 7.9's relationship traversal.
-With direct endpoints, `pmi_gaps` and `pmi_gaps_gram` still transfer, but their two
-ordinary Position tolerances attach to face #129 instead of #17. In
-`datum_targets_shared_support`, XCAF loses its tolerance and four target objects.
-The plate dimensions and their datum links still read unchanged. The existing
-oracle assertions and difference pins are deliberately retained; they expose
-these compatibility regressions instead of accepting them. OCCT's
-[`collectShapeAspect`](https://github.com/Open-Cascade-SAS/OCCT/blob/V7_9_3/src/STEPCAFControl/STEPCAFControl_Reader.cxx#L2723-L2774)
-treats every outgoing SAR except a dimensional location as composition and ignores
-the aspect's own GISU when any such relationship exists. This includes tolerance
-target and feature-for-datum-target relationships. Restoring private forwarding
-aspects avoids the kernel bug but violates the requested stricter rule. Resolving
-both requirements needs an OCCT reader fix or a maintainer-approved exception;
-no exception or weakened oracle has been introduced here.
+The maintainer's round-2 decision permits only the shared-carrier exception
+specified under writer gaps above. The former round-1 compatibility failures
+are resolved by that form; all other §5.1 fixes remain in place. Reader binding
+`/15` is still needed for independent standalone members: restoring functional
+endpoint wrappers does not restore the redundant ordinary-feature wrappers.

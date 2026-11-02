@@ -1,0 +1,125 @@
+{
+  "roundtrip/nist_ctc_02_asme1_ap242-e2.stp.gz": {
+    "occt-7.9.3-shared-datum-target-support": [
+      [
+        22537,
+        22382,
+        22539
+      ]
+    ]
+  },
+  "write-presentation/datum_targets_shared_support.step.gz": {
+    "occt-7.9.3-shared-datum-target-support": [
+      [
+        6532,
+        6523,
+        6534
+      ],
+      [
+        6543,
+        6523,
+        6545
+      ],
+      [
+        6555,
+        6523,
+        6557
+      ],
+      [
+        6566,
+        6523,
+        6568
+      ],
+      [
+        6577,
+        6523,
+        6579
+      ]
+    ]
+  },
+  "write-presentation/pmi_gaps.step.gz": {
+    "occt-7.9.3-controlled-pair": [
+      [
+        6530,
+        6515,
+        6534
+      ],
+      [
+        6532,
+        6517,
+        6534
+      ]
+    ]
+  },
+  "write-presentation/pmi_gaps_gram.step.gz": {
+    "occt-7.9.3-controlled-pair": [
+      [
+        6530,
+        6515,
+        6534
+      ],
+      [
+        6532,
+        6517,
+        6534
+      ]
+    ]
+  },
+  "write/datum_targets_shared_support.step.gz": {
+    "occt-7.9.3-shared-datum-target-support": [
+      [
+        6532,
+        6523,
+        6534
+      ],
+      [
+        6543,
+        6523,
+        6545
+      ],
+      [
+        6555,
+        6523,
+        6557
+      ],
+      [
+        6566,
+        6523,
+        6568
+      ],
+      [
+        6577,
+        6523,
+        6579
+      ]
+    ]
+  },
+  "write/pmi_gaps.step.gz": {
+    "occt-7.9.3-controlled-pair": [
+      [
+        6530,
+        6515,
+        6534
+      ],
+      [
+        6532,
+        6517,
+        6534
+      ]
+    ]
+  },
+  "write/pmi_gaps_gram.step.gz": {
+    "occt-7.9.3-controlled-pair": [
+      [
+        6530,
+        6515,
+        6534
+      ],
+      [
+        6532,
+        6517,
+        6534
+      ]
+    ]
+  }
+}

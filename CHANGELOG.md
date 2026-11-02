@@ -23,12 +23,15 @@ in [docs/alpha1.md](docs/alpha1.md).
   in place. Legacy endpoint wrappers are retired on Add; independent same-content
   features retain separate removal provenance. A second datum label on an already
   established feature is refused under `datum_feature.WR1`.
-  OCCT 7.9 limitation: direct tolerance-relationship and shared datum-target support
-  endpoints can make XCAF misassociate ordinary tolerances or drop target objects;
-  existing oracle assertions continue to flag this incompatibility.
+  For shared controlled-pair and datum-target-support endpoints that OCCT 7.9.3
+  misreads, retain private forwarding aspects under a narrow §5.1 exemption.
+  `WriteReport.geometry_carrier_exemptions` and the optional CLI/Python report field
+  list each actual exempt addition by structural condition and endpoint/carrier id.
+  Datum-feature endpoints stay direct; face/GISU uniqueness remains mandatory.
   Specify ownership stamps (`specify-core:written:v1`) are deleted with removed records;
   haecceity does not reattach them. Specify's own Replace re-stamps newly emitted roots
   after the haecceity write (`specify-core-rust/src/writer.rs:784`, `src/provenance.rs:91`).
+
 ### Added
 
 - Recognise complete round-wire helical coil springs from swept NURBS tubes and connected cylinder/torus approximations. The optional `helical_springs` / `HelicalSpring` record supplies a file-space axis, hand, wire/mean/outer/inner diameters, physical free length, measured total coils, pitch, end type and exact claimed faces. Active coils remain null with an explicit basis when inactive ends are unproved; rate is never inferred. Spring claims suppress individual wire hole/boss/fillet callouts. Draftwright consumers can dimension free length and outer diameter on a simplified spring view and populate a data table from the record. Recognition schema 6, fingerprint format 3 and crate versions are unchanged for this additive family; Python recognition JSON exposes the same record.

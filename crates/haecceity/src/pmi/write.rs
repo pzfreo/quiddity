@@ -317,6 +317,17 @@ impl std::fmt::Display for LongStringWarning {
     }
 }
 
+/// A private forwarding aspect needed for OCCT 7.9.3 SAR traversal (PMI §5.1 exception).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GeometryCarrierExemption {
+    pub part: PartId,
+    /// `occt-7.9.3-controlled-pair` or `occt-7.9.3-shared-datum-target-support`.
+    pub condition: &'static str,
+    /// The added private aspect, and the actual geometric carrier it composes.
+    pub aspect: u64,
+    pub feature: u64,
+}
+
 /// What a write did.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -335,7 +346,8 @@ pub struct WriteReport {
     /// Instances removed (replace, remove), ascending.
     pub removed: Vec<u64>,
     /// Kept instances rewritten without removed members, own legacy text rechunked,
-    /// or geometric carriers specialized to datum features.
+    /// geometric carriers specialized to datum features, or functional SAR endpoints
+    /// isolated/unwrapped for OCCT interoperability.
     pub rewritten: Vec<u64>,
     /// Presentation and validation properties removed with the replaced PMI.
     pub presentation_removed: Vec<(u64, String)>,
@@ -364,6 +376,51 @@ pub struct WriteReport {
     /// Actual violations of the named practice/schema conflicts on newly added instances
     /// (maintainer decision 2026-10-20). The rule engine itself remains unchanged.
     pub practice_schema_conflicts: Vec<RuleViolation>,
+    /// Exact private endpoint additions authorized for OCCT interoperability (2026-11-02).
+    pub geometry_carrier_exemptions: Vec<GeometryCarrierExemption>,
+}
+
+fn occt_semantic_features(p: &PartPmi) -> BTreeSet<usize> {
+    let mut todo = Vec::new();
+    todo.extend(p.datums.iter().filter_map(|d| d.feature()));
+    for d in &p.dimensions {
+        match &d.kind {
+            DimensionKind::Size { feature, path, .. } => {
+                todo.push(*feature);
+                todo.extend(path);
+            }
+            DimensionKind::Location { from, to, path, .. } => {
+                todo.extend([*from, *to]);
+                todo.extend(path);
+            }
+        }
+    }
+    todo.extend(p.tolerances.iter().filter_map(|t| match t.target {
+        ToleranceTarget::Feature(f) => Some(f),
+        _ => None,
+    }));
+    todo.extend(p.threads.iter().map(|t| t.feature));
+    todo.extend(p.knurls.iter().map(|k| k.feature));
+    todo.extend(p.attributes.iter().filter_map(|a| match a.on {
+        Some(NoteOwner::Feature(f)) => Some(f),
+        _ => None,
+    }));
+    todo.extend(p.surface_textures.iter().filter_map(|s| s.on));
+    todo.extend(p.notes.iter().filter_map(|n| match n.on {
+        Some(NoteOwner::Feature(f)) => Some(f),
+        _ => None,
+    }));
+    let mut out = BTreeSet::new();
+    while let Some(f) = todo.pop() {
+        let c = f.0;
+        if out.insert(c)
+            && let Feature::Group { members, .. } | Feature::Derived { from: members, .. } =
+                &p.features[c]
+        {
+            todo.extend(members);
+        }
+    }
+    out
 }
 
 /// The standard requirements that a write of `p` represents. Legacy requirement notes
@@ -724,6 +781,7 @@ fn write_inner(
         preexisting_violations: Vec::new(),
         preexisting_rule_violations: Vec::new(),
         practice_schema_conflicts: Vec::new(),
+        geometry_carrier_exemptions: Vec::new(),
     };
 
     report
@@ -899,6 +957,7 @@ fn write_inner(
         .collect();
     let added = em.count;
     let practice_exemptions = em.practice_exemptions.clone();
+    let carrier_exemptions = em.carrier_exemptions.clone();
     report.rewritten.extend(em.kept_rewrites.keys().copied());
     report.removed.extend(em.retired.iter().copied());
     report.removed.sort_unstable();
@@ -946,6 +1005,20 @@ fn write_inner(
 
     // The backstop: apply, validate what was made, compare the rules.
     let written = doc.apply(&edit)?;
+    report.geometry_carrier_exemptions = carrier_exemptions
+        .into_iter()
+        .map(
+            |(part, condition, aspect, feature)| GeometryCarrierExemption {
+                part,
+                condition,
+                aspect: written.ids[&aspect],
+                feature: match feature {
+                    R::Old(id) => id,
+                    R::New(id) => written.ids[&id],
+                },
+            },
+        )
+        .collect();
     report.long_strings = super::text::long_strings(&written.bytes);
     let after = Document::parse(written.bytes)?;
     for (id, repair) in repaired {
@@ -1163,6 +1236,47 @@ fn reusable_aspect(doc: &Document, id: u64) -> bool {
         || (neutral_aspect(doc, id)
             && attr_str(doc, id, "shape_aspect", "name").as_deref() != Some("DIMENSION"))
 }
+// OCCT's complex composite/datum-feature records inherit ShapeAspect, not
+// DatumFeature. They take collectShapeAspect's ordinary-SAR branch.
+fn occt_stopping_record(record: &RawEntity) -> bool {
+    matches!(record, RawEntity::Simple {name,..} if ["datum_feature", "datum_target", "placed_datum_target_feature", "derived_shape_aspect", "apex", "centre_of_symmetry", "geometric_alignment", "perpendicular_to", "extension", "tangent", "parallel_offset", "dimensional_size_with_datum_feature"].iter().any(|ty| name.eq_ignore_ascii_case(ty)))
+}
+
+fn geometric_composition(doc: &Document, id: u64) -> bool {
+    leaf_names(doc, id) == ["shape_aspect_relationship"]
+        && !["name", "description"].iter().any(|field| {
+            attr_str(doc, id, "shape_aspect_relationship", field).as_deref()
+                == Some("affected plane association")
+        })
+        && !doc.referrers(id).iter().any(|r| {
+            attr_ref(doc, *r, "geometric_tolerance", "toleranced_shape_aspect") == Some(id)
+        })
+}
+
+/// A neutral forwarding shell is not the geometric carrier, even if numbered first.
+fn plain_forwarder(doc: &Document, id: u64) -> bool {
+    if !neutral_aspect(doc, id) {
+        return false;
+    }
+    let mut members = 0;
+    for &r in doc.referrers(id) {
+        if is_a(doc, r, "item_identified_representation_usage")
+            && !is_a(doc, r, "draughting_model_item_association")
+            && attr_ref(doc, r, "item_identified_representation_usage", "definition") == Some(id)
+        {
+            return false;
+        }
+        if geometric_composition(doc, r)
+            && attr_ref(doc, r, "shape_aspect_relationship", "relating_shape_aspect") == Some(id)
+            && attr_ref(doc, r, "shape_aspect_relationship", "related_shape_aspect")
+                .is_some_and(|m| !is_a(doc, m, "datum") && !is_a(doc, m, "datum_target"))
+        {
+            members += 1;
+        }
+    }
+    members == 1
+}
+
 fn replace_reference(record: &mut RawEntity, from: u64, to: u64) {
     fn replace(a: &mut A, from: u64, to: u64) {
         match a {
@@ -1517,6 +1631,12 @@ pub struct Emitter<'a> {
     exponents: BTreeMap<&'static str, R>,
     count: usize,
     practice_exemptions: BTreeSet<(NewId, &'static str)>,
+    // Source representation membership is immutable during emission. Reuse the
+    // graph walk across usage planning, exact-carrier lookup and final emission.
+    shape_representations: BTreeMap<u64, u64>,
+    occt_stopping: BTreeSet<R>,
+    direct_gisu: BTreeSet<R>,
+    carrier_exemptions: Vec<(PartId, &'static str, NewId, R)>,
     kept_rewrites: BTreeMap<u64, RawEntity>,
     retired: BTreeSet<u64>,
 }
@@ -1539,6 +1659,10 @@ impl<'a> Emitter<'a> {
             exponents: BTreeMap::new(),
             count: 0,
             practice_exemptions: BTreeSet::new(),
+            shape_representations: BTreeMap::new(),
+            occt_stopping: BTreeSet::new(),
+            direct_gisu: BTreeSet::new(),
+            carrier_exemptions: Vec::new(),
             kept_rewrites: BTreeMap::new(),
             retired: BTreeSet::new(),
         }
@@ -1580,6 +1704,7 @@ impl<'a> Emitter<'a> {
                 self.count,
             )).into());
         }
+        let occt_stopping = occt_stopping_record(&e);
         let mut rec = Record::new(e);
         if !stated.is_empty() {
             // All REALs in attribute order, including equal values with different text.
@@ -1598,6 +1723,9 @@ impl<'a> Emitter<'a> {
             )));
         }
         self.count += 1;
+        if occt_stopping {
+            self.occt_stopping.insert(R::New(id));
+        }
         Ok(R::New(id))
     }
 
@@ -2277,6 +2405,7 @@ struct PartPlan<'a> {
     /// Geometry → an existing supplemental geometry item with the same value.
     existing_geometry: BTreeMap<usize, u64>,
     kept_groups: BTreeMap<u64, String>,
+    kept_occt_carriers: BTreeSet<u64>,
     /// Existing datum system names on the part (kept ones).
     system_names: BTreeSet<String>,
 }
@@ -2374,6 +2503,7 @@ impl<'a> PartPlan<'a> {
             existing_datums: BTreeMap::new(),
             existing_geometry: BTreeMap::new(),
             kept_groups: BTreeMap::new(),
+            kept_occt_carriers: BTreeSet::new(),
             system_names: BTreeSet::new(),
         };
         plan.check(read);
@@ -2407,16 +2537,24 @@ impl<'a> PartPlan<'a> {
         let p = self.pmi;
         let existing = &read.parts[self.id.0];
         let prov = &read.provenance.parts[self.id.0];
-        let canonical_existing = Keys {
-            p: existing,
-            stated: true,
-        };
-        for (i, feature) in existing.features.iter().enumerate() {
-            if matches!(feature, Feature::Group { .. }) {
-                for &id in &prov.features[i] {
-                    if is_a(self.doc, id, "shape_aspect") && !is_a(self.doc, id, "datum") {
-                        self.kept_groups
-                            .insert(id, canonical_existing.feature(FeatureId(i)));
+        if self.mode == Mode::Add {
+            for i in occt_semantic_features(existing) {
+                self.kept_occt_carriers
+                    .extend(prov.features[i].iter().copied().filter(|id| {
+                        is_a(self.doc, *id, "shape_aspect") && !is_a(self.doc, *id, "datum")
+                    }));
+            }
+            let canonical_existing = Keys {
+                p: existing,
+                stated: true,
+            };
+            for (i, feature) in existing.features.iter().enumerate() {
+                if matches!(feature, Feature::Group { .. }) {
+                    for &id in &prov.features[i] {
+                        if is_a(self.doc, id, "shape_aspect") && !is_a(self.doc, id, "datum") {
+                            self.kept_groups
+                                .insert(id, canonical_existing.feature(FeatureId(i)));
+                        }
                     }
                 }
             }
@@ -2878,11 +3016,18 @@ impl<'a> PartPlan<'a> {
     }
 
     /// The representation of the part that holds a face or edge (the B-rep's).
-    fn rep_of(&self, item: u64) -> Result<u64, WriteError> {
-        using_representations(self.doc, item)
+    fn rep_of(&self, em: &mut Emitter<'_>, item: u64) -> Result<u64, WriteError> {
+        if let Some(&rep) = em.shape_representations.get(&item) {
+            return Ok(rep);
+        }
+        let rep = using_representations(self.doc, item)
             .into_iter()
             .find(|&r| is_a(self.doc, r, "shape_representation"))
-            .ok_or_else(|| WriteError::Internal(format!("#{item} is in no shape representation")))
+            .ok_or_else(|| {
+                WriteError::Internal(format!("#{item} is in no shape representation"))
+            })?;
+        em.shape_representations.insert(item, rep);
+        Ok(rep)
     }
 
     // --- emission --------------------------------------------------------------------------
@@ -2896,7 +3041,12 @@ impl<'a> PartPlan<'a> {
         let mut st = Emitted::default();
         let p = self.pmi;
         let pds = em.reference(self.def.shape)?;
-        self.reuse_legacy_endpoints(em)?;
+        // Replace consumes the selected part's modelled wrappers in its removal
+        // plan. Only Add has kept legacy endpoints to normalize; scanning the
+        // whole source graph here on every Replace needlessly revisits the B-rep.
+        if self.mode == Mode::Add {
+            self.reuse_legacy_endpoints(em)?;
+        }
         let pd = em.reference(self.def.product_definition)?;
 
         for s in &p.standards {
@@ -3083,6 +3233,37 @@ impl<'a> PartPlan<'a> {
             .collect();
         for i in 0..p.features.len() {
             self.feature(em, &mut st, pds, i)?;
+        }
+        // Resolve the graph of carriers reached by other semantic PMI only when an
+        // outgoing controlled/support SAR might hide their own GISU from OCCT.
+        if self.mode == Mode::Add
+            || p.tolerances
+                .iter()
+                .any(|t| matches!(t.target, ToleranceTarget::Relation { .. }))
+            || p.datum_targets.iter().any(|t| t.on().is_some())
+        {
+            st.occt_protected.extend(
+                self.kept_occt_carriers
+                    .iter()
+                    .copied()
+                    .filter(|id| !em.removed.contains(id) && !em.retired.contains(id))
+                    .map(R::Old),
+            );
+            for i in self.occt_protected_features() {
+                st.occt_protected.insert(st.features[&self.canonical[i]]);
+                if let Feature::Items(items) = &p.features[i]
+                    && items.len() > 1
+                {
+                    for key in self.usage_keys(em, &st, items)? {
+                        if let Some(&member) = st.shared.get(&key) {
+                            st.occt_protected.insert(member);
+                        }
+                    }
+                }
+            }
+        }
+        if self.mode == Mode::Add {
+            self.repair_kept_occt_relationships(em, &mut st, pds)?;
         }
         for (i, t) in p.datum_targets.iter().enumerate() {
             self.datum_target(em, &mut st, pds, i, t)?;
@@ -3489,11 +3670,16 @@ impl<'a> PartPlan<'a> {
             )?;
         }
         if let Some(f) = t.on() {
-            let feature = if self.referenced.contains(&self.canonical[f.0]) {
-                self.relationship_endpoint(em, st, pds, f)?
-            } else {
-                self.feature(em, st, pds, f.0)?
-            };
+            let carrier = self.feature(em, st, pds, f.0)?;
+            let isolate = self.occt_needs_isolation(em, st, carrier)
+                && self.occt_has_direct_gisu(em, carrier);
+            let feature = self.relationship_endpoint(
+                em,
+                st,
+                pds,
+                f,
+                isolate.then_some("occt-7.9.3-shared-datum-target-support"),
+            )?;
             em.simple(
                 "feature_for_datum_target_relationship",
                 &[
@@ -4695,28 +4881,31 @@ impl<'a> PartPlan<'a> {
                 r
             }
             Feature::Group { members, kind } => {
-                let wanted = Keys {
-                    p: self.pmi,
-                    stated: true,
-                }
-                .feature(FeatureId(c));
-                let mut owners: Vec<_> = self
-                    .kept_groups
-                    .iter()
-                    .filter(|(id, key)| {
-                        **key == wanted
-                            && !em.removed.contains(id)
-                            && !em.retired.contains(id)
-                            && attr_str(self.doc, **id, "shape_aspect", "name").as_deref()
-                                != Some("DIMENSION")
-                    })
-                    .map(|(id, _)| (!is_a(self.doc, *id, "datum_feature"), *id))
-                    .collect();
-                owners.sort_unstable();
-                if let Some((_, id)) = owners.first() {
-                    let carrier = em.reference(*id)?;
-                    st.features.insert(c, carrier);
-                    return Ok(carrier);
+                if !self.kept_groups.is_empty() {
+                    let wanted = Keys {
+                        p: self.pmi,
+                        stated: true,
+                    }
+                    .feature(FeatureId(c));
+                    let mut owners: Vec<_> = self
+                        .kept_groups
+                        .iter()
+                        .filter(|(id, key)| {
+                            **key == wanted
+                                && !plain_forwarder(self.doc, **id)
+                                && !em.removed.contains(id)
+                                && !em.retired.contains(id)
+                                && attr_str(self.doc, **id, "shape_aspect", "name").as_deref()
+                                    != Some("DIMENSION")
+                        })
+                        .map(|(id, _)| (!is_a(self.doc, *id, "datum_feature"), *id))
+                        .collect();
+                    owners.sort_unstable();
+                    if let Some((_, id)) = owners.first() {
+                        let carrier = em.reference(*id)?;
+                        st.features.insert(c, carrier);
+                        return Ok(carrier);
+                    }
                 }
                 let (ty, desc) = match kind {
                     GroupKind::MultipleElements => {
@@ -4861,7 +5050,7 @@ impl<'a> PartPlan<'a> {
     /// (one `geometric_item_specific_usage` per face, maintainer decision 2026-10-09).
     fn usage_keys(
         &self,
-        em: &Emitter<'_>,
+        em: &mut Emitter<'_>,
         st: &Emitted,
         items: &[Anchor],
     ) -> Result<Vec<(R, Vec<R>)>, WriteError> {
@@ -4874,11 +5063,17 @@ impl<'a> PartPlan<'a> {
             let (item, rep) = match *a {
                 Anchor::Face(f) => {
                     let id = self.def.faces[f.0];
-                    (em.reference(id)?, em.reference(self.rep_of(id)?)?)
+                    {
+                        let rep = self.rep_of(em, id)?;
+                        (em.reference(id)?, em.reference(rep)?)
+                    }
                 }
                 Anchor::Edge(e) => {
                     let id = self.def.edges[e.0];
-                    (em.reference(id)?, em.reference(self.rep_of(id)?)?)
+                    {
+                        let rep = self.rep_of(em, id)?;
+                        (em.reference(id)?, em.reference(rep)?)
+                    }
                 }
                 Anchor::Geometry(g) => {
                     let (r, rep) = st.geometry[&g.0];
@@ -4907,6 +5102,7 @@ impl<'a> PartPlan<'a> {
 
     /// The usage of `item` in `rep` defining `definition`: a `geometric_item_specific_usage`.
     fn usage(em: &mut Emitter<'_>, definition: R, rep: R, item: R) -> Result<R, WriteError> {
+        em.direct_gisu.insert(definition);
         em.simple(
             "geometric_item_specific_usage",
             &[
@@ -5072,6 +5268,7 @@ impl<'a> PartPlan<'a> {
                     ],
                 )?;
                 if n == 0 {
+                    em.direct_gisu.insert(leaf);
                     em.kept_rewrites.insert(
                         usage,
                         p21::simple(
@@ -5169,7 +5366,7 @@ impl<'a> PartPlan<'a> {
                             "identified_item",
                         ));
                     }
-                    if leaf_names(self.doc, r) == ["shape_aspect_relationship"]
+                    if geometric_composition(self.doc, r)
                         && attr_ref(
                             self.doc,
                             r,
@@ -5307,7 +5504,7 @@ impl<'a> PartPlan<'a> {
                             "identified_item",
                         ));
                     }
-                    if leaf_names(doc, r) == ["shape_aspect_relationship"]
+                    if geometric_composition(doc, r)
                         && attr_ref(doc, r, "shape_aspect_relationship", "relating_shape_aspect")
                             == Some(aspect)
                         && let Some(member) =
@@ -5320,16 +5517,19 @@ impl<'a> PartPlan<'a> {
             }
             let compatible = if let Some(key) = group_key {
                 self.kept_groups.get(&owner).is_some_and(|old| old == key)
+                    && !plain_forwarder(doc, owner)
                     && attr_str(doc, owner, "shape_aspect", "name").as_deref() != Some("DIMENSION")
             } else {
-                reusable_aspect(doc, owner) && !self.kept_groups.contains_key(&owner)
+                reusable_aspect(doc, owner)
+                    && !plain_forwarder(doc, owner)
+                    && !self.kept_groups.contains_key(&owner)
             };
             if valid && got == want && compatible {
                 matches.push((!is_a(doc, owner, "datum_feature"), owner));
             }
             for &r in doc.referrers(owner) {
                 if !em.removed.contains(&r)
-                    && leaf_names(doc, r) == ["shape_aspect_relationship"]
+                    && geometric_composition(doc, r)
                     && attr_ref(doc, r, "shape_aspect_relationship", "related_shape_aspect")
                         == Some(owner)
                     && let Some(parent) =
@@ -5556,16 +5756,251 @@ impl<'a> PartPlan<'a> {
         Ok(dim)
     }
 
-    /// Toleranced and affected-plane relationships are excluded from composition by
-    /// the reader; their endpoints can reference the actual feature directly (§5.1).
+    /// Semantic feature roots that OCCT must still be able to collect independently.
+    /// Controlled-pair endpoints and datum-target supports are deliberately not roots:
+    /// without another characteristic, a direct outgoing SAR needs no exception.
+    fn occt_protected_features(&self) -> BTreeSet<usize> {
+        occt_semantic_features(self.pmi)
+            .into_iter()
+            .map(|i| self.canonical[i])
+            .collect()
+    }
+
+    fn occt_record_stops_at(&self, em: &Emitter<'_>, carrier: R) -> bool {
+        match carrier {
+            R::New(_) => em.occt_stopping.contains(&carrier),
+            R::Old(id) => em
+                .kept_rewrites
+                .get(&id)
+                .or_else(|| self.doc.get(id))
+                .is_some_and(occt_stopping_record),
+        }
+    }
+
+    fn occt_has_direct_gisu(&self, em: &Emitter<'_>, carrier: R) -> bool {
+        if em.direct_gisu.contains(&carrier) {
+            return true;
+        }
+        let R::Old(id) = carrier else {
+            return false;
+        };
+        self.doc.referrers(id).iter().any(|r| {
+            if em.removed.contains(r)
+                || em.retired.contains(r)
+                || !is_a(self.doc, *r, "geometric_item_specific_usage")
+            {
+                return false;
+            }
+            if let Some(RawEntity::Simple {
+                name, attributes, ..
+            }) = em.kept_rewrites.get(r)
+            {
+                name.eq_ignore_ascii_case("geometric_item_specific_usage")
+                    && attributes.get(2) == Some(&carrier.a())
+            } else {
+                attr_ref(
+                    self.doc,
+                    *r,
+                    "item_identified_representation_usage",
+                    "definition",
+                ) == Some(id)
+            }
+        })
+    }
+
+    fn occt_needs_isolation(&self, em: &Emitter<'_>, st: &Emitted, carrier: R) -> bool {
+        st.occt_protected.contains(&carrier) && !self.occt_record_stops_at(em, carrier)
+    }
+
+    /// Isolate only shared, non-datum controlled-pair/support endpoints. The carrier
+    /// keeps its one GISU; the exception is a private aspect plus one composition SAR.
     fn relationship_endpoint(
         &self,
         em: &mut Emitter<'_>,
         st: &mut Emitted,
         pds: R,
         f: FeatureId,
+        condition: Option<&'static str>,
     ) -> Result<R, WriteError> {
-        self.feature(em, st, pds, f.0)
+        let member = self.feature(em, st, pds, f.0)?;
+        if condition.is_none() || self.occt_record_stops_at(em, member) {
+            return Ok(member);
+        }
+        self.isolate_carrier(
+            em,
+            pds,
+            member,
+            condition.ok_or_else(|| WriteError::Internal("missing OCCT condition".into()))?,
+        )
+    }
+
+    fn isolate_carrier(
+        &self,
+        em: &mut Emitter<'_>,
+        pds: R,
+        member: R,
+        condition: &'static str,
+    ) -> Result<R, WriteError> {
+        let endpoint = em.simple(
+            "shape_aspect",
+            &[
+                ("name", s("")),
+                ("description", s("")),
+                ("of_shape", pds.a()),
+                ("product_definitional", boolean(true)),
+            ],
+        )?;
+        em.simple(
+            "shape_aspect_relationship",
+            &[
+                ("name", s("")),
+                ("description", s("")),
+                ("relating_shape_aspect", endpoint.a()),
+                ("related_shape_aspect", member.a()),
+            ],
+        )?;
+        if let R::New(id) = endpoint {
+            em.carrier_exemptions.push((self.id, condition, id, member));
+        }
+        Ok(endpoint)
+    }
+
+    fn kept_private_endpoint(&self, id: u64) -> Option<(u64, u64)> {
+        if !matches!(self.doc.get(id),Some(RawEntity::Simple {name,..}) if name.eq_ignore_ascii_case("shape_aspect"))
+            || ["name", "description"]
+                .iter()
+                .any(|f| attr_str(self.doc, id, "shape_aspect", f).as_deref() != Some(""))
+            || !plain_forwarder(self.doc, id)
+        {
+            return None;
+        }
+        let mut member = None;
+        for &r in self.doc.referrers(id) {
+            if geometric_composition(self.doc, r)
+                && attr_ref(
+                    self.doc,
+                    r,
+                    "shape_aspect_relationship",
+                    "relating_shape_aspect",
+                ) == Some(id)
+                && let Some(m) = attr_ref(
+                    self.doc,
+                    r,
+                    "shape_aspect_relationship",
+                    "related_shape_aspect",
+                )
+                && !is_a(self.doc, m, "datum")
+                && !is_a(self.doc, m, "datum_target")
+            {
+                member = Some((m, r));
+                continue;
+            }
+            let functional = is_a(self.doc, r, "feature_for_datum_target_relationship")
+                || leaf_names(self.doc, r) == ["shape_aspect_relationship"]
+                    && self.doc.referrers(r).iter().any(|t| {
+                        attr_ref(
+                            self.doc,
+                            *t,
+                            "geometric_tolerance",
+                            "toleranced_shape_aspect",
+                        ) == Some(r)
+                    });
+            if !functional {
+                return None;
+            }
+        }
+        member
+    }
+
+    /// Add can make a previously unshared kept carrier shared, or specialize it to a
+    /// datum. Repair the functional SAR, never redirect the new dimension/tolerance.
+    fn repair_kept_occt_relationships(
+        &self,
+        em: &mut Emitter<'_>,
+        st: &mut Emitted,
+        pds: R,
+    ) -> Result<(), WriteError> {
+        for id in self.doc.ids() {
+            if em.removed.contains(&id) || em.retired.contains(&id) {
+                continue;
+            }
+            let Some(RawEntity::Simple {
+                name, attributes, ..
+            }) = em.kept_rewrites.get(&id).or_else(|| self.doc.get(id))
+            else {
+                continue;
+            };
+            let support = name.eq_ignore_ascii_case("feature_for_datum_target_relationship");
+            let pair = name.eq_ignore_ascii_case("shape_aspect_relationship")
+                && self.doc.referrers(id).iter().any(|t| {
+                    attr_ref(
+                        self.doc,
+                        *t,
+                        "geometric_tolerance",
+                        "toleranced_shape_aspect",
+                    ) == Some(id)
+                });
+            if !(support || pair) || attributes.len() != 4 {
+                continue;
+            }
+            let (Some(A::EntityRef(left)), Some(A::EntityRef(right))) =
+                (attributes.get(2), attributes.get(3))
+            else {
+                continue;
+            };
+            let (left, right) = (*left, *right);
+            let name = name.clone();
+            let original_attributes = attributes.clone();
+            let mut attributes = original_attributes.clone();
+            let left_shell = self.kept_private_endpoint(left);
+            let actual_left = left_shell.map_or(left, |m| m.0);
+            if attr_ref(self.doc, actual_left, "shape_aspect", "of_shape") != Some(self.def.shape) {
+                continue;
+            }
+            let isolate = st.occt_protected.contains(&R::Old(actual_left))
+                && !self.occt_record_stops_at(em, R::Old(actual_left))
+                && (!support || self.occt_has_direct_gisu(em, R::Old(actual_left)));
+            let condition = if support {
+                "occt-7.9.3-shared-datum-target-support"
+            } else {
+                "occt-7.9.3-controlled-pair"
+            };
+            for (slot, old, shell) in [
+                (2, left, left_shell),
+                (
+                    3,
+                    right,
+                    if pair {
+                        self.kept_private_endpoint(right)
+                    } else {
+                        None
+                    },
+                ),
+            ] {
+                if support && slot == 3 {
+                    continue;
+                }
+                let actual = shell.map_or(old, |m| m.0);
+                let eligible = isolate
+                    && !self.occt_record_stops_at(em, R::Old(actual))
+                    && attr_ref(self.doc, actual, "shape_aspect", "of_shape")
+                        == Some(self.def.shape);
+                if eligible {
+                    if shell.is_none() {
+                        attributes[slot] = self
+                            .isolate_carrier(em, pds, em.reference(actual)?, condition)?
+                            .a();
+                    }
+                } else if let Some((member, composition)) = shell {
+                    attributes[slot] = em.reference(member)?.a();
+                    em.retired.extend([old, composition]);
+                }
+            }
+            if attributes != original_attributes {
+                em.kept_rewrites.insert(id, p21::simple(&name, attributes));
+            }
+        }
+        Ok(())
     }
 
     fn tolerance(
@@ -5585,8 +6020,12 @@ impl<'a> PartPlan<'a> {
                 related,
                 name,
             } => {
-                let a = self.relationship_endpoint(em, st, pds, *relating)?;
-                let b = self.relationship_endpoint(em, st, pds, *related)?;
+                let carrier = self.feature(em, st, pds, relating.0)?;
+                let condition = self
+                    .occt_needs_isolation(em, st, carrier)
+                    .then_some("occt-7.9.3-controlled-pair");
+                let a = self.relationship_endpoint(em, st, pds, *relating, condition)?;
+                let b = self.relationship_endpoint(em, st, pds, *related, condition)?;
                 em.simple(
                     "shape_aspect_relationship",
                     &[
@@ -6585,6 +7024,7 @@ type TableIdentity = ();
 /// What a part's emission has made so far.
 #[derive(Default)]
 struct Emitted {
+    occt_protected: BTreeSet<R>,
     #[cfg(feature = "presentation")]
     properties: BTreeMap<crate::presentation::notes::Source, R>,
     /// Canonical feature → instance.

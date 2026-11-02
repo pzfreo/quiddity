@@ -77,6 +77,10 @@ fn check(name: &str, doc: &Document, problems: &mut Vec<String>) {
     let v = common::pmi_usage::violations(doc);
     eprintln!("{name}: {} uniqueness/forwarding violations", v.len());
     problems.extend(v.into_iter().map(|v| format!("{name}: {v}")));
+    problems.extend(common::pmi_usage::check_exemptions(
+        &format!("roundtrip/{name}"),
+        doc,
+    ));
     if let Some(dir) = std::env::var_os("HAECCEITY_USAGE_OUTPUT") {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(Path::new(&dir).join(format!("{name}.step")), doc.bytes()).unwrap();
@@ -151,6 +155,12 @@ fn written_pmi_reuses_each_faces_one_aspect_and_usage() {
         }
         check(&name, &after, &mut problems);
     }
+    let mut names: Vec<_> = cases()
+        .iter()
+        .map(|p| format!("roundtrip/{}", p.file_name().unwrap().to_string_lossy()))
+        .collect();
+    names.push("roundtrip/plate-pmi-json".into());
+    common::pmi_usage::check_exemption_files("roundtrip/", &names);
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 #[cfg(feature = "json-import")]

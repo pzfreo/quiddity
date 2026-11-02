@@ -216,3 +216,14 @@ def test_packaged_schemas():
         assert packaged == (ROOT / "crates/haecceity/schema" / name).read_bytes()
         assert packaged.decode() == native
         assert json.loads(packaged) == value
+
+
+def test_geometry_carrier_exemptions_are_reported():
+    source = FIXTURES / "ap242/write-presentation/pmi_gaps.step.gz"
+    document = pmi.read(source)
+    output, report = pmi.write(source, document, report=True)
+    exemptions = report["writer"]["geometry_carrier_exemptions"]
+    assert len(exemptions) == 2
+    assert {e["condition"] for e in exemptions} == {"occt-7.9.3-controlled-pair"}
+    assert all(e["part"] == 0 and e["aspect"] != e["feature"] for e in exemptions)
+    assert pmi.read(output) == document

@@ -8126,3 +8126,260 @@ fn add_on_legacy_plate_prefers_datums_and_retires_forwarders() {
     assert_eq!(geometry(&w.doc, 1100), geometry(&f.doc, 1100));
     assert!(violations(&w.doc).is_empty(), "{:?}", violations(&w.doc));
 }
+
+#[test]
+fn occt_compatibility_goldens_have_only_explicit_geometry_exemptions() {
+    let mut problems = Vec::new();
+    let mut names = Vec::new();
+    let prefix = if cfg!(feature = "presentation") {
+        "write-presentation/"
+    } else {
+        "write/"
+    };
+    for entry in std::fs::read_dir(write_dir()).unwrap() {
+        let path = entry.unwrap().path();
+        if ![
+            "pmi_gaps.step.gz",
+            "pmi_gaps_gram.step.gz",
+            "datum_targets_shared_support.step.gz",
+            "datum_targets.step.gz",
+        ]
+        .iter()
+        .any(|name| path.file_name().is_some_and(|file| file == *name))
+        {
+            continue;
+        }
+        let name = format!("{prefix}{}", path.file_name().unwrap().to_string_lossy());
+        let doc = Document::parse(file_bytes(&path)).unwrap();
+        problems.extend(
+            common::pmi_usage::violations(&doc)
+                .into_iter()
+                .map(|p| format!("{name}: {p}")),
+        );
+        problems.extend(common::pmi_usage::check_exemptions(&name, &doc));
+        names.push(name);
+    }
+    common::pmi_usage::check_exemption_files(prefix, &names);
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+#[test]
+fn occt_geometry_exemptions_are_structural_and_reported() {
+    use common::pmi_usage::{exemptions, violations};
+    let f = gap_spool();
+    for p in [
+        common::pmi_gaps::every_kind(),
+        common::pmi_targets::every_kind(),
+    ] {
+        let w = written(&f, &p);
+        let actual = exemptions(&w.doc);
+        let mut reported: Vec<_> = w
+            .report
+            .geometry_carrier_exemptions
+            .iter()
+            .map(|e| (e.condition, e.aspect, e.feature))
+            .collect();
+        let mut structural: Vec<_> = actual
+            .iter()
+            .map(|e| (e.condition, e.aspect, e.feature))
+            .collect();
+        reported.sort();
+        structural.sort();
+        assert_eq!(reported, structural);
+        assert!(!actual.is_empty());
+        if actual[0].condition == "occt-7.9.3-shared-datum-target-support" {
+            let mut edit = haecceity::p21::Edit::new();
+            for e in &actual {
+                let Some(RawEntity::Simple { attributes, .. }) = w.doc.get(e.association) else {
+                    panic!("support association");
+                };
+                edit.replace(
+                    e.association,
+                    haecceity::p21::simple("SHAPE_ASPECT_RELATIONSHIP", attributes.clone()),
+                );
+            }
+            let forged = Document::parse(w.doc.apply(&edit).unwrap().bytes).unwrap();
+            assert!(exemptions(&forged).is_empty());
+            assert!(
+                violations(&forged).len() >= actual.len(),
+                "a plain SAR must not acquire the support exemption"
+            );
+        }
+        assert!(violations(&w.doc).is_empty(), "{:?}", violations(&w.doc));
+    }
+    let mut support = common::pmi_targets::every_kind();
+    support
+        .datums
+        .push(Datum::new(DatumLabel::new("Z").unwrap(), Some(FeatureId(0)), vec![]).unwrap());
+    let w = written(&f, &support);
+    assert!(
+        w.report.geometry_carrier_exemptions.is_empty(),
+        "datum support needs no OCCT exception"
+    );
+    assert!(violations(&w.doc).is_empty());
+    // An unshared controlled pair stays strict. Merely having the functional SAR
+    // does not qualify a forwarding aspect for the exception.
+    let mut p = common::pmi_gaps::every_kind();
+    p.tolerances = p.tolerances.split_off(2);
+    p.tolerance_relations.clear();
+    p.attributes.clear();
+    p.notes.clear();
+    p.surface_textures.clear();
+    let w = written(&f, &p);
+    assert!(w.report.geometry_carrier_exemptions.is_empty());
+    assert!(exemptions(&w.doc).is_empty());
+    assert!(violations(&w.doc).is_empty());
+    // A datum carrier remains a direct endpoint, even in a shared controlled pair.
+    p.datums
+        .push(Datum::new(DatumLabel::new("Z").unwrap(), Some(FeatureId(0)), vec![]).unwrap());
+    p.tolerances.push(tolerance(
+        ToleranceKind::Flatness,
+        ToleranceTarget::Feature(FeatureId(0)),
+        "0.1",
+    ));
+    let w = written(&f, &p);
+    assert!(w.report.geometry_carrier_exemptions.is_empty());
+    assert!(violations(&w.doc).is_empty());
+}
+
+#[test]
+fn occt_isolation_tracks_add_sharing_and_datum_promotion() {
+    use common::pmi_usage::{exemptions, is_a, reference, violations};
+    let f = gap_spool();
+    let mut pair = common::pmi_gaps::every_kind();
+    pair.tolerances = pair.tolerances.split_off(2);
+    pair.tolerance_relations.clear();
+    pair.attributes.clear();
+    pair.notes.clear();
+    pair.surface_textures.clear();
+    let initial = written(&f, &pair);
+    assert!(initial.report.geometry_carrier_exemptions.is_empty());
+    let input = open_bytes(initial.doc.bytes().to_vec());
+    let add = PartPmi {
+        features: vec![faces(&[0])],
+        tolerances: vec![tolerance(
+            ToleranceKind::Flatness,
+            ToleranceTarget::Feature(FeatureId(0)),
+            "0.1",
+        )],
+        ..PartPmi::default()
+    };
+    let shared = write(&input, &[(PartId(0), add.clone())], Mode::Add).unwrap();
+    assert_verified_as(&input, &shared, &add, Mode::Add);
+    assert_eq!(shared.report.geometry_carrier_exemptions.len(), 2);
+    assert_eq!(exemptions(&shared.doc).len(), 2);
+    assert_eq!(shared.report.rewritten.len(), 1);
+    assert!(
+        violations(&shared.doc).is_empty(),
+        "{:?}",
+        violations(&shared.doc)
+    );
+    // Promote the true carrier, never either of its private functional endpoints.
+    let input = open_bytes(shared.doc.bytes().to_vec());
+    let add = PartPmi {
+        features: vec![faces(&[0])],
+        datums: vec![
+            Datum::new(DatumLabel::new("Z").unwrap(), Some(FeatureId(0)), vec![]).unwrap(),
+        ],
+        ..PartPmi::default()
+    };
+    let promoted = write(&input, &[(PartId(0), add.clone())], Mode::Add).unwrap();
+    assert_verified_as(&input, &promoted, &add, Mode::Add);
+    assert!(promoted.report.geometry_carrier_exemptions.is_empty());
+    assert!(
+        violations(&promoted.doc).is_empty(),
+        "{:?}",
+        violations(&promoted.doc)
+    );
+    for e in &shared.report.geometry_carrier_exemptions {
+        assert!(promoted.doc.get(e.aspect).is_none());
+    }
+    // A new target must respect a characteristic already kept on its support.
+    let initial = written(
+        &f,
+        &PartPmi {
+            features: vec![faces(&[0])],
+            tolerances: vec![tolerance(
+                ToleranceKind::Flatness,
+                ToleranceTarget::Feature(FeatureId(0)),
+                "0.1",
+            )],
+            ..PartPmi::default()
+        },
+    );
+    let input = open_bytes(initial.doc.bytes().to_vec());
+    let mut add = common::pmi_targets::every_kind();
+    add.tolerances.clear();
+    let targets = write(&input, &[(PartId(0), add.clone())], Mode::Add).unwrap();
+    assert_verified_as(&input, &targets, &add, Mode::Add);
+    assert_eq!(targets.report.geometry_carrier_exemptions.len(), 5);
+    assert!(
+        violations(&targets.doc).is_empty(),
+        "{:?}",
+        violations(&targets.doc)
+    );
+    // Adding a control to an existing unshared support isolates its kept associations.
+    let initial = written(
+        &f,
+        &common::pmi_targets::separate_support(common::pmi_targets::every_kind()),
+    );
+    let input = open_bytes(initial.doc.bytes().to_vec());
+    let add = PartPmi {
+        features: vec![faces(&[1])],
+        tolerances: vec![tolerance(
+            ToleranceKind::Flatness,
+            ToleranceTarget::Feature(FeatureId(0)),
+            "0.1",
+        )],
+        ..PartPmi::default()
+    };
+    let support = write(&input, &[(PartId(0), add.clone())], Mode::Add).unwrap();
+    assert_verified_as(&input, &support, &add, Mode::Add);
+    assert_eq!(support.report.geometry_carrier_exemptions.len(), 5);
+    assert_eq!(exemptions(&support.doc).len(), 5);
+    assert!(
+        violations(&support.doc).is_empty(),
+        "{:?}",
+        violations(&support.doc)
+    );
+    // Composite supports have no own GISU to hide; placed targets add no geometry.
+    let mut multi = common::pmi_targets::every_kind();
+    multi.features[0] = faces(&[0, 2]);
+    let w = written(&f, &multi);
+    assert!(w.report.geometry_carrier_exemptions.is_empty());
+    assert!(violations(&w.doc).is_empty());
+    // Unlike a simple datum_feature, OCCT's composite DF complex takes the ordinary
+    // SAR branch. Isolate its controlled pair, keeping the feature itself the DF.
+    let mut complex = common::pmi_gaps::every_kind();
+    complex.features[0] = faces(&[0, 2]);
+    complex
+        .datums
+        .push(Datum::new(DatumLabel::new("Z").unwrap(), Some(FeatureId(0)), vec![]).unwrap());
+    complex.tolerances[0].datums = Some(system(&[0]));
+    let w = written(&f, &complex);
+    assert_eq!(w.report.geometry_carrier_exemptions.len(), 2);
+    assert!(violations(&w.doc).is_empty(), "{:?}", violations(&w.doc));
+    for t in w
+        .added()
+        .into_iter()
+        .filter(|id| is_a(&w.doc, *id, "geometric_tolerance"))
+    {
+        if let Some(target) = reference(&w.doc, t, "geometric_tolerance", "toleranced_shape_aspect")
+            && is_a(&w.doc, target, "shape_aspect")
+        {
+            assert!(is_a(&w.doc, target, "datum_feature"));
+        }
+    }
+    if let Some(dir) = std::env::var_os("HAECCEITY_OCCT_ADD_OUTPUT") {
+        std::fs::create_dir_all(&dir).unwrap();
+        for (name, w) in [
+            ("pair-shared", &shared),
+            ("pair-datum", &promoted),
+            ("targets-added", &targets),
+            ("support-shared", &support),
+            ("complex-datum-pair", &w),
+        ] {
+            std::fs::write(Path::new(&dir).join(format!("{name}.step")), w.doc.bytes()).unwrap();
+        }
+    }
+}
