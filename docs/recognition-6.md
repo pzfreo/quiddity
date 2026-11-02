@@ -707,3 +707,32 @@ Thus boundary contact is allowed, while any material volume in the remaining
 interior refuses the corner; there is no allowed occupied-volume fraction. A
 centroid and nearest support intersection alone are insufficient. Recognition
 schema 6 and fingerprint format 3 stay unchanged.
+
+## Partially obstructed through-hole exits
+
+A bore spanning its local wall, with exterior planar rim support at both axial ends,
+remains `bottom: "through"` when part of an exit disk opens into air and a planar
+face covers the rest. Conflicting open/closed end supports alone are insufficient:
+the recogniser checks the trimmed cap domains and verifies open and material
+witnesses immediately beyond the mouth in the owning solid. Entirely capped exits
+retain their existing flat/drill-point classification. Unsupported geometry remains
+`unknown`.
+
+Hole records (including members of hole patterns) gain optional `exit_obstructions`,
+a nonempty list of `{location, faces, covered_fraction}`. `location` is the mouth's
+axis point in file coordinates, independent of which end the hole uses as its
+presentation gauge. `faces` contains ascending zero-based file face indices for the
+covering caps. They and the exterior rim supports are consulted evidence, not new
+defining claims. `covered_fraction` estimates the union area covered inside that
+mouth's disk, divided by disk area, using 4096 equal-area polar samples and rounded
+to four decimals. It is approximate, for warnings, not a machining clearance.
+Both ends may have entries. Unobstructed and blind holes omit the field; older
+records deserialize with no reported obstruction.
+
+This additive optional field keeps recognition schema 6 and fingerprint format 3.
+It is diagnostic context, excluded from hole specs and fingerprints; the corrected
+`bottom` remains a fingerprint trait. Pattern members retain their own warnings.
+Consumers should re-recognise affected files, use `through` for their callout, and
+warn about the reported obstruction rather than infer an unobstructed exit from
+`through`. The Python binding returns this same Rust JSON; there is no separate
+Python hole-record schema.

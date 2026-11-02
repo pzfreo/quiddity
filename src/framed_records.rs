@@ -1138,6 +1138,7 @@ fn hole(out: &mut Out, r: HoleRecord) -> HoleRecord {
         spotface,
         outer_steps,
         csink,
+        exit_obstructions,
     } = r;
     HoleRecord {
         axis: out.direction(axis),
@@ -1149,6 +1150,13 @@ fn hole(out: &mut Out, r: HoleRecord) -> HoleRecord {
         spotface: spotface.map(counterbore),
         outer_steps: outer_steps.into_iter().map(counterbore).collect(),
         csink: csink.map(|c| countersink(out, c)),
+        exit_obstructions: exit_obstructions
+            .into_iter()
+            .map(|mut obstruction| {
+                obstruction.location = out.placed_point(obstruction.location);
+                obstruction
+            })
+            .collect(),
     }
 }
 

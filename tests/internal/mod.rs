@@ -36,6 +36,8 @@ mod modelled_threads;
 mod outer_profiles;
 #[path = "pads.rs"]
 mod pads;
+#[path = "partial_hole_exits.rs"]
+mod partial_hole_exits;
 #[path = "passages.rs"]
 mod passages;
 #[path = "prismatic_pockets.rs"]

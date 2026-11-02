@@ -301,6 +301,7 @@ pub const FAMILIES: &[FamilyFingerprint] = &[
             ("spotface.depth", Size),
             // Keep each diameter paired with its depth in canonical mouth-to-bore order.
             ("outer_steps", Derived),
+            ("exit_obstructions", Derived),
             ("csink", Trait),
             ("csink.major_diameter", Size),
             ("csink.drill_diameter", Size),
