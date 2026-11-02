@@ -20,6 +20,8 @@ mod evidence;
 mod fillet_convexity;
 #[path = "frames.rs"]
 mod frames;
+#[path = "helical_springs.rs"]
+mod helical_springs;
 #[path = "inside_rounds.rs"]
 mod inside_rounds;
 #[path = "invariance.rs"]
@@ -36,6 +38,8 @@ mod modelled_threads;
 mod outer_profiles;
 #[path = "pads.rs"]
 mod pads;
+#[path = "partial_hole_exits.rs"]
+mod partial_hole_exits;
 #[path = "passages.rs"]
 mod passages;
 #[path = "prismatic_pockets.rs"]

@@ -586,6 +586,7 @@ fn carry(
         repeating_radial_profiles,
         freeform_surfaces,
         modelled_threads,
+        helical_springs,
         modelled_thread_refusals,
         polygonal_bosses,
         polygonal_stock,
@@ -766,6 +767,21 @@ fn carry(
             repeating_radial_profile
         ),
         freeform_surfaces: each!("freeform_surfaces", freeform_surfaces, freeform_surface),
+        helical_springs: each!(
+            "helical_springs",
+            helical_springs,
+            |out: &mut Out, mut r: crate::features::helical_springs::HelicalSpring| {
+                let (axis, shift, sign) = thread_axis(out, r.axis);
+                r.axis = axis;
+                let (start, end) = (r.start + shift, r.end + shift);
+                (r.start, r.end) = if sign > 0. {
+                    (start, end)
+                } else {
+                    (-end, -start)
+                };
+                r
+            }
+        ),
         modelled_threads: each!("modelled_threads", modelled_threads, modelled_thread),
         modelled_thread_refusals: each!(
             "modelled_thread_refusals",
@@ -1138,6 +1154,7 @@ fn hole(out: &mut Out, r: HoleRecord) -> HoleRecord {
         spotface,
         outer_steps,
         csink,
+        exit_obstructions,
     } = r;
     HoleRecord {
         axis: out.direction(axis),
@@ -1149,6 +1166,13 @@ fn hole(out: &mut Out, r: HoleRecord) -> HoleRecord {
         spotface: spotface.map(counterbore),
         outer_steps: outer_steps.into_iter().map(counterbore).collect(),
         csink: csink.map(|c| countersink(out, c)),
+        exit_obstructions: exit_obstructions
+            .into_iter()
+            .map(|mut obstruction| {
+                obstruction.location = out.placed_point(obstruction.location);
+                obstruction
+            })
+            .collect(),
     }
 }
 

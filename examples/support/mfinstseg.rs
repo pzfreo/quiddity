@@ -951,6 +951,7 @@ mod tests {
                 cbore: None,
                 spotface: None,
                 outer_steps: Vec::new(),
+                exit_obstructions: Vec::new(),
                 csink: None,
             })
             .collect();

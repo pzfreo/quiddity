@@ -49,6 +49,7 @@ pub mod geometry_evidence;
 pub mod graph;
 pub mod grooves;
 pub mod gussets;
+pub mod helical_springs;
 pub mod hole_patterns;
 pub mod holes;
 pub mod interior_voids;
@@ -133,6 +134,9 @@ pub struct Features {
     /// Strict proof on each occurrence's defining AND consulted faces, kept through filtering.
     #[serde(skip)]
     pub evidence_status: BTreeMap<&'static str, Vec<evidence::EvidenceStatus>>,
+    /// Complete round-wire helical springs, omitted when absent.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub helical_springs: Vec<helical_springs::HelicalSpring>,
     pub fillets: Vec<fillets::Fillet>,
     /// Residual surface projection after all accepted claims (#127), omitted when absent.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -616,6 +620,12 @@ fn inventory_in_with(
         constituent: Defining::new(),
         evidence_status: BTreeMap::new(),
     };
+    let found_springs = discover!("helical_springs", helical_springs::discover(ctx));
+    let helical_springs = if found_springs.is_empty() {
+        Vec::new()
+    } else {
+        kept(&mut defining, "helical_springs", found_springs)
+    };
     let holes = kept(&mut defining, "holes", found_holes);
     let countersinks = kept(&mut defining, "countersinks", seats);
     let gusset_ribs = kept(
@@ -761,6 +771,7 @@ fn inventory_in_with(
         discovery_refusals.insert("prismatic_pocket_refusals", prismatic_analysis.refusals);
     }
     let mut physical = Features {
+        helical_springs,
         discovery_refusals,
         run_mode: if evidence::local_degradation() {
             evidence::RunMode::LocallyDegraded
@@ -1103,14 +1114,39 @@ struct Kept<'p> {
 /// The records of a family's occurrences, their defining and constituent faces kept under the
 /// family's name.
 fn kept<R>(kept: &mut Kept<'_>, family: &'static str, found: Vec<Occurrence<R>>) -> Vec<R> {
+    let found = without_spring_claims(kept, family, found);
     kept.claimed
         .insert(family, found.iter().map(|o| o.defining.clone()).collect());
     kept_shared(kept, family, found)
 }
 
+/// A proved whole spring takes precedence over descriptions of its individual wire
+/// patches. Filter before storing records/evidence, so patterns inherit accepted members.
+fn without_spring_claims<R>(
+    kept: &Kept<'_>,
+    family: &str,
+    found: Vec<Occurrence<R>>,
+) -> Vec<Occurrence<R>> {
+    if family == "helical_springs" {
+        return found;
+    }
+    let Some(springs) = kept.defining.get("helical_springs") else {
+        return found;
+    };
+    found
+        .into_iter()
+        .filter(|o| {
+            !springs
+                .iter()
+                .any(|faces| o.defining.iter().any(|f| faces.binary_search(f).is_ok()))
+        })
+        .collect()
+}
+
 /// Whole-body classifications and generic surface fallbacks retain evidence without
 /// reserving their faces against a specific feature discovered later.
 fn kept_shared<R>(kept: &mut Kept<'_>, family: &'static str, found: Vec<Occurrence<R>>) -> Vec<R> {
+    let found = without_spring_claims(kept, family, found);
     kept.evidence_status.insert(
         family,
         found

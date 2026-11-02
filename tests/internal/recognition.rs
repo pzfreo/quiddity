@@ -70,6 +70,7 @@ fn every_family_has_a_record_type() {
                 "cylindrical_profiles", // Optional residual family, for #127.
                 "turned_bodies",        // Optional whole-solid classification, for #123.
                 "modelled_threads",
+                "helical_springs",
                 "annular_grooves",
                 "face_grooves", // Optional intrinsic face-recess family, for #123.
                 "v_channels",

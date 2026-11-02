@@ -29,6 +29,19 @@ in [docs/alpha1.md](docs/alpha1.md).
   Specify ownership stamps (`specify-core:written:v1`) are deleted with removed records;
   haecceity does not reattach them. Specify's own Replace re-stamps newly emitted roots
   after the haecceity write (`specify-core-rust/src/writer.rs:784`, `src/provenance.rs:91`).
+### Added
+
+- Recognise complete round-wire helical coil springs from swept NURBS tubes and connected cylinder/torus approximations. The optional `helical_springs` / `HelicalSpring` record supplies a file-space axis, hand, wire/mean/outer/inner diameters, physical free length, measured total coils, pitch, end type and exact claimed faces. Active coils remain null with an explicit basis when inactive ends are unproved; rate is never inferred. Spring claims suppress individual wire hole/boss/fillet callouts. Draftwright consumers can dimension free length and outer diameter on a simplified spring view and populate a data table from the record. Recognition schema 6, fingerprint format 3 and crate versions are unchanged for this additive family; Python recognition JSON exposes the same record.
+
+- **Partially obstructed hole exits:** bores spanning their local wall now report
+  `bottom: "through"` when a planar partial cap leaves part of the exit open.
+  Optional `exit_obstructions` on hole records (also in pattern members) names
+  each mouth, its covering face indices and approximate covered-area fraction.
+  Full caps retain blind classifications; undecidable geometry remains `unknown`.
+  Consumers should re-recognise affected parts, draw THRU and warn about the
+  obstruction. Recognition schema `/6` and fingerprints `/3` are unchanged: the
+  diagnostic field is additive, omitted when empty, and excluded from fingerprints.
+  Rust `HoleRecord` literals must supply `exit_obstructions` (normally `Vec::new()`).
 
 ## 0.4.4 (2026-11-01)
 
