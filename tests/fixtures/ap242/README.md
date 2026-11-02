@@ -84,6 +84,8 @@ The reader omits the unestablished B from its valid semantic model and emits
 The shared check includes that public finding as an unresolved datum as well as walking
 the retained datums' feature graphs. Writer round trips independently check that resolved
 datum features still reach faces.
+The control's writer test uses the existing refusal harness and pins its four dimensions
+without nominal values as the only refusals; datums A, B and C must all survive and resolve.
 
 The same check covers all seven committed `nist/` models. CTC-02 is the sole exception:
 A, B, C and K are established only by placed datum targets (3 points, 4 points, 1 point,

@@ -3005,15 +3005,23 @@ fn datum_features_without_faces_are_reported() {
             .into_iter()
             .collect()
     );
-    for (label, datum, feature) in [("EMPTY", 1501, 1500), ("EDGE", 1511, 1510)] {
+    for (datum, ids, detail) in [
+        (
+            1501,
+            vec![1501],
+            "datum EMPTY is not read: what establishes it does not resolve",
+        ),
+        (
+            1511,
+            vec![1511, 1510],
+            "datum EDGE feature resolves to no faces",
+        ),
+    ] {
         let findings: Vec<_> = read.findings.iter().filter(|f| f.ids[0] == datum).collect();
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].kind, pmi::FindingKind::Unresolved);
-        assert_eq!(findings[0].ids, [datum, feature]);
-        assert_eq!(
-            findings[0].detail,
-            format!("datum {label} feature resolves to no faces")
-        );
+        assert_eq!(findings[0].ids, ids);
+        assert_eq!(findings[0].detail, detail);
     }
 }
 

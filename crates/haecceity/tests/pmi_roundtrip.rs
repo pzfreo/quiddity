@@ -223,6 +223,16 @@ fn roundtrip(
                 let parts1 = read_part_definitions(bytes).unwrap();
                 let doc1 = Document::parse(bytes.clone()).unwrap();
                 let r1 = pmi::read(&doc1, &parts1).unwrap();
+                // Every datum with a face before writing must still have one afterwards.
+                // In particular, a fully resolved input must have no unresolved output.
+                // Existing target-only datums (e.g. CTC-02 A/B/C/K) are not feature faces.
+                let before = common::pmi_datums::unresolved(&r0);
+                let after = common::pmi_datums::unresolved(&r1);
+                assert!(
+                    after.is_subset(&before),
+                    "{stem}: newly unresolved datum features: {:?}",
+                    after.difference(&before).collect::<Vec<_>>()
+                );
                 for (i, p) in o.written.iter().enumerate() {
                     for d in differences(&pmi::write::standard_form(p), &r1.parts[i]) {
                         problems.push(format!("{stem} part {i}: {d}"));
@@ -418,6 +428,38 @@ fn committed_nist() -> BTreeSet<String> {
         .filter(|p| p.to_string_lossy().ends_with(".stp.gz"))
         .map(|p| stem(&p))
         .collect()
+}
+
+#[test]
+fn control_datum_features_resolve_after_write_read() {
+    let bytes = file_bytes(&common::fixtures().join("ap242/reexport/01-NIST-control-ctc01.stp.gz"));
+    let parts = read_part_definitions(&bytes).unwrap();
+    let doc = Document::parse(bytes).unwrap();
+    let read = pmi::read(&doc, &parts).unwrap();
+    assert!(common::pmi_datums::unresolved(&read).is_empty());
+    // Like the committed CTC-01 copy, this control has four dimensions without a
+    // nominal value. Use the existing refusal harness, and pin those refusals so no
+    // datum loss can be hidden by removing newly refused requirements.
+    let outcome = replace_all(&doc, &parts, &read, PresentationPolicy::RemovePresentation);
+    assert_eq!(
+        outcome.refused,
+        BTreeMap::from([(
+            "Dimension: a dimension without a nominal value (§N.N.N: it shall always be given)"
+                .into(),
+            4,
+        )])
+    );
+    let (bytes, _) = outcome.result.unwrap();
+    let parts = read_part_definitions(&bytes).unwrap();
+    let doc = Document::parse(bytes).unwrap();
+    let written = pmi::read(&doc, &parts).unwrap();
+    assert!(common::pmi_datums::unresolved(&written).is_empty());
+    let labels: BTreeSet<_> = written.parts[0]
+        .datums
+        .iter()
+        .map(|d| d.label().to_string())
+        .collect();
+    assert_eq!(labels, BTreeSet::from(["A".into(), "B".into(), "C".into()]));
 }
 
 #[test]
