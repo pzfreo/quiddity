@@ -96,7 +96,7 @@ pub(crate) use authoring::model_refusals;
 
 type A = Attribute;
 
-#[cfg(feature = "json-import")]
+#[cfg(all(feature = "json-import", feature = "presentation"))]
 #[path = "source_presentation.rs"]
 mod source_presentation;
 
@@ -569,7 +569,8 @@ pub fn write(
 
 /// Write using source callout positions keyed by the semantic ids produced by
 /// `json::identify(standard_form(pmi), None)`. Existing `write` behavior is unchanged.
-/// All input is validated before an edit is returned. Saved views are not written.
+/// Source input requires the `presentation` feature; without it, nonempty input
+/// is refused. All input is validated before an edit is returned. Saved views are not written.
 #[cfg(feature = "json-import")]
 pub fn write_with_presentation(
     doc: &Document,
@@ -625,7 +626,13 @@ fn write_inner(
     #[cfg(feature = "json-import")]
     let (identifiers, protected) =
         identity.map_or((None, None), |(ids, kept)| (Some(ids), Some(kept)));
-    #[cfg(feature = "json-import")]
+    #[cfg(all(feature = "json-import", not(feature = "presentation")))]
+    if !presentation.is_empty() {
+        return Err(WriteError::Parts(
+            "source presentation requires the `presentation` feature".into(),
+        ));
+    }
+    #[cfg(all(feature = "json-import", feature = "presentation"))]
     source_presentation::validate_parts(presentation, pmi, mode)?;
     // Validate the input before migration (in particular every note's owner).
     for (part, p) in pmi {
@@ -726,6 +733,7 @@ fn write_inner(
         let plan = {
             let mut plan = PartPlan {
                 identifiers: identifiers.and_then(|ids| ids.get(p)),
+                #[cfg(feature = "presentation")]
                 source: source_presentation::prepare(
                     part_pmi,
                     identifiers.and_then(|ids| ids.get(p)),
@@ -2439,7 +2447,7 @@ enum Role {
 }
 
 struct PartPlan<'a> {
-    #[cfg(feature = "json-import")]
+    #[cfg(all(feature = "json-import", feature = "presentation"))]
     source: source_presentation::Placements,
     #[cfg(feature = "json-import")]
     identifiers: Option<&'a BTreeMap<String, Vec<String>>>,
@@ -2548,7 +2556,7 @@ impl<'a> PartPlan<'a> {
         let mut plan = PartPlan {
             #[cfg(feature = "json-import")]
             identifiers: None,
-            #[cfg(feature = "json-import")]
+            #[cfg(all(feature = "json-import", feature = "presentation"))]
             source: BTreeMap::new(),
             doc,
             def,
@@ -3380,15 +3388,7 @@ impl<'a> PartPlan<'a> {
             st.datums.insert(i, datum);
         }
         #[cfg(not(feature = "presentation"))]
-        {
-            #[cfg(feature = "json-import")]
-            let generated_only = self.source.is_empty();
-            #[cfg(not(feature = "json-import"))]
-            let generated_only = true;
-            if generated_only {
-                self.datum_symbols(em, &symbols, &st, report, presentation_reader)?;
-            }
-        }
+        self.datum_symbols(em, &symbols, &st, report, presentation_reader)?;
         for i in 0..p.dimensions.len() {
             self.dimension(em, &mut st, pds, i)?;
         }
@@ -3455,7 +3455,7 @@ impl<'a> PartPlan<'a> {
                 )?;
                 #[cfg(feature = "json-import")]
                 self.identify(em, "general", _i, _property)?;
-                #[cfg(any(feature = "presentation", feature = "json-import"))]
+                #[cfg(feature = "presentation")]
                 st.properties
                     .insert(crate::presentation::notes::Source::General(_i), _property);
             }
@@ -3499,7 +3499,7 @@ impl<'a> PartPlan<'a> {
                 "material name",
                 &[item],
             )?;
-            #[cfg(any(feature = "presentation", feature = "json-import"))]
+            #[cfg(feature = "presentation")]
             st.properties
                 .insert(crate::presentation::notes::Source::Material, _property);
         }
@@ -3546,7 +3546,7 @@ impl<'a> PartPlan<'a> {
             let _property = self.attribute_set(em, &mut st, pd, pds, a)?;
             #[cfg(feature = "json-import")]
             self.identify(em, "attributes", _i, _property)?;
-            #[cfg(any(feature = "presentation", feature = "json-import"))]
+            #[cfg(feature = "presentation")]
             st.properties
                 .insert(crate::presentation::notes::Source::Attribute(_i), _property);
         }
@@ -3559,7 +3559,7 @@ impl<'a> PartPlan<'a> {
             let _property = self.surface_texture(em, &mut st, pds, t)?;
             #[cfg(feature = "json-import")]
             self.identify(em, "surface_textures", _i, _property)?;
-            #[cfg(any(feature = "presentation", feature = "json-import"))]
+            #[cfg(feature = "presentation")]
             st.properties
                 .insert(crate::presentation::notes::Source::Texture(_i), _property);
         }
@@ -3583,7 +3583,7 @@ impl<'a> PartPlan<'a> {
                     &[text],
                 )?;
                 self.identify(em, "notes", i, property)?;
-                #[cfg(any(feature = "presentation", feature = "json-import"))]
+                #[cfg(feature = "presentation")]
                 st.properties
                     .insert(crate::presentation::notes::Source::Note(i), property);
             }
@@ -3616,10 +3616,6 @@ impl<'a> PartPlan<'a> {
         }
         #[cfg(feature = "presentation")]
         self.datum_symbols(em, &symbols, &st, report, presentation_reader)?;
-        #[cfg(all(feature = "json-import", not(feature = "presentation")))]
-        if !self.source.is_empty() {
-            self.datum_symbols(em, &symbols, &st, report, presentation_reader)?;
-        }
         Ok(())
     }
 
@@ -3943,11 +3939,11 @@ impl<'a> PartPlan<'a> {
         presentation_reader: Option<&crate::step::PartReader>,
     ) -> Result<(), WriteError> {
         if symbols.is_empty() && !needs_callouts(self.pmi) && {
-            #[cfg(feature = "json-import")]
+            #[cfg(all(feature = "json-import", feature = "presentation"))]
             {
                 self.source.is_empty()
             }
-            #[cfg(not(feature = "json-import"))]
+            #[cfg(not(all(feature = "json-import", feature = "presentation")))]
             {
                 true
             }
@@ -3992,18 +3988,9 @@ impl<'a> PartPlan<'a> {
         let measurements = presentation_part
             .as_ref()
             .map(|part| crate::presentation::linear::measurements(part, self.def, self.pmi));
-        #[cfg(feature = "json-import")]
-        let source_height = {
-            #[cfg(feature = "presentation")]
-            {
-                local_layout.text_height() * factor
-            }
-            #[cfg(not(feature = "presentation"))]
-            {
-                layout.height * factor
-            }
-        };
-        #[cfg(feature = "json-import")]
+        #[cfg(all(feature = "json-import", feature = "presentation"))]
+        let source_height = local_layout.text_height() * factor;
+        #[cfg(all(feature = "json-import", feature = "presentation"))]
         let placed = self.source_graphics(symbols, _st, factor, source_height, report)?;
         #[cfg(all(feature = "json-import", feature = "presentation"))]
         let is_placed = |definition: R| placed.iter().any(|g| g.0.contains(&definition));
@@ -4018,7 +4005,7 @@ impl<'a> PartPlan<'a> {
         let mut note_pieces: BTreeMap<R, Vec<Vec<[f64; 3]>>> = BTreeMap::new();
         for ((feature, labels, _feature_index), tip) in symbols.iter().zip(&tips) {
             let label = labels.join(",");
-            #[cfg(feature = "json-import")]
+            #[cfg(all(feature = "json-import", feature = "presentation"))]
             if let Some(g) = placed.iter().find(|g| g.0.contains(feature)) {
                 graphics.push(g.clone());
                 report.datum_symbols.push((self.id, label));
@@ -4441,13 +4428,7 @@ impl<'a> PartPlan<'a> {
                 ));
             }
         }
-        #[cfg(all(feature = "json-import", not(feature = "presentation")))]
-        for g in &placed {
-            if !graphics.iter().any(|old| old.0 == g.0) {
-                graphics.push(g.clone());
-            }
-        }
-        #[cfg(feature = "json-import")]
+        #[cfg(all(feature = "json-import", feature = "presentation"))]
         source_presentation::overlap_warnings(&graphics, &placed, report);
         let context = em.reference(self.context)?;
         let font = em.simple(
@@ -4532,7 +4513,7 @@ impl<'a> PartPlan<'a> {
                 };
                 #[cfg(not(feature = "presentation"))]
                 let source_lines = &lines;
-                #[cfg(feature = "json-import")]
+                #[cfg(all(feature = "json-import", feature = "presentation"))]
                 let source_lines = if self
                     .source_for_definitions(symbols, _st, &[definition])
                     .is_some_and(|p| p.has_leader())
@@ -4609,7 +4590,7 @@ impl<'a> PartPlan<'a> {
                     callouts.push((vec![definition], occurrence, annotation_type));
                 }
             }
-            #[cfg(feature = "json-import")]
+            #[cfg(all(feature = "json-import", feature = "presentation"))]
             if let Some(source) = self.source_for_definitions(symbols, _st, &definition) {
                 occurrences.extend(source.emit_metadata(em, line_style, factor, source_height)?);
             }
@@ -6635,7 +6616,7 @@ impl<'a> PartPlan<'a> {
     ) -> Result<(), WriteError> {
         let def = em.simple("thread", &[("name", s("")), ("description", s(""))])?;
         let shape = self.applied(em, st, pds, def, t.feature)?;
-        #[cfg(any(feature = "presentation", feature = "json-import"))]
+        #[cfg(feature = "presentation")]
         st.threads.insert(index, shape);
         #[cfg(not(any(feature = "presentation", feature = "json-import")))]
         let _ = index;
@@ -7209,7 +7190,7 @@ type TableIdentity = ();
 #[derive(Default)]
 struct Emitted {
     occt_protected: BTreeSet<R>,
-    #[cfg(any(feature = "presentation", feature = "json-import"))]
+    #[cfg(feature = "presentation")]
     properties: BTreeMap<crate::presentation::notes::Source, R>,
     /// Canonical feature → instance.
     features: BTreeMap<usize, R>,
@@ -7220,7 +7201,7 @@ struct Emitted {
     dimensions: BTreeMap<usize, R>,
     dimension_values: BTreeSet<usize>,
     tolerances: BTreeMap<usize, R>,
-    #[cfg(any(feature = "presentation", feature = "json-import"))]
+    #[cfg(feature = "presentation")]
     threads: BTreeMap<usize, R>,
     tolerance_targets: BTreeMap<usize, R>,
     systems: BTreeMap<String, R>,

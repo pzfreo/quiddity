@@ -1516,6 +1516,7 @@ fn ap214_product_type_rewrites_are_reported() {
     assert!(read_back_differences(&doc, &back, "add").is_empty());
 }
 
+#[cfg(all(feature = "json-import", feature = "presentation"))]
 #[test]
 fn pmi_write_source_presentation_positions_and_atomic_refusal() {
     use quiddity::kernel::json::{self as wire, presentation};
@@ -1593,4 +1594,37 @@ fn pmi_write_source_presentation_positions_and_atomic_refusal() {
     assert!(String::from_utf8_lossy(&failure.stderr).contains(id));
     assert_eq!(std::fs::read(&out).unwrap(), before);
     no_temporary_left(&out, "bad source presentation");
+}
+
+#[cfg(all(feature = "json-import", not(feature = "presentation")))]
+#[test]
+fn source_presentation_refuses_without_the_drawing_feature() {
+    let step = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ties/cube.step");
+    let bytes = std::fs::read(&step).unwrap();
+    let document = pmi_json::Document {
+        binding: Binding::of(&bytes),
+        parts: vec![pmi_json::DocumentPart {
+            part: pmi::PartId(0),
+            name: None,
+            pmi: pmi::PartPmi::default(),
+        }],
+        findings: vec![],
+    };
+    let source = scratch().join("source-disabled-companion.json");
+    std::fs::write(
+        &source,
+        serde_json::to_vec(&quiddity::kernel::json::presentation::Presentation::default()).unwrap(),
+    )
+    .unwrap();
+    let (out, output) = write_cli(
+        step.to_str().unwrap(),
+        &pmi_json::document_to_json(&document),
+        "source-disabled",
+        &["--source-presentation", source.to_str().unwrap()],
+    );
+    let error = write_refused(&out, &output, "source without drawing");
+    assert!(
+        error.contains("requires the `presentation` feature"),
+        "{error}"
+    );
 }

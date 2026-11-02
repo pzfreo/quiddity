@@ -42,7 +42,7 @@ impl Layout {
     }
     /// Generated saved views contain their own annotation planes. Pack parallel
     /// planes together, without moving text to clear unrelated camera planes.
-    #[cfg(feature = "presentation")]
+    #[cfg(any(feature = "json", test))]
     pub(crate) fn for_views(bounds: Bounds) -> Self {
         Self {
             view_local: true,
@@ -89,7 +89,6 @@ impl Layout {
     }
     /// Reserve completed annotation ink in both model space and projected views.
     /// Used when rebuilding only the feature stacks affected by new thread ink.
-    #[cfg(feature = "presentation")]
     pub(crate) fn reserve_ink(&mut self, lines: &[Vec<V3>], normal: V3, along: V3) {
         let Some(&first) = lines.iter().flatten().next() else {
             return;
@@ -118,7 +117,6 @@ impl Layout {
         );
     }
     /// Keep appended notes clear of existing notes in the front plane.
-    #[cfg(feature = "presentation")]
     pub(crate) fn reserve_notes(&mut self, lines: &[Vec<V3>]) {
         let mut bounds = Bounds::empty();
         for &p in lines.iter().flatten() {
@@ -301,7 +299,6 @@ impl Layout {
         self.feature_callout(anchor, outward, c, extent, Packing::default())
     }
     /// A text label reserves its actual ink, without the notation cell's padding.
-    #[cfg(feature = "presentation")]
     pub(crate) fn on_label(&mut self, anchor: V3, outward: V3, c: &Callout, extent: f64) -> Placed {
         self.feature_callout(
             anchor,
@@ -316,7 +313,7 @@ impl Layout {
     }
     /// Attach a control frame near its first cell rather than centring its whole
     /// potentially long datum-reference row on the feature.
-    #[cfg(feature = "presentation")]
+    #[cfg(feature = "json")]
     pub(crate) fn on_control(
         &mut self,
         anchor: V3,
@@ -338,7 +335,6 @@ impl Layout {
     /// Pack related ink together in one plane, with the size above its control
     /// frames. The feature lies in the first inter-callout gap, so neither row
     /// has to drift a full stack height away from a small bore.
-    #[cfg(feature = "presentation")]
     pub(crate) fn stack(
         &mut self,
         anchor: V3,
@@ -501,7 +497,6 @@ impl Layout {
     }
     /// End-on frames on axial features use either radial side and a corner
     /// attachment, keeping their leaders short and their projected ink separated.
-    #[cfg(feature = "presentation")]
     pub(crate) fn on_axis(&mut self, anchor: V3, axis: V3, c: &Callout, extent: f64) -> Placed {
         let mut best = None;
         // End-on is also a valid plane for an axial tolerance. It lets a frame

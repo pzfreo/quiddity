@@ -168,7 +168,7 @@ pub(crate) fn lettering(text: &str, height: f64) -> (Vec<Vec<(f64, f64)>>, f64) 
 }
 
 /// The public-domain ASCII glyph, without substitution for an unsupported character.
-#[cfg(any(feature = "presentation", feature = "json-import"))]
+#[cfg(feature = "presentation")]
 pub(crate) fn glyph(c: char) -> Option<Glyph> {
     static GLYPHS: std::sync::OnceLock<Vec<Glyph>> = std::sync::OnceLock::new();
     let index = (c as usize).checked_sub(32).filter(|&i| i < 95)?;

@@ -52,7 +52,7 @@ fn interior_uv(domain: &crate::uv::FaceDomain, (du, dv): (f64, f64), (u, v): (f6
 
 /// Alternative interior stations for an ISO surface symbol whose tip touches the face.
 /// Prefer quarter stations so a finish need not share the datum's centroid anchor.
-#[cfg(any(feature = "presentation", feature = "json-import"))]
+#[cfg(feature = "presentation")]
 pub fn surface_sites(part: &Part, f: usize) -> Vec<(V3, V3)> {
     let Some(face) = part.faces.get(f) else {
         return Vec::new();

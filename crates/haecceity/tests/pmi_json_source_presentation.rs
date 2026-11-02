@@ -1,4 +1,4 @@
-#![cfg(feature = "json-import")]
+#![cfg(all(feature = "json-import", feature = "presentation"))]
 use haecceity::{
     json::{
         self, Anchors,

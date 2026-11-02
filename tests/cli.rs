@@ -46,10 +46,13 @@ fn help_prints_usage_and_succeeds() {
             "quiddity pmi check <file.step> <pmi.json>",
             "quiddity pmi write <file.step> <pmi.json> -o <out.step> [--mode add|replace|remove]",
             "[--presentation refuse|remove]",
-            "[--source-presentation FILE]",
         ] {
             assert!(usage.contains(command), "{flag}: {usage}");
         }
+        assert_eq!(
+            usage.contains("--source-presentation FILE"),
+            cfg!(feature = "json-import")
+        );
         assert!(out.stderr.is_empty());
     }
 }
@@ -611,4 +614,22 @@ fn v011_oriented_fingerprints_correspond_to_merged_step() {
         "every available captured oriented feature must pair"
     );
     std::fs::remove_dir_all(temporary).unwrap();
+}
+
+#[cfg(not(feature = "json-import"))]
+#[test]
+fn source_presentation_flag_requires_json_import() {
+    let out = quiddity(&[
+        "pmi",
+        "write",
+        "geometry.step",
+        "pmi.json",
+        "-o",
+        "out.step",
+        "--source-presentation",
+        "source.json",
+    ]);
+    assert!(!out.status.success());
+    let error = String::from_utf8_lossy(&out.stderr);
+    assert!(error.contains("unknown option") && error.contains("--source-presentation"));
 }

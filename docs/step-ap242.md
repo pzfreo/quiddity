@@ -2000,13 +2000,13 @@ endpoint wrappers does not restore the redundant ordinary-feature wrappers.
 
 ### Source callout positions (phase 1)
 
-With the `json-import` feature, `pmi::write::write_with_presentation` accepts
+With both `json-import` and `presentation` enabled, `pmi::write::write_with_presentation` accepts
 `&[(PartId, json::presentation::Presentation)]` after the existing write arguments.
 Keys are the ids returned by `json::identify(standard_form(pmi), None)`; the JSON
 route, `json::write_with_presentation`, uses the submitted semantic document's ids.
 Both existing `write` entry points retain their behavior. Python accepts
 `pmi.write(geometry, document, presentation=companion)` (dict or JSON string).
-The CLI accepts `--source-presentation FILE` for a single selected part; its PMI
+The CLI exposes `--source-presentation FILE` only with `json-import`, for a single selected part; its PMI
 input remains the CLI's `quiddity-pmi` document, with the Rust route's semantic ids.
 `--presentation refuse|remove` still controls removal of existing presentation.
 
@@ -2028,3 +2028,9 @@ field) reports edge-on text and overlapping callouts without moving them.
 Placed text insertion frames are carried by AP242 annotation placeholders beside
 the tessellated strokes; edition-1 inputs with placements upgrade to edition 4.
 Documents without placements keep existing output bytes and schemas.
+
+Source placement requires the `presentation` drawing feature. With `json-import`
+but without `presentation`, the Rust and JSON APIs refuse a nonempty source input
+with a clear feature error, before writing anything. Ordinary writes without source
+input retain their previous behavior. Disabling default features does not enable
+JSON import or presentation drawing implicitly.

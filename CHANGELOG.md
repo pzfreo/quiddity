@@ -6,6 +6,10 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+- Source placement requires the `json-import` and `presentation` features.
+  The CLI source flag is hidden without `json-import`; builds without presentation
+  drawing refuse source input clearly. Minimal builds retain their previous features.
+
 - PMI writing accepts optional source callout planes, text positions and leader
   tips through Rust/JSON `write_with_presentation`, Python `presentation=`, and
   CLI `--source-presentation FILE`. Placed notes have their own note-linked
