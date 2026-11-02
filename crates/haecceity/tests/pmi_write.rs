@@ -1142,9 +1142,27 @@ fn add_datum_preserves_the_kept_geometric_carrier() {
         assert!(w.report.rewritten.is_empty());
         assert!(w.report.removed.is_empty());
         assert_original_entities_unchanged(&g.doc, &w.doc);
-        assert_eq!(w.report.geometry_carrier_exemptions.len(), 1);
-        let exemption = &w.report.geometry_carrier_exemptions[0];
-        assert_eq!(exemption.condition, "kept-carrier-datum-feature");
+        assert_eq!(
+            w.report.geometry_carrier_exemptions.len(),
+            if face_set.len() == 1 {
+                1
+            } else {
+                face_set.len() + 1
+            }
+        );
+        let exemption = w
+            .report
+            .geometry_carrier_exemptions
+            .iter()
+            .find(|e| {
+                e.condition
+                    == if face_set.len() == 1 {
+                        "kept-carrier-datum-feature"
+                    } else {
+                        "kept-carrier-datum-composite"
+                    }
+            })
+            .unwrap();
         assert_eq!(exemption.feature, owner);
         assert!(exemption.aspect > g.doc.max_id());
         let usages: Vec<_> = w
@@ -1374,6 +1392,276 @@ fn ctc01_add_datums_preserve_foreign_perpendicularity_and_location() {
             .unwrap();
         }
     }
+}
+
+/// Mixed kept/uncovered faces must not turn a datum root into a blanket exemption.
+#[test]
+fn ctc01_multi_face_datums_report_only_the_kept_face_members() {
+    use common::pmi_usage::{exemptions, introduced_violations, reference, violations};
+    let input = fixture("ap242/nist/nist_ctc_01_asme1_ap242-e1.stp.gz");
+    let index = |id| {
+        input.parts[0]
+            .faces
+            .iter()
+            .position(|face| *face == id)
+            .unwrap()
+    };
+    // #805 already has three producer usages in the input. They must stay
+    // unchanged and visible, rather than receiving unrelated exemptions.
+    let baseline = violations(&input.doc);
+    assert!(
+        baseline
+            .iter()
+            .any(|v| v.starts_with("item #805 identified by ")),
+        "{baseline:?}"
+    );
+    for (set, expected) in [
+        (vec![index(788), index(805)], vec![298, 322]),
+        (vec![index(788), 0], vec![298]),
+    ] {
+        let add = PartPmi {
+            features: vec![faces(&set)],
+            datums: vec![datum("D", 0)],
+            ..PartPmi::default()
+        };
+        let w = write(&input, &[(PartId(0), add.clone())], Mode::Add).unwrap();
+        assert_verified_as(&input, &w, &add, Mode::Add);
+        assert_original_entities_unchanged(&input.doc, &w.doc);
+        assert!(w.report.rewritten.is_empty());
+        assert!(w.report.removed.is_empty());
+        let mut reported: Vec<_> = w
+            .report
+            .geometry_carrier_exemptions
+            .iter()
+            .map(|e| (e.condition, e.aspect, e.feature))
+            .collect();
+        let mut checked: Vec<_> = exemptions(&w.doc)
+            .into_iter()
+            .filter(|e| e.aspect > input.doc.max_id())
+            .map(|e| (e.condition, e.aspect, e.feature))
+            .collect();
+        reported.sort();
+        checked.sort();
+        assert_eq!(reported, checked);
+        assert_eq!(
+            reported.iter().map(|e| e.2).collect::<BTreeSet<_>>(),
+            expected.into_iter().collect()
+        );
+        assert!(reported.iter().all(|(condition, aspect, _)| *condition
+            == "kept-carrier-datum-member"
+            && *aspect > input.doc.max_id()));
+        assert!(
+            introduced_violations(&input.doc, &w.doc).is_empty(),
+            "{:?}",
+            introduced_violations(&input.doc, &w.doc)
+        );
+        assert_eq!(violations(&w.doc), baseline);
+        let usages: Vec<_> = w
+            .added()
+            .into_iter()
+            .filter(|u| common::pmi_usage::is_a(&w.doc, *u, "geometric_item_specific_usage"))
+            .collect();
+        assert_eq!(usages.len(), 2);
+        for usage in usages {
+            let face = reference(
+                &w.doc,
+                usage,
+                "item_identified_representation_usage",
+                "identified_item",
+            )
+            .unwrap();
+            let rep = reference(
+                &w.doc,
+                usage,
+                "item_identified_representation_usage",
+                "used_representation",
+            )
+            .unwrap();
+            if face == input.parts[0].faces[0] {
+                assert!(
+                    rep <= input.doc.max_id(),
+                    "uncovered face must use the ordinary representation"
+                );
+            } else {
+                assert!(rep > input.doc.max_id());
+            }
+        }
+        if let Some(dir) = std::env::var_os("HAECCEITY_ROLE_ADD_OUTPUT") {
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(
+                Path::new(&dir).join(format!("ctc01-multi-{}.step", set[1])),
+                w.doc.bytes(),
+            )
+            .unwrap();
+        }
+    }
+}
+
+#[test]
+fn add_set_subset_is_independent_and_reported_with_or_without_datums() {
+    use common::pmi_usage::{exemptions, is_a, reference, violations};
+    let clean = written(&spool(), &PartPmi::default());
+    let rep = clean
+        .doc
+        .ids()
+        .find(|id| {
+            is_a(&clean.doc, *id, "shape_representation")
+                && !is_a(&clean.doc, *id, "draughting_model")
+        })
+        .unwrap();
+    let owner = clean.doc.max_id() + 1;
+    let usage = owner + 1;
+    let text = String::from_utf8(clean.doc.bytes().to_vec()).unwrap();
+    let input=open_bytes(appended(&text,&format!("#{owner}=SHAPE_ASPECT('foreign','',#{},.T.);\n#{usage}=ITEM_IDENTIFIED_REPRESENTATION_USAGE('','',#{owner},#{rep},SET_REPRESENTATION_ITEM((#{},#{})));",spool().parts[0].shape,spool().parts[0].faces[0],spool().parts[0].faces[1])).into_bytes());
+    for with_datum in [false, true] {
+        let add = PartPmi {
+            features: vec![faces(&[2]), faces(&[0])],
+            datums: if with_datum {
+                vec![datum("Z", 0)]
+            } else {
+                vec![]
+            },
+            tolerances: vec![tolerance(
+                ToleranceKind::Flatness,
+                ToleranceTarget::Feature(FeatureId(1)),
+                "0.01",
+            )],
+            ..PartPmi::default()
+        };
+        let w = write(&input, &[(PartId(0), add.clone())], Mode::Add).unwrap();
+        assert_verified_as(&input, &w, &add, Mode::Add);
+        assert_original_entities_unchanged(&input.doc, &w.doc);
+        assert!(w.report.rewritten.is_empty());
+        assert!(w.report.removed.is_empty());
+        assert!(violations(&w.doc).is_empty(), "{:?}", violations(&w.doc));
+        assert_eq!(w.report.geometry_carrier_exemptions.len(), 1);
+        let e = &w.report.geometry_carrier_exemptions[0];
+        assert_eq!(
+            (e.condition, e.feature),
+            ("kept-carrier-independent-feature", owner)
+        );
+        assert_eq!(
+            exemptions(&w.doc)
+                .iter()
+                .map(|e| (e.condition, e.aspect, e.feature))
+                .collect::<Vec<_>>(),
+            vec![(e.condition, e.aspect, e.feature)]
+        );
+        let u = w
+            .added()
+            .into_iter()
+            .find(|u| {
+                is_a(&w.doc, *u, "geometric_item_specific_usage")
+                    && reference(
+                        &w.doc,
+                        *u,
+                        "item_identified_representation_usage",
+                        "definition",
+                    ) == Some(e.aspect)
+            })
+            .unwrap();
+        assert!(
+            reference(
+                &w.doc,
+                u,
+                "item_identified_representation_usage",
+                "used_representation"
+            )
+            .unwrap()
+                > input.doc.max_id()
+        );
+        // Reopen: the independent carrier is now safe to reuse. Add must not
+        // create yet another GISU merely because its representation is fresh.
+        let reopened = open_bytes(w.doc.bytes().to_vec());
+        let again = PartPmi {
+            features: vec![faces(&[0])],
+            tolerances: vec![tolerance(
+                ToleranceKind::Flatness,
+                ToleranceTarget::Feature(FeatureId(0)),
+                "0.02",
+            )],
+            ..PartPmi::default()
+        };
+        let next = write(&reopened, &[(PartId(0), again.clone())], Mode::Add).unwrap();
+        assert_verified_as(&reopened, &next, &again, Mode::Add);
+        assert_original_entities_unchanged(&reopened.doc, &next.doc);
+        assert!(next.report.geometry_carrier_exemptions.is_empty());
+        assert!(
+            violations(&next.doc).is_empty(),
+            "{:?}",
+            violations(&next.doc)
+        );
+        assert!(!next.added().iter().any(|id| is_a(
+            &next.doc,
+            *id,
+            "geometric_item_specific_usage"
+        )));
+    }
+}
+
+/// CI consumes frozen OCCT captures and does not install OCP. Developers can run
+/// this live oracle explicitly with an OCP Python, using the same capture tool.
+#[test]
+#[ignore = "requires HAECCEITY_OCCT_PYTHON with OCP installed"]
+fn ctc01_added_datums_attach_in_live_occt_without_changing_foreign_pmi() {
+    let python = std::env::var_os("HAECCEITY_OCCT_PYTHON")
+        .expect("set HAECCEITY_OCCT_PYTHON to an OCP Python");
+    let input = fixture("ap242/nist/nist_ctc_01_asme1_ap242-e1.stp.gz");
+    let index = |id| input.parts[0].faces.iter().position(|f| *f == id).unwrap();
+    let dir = std::env::temp_dir().join(format!("haecceity-ctc01-add-occt-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let original = dir.join("input.step");
+    std::fs::write(&original, input.doc.bytes()).unwrap();
+    let mut command = std::process::Command::new(python);
+    command
+        .env("PYTHONDONTWRITEBYTECODE", "1")
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/common/ctc01_add_occt.py"))
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools"))
+        .arg(&original);
+    for (case, set) in [
+        vec![index(788)],
+        vec![index(805)],
+        vec![index(788), index(805)],
+        vec![index(788), 0],
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let target = if set.contains(&0) { 1 } else { 0 };
+        let mut control = tolerance(
+            ToleranceKind::Perpendicularity,
+            ToleranceTarget::Feature(FeatureId(1)),
+            "0.01",
+        );
+        control.datums = Some(system(&[0]));
+        let add = PartPmi {
+            features: vec![faces(&set), faces(&[target])],
+            datums: vec![datum("D", 0)],
+            tolerances: vec![control],
+            ..PartPmi::default()
+        };
+        let w = write(&input, &[(PartId(0), add.clone())], Mode::Add).unwrap();
+        assert_verified_as(&input, &w, &add, Mode::Add);
+        assert_original_entities_unchanged(&input.doc, &w.doc);
+        let path = dir.join(format!("case-{case}.step"));
+        std::fs::write(&path, w.doc.bytes()).unwrap();
+        command.arg(path).arg(
+            serde_json::to_string(
+                &set.iter()
+                    .map(|i| format!("#{}", input.parts[0].faces[*i]))
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap(),
+        );
+    }
+    let result = command.output().expect("launch OCP Python");
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(
+        result.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
 }
 
 #[test]
@@ -4719,7 +5007,14 @@ fn nist_ap203_upgrade_repairs() {
             datums: vec![datum("Z", 0)],
             ..PartPmi::default()
         };
-        let w = match write(&f, &[(PartId(0), p.clone())], Mode::Add) {
+        assert!(
+            matches!(
+                write(&f, &[(PartId(0), p.clone())], Mode::Add),
+                Err(WriteError::AddPreservation(_))
+            ),
+            "{name}: Add must not repair original entities"
+        );
+        let w = match write(&f, &[(PartId(0), p.clone())], Mode::Replace) {
             Ok(w) => w,
             Err(e) => {
                 failures.push(format!("{name}: {e}"));
@@ -8241,9 +8536,12 @@ fn ap214_product_type_keyword_only_and_readback() {
     assert_eq!(empty.doc.bytes(), f.doc.bytes());
     assert!(empty.report.edition_rewrites.is_empty());
     let p = product_type_pmi();
-    let w = write(&f, &[(PartId(0), p.clone())], Mode::Add).unwrap();
+    assert!(
+        matches!(write(&f, &[(PartId(0), p.clone())], Mode::Add), Err(WriteError::AddPreservation(ids)) if ids == vec![132])
+    );
+    let w = write(&f, &[(PartId(0), p.clone())], Mode::Replace).unwrap();
     assert_reads_back(&w, PartId(0), &p);
-    assert_verified_as(&f, &w, &p, Mode::Add);
+    assert_verified_as(&f, &w, &p, Mode::Replace);
     assert_eq!(
         w.report.edition_rewrites,
         [EditionRewrite {
@@ -8604,14 +8902,16 @@ fn add_on_legacy_plate_preserves_datums_and_forwarders() {
         );
     }
     assert_eq!(geometry(&w.doc, 1100), geometry(&f.doc, 1100));
-    // The retained producer wrappers already violate §5.1. Add must neither repair
-    // their bytes nor introduce another practice violation.
-    let before: BTreeSet<_> = violations(&f.doc).into_iter().collect();
-    let introduced: Vec<_> = violations(&w.doc)
-        .into_iter()
-        .filter(|v| !before.contains(v))
-        .collect();
-    assert!(introduced.is_empty(), "{introduced:?}");
+    assert!(violations(&w.doc).is_empty(), "{:?}", violations(&w.doc));
+    assert_eq!(
+        w.report
+            .preserved_normalizations
+            .iter()
+            .filter(|(_, n)| *n == "legacy-endpoint-retirement")
+            .map(|(id, _)| *id)
+            .collect::<Vec<_>>(),
+        vec![1004, 1109]
+    );
 }
 
 #[test]
@@ -8971,9 +9271,15 @@ fn shared_carrier_isolation_tracks_add_sharing_and_datum_promotion() {
     };
     let shared = write(&input, &[(PartId(0), add.clone())], Mode::Add).unwrap();
     assert_verified_as(&input, &shared, &add, Mode::Add);
-    assert_eq!(shared.report.geometry_carrier_exemptions.len(), 2);
-    assert_eq!(exemptions(&shared.doc).len(), 2);
-    assert_eq!(shared.report.rewritten.len(), 1);
+    assert_eq!(shared.report.geometry_carrier_exemptions.len(), 1);
+    assert_eq!(
+        shared.report.geometry_carrier_exemptions[0].condition,
+        "kept-carrier-independent-feature"
+    );
+    assert_eq!(exemptions(&shared.doc).len(), 1);
+    assert!(shared.report.rewritten.is_empty());
+    assert_original_entities_unchanged(&input.doc, &shared.doc);
+    assert!(!shared.report.preserved_normalizations.is_empty());
     assert!(
         violations(&shared.doc).is_empty(),
         "{:?}",
@@ -9045,8 +9351,15 @@ fn shared_carrier_isolation_tracks_add_sharing_and_datum_promotion() {
     };
     let support = write(&input, &[(PartId(0), add.clone())], Mode::Add).unwrap();
     assert_verified_as(&input, &support, &add, Mode::Add);
-    assert_eq!(support.report.geometry_carrier_exemptions.len(), 5);
-    assert_eq!(exemptions(&support.doc).len(), 5);
+    assert_eq!(
+        support.report.geometry_carrier_exemptions.len(),
+        1,
+        "{:?}",
+        support.report.geometry_carrier_exemptions
+    );
+    assert_eq!(exemptions(&support.doc).len(), 1);
+    assert_original_entities_unchanged(&input.doc, &support.doc);
+    assert!(support.report.rewritten.is_empty());
     assert!(
         violations(&support.doc).is_empty(),
         "{:?}",

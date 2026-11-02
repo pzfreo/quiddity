@@ -82,8 +82,28 @@ fn geometry_usages(doc: &Document, aspect: u64) -> BTreeSet<u64> {
 /// Only usages in separate representations qualify; duplicate scalar GISUs in
 /// the kept representation never acquire this exception.
 fn independent_datum_usages(doc: &Document, aspect: u64, feature: u64) -> BTreeSet<u64> {
-    let old = geometry_usages(doc, feature);
-    let reps: BTreeSet<_> = old
+    let own = geometry_usages(doc, aspect);
+    let retained: BTreeSet<_> = geometry_usages(doc, feature)
+        .difference(&own)
+        .copied()
+        .collect();
+    let mut covered = BTreeSet::new();
+    for usage in &retained {
+        let mut items = Vec::new();
+        if let Some(a) = attr(
+            doc,
+            *usage,
+            "item_identified_representation_usage",
+            "identified_item",
+        ) {
+            references(a, &mut items);
+        }
+        covered.extend(items);
+    }
+    if !geometry(doc, aspect).is_subset(&covered) {
+        return BTreeSet::new();
+    }
+    let reps: BTreeSet<_> = retained
         .iter()
         .filter_map(|u| {
             reference(
@@ -94,17 +114,24 @@ fn independent_datum_usages(doc: &Document, aspect: u64, feature: u64) -> BTreeS
             )
         })
         .collect();
-    geometry_usages(doc, aspect)
-        .difference(&old)
+    doc.referrers(aspect)
+        .iter()
         .copied()
         .filter(|u| {
-            reference(
-                doc,
-                *u,
-                "item_identified_representation_usage",
-                "used_representation",
-            )
-            .is_some_and(|r| !reps.contains(&r))
+            is_a(doc, *u, "geometric_item_specific_usage")
+                && reference(
+                    doc,
+                    *u,
+                    "item_identified_representation_usage",
+                    "definition",
+                ) == Some(aspect)
+                && reference(
+                    doc,
+                    *u,
+                    "item_identified_representation_usage",
+                    "used_representation",
+                )
+                .is_some_and(|r| !reps.contains(&r))
         })
         .collect()
 }
@@ -247,8 +274,9 @@ fn signature(
     child_keys.sort();
     let s = if let Some(group) = group {
         format!("scope:{group}({child_keys:?})")
-    } else if (is_a(doc, id, "dimensional_size_with_datum_feature")
-        || is_a(doc, id, "dimensional_location_with_datum_feature"))
+    } else if !direct
+        && (is_a(doc, id, "dimensional_size_with_datum_feature")
+            || is_a(doc, id, "dimensional_location_with_datum_feature"))
         && doc.referrers(id).iter().any(|r| {
             reference(
                 doc,
@@ -431,118 +459,222 @@ pub fn exemptions(doc: &Document) -> Vec<Exemption> {
             }
         }
     }
-    // An independently established datum may compose a preserved carrier. For
-    // groups it repeats the same member scope instead of nesting another group.
-    // This exception never excuses a duplicate GISU or a bare §6.5.3 size shell.
     let aspects: Vec<_> = doc
         .ids()
         .filter(|id| is_a(doc, *id, "shape_aspect"))
         .collect();
     let content: BTreeMap<_, _> = aspects.iter().map(|id| (*id, geometry(doc, *id))).collect();
-    let mut signatures = BTreeMap::new();
-    for &id in &aspects {
-        signature(doc, id, &content, &mut signatures, &mut BTreeSet::new());
-    }
-    for &aspect in &aspects {
-        if !is_a(doc, aspect, "datum_feature")
-            || is_a(doc, aspect, "dimensional_size_with_datum_feature")
-                && !doc.referrers(aspect).iter().any(|r| {
+    let established = |aspect| {
+        is_a(doc, aspect, "datum_feature")
+            && attr(doc, aspect, "shape_aspect", "product_definitional")
+                == Some(&Attribute::Enum("T".into()))
+            && (!is_a(doc, aspect, "dimensional_size_with_datum_feature")
+                || doc.referrers(aspect).iter().any(|r| {
                     reference(
                         doc,
                         *r,
                         "dimensional_characteristic_representation",
                         "dimension",
                     ) == Some(aspect)
+                }))
+            && doc
+                .referrers(aspect)
+                .iter()
+                .filter(|r| {
+                    composition(doc, **r)
+                        && reference(
+                            doc,
+                            **r,
+                            "shape_aspect_relationship",
+                            "relating_shape_aspect",
+                        ) == Some(aspect)
+                        && reference(
+                            doc,
+                            **r,
+                            "shape_aspect_relationship",
+                            "related_shape_aspect",
+                        )
+                        .is_some_and(|d| is_a(doc, d, "datum"))
                 })
+                .count()
+                == 1
+    };
+    let parents = |member| -> Vec<u64> {
+        doc.referrers(member)
+            .iter()
+            .copied()
+            .filter(|r| {
+                composition(doc, *r)
+                    && reference(doc, *r, "shape_aspect_relationship", "related_shape_aspect")
+                        == Some(member)
+            })
+            .filter_map(|r| reference(doc, r, "shape_aspect_relationship", "relating_shape_aspect"))
+            .collect()
+    };
+    for &aspect in &aspects {
+        if content[&aspect].is_empty()
             || attr(doc, aspect, "shape_aspect", "product_definitional")
                 != Some(&Attribute::Enum("T".into()))
-            || content[&aspect].is_empty()
         {
             continue;
         }
-        let establishments: Vec<_> = doc
-            .referrers(aspect)
-            .iter()
-            .copied()
-            .filter(|r| {
-                composition(doc, *r)
-                    && reference(
-                        doc,
-                        *r,
-                        "shape_aspect_relationship",
-                        "relating_shape_aspect",
-                    ) == Some(aspect)
-                    && reference(doc, *r, "shape_aspect_relationship", "related_shape_aspect")
-                        .is_some_and(|d| is_a(doc, d, "datum"))
-            })
-            .collect();
-        let [establishment] = establishments[..] else {
-            continue;
-        };
-        let group = is_a(doc, aspect, "composite_group_shape_aspect")
-            || is_a(doc, aspect, "all_around_shape_aspect")
-            || is_a(doc, aspect, "between_shape_aspect");
-        // An explicit whole-feature composition identifies the preserved carrier.
-        // Do not invent additional exemptions for unrelated producer aspects that
-        // happen to identify the same face (CTC-01 carries several of these).
-        let linked: BTreeSet<_> = doc
-            .referrers(aspect)
-            .iter()
-            .copied()
-            .filter(|r| {
-                composition(doc, *r)
-                    && reference(
-                        doc,
-                        *r,
-                        "shape_aspect_relationship",
-                        "relating_shape_aspect",
-                    ) == Some(aspect)
-            })
-            .filter_map(|r| reference(doc, r, "shape_aspect_relationship", "related_shape_aspect"))
-            .filter(|m| {
-                !is_a(doc, *m, "datum")
-                    && !is_a(doc, *m, "datum_feature")
-                    && !is_a(doc, *m, "datum_target")
-                    && content
-                        .get(m)
-                        .is_some_and(|g| content[&aspect].is_subset(g))
-            })
-            .collect();
-        for &feature in &aspects {
-            if feature == aspect
-                || !linked.is_empty() && !linked.contains(&feature)
-                || is_a(doc, feature, "datum_feature")
-                || is_a(doc, feature, "datum")
-                || is_a(doc, feature, "datum_target")
-                || !content[&aspect].is_subset(&content[&feature])
+        for association in doc.referrers(aspect).iter().copied().filter(|r| {
+            composition(doc, *r)
+                && reference(doc, *r, "shape_aspect_relationship", "related_shape_aspect")
+                    == Some(aspect)
+        }) {
+            let Some(feature) = reference(
+                doc,
+                association,
+                "shape_aspect_relationship",
+                "relating_shape_aspect",
+            ) else {
+                continue;
+            };
+            if !content
+                .get(&feature)
+                .is_some_and(|g| content[&aspect].is_subset(g))
                 || reference(doc, aspect, "shape_aspect", "of_shape")
                     != reference(doc, feature, "shape_aspect", "of_shape")
+                || independent_datum_usages(doc, aspect, feature).is_empty()
             {
                 continue;
             }
-            let link = doc.referrers(aspect).iter().copied().find(|r| {
+            // The backlink is the certificate: unrelated NIST aspects sharing a
+            // face can never acquire an exemption from geometric equality alone.
+            let condition = if established(aspect) {
+                "kept-carrier-datum-feature"
+            } else if !is_a(doc, aspect, "datum_feature")
+                && parents(aspect)
+                    .iter()
+                    .any(|p| *p != feature && established(*p))
+            {
+                "kept-carrier-datum-member"
+            } else if !is_a(doc, aspect, "datum_feature") {
+                "kept-carrier-independent-feature"
+            } else {
+                continue;
+            };
+            out.push(Exemption {
+                condition,
+                aspect,
+                feature,
+                association,
+            });
+        }
+    }
+    let mut signatures = BTreeMap::new();
+    for &id in &aspects {
+        signature(doc, id, &content, &mut signatures, &mut BTreeSet::new());
+    }
+    for &aspect in &aspects {
+        if established(aspect) {
+            let group = is_a(doc, aspect, "composite_group_shape_aspect")
+                || is_a(doc, aspect, "all_around_shape_aspect")
+                || is_a(doc, aspect, "between_shape_aspect");
+            let members: Vec<_> = out
+                .iter()
+                .filter(|e| {
+                    e.condition == "kept-carrier-datum-member"
+                        && parents(e.aspect).contains(&aspect)
+                })
+                .collect();
+            let candidates = aspects.iter().copied().filter(|feature| {
+                *feature != aspect
+                    && !is_a(doc, *feature, "datum_feature")
+                    && content[feature] == content[&aspect]
+                    && reference(doc, *feature, "shape_aspect", "of_shape")
+                        == reference(doc, aspect, "shape_aspect", "of_shape")
+            });
+            if let Some(feature) = candidates
+                .filter(|feature| {
+                    if group {
+                        signatures[feature] == signatures[&aspect]
+                    } else {
+                        members.len() > 1
+                            && members.iter().all(|e| {
+                                geometry_usages(doc, *feature)
+                                    .is_superset(&geometry_usages(doc, e.feature))
+                            })
+                            && independently_used(doc, *feature)
+                    }
+                })
+                .min()
+            {
+                out.push(Exemption {
+                    condition: if group {
+                        "kept-carrier-datum-feature"
+                    } else {
+                        "kept-carrier-datum-composite"
+                    },
+                    aspect,
+                    feature,
+                    association: aspect,
+                });
+            }
+        }
+        // Retained producer DIMENSION aliases are the exact normalization Add
+        // must forgo. Require an actual descendant carrier and identical scope.
+        if attr(doc, aspect, "shape_aspect", "name") != Some(&Attribute::String("DIMENSION".into()))
+            || owns_gisu(doc, aspect)
+        {
+            continue;
+        }
+        let mut todo = vec![aspect];
+        let mut seen = BTreeSet::new();
+        let mut candidates = Vec::new();
+        while let Some(parent) = todo.pop() {
+            if !seen.insert(parent) {
+                continue;
+            }
+            for r in doc.referrers(parent).iter().copied().filter(|r| {
                 composition(doc, *r)
                     && reference(
                         doc,
                         *r,
                         "shape_aspect_relationship",
                         "relating_shape_aspect",
-                    ) == Some(aspect)
-                    && reference(doc, *r, "shape_aspect_relationship", "related_shape_aspect")
-                        == Some(feature)
-            });
-            let independent = !independent_datum_usages(doc, aspect, feature).is_empty();
-            if let Some(association) = link.or_else(|| {
-                ((group && signatures[&aspect] == signatures[&feature]) || independent)
-                    .then_some(establishment)
+                    ) == Some(parent)
             }) {
-                out.push(Exemption {
-                    condition: "kept-carrier-datum-feature",
-                    aspect,
-                    feature,
-                    association,
-                });
+                if let Some(child) =
+                    reference(doc, r, "shape_aspect_relationship", "related_shape_aspect")
+                    && !is_a(doc, child, "datum")
+                {
+                    todo.push(child);
+                    if (owns_gisu(doc, child) || is_a(doc, child, "datum_feature"))
+                        && content.get(&child) == content.get(&aspect)
+                        && signatures.get(&child) == signatures.get(&aspect)
+                    {
+                        candidates.push((!is_a(doc, child, "datum_feature"), child, r));
+                    }
+                }
             }
+        }
+        // Older multi-face DIMENSION aliases repeat a datum's member list
+        // instead of pointing at its root. Require identical usage RECORDS,
+        // not merely coincident faces, so unrelated aspects cannot qualify.
+        let usage_set = geometry_usages(doc, aspect);
+        if !usage_set.is_empty() {
+            for &peer in &aspects {
+                if peer != aspect
+                    && (neutral(doc, peer) || is_a(doc, peer, "datum_feature"))
+                    && attr(doc, peer, "shape_aspect", "name")
+                        != Some(&Attribute::String("DIMENSION".into()))
+                    && signatures[&peer] == signatures[&aspect]
+                    && geometry_usages(doc, peer) == usage_set
+                {
+                    candidates.push((!is_a(doc, peer, "datum_feature"), peer, aspect));
+                }
+            }
+        }
+        candidates.sort();
+        if let Some((_, feature, association)) = candidates.first() {
+            out.push(Exemption {
+                condition: "kept-carrier-legacy-forwarder",
+                aspect,
+                feature: *feature,
+                association: *association,
+            });
         }
     }
     out.sort();
@@ -770,6 +902,42 @@ pub fn violations(doc: &Document) -> Vec<String> {
         signature(doc, id, &content, &mut signatures, &mut BTreeSet::new());
     }
     let exceptions = exemptions(doc);
+    let preserved_datums: BTreeSet<_> = exceptions
+        .iter()
+        .flat_map(|e| {
+            if matches!(
+                e.condition,
+                "kept-carrier-datum-feature" | "kept-carrier-datum-composite"
+            ) {
+                vec![e.aspect]
+            } else if e.condition == "kept-carrier-datum-member" {
+                doc.referrers(e.aspect)
+                    .iter()
+                    .filter_map(|r| {
+                        (composition(doc, *r)
+                            && reference(
+                                doc,
+                                *r,
+                                "shape_aspect_relationship",
+                                "related_shape_aspect",
+                            ) == Some(e.aspect))
+                        .then(|| {
+                            reference(
+                                doc,
+                                *r,
+                                "shape_aspect_relationship",
+                                "relating_shape_aspect",
+                            )
+                        })
+                        .flatten()
+                        .filter(|p| is_a(doc, *p, "datum_feature"))
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            }
+        })
+        .collect();
     let graphical: BTreeSet<_> = exceptions
         .iter()
         .filter(|e| e.condition == "shared-carrier-graphical-presentation")
@@ -777,13 +945,23 @@ pub fn violations(doc: &Document) -> Vec<String> {
         .collect();
     let datum_usages: BTreeSet<_> = exceptions
         .iter()
-        .filter(|e| e.condition == "kept-carrier-datum-feature")
+        .filter(|e| {
+            matches!(
+                e.condition,
+                "kept-carrier-datum-feature"
+                    | "kept-carrier-datum-member"
+                    | "kept-carrier-independent-feature"
+            )
+        })
         .flat_map(|e| independent_datum_usages(doc, e.aspect, e.feature))
         .collect();
     let exempt: BTreeSet<_> = exceptions
         .into_iter()
         .flat_map(|e| {
-            if e.condition == "kept-carrier-datum-feature" {
+            if matches!(
+                e.condition,
+                "kept-carrier-datum-feature" | "kept-carrier-datum-composite"
+            ) {
                 vec![e.aspect, e.feature]
             } else {
                 vec![e.aspect]
@@ -792,13 +970,12 @@ pub fn violations(doc: &Document) -> Vec<String> {
         .collect();
     let mut out = vec![];
     for (item, owners) in identified {
-        if owners
-            .iter()
+        let remaining: BTreeSet<_> = owners
+            .into_iter()
             .filter(|(owner, usage)| !graphical.contains(owner) && !datum_usages.contains(usage))
-            .count()
-            > 1
-        {
-            out.push(format!("item #{item} identified by {owners:?}"));
+            .collect();
+        if remaining.len() > 1 {
+            out.push(format!("item #{item} identified by {remaining:?}"));
         }
     }
     for &id in &aspects {
@@ -838,6 +1015,7 @@ pub fn violations(doc: &Document) -> Vec<String> {
         }
         if let Some(datum) = aspects.iter().copied().find(|id| {
             is_a(doc, *id, "datum_feature")
+                && !preserved_datums.contains(id)
                 && *id != target
                 && signatures[id] == signatures[&target]
         }) {
@@ -847,4 +1025,14 @@ pub fn violations(doc: &Document) -> Vec<String> {
         }
     }
     out
+}
+
+/// Strict findings introduced by an append-only edit. Existing producer duplicate
+/// usages stay visible in violations(before/after), rather than acquiring exemptions.
+pub fn introduced_violations(before: &Document, after: &Document) -> Vec<String> {
+    let original: BTreeSet<_> = violations(before).into_iter().collect();
+    violations(after)
+        .into_iter()
+        .filter(|v| !original.contains(v))
+        .collect()
 }

@@ -306,11 +306,31 @@ fn stc10_ordering_map_is_split_and_legacy_long_map_still_reads() {
         pmi::write::PresentationPolicy::Refuse,
     )
     .unwrap();
-    assert!(report.rewritten.contains(&ordering));
-    let repaired = Document::parse(legacy.apply(&edit).unwrap().bytes).unwrap();
-    assert!(longest_literal(repaired.bytes()) <= pmi::write::MAX_STRING_LITERAL_BYTES);
-    assert!(report.long_strings.is_empty());
-    let read = pmi::read(&repaired, &read_part_definitions(repaired.bytes()).unwrap()).unwrap();
+    assert!(report.rewritten.is_empty());
+    assert!(report.removed.is_empty());
+    assert_eq!(
+        report.preserved_normalizations,
+        vec![(ordering, "legacy-text-rechunking")]
+    );
+    let preserved = Document::parse(legacy.apply(&edit).unwrap().bytes).unwrap();
+    for id in legacy.ids() {
+        assert_eq!(
+            &preserved.bytes()[preserved.span(id).unwrap()],
+            &legacy.bytes()[legacy.span(id).unwrap()]
+        );
+    }
+    assert!(longest_literal(preserved.bytes()) > 40000);
+    assert!(
+        report
+            .long_strings
+            .iter()
+            .any(|w| w.record == format!("#{ordering}"))
+    );
+    let read = pmi::read(
+        &preserved,
+        &read_part_definitions(preserved.bytes()).unwrap(),
+    )
+    .unwrap();
     assert_eq!(
         json::to_value(
             &json::identify(read.parts[0].clone(), Some(&read.identifiers.parts[0])).unwrap()

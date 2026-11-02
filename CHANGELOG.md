@@ -25,16 +25,21 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
-- **Add datum carrier preservation:** adding a datum on a kept face or pattern now
-  emits a separate `datum_feature`. Face datums get their own per-face GISUs in
-  new representations; pattern datums retain the member scope. Original carriers,
-  usages, foreign controls and presentation stay byte-identical at their original
-  ids. This fixes Add
-  on NIST CTC-01's `.F.` perpendicularity carrier (`datum_feature.WR2` requires
-  `.T.`). Kept carriers are never promoted in any mode; datum leaves created in
-  the same write remain reusable. The narrow CAx-IF §5.1 exception is reported as
-  `WriteReport.geometry_carrier_exemptions.condition = "kept-carrier-datum-feature"`.
-  No EXPRESS validation rule is exempted.
+- **Add preserves original entity bytes:** every Add write keeps pre-existing
+  carriers, usages, controls and presentation at their original ids. Add no longer
+  retires legacy endpoint wrappers, isolates functional SARs or rechunks retained
+  legacy text, superseding 0.4.5's normalization behavior. Skipped normalizations
+  appear in `WriteReport.preserved_normalizations`; schema upgrades requiring entity
+  repairs now fail atomically in Add (use Replace for those repairs).
+- Adding a datum on a kept face or pattern emits a separate `.T.` `datum_feature`,
+  fixing NIST CTC-01's `.F.` perpendicularity carrier (`datum_feature.WR2`). Only
+  faces with kept usages get independent GISUs in new representations; uncovered
+  faces use ordinary carriers. Pattern datums retain their member scope. Non-datum
+  additions also get independent usages when safe reuse is impossible. Each narrow
+  CAx-IF §5.1 exception names the actual aspect and preserved carrier in
+  `WriteReport.geometry_carrier_exemptions`; unrelated source aspects are not exempt.
+  Kept carriers are never promoted in any mode; datum leaves created in the same
+  write remain reusable. No EXPRESS validation rule is exempted.
 
 ## 0.4.5 (2026-11-02)
 
