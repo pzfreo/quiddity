@@ -50,7 +50,7 @@ use crate::{PlanarOuterProfileEvidence, RefusedPlanarOuterProfile};
 
 /// Physical families in Python's registry order (`PHYSICAL_DEFINITIONS`), followed by the
 /// native measured-thread extension.
-pub const PHYSICAL_FAMILIES: [&str; 42] = [
+pub const PHYSICAL_FAMILIES: [&str; 43] = [
     "countersinks",
     "holes",
     "double_d_bores",
@@ -93,6 +93,7 @@ pub const PHYSICAL_FAMILIES: [&str; 42] = [
     "freeform_surfaces",
     "sheet_metal_bodies",
     "modelled_threads",
+    "helical_springs",
 ];
 
 /// The recess source families (`RECESS_SOURCE_FAMILIES`): Python's view leaves them out of its
@@ -269,7 +270,7 @@ fn faces(part: &Part, inventory: &Inventory) -> Result<Faces, EvidenceViewError>
         let found: Vec<Vec<usize>> = match family {
             // Not a candidate family: the projection's records carry their own evidence.
             "section_recesses" => Vec::new(),
-            family @ ("modelled_threads" | "turned_bodies") => inventory
+            family @ ("modelled_threads" | "turned_bodies" | "helical_springs") => inventory
                 .physical
                 .defining
                 .get(family)
@@ -345,10 +346,19 @@ fn faces(part: &Part, inventory: &Inventory) -> Result<Faces, EvidenceViewError>
         "edge_open_circular_pockets",
         own("edge_open_circular_pockets"),
     );
-    let patterns = wider!(
+    let spring_faces: BTreeSet<_> = inventory
+        .physical
+        .helical_springs
+        .iter()
+        .flat_map(|s| s.faces.iter().copied())
+        .collect();
+    let patterns: Vec<_> = wider!(
         "circular_face_patterns",
         circular_face_patterns::discover_with_groups(&ctx)
-    );
+    )
+    .into_iter()
+    .filter(|(o, _)| !o.defining.iter().any(|f| spring_faces.contains(f)))
+    .collect();
     let groups: Vec<Vec<Vec<usize>>> = patterns
         .iter()
         .map(|(_, groups)| groups.iter().map(|g| sorted(g)).collect())
@@ -401,6 +411,13 @@ fn faces(part: &Part, inventory: &Inventory) -> Result<Faces, EvidenceViewError>
         .collect::<Result<Vec<_>, EvidenceViewError>>()?;
     wider.insert("passages", passages);
 
+    // Rediscovered constituent evidence must follow the same whole-spring precedence
+    // as inventory registration, including for unrelated features in the same part.
+    if !spring_faces.is_empty() {
+        for found in wider.values_mut() {
+            found.retain(|(d, _)| !d.iter().any(|f| spring_faces.contains(f)));
+        }
+    }
     let mut constituent = BTreeMap::new();
     for (&family, faces) in &defining {
         let Some(found) = wider.get(family) else {

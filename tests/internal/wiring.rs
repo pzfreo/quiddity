@@ -105,6 +105,9 @@ fn parts() -> (Vec<PathBuf>, bool) {
     // Exercise the optional obstruction diagnostics, absent from the older STEP inputs.
     out.push(common::fixtures().join("partial_hole_exits.step.gz"));
     out.sort();
+    // Nested compressed positives must participate in the field-by-field family audit.
+    // No corpus part contains a spring, so the registry otherwise appears unused.
+    out.push(common::fixtures().join("helical_springs/segmented.step.gz"));
     let corpus = common::corpus_dir();
     assert!(
         corpus.is_some() || std::env::var_os("QUIDDITY_CORPUS_REQUIRED").is_none(),

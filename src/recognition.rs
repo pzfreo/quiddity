@@ -156,6 +156,7 @@ impl Record {
 /// Python's record class names for each family's records, in [`Features`]' order: one, or one
 /// per variant of an untagged family ([`record_type`] picks it).
 pub const RECORD_TYPES: &[(&str, &[&str])] = &[
+    ("helical_springs", &["HelicalSpring"]),
     ("fillets", &["Fillet"]),
     ("cylindrical_profiles", &["CylindricalProfile"]),
     ("chamfers", &["Chamfer"]),

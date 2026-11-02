@@ -708,6 +708,63 @@ interior refuses the corner; there is no allowed occupied-volume fraction. A
 centroid and nearest support intersection alone are insufficient. Recognition
 schema 6 and fingerprint format 3 stay unchanged.
 
+## Helical coil springs
+
+The optional `helical_springs` family publishes `HelicalSpring` records and is absent
+when empty. This is additive: recognition schema `/6`, fingerprint format `/3` and
+crate versions stay unchanged. The CLI, server and Python `recognise` JSON expose
+the same family and document record; Python has no separate record-class API.
+
+`axis` contains a unit `direction` and the point on its line nearest the file origin.
+All coordinates are in the STEP file frame, including after part-frame recognition.
+`start` and `end` bound the physical wire along that direction; `free_length` is their
+difference. Millimetre measurements are `wire_diameter`, `mean_diameter`,
+`outer_diameter = mean_diameter + wire_diameter`, `inner_diameter = mean_diameter -
+wire_diameter`, and `pitch`. `hand` is `left` or `right`, independent of axis sign.
+`total_coils` measures the centreline's angular sweep in turns, including the short
+straight terminal extensions of segmented models (`total_coils_basis` states this).
+Thus a nominal 6.5-turn construction with extended cylinder tips can measure 6.537
+turns. These are measured dimensions, not a nominal spring designation. A segmented
+solid's protruding chord ends can exceed the fitted outer diameter slightly.
+
+Recognition currently establishes constant-pitch, plain round-wire ends.
+`end_type` is `plain`; no closed/ground-end deduction is made. `active_coils` is null
+and `active_coils_basis` explicitly says that seating and inactive end coils are not
+established. Consumers must retain this unknown; do not subtract two coils or infer
+rate, material, loading, or preload. Closed/ground or variable-pitch geometry which
+cannot meet the complete tube/helix proof remains unrecognised.
+
+A candidate must be one valid solid composed entirely of round tube supports and
+their planar end caps. Coaxial cylinder patches merge before topology is examined.
+All tube pieces must form one connected, unbranched open chain. Swept NURBS supports
+and torus segments supply circular sections in either parameter direction: opposite
+stations establish their centres, and 16 section samples check radius and planarity.
+Sweep stations follow the spline knot count (at least 128, at most 8192 intervals).
+Circular sections, centreline joints and tangent directions fit one axis, radius,
+and linear axial advance against unwrapped angle, across the whole chain. At least
+two turns are required; no sampled angular interval may exceed 30 degrees.
+
+Wire radius, helix radius and axial fit residuals are bounded individually by
+`max(0.001 mm, 0.001 * size)` (axial size is pitch), published in `tolerances`.
+Cylinder axes must intersect within the wire-radius tolerance. Every finite segment
+must cover its joints and follow the fitted helix chord; its caps may extend at most
+one wire radius past the fitted circle intersections, both of which must meet the same
+axial helix fit, including at the two terminal segments. Swept section normals must
+follow the fitted tangent within 0.01 radians. A cylinder's slope must agree with
+pitch with the chord correction to 0.001, and its midpoint must be perpendicular to
+the radial vector within the helix-radius tolerance. These discrete chords are
+validated as chords, rather than mistaken for exact helical arcs. A row or bolt
+circle of pins, branches, a planar ring, local radius/pitch drift and thread or
+knurl surfaces cannot pass the complete-chain proof.
+
+Every face of the solid is claimed, including exposed segment end caps. This proved
+whole-spring claim takes precedence over individual wire holes, bosses, fillets,
+blends and surface fallbacks before accepted-member patterns are built. The record
+and fingerprint retain those exact defining faces; `faces` also appears in the
+record parameters. Draftwright can use `free_length` and `outer_diameter` for its
+simplified view dimensions, and the remaining measurements for its spring data
+table, retaining unknown active coils and omitting unstated rate.
+
 ## Partially obstructed through-hole exits
 
 A bore spanning its local wall, with exterior planar rim support at both axial ends,

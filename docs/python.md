@@ -216,3 +216,11 @@ approval. The job refuses to publish unless the release tag, the wheel's version
 (`crates/quiddity-py/pyproject.toml`) and the crates' version (`Cargo.toml`) all agree, so
 crates.io and PyPI releases share one version from 0.4.0 on. A manual run on `main` with
 `publish=true` is a fallback. Pushes and pull requests never publish.
+
+### Helical springs
+
+Recognition JSON includes the optional `helical_springs` array and `HelicalSpring`
+document records, using the same schema-6 file-space measurements as the CLI.
+See [the spring record contract](recognition-6.md#helical-coil-springs). Read
+`active_coils` as nullable and preserve `active_coils_basis`; unstated spring rate
+is not inferred. There is no separate Python record-class registration.
