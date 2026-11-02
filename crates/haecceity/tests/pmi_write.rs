@@ -8926,6 +8926,11 @@ fn add_on_legacy_plate_preserves_datums_and_forwarders() {
     let uncertified = Document::parse(w.doc.apply(&strip).unwrap().bytes).unwrap();
     assert_eq!(violations(&uncertified).len(), 4);
 
+    // The new preservation metadata must not block a later normal Replace.
+    let reopened = open_bytes(w.doc.bytes().to_vec());
+    let model = w.read.parts[0].clone();
+    let replaced = write(&reopened, &[(PartId(0), model.clone())], Mode::Replace).unwrap();
+    assert_verified_as(&reopened, &replaced, &model, Mode::Replace);
     assert_eq!(
         w.report
             .preserved_normalizations
