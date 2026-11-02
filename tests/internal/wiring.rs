@@ -102,6 +102,8 @@ fn parts() -> (Vec<PathBuf>, bool) {
         .map(|e| e.unwrap().path())
         .filter(|p| p.extension().is_some_and(|e| e == "step"))
         .collect();
+    // Exercise the optional obstruction diagnostics, absent from the older STEP inputs.
+    out.push(common::fixtures().join("partial_hole_exits.step.gz"));
     out.sort();
     let corpus = common::corpus_dir();
     assert!(

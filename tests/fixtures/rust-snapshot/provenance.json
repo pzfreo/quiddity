@@ -3049,6 +3049,7 @@
     "tests/fixtures/occt_trimmed_parabola.step": "365cf578d61c3f64a1848d1b9c1de1cbf461403ab1a2ef643a1322295d5af2d8",
     "tests/fixtures/open_shell.step": "22624c1bea883c0e10bdb04e8377df61daa5df39b8e65b93d7ad52996d9ad6fa",
     "tests/fixtures/parabola_cut_cone.step": "71c199877c2fc038b2908837d0564c3478add931d5ee7cc0e87eb93773b06788",
+    "tests/fixtures/partial_hole_exits.step.gz": "641aff0bac9aeaa8319c1ecadbdce1eed2c0c2fa87083649263f2af97d6c631f",
     "tests/fixtures/patches.json.gz": "a80daaf504b138dc2e43fc9f04818d841880e7083e6f3f13ac12cd269f866cb3",
     "tests/fixtures/plate_edge_notches.step": "7939cb8bcdaad81a83f49d21899fe30569e988081541b78e6128a39f1757b2b1",
     "tests/fixtures/plate_edge_round.step.gz": "a8008f9c2dc8e5e04fbdc6132be9dd6f5666e4e0950b08300168acf5e50e4b2d",
@@ -5875,5 +5876,5 @@
     "sections/test/parts/fc9cb0ef3d518aa4.step.gz.json.gz": "ad246bd3ca231dda3e7fe1fc54cd798984e7dcd9da376dcb609c3c42001086f8",
     "step_levels.json.gz": "b1d837579387b475bfb90cc5670098890fdfe83fddcbf0e2236a24207c2de1ff"
   },
-  "source_commit": "cdd256f517673687ec135eeb8270515b156244dd"
+  "source_commit": "ab3ed40e49dfbc1d1b1c45a8ae27648810099546"
 }

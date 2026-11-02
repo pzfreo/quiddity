@@ -6,6 +6,16 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+- **Partially obstructed hole exits:** bores spanning their local wall now report
+  `bottom: "through"` when a planar partial cap leaves part of the exit open.
+  Optional `exit_obstructions` on hole records (also in pattern members) names
+  each mouth, its covering face indices and approximate covered-area fraction.
+  Full caps retain blind classifications; undecidable geometry remains `unknown`.
+  Consumers should re-recognise affected parts, draw THRU and warn about the
+  obstruction. Recognition schema `/6` and fingerprints `/3` are unchanged: the
+  diagnostic field is additive, omitted when empty, and excluded from fingerprints.
+  Rust `HoleRecord` literals must supply `exit_obstructions` (normally `Vec::new()`).
+
 ## 0.4.4 (2026-11-01)
 
 Upgrading from 0.4.3: recognition schema `/6`, fingerprints `/3`, the `haecceity.pmi/1` schema and the PMI reader string `haecceity-pmi-read/14` are unchanged, so semantic PMI reads as in 0.4.3. STEP writing changes only for parts with threads. Presentation JSON gains the optional fields below, including for files without threads.

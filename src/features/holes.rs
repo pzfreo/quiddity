@@ -58,6 +58,17 @@ pub enum Bottom {
     Unknown,
 }
 
+/// A partial planar cap at an otherwise through mouth.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ExitObstruction {
+    /// Axis point at the obstructed mouth, in file coordinates.
+    pub location: Placed<V3>,
+    /// Faces covering part of the exit disk (consulted, not defining evidence).
+    pub faces: Vec<usize>,
+    /// Approximate union area of those faces inside the exit disk, divided by disk area.
+    pub covered_fraction: f64,
+}
+
 /// A drilled hole: `axis` points from the opening into the hole, `location` is the axis point at
 /// the opening; `diameter`/`depth` describe the bore (the narrowest segment), with `depth` from
 /// the top of the bore to the hole's deep end. `bottom` is `"through"`, `"flat"`,
@@ -81,6 +92,9 @@ pub struct HoleRecord {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub outer_steps: Vec<CounterBore>,
     pub csink: Option<CounterSink>,
+    /// Partial caps on otherwise through mouths. Absent for unobstructed or blind holes.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub exit_obstructions: Vec<ExitObstruction>,
 }
 
 /// Options named as `recognise_holes`' keyword arguments.
@@ -322,16 +336,151 @@ struct Drilling {
     bottom: Bottom,
     terminal: Vec<usize>,
     presentation: bool,
+    exit_obstructions: Vec<ExitObstruction>,
+}
+
+/// Exact transverse planar supports at a cylinder end. Requiring both wall planes
+/// excludes crossing bores, sloping floors, lips, and unsupported end guesses.
+fn end_planes(part: &Part, seg: &Segment, end: f64, hi: bool) -> Option<(Vec<usize>, Vec<usize>)> {
+    let centre = axis_point_at(seg, end);
+    let tol = policy::length_tol(seg.diameter, 1e-7);
+    let mut exterior = Vec::new();
+    let mut caps = Vec::new();
+    for face in end_partners(part, seg, end) {
+        let Surface::Plane { frame } = part.faces[face].surface else {
+            return None;
+        };
+        let normal = part.face_normal(face, 0., 0.)?;
+        let alignment = geom::dot(normal, seg.direction) * if hi { 1. } else { -1. };
+        if alignment.abs() < 1. - 1e-7
+            || geom::dot(geom::sub(centre, frame.origin), normal).abs() > tol
+        {
+            return None;
+        }
+        part.domain(face)?;
+        if alignment > 0. {
+            exterior.push(face);
+        } else {
+            caps.push(face);
+        }
+    }
+    if exterior.is_empty() {
+        return None;
+    }
+    Some((exterior, caps))
+}
+
+/// Resolve a wall exit with a genuine exterior rim and a partial planar cap.
+/// Equal-area polar quadrature estimates the union (never the sum) of cap areas.
+/// Open and covered witnesses are checked against the actual solid immediately
+/// beyond the mouth; unsupported/ambiguous geometry retains Unknown.
+fn partial_exit(part: &Part, seg: &Segment, end: f64, hi: bool) -> Option<ExitObstruction> {
+    use crate::kernel::classify::{Classifier, State};
+    let (exterior, caps) = end_planes(part, seg, end, hi)?;
+    if caps.is_empty() {
+        return None;
+    }
+    let Surface::Cylinder { frame, radius } = part.faces[seg.faces[0]].surface else {
+        return None;
+    };
+    let centre = axis_point_at(seg, end);
+    let contains = |face: usize, point| {
+        let (u, v) = part.faces[face].surface.parameters(point, None)?;
+        Some(part.domain(face)?.contains(u, v))
+    };
+    const RINGS: usize = 32;
+    const SECTORS: usize = 128;
+    let mut covered = 0;
+    let mut faces = BTreeSet::new();
+    let mut open_witness = None;
+    let mut cap_witness = None;
+    for ring in 0..RINGS {
+        let r = radius * ((ring as f64 + 0.5) / RINGS as f64).sqrt();
+        for sector in 0..SECTORS {
+            let angle = std::f64::consts::TAU * (sector as f64 + 0.5) / SECTORS as f64;
+            let (s, c) = angle.sin_cos();
+            let point = geom::add(
+                centre,
+                geom::add(geom::scale(frame.x, r * c), geom::scale(frame.y, r * s)),
+            );
+            // Opposing coincident faces inside the disk are contradictory evidence.
+            for &face in &exterior {
+                if contains(face, point)? {
+                    return None;
+                }
+            }
+            let mut hit = false;
+            for &face in &caps {
+                if contains(face, point)? {
+                    faces.insert(face);
+                    hit = true;
+                }
+            }
+            if hit {
+                covered += 1;
+                cap_witness.get_or_insert(point);
+            } else {
+                open_witness.get_or_insert(point);
+            }
+        }
+    }
+    let offset = geom::scale(seg.direction, if hi { 1e-4 } else { -1e-4 });
+    part.solids.get(seg.solid)?;
+    let classifier = Classifier::for_solid(part, seg.solid);
+    if classifier.classify(geom::add(open_witness?, offset)) != State::Out
+        || classifier.classify(geom::add(cap_witness?, offset)) != State::In
+    {
+        return None;
+    }
+    Some(ExitObstruction {
+        location: Placed::new(centre, Grid::Figures(11)),
+        faces: faces.into_iter().collect(),
+        covered_fraction: policy::round_measurement(covered as f64 / (RINGS * SECTORS) as f64, 4),
+    })
 }
 
 fn drilled_from(part: &Part, stack: &[Segment]) -> Drilling {
     let lo = end_segment(stack, |s| -s.s_lo);
     let hi = end_segment(stack, |s| s.s_hi);
-    let (lo_state, lo_faces) = classify_end(part, &stack[lo], stack[lo].s_lo, false);
-    let (hi_state, hi_faces) = classify_end(part, &stack[hi], stack[hi].s_hi, true);
+    let (mut lo_state, lo_faces) = classify_end(part, &stack[lo], stack[lo].s_lo, false);
+    let (mut hi_state, hi_faces) = classify_end(part, &stack[hi], stack[hi].s_hi, true);
+    let mut exit_obstructions = Vec::new();
+    // Coplanar exterior rim supports prove the local wall's two planes.
+    // Resolve only otherwise undecided mixed exits, and publish only when both open.
+    let lo_obstruction = if lo_state == End::Unknown
+        && matches!(hi_state, End::Open | End::Unknown)
+        && end_planes(part, &stack[hi], stack[hi].s_hi, true).is_some()
+    {
+        partial_exit(part, &stack[lo], stack[lo].s_lo, false)
+    } else {
+        None
+    };
+    let hi_obstruction = if hi_state == End::Unknown
+        && matches!(lo_state, End::Open | End::Unknown)
+        && end_planes(part, &stack[lo], stack[lo].s_lo, false).is_some()
+    {
+        partial_exit(part, &stack[hi], stack[hi].s_hi, true)
+    } else {
+        None
+    };
+    let both_open = (lo_state == End::Open || lo_obstruction.is_some())
+        && (hi_state == End::Open || hi_obstruction.is_some());
+    let lo_obstructed = lo_obstruction.is_some();
+    let lo_obstruction = lo_obstruction.filter(|_| both_open);
+    let hi_obstruction = hi_obstruction.filter(|_| both_open);
+    if let Some(obstruction) = lo_obstruction {
+        lo_state = End::Open;
+        exit_obstructions.push(obstruction);
+    }
+    if let Some(obstruction) = hi_obstruction {
+        hi_state = End::Open;
+        exit_obstructions.push(obstruction);
+    }
+    let obstructed = !exit_obstructions.is_empty();
     let (from_hi, presentation) = match (lo_state == End::Open, hi_state == End::Open) {
         (true, false) => (false, false),
         (false, true) => (true, false),
+        _ if obstructed && exit_obstructions.len() == 1 => (lo_obstructed, false),
         _ if lo == hi => (true, true),
         _ => match mouth_order(stack, lo, hi) {
             Some(side) => (side, false),
@@ -359,11 +508,24 @@ fn drilled_from(part: &Part, stack: &[Segment]) -> Drilling {
         End::Unknown => Bottom::Unknown,
     };
     // Only a closing face is evidence of the bottom.
-    let terminal = if matches!(bottom, Bottom::Flat | Bottom::DrillPoint) {
+    let mut terminal = if matches!(bottom, Bottom::Flat | Bottom::DrillPoint) {
         if presentation { gauge_faces } else { faces }
     } else {
         vec![]
     };
+    terminal.extend(exit_obstructions.iter().flat_map(|o| &o.faces));
+    if obstructed {
+        for (seg, end, hi) in [
+            (&stack[lo], stack[lo].s_lo, false),
+            (&stack[hi], stack[hi].s_hi, true),
+        ] {
+            if let Some((exterior, _)) = end_planes(part, seg, end, hi) {
+                terminal.extend(exterior);
+            }
+        }
+    }
+    terminal.sort_unstable();
+    terminal.dedup();
     Drilling {
         from_hi,
         opening,
@@ -371,6 +533,7 @@ fn drilled_from(part: &Part, stack: &[Segment]) -> Drilling {
         bottom,
         terminal,
         presentation,
+        exit_obstructions,
     }
 }
 
@@ -614,6 +777,7 @@ pub fn discover(
             bottom,
             mut terminal,
             presentation,
+            exit_obstructions,
         } = drilled_from(part, &stack);
         let ordered = ordered_from(&stack, from_hi);
         let bore_i = py::first_min(&ordered, |s| s.diameter);
@@ -669,6 +833,7 @@ pub fn discover(
             spotface,
             outer_steps,
             csink: None,
+            exit_obstructions,
         };
         let mouth = HoleMouth {
             axis: record.axis,
