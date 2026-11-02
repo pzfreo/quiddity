@@ -748,7 +748,9 @@ Wire radius, helix radius and axial fit residuals are bounded individually by
 `max(0.001 mm, 0.001 * size)` (axial size is pitch), published in `tolerances`.
 Cylinder axes must intersect within the wire-radius tolerance. Every finite segment
 must cover its joints and follow the fitted helix chord; its caps may extend at most
-one wire radius past the fitted circle intersections. Its slope must agree with
+one wire radius past the fitted circle intersections, both of which must meet the same
+axial helix fit, including at the two terminal segments. Swept section normals must
+follow the fitted tangent within 0.01 radians. A cylinder's slope must agree with
 pitch with the chord correction to 0.001, and its midpoint must be perpendicular to
 the radial vector within the helix-radius tolerance. These discrete chords are
 validated as chords, rather than mistaken for exact helical arcs. A row or bolt

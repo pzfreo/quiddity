@@ -41,6 +41,7 @@ pub struct SpringTolerances {
     pub helix_radius: f64,
     pub axial: f64,
     pub maximum_segment_angle_degrees: f64,
+    pub tangent_angle_radians: f64,
 }
 
 fn tolerance(r: f64) -> f64 {
@@ -305,6 +306,7 @@ struct Fit {
     radius: f64,
     pitch: f64,
     angles: Vec<f64>,
+    axial_intercept: f64,
 }
 
 fn fit(points: &[V3], tangents: &[V3]) -> Option<Fit> {
@@ -402,6 +404,7 @@ fn fit(points: &[V3], tangents: &[V3]) -> Option<Fit> {
         radius,
         pitch,
         angles,
+        axial_intercept: zm - slope * am,
     })
 }
 
@@ -496,6 +499,16 @@ fn recognise_solid(part: &Part, faces: &[usize]) -> Option<HelicalSpring> {
     // overlapping-cylinder approximations; arbitrary tangent pins cannot pass this.
     for (i, t) in ordered.iter().enumerate() {
         if !t.line {
+            for (&p, &normal) in t.points.iter().zip(&t.tangents) {
+                let q = geom::sub(p, fit.axis.point);
+                let expected = geom::unit(geom::add(
+                    geom::cross(fit.axis.direction, q),
+                    geom::scale(fit.axis.direction, fit.pitch / TAU),
+                ))?;
+                if geom::norm(geom::cross(expected, normal)) > 0.01 {
+                    return None;
+                }
+            }
             continue;
         }
         let a = if i == 0 {
@@ -560,7 +573,22 @@ fn recognise_solid(part: &Part, faces: &[usize]) -> Option<HelicalSpring> {
         {
             return None;
         }
+        // Both circle intersections, including the two terminal ones with no neighbour,
+        // must lie on this same fitted helix. A reversed-pitch terminal pin cannot pass
+        // by agreeing at just its one joint with the rest of the chain.
+        for station in [s0, s1] {
+            let p = geom::add(t.points[0], geom::scale(d, station));
+            let height = geom::dot(p, fit.axis.direction);
+            let angle = polar(p, (height - fit.axial_intercept) * TAU / fit.pitch);
+            if (height - fit.axial_intercept - fit.pitch * angle / TAU).abs() > tolerance(fit.pitch)
+            {
+                return None;
+            }
+        }
         let angle = 2. * (geom::norm(radial) / fit.radius).clamp(-1., 1.).acos();
+        if angle > PI / 6. + 1e-6 {
+            return None;
+        }
         let expected = fit.pitch.abs() / TAU
             * if angle < 1e-6 {
                 1. / fit.radius
@@ -612,6 +640,7 @@ fn recognise_solid(part: &Part, faces: &[usize]) -> Option<HelicalSpring> {
             helix_radius: tolerance(fit.radius),
             axial: tolerance(fit.pitch),
             maximum_segment_angle_degrees: 30.,
+            tangent_angle_radians: 0.01,
         },
         faces: claimed,
     })
