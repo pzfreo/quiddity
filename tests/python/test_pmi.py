@@ -259,3 +259,13 @@ def test_write_source_presentation_and_handmade_flag(producer):
     companion["planes"][0]["normal"] = [0, 0, 0]
     with pytest.raises(pmi.PmiError, match="thickness"):
         pmi.write(geometry, semantic, presentation=companion)
+
+
+def test_source_presentation_missing_text_origin_names_item(producer):
+    geometry, _ = producer
+    source_root = ROOT / "crates/haecceity/tests/fixtures/xcaf"
+    semantic = json.loads((source_root / "pmi_plate.source.pmi.json").read_text())
+    companion = json.loads((source_root / "pmi_plate.source.presentation.json").read_text())
+    del companion["items"]["thickness"][0]["text_placements"][0]["origin"]
+    with pytest.raises(pmi.PmiError, match="thickness.*origin"):
+        pmi.write(geometry, semantic, presentation=companion)

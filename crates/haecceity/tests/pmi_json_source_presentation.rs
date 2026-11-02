@@ -328,3 +328,16 @@ fn text_frame_can_supply_the_plane_and_later_view_variants_use_main_position() {
         .unwrap();
     assert_eq!(plane.origin, [80., 90., 70.]);
 }
+
+#[test]
+fn malformed_text_position_names_its_semantic_owner() {
+    let (_, _, semantic) = cube();
+    let mut value = serde_json::to_value(input(&semantic)).unwrap();
+    let id = &semantic.ids["dimensions"][0];
+    value["items"][id][0]["text_placements"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("origin");
+    let error = presentation::from_value(value).unwrap_err().to_string();
+    assert!(error.contains(id) && error.contains("origin"), "{error}");
+}

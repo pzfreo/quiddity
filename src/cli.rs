@@ -600,7 +600,8 @@ fn pmi_write(w: &WriteArgs) -> Result<String, String> {
         }
         let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
         let value = crate::kernel::json::parse(&text).map_err(|e| format!("{path}: {e}"))?;
-        let presentation = serde_json::from_value(value).map_err(|e| format!("{path}: {e}"))?;
+        let presentation = crate::kernel::json::presentation::from_value(value)
+            .map_err(|e| format!("{path}: {e}"))?;
         vec![(pmi[0].0, presentation)]
     } else {
         Vec::new()

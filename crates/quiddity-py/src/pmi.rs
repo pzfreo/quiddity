@@ -233,7 +233,10 @@ fn pmi_write<'py>(
                     .as_deref()
                     .map(|text| {
                         let value = json::parse(text)?;
-                        Ok::<_, json::Error>((PartId(selected), serde_json::from_value(value)?))
+                        Ok::<_, json::Error>((
+                            PartId(selected),
+                            json::presentation::from_value(value)?,
+                        ))
                     })
                     .transpose()?
                     .into_iter()

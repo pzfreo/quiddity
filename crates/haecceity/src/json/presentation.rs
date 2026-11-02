@@ -85,6 +85,26 @@ impl Default for Presentation {
         }
     }
 }
+/// Decode a companion while retaining the semantic owner in malformed-item errors.
+#[cfg(feature = "json-import")]
+pub fn from_value(mut value: Value) -> Result<Presentation> {
+    let items = value
+        .get_mut("items")
+        .map(|items| std::mem::replace(items, serde_json::json!({})));
+    let mut presentation: Presentation = serde_json::from_value(value)?;
+    if let Some(items) = items {
+        let Value::Object(items) = items else {
+            return Err(Error("presentation items must be an object".into()));
+        };
+        for (id, graphics) in items {
+            let graphics = serde_json::from_value(graphics)
+                .map_err(|e| Error(format!("presentation item {id}: {e}")))?;
+            presentation.items.insert(id, graphics);
+        }
+    }
+    Ok(presentation)
+}
+
 impl Graphic {
     fn new(source: Source, name: String) -> Self {
         Self {
