@@ -4354,6 +4354,41 @@ impl<'a> PartPlan<'a> {
             for (_, _, _, _, lines) in &graphics {
                 local_layout.reserve(lines);
             }
+            // Kept foreign callouts are obstacles too; reserve each separately so
+            // empty space between distant annotations remains available.
+            for lines in kept_callout_points(self.doc, em.removed) {
+                local_layout.reserve(&lines);
+            }
+            for (row, feature) in notes::feature_notes(self.pmi) {
+                let property = _st.properties[&row.source];
+                if is_placed(property) {
+                    continue;
+                }
+                let c = presentation::label(&row.text);
+                let p = if let Some((point, normal, extent)) =
+                    presentation_part.as_ref().and_then(|part| {
+                        presentation::placement::feature_site(part, self.pmi, feature).map(
+                            |(point, normal, face)| {
+                                (point, normal, part.face_bounds(face).diagonal() / factor)
+                            },
+                        )
+                    }) {
+                    local_layout.on_label(point.map(|x| x / factor), normal, &c, extent)
+                } else {
+                    local_layout.place(
+                        self.feature_point(feature.0).unwrap_or([0.; 3]),
+                        self.feature_axis(feature.0),
+                        &c,
+                    )
+                };
+                graphics.push((
+                    vec![property],
+                    "feature note",
+                    c.notation(),
+                    [p.origin, p.normal, p.along],
+                    p.lines,
+                ));
+            }
             for (i, t) in self
                 .pmi
                 .surface_textures
@@ -4395,8 +4430,6 @@ impl<'a> PartPlan<'a> {
                 .collect();
             if !rows.is_empty() {
                 let c = notes::notes_block(&rows);
-                // Appended annotations stay byte-identical, but still occupy space.
-                local_layout.reserve_notes(&kept_notes_points(self.doc, em.removed));
                 let p = local_layout.notes(&c);
                 let scale = local_layout.text_height() / 3.;
                 for (i, text) in c.letters.iter().enumerate() {
@@ -7046,23 +7079,23 @@ impl<'a> PartPlan<'a> {
     }
 }
 
-/// Tessellated/polyline ink of kept general notes, including repositioned tessellated sets.
+/// Ink of each kept callout, including repositioned tessellated sets.
 /// Read only: reserve foreign presentation without moving or restating it.
 #[cfg(feature = "presentation")]
-fn kept_notes_points(doc: &Document, removed: &BTreeSet<u64>) -> Vec<Vec<[f64; 3]>> {
+fn kept_callout_points(doc: &Document, removed: &BTreeSet<u64>) -> Vec<Vec<Vec<[f64; 3]>>> {
     use crate::geom;
     let mut out = Vec::new();
     let roots = doc.ids().filter(|id| {
         !removed.contains(id)
-            && is_a(doc, *id, "draughting_callout")
-            && attr_str(doc, *id, "representation_item", "name").as_deref() == Some("General notes")
+            && (is_a(doc, *id, "draughting_callout") || is_a(doc, *id, "annotation_occurrence"))
     });
     for root in roots {
+        let mut ink = Vec::new();
         let identity = ([0.; 3], [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]);
         let mut stack = vec![(root, identity)];
         let mut seen = BTreeSet::new();
         while let Some((id, mut frame)) = stack.pop() {
-            if !seen.insert(id) {
+            if removed.contains(&id) || !seen.insert(id) {
                 continue;
             }
             let transform = |frame: ([f64; 3], [[f64; 3]; 3]), p: [f64; 3]| {
@@ -7099,7 +7132,7 @@ fn kept_notes_points(doc: &Document, removed: &BTreeSet<u64>) -> Vec<Vec<[f64; 3
                 frame = (transform(frame, origin), basis);
             }
             if let Some(p) = point_of(doc, id) {
-                out.push(vec![transform(frame, p)]);
+                ink.push(vec![transform(frame, p)]);
             }
             // Full conics conservatively enclose any trimmed annotation arcs.
             if let Some(position) = attr_ref(doc, id, "conic", "position") {
@@ -7126,7 +7159,7 @@ fn kept_notes_points(doc: &Document, removed: &BTreeSet<u64>) -> Vec<Vec<[f64; 3
                     attr_ref(doc, position, "placement", "location").and_then(|p| point_of(doc, p))
                 {
                     let centre = transform(frame, centre);
-                    out.push(vec![
+                    ink.push(vec![
                         geom::sub(centre, [radius; 3]),
                         geom::add(centre, [radius; 3]),
                     ]);
@@ -7148,7 +7181,7 @@ fn kept_notes_points(doc: &Document, removed: &BTreeSet<u64>) -> Vec<Vec<[f64; 3
                         Some(transform(frame, xyz))
                     })
                     .collect();
-                out.push(points);
+                ink.push(points);
             }
             if let Some(e) = doc.get(id) {
                 p21::visit_attributes(e, &mut |a| {
@@ -7160,6 +7193,7 @@ fn kept_notes_points(doc: &Document, removed: &BTreeSet<u64>) -> Vec<Vec<[f64; 3
                 });
             }
         }
+        out.push(ink);
     }
     out
 }
@@ -7172,6 +7206,7 @@ fn needs_callouts(p: &PartPmi) -> bool {
             || !p.tolerances.is_empty()
             || p.surface_textures.iter().any(|t| t.on.is_some())
             || !crate::presentation::notes::general_notes(p).is_empty()
+            || !crate::presentation::notes::feature_notes(p).is_empty()
     }
     #[cfg(not(feature = "presentation"))]
     {

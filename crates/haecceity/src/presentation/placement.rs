@@ -34,7 +34,6 @@ pub struct Layout {
     view_local: bool,
     callouts: Vec<Vec<V3>>,
     notes_bottom: Option<f64>,
-    kept_notes: Vec<Bounds>,
 }
 impl Layout {
     pub fn new(bounds: Bounds) -> Self {
@@ -70,7 +69,6 @@ impl Layout {
             view_local: false,
             callouts: Vec::new(),
             notes_bottom: None,
-            kept_notes: Vec::new(),
         }
     }
     pub fn text_height(&self) -> f64 {
@@ -115,16 +113,6 @@ impl Layout {
             })
             .to_vec(),
         );
-    }
-    /// Keep appended notes clear of existing notes in the front plane.
-    pub(crate) fn reserve_notes(&mut self, lines: &[Vec<V3>]) {
-        let mut bounds = Bounds::empty();
-        for &p in lines.iter().flatten() {
-            bounds.add(p);
-        }
-        if bounds.max_extent().is_finite() {
-            self.kept_notes.push(bounds);
-        }
     }
     /// ISO 1302's actual tip touches an interior face site; its legs rise normally.
     /// A small fixed list of interior stations avoids existing annotation ink.
@@ -199,8 +187,8 @@ impl Layout {
     }
     /// Front-plane notes column beside the part's lower-right X/Z corner.
     /// Ink starts two capital heights right of max X and below min Z.
-    /// Subsequent blocks stack down with the same gap. Only part bounds and
-    /// preceding notes determine this column; remote leaders cannot move it.
+    /// Subsequent blocks stack down with the same gap. Slide below occupied
+    /// ink in the front projection, including graphics kept from the source file.
     pub fn notes(&mut self, c: &Callout) -> Placed {
         let scale = self.height / 3.;
         let local = c.polylines();
@@ -215,7 +203,7 @@ impl Layout {
         let height = ink.max[2] - ink.min[2];
         loop {
             let next = self
-                .kept_notes
+                .occupied
                 .iter()
                 .filter(|b| {
                     left < b.max[0] + gap
@@ -936,7 +924,7 @@ mod tests {
     }
 
     #[test]
-    fn notes_column_stays_at_part_bounds_despite_remote_ink_and_stacks_without_overlap() {
+    fn notes_column_clears_reserved_ink_and_stacks_without_overlap() {
         for mm_per_unit in [1., 25.4] {
             let bounds = Bounds {
                 min: [0., -4., -4.],
@@ -946,12 +934,30 @@ mod tests {
             let c = super::super::label("GENERAL NOTES\nMATERIAL: Steel C45");
             let first = layout.clone().notes(&c);
             // Existing feature ink must not recursively expand the notes area.
-            layout.reserve(&[vec![[-2000., -3000., -4000.], [5000., 6000., 7000.]]]);
+            layout.reserve(&[vec![[4000., -3000., -4000.], [5000., 6000., 7000.]]]);
             let placed = layout.notes(&c);
             assert_eq!(
                 first.lines, placed.lines,
                 "deterministic, part-relative placement"
             );
+            // Depth does not hide ink in the notes block's front projection.
+            let mut blocked = Layout::with_unit(bounds, mm_per_unit);
+            blocked.reserve(&[first
+                .lines
+                .iter()
+                .flatten()
+                .map(|p| [p[0], 100., p[2]])
+                .collect()]);
+            let moved = blocked.notes(&c);
+            let mut moved_box = Bounds::empty();
+            for &point in moved.lines.iter().flatten() {
+                moved_box.add(point);
+            }
+            let mut obstacle = Bounds::empty();
+            for &point in first.lines.iter().flatten() {
+                obstacle.add(point);
+            }
+            assert!(moved_box.max[2] <= obstacle.min[2] - 2. * blocked.text_height() + 1e-9);
             assert_eq!(placed.normal, [0., -1., 0.]);
             assert_eq!(placed.along, [1., 0., 0.]);
             let first_box = *layout.occupied.last().unwrap();

@@ -2012,6 +2012,11 @@ face anchors. The flag is also retained on `pmi write`, whose `quiddity-pmi` inp
 uses the Rust route's canonical semantic ids. Both routes select one part.
 `--presentation refuse|remove` still controls removal of existing presentation.
 
+Unplaced feature-owned notes get separate callouts with leaders to their faces,
+using the existing placement search. Part notes remain in the general-notes block,
+which slides downward to clear all reserved ink in its front projection, including
+kept file callouts. No additional input fields are required.
+
 The companion is `haecceity.presentation/1`. Each item's first graphic with a
 `plane_id`, `text_placements` or `leader` supplies its main placement. It must
 have a text position; the plane defaults to that text frame when omitted.

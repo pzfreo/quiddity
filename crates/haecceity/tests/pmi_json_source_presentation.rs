@@ -584,3 +584,262 @@ fn boxed_datum_lettering_is_not_clipped_for_alignment() {
     let bounds = ink_bounds(&lines[callout.frame_strokes..]);
     assert_point(bounds.max, [80., 90., 70.]);
 }
+
+fn front_overlap(a: haecceity::geom::Bounds, b: haecceity::geom::Bounds) -> bool {
+    [0, 2]
+        .into_iter()
+        .all(|k| a.min[k] < b.max[k] - 1e-9 && b.min[k] < a.max[k] - 1e-9)
+}
+
+#[test]
+fn ctc_01_notes_block_clears_kept_callout_ink() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/ap242/nist/nist_ctc_01_asme1_ap242-e1.stp.gz");
+    let mut bytes = Vec::new();
+    flate2::read::GzDecoder::new(std::fs::File::open(path).unwrap())
+        .read_to_end(&mut bytes)
+        .unwrap();
+    let before = read_placed(bytes.clone());
+    let defs = read_part_definitions(&bytes).unwrap();
+    let doc = Document::parse(bytes).unwrap();
+    // Part settings from the committed nist_ctc_01_merge Specify intent.
+    let pmi = PartPmi {
+        material: Some(Material {
+            id: "Aluminium 6082-T6".into(),
+            name: None,
+            density: None,
+        }),
+        general: vec![GeneralTolerance::Class {
+            text: "ISO 2768-m".into(),
+            standard: pmi::standards::Iso2768::recognise("ISO 2768-m"),
+        }],
+        notes: vec![
+            Note {
+                kind: "surface finish".into(),
+                text: "Ra 3.2".into(),
+                on: None,
+                callouts: vec![],
+            },
+            Note {
+                kind: "edge condition".into(),
+                text: "Break sharp edges 0.2 max".into(),
+                on: None,
+                callouts: vec![],
+            },
+        ],
+        ..Default::default()
+    };
+    let mut rebuilt = pmi::read(&doc, &defs).unwrap().parts.remove(0);
+    // The source has four nominal-less dimensions the typed writer refuses;
+    // keep the eight stated dimensions for the regeneration case, without
+    // inventing values. Its controls all own features, not dimension indices.
+    assert!(
+        rebuilt
+            .tolerances
+            .iter()
+            .all(|t| !matches!(t.target, ToleranceTarget::Dimension(_)))
+    );
+    rebuilt.dimensions.retain(|d| d.nominal.is_some());
+    assert_eq!(rebuilt.dimensions.len(), 8);
+    rebuilt.material = pmi.material.clone();
+    rebuilt.general.extend(pmi.general.clone());
+    rebuilt.notes.extend(pmi.notes.clone());
+    let all = |p: Presentation| {
+        p.items
+            .into_values()
+            .flatten()
+            .chain(p.unlinked)
+            .collect::<Vec<_>>()
+    };
+    let kept = all(before)
+        .into_iter()
+        .filter(|g| !g.polylines.is_empty())
+        .collect::<Vec<_>>();
+    assert!(kept.len() > 10, "must exercise the file's own callouts");
+    for (name, requirements, mode) in [
+        ("kept", pmi, pmi::write::Mode::Add),
+        ("regenerated", rebuilt, pmi::write::Mode::Replace),
+    ] {
+        let (edit, _) = pmi::write(
+            &doc,
+            &defs,
+            &[(PartId(0), requirements.clone())],
+            mode,
+            pmi::write::PresentationPolicy::RemovePresentation,
+        )
+        .unwrap();
+        let output = doc.apply(&edit).unwrap().bytes;
+        if let Ok(dir) = std::env::var("QUIDDITY_SOURCE_PLACEMENT_EXPORT") {
+            std::fs::write(
+                std::path::Path::new(&dir).join(format!("ctc-01-notes-{name}.step")),
+                &output,
+            )
+            .unwrap();
+        }
+        let after = all(read_placed(output));
+        let blocks = after
+            .iter()
+            .filter(|g| g.name == "General notes")
+            .collect::<Vec<_>>();
+        assert!(!blocks.is_empty(), "missing notes ink");
+        let other = after
+            .iter()
+            .filter(|g| g.name != "General notes" && !g.polylines.is_empty())
+            .collect::<Vec<_>>();
+        for block in blocks {
+            let block = ink_bounds(&block.polylines);
+            for graphic in &other {
+                assert!(
+                    !front_overlap(block, ink_bounds(&graphic.polylines)),
+                    "{name}: notes overlap {}",
+                    graphic.name
+                );
+            }
+            if mode == pmi::write::Mode::Add {
+                for graphic in &kept {
+                    assert!(
+                        !front_overlap(block, ink_bounds(&graphic.polylines)),
+                        "notes overlap kept {}",
+                        graphic.name
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn amys_unplaced_flag_note_has_its_own_hole_leader() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/xcaf");
+    let mut bytes = Vec::new();
+    flate2::read::GzDecoder::new(std::fs::File::open(root.join("pmi_plate.geom.step.gz")).unwrap())
+        .read_to_end(&mut bytes)
+        .unwrap();
+    let defs = read_part_definitions(&bytes).unwrap();
+    let doc = Document::parse(bytes).unwrap();
+    let semantic = json::from_str(
+        &std::fs::read_to_string(root.join("pmi_plate.source.pmi.json")).unwrap(),
+        &Anchors::read(&doc, &defs[0]),
+    )
+    .unwrap();
+    let (bytes, _) = json::write_preserving(&doc, &defs, &[(PartId(0), semantic.clone())]).unwrap();
+    let read = read_placed(bytes.clone());
+    let note = &semantic.pmi.notes[1];
+    let graphics = &read.items[&semantic.ids["notes"][1]];
+    assert_eq!(
+        graphics.len(),
+        1,
+        "one callout linked to the flag's property"
+    );
+    let graphic = &graphics[0];
+    assert_eq!(graphic.name, note.text);
+    let c = haecceity::presentation::label(&note.text);
+    assert_eq!(
+        graphic.polylines.len(),
+        c.polylines().len() + 1,
+        "text plus leader"
+    );
+    let Some(NoteOwner::Feature(feature)) = note.on else {
+        panic!("flag must own a feature")
+    };
+    let part = haecceity::step::read_part(doc.bytes(), &defs[0]).unwrap();
+    let (tip, _, face) =
+        haecceity::presentation::placement::feature_site(&part, &semantic.pmi, feature).unwrap();
+    let leader = graphic.polylines.last().unwrap();
+    assert!(
+        haecceity::geom::dist(leader[0], tip) < 2e-6,
+        "leader must land inside the hole face {face}"
+    );
+    let Feature::Items(items) = &semantic.pmi.features[feature.0] else {
+        panic!("face feature")
+    };
+    assert!(items.contains(&Anchor::Face(FaceIndex(face))));
+    assert!(
+        read.items[&semantic.ids["notes"][0]]
+            .iter()
+            .all(|g| g.name == "General notes"),
+        "part note remains in the block"
+    );
+    if let Ok(dir) = std::env::var("QUIDDITY_SOURCE_PLACEMENT_EXPORT") {
+        std::fs::write(
+            std::path::Path::new(&dir).join("plate-unplaced.step"),
+            bytes,
+        )
+        .unwrap();
+    }
+}
+
+#[test]
+fn notes_block_moves_past_a_kept_dimension_in_its_old_slot() {
+    let (doc, defs, mut semantic) = cube();
+    let mut source = input(&semantic);
+    semantic.pmi.notes.clear();
+    semantic = json::identify(semantic.pmi, None).unwrap();
+    let settings = PartPmi {
+        material: Some(Material {
+            id: "Steel".into(),
+            name: None,
+            density: None,
+        }),
+        ..Default::default()
+    };
+    let part = haecceity::step::read_part(doc.bytes(), &defs[0]).unwrap();
+    let mut layout = haecceity::presentation::placement::Layout::new(part.bounds());
+    let c = haecceity::presentation::notes::notes_block(
+        &haecceity::presentation::notes::general_notes(&settings),
+    );
+    let unreserved = layout.notes(&c);
+    source
+        .items
+        .retain(|id, _| id == &semantic.ids["dimensions"][0]);
+    source.planes[0].normal = [0., -1., 0.];
+    let graphic = &mut source
+        .items
+        .get_mut(&semantic.ids["dimensions"][0])
+        .unwrap()[0];
+    graphic.leader = None;
+    graphic.text_placements[0].origin = ink_bounds(&unreserved.lines).centre();
+    graphic.text_placements[0].normal = [0., -1., 0.];
+    let (bytes, _) = write(&doc, &defs, &semantic, source).unwrap();
+    let before = read_placed(bytes.clone());
+    let dimension = &before.items[&semantic.ids["dimensions"][0]][0];
+    assert!(
+        front_overlap(
+            ink_bounds(&unreserved.lines),
+            ink_bounds(&dimension.polylines)
+        ),
+        "fixture must obstruct the old notes slot"
+    );
+    let defs = read_part_definitions(&bytes).unwrap();
+    let doc = Document::parse(bytes).unwrap();
+    let (edit, _) = pmi::write(
+        &doc,
+        &defs,
+        &[(PartId(0), settings)],
+        pmi::write::Mode::Add,
+        pmi::write::PresentationPolicy::RemovePresentation,
+    )
+    .unwrap();
+    let after = read_placed(doc.apply(&edit).unwrap().bytes);
+    let blocks = after
+        .items
+        .values()
+        .flatten()
+        .chain(&after.unlinked)
+        .filter(|g| g.name == "General notes")
+        .collect::<Vec<_>>();
+    assert!(!blocks.is_empty());
+    for block in blocks {
+        assert!(
+            !front_overlap(
+                ink_bounds(&block.polylines),
+                ink_bounds(&dimension.polylines)
+            ),
+            "kept dimension must be an obstacle"
+        );
+    }
+    assert_eq!(
+        after.items[&semantic.ids["dimensions"][0]][0].polylines, dimension.polylines,
+        "never move kept ink"
+    );
+}

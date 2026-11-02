@@ -6,6 +6,8 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+- Generate individual leadered callouts for unplaced feature notes; keep the general-notes block clear of generated, source-placed, and kept file ink.
+
 - Source callouts honour /1 text alignment, attach leaders to the box edge towards
   the tip, and refuse conflicting placements on a shared datum symbol. JSON CLI
   import accepts `--source-presentation` with xcaf requirement ids.
