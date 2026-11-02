@@ -636,10 +636,13 @@ toleranced relationships are no longer misread as feature composition; document 
   `DatumFeature`, and can need controlled-pair isolation. Dimension endpoints
   and direct tolerance targets still reference the actual datum feature; only
   the functional relationship's context is private. §6.5 reuse remains mandatory.
-  Add evaluates kept as well as new characteristics. It isolates a kept functional
-  SAR if a new characteristic makes its carrier shared, and removes a private
-  shell when datum promotion makes it unnecessary. Rewritten associations are
-  reported in `rewritten`; forwarding shells are never promoted or reused.
+  Add without datums evaluates kept as well as new characteristics. It isolates a
+  kept functional SAR if a new characteristic makes its carrier shared, and can
+  remove a private shell when its underlying carrier already stops traversal.
+  Rewritten associations are reported in `rewritten`. Add with datums preserves
+  all kept associations and shells; it gives the added datum independent geometry
+  usages instead (the preservation exception below). Forwarding shells are never
+  promoted or reused as datum features.
 
   [OCCT 7.9.3 `collectShapeAspect`, lines 2889–2940](https://github.com/Open-Cascade-SAS/OCCT/blob/V7_9_3/src/STEPCAFControl/STEPCAFControl_Reader.cxx#L2889-L2940)
   takes the ordinary carrier's outgoing non-dimensional-location SARs as children
@@ -1942,8 +1945,8 @@ per-face usage has its own representation keys, preserving IIRU UR1/UR2. These
 representations do not gain a shape-definition link or replace the part's B-rep.
 An exact kept carrier also remains a composition member; several faces use new
 per-face leaves. OCCT requires the new datum's own GISU: a composition-only datum
-reaches the face in haecceity but is unattached in XCAF on both CTC-01 faces. A kept pattern gets a separate complex group/datum
-feature with the same member scope, rather than a nested group. Existing controls
+reaches the face in haecceity but is unattached in XCAF on both CTC-01 faces.
+A kept pattern gets a separate complex group/datum feature with the same member scope, rather than a nested group. Existing controls
 and presentation retain their original ids and bytes. Add with datums also leaves
 legacy endpoint wrappers and functional SARs untouched; it does not normalize them
 as a side effect of establishing the datum.
