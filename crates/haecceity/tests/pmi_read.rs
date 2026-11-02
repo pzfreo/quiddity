@@ -974,6 +974,70 @@ const NIST_MODELS: [&str; 7] = [
     "nist_stc_10",
 ];
 
+#[test]
+fn committed_nist_datum_features_resolve_to_faces() {
+    for model in NIST_MODELS {
+        let (_, read, _) = nist_fixture(model);
+        // CTC-02 A/B/C/K are established only by placed targets, with no datum feature.
+        // Target placements are not faces and must not be silently treated as such.
+        let expected = if model == "nist_ctc_02" {
+            ["A", "B", "C", "K"]
+                .map(|label| (pmi::PartId(0), label.to_string()))
+                .into_iter()
+                .collect()
+        } else {
+            Default::default()
+        };
+        assert_eq!(common::pmi_datums::unresolved(&read), expected, "{model}");
+    }
+}
+
+#[test]
+fn solid_edge_reexport_loses_exactly_datum_b_feature() {
+    use std::collections::BTreeSet;
+
+    for (file, missing) in [
+        ("01-NIST-control-ctc01.stp.gz", BTreeSet::new()),
+        (
+            "09-NIST-reexported-by-SE.stp.gz",
+            BTreeSet::from([(pmi::PartId(0), "B".to_string())]),
+        ),
+    ] {
+        let read = read_bytes(file_bytes(
+            &common::fixtures().join("ap242/reexport").join(file),
+        ));
+        assert_eq!(read.parts.len(), 1, "{file}");
+        // The invalid B is omitted by the reader and must be named by its finding below.
+        let labels: BTreeSet<_> = read.parts[0]
+            .datums
+            .iter()
+            .map(|datum| datum.label().to_string())
+            .collect();
+        let expected_labels = if missing.is_empty() {
+            BTreeSet::from(["A".into(), "B".into(), "C".into()])
+        } else {
+            BTreeSet::from(["A".into(), "C".into()])
+        };
+        assert_eq!(labels, expected_labels, "{file}");
+        assert_eq!(common::pmi_datums::unresolved(&read), missing, "{file}");
+        let datum_findings: Vec<_> = read
+            .findings
+            .iter()
+            .filter(|f| f.kind == pmi::FindingKind::Unresolved && f.entity == "datum")
+            .map(|f| (f.kind, f.detail.as_str()))
+            .collect();
+        let expected = if missing.is_empty() {
+            vec![]
+        } else {
+            vec![(
+                pmi::FindingKind::Unresolved,
+                "datum B is not read: what establishes it does not resolve",
+            )]
+        };
+        assert_eq!(datum_findings, expected, "{file}");
+    }
+}
+
 /// Oracle 1: NIST's expected PMI. Every row is found with equal semantics (values to 1e-12
 /// relative, decimal places as shown, datum frames in order, modifiers, classes, targets), every
 /// read item is a row; each difference is pinned in `references/pmi.json` "nist" with its verdict.
@@ -2920,6 +2984,44 @@ fn reads_general_tolerance_table_decimal_places_material_density_and_standard() 
     }
     for id in [1403, 1406, 1408] {
         assert!(r.provenance.parts[0].standards[0].contains(&id));
+    }
+}
+
+#[test]
+fn datum_features_without_faces_are_reported() {
+    let read = with_pmi(
+        "#1500=DATUM_FEATURE('','',#4,.T.);
+#1501=DATUM('',$,#4,.F.,'EMPTY');
+#1502=SHAPE_ASPECT_RELATIONSHIP('',$,#1500,#1501);
+#1510=DATUM_FEATURE('','',#4,.T.);
+#1511=DATUM('',$,#4,.F.,'EDGE');
+#1512=SHAPE_ASPECT_RELATIONSHIP('',$,#1510,#1511);
+#1513=GEOMETRIC_ITEM_SPECIFIC_USAGE('','',#1510,#10,#21);",
+    );
+    assert_eq!(
+        common::pmi_datums::unresolved(&read),
+        ["EMPTY", "EDGE"]
+            .map(|label| (pmi::PartId(0), label.to_string()))
+            .into_iter()
+            .collect()
+    );
+    for (datum, ids, detail) in [
+        (
+            1501,
+            vec![1501],
+            "datum EMPTY is not read: what establishes it does not resolve",
+        ),
+        (
+            1511,
+            vec![1511, 1510],
+            "datum EDGE feature resolves to no faces",
+        ),
+    ] {
+        let findings: Vec<_> = read.findings.iter().filter(|f| f.ids[0] == datum).collect();
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].kind, pmi::FindingKind::Unresolved);
+        assert_eq!(findings[0].ids, ids);
+        assert_eq!(findings[0].detail, detail);
     }
 }
 

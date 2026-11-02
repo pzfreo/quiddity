@@ -195,7 +195,8 @@ pub enum FindingKind {
     /// (consumed), or not read when it cannot be (not consumed).
     Nonconformance,
     /// A reference that does not resolve: a face or edge that is not the part's, an instance
-    /// missing or of the wrong type; the item is not read.
+    /// missing or of the wrong type; the item is not read. A retained datum feature
+    /// resolving to no faces is also reported; the detail states which case applies.
     Unresolved,
     /// A measure whose unit cannot be resolved; its value is not used.
     Unitless,
