@@ -581,6 +581,39 @@ impl<'a> Reader<'a> {
         out
     }
 
+    /// Producer preservation certificates are metadata of their paired aspects,
+    /// not item identifiers or additional feature composition.
+    fn preservation_classifications(&mut self, id: u64) -> Vec<u64> {
+        let assignments = self.referrers_by(
+            id,
+            "applied_classification_assignment",
+            "applied_classification_assignment",
+            "items",
+        );
+        let mut out = Vec::new();
+        for assignment in assignments {
+            let Some(role) = self.get_ref(assignment, "classification_assignment", "role") else {
+                continue;
+            };
+            let Some(class) =
+                self.get_ref(assignment, "classification_assignment", "assigned_class")
+            else {
+                continue;
+            };
+            let items = self.get_refs(assignment, "applied_classification_assignment", "items");
+            if self.get_str(role, "classification_role", "name").as_deref()
+                == Some("haecceity.preservation/1")
+                && self.get_str(class, "group", "name").as_deref()
+                    == Some("kept-carrier-legacy-forwarder")
+                && items.len() == 2
+                && items.iter().all(|item| self.is(*item, "shape_aspect"))
+            {
+                out.extend([assignment, class, role]);
+            }
+        }
+        out
+    }
+
     fn json_identifications(&mut self, id: u64) -> Vec<u64> {
         self.referrers_by(
             id,
@@ -1756,6 +1789,7 @@ impl<'a> Reader<'a> {
         let occurrence = self.is(id, "shape_aspect_occurrence");
         let mut prov = vec![id];
         prov.extend(self.id_attributes(id));
+        prov.extend(self.preservation_classifications(id));
 
         // Usages and their anchors.
         let mut anchors: Vec<Anchor> = Vec::new();

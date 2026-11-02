@@ -1976,7 +1976,9 @@ exemption; duplicate scalar keys and ordinary redundant shells remain errors.
 Legacy alias preservation is explicitly recorded by an
 `applied_classification_assignment` pairing the alias and carrier, with class
 `kept-carrier-legacy-forwarder` and role `haecceity.preservation/1`. It adds no
-geometry or composition. Without that certificate the checker still rejects
+geometry or composition. The reader consumes this producer metadata with the
+paired aspects so it cannot block a later Replace, and does not treat it as an
+item identifier. Without that certificate the checker still rejects
 redundant legacy aliases, including untouched input and corruption fixtures.
 For CTC-01 `[24, 41]` the selected kept carriers are #298 and #322, never the other
 aspects #324/#336 on face 41; `[24, 0]` selects only #298. CTC-01's 26 existing
