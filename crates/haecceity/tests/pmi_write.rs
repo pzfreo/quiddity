@@ -5118,7 +5118,12 @@ fn conversion_dimensions_reuse_and_follow_conversion_and_derived_units() {
         description: None,
         general_property: None,
     });
-    let w = write(&f, &[(PartId(0), p.clone())], Mode::Add).unwrap();
+    assert!(matches!(
+        write(&f, &[(PartId(0), p.clone())], Mode::Add),
+        Err(WriteError::AddPreservation(ids))
+            if ids == vec![900000003, 900000006, 900000008, 900000013, 900000014]
+    ));
+    let w = write(&f, &[(PartId(0), p.clone())], Mode::Replace).unwrap();
     assert_reads_back(&w, PartId(0), &p);
     assert_eq!(
         w.added()

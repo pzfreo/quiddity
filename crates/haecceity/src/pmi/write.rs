@@ -7,8 +7,9 @@
 //! `removal.rs`, seeded with the part's [`Provenance`](super::Provenance)) and writes the new
 //! items, so that afterwards `read(part) == new`; [`Mode::Remove`] is a replace with nothing.
 //! Every untouched byte of the file is kept ([`Document::apply`]).
-//! On an AP214 upgrade gaining PMI, the closed identical-attribute subtype table in
+//! On an AP214 Replace upgrade gaining PMI, the closed identical-attribute subtype table in
 //! `upgrade.rs` changes only entity keywords, recorded in [`WriteReport::edition_rewrites`].
+//! Add refuses any upgrade needing source-entity repairs, keeping the document unchanged.
 //! Currently `PRODUCT_TYPE` becomes `PRODUCT_RELATED_PRODUCT_CATEGORY`, keeping its id,
 //! name, description, products and all other record bytes. Other undeclared types block upgrades.
 //!
@@ -5423,8 +5424,7 @@ impl<'a> PartPlan<'a> {
             ],
         )?;
         Self::usage(em, member, own_rep, item)?;
-        // The kept carrier gains only an incoming-use backlink to the same
-        // geometry/subset. The new aspect has no outgoing path through a kept
+        // The kept carrier gains only a backlink to the same geometry/subset. The new aspect has no outgoing path through a kept
         // functional SAR, which would confuse OCCT's ordinary aspect traversal.
         em.simple(
             "shape_aspect_relationship",
