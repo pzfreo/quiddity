@@ -191,12 +191,28 @@ pub(super) fn prepare(
             }
             "notes" => presentation::label(&pmi.notes[*i].text),
             _ if source.is_some() => {
-                let text = rows
+                let mut text = rows
                     .iter()
                     .filter(|r| Some(r.source) == source)
                     .map(|r| r.text.as_str())
                     .collect::<Vec<_>>()
                     .join("\n");
+                // The typed Rust writer migrates legacy notes to semantic-text
+                // attributes. Feature-owned notes have no general-notes row.
+                if text.is_empty()
+                    && collection == "attributes"
+                    && pmi.attributes[*i].name == "semantic text"
+                {
+                    text = pmi.attributes[*i]
+                        .items
+                        .iter()
+                        .filter_map(|(_, value)| match value {
+                            AttributeValue::Text(text) => Some(text.as_str()),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                }
                 if text.is_empty() {
                     return Err(invalid(id, "item has no drawable callout"));
                 }

@@ -242,7 +242,7 @@ def test_write_source_presentation_and_handmade_flag(producer):
     semantic = json.loads((source_root / "pmi_plate.source.pmi.json").read_text())
     companion = json.loads((source_root / "pmi_plate.source.presentation.json").read_text())
     output, report = pmi.write(geometry, semantic, presentation=companion, report=True)
-    assert pmi.read(output) == semantic
+    assert pmi.read(output, anchors="name") == semantic
     drawn = pmi.presentation(output)
     for item, graphics in companion["items"].items():
         assert drawn["items"][item][0]["text_placements"][0]["origin"] == graphics[0]["text_placements"][0]["origin"]

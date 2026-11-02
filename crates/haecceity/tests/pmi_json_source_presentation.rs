@@ -215,6 +215,11 @@ fn rust_route_accepts_source_and_empty_companion_keeps_existing_bytes() {
     source
         .items
         .retain(|id, _| id == &semantic.ids["dimensions"][0]);
+    let canonical = json::identify(pmi::write::standard_form(&semantic.pmi), None).unwrap();
+    source.items.insert(
+        canonical.ids["attributes"][0].clone(),
+        vec![serde_json::from_value(graphic([100., 110., 70.])).unwrap()],
+    );
     let (edit, _) = pmi::write::write_with_presentation(
         &doc,
         &defs,
@@ -225,6 +230,17 @@ fn rust_route_accepts_source_and_empty_companion_keeps_existing_bytes() {
     )
     .unwrap();
     let read = read_placed(doc.apply(&edit).unwrap().bytes);
+    // The ordinary Rust route retains native STEP reading: the migrated
+    // semantic-text property can read as a Note rather than an AttributeSet.
+    assert!(read.items.iter().any(|(id, graphics)| {
+        (id.starts_with("notes:") || id.starts_with("attributes:"))
+            && graphics.iter().any(|g| {
+                g.name.contains("MASK BEFORE COATING")
+                    && g.text_placements
+                        .iter()
+                        .any(|p| p.origin == [100., 110., 70.])
+            })
+    }));
     assert!(read.items.values().flatten().any(|g| {
         g.text_placements
             .iter()
