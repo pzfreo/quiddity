@@ -6,6 +6,25 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+- Source callouts honour /1 text alignment, attach leaders to the box edge towards
+  the tip, and refuse conflicting placements on a shared datum symbol. JSON CLI
+  import accepts `--source-presentation` with xcaf requirement ids.
+
+- Source placement requires the `json-import` and `presentation` features.
+  The CLI source flag is hidden without `json-import`; builds without presentation
+  drawing refuse source input clearly. Minimal builds retain their previous features.
+
+- PMI writing accepts optional source callout planes, text positions and leader
+  tips through Rust/JSON `write_with_presentation`, Python `presentation=`, and
+  CLI `--source-presentation FILE`. Placed notes have their own note-linked
+  callouts. Invalid placements fail atomically; edge-on text and overlaps warn
+  without moving supplied positions. Saved views remain a later phase.
+- `haecceity.presentation/1` adds optional `Graphic.leader` (a model-space point
+  in millimetres). Old companions still read. `WriteReport` adds
+  `presentation_warnings`; existing writer goldens remain unchanged.
+
+### Fixed
+
 - **Add datum carrier preservation:** adding a datum on a kept face or pattern now
   emits a separate `datum_feature`. Face datums get their own per-face GISUs in
   new representations; pattern datums retain the member scope. Original carriers,

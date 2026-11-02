@@ -614,6 +614,19 @@ pub fn write(
     requested: &[(pmi::PartId, Semantic)],
     policy: pmi::write::PresentationPolicy,
 ) -> Result<(Vec<u8>, pmi::write::WriteReport)> {
+    write_with_presentation(doc, parts, requested, policy, &[])
+}
+
+/// Replace PMI and draw optional source callout positions. Views and raw source
+/// graphics are not copied. Presentation entries name the requested part ids.
+#[cfg(feature = "json-import")]
+pub fn write_with_presentation(
+    doc: &Document,
+    parts: &[PartDefinition],
+    requested: &[(pmi::PartId, Semantic)],
+    policy: pmi::write::PresentationPolicy,
+    presentation: &[(pmi::PartId, presentation::Presentation)],
+) -> Result<(Vec<u8>, pmi::write::WriteReport)> {
     let mut values = Vec::new();
     let mut ids = BTreeMap::new();
     for (part, input) in requested {
@@ -636,9 +649,16 @@ pub fn write(
         ids.insert(*part, item_ids);
     }
     let (base, kept, protected) = preserve::detach(doc, parts, requested)?;
-    let (edit, mut report) =
-        pmi::write::write_identified(&base, parts, &values, &ids, &protected, policy)
-            .map_err(|e| Error(e.to_string()))?;
+    let (edit, mut report) = pmi::write::write_identified(
+        &base,
+        parts,
+        &values,
+        &ids,
+        &protected,
+        policy,
+        presentation,
+    )
+    .map_err(|e| Error(e.to_string()))?;
     let bytes = base.apply(&edit).map_err(|e| Error(e.to_string()))?.bytes;
     let definitions =
         crate::step::read_part_definitions(&bytes).map_err(|e| Error(e.to_string()))?;

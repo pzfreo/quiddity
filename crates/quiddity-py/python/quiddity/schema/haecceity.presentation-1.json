@@ -131,6 +131,10 @@
             "$ref": "#/$defs/TextPlacement"
           }
         },
+        "leader": {
+          "$ref": "#/$defs/Vector3",
+          "description": "Optional leader tip in model space (millimetres)."
+        },
         "polyline_roles": {
           "type": "array",
           "items": {
