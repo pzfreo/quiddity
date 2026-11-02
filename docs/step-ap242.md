@@ -2014,7 +2014,7 @@ uses the Rust route's canonical semantic ids. Both routes select one part.
 
 Unplaced feature-owned notes get separate callouts with leaders to their faces,
 using the existing placement search. Part notes remain in the general-notes block,
-which slides downward to clear all reserved ink in its front projection, including
+which slides downward to clear all reserved ink in the existing readable layout projections, including
 kept file callouts. Blank feature text and unsupported CAD-font glyphs retain
 semantics and report a presentation warning instead of generating invalid ink.
 No additional input fields are required.

@@ -591,6 +591,46 @@ fn front_overlap(a: haecceity::geom::Bounds, b: haecceity::geom::Bounds) -> bool
         .all(|k| a.min[k] < b.max[k] - 1e-9 && b.min[k] < a.max[k] - 1e-9)
 }
 
+// Convex footprints built from the actual drawn strokes, independent of the
+// layout's reserved boxes. Compare them in each existing readable projection.
+fn projected_ink_overlap(a: &[Vec<[f64; 3]>], b: &[Vec<[f64; 3]>], view: [f64; 3]) -> bool {
+    use haecceity::{geom, presentation::linear};
+    let x = geom::unit(geom::cross([0., 0., 1.], view)).unwrap();
+    let y = geom::unit(geom::cross(view, x)).unwrap();
+    let hull = |lines: &[Vec<[f64; 3]>]| {
+        let mut points: Vec<[f64; 3]> = lines
+            .iter()
+            .flatten()
+            .map(|&p| [geom::dot(p, x), geom::dot(p, y), 0.])
+            .collect();
+        points.sort_by(|a, b| a[0].total_cmp(&b[0]).then(a[1].total_cmp(&b[1])));
+        points.dedup();
+        let mut result = Vec::new();
+        for ordered in [points.clone(), points.into_iter().rev().collect()] {
+            let start = result.len();
+            for p in ordered {
+                while result.len() >= start + 2 {
+                    let n = result.len();
+                    if geom::cross(
+                        geom::sub(result[n - 1], result[n - 2]),
+                        geom::sub(p, result[n - 1]),
+                    )[2] > 1e-12
+                    {
+                        break;
+                    }
+                    result.pop();
+                }
+                result.push(p);
+            }
+            result.pop();
+        }
+        result
+    };
+    let a = hull(a);
+    let b = hull(b);
+    a.len() >= 3 && b.len() >= 3 && linear::projected_clearance(&a, &b, [0., 0., 1.]) < -1e-9
+}
+
 #[test]
 fn ctc_01_notes_block_clears_kept_callout_ink() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -687,23 +727,42 @@ fn ctc_01_notes_block_clears_kept_callout_ink() {
             .filter(|g| g.name != "General notes" && !g.polylines.is_empty())
             .collect::<Vec<_>>();
         for block in blocks {
-            let block = ink_bounds(&block.polylines);
-            for graphic in &other {
-                assert!(
-                    !front_overlap(block, ink_bounds(&graphic.polylines)),
-                    "{name}: notes overlap {}",
-                    graphic.name
-                );
-            }
-            if mode == pmi::write::Mode::Add {
-                for graphic in &kept {
+            for view in haecceity::presentation::linear::VIEWS
+                .into_iter()
+                .filter(|v| v[1].abs() > 1e-8)
+            {
+                for graphic in &other {
                     assert!(
-                        !front_overlap(block, ink_bounds(&graphic.polylines)),
-                        "notes overlap kept {}",
+                        !projected_ink_overlap(&block.polylines, &graphic.polylines, view),
+                        "{name}: notes overlap {} in {view:?}",
                         graphic.name
                     );
                 }
+                if mode == pmi::write::Mode::Add {
+                    for graphic in &kept {
+                        assert!(
+                            !projected_ink_overlap(&block.polylines, &graphic.polylines, view),
+                            "notes overlap kept {} in {view:?}",
+                            graphic.name
+                        );
+                    }
+                }
             }
+        }
+        if mode == pmi::write::Mode::Replace {
+            let part = haecceity::step::read_part(doc.bytes(), &defs[0]).unwrap();
+            let mut layout = haecceity::presentation::placement::Layout::new(part.bounds());
+            let c = haecceity::presentation::notes::notes_block(
+                &haecceity::presentation::notes::general_notes(&pmi::write::standard_form(
+                    &requirements,
+                )),
+            );
+            let baseline = layout.notes(&c);
+            assert!(
+                other.iter().any(|g| g.name.contains("⌀35")
+                    && projected_ink_overlap(&baseline.lines, &g.polylines, [1., 1., -1.])),
+                "old notes slot must overlap CTC-01's diameter ink"
+            );
         }
     }
 }

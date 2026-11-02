@@ -188,7 +188,7 @@ impl Layout {
     /// Front-plane notes column beside the part's lower-right X/Z corner.
     /// Ink starts two capital heights right of max X and below min Z.
     /// Subsequent blocks stack down with the same gap. Slide below occupied
-    /// ink in the front projection, including graphics kept from the source file.
+    /// ink in the existing readable projections, including kept file graphics.
     pub fn notes(&mut self, c: &Callout) -> Placed {
         let scale = self.height / 3.;
         let local = c.polylines();
@@ -201,6 +201,24 @@ impl Layout {
         let left = self.bounds.max[0] + gap;
         let right = left + ink.max[0] - ink.min[0];
         let height = ink.max[2] - ink.min[2];
+        let obstacles: Vec<[V3; 8]> = self
+            .occupied
+            .iter()
+            .map(|b| {
+                std::array::from_fn(|i| {
+                    // Gray-code order visits every box-edge direction, so the
+                    // shared separating-axis test sees its projected hull axes.
+                    let i = i ^ (i >> 1);
+                    std::array::from_fn(|k| {
+                        if i & (1 << k) == 0 {
+                            b.min[k]
+                        } else {
+                            b.max[k]
+                        }
+                    })
+                })
+            })
+            .collect();
         loop {
             let next = self
                 .occupied
@@ -213,10 +231,29 @@ impl Layout {
                 })
                 .map(|b| b.min[2] - gap)
                 .fold(top, f64::min);
-            if next == top {
+            if next < top {
+                top = next;
+                continue;
+            }
+            let y = self.bounds.centre()[1];
+            let rectangle = [
+                [left, y, top - height],
+                [right, y, top - height],
+                [right, y, top],
+                [left, y, top],
+            ];
+            let blocked = obstacles.iter().any(|other| {
+                super::linear::VIEWS.into_iter().any(|view| {
+                    // The front-plane block is unreadable edge-on; every other
+                    // fixed projection participates just as for dimensions/frames.
+                    view[1].abs() > 1e-8
+                        && polygon_clearance(&rectangle, other, view) < 0.2 * self.height
+                })
+            });
+            if !blocked {
                 break;
             }
-            top = next;
+            top -= height + gap;
         }
         let origin = [
             self.bounds.max[0] + gap - ink.min[0],
@@ -934,7 +971,7 @@ mod tests {
             let c = super::super::label("GENERAL NOTES\nMATERIAL: Steel C45");
             let first = layout.clone().notes(&c);
             // Existing feature ink must not recursively expand the notes area.
-            layout.reserve(&[vec![[4000., -3000., -4000.], [5000., 6000., 7000.]]]);
+            layout.reserve(&[vec![[4000., 0., 4000.], [4001., 0., 4001.]]]);
             let placed = layout.notes(&c);
             assert_eq!(
                 first.lines, placed.lines,
