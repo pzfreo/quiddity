@@ -482,8 +482,35 @@ pub fn exemptions(doc: &Document) -> Vec<Exemption> {
         let group = is_a(doc, aspect, "composite_group_shape_aspect")
             || is_a(doc, aspect, "all_around_shape_aspect")
             || is_a(doc, aspect, "between_shape_aspect");
+        // An explicit whole-feature composition identifies the preserved carrier.
+        // Do not invent additional exemptions for unrelated producer aspects that
+        // happen to identify the same face (CTC-01 carries several of these).
+        let linked: BTreeSet<_> = doc
+            .referrers(aspect)
+            .iter()
+            .copied()
+            .filter(|r| {
+                composition(doc, *r)
+                    && reference(
+                        doc,
+                        *r,
+                        "shape_aspect_relationship",
+                        "relating_shape_aspect",
+                    ) == Some(aspect)
+            })
+            .filter_map(|r| reference(doc, r, "shape_aspect_relationship", "related_shape_aspect"))
+            .filter(|m| {
+                !is_a(doc, *m, "datum")
+                    && !is_a(doc, *m, "datum_feature")
+                    && !is_a(doc, *m, "datum_target")
+                    && content
+                        .get(m)
+                        .is_some_and(|g| content[&aspect].is_subset(g))
+            })
+            .collect();
         for &feature in &aspects {
             if feature == aspect
+                || !linked.is_empty() && !linked.contains(&feature)
                 || is_a(doc, feature, "datum_feature")
                 || is_a(doc, feature, "datum")
                 || is_a(doc, feature, "datum_target")

@@ -1262,6 +1262,12 @@ fn ctc01_add_datums_preserve_foreign_perpendicularity_and_location() {
         assert_eq!(w.report.geometry_carrier_exemptions.len(), 1);
         assert_eq!(w.report.geometry_carrier_exemptions[0].feature, carrier);
         let datum_feature = w.report.geometry_carrier_exemptions[0].aspect;
+        let structural: Vec<_> = common::pmi_usage::exemptions(&w.doc)
+            .into_iter()
+            .filter(|e| e.condition == "kept-carrier-datum-feature" && e.aspect == datum_feature)
+            .collect();
+        assert_eq!(structural.len(), 1);
+        assert_eq!(structural[0].feature, carrier);
         assert_eq!(
             test_attribute(
                 &w.doc,
