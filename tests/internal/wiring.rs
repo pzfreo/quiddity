@@ -102,6 +102,8 @@ fn parts() -> (Vec<PathBuf>, bool) {
         .map(|e| e.unwrap().path())
         .filter(|p| p.extension().is_some_and(|e| e == "step"))
         .collect();
+    // Exercise the optional obstruction diagnostics, absent from the older STEP inputs.
+    out.push(common::fixtures().join("partial_hole_exits.step.gz"));
     out.sort();
     // Nested compressed positives must participate in the field-by-field family audit.
     // No corpus part contains a spring, so the registry otherwise appears unused.
