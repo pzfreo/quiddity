@@ -9429,6 +9429,7 @@ fn shared_carrier_isolation_tracks_add_sharing_and_datum_promotion() {
     // Older writers could leave a private shell around a stopping datum carrier.
     // An unrelated Add must retain that shell and report the skipped unwrapping.
     let mut simple = common::pmi_gaps::every_kind();
+    simple.material = None;
     simple.datums.push(datum("Z", 0));
     let initial = written(&f, &simple);
     let pair = initial
