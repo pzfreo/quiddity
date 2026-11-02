@@ -8821,6 +8821,9 @@ fn add_on_legacy_plate_preserves_datums_and_forwarders() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/xcaf/plate-legacy-datum-location.step.gz");
     let f = open(&path);
+    let empty = write(&f, &[(PartId(0), PartPmi::default())], Mode::Add).unwrap();
+    assert_eq!(empty.doc.bytes(), f.doc.bytes());
+    assert!(empty.report.geometry_carrier_exemptions.is_empty());
     let old = pmi::read(&f.doc, &f.parts).unwrap();
     let b = old.parts[0]
         .datums
@@ -8908,6 +8911,21 @@ fn add_on_legacy_plate_preserves_datums_and_forwarders() {
     }
     assert_eq!(geometry(&w.doc, 1100), geometry(&f.doc, 1100));
     assert!(violations(&w.doc).is_empty(), "{:?}", violations(&w.doc));
+    // The exception is certified by Add, not inferred for every legacy alias.
+    // Removing only the new classifications restores all four strict findings.
+    let certificates: Vec<_> = common::pmi_usage::exemptions(&w.doc)
+        .into_iter()
+        .filter(|e| e.condition == "kept-carrier-legacy-forwarder")
+        .collect();
+    assert_eq!(certificates.len(), 2);
+    let mut strip = haecceity::p21::Edit::new();
+    for e in certificates {
+        assert!(e.association > f.doc.max_id());
+        strip.remove(e.association);
+    }
+    let uncertified = Document::parse(w.doc.apply(&strip).unwrap().bytes).unwrap();
+    assert_eq!(violations(&uncertified).len(), 4);
+
     assert_eq!(
         w.report
             .preserved_normalizations

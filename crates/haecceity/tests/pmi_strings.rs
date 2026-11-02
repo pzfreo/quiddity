@@ -414,7 +414,7 @@ fn geometry_writer_preserves_oversized_source_labels_and_reports_them() {
 
 #[cfg(feature = "json-import")]
 #[test]
-fn add_rechunks_other_legacy_haecceity_descriptive_payloads() {
+fn add_preserves_other_legacy_haecceity_descriptive_payloads() {
     use haecceity::json;
     let doc = fixture("ap242/specify/spool_fits.step.gz");
     let model = PartPmi {
@@ -492,9 +492,21 @@ fn add_rechunks_other_legacy_haecceity_descriptive_payloads() {
         pmi::write::PresentationPolicy::Refuse,
     )
     .unwrap();
-    assert!(report.rewritten.contains(&old));
+    assert!(report.rewritten.is_empty());
+    assert!(report.removed.is_empty());
+    assert_eq!(
+        report.preserved_normalizations,
+        vec![(old, "legacy-text-rechunking")]
+    );
     let after = Document::parse(legacy.apply(&edit).unwrap().bytes).unwrap();
-    assert!(longest_literal(after.bytes()) <= pmi::write::MAX_STRING_LITERAL_BYTES);
+    assert_eq!(after.bytes(), legacy.bytes());
+    assert!(longest_literal(after.bytes()) > pmi::write::MAX_STRING_LITERAL_BYTES);
+    assert!(
+        report
+            .long_strings
+            .iter()
+            .any(|w| w.record == format!("#{old}"))
+    );
     let read = pmi::read(&after, &read_part_definitions(after.bytes()).unwrap()).unwrap();
     assert_eq!(
         json::to_value(

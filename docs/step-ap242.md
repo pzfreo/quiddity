@@ -1965,7 +1965,7 @@ normalizations, whether or not a datum is requested.
 | `kept-carrier-datum-member` | A multi-face datum's independent leaf and that face's selected kept carrier. |
 | `kept-carrier-datum-composite` | The datum root and an exact kept whole-feature carrier, when one exists. |
 | `kept-carrier-independent-feature` | A non-datum leaf needing an independent usage (including a subset of a kept SET IIRU). |
-| `kept-carrier-legacy-forwarder` | An unchanged legacy alias forwarding to the same actual usage records as its retained carrier. |
+| `kept-carrier-legacy-forwarder` | An explicitly classified unchanged legacy alias sharing the same actual usage records and scope as its retained carrier. |
 
 The independent checker requires an explicit composition certificate (or identical
 kept group scope), same-part geometry containment and independent representations
@@ -1973,6 +1973,11 @@ for new direct usages. Datum exceptions require `.T.`, exactly one establishment
 and a dimensional representation for the combined §6.5.3 form. Only the certified
 new usage is excluded from §5.1 duplicates. Unrelated source aspects receive no
 exemption; duplicate scalar keys and ordinary redundant shells remain errors.
+Legacy alias preservation is explicitly recorded by an
+`applied_classification_assignment` pairing the alias and carrier, with class
+`kept-carrier-legacy-forwarder` and role `haecceity.preservation/1`. It adds no
+geometry or composition. Without that certificate the checker still rejects
+redundant legacy aliases, including untouched input and corruption fixtures.
 For CTC-01 `[24, 41]` the selected kept carriers are #298 and #322, never the other
 aspects #324/#336 on face 41; `[24, 0]` selects only #298. CTC-01's 26 existing
 strict checker findings remain visible: preservation tests require identical
@@ -1980,8 +1985,8 @@ before/after findings and zero introduced violations, rather than exempting the
 source's unrelated duplicates. No EXPRESS rule is exempted.
 
 `WriteReport.preserved_normalizations` records source `id` and skipped
-`normalization`: `legacy-endpoint-retirement`, `functional-sar-isolation`, or
-`legacy-text-rechunking`. CLI/Python reports expose the same optional collection.
+`normalization`: `legacy-endpoint-retirement`, `functional-sar-isolation`,
+`functional-sar-unwrapping`, or `legacy-text-rechunking`. CLI/Python reports expose the same optional collection.
 Add verifies every original entity's exact bytes before returning an edit. AP203
 or AP214 upgrades needing original-entity repairs fail atomically with
 `WriteError::AddPreservation` and the affected ids; Replace can perform those

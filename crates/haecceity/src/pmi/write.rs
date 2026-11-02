@@ -3361,6 +3361,9 @@ impl<'a> PartPlan<'a> {
                 }
             }
         }
+        if self.mode == Mode::Add {
+            self.preserve_kept_occt_relationships(em, &st);
+        }
         for (i, t) in p.datum_targets.iter().enumerate() {
             self.datum_target(em, &mut st, pds, i, t)?;
         }
@@ -5761,6 +5764,48 @@ impl<'a> PartPlan<'a> {
         Ok(None)
     }
 
+    fn kept_geometry_usages(&self, aspect: u64) -> BTreeSet<u64> {
+        let mut usages = BTreeSet::new();
+        let mut todo = vec![aspect];
+        let mut seen = BTreeSet::new();
+        while let Some(aspect) = todo.pop() {
+            if !seen.insert(aspect) {
+                continue;
+            }
+            for &r in self.doc.referrers(aspect) {
+                if is_a(self.doc, r, "item_identified_representation_usage")
+                    && !is_a(self.doc, r, "draughting_model_item_association")
+                    && attr_ref(
+                        self.doc,
+                        r,
+                        "item_identified_representation_usage",
+                        "definition",
+                    ) == Some(aspect)
+                {
+                    usages.insert(r);
+                }
+                if geometric_composition(self.doc, r)
+                    && attr_ref(
+                        self.doc,
+                        r,
+                        "shape_aspect_relationship",
+                        "relating_shape_aspect",
+                    ) == Some(aspect)
+                    && let Some(member) = attr_ref(
+                        self.doc,
+                        r,
+                        "shape_aspect_relationship",
+                        "related_shape_aspect",
+                    )
+                    && !is_a(self.doc, member, "datum")
+                {
+                    todo.push(member);
+                }
+            }
+        }
+        usages
+    }
+
     /// Preserve legacy endpoint wrappers and report the normalization Add forgoes.
     /// The source alias and its dimensions retain their original identities.
     fn preserve_legacy_endpoints(&self, em: &mut Emitter<'_>) -> Result<(), WriteError> {
@@ -5848,11 +5893,58 @@ impl<'a> PartPlan<'a> {
             else {
                 continue;
             };
-            if !neutral_aspect(self.doc, alias) && !is_a(self.doc, owner, "datum_feature") {
+            if (!neutral_aspect(self.doc, alias) && !is_a(self.doc, owner, "datum_feature"))
+                || self.kept_geometry_usages(alias) != self.kept_geometry_usages(owner)
+            {
                 continue;
             }
             em.preserved_normalizations
                 .insert((alias, "legacy-endpoint-retirement"));
+            if self.pmi == &PartPmi::default() {
+                continue;
+            }
+            // This classification records the preservation decision without
+            // adding geometric composition or changing the source alias. The
+            // checker still requires identical actual usage records and scope.
+            let certified = self.doc.referrers(alias).iter().copied().any(|r| {
+                is_a(self.doc, r, "applied_classification_assignment")
+                    && attr_ref(self.doc, r, "classification_assignment", "role")
+                        .and_then(|role| attr_str(self.doc, role, "classification_role", "name"))
+                        .as_deref()
+                        == Some("haecceity.preservation/1")
+                    && attr_ref(self.doc, r, "classification_assignment", "assigned_class")
+                        .and_then(|class| attr_str(self.doc, class, "group", "name"))
+                        .as_deref()
+                        == Some("kept-carrier-legacy-forwarder")
+                    && attr_refs(self.doc, r, "applied_classification_assignment", "items")
+                        .into_iter()
+                        .collect::<BTreeSet<_>>()
+                        == BTreeSet::from([alias, owner])
+            });
+            if !certified {
+                let class = em.simple(
+                    "class",
+                    &[
+                        ("name", s("kept-carrier-legacy-forwarder")),
+                        ("description", A::Unset),
+                    ],
+                )?;
+                let role = em.simple(
+                    "classification_role",
+                    &[
+                        ("name", s("haecceity.preservation/1")),
+                        ("description", A::Unset),
+                    ],
+                )?;
+                em.simple(
+                    "applied_classification_assignment",
+                    &[
+                        ("assigned_class", class.a()),
+                        ("role", role.a()),
+                        ("items", refs([R::Old(alias), R::Old(owner)])),
+                    ],
+                )?;
+            }
             em.carrier_exemptions.push((
                 self.id,
                 "kept-carrier-legacy-forwarder",
@@ -6310,6 +6402,108 @@ impl<'a> PartPlan<'a> {
                 .push((self.id, condition, R::New(id), member));
         }
         Ok(endpoint)
+    }
+
+    fn kept_private_endpoint(&self, id: u64) -> Option<(u64, u64)> {
+        if !matches!(self.doc.get(id),Some(RawEntity::Simple {name,..}) if name.eq_ignore_ascii_case("shape_aspect"))
+            || ["name", "description"]
+                .iter()
+                .any(|f| attr_str(self.doc, id, "shape_aspect", f).as_deref() != Some(""))
+            || !plain_forwarder(self.doc, id)
+        {
+            return None;
+        }
+        let mut member = None;
+        for &r in self.doc.referrers(id) {
+            if geometric_composition(self.doc, r)
+                && attr_ref(
+                    self.doc,
+                    r,
+                    "shape_aspect_relationship",
+                    "relating_shape_aspect",
+                ) == Some(id)
+                && let Some(m) = attr_ref(
+                    self.doc,
+                    r,
+                    "shape_aspect_relationship",
+                    "related_shape_aspect",
+                )
+                && !is_a(self.doc, m, "datum")
+                && !is_a(self.doc, m, "datum_target")
+            {
+                member = Some((m, r));
+                continue;
+            }
+            let functional = is_a(self.doc, r, "feature_for_datum_target_relationship")
+                || leaf_names(self.doc, r) == ["shape_aspect_relationship"]
+                    && self.doc.referrers(r).iter().any(|t| {
+                        attr_ref(
+                            self.doc,
+                            *t,
+                            "geometric_tolerance",
+                            "toleranced_shape_aspect",
+                        ) == Some(r)
+                    });
+            if !functional {
+                return None;
+            }
+        }
+        member
+    }
+
+    /// Report the source SAR normalizations Add deliberately leaves unapplied.
+    fn preserve_kept_occt_relationships(&self, em: &mut Emitter<'_>, st: &Emitted) {
+        for id in self.doc.ids() {
+            let support = is_a(self.doc, id, "feature_for_datum_target_relationship");
+            let pair = leaf_names(self.doc, id) == ["shape_aspect_relationship"]
+                && self.doc.referrers(id).iter().any(|t| {
+                    attr_ref(
+                        self.doc,
+                        *t,
+                        "geometric_tolerance",
+                        "toleranced_shape_aspect",
+                    ) == Some(id)
+                });
+            if !support && !pair {
+                continue;
+            }
+            let Some(left) = attr_ref(
+                self.doc,
+                id,
+                "shape_aspect_relationship",
+                "relating_shape_aspect",
+            ) else {
+                continue;
+            };
+            let actual_left = self.kept_private_endpoint(left).map_or(left, |m| m.0);
+            if attr_ref(self.doc, actual_left, "shape_aspect", "of_shape") != Some(self.def.shape) {
+                continue;
+            }
+            let isolate = st.occt_protected.contains(&R::Old(actual_left))
+                && !self.occt_record_stops_at(em, R::Old(actual_left))
+                && (!support || self.occt_has_direct_gisu(em, R::Old(actual_left)));
+            for field in ["relating_shape_aspect", "related_shape_aspect"] {
+                if support && field == "related_shape_aspect" {
+                    continue;
+                }
+                let Some(old) = attr_ref(self.doc, id, "shape_aspect_relationship", field) else {
+                    continue;
+                };
+                let shell = self.kept_private_endpoint(old);
+                let actual = shell.map_or(old, |m| m.0);
+                let eligible = isolate
+                    && !self.occt_record_stops_at(em, R::Old(actual))
+                    && attr_ref(self.doc, actual, "shape_aspect", "of_shape")
+                        == Some(self.def.shape);
+                if eligible && shell.is_none() {
+                    em.preserved_normalizations
+                        .insert((id, "functional-sar-isolation"));
+                } else if !eligible && shell.is_some() {
+                    em.preserved_normalizations
+                        .insert((id, "functional-sar-unwrapping"));
+                }
+            }
+        }
     }
 
     fn tolerance(

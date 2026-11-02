@@ -613,68 +613,51 @@ pub fn exemptions(doc: &Document) -> Vec<Exemption> {
                 });
             }
         }
-        // Retained producer DIMENSION aliases are the exact normalization Add
-        // must forgo. Require an actual descendant carrier and identical scope.
+        // Only an explicit Add preservation classification can exempt a kept
+        // alias. Untouched inputs and synthetic corruption stay strict.
         if attr(doc, aspect, "shape_aspect", "name") != Some(&Attribute::String("DIMENSION".into()))
             || owns_gisu(doc, aspect)
         {
             continue;
         }
-        let mut todo = vec![aspect];
-        let mut seen = BTreeSet::new();
-        let mut candidates = Vec::new();
-        while let Some(parent) = todo.pop() {
-            if !seen.insert(parent) {
+        for association in doc.referrers(aspect).iter().copied().filter(|r| {
+            is_a(doc, *r, "applied_classification_assignment")
+                && reference(doc, *r, "classification_assignment", "role")
+                    .and_then(|role| attr(doc, role, "classification_role", "name"))
+                    == Some(&Attribute::String("haecceity.preservation/1".into()))
+                && reference(doc, *r, "classification_assignment", "assigned_class")
+                    .and_then(|class| attr(doc, class, "group", "name"))
+                    == Some(&Attribute::String("kept-carrier-legacy-forwarder".into()))
+        }) {
+            let mut items = Vec::new();
+            if let Some(a) = attr(
+                doc,
+                association,
+                "applied_classification_assignment",
+                "items",
+            ) {
+                references(a, &mut items);
+            }
+            if items.len() != 2 || !items.contains(&aspect) {
                 continue;
             }
-            for r in doc.referrers(parent).iter().copied().filter(|r| {
-                composition(doc, *r)
-                    && reference(
-                        doc,
-                        *r,
-                        "shape_aspect_relationship",
-                        "relating_shape_aspect",
-                    ) == Some(parent)
-            }) {
-                if let Some(child) =
-                    reference(doc, r, "shape_aspect_relationship", "related_shape_aspect")
-                    && !is_a(doc, child, "datum")
-                {
-                    todo.push(child);
-                    if (owns_gisu(doc, child) || is_a(doc, child, "datum_feature"))
-                        && content.get(&child) == content.get(&aspect)
-                        && signatures.get(&child) == signatures.get(&aspect)
-                    {
-                        candidates.push((!is_a(doc, child, "datum_feature"), child, r));
-                    }
-                }
+            let Some(feature) = items.into_iter().find(|id| *id != aspect) else {
+                continue;
+            };
+            if (neutral(doc, feature) || is_a(doc, feature, "datum_feature"))
+                && reference(doc, aspect, "shape_aspect", "of_shape")
+                    == reference(doc, feature, "shape_aspect", "of_shape")
+                && signatures.get(&aspect) == signatures.get(&feature)
+                && !content[&aspect].is_empty()
+                && geometry_usages(doc, aspect) == geometry_usages(doc, feature)
+            {
+                out.push(Exemption {
+                    condition: "kept-carrier-legacy-forwarder",
+                    aspect,
+                    feature,
+                    association,
+                });
             }
-        }
-        // Older multi-face DIMENSION aliases repeat a datum's member list
-        // instead of pointing at its root. Require identical usage RECORDS,
-        // not merely coincident faces, so unrelated aspects cannot qualify.
-        let usage_set = geometry_usages(doc, aspect);
-        if !usage_set.is_empty() {
-            for &peer in &aspects {
-                if peer != aspect
-                    && (neutral(doc, peer) || is_a(doc, peer, "datum_feature"))
-                    && attr(doc, peer, "shape_aspect", "name")
-                        != Some(&Attribute::String("DIMENSION".into()))
-                    && signatures[&peer] == signatures[&aspect]
-                    && geometry_usages(doc, peer) == usage_set
-                {
-                    candidates.push((!is_a(doc, peer, "datum_feature"), peer, aspect));
-                }
-            }
-        }
-        candidates.sort();
-        if let Some((_, feature, association)) = candidates.first() {
-            out.push(Exemption {
-                condition: "kept-carrier-legacy-forwarder",
-                aspect,
-                feature: *feature,
-                association: *association,
-            });
         }
     }
     out.sort();
