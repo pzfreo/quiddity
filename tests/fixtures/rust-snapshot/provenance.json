@@ -225,8 +225,8 @@
     "tests/fixtures/ap242/write-presentation/thread_removed.step.gz": "00555790b86b7b8cde55a2baccbe50c8adaa9c82ed0540cdd5942036b7511eb2",
     "tests/fixtures/ap242/write-presentation/thread_replaced.occt.json.gz": "7aa1cff85c3d4429505d6052c724798dff4789caef07a6a1182c9e6dd15509f1",
     "tests/fixtures/ap242/write-presentation/thread_replaced.step.gz": "2678408302567505444ece5305f434d48311e434e4d596f32f36d2c1ea043de7",
-    "tests/fixtures/ap242/write-presentation/thumbwheel_notes_add.occt.json.gz": "e42d0529fa50b78f35045c4be5d18b1f219fecdf247a0bfb87978076cadadf76",
-    "tests/fixtures/ap242/write-presentation/thumbwheel_notes_add.step.gz": "04ac15163ac646bed1adfeeeb1d873855d5e437607dfe1f0763a82a13b69cdd1",
+    "tests/fixtures/ap242/write-presentation/thumbwheel_notes_add.occt.json.gz": "b08c429fff1021bfb0169bade291829dda1800f1281844b0801d36e12bd921c3",
+    "tests/fixtures/ap242/write-presentation/thumbwheel_notes_add.step.gz": "57349501b42ba2ea084de317be5edd69ca766f74741dced625d39c2d5b78b82a",
     "tests/fixtures/ap242/write-presentation/thumbwheel_thread_knurl_intent.occt.json.gz": "c90045a6686e5f0e8c3abc27efe5625e8554badba3e844a9a7969d3a05bcbaa3",
     "tests/fixtures/ap242/write-presentation/thumbwheel_thread_knurl_intent.step.gz": "1d6e1a938fb53930b6a32cac3caae8c26d519579492acff5cca79371893a81f5",
     "tests/fixtures/ap242/write/assembly_plate_pin_intent.occt.json.gz": "8a8717d55a6592994f0a0ec2f8c1def41c1f9bd18444f623bc9abc1d635eb48c",
@@ -257,8 +257,8 @@
     "tests/fixtures/ap242/write/thread_removed.step.gz": "00555790b86b7b8cde55a2baccbe50c8adaa9c82ed0540cdd5942036b7511eb2",
     "tests/fixtures/ap242/write/thread_replaced.occt.json.gz": "e2ec612dbacb627e8d923ef5be27b3a7d778d709172cfde98273369eb3544ec5",
     "tests/fixtures/ap242/write/thread_replaced.step.gz": "bb86f1ca5aa48b148c5119029f79786e375ecb95ca01f665f63eb5225595db22",
-    "tests/fixtures/ap242/write/thumbwheel_notes_add.occt.json.gz": "64ec623d18d955d37b9f19987bb74d2c61de673014fa73de61c96b935f540dd0",
-    "tests/fixtures/ap242/write/thumbwheel_notes_add.step.gz": "b3475017d492048125007529b2e1a2b153072f3f60b2b8e142f8876fdced3113",
+    "tests/fixtures/ap242/write/thumbwheel_notes_add.occt.json.gz": "7e0fa55f622f4cf94c2a941a0e43ed91ac222ba6e80a8383185d356546349985",
+    "tests/fixtures/ap242/write/thumbwheel_notes_add.step.gz": "2e9d7f45a8bcdd8d857fa2b3f8e0ac4ff61060939a55f0d223b8503ed0fe33ab",
     "tests/fixtures/ap242/write/thumbwheel_thread_knurl_intent.occt.json.gz": "2d197231c5173dde8cca500d93c1aa53b209f60bc851c2aaad57f6cd8bfc0938",
     "tests/fixtures/ap242/write/thumbwheel_thread_knurl_intent.step.gz": "5337af6deed6ea477702c2eb41f14679804944cdf783b729df8c0ac79cdb023a",
     "tests/fixtures/blend_r5.step": "91decec860d19ea407af10ac1a10935e55e287200cb3611d17fd8705bac2f359",
@@ -3090,9 +3090,9 @@
     "tests/fixtures/references/occt_corpus.json": "d9de41b694e690c20691fec1f599fa6334869ffc3506e0ce1acf40221df86c9a",
     "tests/fixtures/references/outer_profile_motion.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
     "tests/fixtures/references/pmi.json": "be4f3fd142c61f9b70a9955d2f7508698783dc2ee722581c6ee00cbefaad1cbf",
-    "tests/fixtures/references/pmi_geometry_exemptions.json": "f9b1c013307e48bc993a144543dcdfe18452d909355a6691bf300e6c51a04735",
-    "tests/fixtures/references/pmi_write-presentation.json": "27802339622f8c8a8fbb80063f5681860fabb8887425e87ed0aefeb1b00a97f3",
-    "tests/fixtures/references/pmi_write.json": "ada6fb5e89786384aa0fbc4a1517930e529e18b5340a836d3819b14a3e4fcaf3",
+    "tests/fixtures/references/pmi_geometry_exemptions.json": "67ce2bf2f7b3a7304b90deda9b6e1dd5f2c98ea9330486965211ab09003cf295",
+    "tests/fixtures/references/pmi_write-presentation.json": "f21d21593c9fb42f51cc3ada49d33273c05d10b5559faad7021a5efd37ddb292",
+    "tests/fixtures/references/pmi_write.json": "428c994fd069712716b276445b25242c378bbf95a85c4c8a35cc642a8b5bf7ba",
     "tests/fixtures/references/probe_evidence.json": "dba3e1cfbd3eff5301143c768fe21b9c35fc0d9216ece048fa6cb946bf50f6bc",
     "tests/fixtures/references/recess_document_motion.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
     "tests/fixtures/references/recess_geometry_motion.json": "109b7a757019fbbce0c0310041aafa01c2a0c426eb5e40aa737f49299742d47a",
@@ -5882,5 +5882,5 @@
     "sections/test/parts/fc9cb0ef3d518aa4.step.gz.json.gz": "ad246bd3ca231dda3e7fe1fc54cd798984e7dcd9da376dcb609c3c42001086f8",
     "step_levels.json.gz": "b1d837579387b475bfb90cc5670098890fdfe83fddcbf0e2236a24207c2de1ff"
   },
-  "source_commit": "0287227f65dfad87b6dd65b270b5288a6cd09050"
+  "source_commit": "6211e00eb8984d1692549787073180d62772beb2"
 }
