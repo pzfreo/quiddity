@@ -222,7 +222,7 @@ fn plate_pmi_json_reuses_the_datum_feature() {
     attributes[2] = alias.to_ref();
     edit.replace(loc, record);
     let legacy = Document::parse(after.apply(&edit).unwrap().bytes).unwrap();
-    assert_eq!(common::pmi_usage::violations(&legacy).len(), 1);
+    assert_eq!(common::pmi_usage::violations(&legacy).len(), 2);
     let legacy_read = pmi::read(&legacy, &after_parts).unwrap();
     assert_eq!(
         legacy_read.parts, back.parts,
@@ -255,7 +255,7 @@ fn legacy_faceless_location_reads_as_the_same_datum_feature() {
     let doc = Document::parse(b).unwrap();
     assert_eq!(
         violations(&doc).len(),
-        1,
+        4,
         "checker must catch the legacy forwarding aspect"
     );
     let old = pmi::read(&doc, &parts).unwrap();
@@ -350,11 +350,11 @@ fn uniqueness_check_catches_gisu_and_set_iiru_duplicate_ownership() {
         ));
         let doc = Document::parse(doc.apply(&edit).unwrap().bytes).unwrap();
         let violations = common::pmi_usage::violations(&doc);
-        assert_eq!(violations.len(), 2, "{kind}: {violations:?}");
+        assert_eq!(violations.len(), 5, "{kind}: {violations:?}");
         assert!(
             violations
                 .iter()
-                .any(|v| v.starts_with("face #360 identified"))
+                .any(|v| v.starts_with("item #360 identified"))
         );
     }
 }
@@ -497,4 +497,203 @@ fn legacy_json_group_forwarders_keep_all_consumed_provenance() {
     .unwrap();
     let after = Document::parse(legacy.apply(&edit).unwrap().bytes).unwrap();
     assert!(violations(&after).is_empty());
+}
+
+#[cfg(feature = "json-import")]
+#[test]
+fn removing_one_same_content_feature_does_not_remove_its_sibling() {
+    use common::pmi_usage::{attr, is_a, reference};
+    use haecceity::{
+        json::{self, Anchors},
+        p21::{self, Attribute as A, Edit, RawEntity},
+        removal,
+    };
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/xcaf");
+    let b = bytes(&root.join("pmi_plate.geom.step.gz"));
+    let parts = read_part_definitions(&b).unwrap();
+    let doc = Document::parse(b).unwrap();
+    let wire: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(root.join("pmi_plate.pmi.json")).unwrap()).unwrap();
+    let semantic = json::from_value(&wire, &Anchors::read(&doc, &parts[0])).unwrap();
+    let (b, _) = json::write(
+        &doc,
+        &parts,
+        &[(PartId(0), semantic)],
+        PresentationPolicy::RemovePresentation,
+    )
+    .unwrap();
+    let doc = Document::parse(b).unwrap();
+    let loc = doc
+        .ids()
+        .find(|id| is_a(&doc, *id, "dimensional_location"))
+        .unwrap();
+    let sibling = reference(
+        &doc,
+        loc,
+        "shape_aspect_relationship",
+        "relating_shape_aspect",
+    )
+    .unwrap();
+    let usage = doc
+        .referrers(sibling)
+        .iter()
+        .copied()
+        .find(|id| is_a(&doc, *id, "geometric_item_specific_usage"))
+        .unwrap();
+    let rep = reference(
+        &doc,
+        usage,
+        "item_identified_representation_usage",
+        "used_representation",
+    )
+    .unwrap();
+    let face = reference(
+        &doc,
+        usage,
+        "item_identified_representation_usage",
+        "identified_item",
+    )
+    .unwrap();
+    let shape = reference(&doc, sibling, "shape_aspect", "of_shape").unwrap();
+    let mut edit = Edit::new();
+    let feature = edit.add(p21::simple(
+        "SHAPE_ASPECT",
+        vec![
+            A::String("independent same-content feature".into()),
+            A::String("".into()),
+            A::EntityRef(shape),
+            A::Enum("T".into()),
+        ],
+    ));
+    edit.add(p21::simple(
+        "GEOMETRIC_ITEM_SPECIFIC_USAGE",
+        vec![
+            A::String("".into()),
+            A::String("".into()),
+            feature.to_ref(),
+            A::EntityRef(rep),
+            A::EntityRef(face),
+        ],
+    ));
+    edit.add(p21::simple(
+        "ID_ATTRIBUTE",
+        vec![
+            A::String(wire["pmi"]["features"][3]["id"].as_str().unwrap().into()),
+            feature.to_ref(),
+        ],
+    ));
+    let mut record = doc.get(loc).unwrap().clone();
+    let RawEntity::Simple { attributes, .. } = &mut record else {
+        panic!("location")
+    };
+    attributes[2] = feature.to_ref();
+    edit.replace(loc, record);
+    // Historical files can identify one face twice. Reading must preserve each native
+    // owner's identity, even when transport projects equal-valued feature entries.
+    let source = Document::parse(doc.apply(&edit).unwrap().bytes).unwrap();
+    let own = source
+        .ids()
+        .find(|id| {
+            attr(&source, *id, "shape_aspect", "name")
+                == Some(&A::String("independent same-content feature".into()))
+        })
+        .unwrap();
+    let read = pmi::read(&source, &parts).unwrap();
+    assert!(read.provenance.parts[0].features[3].contains(&own));
+    assert!(!read.provenance.parts[0].features[3].contains(&sibling));
+    let seeds = read.provenance.parts[0].features[3]
+        .iter()
+        .chain(&read.provenance.parts[0].dimensions[0])
+        .copied()
+        .collect();
+    let native_before = pmi::read_native(&source, &parts).unwrap();
+    let plan = removal::plan(&source, &seeds, PresentationPolicy::RemovePresentation).unwrap();
+    assert!(plan.removed.contains(&own));
+    assert!(!plan.removed.contains(&sibling));
+    assert!(!plan.removed.contains(&usage));
+    let mut edit = Edit::new();
+    plan.into_edit(&mut edit);
+    let after = Document::parse(source.apply(&edit).unwrap().bytes).unwrap();
+    let native = pmi::read_native(&after, &parts).unwrap();
+    assert_eq!(
+        native.parts[0].dimensions.len(),
+        native_before.parts[0].dimensions.len() - 1
+    );
+    assert_eq!(native.parts[0].datums.len(), 3);
+    assert_eq!(
+        reference(
+            &after,
+            usage,
+            "item_identified_representation_usage",
+            "definition"
+        ),
+        Some(sibling)
+    );
+}
+
+#[test]
+fn committed_plate_has_direct_datum_dimensions_and_datum_face_tolerance() {
+    use common::pmi_usage::{reference, violations};
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/xcaf");
+    let doc = Document::parse(bytes(&root.join("plate-datum-features.step.gz"))).unwrap();
+    assert_eq!(
+        reference(
+            &doc,
+            1008,
+            "shape_aspect_relationship",
+            "relating_shape_aspect"
+        ),
+        Some(1000)
+    );
+    assert_eq!(
+        reference(
+            &doc,
+            1112,
+            "shape_aspect_relationship",
+            "relating_shape_aspect"
+        ),
+        Some(1100)
+    );
+    assert_eq!(
+        reference(&doc, 1013, "geometric_tolerance", "toleranced_shape_aspect"),
+        Some(1000)
+    );
+    assert!(violations(&doc).is_empty(), "{:?}", violations(&doc));
+}
+
+#[test]
+fn uniqueness_check_includes_identified_cartesian_points() {
+    use haecceity::p21::{self, Attribute as A, Edit};
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/xcaf");
+    let doc = Document::parse(bytes(&root.join("plate-datum-features.step.gz"))).unwrap();
+    let point = doc
+        .ids()
+        .find(|id| common::pmi_usage::is_a(&doc, *id, "cartesian_point"))
+        .unwrap();
+    let mut edit = Edit::new();
+    for _ in 0..2 {
+        let aspect = edit.add(p21::simple(
+            "SHAPE_ASPECT",
+            vec![
+                A::String("point owner".into()),
+                A::String("".into()),
+                A::EntityRef(26),
+                A::Enum("T".into()),
+            ],
+        ));
+        edit.add(p21::simple(
+            "GEOMETRIC_ITEM_SPECIFIC_USAGE",
+            vec![
+                A::String("".into()),
+                A::String("".into()),
+                aspect.to_ref(),
+                A::EntityRef(32),
+                A::EntityRef(point),
+            ],
+        ));
+    }
+    let doc = Document::parse(doc.apply(&edit).unwrap().bytes).unwrap();
+    let v = common::pmi_usage::violations(&doc);
+    assert_eq!(v.len(), 1, "{v:?}");
+    assert!(v[0].starts_with(&format!("item #{point} identified")));
 }

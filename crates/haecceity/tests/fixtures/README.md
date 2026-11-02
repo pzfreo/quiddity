@@ -16,3 +16,10 @@ trimmed before its material/presentation records, with synthetic PMI: datum A
 identifies face #360; a linear dimension forwards through a faceless ordinary
 aspect and plain SAR. It exercises legacy reading and migration to direct datum
 linking without requiring the git-excluded cadgen/XCAF plate exports.
+
+`xcaf/plate-legacy-datum-location.step.gz` also includes the older multi-face form:
+a faceless `DIMENSION` composite duplicates a datum's two per-face members. It
+includes a flatness tolerance on datum A and a position control referring to A/B.
+`xcaf/plate-datum-features.step.gz` is its conformant counterpart; both dimensions
+reference their datum features directly. The default CI matrix checks both files,
+including datum-face dimension and tolerance targets, without excluded local plates.

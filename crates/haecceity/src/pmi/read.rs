@@ -1159,6 +1159,14 @@ impl<'a> Reader<'a> {
 
         // Shape aspects nothing above read: features in their own right.
         for &a in &aspects {
+            // Preserve an explicitly authored independent feature even when its one
+            // geometry carrier is also used as a composition member (§5.1).
+            if !st.features.contains_key(&a)
+                && self.get_str(a, "shape_aspect", "name").as_deref() == Some("haecceity.feature/1")
+            {
+                self.feature(st, a);
+                continue;
+            }
             if st.features.contains_key(&a)
                 || st.absorbed.contains(&a)
                 || st.targets.contains_key(&a)

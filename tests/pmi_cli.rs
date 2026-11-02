@@ -229,11 +229,11 @@ fn pmi_read_of_one_part() {
 /// together. `READER` is what `pmi check` holds a document's anchors to, so it must change
 /// whenever the reader's output does: when this fails, bump `pmi_json::READER` if `pmi::read`
 /// changed (a JSON-form change bumps `VERSION` instead), then re-pin both.
-// Reader /14 keeps proper subsets of composed datum features distinct; structural
-// face-set, size, group and single-constituent checks are in pmi_import_repairs.rs.
+// Reader /15 retains explicitly authored standalone composition members without
+// redundant aspects; old source semantics remain unchanged.
 const READER_PIN: (&str, &str) = (
-    "haecceity-pmi-read/14",
-    "826d4c4e3f564f90a31354618fe5be2d7f9d7a7cf9f33f93ac99170b6c39ccd8",
+    "haecceity-pmi-read/15",
+    "192fde06ad69cfd1675460e12fb63af6b63b77c0dfef183aba3d95ed99c8e6d6",
 );
 
 #[test]

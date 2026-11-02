@@ -1867,11 +1867,53 @@ It covers committed Specify/NIST/placement fixtures, the synthetic old-form plat
 local plates when present, and corpus NIST files. JSON-enabled tests also write
 the committed plate `pmi.json`. The established roundtrip refusal projection
 removes unsupported authoring items without hiding write/removal/linking errors.
-JSON ordering retains the provenance of every equal native feature when folding
-aliases, so replacing a legacy JSON write removes its old forwarding links too.
-This changes provenance only; semantic reads and the binding version are unchanged.
+Legacy aliases omitted by ordering are transport-owned; each feature retains only its own native carriers. Native identifiers take precedence over equal-content fallback bindings.
 
 The two legacy Specify spindle callout files also carry `description_attribute`
 writer ownership stamps. The exact `specify-core:written:v1` stamp is removed with
 its replaced item, like an id attribute; arbitrary unconsumed descriptions still
 block removal. This permits full-file round trips without discarding consumer data.
+
+
+### Review of shared carriers (2026-11-02)
+
+An ordinary feature may reuse only a neutral shape aspect/union or a datum feature
+with the same feature meaning. Applied areas, thread runouts, per-member patterns,
+all-around/between scopes and tolerance zones remain distinct (§6.5.2). Their GISUs
+can be factored onto neutral per-item members, preserving their own scope. Kept
+neutral composites gain `datum_feature` at their existing id even in complex form.
+Existing datum features are preferred to legacy `DIMENSION` copies; Add also
+retargets and removes those legacy wrappers. A second datum label on an already
+established feature is refused (`datum_feature.WR1`). Relationship targets and
+affected-plane links use the actual endpoints; the reader excludes both from
+composition, so private forwarding aspects are unnecessary.
+
+An explicitly authored independent single-item feature shared by a composite is
+named `haecceity.feature/1`. The reader retains it as an independent feature,
+without an extra faceless aspect. This new read convention requires binding
+`haecceity-pmi-read/15`; the PMI schema and semantic values do not change.
+The uniqueness checker includes all identified geometric/topological items,
+multi-member forwarders and exact datum endpoint identities. It compares group
+scope and member partitions too: a per-member pattern and an indivisible union
+with the same face set are different features, per §6.5.2.
+
+Specify removes its stamps before Replace (`specify-core-rust/src/writer.rs:748`,
+`src/provenance.rs:135`) and calls `mark_new` after writing (`writer.rs:784`,
+`provenance.rs:91`). Haecceity deletes stamps with removed records; it does not
+transfer authorship to its replacement. Specify reads dimension ownership from
+the exact SDR's stamp (`provenance.rs:33`); its own replacement writer re-stamps.
+
+The stricter no-forwarder rule conflicts with OCCT 7.9's relationship traversal.
+With direct endpoints, `pmi_gaps` and `pmi_gaps_gram` still transfer, but their two
+ordinary Position tolerances attach to face #129 instead of #17. In
+`datum_targets_shared_support`, XCAF loses its tolerance and four target objects.
+The plate dimensions and their datum links still read unchanged. The existing
+oracle assertions and difference pins are deliberately retained; they expose
+these compatibility regressions instead of accepting them. OCCT's
+[`collectShapeAspect`](https://github.com/Open-Cascade-SAS/OCCT/blob/V7_9_3/src/STEPCAFControl/STEPCAFControl_Reader.cxx#L2723-L2774)
+treats every outgoing SAR except a dimensional location as composition and ignores
+the aspect's own GISU when any such relationship exists. This includes tolerance
+target and feature-for-datum-target relationships. Restoring private forwarding
+aspects avoids the kernel bug but violates the requested stricter rule. Resolving
+both requirements needs an OCCT reader fix or a maintainer-approved exception;
+no exception or weakened oracle has been introduced here.

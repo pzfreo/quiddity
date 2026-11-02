@@ -1075,7 +1075,11 @@ fn add_reuses_an_aspect_of_exactly_the_features_faces() {
 /// including when its several faces are gathered by a composite (§5.1 / §6.5).
 #[test]
 fn add_datum_specializes_the_kept_geometric_carrier() {
-    for face_set in [&[9][..], &[9, 10][..]] {
+    for (face_set, complex) in [
+        (&[9][..], false),
+        (&[9, 10][..], false),
+        (&[9, 10][..], true),
+    ] {
         let f = spool();
         let first = PartPmi {
             features: vec![faces(face_set)],
@@ -1091,7 +1095,24 @@ fn add_datum_specializes_the_kept_geometric_carrier() {
         let owner =
             common::pmi_usage::reference(&w.doc, first_dim, "dimensional_size", "applies_to")
                 .unwrap();
-        let g = open_bytes(w.doc.bytes().to_vec());
+        let g = if complex {
+            let RawEntity::Simple { attributes, .. } = w.doc.get(owner).unwrap() else {
+                panic!("composite")
+            };
+            let mut edit = haecceity::p21::Edit::new();
+            edit.replace(
+                owner,
+                haecceity::p21::Complex::new([
+                    haecceity::p21::leaf("COMPOSITE_SHAPE_ASPECT", vec![]),
+                    haecceity::p21::leaf("SHAPE_ASPECT", attributes.clone()),
+                ])
+                .unwrap()
+                .into_record(),
+            );
+            open_bytes(w.doc.apply(&edit).unwrap().bytes)
+        } else {
+            open_bytes(w.doc.bytes().to_vec())
+        };
         let add = PartPmi {
             features: vec![faces(face_set)],
             datums: vec![datum("Z", 0)],
@@ -6600,6 +6621,20 @@ fn composite_features_and_locations_reuse_their_geometry_carriers() {
                         panic!("location endpoint")
                     };
                     assert!(is(*a, "shape_aspect"));
+                    let endpoint_geometry = common::pmi_usage::geometry(&w.doc, *a);
+                    for datum in w.doc.ids().filter(|d| {
+                        is(*d, "datum_feature") && !is(*d, "composite_group_shape_aspect")
+                    }) {
+                        if !endpoint_geometry.is_empty()
+                            && (common::pmi_usage::neutral(&w.doc, *a) || is(*a, "datum_feature"))
+                            && common::pmi_usage::geometry(&w.doc, datum) == endpoint_geometry
+                        {
+                            assert_eq!(
+                                *a, datum,
+                                "{name}: datum-face endpoint must be the datum feature"
+                            );
+                        }
+                    }
                     assert_ne!(
                         test_attribute(&w.doc, *a, "shape_aspect", "name"),
                         Some(&Attribute::String("DIMENSION".into()))
@@ -6716,6 +6751,36 @@ fn a_location_on_a_datum_group_shares_its_datum_members_geometry_once() {
     )
     .unwrap();
     assert!(common::pmi_usage::is_a(&w.doc, from, "datum_feature"));
+    assert_eq!(
+        common::pmi_usage::geometry(&w.doc, from),
+        [f.parts[0].faces[0], f.parts[0].faces[1]]
+            .into_iter()
+            .collect()
+    );
+    let to = common::pmi_usage::reference(
+        &w.doc,
+        loc,
+        "shape_aspect_relationship",
+        "related_shape_aspect",
+    )
+    .unwrap();
+    assert!(common::pmi_usage::neutral(&w.doc, to));
+    assert!(!common::pmi_usage::is_a(&w.doc, to, "datum_feature"));
+    assert_eq!(
+        common::pmi_usage::geometry(&w.doc, to),
+        [f.parts[0].faces[2]].into_iter().collect()
+    );
+    assert!(
+        w.doc
+            .referrers(to)
+            .iter()
+            .any(|r| common::pmi_usage::reference(
+                &w.doc,
+                *r,
+                "item_identified_representation_usage",
+                "definition"
+            ) == Some(to))
+    );
     assert!(common::pmi_usage::violations(&w.doc).is_empty());
 }
 
@@ -7801,4 +7866,263 @@ fn ap214_extra_attributes_are_not_dropped() {
             .iter()
             .any(|v| v.id == 132 && v.kind == express::Kind::AttributeCount)
     );
+}
+
+#[test]
+fn add_plain_requirements_do_not_inherit_specialized_aspect_meaning() {
+    use common::pmi_usage::{geometry, is_a, neutral, reference, violations};
+    for kind in [
+        "APPLIED_AREA",
+        "THREAD_RUNOUT",
+        "COMPOSITE_GROUP_SHAPE_ASPECT",
+        "ALL_AROUND_SHAPE_ASPECT",
+        "BETWEEN_SHAPE_ASPECT",
+        "COMPOSITE_UNIT_SHAPE_ASPECT",
+        "TOLERANCE_ZONE",
+    ] {
+        for count in [1, 2] {
+            if kind == "COMPOSITE_UNIT_SHAPE_ASPECT" && count == 1 {
+                continue; // A unit composite needs multiple constituents.
+            }
+            let input = spool();
+            let base = PartPmi {
+                features: vec![faces(&[0])],
+                tolerances: vec![tolerance(
+                    ToleranceKind::Flatness,
+                    ToleranceTarget::Feature(FeatureId(0)),
+                    "0.1",
+                )],
+                ..PartPmi::default()
+            };
+            let clean = written(&input, &base);
+            let f = open_bytes(clean.doc.bytes().to_vec());
+            let free = free_faces(&f, 0, 2);
+            let def = &f.parts[0];
+            let old = pmi::read(&f.doc, &f.parts).unwrap();
+            let tol = root(
+                &f.doc,
+                &old.provenance.parts[0].tolerances[0],
+                &["geometric_tolerance"],
+            );
+            let gisu = f
+                .doc
+                .ids()
+                .find(|id| is_a(&f.doc, *id, "geometric_item_specific_usage"))
+                .unwrap();
+            let rep = reference(
+                &f.doc,
+                gisu,
+                "item_identified_representation_usage",
+                "used_representation",
+            )
+            .unwrap();
+            let mut edit = haecceity::p21::Edit::new();
+            let form = edit.add(haecceity::p21::simple(
+                "TOLERANCE_ZONE_FORM",
+                vec![Attribute::String("between two parallel planes".into())],
+            ));
+            let base = vec![
+                Attribute::String("kept specialized scope".into()),
+                Attribute::String(
+                    if kind == "COMPOSITE_GROUP_SHAPE_ASPECT" {
+                        "pattern of features"
+                    } else {
+                        ""
+                    }
+                    .into(),
+                ),
+                Attribute::EntityRef(def.shape),
+                Attribute::Enum("T".into()),
+            ];
+            let record = if kind == "TOLERANCE_ZONE" {
+                let mut attrs = base.clone();
+                attrs.extend([
+                    Attribute::List(vec![Attribute::EntityRef(tol)]),
+                    form.to_ref(),
+                ]);
+                haecceity::p21::simple(kind, attrs)
+            } else {
+                haecceity::p21::simple(kind, base.clone())
+            };
+            let owner = edit.add(record);
+            for (i, face) in free[..count].iter().enumerate() {
+                let leaf = if count == 1 {
+                    owner
+                } else {
+                    let leaf = edit.add(haecceity::p21::simple(
+                        "SHAPE_ASPECT",
+                        vec![
+                            Attribute::String(format!("member {i}")),
+                            Attribute::String("".into()),
+                            Attribute::EntityRef(def.shape),
+                            Attribute::Enum("T".into()),
+                        ],
+                    ));
+                    edit.add(haecceity::p21::simple(
+                        "SHAPE_ASPECT_RELATIONSHIP",
+                        vec![
+                            Attribute::String("".into()),
+                            Attribute::String("".into()),
+                            owner.to_ref(),
+                            leaf.to_ref(),
+                        ],
+                    ));
+                    leaf
+                };
+                edit.add(haecceity::p21::simple(
+                    "GEOMETRIC_ITEM_SPECIFIC_USAGE",
+                    vec![
+                        Attribute::String("".into()),
+                        Attribute::String("".into()),
+                        leaf.to_ref(),
+                        Attribute::EntityRef(rep),
+                        Attribute::EntityRef(def.faces[*face]),
+                    ],
+                ));
+            }
+            let g = open_bytes(f.doc.apply(&edit).unwrap().bytes);
+            let owner = g
+                .doc
+                .ids()
+                .find(|id| {
+                    test_attribute(&g.doc, *id, "shape_aspect", "name")
+                        == Some(&Attribute::String("kept specialized scope".into()))
+                })
+                .unwrap();
+            let before = geometry(&g.doc, owner);
+            let add = PartPmi {
+                features: vec![faces(&free[..count])],
+                dimensions: vec![size(0, "10.", DimTolerance::Basic)],
+                tolerances: vec![tolerance(
+                    ToleranceKind::Flatness,
+                    ToleranceTarget::Feature(FeatureId(0)),
+                    "0.1",
+                )],
+                ..PartPmi::default()
+            };
+            let w = write(&g, &[(PartId(0), add)], Mode::Add)
+                .unwrap_or_else(|e| panic!("{kind} {count}: {e}"));
+            assert_eq!(
+                geometry(&w.doc, owner),
+                before,
+                "{kind}: scope geometry changed"
+            );
+            assert_eq!(
+                w.names(owner),
+                g.doc
+                    .get(owner)
+                    .map(|e| match e {
+                        RawEntity::Simple { name, .. } => vec![name.to_ascii_lowercase()],
+                        RawEntity::Complex { parts, .. } =>
+                            parts.iter().map(|p| p.name.to_ascii_lowercase()).collect(),
+                    })
+                    .unwrap()
+            );
+            for id in w.added() {
+                let target = if is_a(&w.doc, id, "dimensional_size") {
+                    reference(&w.doc, id, "dimensional_size", "applies_to")
+                } else if is_a(&w.doc, id, "geometric_tolerance") {
+                    reference(&w.doc, id, "geometric_tolerance", "toleranced_shape_aspect")
+                } else {
+                    None
+                };
+                if let Some(target) = target {
+                    assert_ne!(target, owner, "{kind}");
+                    assert!(neutral(&w.doc, target), "{kind}");
+                    assert_eq!(geometry(&w.doc, target), before);
+                }
+            }
+            assert!(
+                violations(&w.doc).is_empty(),
+                "{kind} {count}: {:?}",
+                violations(&w.doc)
+            );
+        }
+    }
+}
+
+#[test]
+fn add_on_legacy_plate_prefers_datums_and_retires_forwarders() {
+    use common::pmi_usage::{geometry, is_a, reference, violations};
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/xcaf/plate-legacy-datum-location.step.gz");
+    let f = open(&path);
+    let old = pmi::read(&f.doc, &f.parts).unwrap();
+    let b = old.parts[0]
+        .datums
+        .iter()
+        .find(|d| d.label().as_str() == "B")
+        .unwrap()
+        .feature()
+        .unwrap();
+    let feature = old.parts[0].features[b.0].clone();
+    let conflict = PartPmi {
+        features: vec![feature.clone()],
+        datums: vec![datum("Z", 0)],
+        ..PartPmi::default()
+    };
+    assert!(matches!(
+        write(&f, &[(PartId(0), conflict)], Mode::Add),
+        Err(WriteError::Refused(_))
+    ));
+    // A legacy carrier awaiting its datum assignment must be preferred to its
+    // DIMENSION wrapper. Remove the old establishment first, respecting WR1.
+    let mut edit = haecceity::p21::Edit::new();
+    for id in [1107, 1108, 1121] {
+        edit.remove(id);
+    }
+    edit.replace(
+        1122,
+        haecceity::p21::simple(
+            "DATUM_SYSTEM",
+            vec![
+                Attribute::String("A".into()),
+                Attribute::String("".into()),
+                Attribute::EntityRef(26),
+                Attribute::Enum("F".into()),
+                Attribute::List(vec![Attribute::EntityRef(1120)]),
+            ],
+        ),
+    );
+    let f = open_bytes(f.doc.apply(&edit).unwrap().bytes);
+    let p = PartPmi {
+        features: vec![feature],
+        datums: vec![datum("Z", 0)],
+        dimensions: vec![size(0, "30.", DimTolerance::Basic)],
+        tolerances: vec![tolerance(
+            ToleranceKind::Flatness,
+            ToleranceTarget::Feature(FeatureId(0)),
+            "0.1",
+        )],
+        ..PartPmi::default()
+    };
+    let w = write(&f, &[(PartId(0), p)], Mode::Add).unwrap();
+    assert!(is_a(&w.doc, 1100, "datum_feature"));
+    assert!(
+        w.doc.get(1109).is_none(),
+        "never promote the old multi-member forwarder"
+    );
+    assert!(w.doc.get(1004).is_none());
+    for loc in [1008, 1112] {
+        let owner = reference(
+            &w.doc,
+            loc,
+            "shape_aspect_relationship",
+            "relating_shape_aspect",
+        )
+        .unwrap();
+        assert_eq!(owner, if loc == 1008 { 1000 } else { 1100 });
+    }
+    for id in w
+        .added()
+        .into_iter()
+        .filter(|id| is_a(&w.doc, *id, "dimensional_size"))
+    {
+        assert_eq!(
+            reference(&w.doc, id, "dimensional_size", "applies_to"),
+            Some(1100)
+        );
+    }
+    assert_eq!(geometry(&w.doc, 1100), geometry(&f.doc, 1100));
+    assert!(violations(&w.doc).is_empty(), "{:?}", violations(&w.doc));
 }

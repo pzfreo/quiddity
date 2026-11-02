@@ -14,10 +14,21 @@ in [docs/alpha1.md](docs/alpha1.md).
   retain composites of shared per-face carriers so OCCT reads one GISU per face
   without violating IIRU UR2. Adding a datum to a kept ordinary feature specializes
   that carrier to `datum_feature`, reported in `rewritten`, preserving its id and usages.
-  **Consumer note:** written STEP entity linking changes; semantic JSON, legacy
-  reads and the reader binding are unchanged. Replacing legacy JSON-authored PMI
-  now retains all consumed alias provenance, allowing its old endpoint links to be removed.
-  Specify ownership stamps (`specify-core:written:v1`) are removed with their replaced PMI.
+  **Consumer note:** written STEP entity linking changes; semantic PMI values and
+  `haecceity.pmi/1` are unchanged. Reader binding advances to `haecceity-pmi-read/15`:
+  explicitly authored standalone members use `SHAPE_ASPECT.name='haecceity.feature/1'`
+  so they remain features when shared as composition members. Old files read as before.
+  Specialized areas, runouts, groups and zones keep their meaning; plain requirements
+  share neutral geometry carriers instead. Complex neutral composites can gain a datum
+  in place. Legacy endpoint wrappers are retired on Add; independent same-content
+  features retain separate removal provenance. A second datum label on an already
+  established feature is refused under `datum_feature.WR1`.
+  OCCT 7.9 limitation: direct tolerance-relationship and shared datum-target support
+  endpoints can make XCAF misassociate ordinary tolerances or drop target objects;
+  existing oracle assertions continue to flag this incompatibility.
+  Specify ownership stamps (`specify-core:written:v1`) are deleted with removed records;
+  haecceity does not reattach them. Specify's own Replace re-stamps newly emitted roots
+  after the haecceity write (`specify-core-rust/src/writer.rs:784`, `src/provenance.rs:91`).
 
 ## 0.4.4 (2026-11-01)
 
