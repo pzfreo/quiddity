@@ -4308,6 +4308,14 @@ impl<'a> PartPlan<'a> {
             }
             local_layout = packed;
         }
+        // The measured ladder already avoids annotations. Include placed notes
+        // and finishes before that pass, even though generated ones follow it.
+        #[cfg(all(feature = "presentation", feature = "json-import"))]
+        for g in &placed {
+            if !graphics.iter().any(|old| old.0 == g.0) {
+                graphics.push(g.clone());
+            }
+        }
         #[cfg(feature = "presentation")]
         if let Some(part) = &presentation_part {
             use crate::presentation::{self, linear};
@@ -4355,12 +4363,6 @@ impl<'a> PartPlan<'a> {
         #[cfg(feature = "presentation")]
         {
             use crate::presentation::{self, notes};
-            #[cfg(feature = "json-import")]
-            for g in &placed {
-                if !graphics.iter().any(|old| old.0 == g.0) {
-                    graphics.push(g.clone());
-                }
-            }
             // Reserve the finished graphics, including extension lines, before placing new ink.
             for (_, _, _, _, lines) in &graphics {
                 local_layout.reserve(lines);

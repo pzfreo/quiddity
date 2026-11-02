@@ -409,6 +409,9 @@ impl PartPlan<'_> {
 }
 
 pub(super) fn overlap_warnings(graphics: &[Graphic], placed: &[Graphic], report: &mut WriteReport) {
+    if placed.is_empty() {
+        return;
+    }
     for (i, g) in graphics.iter().enumerate() {
         for other in &graphics[..i] {
             if !placed.iter().any(|p| p.0 == g.0 || p.0 == other.0) {
