@@ -6,8 +6,17 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+## 0.4.5 (2026-11-02)
+
+Upgrading from 0.4.4: recognition schema `/6`, fingerprints `/3` and the `haecceity.pmi/1` schema are unchanged. The PMI reader string advances to `haecceity-pmi-read/15`. Semantic PMI reads as before, with two exceptions: the datum findings below, and aspects that 0.4.5 writes named `haecceity.feature/1`. Old files are unaffected by the second.
+- **Writer (#181):** written STEP links PMI to geometry the way CAx-IF PMI v4.1 §5.1 and §6.5 recommend. Each face has one shape aspect, which every dimension and tolerance on it reuses, and datum features are referenced directly. Semantic values are unchanged, and OpenCascade reads every checked-in written golden as before. A narrow exemption covers two shared-carrier shapes that OpenCascade 7.9.3 and NIST SFA 5.41 misread in the strict form. They are reported in `WriteReport.geometry_carrier_exemptions`, which the CLI and Python report also show as an optional `geometry_carrier_exemptions` key. The thumbwheel golden also keeps one allow-listed presentation-only carrier.
+- **Reader (#180):** a datum whose feature reaches no face is now an `Unresolved` finding. A Solid Edge re-export of NIST CTC-01 that loses datum B's feature is pinned as a fixture.
+- **Recognition (#178, #179):** through holes with partly obstructed exits, and helical coil springs. The schema fields are additive, but existing records change on affected parts: spring wire faces lose their hole, boss and fillet records, and partly covered exits become `through`.
+- **Rust API:** `Features` gains the public field `helical_springs` and is not `#[non_exhaustive]`, so struct literals must supply it (`..Default::default()` still works). `PHYSICAL_FAMILIES` now has 43 entries. New public types: `HelicalSpring`, `SpringTolerances`, `ExitObstruction`, `GeometryCarrierExemption`.
+
 ### Fixed
 
+- **Datum features that resolve to no faces** are reported as `Unresolved` findings: `datum <L> feature resolves to no faces` when the feature is kept but reaches no face, and `datum <L> is not read: what establishes it does not resolve` when nothing establishes the datum (previously a Nonconformance, "datum <L> is established by neither a feature nor a target"; such a datum was not read before either). The Solid Edge 2026 re-export of NIST CTC-01 and the control it was made from are fixtures (`tests/fixtures/ap242/reexport/`). The re-export reports exactly datum B unresolved. Writer round trips are checked so that no datum becomes unresolved.
 - PMI dimensions and tolerances reuse the face's existing shape aspect and GISU,
   including datum features (CAx-IF PMI v4.1 §5.1 / §6.5.1–2). Location endpoints no
   longer use faceless `SHAPE_ASPECT('DIMENSION')` wrappers. Multi-face features
@@ -41,7 +50,7 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Added
 
-- Recognise complete round-wire helical coil springs from swept NURBS tubes and connected cylinder/torus approximations. The optional `helical_springs` / `HelicalSpring` record supplies a file-space axis, hand, wire/mean/outer/inner diameters, physical free length, measured total coils, pitch, end type and exact claimed faces. Active coils remain null with an explicit basis when inactive ends are unproved; rate is never inferred. Spring claims suppress individual wire hole/boss/fillet callouts. Draftwright consumers can dimension free length and outer diameter on a simplified spring view and populate a data table from the record. Recognition schema 6, fingerprint format 3 and crate versions are unchanged for this additive family; Python recognition JSON exposes the same record.
+- Recognise complete round-wire helical coil springs from swept NURBS tubes and connected cylinder/torus approximations. The optional `helical_springs` / `HelicalSpring` record supplies a file-space axis, hand, wire/mean/outer/inner diameters, physical free length, measured total coils, pitch, end type and exact claimed faces. Active coils remain null with an explicit basis when inactive ends are unproved; rate is never inferred. Spring claims suppress individual wire hole/boss/fillet callouts. Draftwright consumers can dimension free length and outer diameter on a simplified spring view and populate a data table from the record. Recognition schema 6 and fingerprint format 3 are unchanged for this additive family; Python recognition JSON exposes the same record.
 
 - **Partially obstructed hole exits:** bores spanning their local wall now report
   `bottom: "through"` when a planar partial cap leaves part of the exit open.
