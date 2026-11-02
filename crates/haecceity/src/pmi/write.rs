@@ -56,7 +56,8 @@
 //! not related to the part's shape representation (maintainer decision, 2026-10-09).
 //!
 //! **Usages** (maintainer decision, 2026-10-09): one `geometric_item_specific_usage` per face;
-//! a feature of several faces is composed of one member shape aspect per face
+//! dimensions and tolerances reuse the feature's aspect directly (§5.1 / §6.5), including
+//! datum features. A feature of several faces is composed of one member shape aspect per face
 //! (`PartPlan::usages`). Part notes in words are 'semantic text' attribute sets (PMI practice
 //! §7.4); surface texture is ISO 10303-1110's form (`PartPlan::surface_texture`).
 //!
@@ -333,7 +334,8 @@ pub struct WriteReport {
     pub added: usize,
     /// Instances removed (replace, remove), ascending.
     pub removed: Vec<u64>,
-    /// Kept instances rewritten without removed members, or own legacy text rechunked.
+    /// Kept instances rewritten without removed members, own legacy text rechunked,
+    /// or geometric carriers specialized to datum features.
     pub rewritten: Vec<u64>,
     /// Presentation and validation properties removed with the replaced PMI.
     pub presentation_removed: Vec<(u64, String)>,
@@ -771,7 +773,8 @@ fn write_inner(
                         // Parts of a removed item's construct the reader does not list: its
                         // `id_attribute`s (§5.1 Figure 4) and edition 4 `uuid_attribute`s and, under RemovePresentation, the
                         // geometric validation properties of it (with their representation
-                        // links). Anything else blocks.
+                        // links), plus Specify's non-semantic writer ownership stamp.
+                        // Other description attributes still block.
                         let extra: Vec<u64> = r
                             .blockers
                             .iter()
@@ -779,6 +782,11 @@ fn write_inner(
                             .filter(|&b| {
                                 is_a(doc, b, "id_attribute")
                                     || is_a(doc, b, "uuid_attribute")
+                                    // Specify's ownership stamp carries no semantic value;
+                                    // it belongs to the removed construct, like an item id.
+                                    || (is_a(doc, b, "description_attribute")
+                                        && attr_str(doc, b, "description_attribute", "attribute_value").as_deref()
+                                            == Some("specify-core:written:v1"))
                                     || (policy == PresentationPolicy::RemovePresentation
                                         && validation_property(doc, b, &seeds))
                             })
@@ -891,6 +899,9 @@ fn write_inner(
         .collect();
     let added = em.count;
     let practice_exemptions = em.practice_exemptions.clone();
+    report.rewritten.extend(em.promoted_aspects.iter().copied());
+    report.rewritten.sort_unstable();
+    report.rewritten.dedup();
     drop(em);
     report.added = added;
 
@@ -1462,6 +1473,7 @@ pub struct Emitter<'a> {
     exponents: BTreeMap<&'static str, R>,
     count: usize,
     practice_exemptions: BTreeSet<(NewId, &'static str)>,
+    promoted_aspects: BTreeSet<u64>,
 }
 
 impl<'a> Emitter<'a> {
@@ -1482,6 +1494,7 @@ impl<'a> Emitter<'a> {
             exponents: BTreeMap::new(),
             count: 0,
             practice_exemptions: BTreeSet::new(),
+            promoted_aspects: BTreeSet::new(),
         }
     }
 
@@ -2947,34 +2960,6 @@ impl<'a> PartPlan<'a> {
                 }
             }
         }
-        // Locations get their own non-datum aspects. Reserve their shared geometric
-        // leaves before emitting datum features. A single-face datum owns its GISU;
-        // private location aspects reach that carrier through composition (UR1/UR2).
-        for d in &p.dimensions {
-            if let DimensionKind::Location { from, to, .. } = d.kind {
-                for f in [from, to] {
-                    let mut pending = vec![f.0];
-                    let mut visited = BTreeSet::new();
-                    while let Some(f) = pending.pop() {
-                        let c = self.canonical[f];
-                        if !visited.insert(c) || !self.is_datum_aspect(c) {
-                            continue;
-                        }
-                        match &p.features[c] {
-                            Feature::Items(items) => {
-                                for k in self.usage_keys(em, &st, items)? {
-                                    *keys.entry(k.clone()).or_insert(0) += 1;
-                                }
-                            }
-                            Feature::Group { members, .. } => {
-                                pending.extend(members.iter().map(|f| f.0))
-                            }
-                            Feature::Derived { .. } => {}
-                        }
-                    }
-                }
-            }
-        }
         let shared: BTreeSet<(R, Vec<R>)> = keys
             .iter()
             .filter(|(_, n)| **n > 1)
@@ -2995,7 +2980,7 @@ impl<'a> PartPlan<'a> {
                 && shared.contains(k)
             {
                 // A plain datum needs its own GISU for OCCT and Solid Edge typing.
-                // Other aspects (including private location endpoints) compose it,
+                // Other partially overlapping features compose it,
                 // rather than making the datum a one-component composite.
                 if self.is_datum_aspect(c) {
                     st.owners.insert(k.clone(), c);
@@ -4476,6 +4461,59 @@ impl<'a> PartPlan<'a> {
         let r = match &self.pmi.features[c] {
             Feature::Items(items) => {
                 let role = self.roles.get(&c).copied().unwrap_or(Role::Plain);
+                // CAx-IF PMI v4.1 §5.1 / §6.5: reuse an exact kept carrier, including
+                // datum features, instead of a faceless forwarding aspect and SAR.
+                let keys = self.usage_keys(em, st, items)?;
+                if let Some((rep, _)) = keys.first()
+                    && keys.iter().all(|(r, _)| r == rep)
+                {
+                    let all: Vec<_> = keys
+                        .iter()
+                        .flat_map(|(_, items)| items.iter().copied())
+                        .collect();
+                    if let Some(owner) = self.existing_owner(em, *rep, &all)? {
+                        let compatible = match (role, owner) {
+                            (Role::Plain, _) => true,
+                            (Role::DatumFeature | Role::DatumFeatureOfSize(_), R::Old(id)) => {
+                                if is_a(self.doc, id, "datum_feature")
+                                    || em.promoted_aspects.contains(&id)
+                                {
+                                    true
+                                } else if let Some(RawEntity::Simple {
+                                    name, attributes, ..
+                                }) = self.doc.get(id)
+                                    && ["shape_aspect", "composite_shape_aspect"]
+                                        .iter()
+                                        .any(|ty| name.eq_ignore_ascii_case(ty))
+                                {
+                                    // Adding a datum to an already dimensioned feature keeps
+                                    // its identity: specialize its carrier, preserving every
+                                    // attribute and GISU, rather than wrapping it (§6.5).
+                                    let record = if name.eq_ignore_ascii_case("shape_aspect") {
+                                        p21::simple("DATUM_FEATURE", attributes.clone())
+                                    } else {
+                                        Complex::new([
+                                            p21::leaf("COMPOSITE_SHAPE_ASPECT", vec![]),
+                                            p21::leaf("DATUM_FEATURE", vec![]),
+                                            p21::leaf("SHAPE_ASPECT", attributes.clone()),
+                                        ])?
+                                        .into_record()
+                                    };
+                                    em.edit.replace(id, record);
+                                    em.promoted_aspects.insert(id);
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
+                            _ => false,
+                        };
+                        if compatible {
+                            st.features.insert(c, owner);
+                            return Ok(owner);
+                        }
+                    }
+                }
                 // Composite means at least two distinct geometric components. A shared
                 // single-face datum remains plain and owns the face's GISU.
                 let composite = items.iter().copied().collect::<BTreeSet<_>>().len() > 1;
@@ -4611,131 +4649,6 @@ impl<'a> PartPlan<'a> {
             self.roles.get(&c),
             Some(Role::DatumFeature | Role::DatumFeatureOfSize(_))
         )
-    }
-
-    /// Solid Edge 2026 does not type a datum used directly by DIMENSIONAL_LOCATION.
-    /// Give each location endpoint its own ordinary aspect; both use plain GISU leaves
-    /// on the same faces. Tolerances continue to refer to the original datum feature.
-    fn location_feature(
-        &self,
-        em: &mut Emitter<'_>,
-        st: &mut Emitted,
-        pds: R,
-        f: usize,
-    ) -> Result<R, WriteError> {
-        let c = self.canonical[f];
-        if !self.is_datum_aspect(c) {
-            return self.feature(em, st, pds, f);
-        }
-        let original = self.feature(em, st, pds, f)?;
-        let (ty, description) = match &self.pmi.features[c] {
-            Feature::Items(items) => (
-                if items.iter().copied().collect::<BTreeSet<_>>().len() > 1 {
-                    "composite_shape_aspect"
-                } else {
-                    "shape_aspect"
-                },
-                "",
-            ),
-            Feature::Group {
-                kind: GroupKind::PatternOfFeatures,
-                ..
-            } => ("composite_group_shape_aspect", "pattern of features"),
-            Feature::Group {
-                kind: GroupKind::MultipleElements,
-                ..
-            } => ("composite_group_shape_aspect", "multiple elements"),
-            Feature::Group {
-                kind: GroupKind::AllAround,
-                ..
-            } => ("all_around_shape_aspect", ""),
-            Feature::Group {
-                kind: GroupKind::Between,
-                ..
-            } => ("between_shape_aspect", ""),
-            _ => return Ok(original),
-        };
-        let r = em.simple(
-            ty,
-            &[
-                ("name", s("DIMENSION")),
-                ("description", s(description)),
-                ("of_shape", pds.a()),
-                ("product_definitional", boolean(true)),
-            ],
-        )?;
-        match &self.pmi.features[c] {
-            Feature::Items(items) => {
-                // A carried datum is immutable on append. Reuse its existing carrier
-                // through composition rather than duplicating a GISU or editing it.
-                if let R::Old(old) = original {
-                    let members: Vec<_> = self
-                        .doc
-                        .referrers(old)
-                        .iter()
-                        .copied()
-                        .filter(|&rel| {
-                            leaf_names(self.doc, rel) == ["shape_aspect_relationship"]
-                                && attr_ref(
-                                    self.doc,
-                                    rel,
-                                    "shape_aspect_relationship",
-                                    "relating_shape_aspect",
-                                ) == Some(old)
-                        })
-                        .filter_map(|rel| {
-                            attr_ref(
-                                self.doc,
-                                rel,
-                                "shape_aspect_relationship",
-                                "related_shape_aspect",
-                            )
-                        })
-                        .filter(|&m| !is_a(self.doc, m, "datum"))
-                        .collect();
-                    // A multi-face foreign datum already has per-face carriers. Reuse
-                    // those components so the new CSA has its required multiple
-                    // component relationships, rather than one link to the whole datum.
-                    let carriers = if items.iter().copied().collect::<BTreeSet<_>>().len() > 1
-                        && members.len() > 1
-                    {
-                        members
-                    } else {
-                        vec![old]
-                    };
-                    for carrier in carriers {
-                        let member = em.reference(carrier)?;
-                        em.simple(
-                            "shape_aspect_relationship",
-                            &[
-                                ("name", s("")),
-                                ("description", s("")),
-                                ("relating_shape_aspect", r.a()),
-                                ("related_shape_aspect", member.a()),
-                            ],
-                        )?;
-                    }
-                } else {
-                    self.usages(em, st, pds, r, None, items)?;
-                }
-            }
-            Feature::Group { members, .. } => {
-                for f in members {
-                    let m = self.location_feature(em, st, pds, f.0)?;
-                    em.simple(
-                        "shape_aspect_relationship",
-                        &[
-                            ("name", s("")),
-                            ("description", s("")),
-                            ("relating_shape_aspect", r.a()),
-                            ("related_shape_aspect", m.a()),
-                        ],
-                    )?;
-                }
-            }
-            _ => {}
-        }
-        Ok(r)
     }
 
     /// The instance of feature `f` in `role`: the feature's own, or its second instance of
@@ -4953,8 +4866,10 @@ impl<'a> PartPlan<'a> {
         Ok(())
     }
 
-    /// A kept plain shape aspect of the part that identifies exactly `items` in `rep` (and
-    /// nothing else) by one usage of the file.
+    /// A kept aspect whose complete geometric content is exactly `items` in `rep`.
+    /// Walk upward from the first item's GISU/IIRU, then compare whole sets: a proper
+    /// subset of a datum must never alias its parent (§6.5.1). Composition is allowed,
+    /// but datum-establishment links and dimensional locations are not composition.
     fn existing_owner(
         &self,
         em: &Emitter<'_>,
@@ -4967,7 +4882,7 @@ impl<'a> PartPlan<'a> {
         let want: BTreeSet<u64> = items
             .iter()
             .filter_map(|r| match r {
-                R::Old(n) => Some(*n),
+                R::Old(id) => Some(*id),
                 R::New(_) => None,
             })
             .collect();
@@ -4975,52 +4890,80 @@ impl<'a> PartPlan<'a> {
             return Ok(None);
         }
         let doc = self.doc;
-        for &u in doc.referrers(first) {
-            if em.removed.contains(&u)
-                || !is_a(doc, u, "item_identified_representation_usage")
-                || is_a(doc, u, "draughting_model_item_association")
-                || attr_ref(
-                    doc,
-                    u,
-                    "item_identified_representation_usage",
-                    "used_representation",
-                ) != Some(rep)
+        let mut pending: Vec<u64> = doc
+            .referrers(first)
+            .iter()
+            .copied()
+            .filter(|u| {
+                !em.removed.contains(u) && is_a(doc, *u, "item_identified_representation_usage")
+            })
+            .filter_map(|u| attr_ref(doc, u, "item_identified_representation_usage", "definition"))
+            .collect();
+        let mut seen = BTreeSet::new();
+        while let Some(owner) = pending.pop() {
+            if !seen.insert(owner)
+                || em.removed.contains(&owner)
+                || !is_a(doc, owner, "shape_aspect")
+                || is_a(doc, owner, "datum")
+                || is_a(doc, owner, "datum_target")
+                || attr_ref(doc, owner, "shape_aspect", "of_shape") != Some(self.def.shape)
             {
                 continue;
             }
-            let got: BTreeSet<u64> = attr_refs(
-                doc,
-                u,
-                "item_identified_representation_usage",
-                "identified_item",
-            )
-            .into_iter()
-            .collect();
-            if got != want {
-                continue;
-            }
-            let Some(owner) =
-                attr_ref(doc, u, "item_identified_representation_usage", "definition")
-            else {
-                continue;
-            };
-            let plain = leaf_names(doc, owner) == ["shape_aspect"]
-                && attr_ref(doc, owner, "shape_aspect", "of_shape") == Some(self.def.shape)
-                && doc.referrers(owner).iter().all(|&r| {
-                    r == u
-                        || !is_a(doc, r, "item_identified_representation_usage")
-                        || is_a(doc, r, "draughting_model_item_association")
-                })
-                // Composed of members: the relating side of a plain relationship, as this writer
-                // composes features. A subtype is not composition: a dimensional_location
-                // relates the feature it is measured from, which stays plain.
-                && !doc.referrers(owner).iter().any(|&r| {
-                    leaf_names(doc, r) == ["shape_aspect_relationship"]
+            let mut got = BTreeSet::new();
+            let mut todo = vec![owner];
+            let mut visited = BTreeSet::new();
+            let mut valid = true;
+            while let Some(aspect) = todo.pop() {
+                if !visited.insert(aspect) {
+                    continue;
+                }
+                for &r in doc.referrers(aspect) {
+                    if em.removed.contains(&r) {
+                        continue;
+                    }
+                    if is_a(doc, r, "item_identified_representation_usage")
+                        && !is_a(doc, r, "draughting_model_item_association")
+                        && attr_ref(doc, r, "item_identified_representation_usage", "definition")
+                            == Some(aspect)
+                    {
+                        valid &= attr_ref(
+                            doc,
+                            r,
+                            "item_identified_representation_usage",
+                            "used_representation",
+                        ) == Some(rep);
+                        got.extend(attr_refs(
+                            doc,
+                            r,
+                            "item_identified_representation_usage",
+                            "identified_item",
+                        ));
+                    }
+                    if leaf_names(doc, r) == ["shape_aspect_relationship"]
                         && attr_ref(doc, r, "shape_aspect_relationship", "relating_shape_aspect")
-                            == Some(owner)
-                });
-            if plain && !em.removed.contains(&owner) {
+                            == Some(aspect)
+                        && let Some(member) =
+                            attr_ref(doc, r, "shape_aspect_relationship", "related_shape_aspect")
+                        && !is_a(doc, member, "datum")
+                    {
+                        todo.push(member);
+                    }
+                }
+            }
+            if valid && got == want {
                 return Ok(Some(em.reference(owner)?));
+            }
+            for &r in doc.referrers(owner) {
+                if !em.removed.contains(&r)
+                    && leaf_names(doc, r) == ["shape_aspect_relationship"]
+                    && attr_ref(doc, r, "shape_aspect_relationship", "related_shape_aspect")
+                        == Some(owner)
+                    && let Some(parent) =
+                        attr_ref(doc, r, "shape_aspect_relationship", "relating_shape_aspect")
+                {
+                    pending.push(parent);
+                }
             }
         }
         Ok(None)
@@ -5088,8 +5031,8 @@ impl<'a> PartPlan<'a> {
                         directed,
                         angle,
                     } => {
-                        let a = self.location_feature(em, st, pds, from.0)?;
-                        let b = self.location_feature(em, st, pds, to.0)?;
+                        let a = self.feature(em, st, pds, from.0)?;
+                        let b = self.feature(em, st, pds, to.0)?;
                         let p = match path {
                             Some(p) => Some(self.feature(em, st, pds, p.0)?),
                             None => None,

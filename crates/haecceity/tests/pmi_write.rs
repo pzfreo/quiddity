@@ -993,10 +993,10 @@ fn a_feature_of_several_faces_has_a_usage_per_face() {
 }
 
 /// Add onto a file whose kept plain shape aspect identifies a feature's faces by one usage of
-/// a `set_representation_item` (§6.5.1, as earlier writes did): the new feature is composed of
-/// that aspect, and no face gains a second usage (item_identified_representation_usage UR1).
+/// a `set_representation_item` (§6.5.1, as earlier writes did): reference that aspect
+/// directly, and no face gains a second usage (item_identified_representation_usage UR1).
 #[test]
-fn add_composes_a_feature_of_an_aspect_of_its_faces() {
+fn add_reuses_an_aspect_of_exactly_the_features_faces() {
     let f = spool();
     let def = &f.parts[0];
     let (face9, face10) = (def.faces[9], def.faces[10]);
@@ -1036,8 +1036,24 @@ fn add_composes_a_feature_of_an_aspect_of_its_faces() {
         .copied()
         .filter(|&id| w.names(id) == ["shape_aspect_relationship"])
         .collect();
-    assert_eq!(compositions.len(), 1);
-    assert_eq!(refs_of(&w.doc, compositions[0])[1], aspect);
+    assert!(
+        compositions.is_empty(),
+        "reuse the exact kept aspect directly"
+    );
+    let target = added
+        .iter()
+        .copied()
+        .find(|&id| w.names(id) == ["surface_profile_tolerance"])
+        .unwrap();
+    assert_eq!(
+        test_attribute(
+            &w.doc,
+            target,
+            "geometric_tolerance",
+            "toleranced_shape_aspect"
+        ),
+        Some(&Attribute::EntityRef(aspect))
+    );
     assert!(
         added
             .iter()
@@ -1053,6 +1069,59 @@ fn add_composes_a_feature_of_an_aspect_of_its_faces() {
         panic!("{t:?}");
     };
     assert_eq!(w.read.parts[0].features[fid.0], faces(&[9, 10]));
+}
+
+/// A newly established datum must use the already dimensioned feature's identity,
+/// including when its several faces are gathered by a composite (§5.1 / §6.5).
+#[test]
+fn add_datum_specializes_the_kept_geometric_carrier() {
+    for face_set in [&[9][..], &[9, 10][..]] {
+        let f = spool();
+        let first = PartPmi {
+            features: vec![faces(face_set)],
+            dimensions: vec![size(0, "10.", DimTolerance::Basic)],
+            ..PartPmi::default()
+        };
+        let w = written(&f, &first);
+        let first_dim = root(
+            &w.doc,
+            &w.read.provenance.parts[0].dimensions[0],
+            &["dimensional_size"],
+        );
+        let owner =
+            common::pmi_usage::reference(&w.doc, first_dim, "dimensional_size", "applies_to")
+                .unwrap();
+        let g = open_bytes(w.doc.bytes().to_vec());
+        let add = PartPmi {
+            features: vec![faces(face_set)],
+            datums: vec![datum("Z", 0)],
+            tolerances: vec![tolerance(
+                ToleranceKind::SurfaceProfile,
+                ToleranceTarget::Feature(FeatureId(0)),
+                "0.1",
+            )],
+            ..PartPmi::default()
+        };
+        let w = write(&g, &[(PartId(0), add)], Mode::Add).unwrap();
+        assert!(common::pmi_usage::is_a(&w.doc, owner, "datum_feature"));
+        assert!(w.report.rewritten.contains(&owner));
+        assert!(common::pmi_usage::violations(&w.doc).is_empty());
+        assert!(new_violations(&g.doc, &w.doc).is_empty());
+        let tol = w
+            .added()
+            .into_iter()
+            .find(|id| common::pmi_usage::is_a(&w.doc, *id, "geometric_tolerance"))
+            .unwrap();
+        assert_eq!(
+            common::pmi_usage::reference(
+                &w.doc,
+                tol,
+                "geometric_tolerance",
+                "toleranced_shape_aspect"
+            ),
+            Some(owner)
+        );
+    }
 }
 
 /// Part notes in words (coating, heat treatment, edges) as the PMI practice's editable text
@@ -6434,7 +6503,7 @@ fn all_written_goldens_have_at_least_two_components_per_composite() {
 
 /// The measured semantic rules apply with and without graphical dimension writing.
 #[test]
-fn composite_features_and_locations_have_non_datum_geometry_carriers() {
+fn composite_features_and_locations_reuse_their_geometry_carriers() {
     for (name, count) in [("spindle", 2), ("plate", 3), ("corners-flatness", 3)] {
         let f = fixture(&format!("ap242/presentation-placement/{name}.step.gz"));
         let old = pmi::read(&f.doc, &f.parts).unwrap();
@@ -6530,18 +6599,17 @@ fn composite_features_and_locations_have_non_datum_geometry_carriers() {
                     else {
                         panic!("location endpoint")
                     };
-                    assert!(
-                        !is(*a, "datum_feature"),
-                        "{name}: {} uses datum {}",
-                        w.text(id),
-                        w.text(*a)
+                    assert!(is(*a, "shape_aspect"));
+                    assert_ne!(
+                        test_attribute(&w.doc, *a, "shape_aspect", "name"),
+                        Some(&Attribute::String("DIMENSION".into()))
                     );
                 }
             }
         }
         assert!(
             composites > 0 && locations > 0,
-            "sample must exercise both multi-face aspects and private location endpoints"
+            "sample must exercise both multi-face aspects and location endpoints"
         );
         assert_composite_components(&w.doc);
         assert_eq!(w.read.parts[0].datums.len(), count);
@@ -6640,22 +6708,19 @@ fn a_location_on_a_datum_group_shares_its_datum_members_geometry_once() {
         &w.read.provenance.parts[0].dimensions[0],
         &["dimensional_location"],
     );
-    for field in ["relating_shape_aspect", "related_shape_aspect"] {
-        let Some(Attribute::EntityRef(id)) =
-            test_attribute(&w.doc, loc, "shape_aspect_relationship", field)
-        else {
-            panic!("endpoint")
-        };
-        assert!(
-            !w.names(*id)
-                .iter()
-                .any(|n| express::is_a(n, "datum_feature"))
-        );
-    }
+    let from = common::pmi_usage::reference(
+        &w.doc,
+        loc,
+        "shape_aspect_relationship",
+        "relating_shape_aspect",
+    )
+    .unwrap();
+    assert!(common::pmi_usage::is_a(&w.doc, from, "datum_feature"));
+    assert!(common::pmi_usage::violations(&w.doc).is_empty());
 }
 
 #[test]
-fn add_locations_keep_foreign_datum_features_and_reuse_their_components() {
+fn add_locations_reuse_foreign_datum_features_directly() {
     let f = fixture("ap242/presentation-placement/spindle.step.gz");
     let before = pmi::read(&f.doc, &f.parts).unwrap();
     let p = &before.parts[0];
@@ -6705,12 +6770,11 @@ fn add_locations_keep_foreign_datum_features_and_reuse_their_components() {
     assert!(
         w.names(*a)
             .iter()
-            .any(|n| express::is_a(n, "composite_shape_aspect"))
+            .any(|n| express::is_a(n, "datum_feature"))
     );
     assert!(
-        !w.names(*a)
-            .iter()
-            .any(|n| express::is_a(n, "datum_feature"))
+        *a <= f.doc.max_id(),
+        "the location must reference the kept datum"
     );
     let components: Vec<_> = w
         .doc

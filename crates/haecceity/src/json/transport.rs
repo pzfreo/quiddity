@@ -582,7 +582,24 @@ pub(crate) fn restore(doc: &Document, read: &mut PmiRead) -> Result<()> {
                 let old = prov.clone();
                 *prov = order
                     .iter()
-                    .map(|&i| old.get(i).cloned().unwrap_or_default())
+                    .map(|&i| {
+                        // Legacy faceless endpoint aspects can duplicate a datum's
+                        // geometric content. Ordering projects both to one feature;
+                        // retain every consumed carrier/SAR so Replace can remove them.
+                        if c == "features" {
+                            let mut ids: Vec<_> = old
+                                .iter()
+                                .enumerate()
+                                .filter(|(j, _)| raw[c][*j] == raw[c][i])
+                                .flat_map(|(_, ids)| ids.iter().copied())
+                                .collect();
+                            ids.sort_unstable();
+                            ids.dedup();
+                            ids
+                        } else {
+                            old.get(i).cloned().unwrap_or_default()
+                        }
+                    })
                     .collect();
             }
             if c == "notes" {

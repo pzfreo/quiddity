@@ -1840,3 +1840,38 @@ The cap is half the default 16 KiB buffer in
 The retained-source and source-product tests now assert successful preservation
 and reporting instead of the previous blanket refusal; generated-name refusal
 checks remain. No snapshot expectation or known-difference record is weakened.
+
+
+### Shared PMI geometry carriers (2026-11-02)
+
+CAx-IF PMI v4.1 §5.1 requires the same shape aspect and GISU whenever another
+characteristic uses the same advanced face. Per §6.5.1 all elements of a feature
+are gathered together; §6.5.2 allows additional characteristics to reference its
+datum feature. Dimensions (both endpoints and sizes) and tolerances therefore
+reference the exact existing feature/datum aspect, including kept file aspects,
+rather than emitting a faceless `DIMENSION` aspect and plain SAR. The previous
+Solid Edge workaround is retired. Legacy forwarding aspects remain readable.
+
+The 2026-10-09 OCCT decision remains: one GISU per face. IIRU UR2 permits only one
+usage per (representation, definition), so several GISUs cannot identify one
+aspect in one representation. A multi-face feature is gathered by a composite of
+per-face aspects. Properly overlapping face sets share those same members; an
+exact match reuses the entire aspect. A kept ordinary carrier gaining a datum is
+specialized at the same id (and reported in `rewritten`), preserving its attributes
+and GISUs. §6.5.3 size/datum combination behavior is otherwise unchanged.
+
+`pmi_face_usage` checks written Part 21, including kept GISU/IIRU records and set
+items, for unique face ownership and redundant one-SAR dimension/tolerance
+forwarders. Meaningful group/all-around/between/derived scopes are retained.
+It covers committed Specify/NIST/placement fixtures, the synthetic old-form plate,
+local plates when present, and corpus NIST files. JSON-enabled tests also write
+the committed plate `pmi.json`. The established roundtrip refusal projection
+removes unsupported authoring items without hiding write/removal/linking errors.
+JSON ordering retains the provenance of every equal native feature when folding
+aliases, so replacing a legacy JSON write removes its old forwarding links too.
+This changes provenance only; semantic reads and the binding version are unchanged.
+
+The two legacy Specify spindle callout files also carry `description_attribute`
+writer ownership stamps. The exact `specify-core:written:v1` stamp is removed with
+its replaced item, like an id attribute; arbitrary unconsumed descriptions still
+block removal. This permits full-file round trips without discarding consumer data.

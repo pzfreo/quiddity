@@ -6,6 +6,19 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+### Fixed
+
+- PMI dimensions and tolerances reuse the face's existing shape aspect and GISU,
+  including datum features (CAx-IF PMI v4.1 §5.1 / §6.5.1–2). Location endpoints no
+  longer use faceless `SHAPE_ASPECT('DIMENSION')` wrappers. Multi-face features
+  retain composites of shared per-face carriers so OCCT reads one GISU per face
+  without violating IIRU UR2. Adding a datum to a kept ordinary feature specializes
+  that carrier to `datum_feature`, reported in `rewritten`, preserving its id and usages.
+  **Consumer note:** written STEP entity linking changes; semantic JSON, legacy
+  reads and the reader binding are unchanged. Replacing legacy JSON-authored PMI
+  now retains all consumed alias provenance, allowing its old endpoint links to be removed.
+  Specify ownership stamps (`specify-core:written:v1`) are removed with their replaced PMI.
+
 ## 0.4.4 (2026-11-01)
 
 Upgrading from 0.4.3: recognition schema `/6`, fingerprints `/3`, the `haecceity.pmi/1` schema and the PMI reader string `haecceity-pmi-read/14` are unchanged, so semantic PMI reads as in 0.4.3. STEP writing changes only for parts with threads. Presentation JSON gains the optional fields below, including for files without threads.
