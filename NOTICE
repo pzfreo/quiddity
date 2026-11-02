@@ -1,7 +1,7 @@
 quiddity-rust
 Copyright 2026 Betwixt Ltd
 
-A Rust port of quiddity (https://github.com/pzfreo/quiddity), released under Apache-2.0 by
+A Rust port of quiddity (https://github.com/pzfreo/quiddity-python), released under Apache-2.0 by
 the copyright owner.
 
 The test fixtures nist_ctc_02_asme1_ap242-e2.stp.gz and

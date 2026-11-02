@@ -1,7 +1,7 @@
 quiddity-rust
 Copyright 2026 Betwixt Ltd
 
-A Rust port of quiddity (https://github.com/pzfreo/quiddity), released under Apache-2.0 by
+A Rust port of quiddity (https://github.com/pzfreo/quiddity-python), released under Apache-2.0 by
 the copyright owner.
 
 tests/fixtures/generated_unit_cube.f3d is an Apache-2.0 encoder-generated fixture
