@@ -234,3 +234,28 @@ def test_geometry_carrier_exemptions_are_reported(case, condition, count):
     assert {e["condition"] for e in exemptions} == {condition}
     assert all(e["part"] == 0 and e["aspect"] != e["feature"] for e in exemptions)
     assert pmi.read(output) == document
+
+
+def test_write_source_presentation_and_handmade_flag(producer):
+    geometry, _ = producer
+    source_root = ROOT / "crates/haecceity/tests/fixtures/xcaf"
+    semantic = json.loads((source_root / "pmi_plate.source.pmi.json").read_text())
+    companion = json.loads((source_root / "pmi_plate.source.presentation.json").read_text())
+    output, report = pmi.write(geometry, semantic, presentation=companion, report=True)
+    assert pmi.read(output) == semantic
+    drawn = pmi.presentation(output)
+    for item, graphics in companion["items"].items():
+        assert drawn["items"][item][0]["text_placements"][0]["origin"] == graphics[0]["text_placements"][0]["origin"]
+    flag = deepcopy(companion["items"]["hole-diameter"][0])
+    flag["text_placements"][0]["origin"] = [25, 35, 5]
+    flag["leader"] = [5, 0, 5]
+    note = semantic["pmi"]["notes"][1]["id"]
+    companion["items"][note] = [flag]
+    output = pmi.write(geometry, semantic, presentation=json.dumps(companion))
+    drawn = pmi.presentation(output)
+    assert drawn["items"][note][0]["name"] != "General notes"
+    assert drawn["items"][note][0]["text_placements"][0]["origin"] == [25, 35, 5]
+    assert drawn["items"][note][0]["leader"] == [5, 0, 5]
+    companion["planes"][0]["normal"] = [0, 0, 0]
+    with pytest.raises(pmi.PmiError, match="thickness"):
+        pmi.write(geometry, semantic, presentation=companion)

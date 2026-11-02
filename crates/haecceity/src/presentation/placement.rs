@@ -756,36 +756,14 @@ fn stroke(
         let a = geom::dot(geom::sub(anchor, end), along).clamp(-width / 2., width / 2.);
         end = geom::add(end, geom::scale(along, a));
     }
-    let elbow = geom::add(
+    lines.extend(leader_lines(
         anchor,
-        geom::scale(outward, geom::dot(geom::sub(end, anchor), outward)),
-    );
-    for ring in 0..c.leader_rings {
-        let r = 0.7 * 2.7 * scale * if ring == 0 { 1. } else { 1.7 };
-        let centre = geom::sub(elbow, geom::scale(outward, 2.4 * h));
-        lines.push(
-            (0..=32)
-                .map(|i| {
-                    let t = (i as f64 * 360. / 32.).to_radians();
-                    round(geom::add(
-                        centre,
-                        geom::add(
-                            geom::scale(along, r * t.cos()),
-                            geom::scale(up, r * t.sin()),
-                        ),
-                    ))
-                })
-                .collect(),
-        );
-    }
-    if c.leader_rings > 0 {
-        let ring_centre = geom::sub(elbow, geom::scale(outward, 2.4 * h));
-        lines.push(vec![round(anchor), round(ring_centre), round(end)]);
-    } else if geom::dist(elbow, end) > 1e-8 {
-        lines.push(vec![round(anchor), round(elbow), round(end)]);
-    } else {
-        lines.push(vec![round(anchor), round(end)]);
-    }
+        end,
+        [along, outward, up],
+        c.leader_rings,
+        (scale, h),
+        round,
+    ));
     Placed {
         anchor: round(anchor),
         origin: at([ink.min[0], ink.min[1]]),
@@ -823,6 +801,85 @@ pub(crate) fn boxes_overlap(a: Bounds, b: Bounds, padding: f64) -> bool {
     (0..3)
         .filter(|&k| (a.max[k] - a.min[k]).abs() > 1e-9 || (b.max[k] - b.min[k]).abs() > 1e-9)
         .all(|k| a.min[k] < b.max[k] + padding && a.max[k] + padding > b.min[k])
+}
+
+/// Draw supplied placement geometry without packing or coordinate rounding.
+#[cfg(feature = "json-import")]
+pub(crate) fn source(
+    c: &Callout,
+    [origin, normal, along]: [V3; 3],
+    height: f64,
+    leader: Option<V3>,
+) -> Vec<Vec<V3>> {
+    let up = geom::cross(normal, along);
+    let scale = height / 3.;
+    let at = |p: [f64; 2]| {
+        geom::add(
+            origin,
+            geom::add(
+                geom::scale(along, p[0] * scale),
+                geom::scale(up, p[1] * scale),
+            ),
+        )
+    };
+    let mut lines: Vec<_> = c
+        .polylines()
+        .into_iter()
+        .map(|l| l.into_iter().map(at).collect())
+        .collect();
+    if let Some(anchor) = leader {
+        lines.extend(leader_lines(
+            anchor,
+            origin,
+            [along, up, up],
+            c.leader_rings,
+            (scale, height),
+            |p| p,
+        ));
+    }
+    lines
+}
+
+fn leader_lines(
+    anchor: V3,
+    end: V3,
+    [along, outward, up]: [V3; 3],
+    rings: u8,
+    (scale, h): (f64, f64),
+    round: impl Fn(V3) -> V3,
+) -> Vec<Vec<V3>> {
+    let mut lines = Vec::new();
+    let elbow = geom::add(
+        anchor,
+        geom::scale(outward, geom::dot(geom::sub(end, anchor), outward)),
+    );
+    for ring in 0..rings {
+        let r = 0.7 * 2.7 * scale * if ring == 0 { 1. } else { 1.7 };
+        let centre = geom::sub(elbow, geom::scale(outward, 2.4 * h));
+        lines.push(
+            (0..=32)
+                .map(|i| {
+                    let t = (i as f64 * 360. / 32.).to_radians();
+                    round(geom::add(
+                        centre,
+                        geom::add(
+                            geom::scale(along, r * t.cos()),
+                            geom::scale(up, r * t.sin()),
+                        ),
+                    ))
+                })
+                .collect(),
+        );
+    }
+    if rings > 0 {
+        let ring_centre = geom::sub(elbow, geom::scale(outward, 2.4 * h));
+        lines.push(vec![round(anchor), round(ring_centre), round(end)]);
+    } else if geom::dist(elbow, end) > 1e-8 {
+        lines.push(vec![round(anchor), round(elbow), round(end)]);
+    } else {
+        lines.push(vec![round(anchor), round(end)]);
+    }
+    lines
 }
 
 #[cfg(test)]

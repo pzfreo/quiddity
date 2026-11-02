@@ -107,6 +107,11 @@ fn positions_planes_leaders_and_individual_notes_read_back() {
     let (bytes, _) = write(&doc, &defs, &semantic, source.clone()).unwrap();
     let read = read_placed(bytes);
     for (id, gs) in &source.items {
+        assert_eq!(
+            read.items[id].len(),
+            1,
+            "{id} has a duplicate generated callout"
+        );
         let g = &read.items[id][0];
         assert_eq!(g.text_placements[0].origin, gs[0].text_placements[0].origin);
         assert_eq!(g.text_placements[0].height, Some(2.5));

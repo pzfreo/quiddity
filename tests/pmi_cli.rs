@@ -1515,3 +1515,82 @@ fn ap214_product_type_rewrites_are_reported() {
     let (back, _) = ok(&["pmi", "read", out.to_str().unwrap()]);
     assert!(read_back_differences(&doc, &back, "add").is_empty());
 }
+
+#[test]
+fn pmi_write_source_presentation_positions_and_atomic_refusal() {
+    use quiddity::kernel::json::{self as wire, presentation};
+    let step = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ties/cube.step");
+    let bytes = std::fs::read(&step).unwrap();
+    let model = pmi::PartPmi {
+        features: vec![pmi::Feature::Items(vec![pmi::Anchor::Face(
+            pmi::FaceIndex(0),
+        )])],
+        datums: vec![
+            pmi::Datum::new(
+                pmi::DatumLabel::new("A").unwrap(),
+                Some(pmi::FeatureId(0)),
+                vec![],
+            )
+            .unwrap(),
+        ],
+        ..Default::default()
+    };
+    let semantic = wire::identify(pmi::write::standard_form(&model), None).unwrap();
+    let id = &semantic.ids["datums"][0];
+    let document = pmi_json::Document {
+        binding: Binding::of(&bytes),
+        parts: vec![pmi_json::DocumentPart {
+            part: pmi::PartId(0),
+            name: None,
+            pmi: model,
+        }],
+        findings: vec![],
+    };
+    let path = scratch().join("source-presentation-companion.json");
+    let mut source = json!({"schema":"haecceity.presentation/1","length_unit":"millimetre","semantic_ids":[],"items":{
+        id.clone(): [{"source":"file","name":"A","polylines":[],"triangles":[],"text":[],"step_ids":[],"unsupported":[],"plane_id":"main","leader":[1.,2.,3.],"text_placements":[{"origin":[80.,90.,70.],"x_axis":[1.,0.,0.],"normal":[0.,0.,1.]}]}]
+    },"unlinked":[],"planes":[{"id":"main","name":"main","origin":[0.,0.,70.],"x_axis":[1.,0.,0.],"normal":[0.,0.,1.]}]});
+    std::fs::write(&path, source.to_string()).unwrap();
+    let (out, output) = write_cli(
+        step.to_str().unwrap(),
+        &pmi_json::document_to_json(&document),
+        "source-presentation",
+        &["--source-presentation", path.to_str().unwrap()],
+    );
+    write_ok(&output, "source presentation");
+    let before = std::fs::read(&out).unwrap();
+    let defs = read_part_definitions(&before).unwrap();
+    let doc = Document::parse(before.clone()).unwrap();
+    let read = pmi::read(&doc, &defs).unwrap();
+    let semantic = wire::identify(read.parts[0].clone(), Some(&read.identifiers.parts[0])).unwrap();
+    let drawn = presentation::read(&doc, &read, pmi::PartId(0), &semantic).unwrap();
+    assert_eq!(
+        drawn.items[id][0].text_placements[0].origin,
+        [80., 90., 70.]
+    );
+    assert_eq!(drawn.items[id][0].leader, Some([1., 2., 3.]));
+    source["planes"][0]["normal"] = json!([0., 0., 0.]);
+    std::fs::write(&path, source.to_string()).unwrap();
+    let input = scratch().join("source-presentation-companion.json");
+    // The helper's semantic input and companion need distinct paths.
+    let semantic_path = scratch().join("source-presentation-semantic.json");
+    std::fs::write(
+        &semantic_path,
+        pmi_json::document_to_json(&document).to_string(),
+    )
+    .unwrap();
+    let failure = quiddity(&[
+        "pmi",
+        "write",
+        step.to_str().unwrap(),
+        semantic_path.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--source-presentation",
+        input.to_str().unwrap(),
+    ]);
+    assert!(!failure.status.success());
+    assert!(String::from_utf8_lossy(&failure.stderr).contains(id));
+    assert_eq!(std::fs::read(&out).unwrap(), before);
+    no_temporary_left(&out, "bad source presentation");
+}

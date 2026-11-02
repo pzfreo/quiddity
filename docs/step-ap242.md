@@ -2014,7 +2014,7 @@ The companion is `haecceity.presentation/1`. Each item's first graphic with a
 `plane_id`, `text_placements` or `leader` supplies its main placement. It must
 have a text position; the plane defaults to that text frame when omitted.
 The text origin is the insertion origin of the shared local callout geometry;
-axes are orthonormalized and height defaults to 3 mm. A new optional
+axes are orthonormalized and omitted height uses the generated layout's text size. A new optional
 `Graphic.leader: [x, y, z]` gives the tip in model-space millimetres. Existing
 source polylines, triangles and saved views are not copied. Subsequent per-view
 placements use the item's main position for this phase.

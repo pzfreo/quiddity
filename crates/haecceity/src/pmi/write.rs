@@ -3981,7 +3981,18 @@ impl<'a> PartPlan<'a> {
             .as_ref()
             .map(|part| crate::presentation::linear::measurements(part, self.def, self.pmi));
         #[cfg(feature = "json-import")]
-        let placed = self.source_graphics(symbols, _st, factor, report)?;
+        let source_height = {
+            #[cfg(feature = "presentation")]
+            {
+                local_layout.text_height() * factor
+            }
+            #[cfg(not(feature = "presentation"))]
+            {
+                layout.height * factor
+            }
+        };
+        #[cfg(feature = "json-import")]
+        let placed = self.source_graphics(symbols, _st, factor, source_height, report)?;
         #[cfg(all(feature = "json-import", feature = "presentation"))]
         let is_placed = |definition: R| placed.iter().any(|g| g.0.contains(&definition));
         #[cfg(all(not(feature = "json-import"), feature = "presentation"))]
@@ -4586,7 +4597,7 @@ impl<'a> PartPlan<'a> {
             }
             #[cfg(feature = "json-import")]
             if let Some(source) = self.source_for_definitions(symbols, _st, &definition) {
-                occurrences.extend(source.emit_metadata(em, line_style, factor)?);
+                occurrences.extend(source.emit_metadata(em, line_style, factor, source_height)?);
             }
             let callout = em.simple(
                 "draughting_callout",

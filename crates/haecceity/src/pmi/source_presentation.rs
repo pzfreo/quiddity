@@ -225,34 +225,24 @@ impl Placement {
     pub(super) fn has_leader(&self) -> bool {
         self.leader.is_some()
     }
-    fn draw(&self, factor: f64) -> Vec<Vec<[f64; 3]>> {
-        let scale = self.text.height.unwrap_or(3.) / 3. / factor;
-        let up = geom::cross(self.text.normal, self.text.x_axis);
-        let at = |p: [f64; 2]| {
-            geom::add(
+    fn draw(&self, factor: f64, default_height: f64) -> Vec<Vec<[f64; 3]>> {
+        presentation::placement::source(
+            &self.callout,
+            [
                 self.text.origin.map(|v| v / factor),
-                geom::add(
-                    geom::scale(self.text.x_axis, p[0] * scale),
-                    geom::scale(up, p[1] * scale),
-                ),
-            )
-        };
-        let mut lines: Vec<_> = self
-            .callout
-            .polylines()
-            .into_iter()
-            .map(|l| l.into_iter().map(at).collect())
-            .collect();
-        if let Some(tip) = self.leader {
-            lines.push(vec![tip.map(|v| v / factor), at([0., 0.])]);
-        }
-        lines
+                self.text.normal,
+                self.text.x_axis,
+            ],
+            self.text.height.unwrap_or(default_height) / factor,
+            self.leader.map(|p| p.map(|v| v / factor)),
+        )
     }
     pub(super) fn emit_metadata(
         &self,
         em: &mut Emitter<'_>,
         style: R,
         factor: f64,
+        default_height: f64,
     ) -> Result<Vec<R>, WriteError> {
         let o = point(em, self.text.origin.map(|v| v / factor))?;
         let n = direction(em, self.text.normal)?;
@@ -268,7 +258,7 @@ impl Placement {
         )?;
         // A placeholder records the source insertion point without drawing another
         // font over the shared tessellated strokes.
-        let height = self.text.height.unwrap_or(3.) / factor;
+        let height = self.text.height.unwrap_or(default_height) / factor;
         let b = em.simple(
             "planar_box",
             &[
@@ -293,11 +283,18 @@ impl Placement {
             ],
         )?;
         let mut out = vec![placeholder];
-        if let Some(tip) = self.leader {
-            let a = point(em, tip.map(|v| v / factor))?;
+        if self.leader.is_some() {
+            let drawn = self.draw(factor, default_height);
+            let leader = drawn
+                .last()
+                .ok_or_else(|| invalid(&self.id, "leader geometry missing"))?;
+            let points = leader
+                .iter()
+                .map(|&p| point(em, p))
+                .collect::<Result<Vec<_>, _>>()?;
             let line = em.simple(
                 "polyline",
-                &[("name", s("haecceity leader")), ("points", refs([a, o]))],
+                &[("name", s("haecceity leader")), ("points", refs(points))],
             )?;
             out.push(em.simple(
                 "annotation_curve_occurrence",
@@ -356,6 +353,7 @@ impl PartPlan<'_> {
         symbols: &[(R, Vec<String>, usize)],
         st: &Emitted,
         factor: f64,
+        default_height: f64,
         report: &mut WriteReport,
     ) -> Result<Vec<Graphic>, WriteError> {
         self.source
@@ -383,7 +381,7 @@ impl PartPlan<'_> {
                     kind,
                     p.callout.notation(),
                     [p.plane[0].map(|v| v / factor), p.plane[1], p.plane[2]],
-                    p.draw(factor),
+                    p.draw(factor, default_height),
                 ))
             })
             .collect()
@@ -412,7 +410,7 @@ pub(super) fn overlap_warnings(graphics: &[Graphic], placed: &[Graphic], report:
             let a = bounds(&g.4);
             let b = bounds(&other.4);
             if (0..2).all(|k| a.min[k] < b.max[k] && b.min[k] < a.max[k])
-                && (a.min[2] - b.min[2]).abs() < 1e-6
+                && geom::dot(geom::sub(g.3[0], other.3[0]), n).abs() < 1e-6
             {
                 report
                     .presentation_warnings
