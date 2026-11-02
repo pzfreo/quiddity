@@ -2015,7 +2015,9 @@ uses the Rust route's canonical semantic ids. Both routes select one part.
 Unplaced feature-owned notes get separate callouts with leaders to their faces,
 using the existing placement search. Part notes remain in the general-notes block,
 which slides downward to clear all reserved ink in its front projection, including
-kept file callouts. No additional input fields are required.
+kept file callouts. Blank feature text and unsupported CAD-font glyphs retain
+semantics and report a presentation warning instead of generating invalid ink.
+No additional input fields are required.
 
 The companion is `haecceity.presentation/1`. Each item's first graphic with a
 `plane_id`, `text_placements` or `leader` supplies its main placement. It must

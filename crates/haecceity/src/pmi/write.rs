@@ -4364,7 +4364,22 @@ impl<'a> PartPlan<'a> {
                 if is_placed(property) {
                     continue;
                 }
+                if let Some(missing) = row
+                    .text
+                    .chars()
+                    .find(|&c| !presentation::font().supports(c))
+                {
+                    report.presentation_warnings.push(format!("part {} feature note {:?}: no generated callout for unsupported glyph {missing:?}; semantic text retained", self.id.0, row.source));
+                    continue;
+                }
                 let c = presentation::label(&row.text);
+                if c.polylines().is_empty() {
+                    report.presentation_warnings.push(format!(
+                        "part {} feature note {:?}: no visible text ink; semantic text retained",
+                        self.id.0, row.source
+                    ));
+                    continue;
+                }
                 let p = if let Some((point, normal, extent)) =
                     presentation_part.as_ref().and_then(|part| {
                         presentation::placement::feature_site(part, self.pmi, feature).map(
@@ -4460,6 +4475,9 @@ impl<'a> PartPlan<'a> {
                     p.lines,
                 ));
             }
+        }
+        if graphics.is_empty() {
+            return Ok(());
         }
         #[cfg(all(feature = "json-import", feature = "presentation"))]
         source_presentation::overlap_warnings(&graphics, &placed, report);

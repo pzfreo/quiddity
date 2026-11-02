@@ -843,3 +843,38 @@ fn notes_block_moves_past_a_kept_dimension_in_its_old_slot() {
         "never move kept ink"
     );
 }
+
+#[test]
+fn feature_text_without_drawable_ink_warns_without_losing_semantics() {
+    let (doc, defs, semantic) = cube();
+    for (text, reason) in [
+        ("   ", "no visible text ink"),
+        ("\u{f055}", "unsupported glyph"),
+    ] {
+        let mut model = semantic.pmi.clone();
+        model.notes.truncate(1);
+        model.notes[0].text = text.into();
+        model.datums.clear();
+        model.dimensions.clear();
+        let semantic = json::identify(model, None).unwrap();
+        let (bytes, report) =
+            json::write_preserving(&doc, &defs, &[(PartId(0), semantic)]).unwrap();
+        assert!(
+            report
+                .presentation_warnings
+                .iter()
+                .any(|w| w.contains("feature note") && w.contains(reason)),
+            "{report:?}"
+        );
+        let defs = read_part_definitions(&bytes).unwrap();
+        let doc = Document::parse(bytes).unwrap();
+        let read = pmi::read(&doc, &defs).unwrap();
+        assert!(
+            read.parts[0]
+                .notes
+                .iter()
+                .any(|n| n.text == text && n.on.is_some()),
+            "retain the original annotation text"
+        );
+    }
+}
