@@ -9,6 +9,7 @@ pub mod parallel;
 pub mod pmi_datums;
 pub mod pmi_gaps;
 pub mod pmi_targets;
+pub mod pmi_usage;
 #[path = "../../../../tests/common/snapshot.rs"]
 pub mod snapshot;
 

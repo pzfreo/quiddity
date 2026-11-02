@@ -229,11 +229,11 @@ fn pmi_read_of_one_part() {
 /// together. `READER` is what `pmi check` holds a document's anchors to, so it must change
 /// whenever the reader's output does: when this fails, bump `pmi_json::READER` if `pmi::read`
 /// changed (a JSON-form change bumps `VERSION` instead), then re-pin both.
-// Reader /14 keeps proper subsets of composed datum features distinct; structural
-// face-set, size, group and single-constituent checks are in pmi_import_repairs.rs.
+// Reader /15 retains explicitly authored standalone composition members without
+// redundant aspects; old source semantics remain unchanged.
 const READER_PIN: (&str, &str) = (
-    "haecceity-pmi-read/14",
-    "826d4c4e3f564f90a31354618fe5be2d7f9d7a7cf9f33f93ac99170b6c39ccd8",
+    "haecceity-pmi-read/15",
+    "192fde06ad69cfd1675460e12fb63af6b63b77c0dfef183aba3d95ed99c8e6d6",
 );
 
 #[test]
@@ -1017,6 +1017,31 @@ fn roundtrip_cli(path: &Path, pins: &Json) -> (Vec<String>, bool) {
 /// spool_fits' complete reading, including legacy notes to migrate, and the STEP path.
 fn spool_writable() -> (Json, String) {
     spool()
+}
+
+#[test]
+fn shared_carrier_exemptions_use_structural_report_conditions() {
+    for (case, condition, count) in [
+        ("pmi_gaps", "shared-carrier-controlled-pair", 2),
+        (
+            "datum_targets_shared_support",
+            "shared-carrier-datum-target-support",
+            5,
+        ),
+    ] {
+        let source = ap242().join(format!("write-presentation/{case}.step.gz"));
+        let step = source.to_str().unwrap();
+        let (doc, _) = ok(&["pmi", "read", step]);
+        let (_, output) = write_cli(step, &doc, case, &["--mode", "replace"]);
+        let (report, _) = write_ok(&output, case);
+        let exemptions = report["geometry_carrier_exemptions"].as_array().unwrap();
+        assert_eq!(exemptions.len(), count, "{case}");
+        for exemption in exemptions {
+            assert_eq!(exemption["condition"], condition, "{case}");
+            assert_eq!(exemption["part"], 0, "{case}");
+            assert_ne!(exemption["aspect"], exemption["feature"], "{case}");
+        }
+    }
 }
 
 /// The same write twice gives the same bytes and the same report; a `.gz` output is the same

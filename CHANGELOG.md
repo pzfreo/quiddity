@@ -6,6 +6,39 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+### Fixed
+
+- PMI dimensions and tolerances reuse the face's existing shape aspect and GISU,
+  including datum features (CAx-IF PMI v4.1 §5.1 / §6.5.1–2). Location endpoints no
+  longer use faceless `SHAPE_ASPECT('DIMENSION')` wrappers. Multi-face features
+  retain composites of shared per-face carriers so OCCT reads one GISU per face
+  without violating IIRU UR2. Adding a datum to a kept ordinary feature specializes
+  that carrier to `datum_feature`, reported in `rewritten`, preserving its id and usages.
+  **Consumer note:** written STEP entity linking changes; semantic PMI values and
+  `haecceity.pmi/1` are unchanged. Reader binding advances to `haecceity-pmi-read/15`:
+  explicitly authored standalone members use `SHAPE_ASPECT.name='haecceity.feature/1'`
+  so they remain features when shared as composition members. Old files read as before.
+  Specialized areas, runouts, groups and zones keep their meaning; plain requirements
+  share neutral geometry carriers instead. Complex neutral composites can gain a datum
+  in place. Legacy endpoint wrappers are retired on Add; independent same-content
+  features retain separate removal provenance. A second datum label on an already
+  established feature is refused under `datum_feature.WR1`.
+  Adding a datum to a kept pattern specializes the same group aspect to a datum
+  feature. Without presentation, adding a datum and its own size keeps the §6.5.3
+  combined dimension over the kept geometry carrier, preserving existing feature controls.
+  For ambiguous shared controlled-pair and datum-target-support SARs that both
+  OCCT 7.9.3 XCAF and NIST SFA 5.41 read as composition, retain private forwarding
+  aspects under a narrow §5.1 exemption.
+  `WriteReport.geometry_carrier_exemptions` and the optional CLI/Python report field
+  list each actual exempt addition by structural condition and endpoint/carrier id.
+  Datum-feature endpoints stay direct; semantic face/GISU uniqueness remains mandatory.
+  The thumbwheel Add golden retains one explicitly allow-listed presentation-only
+  carrier so XCAF preserves the internal-thread callout, while coalescing its other
+  producer duplicates. The raw Specify input is unchanged.
+  Specify ownership stamps (`specify-core:written:v1`) are deleted with removed records;
+  haecceity does not reattach them. Specify's own Replace re-stamps newly emitted roots
+  after the haecceity write (`specify-core-rust/src/writer.rs:784`, `src/provenance.rs:91`).
+
 ### Added
 
 - Recognise complete round-wire helical coil springs from swept NURBS tubes and connected cylinder/torus approximations. The optional `helical_springs` / `HelicalSpring` record supplies a file-space axis, hand, wire/mean/outer/inner diameters, physical free length, measured total coils, pitch, end type and exact claimed faces. Active coils remain null with an explicit basis when inactive ends are unproved; rate is never inferred. Spring claims suppress individual wire hole/boss/fillet callouts. Draftwright consumers can dimension free length and outer diameter on a simplified spring view and populate a data table from the record. Recognition schema 6, fingerprint format 3 and crate versions are unchanged for this additive family; Python recognition JSON exposes the same record.

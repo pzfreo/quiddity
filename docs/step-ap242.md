@@ -616,6 +616,84 @@ plane variants and table-value qualifiers are held, the anonymous decimal-only c
 projected to the part default, semantic text on targets is read separately from parameters, and
 toleranced relationships are no longer misread as feature composition; document format version 2 is unchanged.
 
+- **Shared-carrier relationship ambiguity (§5.1), maintainer decision 2026-11-02.**
+  A plain SAR out of a shared bare per-face carrier is read as composition by both
+  independent readers checked: OCCT 7.9.3 XCAF and NIST STEP File Analyzer (SFA) 5.41.
+  The direct functional relationship is therefore ambiguous in practice. Retain
+  private functional endpoints only when an ordinary carrier is also reached by another
+  semantic characteristic (dimension, feature-target tolerance, datum feature,
+  thread/knurl or feature-owned property), including gathering/deriving members
+  and shared per-item carriers. A controlled-pair target whose relating endpoint
+  is such a carrier retains its previous pair of private endpoint aspects; a
+  `feature_for_datum_target_relationship` whose support is such a carrier with
+  its own direct GISU retains a private support endpoint. A composite support
+  without its own GISU keeps the direct form: its geometric members remain readable. Each private aspect has exactly one plain SAR to
+  the original carrier and no GISU of its own. The original carrier and its GISU
+  remain unique: only the redundant-forwarder part of the §5.1 check is exempt.
+  Unshared forms remain direct. OCCT's simple datum features, targets and derived
+  entities stay direct because they stop before ordinary SAR traversal. Its
+  composite/datum-feature complex records inherit `ShapeAspect`, not
+  `DatumFeature`, and can need controlled-pair isolation. Dimension endpoints
+  and direct tolerance targets still reference the actual datum feature; only
+  the functional relationship's context is private. §6.5 reuse remains mandatory.
+  Add evaluates kept as well as new characteristics. It isolates a kept functional
+  SAR if a new characteristic makes its carrier shared, and removes a private
+  shell when datum promotion makes it unnecessary. Rewritten associations are
+  reported in `rewritten`; forwarding shells are never promoted or reused.
+
+  [OCCT 7.9.3 `collectShapeAspect`, lines 2889–2940](https://github.com/Open-Cascade-SAS/OCCT/blob/V7_9_3/src/STEPCAFControl/STEPCAFControl_Reader.cxx#L2889-L2940)
+  takes the ordinary carrier's outgoing non-dimensional-location SARs as children
+  (lines 2918–2938), excluding null and datum related endpoints. It appends the
+  carrier itself only if it finds no such children, omitting its own GISU otherwise.
+  In `pmi_gaps-strict.stp`, SAR #6530 (6515→6517) therefore moves XCAF's two ordinary
+  Position tolerances from face #17 to #129; SFA's `pmi_gaps-strict-sfa.xlsx` includes
+  face #129 alongside #17 as their toleranced geometry. In
+  `datum_targets_shared_support-strict.stp`, XCAF drops the 0.05 Position tolerance
+  on face #17 (datum A); `datum_targets_shared_support-strict-sfa.xlsx` retains it
+  but includes the five placed datum targets as its toleranced geometry. The
+  corresponding `-main.stp`/`-main-sfa.xlsx` controls retain the intended geometry.
+  Private endpoints separate functional context from geometric composition,
+  preserving that reading without relaxing the XCAF oracle.
+
+  `WriteReport.geometry_carrier_exemptions` lists actual additions with part,
+  structural condition (`shared-carrier-controlled-pair` or
+  `shared-carrier-datum-target-support`), private aspect id and original carrier
+  id. CLI/Python expose the same optional report field. This is not an EXPRESS
+  schema/rule exemption; their existing backstops remain unchanged.
+  `pmi_face_usage` independently recognizes the graph conditions and checks the
+  exact per-file instances in `references/pmi_geometry_exemptions.json`; no marker
+  or report entry alone exempts an aspect. The list contains two pair endpoints
+  for each `pmi_gaps` variant, five supports for the shared-support golden (both
+  presentation configurations), and one circular-target support in the full
+  NIST CTC-02 round trip (carrier face #3148). All other round-trip outputs,
+  including Specify, the local plates and committed plate fixtures, have no
+  exceptions. The unshared-support golden is also checked as a zero-exception
+  control. Both golden directories are checked in full, with zero exceptions
+  outside the explicit list (including the graphical context below). The Specify
+  inputs are also checked in full read/Replace/write form.
+
+- **Independent graphical context (§5.1 / §7.3), shared-reader policy above.**
+  [OCCT 7.9.3 `ReadGDT`, lines 4772–4842](https://github.com/Open-Cascade-SAS/OCCT/blob/V7_9_3/src/STEPCAFControl/STEPCAFControl_Reader.cxx#L4772-L4842)
+  suppresses independent presentation if its shape-aspect definition is used by
+  semantic GD&T. Coalescing the thumbwheel's internal-thread presentation carrier
+  with Position's carrier therefore loses its face-linked callout. Preserve a
+  separate graphical carrier only when it has exactly one direct GISU, its only
+  other consumers are DMIAs, and another aspect on the same part and
+  (representation, item) is used by a dimension or tolerance. This is the one
+  reported ownership exception: semantic geometry carriers remain unique.
+  `shared-carrier-graphical-presentation` pins aspect #691, semantic carrier #660,
+  and DMIA #818 in each `thumbwheel_notes_add` golden, both on face #573. The
+  checker verifies this graph independently; adding a semantic consumer to the
+  graphical carrier removes its eligibility. It does not exempt arbitrary
+  duplicate GISUs or forwarding aspects. The writer report still lists only
+  actual additions: this is a kept graphical context in the prepared fixture.
+
+  The thumbwheel Add input coalesces the other producer duplicates and states its
+  three legacy face-note owners explicitly. Fixture preparation asserts the same
+  semantic PMI; fresh XCAF captures preserve all of main's dimensions, tolerances,
+  datums and face-linked callouts. The raw Specify fixture and Add's preservation
+  of unrelated producer records remain unchanged.
+
 - **Relations (§6.9.9)**: all three model kinds are written with the stated endpoints. A
   tolerance whose target is a relationship uses the edition 4 SELECT member. Edition 1
   excludes that member, so such a write into edition 1 is refused instead of changing its
@@ -712,10 +790,10 @@ their labels. That environment has no `specify_core` module, so the separate app
 check is recorded as unavailable, not passed. `references/pmi_write.json` retains every earlier
 verdict except the review corrections described below, and adds the new differences. XCAF reads 7850 kg/m³ as 0.00785 g/cm³ instead of 7.85;
 its `ReadMaterials` handles conversion-based mass units but omits SI mass prefixes
-([7.9.3 source](https://github.com/Open-Cascade-SAS/OCCT/blob/V7_9_3/src/STEPCAFControl/STEPCAFControl_Reader.cxx#L5053)).
+([7.9.3 source, lines 5048–5079](https://github.com/Open-Cascade-SAS/OCCT/blob/V7_9_3/src/STEPCAFControl/STEPCAFControl_Reader.cxx#L5048-L5079)).
 The gram/cm³ control reads 7.85 correctly: the kilogram file is correct and OCCT misreads it.
 The review traced the earlier wrong-face tolerances to shared relationship endpoints, not
-projection origins (OCCT `collectShapeAspect`, lines 2918–2934). With isolated endpoints, both
+projection origins (OCCT `collectShapeAspect`, lines 2918–2938). With isolated endpoints, both
 ordinary Position tolerances remain on face #17; their obsolete wrong-face/missing pins are
 removed on that evidence. XCAF does not read the edition 4 relationship target. It never reads
 affected planes in 7.9.3, so that difference is **not-applicable**, along with absent XCAF APIs
@@ -1840,3 +1918,82 @@ The cap is half the default 16 KiB buffer in
 The retained-source and source-product tests now assert successful preservation
 and reporting instead of the previous blanket refusal; generated-name refusal
 checks remain. No snapshot expectation or known-difference record is weakened.
+
+
+### Shared PMI geometry carriers (2026-11-02)
+
+CAx-IF PMI v4.1 §5.1 requires the same shape aspect and GISU whenever another
+characteristic uses the same advanced face. Per §6.5.1 all elements of a feature
+are gathered together; §6.5.2 allows additional characteristics to reference its
+datum feature. Dimensions (both endpoints and sizes) and tolerances therefore
+reference the exact existing feature/datum aspect, including kept file aspects,
+rather than emitting a faceless `DIMENSION` aspect and plain SAR. The previous
+Solid Edge workaround is retired. Legacy forwarding aspects remain readable.
+
+The 2026-10-09 OCCT decision remains: one GISU per face. IIRU UR2 permits only one
+usage per (representation, definition), so several GISUs cannot identify one
+aspect in one representation. A multi-face feature is gathered by a composite of
+per-face aspects. Properly overlapping face sets share those same members; an
+exact match reuses the entire aspect. A kept ordinary carrier gaining a datum is
+specialized at the same id (and reported in `rewritten`), preserving its attributes
+and GISUs. A kept pattern similarly gains `datum_feature` in its existing complex
+group record, preserving its member semantics (§6.5.2).
+
+Without presentation, §6.5.3's datum combined with its own size remains a
+`dimensional_size_with_datum_feature`, including on a kept face. It composes the
+kept geometry carrier rather than promoting that carrier to a dimension: existing
+feature controls must remain feature controls. This record has its own dimensional
+characteristic representation and nominal, so it is not a redundant forwarding
+aspect. The checker distinguishes that semantic dimension from an ordinary datum
+feature and rejects the bare shell if its dimensional representation is missing.
+Presentation-enabled output retains separate datum/size definitions. A datum on
+another feature does not enable the combined form.
+
+`pmi_face_usage` checks written Part 21, including kept GISU/IIRU records and set
+items, for unique face ownership and redundant one-SAR dimension/tolerance
+forwarders. Meaningful group/all-around/between/derived scopes are retained.
+It covers committed Specify/NIST/placement fixtures, the synthetic old-form plate,
+local plates when present, and corpus NIST files. JSON-enabled tests also write
+the committed plate `pmi.json`. The established roundtrip refusal projection
+removes unsupported authoring items without hiding write/removal/linking errors.
+Legacy aliases omitted by ordering are transport-owned; each feature retains only its own native carriers. Native identifiers take precedence over equal-content fallback bindings.
+
+The two legacy Specify spindle callout files also carry `description_attribute`
+writer ownership stamps. The exact `specify-core:written:v1` stamp is removed with
+its replaced item, like an id attribute; arbitrary unconsumed descriptions still
+block removal. This permits full-file round trips without discarding consumer data.
+
+
+### Review of shared carriers (2026-11-02)
+
+An ordinary feature may reuse only a neutral shape aspect/union or a datum feature
+with the same feature meaning. Applied areas, thread runouts, per-member patterns,
+all-around/between scopes and tolerance zones remain distinct (§6.5.2). Their GISUs
+can be factored onto neutral per-item members, preserving their own scope. Kept
+neutral composites gain `datum_feature` at their existing id even in complex form.
+Existing datum features are preferred to legacy `DIMENSION` copies; Add also
+retargets and removes those legacy wrappers. A second datum label on an already
+established feature is refused (`datum_feature.WR1`). Relationship-target and datum-target-support endpoints follow the narrow
+shared-carrier exemption in the writer gaps section; affected-plane links remain
+direct. The reader excludes these functional relationships from composition.
+
+An explicitly authored independent single-item feature shared by a composite is
+named `haecceity.feature/1`. The reader retains it as an independent feature,
+without an extra faceless aspect. This new read convention requires binding
+`haecceity-pmi-read/15`; the PMI schema and semantic values do not change.
+The uniqueness checker includes all identified geometric/topological items,
+multi-member forwarders and exact datum endpoint identities. It compares group
+scope and member partitions too: a per-member pattern and an indivisible union
+with the same face set are different features, per §6.5.2.
+
+Specify removes its stamps before Replace (`specify-core-rust/src/writer.rs:748`,
+`src/provenance.rs:135`) and calls `mark_new` after writing (`writer.rs:784`,
+`provenance.rs:91`). Haecceity deletes stamps with removed records; it does not
+transfer authorship to its replacement. Specify reads dimension ownership from
+the exact SDR's stamp (`provenance.rs:33`); its own replacement writer re-stamps.
+
+The maintainer's round-2 decision permits only the shared-carrier exception
+specified under writer gaps above. The former round-1 compatibility failures
+are resolved by that form; all other §5.1 fixes remain in place. Reader binding
+`/15` is still needed for independent standalone members: restoring functional
+endpoint wrappers does not restore the redundant ordinary-feature wrappers.

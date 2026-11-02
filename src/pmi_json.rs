@@ -48,7 +48,7 @@ pub const PARTS_FORMAT: &str = "quiddity-parts";
 pub const VERSION: u64 = 2;
 /// The reader the anchors and items were produced by; bumped whenever `pmi::read`'s output for
 /// a file can change, so a document read by another reader version is refused, not trusted.
-pub const READER: &str = "haecceity-pmi-read/14";
+pub const READER: &str = "haecceity-pmi-read/15";
 
 /// Why a JSON document was refused: the JSON path and the reason.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2739,6 +2739,7 @@ pub fn write_report_json(
                     .collect::<Vec<_>>()
             ),
         )
+        .opt("geometry_carrier_exemptions", (!report.geometry_carrier_exemptions.is_empty()).then(|| json!(report.geometry_carrier_exemptions.iter().map(|e| json!({"part": e.part.0, "condition": e.condition, "aspect": e.aspect, "feature": e.feature})).collect::<Vec<_>>())))
         .put("practice_schema_conflicts", json!(report.practice_schema_conflicts.iter().map(|v| json!({"id": v.id, "entity": v.entity, "rule": v.rule, "message": v.message})).collect::<Vec<_>>()))
         .put(
             "preexisting_rule_violations",

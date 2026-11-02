@@ -447,12 +447,17 @@ pub(crate) fn restore(doc: &Document, read: &mut PmiRead) -> Result<()> {
                 if e.id.is_empty() || !seen.insert(e.id.clone()) {
                     return Err(Error(format!("duplicate ordering id {:?}", e.id)));
                 }
+                let native_id = file_ids(Some(&read.identifiers.parts[part]), c)
+                    .iter()
+                    .position(|id| id.as_deref() == Some(&e.id));
                 let index = if ["features", "geometry", "derived_geometry"].contains(&c) {
-                    (0..old.len()).find(|&i| key(&raw, c, i).is_ok_and(|k| k == e.key))
+                    native_id
+                        .filter(|&i| key(&raw, c, i).is_ok_and(|k| k == e.key))
+                        .or_else(|| {
+                            (0..old.len()).find(|&i| key(&raw, c, i).is_ok_and(|k| k == e.key))
+                        })
                 } else {
-                    file_ids(Some(&read.identifiers.parts[part]), c)
-                        .iter()
-                        .position(|id| id.as_deref() == Some(&e.id))
+                    native_id
                 };
                 let i = index.ok_or_else(|| {
                     Error(format!("ordering id {:?} not found in native {c}", e.id))
@@ -576,6 +581,32 @@ pub(crate) fn restore(doc: &Document, read: &mut PmiRead) -> Result<()> {
         pmi.validate()
             .map_err(|e| Error(format!("invalid ordered PMI: {e:?}")))?;
         let old_carriers = read.json_carriers.clone();
+        // Legacy forwarding features omitted by ordering belong to that transport
+        // construct, not to every feature of equal content. Individual feature provenance
+        // must never absorb an independently identified sibling's carriers.
+        let selected: BTreeSet<_> = maps["features"].iter().copied().collect();
+        let claimed: BTreeSet<_> = selected
+            .iter()
+            .flat_map(|i| read.provenance.parts[part].features[*i].iter().copied())
+            .collect();
+        let mut legacy_transport = BTreeSet::new();
+        for (i, ids) in read.provenance.parts[part].features.iter().enumerate() {
+            if selected.contains(&i) {
+                continue;
+            }
+            let carrier = old_carriers.get(&(PartId(part), "features".into(), i));
+            if carrier.is_some_and(|id| {
+                crate::json::presentation::attr(doc, *id, "shape_aspect", "name")
+                    == Some(&Attribute::String("DIMENSION".into()))
+            }) {
+                legacy_transport.extend(ids.iter().copied().filter(|id| !claimed.contains(id)));
+            }
+        }
+        read.provenance.parts[part]
+            .transport
+            .extend(legacy_transport);
+        read.provenance.parts[part].transport.sort_unstable();
+        read.provenance.parts[part].transport.dedup();
         for &c in COLLECTIONS {
             let order = &maps[c];
             if let Some(prov) = provenance_mut(&mut read.provenance.parts[part], c) {

@@ -216,3 +216,21 @@ def test_packaged_schemas():
         assert packaged == (ROOT / "crates/haecceity/schema" / name).read_bytes()
         assert packaged.decode() == native
         assert json.loads(packaged) == value
+
+
+@pytest.mark.parametrize(
+    "case,condition,count",
+    [
+        ("pmi_gaps", "shared-carrier-controlled-pair", 2),
+        ("datum_targets_shared_support", "shared-carrier-datum-target-support", 5),
+    ],
+)
+def test_geometry_carrier_exemptions_are_reported(case, condition, count):
+    source = FIXTURES / f"ap242/write-presentation/{case}.step.gz"
+    document = pmi.read(source)
+    output, report = pmi.write(source, document, report=True)
+    exemptions = report["writer"]["geometry_carrier_exemptions"]
+    assert len(exemptions) == count
+    assert {e["condition"] for e in exemptions} == {condition}
+    assert all(e["part"] == 0 and e["aspect"] != e["feature"] for e in exemptions)
+    assert pmi.read(output) == document
