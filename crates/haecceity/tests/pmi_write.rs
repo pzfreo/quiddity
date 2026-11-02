@@ -6790,6 +6790,15 @@ fn add_locations_reuse_foreign_datum_features_directly() {
                     "relating_shape_aspect",
                 ) == Some(&Attribute::EntityRef(*a))
         })
+        .filter(|&r| {
+            common::pmi_usage::reference(
+                &w.doc,
+                r,
+                "shape_aspect_relationship",
+                "related_shape_aspect",
+            )
+            .is_some_and(|member| !common::pmi_usage::is_a(&w.doc, member, "datum"))
+        })
         .collect();
     assert_eq!(components.len(), 2, "reuse both original face carriers");
 }
