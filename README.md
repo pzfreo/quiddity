@@ -10,7 +10,7 @@ also matches the features of two revisions of a part, and reads and writes AP242
 It works from the B-rep geometry alone, with no CAD system, feature tree or OpenCascade.
 Everything is pure Rust, and the same input always gives the same output.
 
-Status: **0.4.4** (2026-11-01). See [CHANGELOG.md](CHANGELOG.md).
+Status: **0.4.5** (2026-11-02). See [CHANGELOG.md](CHANGELOG.md).
 
 ## Install
 
