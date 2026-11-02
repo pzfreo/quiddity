@@ -2458,6 +2458,15 @@ impl<'a> Reader<'a> {
                     }
                     match self.feature(st, src) {
                         Some(f) => {
+                            if !feature_has_face(&st.pmi, f) {
+                                self.find(
+                                    FindingKind::Unresolved,
+                                    part,
+                                    d,
+                                    &[src],
+                                    format!("datum {label} feature resolves to no faces"),
+                                );
+                            }
                             feature = Some(f);
                             prov.push(r);
                         }
@@ -2473,7 +2482,7 @@ impl<'a> Reader<'a> {
                     );
                 }
             }
-            if failed {
+            if failed || (feature.is_none() && targets.is_empty()) {
                 self.find(
                     FindingKind::Unresolved,
                     part,
@@ -6505,6 +6514,29 @@ enum Built {
     /// with its own ids.
     Alias(u64, Vec<u64>),
     None,
+}
+
+/// Follow groups and derivations without mistaking an edge or supplemental geometry for a
+/// datum feature's face. Keep the datum in the public result so the loss stays inspectable.
+fn feature_has_face(pmi: &PartPmi, feature: FeatureId) -> bool {
+    let mut pending = vec![feature];
+    let mut seen = BTreeSet::new();
+    while let Some(f) = pending.pop() {
+        if !seen.insert(f) {
+            continue;
+        }
+        match &pmi.features[f.0] {
+            Feature::Items(items) => {
+                if items.iter().any(|a| matches!(a, Anchor::Face(_))) {
+                    return true;
+                }
+            }
+            Feature::Group { members, .. } | Feature::Derived { from: members, .. } => {
+                pending.extend(members);
+            }
+        }
+    }
+    false
 }
 
 #[derive(Clone, Copy, Debug)]
