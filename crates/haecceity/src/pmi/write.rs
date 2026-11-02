@@ -57,8 +57,10 @@
 //!
 //! **Usages** (maintainer decision, 2026-10-09): one `geometric_item_specific_usage` per face;
 //! dimensions and tolerances reuse the feature's aspect directly (§5.1 / §6.5), including
-//! datum features. A feature of several faces is composed of one member shape aspect per face
-//! (`PartPlan::usages`). Part notes in words are 'semantic text' attribute sets (PMI practice
+//! datum features. A new datum on a kept carrier has independent per-face GISUs in
+//! fresh representations (IIRU UR1/UR2), under the reported §5.1 preservation exception;
+//! no kept carrier is promoted. A feature of several faces is composed of one member
+//! shape aspect per face (`PartPlan::usages`). Part notes in words are 'semantic text' attribute sets (PMI practice
 //! §7.4); surface texture is ISO 10303-1110's form (`PartPlan::surface_texture`).
 //!
 //! **Validation before returning.** The edit is applied; every added or replaced instance must
@@ -4816,7 +4818,7 @@ impl<'a> PartPlan<'a> {
                                     ("related_shape_aspect", owner.a()),
                                 ],
                             )?;
-                            self.datum_carrier_exemption(em, r, owner);
+                            self.kept_datum_usages(em, pds, r, &keys, Some(owner))?;
                             st.features.insert(c, r);
                             return Ok(r);
                         }
@@ -4825,6 +4827,9 @@ impl<'a> PartPlan<'a> {
                 // A specialized aspect is not an interchangeable feature. Share its
                 // geometry through neutral carriers, preserving the specialized scope.
                 for (rep, items) in &keys {
+                    if self.is_datum_aspect(c) && self.has_kept_usage(em, *rep, items[0]) {
+                        continue;
+                    }
                     self.kept_item_carrier(
                         em,
                         st,
@@ -4902,7 +4907,15 @@ impl<'a> PartPlan<'a> {
                     }
                 };
                 st.features.insert(c, r);
-                self.usages(em, st, pds, r, Some(c), items)?;
+                if self.is_datum_aspect(c)
+                    && keys
+                        .iter()
+                        .any(|(rep, items)| self.has_kept_usage(em, *rep, items[0]))
+                {
+                    self.kept_datum_usages(em, pds, r, &keys, None)?;
+                } else {
+                    self.usages(em, st, pds, r, Some(c), items)?;
+                }
                 r
             }
             Feature::Group { members, kind } => {
@@ -5159,6 +5172,102 @@ impl<'a> PartPlan<'a> {
         )
     }
 
+    fn kept_usage_owners(&self, em: &Emitter<'_>, rep: R, item: R) -> Vec<u64> {
+        let (R::Old(rep), R::Old(item)) = (rep, item) else {
+            return Vec::new();
+        };
+        self.doc
+            .referrers(item)
+            .iter()
+            .copied()
+            .filter(|u| {
+                !em.removed.contains(u)
+                    && !em.retired.contains(u)
+                    && is_a(self.doc, *u, "item_identified_representation_usage")
+                    && !is_a(self.doc, *u, "draughting_model_item_association")
+                    && attr_ref(
+                        self.doc,
+                        *u,
+                        "item_identified_representation_usage",
+                        "used_representation",
+                    ) == Some(rep)
+            })
+            .filter_map(|u| {
+                attr_ref(
+                    self.doc,
+                    u,
+                    "item_identified_representation_usage",
+                    "definition",
+                )
+            })
+            .filter(|owner| {
+                attr_ref(self.doc, *owner, "shape_aspect", "of_shape") == Some(self.def.shape)
+            })
+            .collect()
+    }
+
+    fn has_kept_usage(&self, em: &Emitter<'_>, rep: R, item: R) -> bool {
+        !self.kept_usage_owners(em, rep, item).is_empty()
+    }
+
+    /// OCCT's datum reader needs an actual GISU, even when a composition SAR
+    /// reaches an existing carrier. A fresh representation gives that usage its
+    /// own (representation, item)/(representation, definition) keys: UR1/UR2
+    /// remain enforced and every original instance stays untouched.
+    fn kept_datum_usages(
+        &self,
+        em: &mut Emitter<'_>,
+        pds: R,
+        feature: R,
+        keys: &[(R, Vec<R>)],
+        carrier: Option<R>,
+    ) -> Result<(), WriteError> {
+        if let Some(carrier) = carrier {
+            self.datum_carrier_exemption(em, feature, carrier);
+        }
+        for (rep, items) in keys {
+            let item = items[0];
+            let member = if keys.len() == 1 {
+                feature
+            } else {
+                let member = em.simple(
+                    "shape_aspect",
+                    &[
+                        ("name", s("")),
+                        ("description", s("")),
+                        ("of_shape", pds.a()),
+                        ("product_definitional", boolean(true)),
+                    ],
+                )?;
+                em.simple(
+                    "shape_aspect_relationship",
+                    &[
+                        ("name", s("")),
+                        ("description", s("")),
+                        ("relating_shape_aspect", feature.a()),
+                        ("related_shape_aspect", member.a()),
+                    ],
+                )?;
+                member
+            };
+            let own_rep = em.simple(
+                "shape_representation",
+                &[
+                    ("name", s("")),
+                    ("items", refs([item])),
+                    ("context_of_items", em.reference(self.context)?.a()),
+                ],
+            )?;
+            Self::usage(em, member, own_rep, item)?;
+            for owner in self.kept_usage_owners(em, *rep, item) {
+                if carrier.is_none() && !is_a(self.doc, owner, "datum_feature") {
+                    self.datum_carrier_exemption(em, feature, em.reference(owner)?);
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// The usages of a feature's items: one `geometric_item_specific_usage` per item
     /// (maintainer decision 2026-10-09, which OpenCascade reads; the PMI practice's §5.1
     /// Figure 5 alternative, one `item_identified_representation_usage` of a
@@ -5189,36 +5298,6 @@ impl<'a> PartPlan<'a> {
                 return Err(WriteError::Internal("a usage key of several items".into()));
             };
             let key = (rep, items);
-            if own.is_some_and(|i| {
-                self.is_datum_aspect(i)
-                    && (cfg!(feature = "presentation")
-                        || !matches!(self.roles.get(&i), Some(Role::DatumFeatureOfSize(_))))
-            }) && let (R::Old(rep_id), R::Old(item_id)) = (rep, item)
-            {
-                for &usage in self.doc.referrers(item_id) {
-                    if !em.removed.contains(&usage)
-                        && is_a(self.doc, usage, "item_identified_representation_usage")
-                        && !is_a(self.doc, usage, "draughting_model_item_association")
-                        && attr_ref(
-                            self.doc,
-                            usage,
-                            "item_identified_representation_usage",
-                            "used_representation",
-                        ) == Some(rep_id)
-                        && let Some(owner) = attr_ref(
-                            self.doc,
-                            usage,
-                            "item_identified_representation_usage",
-                            "definition",
-                        )
-                        && attr_ref(self.doc, owner, "shape_aspect", "of_shape")
-                            == Some(self.def.shape)
-                        && !is_a(self.doc, owner, "datum_feature")
-                    {
-                        self.datum_carrier_exemption(em, feature, em.reference(owner)?);
-                    }
-                }
-            }
             let member = if let Some(&m) = st.shared.get(&key) {
                 Some(m)
             } else if let Some(m) = self.kept_item_carrier(em, st, pds, rep, &item, false)? {
@@ -5254,14 +5333,6 @@ impl<'a> PartPlan<'a> {
             };
             match member {
                 Some(m) => {
-                    if own.is_some_and(|i| {
-                        self.is_datum_aspect(i)
-                            && (cfg!(feature = "presentation")
-                                || !matches!(self.roles.get(&i), Some(Role::DatumFeatureOfSize(_))))
-                    }) && matches!(m, R::Old(_))
-                    {
-                        self.datum_carrier_exemption(em, feature, m);
-                    }
                     em.simple(
                         "shape_aspect_relationship",
                         &[

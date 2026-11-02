@@ -1147,6 +1147,24 @@ fn add_datum_preserves_the_kept_geometric_carrier() {
         assert_eq!(exemption.condition, "kept-carrier-datum-feature");
         assert_eq!(exemption.feature, owner);
         assert!(exemption.aspect > g.doc.max_id());
+        let usages: Vec<_> = w
+            .added()
+            .into_iter()
+            .filter(|u| common::pmi_usage::is_a(&w.doc, *u, "geometric_item_specific_usage"))
+            .collect();
+        assert_eq!(usages.len(), face_set.len());
+        for usage in usages {
+            assert!(
+                common::pmi_usage::reference(
+                    &w.doc,
+                    usage,
+                    "item_identified_representation_usage",
+                    "used_representation"
+                )
+                .unwrap()
+                    > g.doc.max_id()
+            );
+        }
         assert!(common::pmi_usage::violations(&w.doc).is_empty());
         assert!(new_violations(&g.doc, &w.doc).is_empty());
         let tol = w
@@ -1252,6 +1270,42 @@ fn ctc01_add_datums_preserve_foreign_perpendicularity_and_location() {
                 "product_definitional"
             ),
             Some(&Attribute::Enum("T".into()))
+        );
+        let usage = w
+            .doc
+            .referrers(datum_feature)
+            .iter()
+            .copied()
+            .find(|u| {
+                is_a(&w.doc, *u, "geometric_item_specific_usage")
+                    && reference(
+                        &w.doc,
+                        *u,
+                        "item_identified_representation_usage",
+                        "definition",
+                    ) == Some(datum_feature)
+            })
+            .expect("OCCT needs the new datum's own GISU");
+        assert!(usage > input.doc.max_id());
+        assert_eq!(
+            reference(
+                &w.doc,
+                usage,
+                "item_identified_representation_usage",
+                "identified_item"
+            ),
+            Some(face)
+        );
+        let rep = reference(
+            &w.doc,
+            usage,
+            "item_identified_representation_usage",
+            "used_representation",
+        )
+        .unwrap();
+        assert!(
+            rep > input.doc.max_id(),
+            "UR1/UR2 require independent representation keys"
         );
         // The exemption cannot excuse datum_feature.WR2, even on the same graph.
         let Some(RawEntity::Simple { attributes, .. }) = w.doc.get(datum_feature) else {

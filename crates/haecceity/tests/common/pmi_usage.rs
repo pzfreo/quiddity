@@ -48,6 +48,66 @@ fn references(a: &Attribute, out: &mut Vec<u64>) {
         _ => {}
     }
 }
+/// Geometry usage records reached through composition, excluding presentation.
+fn geometry_usages(doc: &Document, aspect: u64) -> BTreeSet<u64> {
+    let mut out = BTreeSet::new();
+    let mut todo = vec![aspect];
+    let mut seen = BTreeSet::new();
+    while let Some(id) = todo.pop() {
+        if !seen.insert(id) {
+            continue;
+        }
+        for &r in doc.referrers(id) {
+            if is_a(doc, r, "item_identified_representation_usage")
+                && !is_a(doc, r, "draughting_model_item_association")
+                && reference(doc, r, "item_identified_representation_usage", "definition")
+                    == Some(id)
+            {
+                out.insert(r);
+            }
+            if composition(doc, r)
+                && reference(doc, r, "shape_aspect_relationship", "relating_shape_aspect")
+                    == Some(id)
+                && let Some(m) =
+                    reference(doc, r, "shape_aspect_relationship", "related_shape_aspect")
+                && !is_a(doc, m, "datum")
+                && !is_a(doc, m, "datum_target")
+            {
+                todo.push(m);
+            }
+        }
+    }
+    out
+}
+/// Only usages in separate representations qualify; duplicate scalar GISUs in
+/// the kept representation never acquire this exception.
+fn independent_datum_usages(doc: &Document, aspect: u64, feature: u64) -> BTreeSet<u64> {
+    let old = geometry_usages(doc, feature);
+    let reps: BTreeSet<_> = old
+        .iter()
+        .filter_map(|u| {
+            reference(
+                doc,
+                *u,
+                "item_identified_representation_usage",
+                "used_representation",
+            )
+        })
+        .collect();
+    geometry_usages(doc, aspect)
+        .difference(&old)
+        .copied()
+        .filter(|u| {
+            reference(
+                doc,
+                *u,
+                "item_identified_representation_usage",
+                "used_representation",
+            )
+            .is_some_and(|r| !reps.contains(&r))
+        })
+        .collect()
+}
 /// Neutral unions can be reused without importing an unrelated specialized meaning.
 pub fn neutral(doc: &Document, id: u64) -> bool {
     let allowed = |name: &str| {
@@ -187,9 +247,8 @@ fn signature(
     child_keys.sort();
     let s = if let Some(group) = group {
         format!("scope:{group}({child_keys:?})")
-    } else if !direct
-        && (is_a(doc, id, "dimensional_size_with_datum_feature")
-            || is_a(doc, id, "dimensional_location_with_datum_feature"))
+    } else if (is_a(doc, id, "dimensional_size_with_datum_feature")
+        || is_a(doc, id, "dimensional_location_with_datum_feature"))
         && doc.referrers(id).iter().any(|r| {
             reference(
                 doc,
@@ -387,6 +446,14 @@ pub fn exemptions(doc: &Document) -> Vec<Exemption> {
     for &aspect in &aspects {
         if !is_a(doc, aspect, "datum_feature")
             || is_a(doc, aspect, "dimensional_size_with_datum_feature")
+                && !doc.referrers(aspect).iter().any(|r| {
+                    reference(
+                        doc,
+                        *r,
+                        "dimensional_characteristic_representation",
+                        "dimension",
+                    ) == Some(aspect)
+                })
             || attr(doc, aspect, "shape_aspect", "product_definitional")
                 != Some(&Attribute::Enum("T".into()))
             || content[&aspect].is_empty()
@@ -437,35 +504,9 @@ pub fn exemptions(doc: &Document) -> Vec<Exemption> {
                     && reference(doc, *r, "shape_aspect_relationship", "related_shape_aspect")
                         == Some(feature)
             });
-            // A scalar datum on a proper subset of a kept SET usage cannot
-            // compose the entire set. Its own GISU is distinct under IIRU UR1.
-            let set_subset = owns_gisu(doc, aspect)
-                && content[&aspect].len() == 1
-                && doc.referrers(feature).iter().any(|u| {
-                    if reference(
-                        doc,
-                        *u,
-                        "item_identified_representation_usage",
-                        "definition",
-                    ) != Some(feature)
-                        || !is_a(doc, *u, "item_identified_representation_usage")
-                        || is_a(doc, *u, "draughting_model_item_association")
-                    {
-                        return false;
-                    }
-                    let mut items = Vec::new();
-                    if let Some(a) = attr(
-                        doc,
-                        *u,
-                        "item_identified_representation_usage",
-                        "identified_item",
-                    ) {
-                        references(a, &mut items);
-                    }
-                    items.len() > 1 && content[&aspect].iter().all(|i| items.contains(i))
-                });
+            let independent = !independent_datum_usages(doc, aspect, feature).is_empty();
             if let Some(association) = link.or_else(|| {
-                ((group && signatures[&aspect] == signatures[&feature]) || set_subset)
+                ((group && signatures[&aspect] == signatures[&feature]) || independent)
                     .then_some(establishment)
             }) {
                 out.push(Exemption {
@@ -704,11 +745,13 @@ pub fn violations(doc: &Document) -> Vec<String> {
     let exceptions = exemptions(doc);
     let graphical: BTreeSet<_> = exceptions
         .iter()
-        .filter(|e| {
-            e.condition == "shared-carrier-graphical-presentation"
-                || e.condition == "kept-carrier-datum-feature" && owns_gisu(doc, e.aspect)
-        })
+        .filter(|e| e.condition == "shared-carrier-graphical-presentation")
         .map(|e| e.aspect)
+        .collect();
+    let datum_usages: BTreeSet<_> = exceptions
+        .iter()
+        .filter(|e| e.condition == "kept-carrier-datum-feature")
+        .flat_map(|e| independent_datum_usages(doc, e.aspect, e.feature))
         .collect();
     let exempt: BTreeSet<_> = exceptions
         .into_iter()
@@ -724,7 +767,7 @@ pub fn violations(doc: &Document) -> Vec<String> {
     for (item, owners) in identified {
         if owners
             .iter()
-            .filter(|(owner, _)| !graphical.contains(owner))
+            .filter(|(owner, usage)| !graphical.contains(owner) && !datum_usages.contains(usage))
             .count()
             > 1
         {

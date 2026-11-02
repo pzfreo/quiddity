@@ -7,8 +7,9 @@ in [docs/alpha1.md](docs/alpha1.md).
 ## Unreleased
 
 - **Add datum carrier preservation:** adding a datum on a kept face or pattern now
-  emits a separate `datum_feature`, leaving the original carrier, usages, foreign
-  controls and presentation byte-identical at their original ids. This fixes Add
+  emits a separate `datum_feature` with its own per-face GISUs in new
+  representations, leaving the original carrier, usages, foreign controls and
+  presentation byte-identical at their original ids. This fixes Add
   on NIST CTC-01's `.F.` perpendicularity carrier (`datum_feature.WR2` requires
   `.T.`). Kept carriers are never promoted in any mode; datum leaves created in
   the same write remain reusable. The narrow CAx-IF §5.1 exception is reported as

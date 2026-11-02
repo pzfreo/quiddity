@@ -1936,9 +1936,13 @@ aspect in one representation. A multi-face feature is gathered by a composite of
 per-face aspects. Properly overlapping face sets share those same members; an
 exact match reuses the entire aspect unless doing so would specialize a kept
 carrier to a datum feature. Adding a datum is append-only: a new `.T.`
-`datum_feature` composes the kept carrier through a plain SAR and reaches the face
-through that carrier's original GISU/IIRU (the 0.4.4 form). It does not duplicate
-usages: IIRU UR1/UR2 still apply. A kept pattern gets a separate complex group/datum
+`datum_feature` has its own GISU to the face in a new `shape_representation`,
+with the original context and the same face entity (no copied geometry). Each
+per-face usage has its own representation keys, preserving IIRU UR1/UR2. These
+representations do not gain a shape-definition link or replace the part's B-rep.
+An exact kept carrier also remains a composition member; several faces use new
+per-face leaves. OCCT requires the new datum's own GISU: a composition-only datum
+reaches the face in haecceity but is unattached in XCAF on both CTC-01 faces. A kept pattern gets a separate complex group/datum
 feature with the same member scope, rather than a nested group. Existing controls
 and presentation retain their original ids and bytes. Add with datums also leaves
 legacy endpoint wrappers and functional SARs untouched; it does not normalize them
@@ -1948,14 +1952,15 @@ This is the narrow §5.1 exception `kept-carrier-datum-feature`, reported for ea
 added datum aspect and preserved carrier/group in
 `WriteReport.geometry_carrier_exemptions` (`part`, `condition`, `aspect`, `feature`).
 The independent graph checker requires a `.T.` datum feature, exactly one datum
-establishment, the same part and nonempty geometry, and either an actual
-composition link or identical group scope. It permits the old carrier's semantic
-consumers to remain unchanged. A scalar datum on a proper subset of a kept
-`SET_REPRESENTATION_ITEM` usage gets its own GISU: the scalar and the full set are
-distinct IIRU UR1 keys, so the original set usage remains intact. Only this
-structurally checked subset sharing is exempt from semantic face uniqueness;
-duplicate scalar GISUs and bare dimension shells remain errors. This is not an
-EXPRESS rule exemption.
+establishment, the same part and nonempty geometry contained in the kept carrier,
+and either a composition link, identical group scope, or independent geometry
+usages in representations distinct from the kept carrier's. Only the datum's
+independent usages are exempt from §5.1 semantic face uniqueness; the old usages
+and semantic consumers remain unchanged. Subsets of kept SET usages retain the
+original set and get their own scalar GISUs in separate representations. Duplicate
+scalar usage keys and bare dimension shells remain errors. The combined §6.5.3
+size/datum form also requires its dimensional representation to qualify.
+This is not an EXPRESS rule exemption.
 
 Kept `.F.` (or unknown) product-definitional aspects are never promoted in any
 mode: doing so violates `datum_feature.WR2`. Promotion of kept `.T.` aspects is
@@ -1967,8 +1972,8 @@ write. No source record is rewritten in that case. These decisions supersede
 kept-pattern tests now require exact original entity text instead.
 
 Without presentation, §6.5.3's datum combined with its own size remains a
-`dimensional_size_with_datum_feature`, including on a kept face. It composes the
-kept geometry carrier rather than promoting that carrier to a dimension: existing
+`dimensional_size_with_datum_feature`, including on a kept face. It gets independent
+geometry usages rather than promoting that carrier to a dimension: existing
 feature controls must remain feature controls. This record has its own dimensional
 characteristic representation and nominal, so it is not a redundant forwarding
 aspect. The checker distinguishes that semantic dimension from an ordinary datum
