@@ -3636,6 +3636,155 @@ fn compare_occt(
     out
 }
 
+/// Prepare the legacy producer input for a conformant Add golden. The raw Specify
+/// fixture remains unchanged: its four duplicated per-face carriers are coalesced
+/// before Add, preserving every semantic requirement and presentation association.
+fn canonical_thumbwheel_input(f: File) -> File {
+    use common::pmi_usage::{is_a, reference};
+    use std::collections::BTreeMap;
+    let mut carriers: BTreeMap<(u64, u64), Vec<(u64, u64)>> = BTreeMap::new();
+    for usage in f
+        .doc
+        .ids()
+        .filter(|id| is_a(&f.doc, *id, "geometric_item_specific_usage"))
+    {
+        let owner = reference(
+            &f.doc,
+            usage,
+            "item_identified_representation_usage",
+            "definition",
+        )
+        .unwrap();
+        if !matches!(f.doc.get(owner), Some(RawEntity::Simple {name,..}) if name.eq_ignore_ascii_case("shape_aspect"))
+        {
+            continue;
+        }
+        let rep = reference(
+            &f.doc,
+            usage,
+            "item_identified_representation_usage",
+            "used_representation",
+        )
+        .unwrap();
+        let item = reference(
+            &f.doc,
+            usage,
+            "item_identified_representation_usage",
+            "identified_item",
+        )
+        .unwrap();
+        carriers
+            .entry((rep, item))
+            .or_default()
+            .push((owner, usage));
+    }
+    let mut aliases = BTreeMap::new();
+    let mut duplicate_faces = 0;
+    for group in carriers.values_mut().filter(|group| group.len() > 1) {
+        duplicate_faces += 1;
+        group.sort_unstable();
+        for &(owner, usage) in &group[1..] {
+            aliases.insert(owner, group[0].0);
+            aliases.insert(usage, group[0].1);
+        }
+    }
+    assert_eq!(duplicate_faces, 4, "producer carrier duplicates changed");
+    // OCCT suppresses the independent internal-thread callout if this presentation
+    // carrier is merged into Position's carrier. Keep only that graphical context;
+    // the exact structural exception is pinned in both golden directories.
+    aliases.remove(&691);
+    aliases.remove(&692);
+    fn redirect(a: &mut Attribute, aliases: &BTreeMap<u64, u64>) {
+        match a {
+            Attribute::EntityRef(id) => {
+                if let Some(canonical) = aliases.get(id) {
+                    *id = *canonical;
+                }
+            }
+            Attribute::List(items) => {
+                for item in items {
+                    redirect(item, aliases);
+                }
+            }
+            Attribute::Typed { value, .. } => redirect(value, aliases),
+            _ => {}
+        }
+    }
+    let before = pmi::read(&f.doc, &f.parts).unwrap();
+    // The producer's ordering-only note anchor must become explicit when its
+    // presentation-only aspect is shared with another semantic requirement.
+    let mut note_owners = BTreeMap::new();
+    for (i, note) in before.parts[0].notes.iter().enumerate() {
+        let Some(NoteOwner::Feature(feature)) = note.on else {
+            continue;
+        };
+        let owner = before.provenance.parts[0].features[feature.0]
+            .iter()
+            .copied()
+            .find(|id| is_a(&f.doc, *id, "shape_aspect"))
+            .unwrap();
+        for &id in &before.provenance.parts[0].notes[i] {
+            if common::pmi_usage::attr(&f.doc, id, "property_definition", "name")
+                == Some(&Attribute::String("manufacturing requirement".into()))
+            {
+                note_owners.insert(
+                    id,
+                    if owner == 691 {
+                        660
+                    } else {
+                        *aliases.get(&owner).unwrap_or(&owner)
+                    },
+                );
+            }
+        }
+    }
+    assert_eq!(note_owners.len(), 3);
+    let mut edit = haecceity::p21::Edit::new();
+    for id in f.doc.ids() {
+        if aliases.contains_key(&id) {
+            edit.remove(id);
+            continue;
+        }
+        let original = f.doc.get(id).unwrap();
+        let mut record = original.clone();
+        if id == 691 {
+            let RawEntity::Simple { attributes, .. } = &mut record else {
+                panic!("presentation carrier");
+            };
+            // Ownership is explicit now; do not retain the ordering-only note marker.
+            attributes[0] = Attribute::String(String::new());
+        }
+        if let Some(owner) = note_owners.get(&id) {
+            let RawEntity::Simple { attributes, .. } = &mut record else {
+                panic!("note property");
+            };
+            attributes[2] = Attribute::EntityRef(*owner);
+        }
+        match &mut record {
+            RawEntity::Simple { attributes, .. } => {
+                for a in attributes {
+                    redirect(a, &aliases);
+                }
+            }
+            RawEntity::Complex { parts, .. } => {
+                for part in parts {
+                    for a in &mut part.attributes {
+                        redirect(a, &aliases);
+                    }
+                }
+            }
+        }
+        if &record != original {
+            edit.replace(id, record);
+        }
+    }
+    let result = open_bytes(f.doc.apply(&edit).unwrap().bytes);
+    let after = pmi::read(&result.doc, &result.parts).unwrap();
+    let differences = differences_as_stated(&before.parts[0], &after.parts[0]);
+    assert!(differences.is_empty(), "{differences:?}");
+    result
+}
+
 /// The written files OpenCascade is asked to read (`tools/check_pmi_occt.py`): one with every
 /// kind of item the writer makes, on a specify-core part; a written thread replaced and removed
 /// (U14); an add beside specify-core's notes on faces (U10); and specify-core's intents written
@@ -3859,7 +4008,7 @@ fn written_cases() -> Vec<(String, Option<Vec<u8>>)> {
     // thumbwheel, whose external thread, internal thread and knurl notes the reader puts on
     // their faces, with a flatness added beside them.
     let dir = common::fixtures().join("ap242/specify");
-    let f = open(&dir.join("thumbwheel_thread_knurl.step.gz"));
+    let f = canonical_thumbwheel_input(open(&dir.join("thumbwheel_thread_knurl.step.gz")));
     let free = free_faces(&f, 0, 1);
     let flat = PartPmi {
         features: vec![faces(&[free[0]])],
@@ -8128,38 +8277,227 @@ fn add_on_legacy_plate_prefers_datums_and_retires_forwarders() {
 }
 
 #[test]
+fn add_a_datum_to_a_kept_pattern_with_a_position_tolerance() {
+    use common::pmi_usage::{geometry, is_a, violations};
+    let initial = PartPmi {
+        features: vec![
+            faces(&[0]),
+            faces(&[1]),
+            Feature::Group {
+                members: vec![FeatureId(0), FeatureId(1)],
+                kind: GroupKind::PatternOfFeatures,
+            },
+        ],
+        tolerances: vec![tolerance(
+            ToleranceKind::Position,
+            ToleranceTarget::Feature(FeatureId(2)),
+            "0.1",
+        )],
+        ..PartPmi::default()
+    };
+    let first = written(&spool(), &initial);
+    let group = first
+        .doc
+        .ids()
+        .find(|id| is_a(&first.doc, *id, "composite_group_shape_aspect"))
+        .unwrap();
+    let input = open_bytes(first.doc.bytes().to_vec());
+    let add = PartPmi {
+        features: initial.features.clone(),
+        datums: vec![datum("C", 2)],
+        ..PartPmi::default()
+    };
+    let w = write(&input, &[(PartId(0), add.clone())], Mode::Add).unwrap();
+    assert_verified_as(&input, &w, &add, Mode::Add);
+    assert!(is_a(&w.doc, group, "datum_feature"));
+    assert!(is_a(&w.doc, group, "composite_group_shape_aspect"));
+    assert_eq!(geometry(&w.doc, group), geometry(&input.doc, group));
+    assert!(w.report.rewritten.contains(&group));
+    assert!(violations(&w.doc).is_empty(), "{:?}", violations(&w.doc));
+    if let Some(dir) = std::env::var_os("HAECCEITY_ROLE_ADD_OUTPUT") {
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            Path::new(&dir).join("kept-pattern-datum.input.step"),
+            input.doc.bytes(),
+        )
+        .unwrap();
+        std::fs::write(
+            Path::new(&dir).join("kept-pattern-datum.step"),
+            w.doc.bytes(),
+        )
+        .unwrap();
+    }
+}
+
+#[test]
+fn add_a_datum_and_size_to_a_kept_flatness_face() {
+    use common::pmi_usage::{is_a, reference, violations};
+    let initial = PartPmi {
+        features: vec![faces(&[0])],
+        tolerances: vec![tolerance(
+            ToleranceKind::Flatness,
+            ToleranceTarget::Feature(FeatureId(0)),
+            "0.1",
+        )],
+        ..PartPmi::default()
+    };
+    let first = written(&spool(), &initial);
+    for scoped in [false, true] {
+        let mut input = open_bytes(first.doc.bytes().to_vec());
+        if scoped {
+            let tol = root(
+                &input.doc,
+                &first.read.provenance.parts[0].tolerances[0],
+                &["geometric_tolerance"],
+            );
+            let owner = reference(
+                &input.doc,
+                tol,
+                "geometric_tolerance",
+                "toleranced_shape_aspect",
+            )
+            .unwrap();
+            let Some(RawEntity::Simple { attributes, .. }) = input.doc.get(owner) else {
+                panic!("plain feature");
+            };
+            let mut edit = haecceity::p21::Edit::new();
+            edit.replace(
+                owner,
+                haecceity::p21::simple("APPLIED_AREA", attributes.clone()),
+            );
+            input = open_bytes(input.doc.apply(&edit).unwrap().bytes);
+        }
+        let add = PartPmi {
+            features: initial.features.clone(),
+            datums: vec![datum("A", 0)],
+            dimensions: vec![size(0, "30.", DimTolerance::Basic)],
+            ..PartPmi::default()
+        };
+        let w = write(&input, &[(PartId(0), add.clone())], Mode::Add).unwrap();
+        assert_verified_as(&input, &w, &add, Mode::Add);
+        let dim = root(
+            &w.doc,
+            &w.read.provenance.parts[0].dimensions[0],
+            &["dimensional_size"],
+        );
+        let feature = reference(&w.doc, dim, "dimensional_size", "applies_to").unwrap();
+        assert!(is_a(&w.doc, feature, "datum_feature"));
+        assert_eq!(
+            is_a(&w.doc, dim, "dimensional_size_with_datum_feature"),
+            !cfg!(feature = "presentation")
+        );
+        if !cfg!(feature = "presentation") {
+            assert_eq!(feature, dim, "§6.5.3 combines the datum and its own size");
+            assert!(matches!(
+                w.read.parts[0].tolerances[0].target,
+                ToleranceTarget::Feature(_)
+            ));
+            let mut edit = haecceity::p21::Edit::new();
+            for &r in w.doc.referrers(dim) {
+                if reference(
+                    &w.doc,
+                    r,
+                    "dimensional_characteristic_representation",
+                    "dimension",
+                ) == Some(dim)
+                {
+                    edit.remove(r);
+                }
+            }
+            let bare = Document::parse(w.doc.apply(&edit).unwrap().bytes).unwrap();
+            if !scoped {
+                assert!(
+                    !violations(&bare).is_empty(),
+                    "a bare typed shell is still redundant"
+                );
+            }
+        }
+        assert!(violations(&w.doc).is_empty(), "{:?}", violations(&w.doc));
+        if let Some(dir) = std::env::var_os("HAECCEITY_ROLE_ADD_OUTPUT") {
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(
+                Path::new(&dir).join(format!("kept-face-datum-size-{scoped}.input.step")),
+                input.doc.bytes(),
+            )
+            .unwrap();
+            std::fs::write(
+                Path::new(&dir).join(format!("kept-face-datum-size-{scoped}.step")),
+                w.doc.bytes(),
+            )
+            .unwrap();
+        }
+    }
+    // §6.5.3 does not combine a datum with a size on another feature.
+    let input = open_bytes(first.doc.bytes().to_vec());
+    let add = PartPmi {
+        features: vec![faces(&[0]), faces(&[1])],
+        datums: vec![datum("A", 0)],
+        dimensions: vec![size(1, "30.", DimTolerance::Basic)],
+        ..PartPmi::default()
+    };
+    let w = write(&input, &[(PartId(0), add.clone())], Mode::Add).unwrap();
+    assert_verified_as(&input, &w, &add, Mode::Add);
+    assert!(
+        !w.doc
+            .ids()
+            .any(|id| is_a(&w.doc, id, "dimensional_size_with_datum_feature"))
+    );
+}
+
+#[test]
+fn graphical_carrier_exception_requires_no_semantic_consumer() {
+    use common::pmi_usage::{exemptions, violations};
+    let f = open(&write_dir().join("thumbwheel_notes_add.step.gz"));
+    let e = exemptions(&f.doc)
+        .into_iter()
+        .find(|e| e.condition == "shared-carrier-graphical-presentation")
+        .unwrap();
+    let mut edit = haecceity::p21::Edit::new();
+    edit.add(haecceity::p21::simple(
+        "SHAPE_ASPECT_RELATIONSHIP",
+        vec![
+            Attribute::String(String::new()),
+            Attribute::String(String::new()),
+            Attribute::EntityRef(e.aspect),
+            Attribute::EntityRef(e.feature),
+        ],
+    ));
+    let changed = Document::parse(f.doc.apply(&edit).unwrap().bytes).unwrap();
+    assert!(
+        !exemptions(&changed)
+            .iter()
+            .any(|e| e.condition == "shared-carrier-graphical-presentation")
+    );
+    assert!(
+        violations(&changed)
+            .iter()
+            .any(|v| v.contains("identified by"))
+    );
+}
+
+#[test]
 fn shared_carrier_goldens_have_only_explicit_geometry_exemptions() {
     let mut problems = Vec::new();
-    let mut names = Vec::new();
-    let prefix = if cfg!(feature = "presentation") {
-        "write-presentation/"
-    } else {
-        "write/"
-    };
-    for entry in std::fs::read_dir(write_dir()).unwrap() {
-        let path = entry.unwrap().path();
-        if ![
-            "pmi_gaps.step.gz",
-            "pmi_gaps_gram.step.gz",
-            "datum_targets_shared_support.step.gz",
-            "datum_targets.step.gz",
-        ]
-        .iter()
-        .any(|name| path.file_name().is_some_and(|file| file == *name))
-        {
-            continue;
+    for prefix in ["write/", "write-presentation/"] {
+        let mut names = Vec::new();
+        for entry in std::fs::read_dir(common::fixtures().join("ap242").join(prefix)).unwrap() {
+            let path = entry.unwrap().path();
+            if !path.to_string_lossy().ends_with(".step.gz") {
+                continue;
+            }
+            let name = format!("{prefix}{}", path.file_name().unwrap().to_string_lossy());
+            let doc = Document::parse(file_bytes(&path)).unwrap();
+            problems.extend(
+                common::pmi_usage::violations(&doc)
+                    .into_iter()
+                    .map(|p| format!("{name}: {p}")),
+            );
+            problems.extend(common::pmi_usage::check_exemptions(&name, &doc));
+            names.push(name);
         }
-        let name = format!("{prefix}{}", path.file_name().unwrap().to_string_lossy());
-        let doc = Document::parse(file_bytes(&path)).unwrap();
-        problems.extend(
-            common::pmi_usage::violations(&doc)
-                .into_iter()
-                .map(|p| format!("{name}: {p}")),
-        );
-        problems.extend(common::pmi_usage::check_exemptions(&name, &doc));
-        names.push(name);
+        assert!(!names.is_empty(), "no goldens in {prefix}");
+        common::pmi_usage::check_exemption_files(prefix, &names);
     }
-    common::pmi_usage::check_exemption_files(prefix, &names);
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 

@@ -770,6 +770,13 @@
    },
    "verdict": "not-applicable",
    "reason": "The requested read-only quiddity venv contains OCP 7.9.3.1 but no specify_core. XCAF transfer and the safe label walk are required and captured independently; the separate specify-core application loader was not run. All earlier application-loader pins remain unchanged."
+  },
+  "thumbwheel_notes_add": {
+   "status": {
+    "unavailable": "specify_core is not installed in this environment"
+   },
+   "verdict": "not-applicable",
+   "reason": "The fresh capture uses the read-only OCP 7.9.3.1 environment, which has no specify_core application loader. XCAF transfer, safe label walking and semantic reading are captured independently. This records loader availability, not an accepted XCAF misread."
   }
  }
 }

@@ -29,5 +29,16 @@ functional endpoint instances authorized for ambiguous shared-carrier SARs
 (PMI §5.1), read as composition by both OCCT 7.9.3 XCAF and NIST SFA 5.41.
 Keys name the structural condition; tuples are private aspect,
 original carrier and functional association. The independent Part 21 checker
-verifies those structures before comparing the per-file list. Cardinality of
-face/item GISU ownership is never exempted.
+verifies those structures before comparing the per-file list.
+Semantic face/item GISU ownership remains unique. The separately pinned
+`shared-carrier-graphical-presentation` retains only a presentation-only carrier
+whose merge would make XCAF suppress its callout; it has no semantic consumer.
+
+The writer's `thumbwheel_notes_add` golden uses `canonical_thumbwheel_input` in
+`pmi_write.rs` to coalesce duplicated producer carriers and state the three
+legacy face-note owners explicitly before Add, retaining the one required
+independent graphical context. It asserts the same semantic PMI
+as the original Specify fixture, which remains unchanged. The full 16 goldens in
+each writer directory run both the ownership/forwarding check and the exact
+exemption check. A real §6.5.3 combined dimension has an independent semantic
+definition; an unrepresented typed shell still fails the checker.

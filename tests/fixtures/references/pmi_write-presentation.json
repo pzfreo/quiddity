@@ -835,6 +835,13 @@
    },
    "verdict": "not-applicable",
    "reason": "Thread-callout golden recaptured with OCP: XCAF transfer and safe label walking pass. This read-only venv has no legacy Python specify_core application loader, so that separate loader was not run; Rust Specify write/reopen is checked by its workspace tests."
+  },
+  "thumbwheel_notes_add": {
+   "status": {
+    "unavailable": "specify_core is not installed in this environment"
+   },
+   "verdict": "not-applicable",
+   "reason": "The fresh capture uses the read-only OCP 7.9.3.1 environment, which has no specify_core application loader. XCAF transfer, safe label walking and semantic reading are captured independently. This records loader availability, not an accepted XCAF misread."
   }
  }
 }

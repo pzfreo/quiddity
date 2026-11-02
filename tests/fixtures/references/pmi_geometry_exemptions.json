@@ -65,6 +65,15 @@
       ]
     ]
   },
+  "write-presentation/thumbwheel_notes_add.step.gz": {
+    "shared-carrier-graphical-presentation": [
+      [
+        691,
+        660,
+        818
+      ]
+    ]
+  },
   "write/datum_targets_shared_support.step.gz": {
     "shared-carrier-datum-target-support": [
       [
@@ -119,6 +128,15 @@
         6532,
         6517,
         6534
+      ]
+    ]
+  },
+  "write/thumbwheel_notes_add.step.gz": {
+    "shared-carrier-graphical-presentation": [
+      [
+        691,
+        660,
+        818
       ]
     ]
   }

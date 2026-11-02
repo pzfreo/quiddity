@@ -187,6 +187,22 @@ fn signature(
     child_keys.sort();
     let s = if let Some(group) = group {
         format!("scope:{group}({child_keys:?})")
+    } else if !direct
+        && (is_a(doc, id, "dimensional_size_with_datum_feature")
+            || is_a(doc, id, "dimensional_location_with_datum_feature"))
+        && doc.referrers(id).iter().any(|r| {
+            reference(
+                doc,
+                *r,
+                "dimensional_characteristic_representation",
+                "dimension",
+            ) == Some(id)
+        })
+    {
+        // §6.5.3's combined dimension has its own semantic definition, not merely
+        // a forwarding role. Its kept per-face carrier can still be the target of
+        // feature controls, which must not become dimension controls on readback.
+        format!("dimension-datum:{id}:{:?}", geometry.get(&id))
     } else if !direct && child_keys.len() == 1 && child_keys[0].starts_with("scope:") {
         child_keys[0].clone()
     } else if neutral(doc, id) || is_a(doc, id, "datum_feature") {
@@ -357,6 +373,100 @@ pub fn exemptions(doc: &Document) -> Vec<Exemption> {
         }
     }
     out.sort();
+    // A presentation-only face carrier must stay independent when sharing the
+    // semantic carrier would make XCAF suppress its callout (ReadGDT). It has no
+    // semantic consumer and exactly one GISU; the per-file list pins every case.
+    for aspect in doc.ids().filter(|id| neutral(doc, *id)) {
+        let refs = doc.referrers(aspect);
+        let usages: Vec<_> = refs
+            .iter()
+            .copied()
+            .filter(|r| {
+                is_a(doc, *r, "geometric_item_specific_usage")
+                    && reference(
+                        doc,
+                        *r,
+                        "item_identified_representation_usage",
+                        "definition",
+                    ) == Some(aspect)
+            })
+            .collect();
+        let [usage] = usages.as_slice() else {
+            continue;
+        };
+        let associations: Vec<_> = refs
+            .iter()
+            .copied()
+            .filter(|r| {
+                is_a(doc, *r, "draughting_model_item_association")
+                    && reference(
+                        doc,
+                        *r,
+                        "item_identified_representation_usage",
+                        "definition",
+                    ) == Some(aspect)
+            })
+            .collect();
+        if associations.is_empty()
+            || refs
+                .iter()
+                .any(|r| !usages.contains(r) && !associations.contains(r))
+        {
+            continue;
+        }
+        let (Some(item), Some(rep)) = (
+            reference(
+                doc,
+                *usage,
+                "item_identified_representation_usage",
+                "identified_item",
+            ),
+            reference(
+                doc,
+                *usage,
+                "item_identified_representation_usage",
+                "used_representation",
+            ),
+        ) else {
+            continue;
+        };
+        let feature = doc.referrers(item).iter().copied().find_map(|u| {
+            if u == *usage
+                || !is_a(doc, u, "geometric_item_specific_usage")
+                || reference(
+                    doc,
+                    u,
+                    "item_identified_representation_usage",
+                    "used_representation",
+                ) != Some(rep)
+            {
+                return None;
+            }
+            let f = reference(doc, u, "item_identified_representation_usage", "definition")?;
+            if !is_a(doc, f, "shape_aspect")
+                || reference(doc, f, "shape_aspect", "of_shape")
+                    != reference(doc, aspect, "shape_aspect", "of_shape")
+            {
+                return None;
+            }
+            doc.referrers(f)
+                .iter()
+                .any(|r| {
+                    reference(doc, *r, "geometric_tolerance", "toleranced_shape_aspect") == Some(f)
+                        || reference(doc, *r, "dimensional_size", "applies_to") == Some(f)
+                        || is_a(doc, *r, "dimensional_location")
+                })
+                .then_some(f)
+        });
+        if let Some(feature) = feature {
+            out.push(Exemption {
+                condition: "shared-carrier-graphical-presentation",
+                aspect,
+                feature,
+                association: associations[0],
+            });
+        }
+    }
     out
 }
 
@@ -486,10 +596,21 @@ pub fn violations(doc: &Document) -> Vec<String> {
     for &id in &aspects {
         signature(doc, id, &content, &mut signatures, &mut BTreeSet::new());
     }
-    let exempt: BTreeSet<_> = exemptions(doc).into_iter().map(|e| e.aspect).collect();
+    let exceptions = exemptions(doc);
+    let graphical: BTreeSet<_> = exceptions
+        .iter()
+        .filter(|e| e.condition == "shared-carrier-graphical-presentation")
+        .map(|e| e.aspect)
+        .collect();
+    let exempt: BTreeSet<_> = exceptions.into_iter().map(|e| e.aspect).collect();
     let mut out = vec![];
     for (item, owners) in identified {
-        if owners.len() > 1 {
+        if owners
+            .iter()
+            .filter(|(owner, _)| !graphical.contains(owner))
+            .count()
+            > 1
+        {
             out.push(format!("item #{item} identified by {owners:?}"));
         }
     }

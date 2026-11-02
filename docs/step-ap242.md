@@ -668,8 +668,31 @@ toleranced relationships are no longer misread as feature composition; document 
   NIST CTC-02 round trip (carrier face #3148). All other round-trip outputs,
   including Specify, the local plates and committed plate fixtures, have no
   exceptions. The unshared-support golden is also checked as a zero-exception
-  control. Existing producer-only Add outputs retain their original, unrewritten
-  PMI; the Specify inputs are checked in full read/Replace/write form.
+  control. Both golden directories are checked in full, with zero exceptions
+  outside the explicit list (including the graphical context below). The Specify
+  inputs are also checked in full read/Replace/write form.
+
+- **Independent graphical context (§5.1 / §7.3), shared-reader policy above.**
+  [OCCT 7.9.3 `ReadGDT`, lines 4772–4842](https://github.com/Open-Cascade-SAS/OCCT/blob/V7_9_3/src/STEPCAFControl/STEPCAFControl_Reader.cxx#L4772-L4842)
+  suppresses independent presentation if its shape-aspect definition is used by
+  semantic GD&T. Coalescing the thumbwheel's internal-thread presentation carrier
+  with Position's carrier therefore loses its face-linked callout. Preserve a
+  separate graphical carrier only when it has exactly one direct GISU, its only
+  other consumers are DMIAs, and another aspect on the same part and
+  (representation, item) is used by a dimension or tolerance. This is the one
+  reported ownership exception: semantic geometry carriers remain unique.
+  `shared-carrier-graphical-presentation` pins aspect #691, semantic carrier #660,
+  and DMIA #818 in each `thumbwheel_notes_add` golden, both on face #573. The
+  checker verifies this graph independently; adding a semantic consumer to the
+  graphical carrier removes its eligibility. It does not exempt arbitrary
+  duplicate GISUs or forwarding aspects. The writer report still lists only
+  actual additions: this is a kept graphical context in the prepared fixture.
+
+  The thumbwheel Add input coalesces the other producer duplicates and states its
+  three legacy face-note owners explicitly. Fixture preparation asserts the same
+  semantic PMI; fresh XCAF captures preserve all of main's dimensions, tolerances,
+  datums and face-linked callouts. The raw Specify fixture and Add's preservation
+  of unrelated producer records remain unchanged.
 
 - **Relations (§6.9.9)**: all three model kinds are written with the stated endpoints. A
   tolerance whose target is a relationship uses the edition 4 SELECT member. Edition 1
@@ -1913,7 +1936,18 @@ aspect in one representation. A multi-face feature is gathered by a composite of
 per-face aspects. Properly overlapping face sets share those same members; an
 exact match reuses the entire aspect. A kept ordinary carrier gaining a datum is
 specialized at the same id (and reported in `rewritten`), preserving its attributes
-and GISUs. §6.5.3 size/datum combination behavior is otherwise unchanged.
+and GISUs. A kept pattern similarly gains `datum_feature` in its existing complex
+group record, preserving its member semantics (§6.5.2).
+
+Without presentation, §6.5.3's datum combined with its own size remains a
+`dimensional_size_with_datum_feature`, including on a kept face. It composes the
+kept geometry carrier rather than promoting that carrier to a dimension: existing
+feature controls must remain feature controls. This record has its own dimensional
+characteristic representation and nominal, so it is not a redundant forwarding
+aspect. The checker distinguishes that semantic dimension from an ordinary datum
+feature and rejects the bare shell if its dimensional representation is missing.
+Presentation-enabled output retains separate datum/size definitions. A datum on
+another feature does not enable the combined form.
 
 `pmi_face_usage` checks written Part 21, including kept GISU/IIRU records and set
 items, for unique face ownership and redundant one-SAR dimension/tolerance

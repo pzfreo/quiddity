@@ -1811,6 +1811,16 @@ impl<'a> Emitter<'a> {
                 ],
             );
         }
+        let record = self.entity_record(types, vals)?;
+        self.push(record, stated)
+    }
+
+    /// The same typed mapping for an added record or an in-place kept-aspect promotion.
+    fn entity_record(
+        &self,
+        types: &[&str],
+        vals: &[((&str, &str), A)],
+    ) -> Result<RawEntity, WriteError> {
         let ed = self.edition;
         let closure = |n: &str| -> BTreeSet<&'static str> {
             let mut out = BTreeSet::new();
@@ -1841,7 +1851,7 @@ impl<'a> Emitter<'a> {
                 .map(|s| (s.entity, s.name, s.optional, s.derived))
                 .collect();
             let attributes = Self::place(top, &slots, vals)?;
-            return self.push(p21::simple(&top.to_ascii_uppercase(), attributes), stated);
+            return Ok(p21::simple(&top.to_ascii_uppercase(), attributes));
         }
         // Complex: each leaf its own attributes; one redeclared as derived by any leaf is `*`.
         let mut leaves = Vec::new();
@@ -1883,7 +1893,7 @@ impl<'a> Emitter<'a> {
             )));
         }
         let complex = Complex::new(leaves)?;
-        self.push(complex.into_record(), stated)
+        Ok(complex.into_record())
     }
 
     /// A simple instance of `entity`, attributes by name.
@@ -4694,6 +4704,40 @@ impl<'a> PartPlan<'a> {
         Ok(())
     }
 
+    /// Specialize the exact kept carrier without changing its geometry or group scope.
+    fn promote_kept_datum(&self, em: &mut Emitter<'_>, id: u64) -> Result<(), WriteError> {
+        let record = em
+            .kept_rewrites
+            .get(&id)
+            .or_else(|| self.doc.get(id))
+            .ok_or_else(|| WriteError::Internal("missing kept carrier".into()))?;
+        let mut types: Vec<String> = match record {
+            RawEntity::Simple { name, .. } => vec![name.to_ascii_lowercase()],
+            RawEntity::Complex { parts, .. } => {
+                parts.iter().map(|p| p.name.to_ascii_lowercase()).collect()
+            }
+        };
+        if types.iter().any(|n| em.edition.is_a(n, "datum_feature")) {
+            return Ok(());
+        }
+        types.push("datum_feature".into());
+        let mut vals = Vec::new();
+        for name in ["name", "description", "of_shape", "product_definitional"] {
+            vals.push((
+                ("shape_aspect", name),
+                attr(self.doc, id, "shape_aspect", name)
+                    .cloned()
+                    .ok_or_else(|| {
+                        WriteError::Internal(format!("kept carrier #{id} lacks {name}"))
+                    })?,
+            ));
+        }
+        let types: Vec<_> = types.iter().map(String::as_str).collect();
+        em.kept_rewrites
+            .insert(id, em.entity_record(&types, &vals)?);
+        Ok(())
+    }
+
     /// The instance of feature `i` (memoised; features of equal content share one).
     fn feature(
         &self,
@@ -4735,6 +4779,12 @@ impl<'a> PartPlan<'a> {
         let r = match &self.pmi.features[c] {
             Feature::Items(items) => {
                 let role = self.roles.get(&c).copied().unwrap_or(Role::Plain);
+                // §6.5.3 is a semantic dimension as well as a datum feature. Keep
+                // that combined record over a kept geometry carrier: promoting the
+                // carrier itself would turn its existing feature controls into
+                // dimension controls on readback.
+                let combined_size =
+                    !cfg!(feature = "presentation") && matches!(role, Role::DatumFeatureOfSize(_));
                 // CAx-IF PMI v4.1 §5.1 / §6.5: reuse an exact kept carrier, including
                 // datum features, instead of a faceless forwarding aspect and SAR.
                 let keys = self.usage_keys(em, st, items)?;
@@ -4746,53 +4796,18 @@ impl<'a> PartPlan<'a> {
                         .flat_map(|(_, items)| items.iter().copied())
                         .collect();
                     if let Some(owner) = self.existing_owner(em, *rep, &all, None)? {
-                        let compatible = match (role, owner) {
-                            (Role::Plain, _) => true, // existing_owner returns only neutral or datum aspects.
-                            (Role::DatumFeature | Role::DatumFeatureOfSize(_), R::Old(id)) => {
-                                if is_a(self.doc, id, "datum_feature")
-                                    || em.kept_rewrites.get(&id).is_some_and(|r| match r {
-                                        RawEntity::Simple { name, .. } => {
-                                            name.eq_ignore_ascii_case("datum_feature")
-                                        }
-                                        RawEntity::Complex { parts, .. } => parts
-                                            .iter()
-                                            .any(|p| p.name.eq_ignore_ascii_case("datum_feature")),
-                                    })
+                        let compatible = !combined_size
+                            && match (role, owner) {
+                                (Role::Plain, _) => true, // existing_owner returns only neutral or datum aspects.
+                                (Role::DatumFeature | Role::DatumFeatureOfSize(_), R::Old(id))
+                                    if is_a(self.doc, id, "datum_feature")
+                                        || neutral_aspect(self.doc, id) =>
                                 {
+                                    self.promote_kept_datum(em, id)?;
                                     true
-                                } else if neutral_aspect(self.doc, id) {
-                                    let record = match self.doc.get(id).cloned() {
-                                        Some(RawEntity::Simple {
-                                            name, attributes, ..
-                                        }) if name.eq_ignore_ascii_case("shape_aspect") => {
-                                            p21::simple("DATUM_FEATURE", attributes)
-                                        }
-                                        Some(RawEntity::Simple {
-                                            name, attributes, ..
-                                        }) => Complex::new([
-                                            p21::leaf(&name.to_ascii_uppercase(), vec![]),
-                                            p21::leaf("DATUM_FEATURE", vec![]),
-                                            p21::leaf("SHAPE_ASPECT", attributes),
-                                        ])?
-                                        .into_record(),
-                                        Some(RawEntity::Complex { mut parts, .. }) => {
-                                            parts.push(p21::leaf("DATUM_FEATURE", vec![]));
-                                            Complex::new(parts)?.into_record()
-                                        }
-                                        None => {
-                                            return Err(WriteError::Internal(
-                                                "missing kept carrier".into(),
-                                            ));
-                                        }
-                                    };
-                                    em.kept_rewrites.insert(id, record);
-                                    true
-                                } else {
-                                    false
                                 }
-                            }
-                            _ => false,
-                        };
+                                _ => false,
+                            };
                         if compatible {
                             st.features.insert(c, owner);
                             return Ok(owner);
@@ -4808,10 +4823,11 @@ impl<'a> PartPlan<'a> {
                         pds,
                         *rep,
                         &items[0],
-                        keys.len() == 1 && self.is_datum_aspect(c),
+                        keys.len() == 1 && self.is_datum_aspect(c) && !combined_size,
                     )?;
                 }
                 if self.is_datum_aspect(c)
+                    && !combined_size
                     && keys.len() == 1
                     && let Some(&carrier) = st.shared.get(&keys[0])
                     && st.datum_carriers.contains(&carrier)
@@ -4903,6 +4919,12 @@ impl<'a> PartPlan<'a> {
                         .collect();
                     owners.sort_unstable();
                     if let Some((_, id)) = owners.first() {
+                        if matches!(
+                            self.roles.get(&c),
+                            Some(Role::DatumFeature | Role::DatumFeatureOfSize(_))
+                        ) {
+                            self.promote_kept_datum(em, *id)?;
+                        }
                         let carrier = em.reference(*id)?;
                         st.features.insert(c, carrier);
                         return Ok(carrier);
