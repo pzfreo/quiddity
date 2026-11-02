@@ -670,6 +670,7 @@ fn nist_files_violations_are_pinned() {
 /// Every corpus file (AP214 and AP203), validated against the target as if its FILE_SCHEMA
 /// were changed to it: with no repair, with the closed reported repairs, or refused.
 /// The original violations retain their verdicts and reasons even when repaired.
+/// Replace performs repairs; Add must refuse exactly the entities needing changes.
 #[test]
 fn corpus_upgrades_are_pinned() {
     let Some(dir) = common::corpus_dir() else {
@@ -724,15 +725,40 @@ fn corpus_upgrades_are_pinned() {
                 ],
                 ..PartPmi::default()
             };
-            match pmi::write(&doc, &parts, &[(PartId(0), pmi)], pmi::Mode::Add,
-                pmi::write::PresentationPolicy::RemovePresentation) {
-                Ok((_, report)) => (true, report.repairs.iter().map(|r| json!({
-                    "id": r.id,
-                    "repair": match r.repair {
-                        pmi::write::UpgradeRepairKind::R1ApprovalAssignment => "R1",
-                        pmi::write::UpgradeRepairKind::R2ConversionUnitDimensions => "R2",
-                    }
-                })).collect()),
+            let requested = [(PartId(0), pmi)];
+            match pmi::write(
+                &doc,
+                &parts,
+                &requested,
+                pmi::Mode::Replace,
+                pmi::write::PresentationPolicy::RemovePresentation,
+            ) {
+                Ok((_, report)) => {
+                    let mut changed: Vec<_> = report
+                        .repairs
+                        .iter()
+                        .map(|r| r.id)
+                        .chain(report.edition_rewrites.iter().map(|r| r.id))
+                        .collect();
+                    changed.sort_unstable();
+                    changed.dedup();
+                    assert!(!changed.is_empty(), "{n}: upgrade requires source repairs");
+                    assert!(
+                        matches!(
+                            pmi::write(&doc, &parts, &requested, pmi::Mode::Add,
+                                pmi::write::PresentationPolicy::RemovePresentation),
+                            Err(pmi::write::WriteError::AddPreservation(ids)) if ids == changed
+                        ),
+                        "{n}: Add must refuse exactly {changed:?}"
+                    );
+                    (true, report.repairs.iter().map(|r| json!({
+                        "id": r.id,
+                        "repair": match r.repair {
+                            pmi::write::UpgradeRepairKind::R1ApprovalAssignment => "R1",
+                            pmi::write::UpgradeRepairKind::R2ConversionUnitDimensions => "R2",
+                        }
+                    })).collect())
+                }
                 Err(_) => (false, Vec::new()),
             }
         };
