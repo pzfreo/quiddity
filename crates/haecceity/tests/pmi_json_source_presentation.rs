@@ -106,6 +106,28 @@ fn positions_planes_leaders_and_individual_notes_read_back() {
     presentation::validate(&serde_json::to_value(&source).unwrap()).unwrap();
     let (bytes, _) = write(&doc, &defs, &semantic, source.clone()).unwrap();
     let read = read_placed(bytes);
+    {
+        // Check actual tessellated ink, independently of the placement placeholder.
+        let callout = haecceity::presentation::dimension(&semantic.pmi.dimensions[0]);
+        let anchor = callout.runs[0].at;
+        let ink = &read.items[&semantic.ids["dimensions"][0]][0].polylines;
+        for (local, written) in callout.polylines().iter().zip(ink) {
+            assert_eq!(local.len(), written.len());
+            for (p, actual) in local.iter().zip(written) {
+                let expected = [
+                    80. + (p[0] - anchor[0]) * 2.5 / 3.,
+                    90. + (p[1] - anchor[1]) * 2.5 / 3.,
+                    70.,
+                ];
+                for k in 0..3 {
+                    assert!(
+                        (expected[k] - actual[k]).abs() < 1e-10,
+                        "{expected:?} != {actual:?}"
+                    );
+                }
+            }
+        }
+    }
     for (id, gs) in &source.items {
         assert_eq!(
             read.items[id].len(),

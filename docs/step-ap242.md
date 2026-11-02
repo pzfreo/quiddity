@@ -2013,7 +2013,7 @@ input remains the CLI's `quiddity-pmi` document, with the Rust route's semantic 
 The companion is `haecceity.presentation/1`. Each item's first graphic with a
 `plane_id`, `text_placements` or `leader` supplies its main placement. It must
 have a text position; the plane defaults to that text frame when omitted.
-The text origin is the insertion origin of the shared local callout geometry;
+The text origin centres the first readable run, as in generated companions;
 axes are orthonormalized and omitted height uses the generated layout's text size. A new optional
 `Graphic.leader: [x, y, z]` gives the tip in model-space millimetres. Existing
 source polylines, triangles and saved views are not copied. Subsequent per-view

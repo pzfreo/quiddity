@@ -245,6 +245,11 @@ impl Placement {
     pub(super) fn has_leader(&self) -> bool {
         self.leader.is_some()
     }
+    fn scale(&self, default_height: f64) -> f64 {
+        self.text.height.map_or(default_height / 3., |height| {
+            height / self.callout.runs.first().map_or(3., |run| run.size)
+        })
+    }
     fn draw(&self, factor: f64, default_height: f64) -> Vec<Vec<[f64; 3]>> {
         presentation::placement::source(
             &self.callout,
@@ -253,7 +258,7 @@ impl Placement {
                 self.text.normal,
                 self.text.x_axis,
             ],
-            self.text.height.unwrap_or(default_height) / factor,
+            self.scale(default_height) * 3. / factor,
             self.leader.map(|p| p.map(|v| v / factor)),
         )
     }
@@ -278,14 +283,15 @@ impl Placement {
         )?;
         // A placeholder records the source insertion point without drawing another
         // font over the shared tessellated strokes.
-        let height = self.text.height.unwrap_or(default_height) / factor;
+        let scale = self.scale(default_height) / factor;
+        let height = self.callout.runs.first().map_or(3., |run| run.size) * scale;
         let b = em.simple(
             "planar_box",
             &[
                 ("name", s("")),
                 (
                     "size_in_x",
-                    A::Real((self.callout.size[0] / 3. * height).max(height)),
+                    A::Real((self.callout.size[0] * scale).max(height)),
                 ),
                 ("size_in_y", A::Real(height)),
                 ("placement", placement.a()),

@@ -813,12 +813,15 @@ pub(crate) fn source(
 ) -> Vec<Vec<V3>> {
     let up = geom::cross(normal, along);
     let scale = height / 3.;
+    // TextPlacement origins are readable-run centres in generated companions,
+    // rather than the padded callout rectangle's lower-left corner.
+    let anchor = c.runs.first().map_or([0.; 2], |run| run.at);
     let at = |p: [f64; 2]| {
         geom::add(
             origin,
             geom::add(
-                geom::scale(along, p[0] * scale),
-                geom::scale(up, p[1] * scale),
+                geom::scale(along, (p[0] - anchor[0]) * scale),
+                geom::scale(up, (p[1] - anchor[1]) * scale),
             ),
         )
     };
@@ -830,7 +833,7 @@ pub(crate) fn source(
     if let Some(anchor) = leader {
         lines.extend(leader_lines(
             anchor,
-            origin,
+            at([0., 0.]),
             [along, up, up],
             c.leader_rings,
             (scale, height),
