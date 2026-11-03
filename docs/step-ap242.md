@@ -46,7 +46,7 @@ from multiple entities (material, standards, default decimal places) have no sin
 requirement carrier and are not indexed.
 
 This standard derived-id route covers **surface textures**, including part defaults,
-which the UDA route discussed in pzfreo/quiddity-rust#135 could not cover. It supplies the
+which the UDA route discussed in pzfreo/quiddity#135 could not cover. It supplies the
 inspection numbers needed by draftwright-rust#254 without interpreting Specify's private
 number-allocation history. The writer's lossless Add path preserves existing ids and
 records. The opt-in `json` feature adds identified replacement through

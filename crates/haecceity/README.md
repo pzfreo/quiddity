@@ -142,7 +142,7 @@ for solid in 0..part.solids.len() {
 
 *Haecceity* is "thisness": the particular thing itself, as *quiddity* is "whatness".
 
-Licensed under Apache-2.0. Source and issues: <https://github.com/pzfreo/quiddity-rust>.
+Licensed under Apache-2.0. Source and issues: <https://github.com/pzfreo/quiddity>.
 
 
 Enable `json` for serialization-only `haecceity::json`: semantic

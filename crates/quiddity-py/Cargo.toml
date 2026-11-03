@@ -4,7 +4,7 @@ version = "0.4.6"
 edition = "2024"
 license = "Apache-2.0"
 description = "Dependency-free Python bindings for quiddity's Rust STEP recognition engine"
-repository = "https://github.com/pzfreo/quiddity-rust"
+repository = "https://github.com/pzfreo/quiddity"
 publish = false
 
 [lib]

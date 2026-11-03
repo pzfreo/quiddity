@@ -1,29 +1,153 @@
-# quiddity-rust
+# quiddity
 
-Python users: [quiddity 0.4.0 wheel API and migration guide](docs/python.md).
-
-Find the manufacturing features in a STEP model (holes, pockets, slots, bosses, steps,
-fillets, patterns and turned profiles), with their measured sizes and positions. quiddity
-also matches the features of two revisions of a part, and reads and writes AP242 PMI
-(dimensions, tolerances, datums and notes).
+Find the manufacturing features in a STEP model: holes, pockets, slots, bosses, steps,
+fillets, patterns, springs and turned profiles, with their measured sizes and positions.
+quiddity also matches the features of two revisions of a part, and reads and writes AP242
+PMI (dimensions, tolerances, datums, notes and their callouts).
 
 It works from the B-rep geometry alone, with no CAD system, feature tree or OpenCascade.
-Everything is pure Rust, and the same input always gives the same output.
+It is pure Rust, and the same input always gives the same output. It is available as a
+command line, a Rust library and a Python package.
 
 Status: **0.4.6** (2026-11-03). See [CHANGELOG.md](CHANGELOG.md).
 
 ## Install
 
+| | |
+|---|---|
+| Command line | `cargo install quiddity` |
+| Rust library | `quiddity = "0.4"` in `[dependencies]` (the geometry kernel is the `haecceity` crate) |
+| Python 3.11+ | `pip install quiddity` (an abi3 wheel with no Python dependencies; see [Python](docs/python.md)) |
+
+Optional Cargo features (all off by default):
+- `json-import`: the versioned PMI JSON interchange (`pmi json …` commands).
+- `f3d`: Autodesk Fusion `.f3d` input (visible solid geometry only, no PMI; see [Fusion input](docs/f3d.md)).
+
+## Quick start
+
 ```sh
-cargo install quiddity          # the `quiddity` command line
+quiddity part.step                      # the part's features, as JSON
+quiddity correspond old.step new.step   # what changed between two revisions
+quiddity pmi read part.step             # the file's PMI, as JSON
 ```
 
-Add `--features f3d` to import Autodesk Fusion `.f3d` parts (visible solid geometry only, no PMI); see [Fusion input](docs/f3d.md). The feature is off by default in both crates.
+```python
+import json, quiddity
 
-```toml
-[dependencies]
-quiddity = "0.2"                # the library; the geometry kernel is the `haecceity` crate
+document = json.loads(quiddity.recognise("part.step"))["document"]
+for feature in document["records"]:
+    print(feature["family"], feature["parameters"], feature["faces"])
 ```
+
+```rust
+let part = quiddity::read_step_file(std::path::Path::new("part.step"))?;
+let recognised = quiddity::correspondence::recognise(&part);
+let document = quiddity::recognition::document(&recognised, part.faces.len());
+
+for record in document.records.iter().filter(|r| r.family == "holes") {
+    let p = &record.parameters;
+    println!("{}: Ø{} × {} on faces {:?}", record.id, p["diameter"], p["depth"], record.faces);
+}
+```
+
+## Recognise a part
+
+For a part with a counterbored hole, `quiddity part.step` includes:
+
+```json
+{
+  "id": "holes/0",
+  "family": "holes",
+  "faces": [6, 8],
+  "parameters": {
+    "diameter": 8.0, "depth": 14.0, "bottom": "through",
+    "cbore": { "diameter": 16.0, "depth": 6.0 },
+    "axis": [0.0, 0.0, -1.0], "location": [-22.0, 0.0, 10.0]
+  },
+  "evidence_status": "verified"
+}
+```
+
+That record is one entry of the output's `document`, the versioned form to build on
+(`quiddity-rust/recognition/6`; the identifier keeps its original name):
+
+- **`records`**: one entry per feature. Each gives its family, the STEP faces it is made of,
+  its measured parameters, and whether its evidence is `verified` or `unproved`.
+- **`face_accounting`**: what every face of the part is: part of a feature, part of the body
+  (with the reason), or refused or unexplained.
+- **`source_sha256`**: the input file's hash.
+
+Every coordinate and direction is in the file's own coordinates. quiddity finds the part's
+natural orientation itself, so a part rotated in its file is recognised the same way.
+
+What each field means: [schema 6](docs/recognition-6.md), [face accounting](docs/face-accounting.md),
+and [the trust contract](docs/recognition-trust.md), which says what `verified` does and
+doesn't promise.
+
+### Families
+
+| Kind | Families |
+|---|---|
+| Holes | `holes` (through, blind, counterbored, countersunk, spotfaced), `countersinks`, `hole_patterns`, `double_d_bores`, `modelled_threads` |
+| Pockets and slots | `pockets`, `prismatic_pockets`, `edge_open_circular_pockets`, `edge_open_prismatic_recesses`, `pocket_patterns`, `slots`, `rectangular_blind_slots`, `round_bottom_blind_slots`, `semicircular_blind_slots`, `slot_patterns`, `rectangular_through_notches` |
+| Channels and grooves | `channels`, `v_channels`, `grooves`, `annular_grooves`, `face_grooves` |
+| Steps and levels | `through_steps`, `angled_steps`, `oblique_through_steps`, `paired_ramp_steps`, `circular_blind_steps`, `step_levels`, `risers` |
+| Raised features | `bosses`, `polygonal_bosses`, `pads`, `gusset_ribs`, `gusset_rib_patterns` |
+| Edges | `fillets`, `blends`, `chamfers` |
+| Turned parts | `turned_bodies`, `turned_steps`, `repeating_radial_profiles`, `circular_face_patterns` |
+| Springs | `helical_springs` |
+| Body | `plates`, `polygonal_stock`, `sheet_metal_bodies`, `thin_wall_bodies`, `flats`, `interior_voids`, `cylindrical_profiles`, `freeform_surfaces` |
+| Sections | `section_passages`, `section_recesses` |
+
+## Compare two revisions
+
+`quiddity correspond old.step new.step` says what happened to each feature between two
+revisions: `carried` (unchanged), `adapted` (with what changed), `orphaned` (gone in the
+new revision) or `ambiguous` (more than one candidate, so none is guessed), and which
+features are new. It works when the part is moved or re-modelled, because it matches
+revision-independent fingerprints rather than face numbers. If a hole moves:
+
+```json
+{ "old": "holes/2", "new": "holes/2", "class": "adapted",
+  "changes": { "position": { "old": [40.0, 45.0, 5.0], "new": [25.0, 45.0, 5.0] } } }
+```
+
+Either side can also be saved recognition JSON. In Rust, use
+`quiddity::correspond(&old.fingerprints, &new.fingerprints)`. See [correspondence](docs/correspondence.md).
+
+## Read and write PMI
+
+quiddity reads semantic AP242 PMI and writes it back into the same file. PMI JSON is bound
+to the exact STEP text it was read from; a write keeps everything else in the file, and
+checks the result by reading it back before replacing the destination.
+
+- **Modes:** `replace` re-authors the part's PMI; `add` adds to it and keeps every existing
+  entity byte for byte (it refuses, naming the entities, if that isn't possible); `remove`
+  takes PMI out.
+- **Callouts:** the writer draws the visible callouts (frames, dimensions, datums, notes)
+  in tessellated strokes. It lays them out itself, or uses the positions a source supplies
+  (`--source-presentation`, Python `presentation=`), drawing only what the source didn't place.
+- **Practice:** the writer follows the CAx-IF PMI Recommended Practice, and the reader
+  reports where a file departs from it. See [AP242 practice](docs/step-ap242.md).
+
+```sh
+quiddity pmi read part.step [--part N] > part.pmi.json
+quiddity pmi check part.step part.pmi.json
+quiddity pmi write part.step part.pmi.json -o out.step [--mode add|replace|remove]
+```
+
+With `--features json-import`, the versioned interchange ([reference](docs/pmi-json.md)) is
+also available, for producers such as XCAF converters:
+
+```sh
+quiddity pmi json export part.step > part.pmi.json
+quiddity pmi json validate part.pmi.json
+quiddity pmi json import part.step part.pmi.json -o written.step [--source-presentation callouts.json]
+quiddity pmi json presentation part.step > part.presentation.json
+```
+
+The schemas ship in haecceity's `schema/` directory. From Python, `quiddity.pmi` does the
+same in process (`pmi.validate`, `pmi.write`); see [Python](docs/python.md).
 
 ## Command line
 
@@ -43,98 +167,9 @@ quiddity --help
 Every command prints JSON. Files may be `.step`, `.stp` or gzipped. The exit code is 0 for
 success, 1 for an unreadable file or a refused operation, and 2 for wrong usage.
 
-## Recognise a part
-
-`quiddity part.step` prints the part's features. For a part with a counterbored hole, the
-output includes:
-
-```json
-{
-  "id": "holes/0",
-  "family": "holes",
-  "faces": [6, 8],
-  "parameters": {
-    "diameter": 8.0, "depth": 14.0, "bottom": "through",
-    "cbore": { "diameter": 16.0, "depth": 6.0 },
-    "axis": [0.0, 0.0, -1.0], "location": [-22.0, 0.0, 10.0]
-  },
-  "evidence_status": "verified"
-}
-```
-
-That record is one entry of the output's `document`, the versioned form to build on
-(`quiddity-rust/recognition/6`):
-
-- **`records`**: one entry per feature. Each gives its family, the STEP faces it is made of,
-  its measured parameters and whether its evidence is `verified` or `unproved`.
-- **`face_accounting`**: what every face of the part is: part of a feature, part of the body
-  (with the reason), or refused or unexplained.
-- **`source_sha256`**: the input file's hash.
-
-Every coordinate and direction is in the file's own coordinates. quiddity finds the part's
-natural orientation itself, so a part rotated in its file is recognised the same way.
-
-What each field means: [schema 6](docs/recognition-6.md), [face accounting](docs/face-accounting.md)
-and [the trust contract](docs/recognition-trust.md), which says what `verified` does and
-doesn't promise.
-
-The same from Rust:
-
-```rust
-let part = quiddity::read_step_file(std::path::Path::new("part.step"))?;
-let recognised = quiddity::correspondence::recognise(&part);
-let document = quiddity::recognition::document(&recognised, part.faces.len());
-
-for record in document.records.iter().filter(|r| r.family == "holes") {
-    let p = &record.parameters;
-    println!("{}: Ø{} × {} on faces {:?}", record.id, p["diameter"], p["depth"], record.faces);
-}
-```
-
-### Families
-
-| Kind | Families |
-|---|---|
-| Holes | `holes` (through, blind, counterbored, countersunk, spotfaced), `countersinks`, `hole_patterns`, `double_d_bores`, `modelled_threads` |
-| Pockets and slots | `pockets`, `prismatic_pockets`, `edge_open_circular_pockets`, `edge_open_prismatic_recesses`, `pocket_patterns`, `slots`, `rectangular_blind_slots`, `round_bottom_blind_slots`, `semicircular_blind_slots`, `slot_patterns`, `rectangular_through_notches` |
-| Channels and grooves | `channels`, `v_channels`, `grooves`, `annular_grooves`, `face_grooves` |
-| Steps and levels | `through_steps`, `angled_steps`, `oblique_through_steps`, `paired_ramp_steps`, `circular_blind_steps`, `step_levels`, `risers` |
-| Raised features | `bosses`, `polygonal_bosses`, `pads`, `gusset_ribs`, `gusset_rib_patterns` |
-| Edges | `fillets`, `blends`, `chamfers` |
-| Turned parts | `turned_bodies`, `turned_steps`, `repeating_radial_profiles`, `circular_face_patterns` |
-| Body | `plates`, `polygonal_stock`, `sheet_metal_bodies`, `thin_wall_bodies`, `flats`, `interior_voids`, `cylindrical_profiles`, `freeform_surfaces` |
-| Sections | `section_passages`, `section_recesses` |
-
-## Compare two revisions
-
-`quiddity correspond old.step new.step` says what happened to each feature between two
-revisions of a part: `carried` (unchanged), `adapted` (with what changed), `orphaned` (gone
-in the new revision) or `ambiguous` (more than one candidate, so none is guessed), and which
-features are new. It works when the part is moved or re-modelled, because it matches
-revision-independent fingerprints instead of face numbers. If a hole moves, its entry
-looks like this:
-
-```json
-{ "old": "holes/2", "new": "holes/2", "class": "adapted",
-  "changes": { "position": { "old": [40.0, 45.0, 5.0], "new": [25.0, 45.0, 5.0] } } }
-```
-
-`correspond` also takes saved recognition JSON for either side. In Rust, use
-`quiddity::correspond(&old.fingerprints, &new.fingerprints)`. See [correspondence](docs/correspondence.md).
-
-## Read and write PMI
-
-PMI JSON is bound to the exact STEP text it was read from. A write keeps everything else in
-the file, and it checks the result by reading it back before replacing the destination. The
-reader reports where a file departs from the AP242 recommended practices. See
-[AP242 practice](docs/step-ap242.md) and [`src/pmi_json.rs`](src/pmi_json.rs).
-
-## Assemblies and applications
-
-- `quiddity parts file.step` lists the parts of an assembly; `pmi read --part N` reads one of them.
-- `quiddity serve` keeps a process open for applications: one JSON request per line on
-  stdin, one response line per request on stdout. For example,
-  `{"id":1,"op":"recognise","step":"part.step"}`. The operations are `recognise` and `correspond`.
+`quiddity serve` keeps one process open for applications: one JSON request per line on
+stdin, one response line per request on stdout, e.g. `{"id":1,"op":"recognise","step":"part.step"}`.
+The operations are `recognise` and `correspond`.
 
 ## Limits
 
@@ -142,43 +177,27 @@ reader reports where a file departs from the AP242 recommended practices. See
   isn't a promise that every feature was found: check `face_accounting` for faces left
   unexplained.
 - Malformed solids, approximate boundaries and unsupported surfaces can give refusals or
-  `unproved` records. Refusals are records too, so they are visible and not silently dropped.
+  `unproved` records. Refusals are records too, so nothing is silently dropped.
 - Known wrong results are listed, with evidence, in [known defects](docs/known-defects.md).
 - How the STEP reader heals input to match OpenCascade: [notes](docs/opencascade.md).
 
-## Crates
+## Packages
 
-- `quiddity`: recognition, fingerprints, correspondence, the PMI JSON and the command line.
-- `haecceity` (`crates/haecceity`): the geometry kernel. It reads STEP, builds the B-rep,
-  measures faces and bodies, and reads and writes semantic PMI. It is re-exported as
-  `quiddity::kernel`.
+| Package | What it is |
+|---|---|
+| `quiddity` (crate) | recognition, fingerprints, correspondence, the PMI JSON and the command line |
+| `haecceity` (crate, `crates/haecceity`) | the geometry kernel: STEP reading, B-rep, measurement, and semantic PMI reading and writing; re-exported as `quiddity::kernel` |
+| `quiddity` (Python, `crates/quiddity-py`) | the Python wheel over both |
 
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), and [docs/development.md](docs/development.md) for
-how the test suite and regression snapshots work. Licensed under [Apache-2.0](LICENSE).
+how the test suite and regression snapshots work. Contributions are under the
+[CLA](CLA.md). Licensed under [Apache-2.0](LICENSE).
 
 ## History
 
-quiddity-rust began as a port of the Python quiddity library. It no longer depends on it,
-and the archived comparison is in [docs/history](docs/history/python-parity.md).
-
-
-With `--features json-import`, the command line also exposes haecceity's versioned PMI
-interchange (see [the reference](docs/pmi-json.md)):
-
-```sh
-cargo run --release --features json-import -- pmi json export part.step > part.pmi.json
-cargo run --release --features json-import -- pmi json validate part.pmi.json
-cargo run --release --features json-import -- pmi json import part.step part.pmi.json -o written.step
-cargo run --release --features json-import -- pmi json presentation part.step > part.presentation.json
-```
-
-Use `--part N` for a multipart file. Import accepts face names directly; for a
-Specify support key, `--anchors namespace.json` supplies a consumer-verified
-`{"schema":2,"faces":"<face fingerprint>"}` namespace. The schemas ship in
-haecceity's `schema/` directory; Specify can package these as
-`specify_core/schema/haecceity.{pmi,presentation}-1.json`. Presentation JSON is
-read-only. The JSON path reports existing STEP writer refusals, including missing
-nominals/geometry. Requirement IDs are verified on read-back; support features
-retain the model's array indices.
+This repository was called quiddity-rust until 2026-11-03; identifiers such as
+`quiddity-rust/recognition/6` keep that name. It began as a port of the Python quiddity
+library (now [pzfreo/quiddity-python](https://github.com/pzfreo/quiddity-python)), which it no
+longer depends on; the archived comparison is in [docs/history](docs/history/python-parity.md).

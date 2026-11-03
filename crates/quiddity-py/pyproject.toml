@@ -14,8 +14,8 @@ dependencies = []
 classifiers = ["Programming Language :: Python :: 3", "Programming Language :: Rust"]
 
 [project.urls]
-Source = "https://github.com/pzfreo/quiddity-rust"
-Documentation = "https://github.com/pzfreo/quiddity-rust/blob/main/docs/python.md"
+Source = "https://github.com/pzfreo/quiddity"
+Documentation = "https://github.com/pzfreo/quiddity/blob/main/docs/python.md"
 
 [project.scripts]
 quiddity = "quiddity.cli:run"

@@ -9,5 +9,5 @@ result = json.loads(quiddity.recognise("part.step"))
 features = json.loads(quiddity.evidence("part.step"))["features"]
 ```
 
-See [the API and migration guide](https://github.com/pzfreo/quiddity-rust/blob/main/docs/python.md).
+See [the API and migration guide](https://github.com/pzfreo/quiddity/blob/main/docs/python.md).
 The `quiddity` console script and `python -m quiddity` run the Rust CLI.
