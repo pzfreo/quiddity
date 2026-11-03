@@ -1374,17 +1374,24 @@ fn changed_query_axes_retain_physical_rounds_and_bores() {
     // Neither cross-bore junction establishes 1.5x widening relative to the continuous
     // R5.1 exit. The old caller grid accepted an incomplete two-wall sampled component.
     assert!((4.25_f64.powi(2) + 5.1_f64.powi(2)).sqrt() < 1.5 * 5.1);
-    assert!(framed.features.interior_voids.is_empty());
+    assert_eq!(framed.features.interior_voids.len(), 1);
+    assert_eq!(
+        framed.features.interior_voids[0].void_faces,
+        [361, 362, 363]
+    );
+    assert!(framed.features.interior_voids[0].openings.is_empty());
     // #91: in the 13.07-degree frame both cross bores run along frame axes, so the six-axis
     // grid finds no enclosed component to refuse; under the former 45-degree frame it refused
-    // [26, 28, 41]. Either way no void is published over the through holes.
+    // [26, 28, 41]. Neither grid may claim the through holes as a chamber. The
+    // disconnected closed shell [361, 362, 363] is independently a sealed interior void.
     let document = recognition::document(&framed, part.faces.len());
-    assert!(
-        !document
-            .records
-            .iter()
-            .any(|r| r.family == "interior_voids" || r.record_type.starts_with("InteriorVoid"))
-    );
+    let void_records: Vec<_> = document
+        .records
+        .iter()
+        .filter(|r| r.family == "interior_voids" || r.record_type.starts_with("InteriorVoid"))
+        .collect();
+    assert_eq!(void_records.len(), 1);
+    assert_eq!(void_records[0].faces, [361, 362, 363]);
 
     let part = quiddity::read_step_file(&dir.join("cadgenbench_inputs/cgb241.step")).unwrap();
     let framed = correspondence::recognise(&part);
