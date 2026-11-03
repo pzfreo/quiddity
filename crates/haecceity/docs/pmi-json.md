@@ -655,7 +655,3 @@ and reported as a `fact` finding. Facts are observations, without a conformance
 judgement. Value-less dimensions retain stated principles and type qualifiers;
 an empty descriptive representation item carries them without a numeric value.
 
-A projected zone whose end aspect has no geometry is preserved with `end: null`
-and reported as a `fact` finding. Facts are observations, without a conformance
-judgement. Value-less dimensions retain stated principles and type qualifiers;
-an empty descriptive representation item carries them without a numeric value.
