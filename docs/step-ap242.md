@@ -812,8 +812,7 @@ objects and three table/precision API gaps are **not-applicable**. All 17 new di
 have individual verdicts in `references/pmi_write.json`; the NIST CTC-02 capture has no target
 semantic difference. The absent `specify_core` application loader remains explicitly unavailable.
 
-Other refusals remain: target sizes/placements that cannot be stated validly, non-exempt movable-target WR3 failures, an unstated group kind, a
-projected zone whose model holds no origin geometry (§6.9.2.2), thread/knurl parameter counts
+Other refusals remain: target sizes/placements that cannot be stated validly, non-exempt movable-target WR3 failures, an unstated group kind, thread/knurl parameter counts
 outside their WHERE rules, non-finite/unrepresentable REAL values, unresolved attribute units/boolean values,
 and the separately scoped hole-definition writer (question 7). They are not silently omitted.
 
@@ -2150,7 +2149,7 @@ without a conformance judgement. Anonymous attribute units use portable
 factors and derived-unit elements/exponents. An equal destination unit is reused;
 otherwise it is written fresh (including B-rep output). No source id is resolved
 in a different document. Authored name-only units still require an unambiguous
-matching source unit; `gram`, `kilogram` and `milligram` can also be emitted from their
+matching source unit content (equal duplicates are interchangeable); `gram`, `kilogram` and `milligram` can also be emitted from their
 kind and prefix. A value-less dimension with a stated principle or qualifier
 uses an empty descriptive item as its representation carrier; it gains no value.
 

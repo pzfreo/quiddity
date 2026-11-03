@@ -3324,7 +3324,7 @@ impl<'a> PartPlan<'a> {
     }
 
     /// An equal content-identified unit, or None to emit it fresh. Legacy names must
-    /// identify exactly one source unit. Source entity ids are never unit identities.
+    /// identify exactly one distinct unit content. Source entity ids are never unit identities.
     fn other_unit(&self, name: &str) -> Result<Option<u64>, String> {
         if name.starts_with(super::unit_identity::PREFIX)
             && super::unit_identity::records(name).is_none()
@@ -3341,6 +3341,16 @@ impl<'a> PartPlan<'a> {
         match found.as_slice() {
             [u, ..] if name.starts_with(super::unit_identity::PREFIX) => Ok(Some(*u)),
             [u] => Ok(Some(*u)),
+            [u, ..]
+                if super::unit_identity::identity(self.doc, *u).is_some_and(|identity| {
+                    found.iter().all(|id| {
+                        super::unit_identity::identity(self.doc, *id).as_deref()
+                            == Some(identity.as_str())
+                    })
+                }) =>
+            {
+                Ok(Some(*u))
+            } // repeated equal units do not make the name ambiguous
             [] if name.starts_with(super::unit_identity::PREFIX)
                 || matches!(density_unit(name), Some(DensityUnit::Mass(_))) =>
             {

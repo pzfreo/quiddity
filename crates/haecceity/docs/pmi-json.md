@@ -539,7 +539,8 @@ canonicalized as exact decimals, so different exponents or factors cannot collap
 through floating-point rounding. Import reuses an equal unit
 in the destination or writes the encoded unit fresh, including when B-rep writing
 creates a new STEP document. Duplicate equal units are interchangeable. Legacy
-name-only units still require exactly one matching source unit, except
+name-only units still require one distinct matching unit content (equal duplicates
+are interchangeable), except
 `gram`, `kilogram` and `milligram`, which can also be emitted from their kind/prefix.
 
 Dimensions without a stated nominal value retain their features and graphical

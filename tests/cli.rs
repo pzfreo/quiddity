@@ -706,6 +706,31 @@ fn brep_carries_portable_derived_units_from_nist() {
                 .any(|(_, unit)| unit.starts_with("step-unit:"))
         );
         assert_eq!(units(&after), expected, "FTC-{model}");
+        // Freshly emitted unit graphs can share equal named units at different ids.
+        // A subsequent native replacement must reuse equal content without ambiguity.
+        let bytes = std::fs::read(&output).unwrap();
+        let doc = haecceity::p21::Document::parse(bytes.clone()).unwrap();
+        let parts = haecceity::step::read_part_definitions(&bytes).unwrap();
+        let requested: Vec<_> = after
+            .parts
+            .iter()
+            .cloned()
+            .enumerate()
+            .map(|(i, p)| (haecceity::pmi::PartId(i), p))
+            .collect();
+        let (edit, _) = haecceity::pmi::write(
+            &doc,
+            &parts,
+            &requested,
+            haecceity::pmi::Mode::Replace,
+            haecceity::pmi::write::PresentationPolicy::RemovePresentation,
+        )
+        .unwrap();
+        let written = doc.apply(&edit).unwrap().bytes;
+        let defs = haecceity::step::read_part_definitions(&written).unwrap();
+        let doc = haecceity::p21::Document::parse(written).unwrap();
+        let again = haecceity::pmi::read(&doc, &defs).unwrap();
+        assert_eq!(units(&again), expected, "FTC-{model}: second write");
     }
     std::fs::remove_dir_all(dir).unwrap();
 }
