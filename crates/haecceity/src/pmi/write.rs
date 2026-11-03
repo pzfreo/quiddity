@@ -3334,7 +3334,8 @@ impl<'a> PartPlan<'a> {
         let found: Vec<u64> = self
             .doc
             .ids()
-            .filter(|&id| is_a(self.doc, id, "named_unit") || is_a(self.doc, id, "derived_unit"))
+            // other_unit_name only describes unit entities; avoid computing subtype
+            // closures for every geometry record for every attribute.
             .filter(|&id| other_unit_name(self.doc, id).as_deref() == Some(name))
             .collect();
         match found.as_slice() {
