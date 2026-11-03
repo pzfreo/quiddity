@@ -27,6 +27,13 @@ fn sealed_cylinders_are_only_voids() {
         let mut cavity_faces: BTreeSet<usize> = BTreeSet::new();
         for void in &voids {
             assert!(void.record.openings.is_empty());
+            assert_eq!(void.record.volume_method, "closed_shell");
+            assert!((void.record.estimated_volume - 32. * std::f64::consts::PI).abs() < 1e-7);
+            assert_eq!(void.record.grid_pitch, 0.);
+            assert_eq!(
+                (void.record.enclosed_samples, void.record.air_samples),
+                (0, 0)
+            );
             assert_eq!(void.defining.len(), 3); // cylinder and two closing disks
             assert!(part.shell_mass(&void.defining).unwrap().0 < 0.);
             assert_eq!(
@@ -120,5 +127,43 @@ fn exterior_connected_bores_remain_holes() {
             doc.records.iter().filter(|r| r.family == "holes").count(),
             3
         );
+    }
+}
+
+#[test]
+fn mixed_block_accounts_for_every_sealed_shell_even_when_grid_sampling_misses_one() {
+    let part =
+        quiddity::read_step_file(&common::fixtures().join("mixed_sealed_voids.step.gz")).unwrap();
+    let ctx = Context::new(&part);
+    let voids = interior_voids::discover_verified(&ctx).unwrap();
+    assert_eq!(voids.len(), 3);
+    let cavity_faces: BTreeSet<_> = voids
+        .iter()
+        .flat_map(|v| v.defining.iter().copied())
+        .collect();
+    assert_eq!(cavity_faces.len(), 9);
+    let holes = holes::discover_verified(&ctx, &[]).unwrap();
+    assert_eq!(holes.len(), 3);
+    assert!(
+        holes
+            .iter()
+            .all(|h| h.defining.iter().all(|f| !cavity_faces.contains(f)))
+    );
+    let found = quiddity::correspondence::recognise(&part);
+    let doc = recognition::document(&found, part.faces.len());
+    assert_eq!(
+        doc.records
+            .iter()
+            .filter(|r| r.family == "interior_voids")
+            .count(),
+        3
+    );
+    for face in cavity_faces {
+        let FaceAccounting::Feature { record_ids } = &doc.face_accounting.as_ref().unwrap()[face]
+        else {
+            panic!("unaccounted sealed cavity face {face}");
+        };
+        assert_eq!(record_ids.len(), 1);
+        assert!(record_ids[0].starts_with("interior_voids/"));
     }
 }

@@ -117,7 +117,14 @@ rejects cylinders on closed inward-facing shells (negative signed volume) before
 building hole stacks. This does not depend on the interior-void sampler's grid
 resolution. Such cylinders produce no `holes`, `hole_patterns`, or hole-derived
 records. Their complete skin, including closing faces, remains accounted to the
-`interior_voids` record when recognized by that family.
+`interior_voids` record. Both recognizers share this shell proof: every sealed shell
+produces a void record even when the air-sampling grid cannot resolve it.
+
+Sealed records use `volume_method: "closed_shell"` and the positive volume from
+the shell's oriented boundary integral in `estimated_volume`. They do not use grid
+samples: `grid_pitch`, `enclosed_samples` and `air_samples` are zero. Open chambers
+retain `six_axis_grid` and their existing sampled measurements. Sealed void record
+parameters and fingerprints therefore change to describe the shell measurement.
 
 Blind holes, through holes, and holes opening into pockets connected to the outside
 remain on the outer shell and retain their existing recognition. Interior chambers

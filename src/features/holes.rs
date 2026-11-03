@@ -187,44 +187,6 @@ fn seats_once(
     Ok(())
 }
 
-/// A closed solid can have disconnected, inward-facing shells bounding sealed air.
-/// Reject their cylinders before building stacks, independently of the sampled interior-void
-/// recognizer. A blind hole or a bore into an open pocket stays connected to the outer shell.
-fn void_shell_faces(part: &Part) -> BTreeSet<usize> {
-    let mut enclosed = BTreeSet::new();
-    for (solid, body) in part.solids.iter().enumerate() {
-        let mut remaining: BTreeSet<_> = body.faces.iter().copied().collect();
-        let mut shells = Vec::new();
-        while let Some(seed) = remaining.pop_first() {
-            let mut shell = vec![seed];
-            let mut pending = vec![seed];
-            while let Some(face) = pending.pop() {
-                for other in part.neighbours(face) {
-                    if remaining.remove(&other) {
-                        shell.push(other);
-                        pending.push(other);
-                    }
-                }
-            }
-            shells.push(shell);
-        }
-        // A single shell includes all ordinary mouths, even mouths deep inside open pockets.
-        // Only closed, orientable solids prove that a disconnected shell bounds sealed air.
-        if shells.len() < 2 || !part.solid_is_valid(solid) {
-            continue;
-        }
-        for shell in shells {
-            if part
-                .shell_mass(&shell)
-                .is_some_and(|(volume, _)| volume < 0.0)
-            {
-                enclosed.extend(shell);
-            }
-        }
-    }
-    enclosed
-}
-
 internal_entry! {
 /// `recognise_holes`.
 pub fn recognise_holes(part: &Part, opts: &HoleOptions) -> Vec<HoleRecord> {
@@ -804,7 +766,8 @@ pub fn discover(
     if internal.is_empty() {
         return Vec::new();
     }
-    let enclosed = void_shell_faces(part);
+    let enclosed: BTreeSet<_> = ctx.sealed_void_shells().iter()
+        .flat_map(|shell| shell.faces.iter().copied()).collect();
     internal.retain(|c| !enclosed.contains(&c.face));
     let stacks = merge_stacks(part, merge_runs(&segments(&internal), line_key));
     let mut out = Vec::new();

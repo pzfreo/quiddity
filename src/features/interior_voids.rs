@@ -494,7 +494,29 @@ pub fn discover(ctx: &Context<'_>) -> Vec<Occurrence<InteriorVoid>> {
 pub(super) fn analyse(ctx: &Context<'_>) -> Analysis {
     let part = ctx.part;
     let keys = ctx.body_keys(true);
-    let mut out = Vec::new();
+    let sealed = ctx.sealed_void_shells();
+    let sealed_faces: BTreeSet<_> = sealed
+        .iter()
+        .flat_map(|s| s.faces.iter().copied())
+        .collect();
+    let mut out: Vec<_> = sealed
+        .iter()
+        .map(|shell| Occurrence {
+            record: InteriorVoid {
+                body_index: shell.solid,
+                body_key: keys[shell.solid].clone(),
+                void_faces: shell.faces.clone(),
+                openings: Vec::new(),
+                estimated_volume: shell.volume,
+                volume_method: "closed_shell",
+                grid_pitch: 0.0,
+                enclosed_samples: 0,
+                air_samples: 0,
+            },
+            defining: shell.faces.clone(),
+            context: Vec::new(),
+        })
+        .collect();
     let mut refusals = Vec::new();
     for (body_index, key) in keys.into_iter().enumerate() {
         if !part.solid_is_valid(body_index) {
@@ -552,7 +574,7 @@ pub(super) fn analyse(ctx: &Context<'_>) -> Analysis {
             else {
                 continue;
             };
-            if seen.contains(&skin) {
+            if skin.iter().any(|f| sealed_faces.contains(f)) || seen.contains(&skin) {
                 continue;
             }
             let record = InteriorVoid {

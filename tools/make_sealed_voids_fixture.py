@@ -34,3 +34,8 @@ part -= Pos(26, 27, 18) * Cylinder(3, 6, align=cylinder)
 part -= Pos(38, 20, 16) * Box(20, 12, 8, align=minimum)
 part -= Pos(48, 26, 10) * Cylinder(3.5, 6, align=cylinder)
 write_fixture(part, 'open_hole_controls')
+# Keep the cavities and exterior-connected controls together too: this used to
+# undersample the first sealed region, so hole suppression left its faces unclaimed.
+for x in (12, 28, 44):
+    part -= Pos(x, 9, 8) * Cylinder(2, 8, align=cylinder)
+assert 'BREP_WITH_VOIDS' in write_fixture(part, 'mixed_sealed_voids')

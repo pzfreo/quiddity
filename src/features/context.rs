@@ -5,6 +5,7 @@
 //! bounds, parameter-space domains) belong to [`Part`]; recognition analysis that more than one
 //! family reads (the classifier, the cylinder inventory) belongs here.
 
+use std::collections::BTreeSet;
 use std::sync::OnceLock;
 
 use super::body::{BodyKey, body_signature, unambiguous_body_keys};
@@ -18,12 +19,20 @@ use crate::kernel::rays::RayCaster;
 use crate::kernel::sweep::extrude_face;
 use crate::kernel::volume::{Probe, common_volume, probe_volume};
 
+/// A closed inward-facing boundary component of a solid, independent of air sampling.
+pub(super) struct SealedVoidShell {
+    pub solid: usize,
+    pub faces: Vec<usize>,
+    pub volume: f64,
+}
+
 pub struct Context<'a> {
     pub part: &'a Part,
     bounds: OnceLock<Bounds>,
     classifier: OnceLock<Classifier<'a>>,
     solid_classifiers: Vec<OnceLock<Classifier<'a>>>,
     cylinders: OnceLock<Vec<CylinderEvidence>>,
+    sealed_void_shells: OnceLock<Vec<SealedVoidShell>>,
     threads: OnceLock<ThreadAnalysis>,
     chamfers: OnceLock<Vec<super::evidence::Occurrence<super::chamfers::Chamfer>>>,
     oriented_chamfers: OnceLock<Vec<super::evidence::Occurrence<super::oriented_chamfers::OrientedChamfer>>>,
@@ -45,6 +54,7 @@ internal_entry! {
             classifier: OnceLock::new(),
             solid_classifiers: part.solids.iter().map(|_| OnceLock::new()).collect(),
             cylinders: OnceLock::new(),
+            sealed_void_shells: OnceLock::new(),
             threads: OnceLock::new(),
             chamfers: OnceLock::new(),
             oriented_chamfers: OnceLock::new(),
@@ -128,6 +138,45 @@ internal_entry! {
     /// Every native cylindrical face (`analyse_cylinders`), in solid then face order.
     pub fn cylinders(&self) -> &[CylinderEvidence] {
         self.cylinders.get_or_init(|| analyse_cylinders(self.part))
+    }
+
+    /// Shared sealed-air proof for holes and interior voids: closed edge-connected shells
+    /// with inward orientation (negative signed volume). Mouths into open pockets remain on
+    /// the outer shell. This does not depend on face order or a grid's ability to resolve air.
+    pub(super) fn sealed_void_shells(&self) -> &[SealedVoidShell] {
+        self.sealed_void_shells.get_or_init(|| {
+            let part = self.part;
+            let mut enclosed = Vec::new();
+            for (solid, body) in part.solids.iter().enumerate() {
+                let mut remaining: BTreeSet<_> = body.faces.iter().copied().collect();
+                let mut shells = Vec::new();
+                while let Some(seed) = remaining.pop_first() {
+                    let mut shell = vec![seed];
+                    let mut pending = vec![seed];
+                    while let Some(face) = pending.pop() {
+                        for other in part.neighbours(face) {
+                            if remaining.remove(&other) {
+                                shell.push(other);
+                                pending.push(other);
+                            }
+                        }
+                    }
+                    shell.sort_unstable();
+                    shells.push(shell);
+                }
+                if shells.len() < 2 || !part.solid_is_valid(solid) {
+                    continue;
+                }
+                for faces in shells {
+                    if let Some((volume, _)) = part.shell_mass(&faces)
+                        && volume < 0.0
+                    {
+                        enclosed.push(SealedVoidShell { solid, faces, volume: -volume });
+                    }
+                }
+            }
+            enclosed
+        })
     }
 
     /// Helical proofs shared by the thread inventory and groove/root disambiguation.
