@@ -3,17 +3,17 @@
   "Attribute: \"\": N units of the file are named \"derived_unit\"; which one is not stated": "The reader names a measure's unit that is neither a length nor an angle by its entity types ('derived_unit'), which does not identify one of the file's several derived units; the writer will not pick one (it would guess the unit). The attribute set is left out of the round trip.",
   "Datum: datum … is established by datum targets, which are not written yet": "Historical refusal retired by maintainer decision 2026-10-20: write the practice §6.6 form with narrowly reported addition-only WR5 exemptions. The 13 CTC-02/FTC-10 targets and their datums now pass clean-copy and full-file round trips; the raw NIST file-wrong rule pins remain unchanged.",
   "DatumTarget: datum targets are read but not written yet (design: Out of scope)": "Historical refusal retired by maintainer decision 2026-10-20: write the practice §6.6 form with narrowly reported addition-only WR5 exemptions. The 13 CTC-02/FTC-10 targets and their datums now pass clean-copy and full-file round trips; the raw NIST file-wrong rule pins remain unchanged.",
-  "Dimension: a dimension without a nominal value (§N.N.N: it shall always be given)": "NIST CTC-01 states dimensions without a dimensional_characteristic_representation (a nonconformance the reader reads through, pinned in read/findings.json); PMI practice §5.2.1 requires the nominal value, so the writer refuses to write the nonconformance.",
   "Feature: a group of unstated kind (§N.N requires 'multiple elements' or 'pattern of features')": "NIST FTC-09's composite_group_shape_aspects state neither 'multiple elements' nor 'pattern of features' (read as GroupKind::Unstated with a finding); writing a group whose kind is not stated would write the nonconformance, so it is refused with what depends on it.",
   "Hole: hole definitions (basic_round_hole) are read but not written yet (design: question Q-holes)": "Edition 4 hole occurrences' basic_round_hole definitions (NIST STC-09) are read into PartPmi.holes, but the writer does not write them yet (docs/step-ap242.md question 7, Q-holes); refused by name so that a replace never drops them silently. The occurrences' faces are still written as their features (the written file is unchanged).",
   "Note: notes are the non-standard 'manufacturing requirement' text route, which is not written (decision N)": "specify-core's 'manufacturing requirement' properties (threads, knurls, finish, edge condition, general tolerances as text) are not a standard AP242 form; maintainer decision 5: not written.",
-  "Tolerance: a projected tolerance zone without its projection end (§N.N.N.N)": "NIST CTC-04's projected zone names a projection end that identifies no face (read through with a finding); §6.9.2.2 requires the end, so the writer refuses the tolerance rather than write an empty shape aspect.",
   "no part definitions": "NIST FTC-08's -tg file is tessellated only: read_part_definitions finds no solid or shell with faces, so there is no part to write to (as for the reader).",
   "removal refused": "The file has PMI of the part the reader did not read (an unread tolerance whose toleranced feature or datum did not resolve, with its measure qualification, pinned in read/findings.json) that references instances the replace removes; kept PMI must not dangle, so the replace is refused naming it (design item 6: anything else blocks). The id_attributes listed beside it would be removed with their items.",
   "Datum: datum … requires targets whose §N.N description conflicts with datum_target WRN": "Historical refusal retired by maintainer decision 2026-10-20: write the practice §6.6 form with narrowly reported addition-only WR5 exemptions. The 13 CTC-02/FTC-10 targets and their datums now pass clean-copy and full-file round trips; the raw NIST file-wrong rule pins remain unchanged.",
   "DatumTarget: §N.N states the target shape in its description, but datum_target WRN forbids it; omitting the description passes the rules with UNKNOWN but loses the target shape": "Historical refusal retired by maintainer decision 2026-10-20: write the practice §6.6 form with narrowly reported addition-only WR5 exemptions. The 13 CTC-02/FTC-10 targets and their datums now pass clean-copy and full-file round trips; the raw NIST file-wrong rule pins remain unchanged.",
   "practice/schema conflicts": "Maintainer decision 2026-10-20: actual raw violations on explicitly registered target/decimal-only cell additions only. Every other rule and structural schema validation remains mandatory; target WR4 is avoided by writing empty names.",
-  "tolerance relations": "Written as GEOMETRIC_TOLERANCE_RELATIONSHIP with composite, precedence or simultaneity names and resolved endpoints (pmi/write.rs tolerance_relations loop). Existing pmi_gaps round trips exercise all three. The 2026-10-31 optional full-NIST run reads/replaces/reads all six FTC-08 relations with no differences or relation refusal; its input SHA-256 remains 7b9283b4288d152fd181d76c39285d7c79fbba34fda1e14a41ac4a983f6d68b3. FTC-09 still loses two relations only because their endpoint tolerances depend on refused unstated-kind groups."
+  "tolerance relations": "Written as GEOMETRIC_TOLERANCE_RELATIONSHIP with composite, precedence or simultaneity names and resolved endpoints (pmi/write.rs tolerance_relations loop). Existing pmi_gaps round trips exercise all three. The 2026-10-31 optional full-NIST run reads/replaces/reads all six FTC-08 relations with no differences or relation refusal; its input SHA-256 remains 7b9283b4288d152fd181d76c39285d7c79fbba34fda1e14a41ac4a983f6d68b3. FTC-09 still loses two relations only because their endpoint tolerances depend on refused unstated-kind groups.",
+  "retained shared support": "FTC-06 #327 and its compartments #302/#303/#304 remain used by unread tolerance #348, and #415 by its qualification #414. Only their datum links are rebound to equal replacements. These support entities move from consumed accounting to unconsumed findings; no requirement or value is dropped.",
+  "retained dimension callouts": "CTC-01 (and its Specify copy) retain four original dimension callout associations; CTC-03 retains one. Rebinding those associations changes the removal closure and which shared presentation containers are emptied. The new totals are 487/939 presentation removals and 48/114 Refuse-policy presentation blockers respectively; all source dimensions and their retained callout links are verified."
  },
  "roundtrip": {
   "assembly": {
@@ -37,62 +37,50 @@
    "sha256": "9cc88aeaa0d1c582b2a7a40d9cddf25670fa7f830cf3be4b74566b9fad0caeb5"
   },
   "nist_ctc_01_asme1_ap242-e1": {
-   "left out": {
-    "dimensions": 4
-   },
-   "presentation removed": 406,
-   "refuse policy": "refused: 52 presentation blockers of 52",
-   "refused": {
-    "Dimension: a dimension without a nominal value (§N.N.N: it shall always be given)": 4
-   },
+   "presentation removed": 487,
+   "refuse policy": "refused: 48 presentation blockers of 48",
    "sha256": "036683e8358ac27d51a92c35362e175c91bc44d3b600a5c605fb496865edcd37"
   },
   "nist_ctc_01_merge": {
-   "left out": {
-    "dimensions": 4
-   },
-   "presentation removed": 406,
-   "refuse policy": "refused: 52 presentation blockers of 52",
-   "refused": {
-    "Dimension: a dimension without a nominal value (§N.N.N: it shall always be given)": 4
-   },
+   "presentation removed": 487,
+   "refuse policy": "refused: 48 presentation blockers of 48",
    "sha256": "6f3acb4036ec1583fd88be630a9699b67c24510d62f18f7fed6953e6dd1d7c4c"
   },
   "nist_ctc_02_asme1_ap242-e2": {
    "edition": "undetermined: AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF { 1 0 10303 442 3 1 4 } has no table; validated against AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF { 1 0 10303 442 7 1 4 }",
-   "presentation removed": 1473,
-   "refuse policy": "refused: 181 presentation blockers of 215",
-   "sha256": "99a0a2079ddeb64d05c2432cbe931fa17c89da60d8b0bcb0b11bd0ed94fa2e68",
    "practice/schema conflicts": {
     "datum_target.WR5": 9
-   }
+   },
+   "presentation removed": 1473,
+   "refuse policy": "refused: 181 presentation blockers of 181",
+   "sha256": "99a0a2079ddeb64d05c2432cbe931fa17c89da60d8b0bcb0b11bd0ed94fa2e68"
   },
   "nist_ctc_03_asme1_ap242-e2": {
    "edition": "undetermined: AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF { 1 0 10303 442 3 1 4 } has no table; validated against AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF { 1 0 10303 442 7 1 4 }",
-   "left out": {
-    "dimensions": 1
-   },
-   "presentation removed": 969,
-   "refuse policy": "refused: 116 presentation blockers of 129",
-   "refused": {
-    "Dimension: a dimension without a nominal value (§N.N.N: it shall always be given)": 1
-   },
+   "presentation removed": 939,
+   "refuse policy": "refused: 114 presentation blockers of 114",
    "sha256": "196b665776e759282f80fc8fb27d7bceb995df77cf78b7ce48347535a4d6cb5f"
   },
   "nist_ftc_06_asme1_ap242-e2": {
-   "error": "removal refused: {\"other id_attribute\": 27, \"semantic-pmi (geometric_tolerance geometric_tolerance_with_datum_reference surface_profile_tolerance)\": 1, \"semantic-pmi measure_qualification\": 1}",
+   "edition": "undetermined: AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF { 1 0 10303 442 3 1 4 } has no table; validated against AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF { 1 0 10303 442 7 1 4 }",
+   "practice/schema conflicts": {
+    "datum_target.WR5": 6
+   },
+   "presentation removed": 2066,
+   "refuse policy": "refused: 194 presentation blockers of 194",
+   "retained shared support": [
+    302,
+    303,
+    304,
+    327,
+    415
+   ],
    "sha256": "b87afb7f25adc0d44d12e182209d50f0b085b533c0742fb8ffd58f4c87403447"
   },
   "nist_ftc_07_asme1_ap242-e2": {
    "edition": "undetermined: AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF { 1 0 10303 442 3 1 4 } has no table; validated against AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF { 1 0 10303 442 7 1 4 }",
-   "left out": {
-    "attributes": 12
-   },
    "presentation removed": 1411,
    "refuse policy": "refused: 158 presentation blockers of 158",
-   "refused": {
-    "Attribute: \"\": N units of the file are named \"derived_unit\"; which one is not stated": 12
-   },
    "sha256": "aa8115c12e12a99cc439477cbfd222916f9ec629fbb3c9002b18e0c264c9a892"
   },
   "nist_ftc_08_asme1_ap242-e2": {
@@ -116,18 +104,12 @@
   },
   "nist_ftc_10_asme1_ap242-e2": {
    "edition": "undetermined: AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF { 1 0 10303 442 3 1 4 } has no table; validated against AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF { 1 0 10303 442 7 1 4 }",
-   "left out": {
-    "attributes": 12
+   "practice/schema conflicts": {
+    "datum_target.WR5": 4
    },
    "presentation removed": 1261,
    "refuse policy": "refused: 183 presentation blockers of 183",
-   "refused": {
-    "Attribute: \"\": N units of the file are named \"derived_unit\"; which one is not stated": 12
-   },
-   "sha256": "9d7711f48e81831c5d1838fdac5c11c0de1aa9b61f3c1d67930a7638b3b25e69",
-   "practice/schema conflicts": {
-    "datum_target.WR5": 4
-   }
+   "sha256": "9d7711f48e81831c5d1838fdac5c11c0de1aa9b61f3c1d67930a7638b3b25e69"
   },
   "nist_stc_06_asme1_ap242-e3": {
    "edition": "undetermined: AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF { 1 0 10303 442 4 1 4 } has no table; validated against AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF { 1 0 10303 442 7 1 4 }",
@@ -146,13 +128,9 @@
    "sha256": "64f24b914910ce8e20c9e4bd59637b4fd155715c7c7b51689466534ed7db1442"
   },
   "nist_stc_09_asme1_ap242-e4": {
-   "left out": {
-    "attributes": 12
-   },
    "presentation removed": 839,
-   "refuse policy": "refused: 115 presentation blockers of 196",
+   "refuse policy": "refused: 115 presentation blockers of 115",
    "refused": {
-    "Attribute: \"\": N units of the file are named \"derived_unit\"; which one is not stated": 12,
     "Hole: hole definitions (basic_round_hole) are read but not written yet (design: question Q-holes)": 25
    },
    "sha256": "41026b1f0d81830c6092b5147e0e084d2fa163169161c31af4ce06493d3c7d33"
@@ -177,6 +155,25 @@
    "presentation removed": 35,
    "refuse policy": "refused: 5 presentation blockers of 5",
    "sha256": "710ba36a0a5cd07aa0ff46795b5a0f899e5dd9a9cc63cd0e0c83fed7d2b65399"
+  },
+  "nist_ctc_04_asme1_ap242": {
+   "presentation removed": 872,
+   "refuse policy": "refused: 98 presentation blockers of 98",
+   "sha256": "20b43b54ce25d4ed17cff794084c406e831c687f5b62471d3371eef33669e355"
+  },
+  "nist_ctc_05_asme1_ap242": {
+   "practice/schema conflicts": {
+    "datum_target.WR5": 2
+   },
+   "presentation removed": 96,
+   "refuse policy": "refused: 46 presentation blockers of 46",
+   "sha256": "59bbc09a34621c03106e4c1b2a5bc909fdb67463117c16c4965ee7a6fe5c1521"
+  },
+  "nist_ftc_11_asme1_ap242-e3": {
+   "edition": "undetermined: AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF { 1 0 10303 442 4 1 4 } has no table; validated against AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF { 1 0 10303 442 7 1 4 }",
+   "presentation removed": 318,
+   "refuse policy": "refused: 30 presentation blockers of 30",
+   "sha256": "2d05bd399463a9ced7b84a479872a759f170fe92f7a62f8194e83df77f86f117"
   }
  },
  "corpus": {

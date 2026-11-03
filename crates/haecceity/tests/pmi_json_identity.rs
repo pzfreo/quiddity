@@ -79,24 +79,13 @@ fn whole_json_identity_ctc02_ftc07_xcaf_and_corpus() {
         }
         let drawn_before =
             json::presentation::read(&doc, &read, PartId(0), &requested[0].1).unwrap();
-        let (output, report) = match json::write(
+        let (output, report) = json::write(
             &doc,
             &parts,
             &requested,
             pmi::write::PresentationPolicy::RemovePresentation,
-        ) {
-            Ok(result) => result,
-            Err(e) if name == "FTC-07" => {
-                assert!(
-                    e.to_string()
-                        .contains("units of the file are named \"derived_unit\""),
-                    "{e}"
-                );
-                eprintln!("{name}: exact identity refused explicitly: {e}");
-                continue;
-            }
-            Err(e) => panic!("{name}: {e}"),
-        };
+        )
+        .unwrap_or_else(|e| panic!("{name}: {e}"));
         let after = Document::parse(output).unwrap();
         let definitions = read_part_definitions(after.bytes()).unwrap();
         let reread = pmi::read(&after, &definitions).unwrap();

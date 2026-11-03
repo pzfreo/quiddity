@@ -217,7 +217,10 @@ pub fn verify(
         }
     }
     for f in &after.read.findings {
-        if !before.read.findings.contains(f) {
+        if !before.read.findings.contains(f)
+            && !(f.kind == super::FindingKind::Unconsumed
+                && f.ids.first().is_some_and(|id| shared.contains(id)))
+        {
             problems.push(Problem::NewFinding(f.clone()));
         }
     }

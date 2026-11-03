@@ -51,6 +51,7 @@ pub(super) fn repair(
     edit: &mut Edit,
     excluded: &BTreeSet<u64>,
     emitted_dimensions: Vec<(Dimensions, A)>,
+    repair_integer_literals: bool,
 ) -> Result<(Repairs, usize), WriteError> {
     let mut repairs = Vec::new();
     let mut added = 0;
@@ -69,7 +70,9 @@ pub(super) fn repair(
         match record {
             RawEntity::Simple {
                 name, attributes, ..
-            } if name.eq_ignore_ascii_case("integer_representation_item") => {
+            } if repair_integer_literals
+                && name.eq_ignore_ascii_case("integer_representation_item") =>
+            {
                 if let Some(A::Real(value)) = attr(doc, id, "literal_number", "the_value")
                     && value.is_finite()
                     && value.fract() == 0.
@@ -282,14 +285,20 @@ mod integer_tests {
 
     #[test]
     fn upgrade_repairs_only_exact_integral_integer_items() {
-        let bytes = b"ISO-10303-21;HEADER;FILE_DESCRIPTION((''),'2;1');FILE_NAME('','','',(''),(''),'','');FILE_SCHEMA(('AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF'));ENDSEC;DATA;
+        let bytes = b"ISO-10303-21;HEADER;FILE_DESCRIPTION((''),'2;1');FILE_NAME('','',(''),(''),'','','');FILE_SCHEMA(('AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF'));ENDSEC;DATA;
 #1=INTEGER_REPRESENTATION_ITEM('count',43.);
 #2=INTEGER_REPRESENTATION_ITEM('fraction',1.5);
 #3=INTEGER_REPRESENTATION_ITEM('large',18014398509481984.);
 ENDSEC;END-ISO-10303-21;";
         let doc = Document::parse(bytes.to_vec()).unwrap();
+        let mut unchanged = Edit::new();
+        assert_eq!(
+            repair(&doc, &mut unchanged, &BTreeSet::new(), vec![], false).unwrap(),
+            (vec![], 0)
+        );
+        assert!(unchanged.is_empty());
         let mut edit = Edit::new();
-        let (repairs, added) = repair(&doc, &mut edit, &BTreeSet::new(), vec![]).unwrap();
+        let (repairs, added) = repair(&doc, &mut edit, &BTreeSet::new(), vec![], true).unwrap();
         assert_eq!(repairs, vec![(1, UpgradeRepairKind::R3IntegerLiteral)]);
         assert_eq!(added, 0);
         let after = Document::parse(doc.apply(&edit).unwrap().bytes).unwrap();

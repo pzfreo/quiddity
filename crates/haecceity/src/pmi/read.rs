@@ -4301,23 +4301,26 @@ impl<'a> Reader<'a> {
             if self.is(def, "projected_zone_definition") {
                 let end = self.get_ref(def, "projected_zone_definition", "projection_end")?;
                 let len = self.get_ref(def, "projected_zone_definition", "projected_length")?;
-                let end_f = match self.feature(st, end) {
-                    Some(f) => Some(f),
-                    None if self.usages(end).is_empty() && self.members(end).is_empty() => {
-                        // The projection end names no geometry: the zone is read without it.
-                        prov.push(end);
-                        prov.extend(self.id_attributes(end));
-                        None
-                    }
-                    None => {
-                        self.find(
-                            FindingKind::Unresolved,
-                            part,
-                            tol,
-                            &[def, end],
-                            "the projection end does not resolve; tolerance not read",
-                        );
-                        return None;
+                let end_f = if self.usages(end).is_empty() && self.members(end).is_empty() {
+                    // A mandatory shape-aspect carrier can state no origin geometry.
+                    // Its absence is held directly by ProjectedZone::end.
+                    prov.push(end);
+                    prov.extend(self.id_attributes(end));
+                    st.absorbed.insert(end);
+                    None
+                } else {
+                    match self.feature(st, end) {
+                        Some(f) => Some(f),
+                        None => {
+                            self.find(
+                                FindingKind::Unresolved,
+                                part,
+                                tol,
+                                &[def, end],
+                                "the projection end does not resolve; tolerance not read",
+                            );
+                            return None;
+                        }
                     }
                 };
                 let mut c = Vec::new();

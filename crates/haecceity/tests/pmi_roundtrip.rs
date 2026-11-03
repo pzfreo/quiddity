@@ -242,7 +242,12 @@ fn roundtrip(
                 for f in &r1.findings {
                     if f.ids.iter().any(|&id| id > max) {
                         problems.push(format!("{stem}: a finding on what was written: {f:?}"));
-                    } else if !r0.findings.contains(f) {
+                    } else if !r0.findings.contains(f)
+                        && !(f.kind == FindingKind::Unconsumed
+                            && f.ids
+                                .first()
+                                .is_some_and(|id| report.retained_shared.contains(id)))
+                    {
                         problems.push(format!("{stem}: a new finding: {f:?}"));
                     }
                 }
@@ -263,6 +268,14 @@ fn roundtrip(
                     doc.file_schema().unwrap(),
                     "{stem}: an AP242 file keeps its schema"
                 );
+                if !report.retained_shared.is_empty() {
+                    // This support remains used solely by unread PMI after replacement;
+                    // its accounting changes from consumed to explicitly reported.
+                    entry.insert(
+                        "retained shared support".into(),
+                        serde_json::json!(report.retained_shared),
+                    );
+                }
                 entry.insert(
                     "presentation removed".into(),
                     report.presentation_removed.len().into(),
@@ -448,6 +461,23 @@ fn control_datum_features_resolve_after_write_read() {
     let doc = Document::parse(bytes).unwrap();
     let written = pmi::read(&doc, &parts).unwrap();
     assert!(common::pmi_datums::unresolved(&written).is_empty());
+    for callout in &read.callouts {
+        for target in callout.links.iter().flat_map(|link| &link.targets) {
+            if let PresentedItem::Dimension(d) = target.item
+                && read.parts[target.part.0].dimensions[d.0].nominal.is_none()
+            {
+                assert!(
+                    written.callouts.iter().any(|c| c.id == callout.id
+                        && c.links
+                            .iter()
+                            .flat_map(|link| &link.targets)
+                            .any(|t| t == target)),
+                    "dimension without a value lost its original callout #{}",
+                    callout.id
+                );
+            }
+        }
+    }
     let labels: BTreeSet<_> = written.parts[0]
         .datums
         .iter()

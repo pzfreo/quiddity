@@ -168,7 +168,7 @@ fn nist_ap242_fixtures_retain_graphic_pmi() {
         .filter(|p| p.extension().is_some_and(|x| x == "gz"))
         .collect();
     files.sort();
-    assert_eq!(files.len(), 7);
+    assert_eq!(files.len(), 13);
     for path in files {
         let raw = std::fs::read(&path).unwrap();
         let mut bytes = Vec::new();
@@ -185,6 +185,13 @@ fn nist_ap242_fixtures_retain_graphic_pmi() {
         let expected = match name {
             "nist_ctc_01_asme1_ap242-e1.stp.gz" => 71,
             "nist_ctc_02_asme1_ap242-e2.stp.gz" => 191,
+            // Six further supplied CTC/FTC files make the strict #142 gate self-contained.
+            "nist_ctc_03_asme1_ap242-e2.stp.gz" => 119,
+            "nist_ctc_04_asme1_ap242.stp.gz" => 84,
+            "nist_ctc_05_asme1_ap242.stp.gz" => 54,
+            "nist_ftc_06_asme1_ap242-e2.stp.gz" => 275,
+            "nist_ftc_08_asme1_ap242-e2.stp.gz" => 162,
+            "nist_ftc_11_asme1_ap242-e3.stp.gz" => 46,
             "nist_ftc_07_asme1_ap242-e2.stp.gz" => 168,
             "nist_ftc_10_asme1_ap242-e2.stp.gz" => 279,
             "nist_stc_06_asme1_ap242-e3.stp.gz" => 257,

@@ -256,7 +256,7 @@ pub fn plan(
     plan_with_rebindings(doc, seeds, policy, &BTreeSet::new())
 }
 
-/// Writer-only edges which will be rebound to equivalent newly emitted datums.
+/// Writer-only edges which will be rebound to equivalent newly emitted semantic entities.
 #[allow(
     clippy::result_large_err,
     reason = "same complete cold-path refusal as plan"

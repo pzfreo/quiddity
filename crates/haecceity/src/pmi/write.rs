@@ -903,6 +903,30 @@ fn write_inner(
     // Replace and remove: one removal plan for every named part's consumed instances.
     let mut removed: BTreeSet<u64> = BTreeSet::new();
     let mut rebound = BTreeSet::new();
+    let mut kept_dimension_ink = BTreeSet::new();
+    if mode == Mode::Replace {
+        for plan in &mut plans {
+            for callout in &read.callouts {
+                for link in &callout.links {
+                    if let Some(&dimension) = plan.replacement_dimensions.get(&link.definition) {
+                        rebound.insert((link.association, link.definition));
+                        plan.retained_dimensions.insert(dimension);
+                        kept_dimension_ink.insert(link.association);
+                        let mut stack = vec![callout.id];
+                        while let Some(id) = stack.pop() {
+                            // Graphics do not own the semantic carriers they happen to name.
+                            if plan.replacement_dimensions.contains_key(&id)
+                                || !kept_dimension_ink.insert(id)
+                            {
+                                continue;
+                            }
+                            stack.extend(references(doc, id));
+                        }
+                    }
+                }
+            }
+        }
+    }
     if mode != Mode::Add {
         let mut seeds = BTreeSet::new();
         for (p, _) in &order {
@@ -915,7 +939,7 @@ fn write_inner(
                 if protected.is_some_and(|ids| ids.contains(id)) {
                     return false;
                 }
-                !geometry.contains(id)
+                !geometry.contains(id) && !kept_dimension_ink.contains(id)
             }));
         }
         let shared = shared_dependencies(doc, &seeds);
@@ -998,6 +1022,12 @@ fn write_inner(
                     Err(r) => return Err(WriteError::Removal(Box::new(r))),
                 }
             };
+            let mut plan = plan;
+            plan.removed.retain(|id| !kept_dimension_ink.contains(id));
+            plan.rewritten
+                .retain(|id, _| !kept_dimension_ink.contains(id));
+            plan.presentation_removed
+                .retain(|(id, _)| !kept_dimension_ink.contains(id));
             #[cfg(feature = "json-import")]
             let plan = if let Some(protected) = protected {
                 let mut plan = plan;
@@ -1079,16 +1109,20 @@ fn write_inner(
     // Preserve the complete source document, including other selected parts and
     // incidental legacy normalization, for every Add write.
     em.preserve_kept = mode == Mode::Add;
-    let mut datum_replacements = BTreeMap::new();
+    let mut semantic_replacements = BTreeMap::new();
     for plan in &plans {
         plan.emit(
             &mut em,
             &mut report,
             presentation_reader.as_ref(),
-            &mut datum_replacements,
+            &mut semantic_replacements,
         )?;
     }
-    for &from in &report.retained_shared {
+    for from in rebound
+        .iter()
+        .map(|(from, _)| *from)
+        .collect::<BTreeSet<_>>()
+    {
         let mut record = doc
             .get(from)
             .cloned()
@@ -1097,7 +1131,7 @@ fn write_inner(
         p21::visit_attributes_mut(&mut record, &mut |a| {
             if let A::EntityRef(to) = a
                 && rebound.contains(&(from, *to))
-                && let Some(replacement) = datum_replacements.get(to)
+                && let Some(replacement) = semantic_replacements.get(to)
             {
                 *a = replacement.a();
                 changed = true;
@@ -1154,7 +1188,7 @@ fn write_inner(
             report.edition_rewrites = upgrade::rewrite_entities(doc, &mut edit, &excluded);
         }
         let (repairs, added_dimensions) =
-            upgrade::repair(doc, &mut edit, &excluded, emitted_dimensions)?;
+            upgrade::repair(doc, &mut edit, &excluded, emitted_dimensions, json_upgrade)?;
         report.added += added_dimensions;
         repairs
     } else {
@@ -2640,6 +2674,8 @@ struct PartPlan<'a> {
     existing_datums: BTreeMap<usize, (u64, Option<u64>)>,
     /// Source datum entities with an equal replacement (including their feature content).
     replacement_datums: BTreeMap<u64, usize>,
+    replacement_dimensions: BTreeMap<u64, usize>,
+    retained_dimensions: BTreeSet<usize>,
     /// Geometry → an existing supplemental geometry item with the same value.
     existing_geometry: BTreeMap<usize, u64>,
     kept_groups: BTreeMap<u64, String>,
@@ -2742,6 +2778,8 @@ impl<'a> PartPlan<'a> {
             referenced: BTreeSet::new(),
             existing_datums: BTreeMap::new(),
             replacement_datums: BTreeMap::new(),
+            replacement_dimensions: BTreeMap::new(),
+            retained_dimensions: BTreeSet::new(),
             existing_geometry: BTreeMap::new(),
             kept_groups: BTreeMap::new(),
             kept_occt_carriers: BTreeSet::new(),
@@ -2749,6 +2787,21 @@ impl<'a> PartPlan<'a> {
         };
         if mode == Mode::Replace {
             let old = &read.parts[id.0];
+            if old.features == pmi.features && old.geometry == pmi.geometry {
+                for (i, dimension) in old.dimensions.iter().enumerate() {
+                    if dimension.nominal.is_none()
+                        && let Some(j) = pmi.dimensions.iter().position(|d| d == dimension)
+                    {
+                        for &source in &read.provenance.parts[id.0].dimensions[i] {
+                            if is_a(doc, source, "dimensional_size")
+                                || is_a(doc, source, "dimensional_location")
+                            {
+                                plan.replacement_dimensions.insert(source, j);
+                            }
+                        }
+                    }
+                }
+            }
             for (i, datum) in old.datums.iter().enumerate() {
                 for (j, new) in pmi.datums.iter().enumerate() {
                     let same_feature = match (datum.feature(), new.feature()) {
@@ -3302,7 +3355,7 @@ impl<'a> PartPlan<'a> {
         em: &mut Emitter<'_>,
         report: &mut WriteReport,
         presentation_reader: Option<&crate::step::PartReader>,
-        datum_replacements: &mut BTreeMap<u64, R>,
+        semantic_replacements: &mut BTreeMap<u64, R>,
     ) -> Result<(), WriteError> {
         let mut st = Emitted::default();
         let p = self.pmi;
@@ -3585,13 +3638,18 @@ impl<'a> PartPlan<'a> {
         }
         for (&source, &i) in &self.replacement_datums {
             if let Some(&new) = st.datums.get(&i) {
-                datum_replacements.insert(source, new);
+                semantic_replacements.insert(source, new);
             }
         }
         #[cfg(not(feature = "presentation"))]
         self.datum_symbols(em, &symbols, &st, report, presentation_reader)?;
         for i in 0..p.dimensions.len() {
             self.dimension(em, &mut st, pds, i)?;
+        }
+        for (&source, &i) in &self.replacement_dimensions {
+            if let Some(&new) = st.dimensions.get(&i) {
+                semantic_replacements.insert(source, new);
+            }
         }
         let mut names = self.system_names.clone();
         for (i, t) in p.tolerances.iter().enumerate() {
@@ -4260,6 +4318,16 @@ impl<'a> PartPlan<'a> {
                     graphics.push(g.clone());
                     continue;
                 }
+                if self.retained_dimensions.contains(&i) {
+                    graphics.push((
+                        vec![_st.dimensions[&i]],
+                        presentation::dimension_type(d),
+                        String::new(),
+                        [[0.; 3], [0., 0., 1.], [1., 0., 0.]],
+                        Vec::new(),
+                    ));
+                    continue;
+                }
                 let f = feature_of_dimension(d);
                 let tip = self
                     .feature_point(f.0)
@@ -4379,7 +4447,8 @@ impl<'a> PartPlan<'a> {
             };
             let mut stacks = BTreeMap::<usize, Vec<(usize, presentation::Callout)>>::new();
             for (i, d) in self.pmi.dimensions.iter().enumerate() {
-                if presentation::dimension(d).polylines().is_empty()
+                if self.retained_dimensions.contains(&i)
+                    || presentation::dimension(d).polylines().is_empty()
                     || is_placed(_st.dimensions[&i])
                     || measurements.as_ref().is_some_and(|m| m[i].is_some())
                 {

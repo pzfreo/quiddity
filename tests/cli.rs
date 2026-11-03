@@ -334,7 +334,7 @@ fn brep_carries_the_parts_pmi_and_names_what_it_does_not() {
     let dir = std::env::temp_dir().join(format!("quiddity-cli-brep-pmi-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ap242");
-    // One part with PMI the writer refuses some of (dimensions without a nominal value).
+    // All CTC-01 requirements are carried, including its four dimensions without a value.
     let input = fixtures.join("nist/nist_ctc_01_asme1_ap242-e1.stp.gz");
     let out_path = dir.join("ctc01.step");
     let out = quiddity(&[
@@ -354,7 +354,7 @@ fn brep_carries_the_parts_pmi_and_names_what_it_does_not() {
         "{report}"
     );
     let refused = report["pmi"]["refused"].as_array().unwrap();
-    assert_eq!(refused.len(), 4, "{report}");
+    assert!(refused.is_empty(), "{report}");
     assert!(
         refused
             .iter()

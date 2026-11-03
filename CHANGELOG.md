@@ -15,7 +15,7 @@ in [docs/alpha1.md](docs/alpha1.md).
 - Resolve anonymous attribute units by their source entity. Replace retains
   auxiliary support shared with unread PMI, rebinding only equal replacement
   datums, and reports it as `WriteReport.retained_shared`.
-- Edition-upgrade repair R3 retains exact integral values in INTEGER representation
+- JSON-driven AP242 edition-upgrade repair R3 retains exact integral values in INTEGER representation
   items written as REALs; `UpgradeRepairKind` gains `R3IntegerLiteral`.
 
 ## 0.4.6 (2026-11-03)

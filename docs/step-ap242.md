@@ -2136,7 +2136,9 @@ JSON import or presentation drawing implicitly.
 ### Issue #142: strict CTC/FTC JSON and STEP round trips
 
 Dimensions with no stated nominal value are retained with their features and
-callout associations. The reader emits no nonconformance for the absent value;
+callout associations. Replace retains the original drawn callouts for unchanged
+value-less dimensions and rebinds their associations to the replacement dimension,
+including with presentation generation disabled. The reader emits no nonconformance for the absent value;
 the writer emits no invented measure or empty dimension representation. CTC-01
 keeps all twelve dimensions (four have no value), and CTC-03 keeps its dimension
 without a value too. NIST SFA's eight valued CTC-01 dimensions are a subset.
@@ -2172,3 +2174,10 @@ relax schema checking. Every repair records the original and new entity text.
 
 The reader binding advances to `haecceity-pmi-read/16` because absent-value
 findings and anonymous unit identities change. The interchange schema remains /1.
+
+The ordinary round-trip pins now include FTC-06's retained support ids explicitly.
+Their accounting changes from consumed (also used by read tolerances) to reported
+(used only by unread #348/#414 after replacement). Verification permits only that
+Unconsumed transition on those auxiliary entities; semantic differences remain
+errors. FTC-06 also exercises four already-defined shared datum-target support
+exceptions, now pinned by entity triple because its write previously failed.
