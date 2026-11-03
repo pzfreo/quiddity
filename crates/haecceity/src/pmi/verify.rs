@@ -218,6 +218,7 @@ pub fn verify(
     }
     for f in &after.read.findings {
         if !before.read.findings.contains(f)
+            && !f.preserved_fact(&before.read.findings, &after.read.findings)
             && !(f.kind == super::FindingKind::Unconsumed
                 && f.ids.first().is_some_and(|id| shared.contains(id)))
         {

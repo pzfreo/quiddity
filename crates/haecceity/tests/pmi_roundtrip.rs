@@ -240,6 +240,9 @@ fn roundtrip(
                 }
                 let max = doc.max_id();
                 for f in &r1.findings {
+                    if f.preserved_fact(&r0.findings, &r1.findings) {
+                        continue;
+                    }
                     if f.ids.iter().any(|&id| id > max) {
                         problems.push(format!("{stem}: a finding on what was written: {f:?}"));
                     } else if !r0.findings.contains(f)

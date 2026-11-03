@@ -421,8 +421,7 @@ These override anything below and any stream brief that says otherwise.
    instance must still pass the target table and no new `express_rules` violation may appear.
    Every other byte stays as it was, apart from `FILE_SCHEMA` and added instances; a repaired
    file's original record bytes are recoverable only through the report's original records.
-   An AP242 file stays at its edition unless the JSON owner SELECT requires a newer
-   edition; that upgrade also permits R3 (below). Which corpus and NIST AP214/AP203
+   An AP242 file stays AP242 and receives no upgrade repairs. Which corpus and NIST AP214/AP203
    files pass without repairs, pass with the listed repairs, or are refused is pinned per file;
    the original violations keep their verdicts and reasons.
 
@@ -813,7 +812,7 @@ objects and three table/precision API gaps are **not-applicable**. All 17 new di
 have individual verdicts in `references/pmi_write.json`; the NIST CTC-02 capture has no target
 semantic difference. The absent `specify_core` application loader remains explicitly unavailable.
 
-Other refusals remain: target sizes/placements that cannot be stated validly, non-exempt movable-target WR3 failures, an unstated group kind, a dimension without its nominal (§5.2.1), a
+Other refusals remain: target sizes/placements that cannot be stated validly, non-exempt movable-target WR3 failures, an unstated group kind, a
 projected zone whose model holds no origin geometry (§6.9.2.2), thread/knurl parameter counts
 outside their WHERE rules, non-finite/unrepresentable REAL values, unresolved attribute units/boolean values,
 and the separately scoped hole-definition writer (question 7). They are not silently omitted.
@@ -2145,9 +2144,14 @@ without a value too. NIST SFA's eight valued CTC-01 dimensions are a subset.
 
 CTC-04's projected zone retains its length and a projection-end shape aspect
 without geometry. This is the source's statement, not an inferred origin.
-Anonymous attribute units retain their source `#id`, resolved by entity rather
-than a shared type label (FTC-07/10). Authored name-only units still require an
-unambiguous matching unit in the source document.
+The reader reports that projection-end statement as a factual finding (`fact`),
+without a conformance judgement. Anonymous attribute units use portable
+`step-unit:` content identities, retaining named-unit kinds, prefixes, conversion
+factors and derived-unit elements/exponents. An equal destination unit is reused;
+otherwise it is written fresh (including B-rep output). No source id is resolved
+in a different document. Authored name-only units still require an unambiguous
+matching source unit. A value-less dimension with a stated principle or qualifier
+uses an empty descriptive item as its representation carrier; it gains no value.
 
 Replace keeps auxiliary datum-system/qualifier support shared with unread PMI
 (`WriteReport.retained_shared`). Shared datum-reference compartments are rebound
@@ -2167,13 +2171,7 @@ AP242 models from committed fixtures. CI runs it with `json-import` on Linux;
 strict test. Both require empty identity differences without removing refused
 requirements, validate additions, and compare solid validity before and after.
 
-CTC-04's JSON owner SELECT requires upgrading edition 1 to the target edition.
-The source also writes 46 INTEGER representation-item literals as integral
-REALs. Reported upgrade repair R3 writes those exact integral values as INTEGERs
-(only finite integers within ±2^53); it does not round fractional values or
-relax schema checking. Every repair records the original and new entity text.
-
-The reader binding advances to `haecceity-pmi-read/16` because absent-value
+The reader binding advances to `haecceity-pmi-read/17` because absent-value
 findings and anonymous unit identities change. The interchange schema remains /1.
 
 The ordinary round-trip pins now include FTC-06's retained support ids explicitly.

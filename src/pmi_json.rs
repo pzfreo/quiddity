@@ -48,7 +48,7 @@ pub const PARTS_FORMAT: &str = "quiddity-parts";
 pub const VERSION: u64 = 2;
 /// The reader the anchors and items were produced by; bumped whenever `pmi::read`'s output for
 /// a file can change, so a document read by another reader version is refused, not trusted.
-pub const READER: &str = "haecceity-pmi-read/16";
+pub const READER: &str = "haecceity-pmi-read/17";
 
 /// Why a JSON document was refused: the JSON path and the reason.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -562,6 +562,7 @@ const GEOMETRIC_CLASSES: [(&str, GeometricClass); 3] = [
 ];
 
 const FINDING_KINDS: [FindingKind; 10] = [
+    FindingKind::Fact,
     FindingKind::Unsupported,
     FindingKind::Nonconformance,
     FindingKind::Unresolved,
@@ -2673,7 +2674,6 @@ pub fn write_report_json(
                         "repair": match r.repair {
                             write::UpgradeRepairKind::R1ApprovalAssignment => "R1",
                             write::UpgradeRepairKind::R2ConversionUnitDimensions => "R2",
-                            write::UpgradeRepairKind::R3IntegerLiteral => "R3",
                         },
                         "original_record": r.original_record,
                         "new_record": r.new_record,

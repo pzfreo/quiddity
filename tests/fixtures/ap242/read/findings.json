@@ -28,6 +28,7 @@
    "not-modelled|property_definition|property \"…\" (\"…\") is not a construct the reader knows; not read": 1
   },
   "nist_ctc_04_asme1_ap242-e2": {
+   "fact|projected_zone_definition|projected zone states a projection-end shape aspect with no geometry": 1,
    "unconsumed|geometric_item_specific_usage|part of shape_aspect N, which is not read (its finding says why)": 1,
    "unresolved-reference|shape_aspect|items that are not faces, edges or geometry the reader holds: manifold_solid_brep; feature not read": 1
   },
@@ -123,6 +124,7 @@
    "not-modelled|property_definition|property \"…\" (\"…\") is not a construct the reader knows; not read": 1
   },
   "nist_ctc_04_asme1_ap242": {
+   "fact|projected_zone_definition|projected zone states a projection-end shape aspect with no geometry": 1,
    "unconsumed|geometric_item_specific_usage|part of shape_aspect N, which is not read (its finding says why)": 1,
    "unresolved-reference|shape_aspect|items that are not faces, edges or geometry the reader holds: manifold_solid_brep; feature not read": 1
   },
@@ -153,6 +155,7 @@
   "unconsumed|part of shape_aspect N, which is not read (its finding says why)": "The usage of a shape aspect that is not read (it identifies the whole MANIFOLD_SOLID_BREP, for a geometric validation property).",
   "unresolved-reference|items that are not faces, edges or geometry the reader holds: manifold_solid_brep; feature not read": "A shape aspect identifying the whole solid (MANIFOLD_SOLID_BREP), used only by geometric validation properties; the model's features are faces, edges and supplemental geometry, so it is not read.",
   "unresolved-reference|the referenced datum is not a datum read for the part; tolerance not read": "NIST FTC-09 #11143 is toleranced on the second part's #9569 but cites datum system #9813 of the first part (general_datum_reference WR5): an assembly-level reference, not attributed to either part.",
-  "unresolved-reference|the toleranced feature was not read; tolerance not read": "The tolerance's toleranced shape aspect identifies no geometry (e.g. NIST FTC-06 #348 on #2818), so there is nothing to tolerance."
+  "unresolved-reference|the toleranced feature was not read; tolerance not read": "The tolerance's toleranced shape aspect identifies no geometry (e.g. NIST FTC-06 #348 on #2818), so there is nothing to tolerance.",
+  "fact|projected zone states a projection-end shape aspect with no geometry": "The projection end is an empty shape aspect in the source; its absence of geometry is preserved as ProjectedZone.end=None, without a conformance judgement."
  }
 }

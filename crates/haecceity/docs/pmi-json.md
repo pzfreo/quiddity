@@ -531,12 +531,13 @@ them `source: generated`. Unmarked graphics remain `source: file`.
 Generated graphics use the same geometry-based placement as the STEP writer,
 in model coordinates; producing placed graphics requires the part geometry.
 
-Anonymous EXPRESS units in `OtherMeasure.unit` retain their source entity
-reference (`#id`). Import resolves that entity in the original STEP document and
-checks that it is a named or derived unit. Thus FTC-07/10 attributes sharing the
-label `derived_unit` retain their distinct units. Caller-authored unit names
-still require exactly one matching source unit; ambiguous names are refused.
-These references require the original STEP document, like topology anchors.
+Anonymous EXPRESS units in `OtherMeasure.unit` use a `step-unit:` content identity.
+It encodes the unit graph, including named-unit kinds, SI names and prefixes,
+conversion factors, dimensions, and derived-unit elements and exponents. Derived
+SETs are sorted by content; instance ids are excluded. Import reuses an equal unit
+in the destination or writes the encoded unit fresh, including when B-rep writing
+creates a new STEP document. Duplicate equal units are interchangeable. Legacy
+name-only units still require exactly one matching source unit.
 
 Dimensions without a stated nominal value retain their features and graphical
 callout links, with `nominal: null`; no value is invented and no nonconformance
@@ -644,3 +645,13 @@ advance along `+x_axis` and stand up along `normal × x_axis`.
 These fields remain optional within `haecceity.presentation/1`; older documents
 still deserialize. Consumers using `deny_unknown_fields` must update their
 presentation schema/types before consuming documents containing these additions.
+
+A projected zone whose end aspect has no geometry is preserved with `end: null`
+and reported as a `fact` finding. Facts are observations, without a conformance
+judgement. Value-less dimensions retain stated principles and type qualifiers;
+an empty descriptive representation item carries them without a numeric value.
+
+A projected zone whose end aspect has no geometry is preserved with `end: null`
+and reported as a `fact` finding. Facts are observations, without a conformance
+judgement. Value-less dimensions retain stated principles and type qualifiers;
+an empty descriptive representation item carries them without a numeric value.

@@ -355,13 +355,18 @@ fn brep_carries_the_parts_pmi_and_names_what_it_does_not() {
     );
     let refused = report["pmi"]["refused"].as_array().unwrap();
     assert!(refused.is_empty(), "{report}");
-    assert!(
-        refused
-            .iter()
-            .all(|r| !r["why"].as_str().unwrap().is_empty())
-    );
     let read = quiddity(&["pmi", "read", out_path.to_str().unwrap()]);
     assert!(read.status.success());
+    let after: serde_json::Value = serde_json::from_slice(&read.stdout).unwrap();
+    let before = quiddity(&["pmi", "read", input.to_str().unwrap()]);
+    assert!(before.status.success());
+    let before: serde_json::Value = serde_json::from_slice(&before.stdout).unwrap();
+    let dimensions = after["parts"][0]["pmi"]["dimensions"].as_array().unwrap();
+    assert_eq!(dimensions.len(), 12);
+    assert_eq!(
+        dimensions,
+        before["parts"][0]["pmi"]["dimensions"].as_array().unwrap()
+    );
     // Several parts: their PMI is listed as not carried.
     let input = fixtures.join("write/editor_assembly_pin_alone.step.gz");
     let out_path = dir.join("assembly.step");
@@ -632,4 +637,75 @@ fn source_presentation_flag_requires_json_import() {
     assert!(!out.status.success());
     let error = String::from_utf8_lossy(&out.stderr);
     assert!(error.contains("unknown option") && error.contains("--source-presentation"));
+}
+
+#[test]
+fn brep_carries_portable_derived_units_from_nist() {
+    let dir = std::env::temp_dir().join(format!("quiddity-cli-brep-units-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ap242/nist");
+    for model in ["07", "10"] {
+        let input = fixtures.join(format!("nist_ftc_{model}_asme1_ap242-e2.stp.gz"));
+        let output = dir.join(format!("ftc{model}.step"));
+        let result = quiddity(&[
+            "brep",
+            input.to_str().unwrap(),
+            "-o",
+            output.to_str().unwrap(),
+        ]);
+        assert!(
+            result.status.success(),
+            "FTC-{model}: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let report: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
+        assert!(
+            report["pmi"]["refused"].as_array().unwrap().is_empty(),
+            "{report}"
+        );
+        let read = |path: &Path| {
+            let raw = std::fs::read(path).unwrap();
+            let bytes = if path.extension().is_some_and(|e| e == "gz") {
+                let mut bytes = Vec::new();
+                std::io::Read::read_to_end(
+                    &mut flate2::read::GzDecoder::new(raw.as_slice()),
+                    &mut bytes,
+                )
+                .unwrap();
+                bytes
+            } else {
+                raw
+            };
+            let doc = haecceity::p21::Document::parse(bytes.clone()).unwrap();
+            let parts = haecceity::step::read_part_definitions(&bytes).unwrap();
+            haecceity::pmi::read(&doc, &parts).unwrap()
+        };
+        let before = read(&input);
+        let after = read(&output);
+        let units = |read: &haecceity::pmi::PmiRead| {
+            let mut units: Vec<_> = read
+                .parts
+                .iter()
+                .flat_map(|p| &p.attributes)
+                .flat_map(|a| &a.items)
+                .filter_map(|(_, value)| match value {
+                    haecceity::pmi::AttributeValue::OtherMeasure { measure, unit, .. } => {
+                        Some((measure.clone(), unit.clone()))
+                    }
+                    _ => None,
+                })
+                .collect();
+            units.sort();
+            units
+        };
+        let expected = units(&before);
+        assert!(!expected.is_empty());
+        assert!(
+            expected
+                .iter()
+                .any(|(_, unit)| unit.starts_with("step-unit:"))
+        );
+        assert_eq!(units(&after), expected, "FTC-{model}");
+    }
+    std::fs::remove_dir_all(dir).unwrap();
 }

@@ -9,14 +9,13 @@ in [docs/alpha1.md](docs/alpha1.md).
 - Finish #142's strict CTC/FTC STEP → PartPmi → JSON → PartPmi → STEP gate;
   run the NIST-only test in Linux CI and retain the opt-in corpus-wide run.
 - Preserve dimensions with no stated value without a refusal, invented measure
-  or nonconformance. Preserve projected zones whose end has no geometry.
-- Reader binding advances to `haecceity-pmi-read/16` for the changed findings and
+  or nonconformance, including their principles and qualifiers. Preserve projected
+  zones whose end has no geometry and report that statement as a factual finding.
+- Reader binding advances to `haecceity-pmi-read/17` for the changed findings and
   anonymous unit identities; the JSON schema is unchanged.
-- Resolve anonymous attribute units by their source entity. Replace retains
+- Resolve anonymous attribute units by portable content, reusing or writing equal units in the destination. Replace retains
   auxiliary support shared with unread PMI, rebinding only equal replacement
   datums, and reports it as `WriteReport.retained_shared`.
-- JSON-driven AP242 edition-upgrade repair R3 retains exact integral values in INTEGER representation
-  items written as REALs; `UpgradeRepairKind` gains `R3IntegerLiteral`.
 
 ## 0.4.6 (2026-11-03)
 

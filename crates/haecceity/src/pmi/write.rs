@@ -216,7 +216,6 @@ impl std::fmt::Display for WriteError {
                 for kind in [
                     UpgradeRepairKind::R1ApprovalAssignment,
                     UpgradeRepairKind::R2ConversionUnitDimensions,
-                    UpgradeRepairKind::R3IntegerLiteral,
                 ] {
                     let affected: Vec<_> = repairs
                         .iter()
@@ -302,8 +301,6 @@ pub enum UpgradeRepairKind {
     R1ApprovalAssignment,
     /// R2: make a conversion unit's dimensions explicit, from its factor's unit.
     R2ConversionUnitDimensions,
-    /// R3: an exactly representable integral REAL in an INTEGER representation item.
-    R3IntegerLiteral,
 }
 
 impl std::fmt::Display for UpgradeRepairKind {
@@ -311,7 +308,6 @@ impl std::fmt::Display for UpgradeRepairKind {
         f.write_str(match self {
             Self::R1ApprovalAssignment => "R1 approval assignment",
             Self::R2ConversionUnitDimensions => "R2 conversion unit dimensions",
-            Self::R3IntegerLiteral => "R3 integer literal",
         })
     }
 }
@@ -1188,7 +1184,7 @@ fn write_inner(
             report.edition_rewrites = upgrade::rewrite_entities(doc, &mut edit, &excluded);
         }
         let (repairs, added_dimensions) =
-            upgrade::repair(doc, &mut edit, &excluded, emitted_dimensions, json_upgrade)?;
+            upgrade::repair(doc, &mut edit, &excluded, emitted_dimensions)?;
         report.added += added_dimensions;
         repairs
     } else {
@@ -1786,7 +1782,7 @@ fn other_unit_name(doc: &Document, id: u64) -> Option<String> {
         return attr_str(doc, id, "context_dependent_unit", "name");
     }
     if has("derived_unit") || has("named_unit") {
-        return Some(names.join("+"));
+        return super::unit_identity::identity(doc, id);
     }
     None
 }
@@ -3327,13 +3323,13 @@ impl<'a> PartPlan<'a> {
         }
     }
 
-    /// The document's unit the reader names `name` (an attribute's measure of another kind):
-    /// exactly one distinct instance, else refused.
-    fn other_unit(&self, name: &str) -> Result<u64, String> {
-        if let Some(id) = name.strip_prefix('#').and_then(|id| id.parse::<u64>().ok()) {
-            return (is_a(self.doc, id, "named_unit") || is_a(self.doc, id, "derived_unit"))
-                .then_some(id)
-                .ok_or_else(|| format!("unit #{id} is absent or is not a unit entity"));
+    /// An equal content-identified unit, or None to emit it fresh. Legacy names must
+    /// identify exactly one source unit. Source entity ids are never unit identities.
+    fn other_unit(&self, name: &str) -> Result<Option<u64>, String> {
+        if name.starts_with(super::unit_identity::PREFIX)
+            && super::unit_identity::records(name).is_none()
+        {
+            return Err("invalid portable unit identity".into());
         }
         let found: Vec<u64> = self
             .doc
@@ -3342,7 +3338,9 @@ impl<'a> PartPlan<'a> {
             .filter(|&id| other_unit_name(self.doc, id).as_deref() == Some(name))
             .collect();
         match found.as_slice() {
-            [u] => Ok(*u),
+            [u, ..] if name.starts_with(super::unit_identity::PREFIX) => Ok(Some(*u)),
+            [u] => Ok(Some(*u)),
+            [] if name.starts_with(super::unit_identity::PREFIX) => Ok(None), // emit from content
             [] => Err(format!("no unit of the file is {name:?}")),
             _ => Err(format!(
                 "{} units of the file are named {name:?}; which one is not stated",
@@ -6568,6 +6566,30 @@ impl<'a> PartPlan<'a> {
             Some(Principle::Independency) => "independency",
             Some(Principle::EnvelopeRequirement) => "envelope requirement",
         };
+        // A stated principle or qualifier still needs a representation when no measure
+        // is stated. An empty descriptive item supplies the required nonempty SET without
+        // inventing a value or a dimensional note.
+        if d.nominal.is_none()
+            && (d.qualifier.is_some() || (items.is_empty() && d.principle.is_some()))
+        {
+            let mut qualifiers = Vec::new();
+            if let Some(qual) = &d.qualifier {
+                let name = match qual {
+                    Qualifier::Maximum => "maximum",
+                    Qualifier::Minimum => "minimum",
+                    Qualifier::Average => "average",
+                    Qualifier::Other(name) => name,
+                };
+                qualifiers.push(em.simple("type_qualifier", &[("name", s(name))])?);
+            }
+            let mut kinds = vec!["descriptive_representation_item"];
+            let mut vals = vec![(("", "name"), s("")), (("", "description"), s(""))];
+            if !qualifiers.is_empty() {
+                kinds.push("qualified_representation_item");
+                vals.push((("", "qualifiers"), refs(qualifiers)));
+            }
+            items.push(em.instance(&kinds, &vals, &[])?);
+        }
         if !items.is_empty() {
             let sdr = em.simple(
                 "shape_dimension_representation",
@@ -7525,8 +7547,30 @@ impl<'a> PartPlan<'a> {
                             &[value],
                         )?
                     } else {
-                        let u = self.other_unit(unit).map_err(WriteError::Internal)?;
-                        let u = em.reference(u)?;
+                        let id = self.other_unit(unit).map_err(WriteError::Internal)?;
+                        let u = if let Some(id) = id {
+                            em.reference(id)?
+                        } else if let Some(&u) = em.other_units.get(unit) {
+                            u
+                        } else {
+                            let records = super::unit_identity::records(unit).ok_or_else(|| {
+                                WriteError::Internal("invalid portable unit identity".into())
+                            })?;
+                            let mut emitted = Vec::<R>::new();
+                            for mut record in records {
+                                p21::visit_attributes_mut(&mut record, &mut |a| {
+                                    if let A::EntityRef(id) = a {
+                                        *a = emitted[*id as usize - 1].a();
+                                    }
+                                });
+                                emitted.push(em.push(record, &[])?);
+                            }
+                            let u = *emitted.last().ok_or_else(|| {
+                                WriteError::Internal("empty unit identity".into())
+                            })?;
+                            em.other_units.insert(unit.clone(), u);
+                            u
+                        };
                         em.instance(
                             &["measure_representation_item"],
                             &[

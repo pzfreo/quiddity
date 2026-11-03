@@ -185,16 +185,17 @@ def test_outside_producer_refusals(producer, numeric, report):
     assert isinstance(caught.value.findings, list)
 
 
-def test_writer_refusals_and_findings():
+def test_writer_preserves_dimensions_without_values():
     source = FIXTURES / "ap242/nist/nist_ctc_01_asme1_ap242-e1.stp.gz"
     document = pmi.read(source)
-    with pytest.raises(quiddity.PmiError, match="dimension without a nominal value") as caught:
-        pmi.write(source, document)
-    assert caught.value.findings
-    for finding in caught.value.findings:
-        assert {"kind", "part", "ids", "entity", "detail"} == finding.keys()
-    with pytest.raises(quiddity.PmiError, match="dimension without a nominal value"):
-        pmi.validate(document)
+    dimensions = document["pmi"]["dimensions"]
+    valueless = [d for d in dimensions if d["value"]["nominal"] is None]
+    assert len(valueless) == 4
+    assert pmi.validate(document) is None
+    written = pmi.write(source, document)
+    after = pmi.read(written)
+    assert after == document
+    assert [d for d in after["pmi"]["dimensions"] if d["value"]["nominal"] is None] == valueless
 
 
 @pytest.mark.parametrize("document", ["{}", "not json", '{"schema":1,"schema":2}', {"schema": "unknown"}, {"bad": float("nan")}])

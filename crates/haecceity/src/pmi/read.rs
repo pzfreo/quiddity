@@ -840,7 +840,9 @@ impl<'a> Reader<'a> {
                 self.get_str(id, "context_dependent_unit", "name")
                     .unwrap_or_default()
             } else {
-                format!("#{id}")
+                super::unit_identity::identity(self.doc, id).ok_or_else(|| {
+                    MeasureError::unitless(format!("unit #{id} has no portable content identity"))
+                })?
             };
             return Ok(Unit::Other(name));
         }
@@ -3184,7 +3186,25 @@ impl<'a> Reader<'a> {
             .unwrap_or_default();
         for item in items {
             let name = self.name_of(item);
-            if self.is(item, "measure_representation_item") {
+            if self.is(item, "descriptive_representation_item")
+                && name.is_empty()
+                && self.text_of(item).as_deref() == Some("")
+                && (principle.is_some() || self.is(item, "qualified_representation_item"))
+            {
+                // A value-less representation can hold a principle/qualifier using an
+                // empty descriptive carrier. It states no nominal value.
+                prov.push(item);
+                for q in self.get_refs(item, "qualified_representation_item", "qualifiers") {
+                    if self.is(q, "type_qualifier") {
+                        qualifier = Some(Qualifier::from_name(
+                            &self
+                                .get_str(q, "type_qualifier", "name")
+                                .unwrap_or_default(),
+                        ));
+                        prov.push(q);
+                    }
+                }
+            } else if self.is(item, "measure_representation_item") {
                 let mut c = Vec::new();
                 let v = self.value(st, item, want, &mut c)?;
                 prov.extend(c);
@@ -4307,6 +4327,13 @@ impl<'a> Reader<'a> {
                     prov.push(end);
                     prov.extend(self.id_attributes(end));
                     st.absorbed.insert(end);
+                    self.find(
+                        FindingKind::Fact,
+                        part,
+                        def,
+                        &[end],
+                        "projected zone states a projection-end shape aspect with no geometry",
+                    );
                     None
                 } else {
                     match self.feature(st, end) {

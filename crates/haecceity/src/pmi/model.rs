@@ -3063,8 +3063,8 @@ pub enum AttributeValue {
     Boolean(bool),
     Measure(Value),
     /// A measure of a kind other than length or plane angle: its type name, value and unit
-    /// name, as stated. Anonymous units use their source entity reference (`#id`),
-    /// resolved against the original STEP document when writing.
+    /// name, as stated. Anonymous units use a portable `step-unit:` content identity
+    /// containing their unit graph; writing reuses an equal destination unit or adds it.
     OtherMeasure {
         measure: String,
         value: Decimal,
