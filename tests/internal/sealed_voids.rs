@@ -167,3 +167,118 @@ fn mixed_block_accounts_for_every_sealed_shell_even_when_grid_sampling_misses_on
         assert!(record_ids[0].starts_with("interior_voids/"));
     }
 }
+
+#[test]
+fn cgb217_void_replaces_only_its_subordinate_cylindrical_profiles() {
+    let Some(root) = common::corpus_dir() else {
+        assert!(std::env::var_os("QUIDDITY_CORPUS_REQUIRED").is_none());
+        return;
+    };
+    let path = root.join("cadgenbench_inputs/cgb217.step.gz");
+    let (output, _) = quiddity::serve::recognise_file(path.to_str().unwrap()).unwrap();
+    let doc = output.document;
+    let voids: Vec<_> = doc
+        .records
+        .iter()
+        .filter(|r| r.family == "interior_voids")
+        .collect();
+    assert_eq!(voids.len(), 1);
+    let void = voids[0];
+    assert_eq!(void.faces, [361, 362, 363]);
+    assert_eq!(void.parameters["volume_method"], "closed_shell");
+    assert_eq!(void.parameters["openings"], serde_json::json!([]));
+    for face in [361, 362, 363] {
+        assert_eq!(
+            doc.face_accounting.as_ref().unwrap()[face],
+            FaceAccounting::Feature {
+                record_ids: vec![void.id.clone()],
+            }
+        );
+    }
+    let profiles: Vec<_> = doc
+        .records
+        .iter()
+        .filter(|r| r.family == "cylindrical_profiles")
+        .collect();
+    assert_eq!(profiles.len(), 17); // historical 19, with faces 362 and 363 now owned by the void
+    assert!(
+        profiles
+            .iter()
+            .all(|r| !r.faces.iter().any(|f| [361, 362, 363].contains(f)))
+    );
+    assert_eq!(
+        doc.records.iter().filter(|r| r.family == "holes").count(),
+        19
+    );
+    assert_eq!(
+        doc.records
+            .iter()
+            .filter(|r| r.family == "hole_patterns")
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn captured_sealed_arrays_have_void_claims_in_every_consumer() {
+    for name in ["247a52f98035a214", "37e69d8b9cffab0b", "5d85fadf9031e41d"] {
+        let path = common::fixtures()
+            .join("captured")
+            .join(format!("{name}.step.gz"));
+        let part = quiddity::read_step_file(&path).unwrap();
+        let ctx = Context::new(&part);
+        let voids = interior_voids::discover_verified(&ctx).unwrap();
+        assert_eq!(voids.len(), 3, "{name}");
+        assert_eq!(
+            voids.iter().map(|v| v.defining.clone()).collect::<Vec<_>>(),
+            [vec![5, 6, 7, 8], vec![9, 10, 11, 12], vec![13, 14, 15, 16]]
+        );
+        for void in &voids {
+            assert!(void.record.openings.is_empty());
+            assert!(part.shell_mass(&void.defining).unwrap().0 < 0.);
+        }
+        assert!(
+            holes::discover_verified(&ctx, &[]).unwrap().is_empty(),
+            "{name}"
+        );
+        assert!(
+            holes::discover_locally_degraded(&ctx, &[])
+                .unwrap()
+                .is_empty(),
+            "{name}"
+        );
+        assert!(
+            holes::recognise_holes(&part, &Default::default()).is_empty(),
+            "{name}"
+        );
+        let recognised = quiddity::correspondence::recognise(&part);
+        let doc = recognition::document(&recognised, part.faces.len());
+        assert!(
+            doc.records
+                .iter()
+                .all(|r| r.family != "holes" && r.family != "hole_patterns")
+        );
+        let published: Vec<_> = doc
+            .records
+            .iter()
+            .filter(|r| r.family == "interior_voids")
+            .collect();
+        assert_eq!(published.len(), 3);
+        for void in published {
+            assert_eq!(void.parameters["volume_method"], "closed_shell");
+            for face in &void.faces {
+                let FaceAccounting::Feature { record_ids } =
+                    &doc.face_accounting.as_ref().unwrap()[*face]
+                else {
+                    panic!("{name}: cavity face {face} is not accounted");
+                };
+                assert!(record_ids.contains(&void.id));
+                assert!(
+                    record_ids
+                        .iter()
+                        .all(|id| !id.starts_with("holes/") && !id.starts_with("hole_patterns/"))
+                );
+            }
+        }
+    }
+}

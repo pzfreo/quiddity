@@ -125,6 +125,8 @@ the shell's oriented boundary integral in `estimated_volume`. They do not use gr
 samples: `grid_pitch`, `enclosed_samples` and `air_samples` are zero. Open chambers
 retain `six_axis_grid` and their existing sampled measurements. Sealed void record
 parameters and fingerprints therefore change to describe the shell measurement.
+The complete void claim supersedes generic cylindrical-profile records on its skin,
+as other recognized features already do.
 
 Blind holes, through holes, and holes opening into pockets connected to the outside
 remain on the outer shell and retain their existing recognition. Interior chambers

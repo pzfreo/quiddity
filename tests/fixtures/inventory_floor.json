@@ -1,6 +1,6 @@
 {
   "revision": "5fb1706",
-  "description": "Per-file raw physical candidates (patterns derived over raw members) and reconciled public aggregate, including unified section-recess records and patterns, at 5fb1706. For #81, framed accepted-feature counts (excluding document Refusal classes) over the 100 corpus documents start at origin/main and only rise; explicit analytic direction/family evidence accompanies every allowed framed decrease. AP242 fixture floors pin the recovered counts. For #89, convex fillets require an outward-facing cylinder in both prismatic paths. Original fillet baselines remain; per-face material-side evidence bounds concave false-positive removals, and recovered blend counts tighten floors/allowances. For #91, the frame's roll about its leading line follows the tightest box around the material; the cgb241 and cgb217 framed fillet and step-level decreases are family changes of the same faces, each evidenced. For #120, exact blend-to-fillet promotions at arbitrary wall angles and directions have per-face evidence-backed loss allowances; the four CTC-05 false fillets have separate gross-tangency evidence. No historical baseline or comparison tolerance is lowered. For #127, new concave fillets tighten accepted/framed floors and physical lower bounds; audited blend-to-fillet promotions have face-specific loss allowances. Historical baselines and tolerances remain unchanged. For #127, historical false-fillet loss allowances are retired wherever a higher floor now pins the current proved fillets; those new floors admit no historical loss. For #127, residual cylindrical-profile framed floors are re-recorded after #128 against c41241f2: only unexplained or body-only faces are added, with every existing record and tightened fillet floor preserved. Raw and reconciled candidate inventories precede this residual projection. For #123, whole-solid turned-body counts tighten physical, accepted and framed floors wherever the new complete-boundary proof succeeds; historical feature baselines and tolerances remain unchanged. OD-boss suppressions are audited separately against 42649a2.",
+  "description": "Per-file raw physical candidates (patterns derived over raw members) and reconciled public aggregate, including unified section-recess records and patterns, at 5fb1706. For #81, framed accepted-feature counts (excluding document Refusal classes) over the 100 corpus documents start at origin/main and only rise; explicit analytic direction/family evidence accompanies every allowed framed decrease. AP242 fixture floors pin the recovered counts. For #89, convex fillets require an outward-facing cylinder in both prismatic paths. Original fillet baselines remain; per-face material-side evidence bounds concave false-positive removals, and recovered blend counts tighten floors/allowances. For #91, the frame's roll about its leading line follows the tightest box around the material; the cgb241 and cgb217 framed fillet and step-level decreases are family changes of the same faces, each evidenced. For #120, exact blend-to-fillet promotions at arbitrary wall angles and directions have per-face evidence-backed loss allowances; the four CTC-05 false fillets have separate gross-tangency evidence. No historical baseline or comparison tolerance is lowered. For #127, new concave fillets tighten accepted/framed floors and physical lower bounds; audited blend-to-fillet promotions have face-specific loss allowances. Historical baselines and tolerances remain unchanged. For #127, historical false-fillet loss allowances are retired wherever a higher floor now pins the current proved fillets; those new floors admit no historical loss. For #127, residual cylindrical-profile framed floors are re-recorded after #128 against c41241f2: only unexplained or body-only faces are added, with every existing record and tightened fillet floor preserved. Raw and reconciled candidate inventories precede this residual projection. For #123, whole-solid turned-body counts tighten physical, accepted and framed floors wherever the new complete-boundary proof succeeds; historical feature baselines and tolerances remain unchanged. OD-boss suppressions are audited separately against 42649a2. Sealed-void reclassification (2026-11-03) retains every historical floor and tightens interior-void floors; face-specific allowances cover only sealed bore/pattern records and subordinate profiles superseded by complete closed-shell void claims.",
   "files": {
     "captured/0043cf4564250883.step.gz": {
       "accepted": {
@@ -1765,7 +1765,8 @@
         "holes": 3,
         "risers": 1,
         "turned_steps": 2,
-        "turned_bodies": 1
+        "turned_bodies": 1,
+        "interior_voids": 3
       },
       "physical": {
         "bosses": 5,
@@ -1773,7 +1774,8 @@
         "holes": 3,
         "risers": 1,
         "turned_steps": 2,
-        "turned_bodies": 1
+        "turned_bodies": 1,
+        "interior_voids": 3
       }
     },
     "captured/2490d365d9111d76.step.gz": {
@@ -2909,7 +2911,8 @@
         "holes": 3,
         "risers": 1,
         "turned_steps": 2,
-        "turned_bodies": 1
+        "turned_bodies": 1,
+        "interior_voids": 3
       },
       "physical": {
         "bosses": 5,
@@ -2917,7 +2920,8 @@
         "holes": 3,
         "risers": 1,
         "turned_steps": 2,
-        "turned_bodies": 1
+        "turned_bodies": 1,
+        "interior_voids": 3
       }
     },
     "captured/37e80d3b71729163.step.gz": {
@@ -5279,7 +5283,8 @@
         "holes": 3,
         "risers": 4,
         "turned_steps": 2,
-        "turned_bodies": 1
+        "turned_bodies": 1,
+        "interior_voids": 3
       },
       "physical": {
         "bosses": 5,
@@ -5287,7 +5292,8 @@
         "holes": 3,
         "risers": 4,
         "turned_steps": 2,
-        "turned_bodies": 1
+        "turned_bodies": 1,
+        "interior_voids": 3
       }
     },
     "captured/5d9e7f003366ca28.step.gz": {
@@ -14912,7 +14918,8 @@
         "holes": 19,
         "risers": 3,
         "step_levels": 1,
-        "turned_steps": 4
+        "turned_steps": 4,
+        "interior_voids": 1
       }
     },
     "corpus/cadgenbench_inputs/cgb241.step": {
@@ -19513,6 +19520,110 @@
       "max_lost": 8,
       "reason": " For #127, concave constant-radius rounds between tangent walls pass the intrinsic fillet proof and supersede generic blends. The historical floor 11 is retained; 3 blends remain.",
       "evidence": " Full e58d174 face/record audit: faces [46], R6.35, faces [52], R6.35, faces [97], R3.175, faces [109], R3.175, faces [101], R3.175, faces [105], R3.175, faces [40], R6.35, faces [34], R6.35. Each face becomes a concave fillet; other accepted defining claims are reserved (src/features/fillets.rs, src/features/mod.rs)."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb217.step.gz",
+      "mode": "framed",
+      "family": "cylindrical_profiles",
+      "max_lost": 2,
+      "reason": "Sealed interior voids are not holes (maintainer decision 2026-11-03). The closed void on faces 361-363 supersedes its two generic cylindrical profiles on faces 362 and 363. The historical floor of 19 is retained; 17 profiles remain.",
+      "evidence": "BREP_WITH_VOIDS supplies a closed inward-facing shell on faces [361,362,363], with signed boundary-integral volume -27.0960835743 mm^3 and no mouth. interior_voids/0 now owns all three faces, including previously unexplained face 361; no hole or pattern changes. tests/internal/sealed_voids.rs::cgb217_void_replaces_only_its_subordinate_cylindrical_profiles asserts the complete void claim, 17 remaining profiles, and unchanged 19 holes and one hole pattern. Independent OpenCascade import also reads a reversed three-face inner shell with negative volume. The new framed interior_voids floor of one protects its replacement claim."
+    },
+    {
+      "file": "captured/247a52f98035a214.step.gz",
+      "mode": "accepted",
+      "family": "holes",
+      "max_lost": 3,
+      "reason": "Sealed cylindrical cavities have no outside mouth and are interior voids, not holes (maintainer decision 2026-11-03). The historical hole and pattern floors remain; the three false holes and their array are not emitted.",
+      "evidence": "Former hole walls [5], [9], [13] lie on closed inward-facing void shells [5,6,7,8], [9,10,11,12], [13,14,15,16]. Each complete skin is now an interior_voids claim with no openings. tests/internal/sealed_voids.rs::captured_sealed_arrays_have_void_claims_in_every_consumer verifies the three closed skins, negative signed volumes, zero raw/strict/degraded/published holes and patterns, and complete cavity face accounting. New interior_voids floors of three protect the replacement claims."
+    },
+    {
+      "file": "captured/247a52f98035a214.step.gz",
+      "mode": "accepted",
+      "family": "hole_patterns",
+      "max_lost": 1,
+      "reason": "Sealed cylindrical cavities have no outside mouth and are interior voids, not holes (maintainer decision 2026-11-03). The historical hole and pattern floors remain; the three false holes and their array are not emitted.",
+      "evidence": "Former hole walls [5], [9], [13] lie on closed inward-facing void shells [5,6,7,8], [9,10,11,12], [13,14,15,16]. Each complete skin is now an interior_voids claim with no openings. tests/internal/sealed_voids.rs::captured_sealed_arrays_have_void_claims_in_every_consumer verifies the three closed skins, negative signed volumes, zero raw/strict/degraded/published holes and patterns, and complete cavity face accounting. New interior_voids floors of three protect the replacement claims."
+    },
+    {
+      "file": "captured/247a52f98035a214.step.gz",
+      "mode": "physical",
+      "family": "holes",
+      "max_lost": 3,
+      "reason": "Sealed cylindrical cavities have no outside mouth and are interior voids, not holes (maintainer decision 2026-11-03). The historical hole and pattern floors remain; the three false holes and their array are not emitted.",
+      "evidence": "Former hole walls [5], [9], [13] lie on closed inward-facing void shells [5,6,7,8], [9,10,11,12], [13,14,15,16]. Each complete skin is now an interior_voids claim with no openings. tests/internal/sealed_voids.rs::captured_sealed_arrays_have_void_claims_in_every_consumer verifies the three closed skins, negative signed volumes, zero raw/strict/degraded/published holes and patterns, and complete cavity face accounting. New interior_voids floors of three protect the replacement claims."
+    },
+    {
+      "file": "captured/247a52f98035a214.step.gz",
+      "mode": "physical",
+      "family": "hole_patterns",
+      "max_lost": 1,
+      "reason": "Sealed cylindrical cavities have no outside mouth and are interior voids, not holes (maintainer decision 2026-11-03). The historical hole and pattern floors remain; the three false holes and their array are not emitted.",
+      "evidence": "Former hole walls [5], [9], [13] lie on closed inward-facing void shells [5,6,7,8], [9,10,11,12], [13,14,15,16]. Each complete skin is now an interior_voids claim with no openings. tests/internal/sealed_voids.rs::captured_sealed_arrays_have_void_claims_in_every_consumer verifies the three closed skins, negative signed volumes, zero raw/strict/degraded/published holes and patterns, and complete cavity face accounting. New interior_voids floors of three protect the replacement claims."
+    },
+    {
+      "file": "captured/37e69d8b9cffab0b.step.gz",
+      "mode": "accepted",
+      "family": "holes",
+      "max_lost": 3,
+      "reason": "Sealed cylindrical cavities have no outside mouth and are interior voids, not holes (maintainer decision 2026-11-03). The historical hole and pattern floors remain; the three false holes and their array are not emitted.",
+      "evidence": "Former hole walls [5], [9], [13] lie on closed inward-facing void shells [5,6,7,8], [9,10,11,12], [13,14,15,16]. Each complete skin is now an interior_voids claim with no openings. tests/internal/sealed_voids.rs::captured_sealed_arrays_have_void_claims_in_every_consumer verifies the three closed skins, negative signed volumes, zero raw/strict/degraded/published holes and patterns, and complete cavity face accounting. New interior_voids floors of three protect the replacement claims."
+    },
+    {
+      "file": "captured/37e69d8b9cffab0b.step.gz",
+      "mode": "accepted",
+      "family": "hole_patterns",
+      "max_lost": 1,
+      "reason": "Sealed cylindrical cavities have no outside mouth and are interior voids, not holes (maintainer decision 2026-11-03). The historical hole and pattern floors remain; the three false holes and their array are not emitted.",
+      "evidence": "Former hole walls [5], [9], [13] lie on closed inward-facing void shells [5,6,7,8], [9,10,11,12], [13,14,15,16]. Each complete skin is now an interior_voids claim with no openings. tests/internal/sealed_voids.rs::captured_sealed_arrays_have_void_claims_in_every_consumer verifies the three closed skins, negative signed volumes, zero raw/strict/degraded/published holes and patterns, and complete cavity face accounting. New interior_voids floors of three protect the replacement claims."
+    },
+    {
+      "file": "captured/37e69d8b9cffab0b.step.gz",
+      "mode": "physical",
+      "family": "holes",
+      "max_lost": 3,
+      "reason": "Sealed cylindrical cavities have no outside mouth and are interior voids, not holes (maintainer decision 2026-11-03). The historical hole and pattern floors remain; the three false holes and their array are not emitted.",
+      "evidence": "Former hole walls [5], [9], [13] lie on closed inward-facing void shells [5,6,7,8], [9,10,11,12], [13,14,15,16]. Each complete skin is now an interior_voids claim with no openings. tests/internal/sealed_voids.rs::captured_sealed_arrays_have_void_claims_in_every_consumer verifies the three closed skins, negative signed volumes, zero raw/strict/degraded/published holes and patterns, and complete cavity face accounting. New interior_voids floors of three protect the replacement claims."
+    },
+    {
+      "file": "captured/37e69d8b9cffab0b.step.gz",
+      "mode": "physical",
+      "family": "hole_patterns",
+      "max_lost": 1,
+      "reason": "Sealed cylindrical cavities have no outside mouth and are interior voids, not holes (maintainer decision 2026-11-03). The historical hole and pattern floors remain; the three false holes and their array are not emitted.",
+      "evidence": "Former hole walls [5], [9], [13] lie on closed inward-facing void shells [5,6,7,8], [9,10,11,12], [13,14,15,16]. Each complete skin is now an interior_voids claim with no openings. tests/internal/sealed_voids.rs::captured_sealed_arrays_have_void_claims_in_every_consumer verifies the three closed skins, negative signed volumes, zero raw/strict/degraded/published holes and patterns, and complete cavity face accounting. New interior_voids floors of three protect the replacement claims."
+    },
+    {
+      "file": "captured/5d85fadf9031e41d.step.gz",
+      "mode": "accepted",
+      "family": "holes",
+      "max_lost": 3,
+      "reason": "Sealed cylindrical cavities have no outside mouth and are interior voids, not holes (maintainer decision 2026-11-03). The historical hole and pattern floors remain; the three false holes and their array are not emitted.",
+      "evidence": "Former hole walls [5], [9], [13] lie on closed inward-facing void shells [5,6,7,8], [9,10,11,12], [13,14,15,16]. Each complete skin is now an interior_voids claim with no openings. tests/internal/sealed_voids.rs::captured_sealed_arrays_have_void_claims_in_every_consumer verifies the three closed skins, negative signed volumes, zero raw/strict/degraded/published holes and patterns, and complete cavity face accounting. New interior_voids floors of three protect the replacement claims."
+    },
+    {
+      "file": "captured/5d85fadf9031e41d.step.gz",
+      "mode": "accepted",
+      "family": "hole_patterns",
+      "max_lost": 1,
+      "reason": "Sealed cylindrical cavities have no outside mouth and are interior voids, not holes (maintainer decision 2026-11-03). The historical hole and pattern floors remain; the three false holes and their array are not emitted.",
+      "evidence": "Former hole walls [5], [9], [13] lie on closed inward-facing void shells [5,6,7,8], [9,10,11,12], [13,14,15,16]. Each complete skin is now an interior_voids claim with no openings. tests/internal/sealed_voids.rs::captured_sealed_arrays_have_void_claims_in_every_consumer verifies the three closed skins, negative signed volumes, zero raw/strict/degraded/published holes and patterns, and complete cavity face accounting. New interior_voids floors of three protect the replacement claims."
+    },
+    {
+      "file": "captured/5d85fadf9031e41d.step.gz",
+      "mode": "physical",
+      "family": "holes",
+      "max_lost": 3,
+      "reason": "Sealed cylindrical cavities have no outside mouth and are interior voids, not holes (maintainer decision 2026-11-03). The historical hole and pattern floors remain; the three false holes and their array are not emitted.",
+      "evidence": "Former hole walls [5], [9], [13] lie on closed inward-facing void shells [5,6,7,8], [9,10,11,12], [13,14,15,16]. Each complete skin is now an interior_voids claim with no openings. tests/internal/sealed_voids.rs::captured_sealed_arrays_have_void_claims_in_every_consumer verifies the three closed skins, negative signed volumes, zero raw/strict/degraded/published holes and patterns, and complete cavity face accounting. New interior_voids floors of three protect the replacement claims."
+    },
+    {
+      "file": "captured/5d85fadf9031e41d.step.gz",
+      "mode": "physical",
+      "family": "hole_patterns",
+      "max_lost": 1,
+      "reason": "Sealed cylindrical cavities have no outside mouth and are interior voids, not holes (maintainer decision 2026-11-03). The historical hole and pattern floors remain; the three false holes and their array are not emitted.",
+      "evidence": "Former hole walls [5], [9], [13] lie on closed inward-facing void shells [5,6,7,8], [9,10,11,12], [13,14,15,16]. Each complete skin is now an interior_voids claim with no openings. tests/internal/sealed_voids.rs::captured_sealed_arrays_have_void_claims_in_every_consumer verifies the three closed skins, negative signed volumes, zero raw/strict/degraded/published holes and patterns, and complete cavity face accounting. New interior_voids floors of three protect the replacement claims."
     }
   ]
 }
