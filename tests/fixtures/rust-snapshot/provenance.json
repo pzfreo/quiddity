@@ -199,8 +199,8 @@
     "tests/fixtures/ap242/specify/thumbwheel_thread_knurl.intent.json": "295b20d1efbc4432d50c7a6a4638f978976df714fb991424f261cb69981662ec",
     "tests/fixtures/ap242/specify/thumbwheel_thread_knurl.meta.json": "e6f9038d71c4368480e9e88451188443421a3f8bf1690ba1adf10a0fb0219831",
     "tests/fixtures/ap242/specify/thumbwheel_thread_knurl.step.gz": "b805b0f26ec4bea3446d301067eeca7e61dd8fceeec9a44d7af66f53f1a42f52",
-    "tests/fixtures/ap242/write-presentation/assembly_plate_pin_intent.occt.json.gz": "71c49690c0d1eddba0ac3fbe9e1c72b2619e86503d54c18e1000b2b59ddbdeb5",
-    "tests/fixtures/ap242/write-presentation/assembly_plate_pin_intent.step.gz": "cd88154789c6b9534132dca47b54f888bfcf60c5784edf27ec8ab29abaff9029",
+    "tests/fixtures/ap242/write-presentation/assembly_plate_pin_intent.occt.json.gz": "f790e9e1436fa62617d18266babda86da380e655e399e1fa8794507e3e3d3543",
+    "tests/fixtures/ap242/write-presentation/assembly_plate_pin_intent.step.gz": "f7f5b536ea16cbbbc424df8ca1633056a5442f6ade632b674fd84810185b5168",
     "tests/fixtures/ap242/write-presentation/datum_targets.occt.json.gz": "3da4f6d59117f0604f567513e83c4812c72644b2724532ef03630dec2d00c8ee",
     "tests/fixtures/ap242/write-presentation/datum_targets.step.gz": "5defd95e113f1700ac73d7e08b26e92dcd235d73ea3fe694f8ae432021260e66",
     "tests/fixtures/ap242/write-presentation/datum_targets_shared_support.occt.json.gz": "d65bcc10317e880fd3d8d748c0bf9d9cdab99567c4e992c63d192241c2bb6265",
@@ -215,12 +215,12 @@
     "tests/fixtures/ap242/write-presentation/nist_ctc_02_targets.step.gz": "c61ce856bc424948e474bdb285f0c3ecbdeb3fad9d882322d125ef7e8c436308",
     "tests/fixtures/ap242/write-presentation/nist_ftc_10_targets.occt.json.gz": "add093c0adf930b20650210855b3128a15b67caf09881b7d1a49f3405afbad72",
     "tests/fixtures/ap242/write-presentation/nist_ftc_10_targets.step.gz": "0803986f1ab1bdb6b550b7d853901795a084ace71661cf67ed3aae2aaba3f421",
-    "tests/fixtures/ap242/write-presentation/pmi_gaps.occt.json.gz": "b139f7722d7660542de1893597c2e8b85149ed9c4bebdc5ba19ed33609db6471",
-    "tests/fixtures/ap242/write-presentation/pmi_gaps.step.gz": "0268148562e874c7301a057544c14418bd6a925dc9c1eaae2ef1662973ebdcd5",
-    "tests/fixtures/ap242/write-presentation/pmi_gaps_gram.occt.json.gz": "94ece6ef89322b0ecbd7d61e5398175d06d17dbd3089aab41eb4d8734eee77cf",
-    "tests/fixtures/ap242/write-presentation/pmi_gaps_gram.step.gz": "8f41a7228fb4d6fc07079cc3dc37aa2aada84e880f00e29086b83feb0f568773",
-    "tests/fixtures/ap242/write-presentation/spool_fits_intent.occt.json.gz": "9c45fdd69e178170d03ef90d9aa47a7a9658ed36a7ee39eef59a839fad881126",
-    "tests/fixtures/ap242/write-presentation/spool_fits_intent.step.gz": "37d7151f74d2d73541f086d6c276a68ec5cb4eee974dd17892de05788071cbd5",
+    "tests/fixtures/ap242/write-presentation/pmi_gaps.occt.json.gz": "a6bd619fc3f99b1561e69ba556fbeaa17c9aa04134011220b23cb5b09ac514a5",
+    "tests/fixtures/ap242/write-presentation/pmi_gaps.step.gz": "e8ccaac77dcbb881ecf5b6a7f0ab7da2c1d5603f876d2d1f2c318b19bbc40552",
+    "tests/fixtures/ap242/write-presentation/pmi_gaps_gram.occt.json.gz": "fde9d0371a3818f0e5465472c0b9bf4e35b652b66f20c97833a233233f9112f7",
+    "tests/fixtures/ap242/write-presentation/pmi_gaps_gram.step.gz": "5d417e018b0ab9ff2c5ed7a1105bc5af31df9d60e08f951d1a58ef90da0af82d",
+    "tests/fixtures/ap242/write-presentation/spool_fits_intent.occt.json.gz": "53e48e0937532e28610889dc19a546ae02971b1901ce5185da90362249197e25",
+    "tests/fixtures/ap242/write-presentation/spool_fits_intent.step.gz": "8b7b7a322311bab24a34ca849249d289cc201053f2ff5cb73946f44a8cdfeec9",
     "tests/fixtures/ap242/write-presentation/string_post_tapped_intent.occt.json.gz": "1a490e72ffe580f1e7a19b364f475a33bec6b401a608b39d6aa4aef1d1aecefb",
     "tests/fixtures/ap242/write-presentation/string_post_tapped_intent.step.gz": "967fee36180ced087953f80ceba56a006db2d145a5e78746e693426aed9447cf",
     "tests/fixtures/ap242/write-presentation/thread_removed.occt.json.gz": "425f0806602d8cf95bab66572bdbd60847da2a81fd2e78acb976dfc3ed3ad654",
@@ -5884,5 +5884,5 @@
     "sections/test/parts/fc9cb0ef3d518aa4.step.gz.json.gz": "ad246bd3ca231dda3e7fe1fc54cd798984e7dcd9da376dcb609c3c42001086f8",
     "step_levels.json.gz": "b1d837579387b475bfb90cc5670098890fdfe83fddcbf0e2236a24207c2de1ff"
   },
-  "source_commit": "b4da5bde2ebe9f20dda4c9934bca3cc33ae18c0e"
+  "source_commit": "e0633a759e0c5b83f75daacbe7f00b2931f762cf"
 }

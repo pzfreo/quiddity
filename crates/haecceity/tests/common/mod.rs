@@ -4,6 +4,8 @@
 #![allow(dead_code)]
 
 pub mod drawing;
+#[cfg(feature = "presentation")]
+pub mod ink;
 #[path = "../../../../tests/common/parallel.rs"]
 pub mod parallel;
 pub mod pmi_datums;

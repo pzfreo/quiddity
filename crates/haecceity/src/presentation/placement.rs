@@ -31,10 +31,10 @@ pub struct Layout {
     height: f64,
     occupied: Vec<Bounds>,
     occupied_normals: Vec<Option<V3>>,
+    notes_ink: Vec<Vec<V3>>,
     view_local: bool,
     callouts: Vec<Vec<V3>>,
     notes_bottom: Option<f64>,
-    kept_notes: Vec<Bounds>,
 }
 impl Layout {
     pub fn new(bounds: Bounds) -> Self {
@@ -67,10 +67,10 @@ impl Layout {
             height: text_height(largest * mm_per_unit) / mm_per_unit,
             occupied: Vec::new(),
             occupied_normals: Vec::new(),
+            notes_ink: Vec::new(),
             view_local: false,
             callouts: Vec::new(),
             notes_bottom: None,
-            kept_notes: Vec::new(),
         }
     }
     pub fn text_height(&self) -> f64 {
@@ -78,6 +78,7 @@ impl Layout {
     }
     /// Reserve completed graphics (including leaders) before placing the notes block.
     pub fn reserve(&mut self, lines: &[Vec<V3>]) {
+        self.reserve_notes_ink(lines);
         let mut b = Bounds::empty();
         for &p in lines.iter().flatten() {
             b.add(p);
@@ -86,6 +87,13 @@ impl Layout {
             self.occupied.push(b);
             self.occupied_normals.push(None);
         }
+    }
+    /// Notes use final drawn strokes, independently of feature packing boxes.
+    pub(crate) fn clear_notes_ink(&mut self) {
+        self.notes_ink.clear();
+    }
+    pub(crate) fn reserve_notes_ink(&mut self, lines: &[Vec<V3>]) {
+        self.notes_ink.extend_from_slice(lines);
     }
     /// Reserve completed annotation ink in both model space and projected views.
     /// Used when rebuilding only the feature stacks affected by new thread ink.
@@ -115,16 +123,6 @@ impl Layout {
             })
             .to_vec(),
         );
-    }
-    /// Keep appended notes clear of existing notes in the front plane.
-    pub(crate) fn reserve_notes(&mut self, lines: &[Vec<V3>]) {
-        let mut bounds = Bounds::empty();
-        for &p in lines.iter().flatten() {
-            bounds.add(p);
-        }
-        if bounds.max_extent().is_finite() {
-            self.kept_notes.push(bounds);
-        }
     }
     /// ISO 1302's actual tip touches an interior face site; its legs rise normally.
     /// A small fixed list of interior stations avoids existing annotation ink.
@@ -193,14 +191,15 @@ impl Layout {
             }
         }
         let (_, placed, bounds) = best?;
+        self.reserve_notes_ink(&placed.lines);
         self.occupied.push(bounds);
         self.occupied_normals.push(Some(placed.normal));
         Some(placed)
     }
     /// Front-plane notes column beside the part's lower-right X/Z corner.
     /// Ink starts two capital heights right of max X and below min Z.
-    /// Subsequent blocks stack down with the same gap. Only part bounds and
-    /// preceding notes determine this column; remote leaders cannot move it.
+    /// Subsequent blocks stack down with the same gap. Slide below occupied
+    /// ink in the existing readable projections, including kept file graphics.
     pub fn notes(&mut self, c: &Callout) -> Placed {
         let scale = self.height / 3.;
         let local = c.polylines();
@@ -209,31 +208,51 @@ impl Layout {
             ink.add([p[0] * scale, 0., p[1] * scale]);
         }
         let gap = 2. * self.height;
-        let mut top = self.notes_bottom.unwrap_or(self.bounds.min[2]) - gap;
-        let left = self.bounds.max[0] + gap;
-        let right = left + ink.max[0] - ink.min[0];
-        let height = ink.max[2] - ink.min[2];
-        loop {
-            let next = self
-                .kept_notes
-                .iter()
-                .filter(|b| {
-                    left < b.max[0] + gap
-                        && right + gap > b.min[0]
-                        && top - height < b.max[2] + gap
-                        && top + gap > b.min[2]
-                })
-                .map(|b| b.min[2] - gap)
-                .fold(top, f64::min);
-            if next == top {
-                break;
-            }
-            top = next;
-        }
-        let origin = [
+        let top = self.notes_bottom.unwrap_or(self.bounds.min[2]) - gap;
+        let base = [
             self.bounds.max[0] + gap - ink.min[0],
             self.bounds.centre()[1],
             top - ink.max[2],
+        ];
+        let at = |p: [f64; 2]| [base[0] + p[0] * scale, base[1], base[2] + p[1] * scale];
+        // Each readable row reserves its own cell; spaces between rows and the
+        // unused ends of short rows remain available. Other graphics contribute
+        // their real segments, not rectangles spanning text and long leaders.
+        let mut cells: Vec<Vec<V3>> = c
+            .letters
+            .iter()
+            .flat_map(|text| {
+                super::font()
+                    .text_cells(&text.text, text.size)
+                    .into_iter()
+                    .map(move |[min, max]| {
+                        [
+                            [min[0], min[1]],
+                            [max[0], min[1]],
+                            [max[0], max[1]],
+                            [min[0], max[1]],
+                        ]
+                        .map(|p| at([text.at[0] + p[0], text.at[1] + p[1]]))
+                        .to_vec()
+                    })
+            })
+            .collect();
+        let explicit = Callout {
+            strokes: c.strokes.clone(),
+            arcs: c.arcs.clone(),
+            ..Callout::default()
+        };
+        for line in explicit.polylines() {
+            cells.extend(
+                line.windows(2)
+                    .map(|pair| pair.iter().copied().map(at).collect()),
+            );
+        }
+        let slide = notes_slide(&cells, &self.notes_ink, 0.1 * self.height);
+        let origin = [
+            self.bounds.max[0] + gap - ink.min[0],
+            self.bounds.centre()[1],
+            top - ink.max[2] - slide,
         ];
         if ink.max_extent().is_finite() {
             self.notes_bottom = Some(origin[2] + ink.min[2]);
@@ -697,7 +716,7 @@ impl Layout {
         if projected {
             self.callouts.push(rectangle(chosen));
         }
-        stroke(
+        let placed = stroke(
             anchor,
             basis,
             c,
@@ -705,8 +724,94 @@ impl Layout {
             chosen,
             [width, height],
             feature_extent.is_some(),
-        )
+        );
+        self.reserve_notes_ink(&placed.lines);
+        placed
     }
+}
+
+/// Forbidden downward translations for a convex cell against a real segment.
+/// Projection axes give linear interval constraints in the slide distance.
+fn slide_interval(cell: &[V3], segment: &[V3], view: V3, clearance: f64) -> Option<[f64; 2]> {
+    let view = geom::unit(view)?;
+    let mut interval = [f64::NEG_INFINITY, f64::INFINITY];
+    let edges = cell
+        .iter()
+        .zip(cell.iter().cycle().skip(1))
+        .take(cell.len())
+        .chain(
+            segment
+                .iter()
+                .zip(segment.iter().cycle().skip(1))
+                .take(segment.len()),
+        );
+    for (a, b) in edges {
+        let edge = geom::sub(*b, *a);
+        // Parallel axes also handle zero-area explicit strokes and collinear
+        // segments without treating their infinite supporting lines as ink.
+        for axis in [
+            geom::cross(view, edge),
+            geom::sub(edge, geom::scale(view, geom::dot(edge, view))),
+        ] {
+            let Some(axis) = geom::unit(axis) else {
+                continue;
+            };
+            let range = |points: &[V3]| {
+                points
+                    .iter()
+                    .map(|p| geom::dot(*p, axis))
+                    .fold([f64::INFINITY, f64::NEG_INFINITY], |r, v| {
+                        [r[0].min(v), r[1].max(v)]
+                    })
+            };
+            let a = range(cell);
+            let b = range(segment);
+            let lower = b[0] - a[1] - clearance;
+            let upper = b[1] - a[0] + clearance;
+            let velocity = -axis[2];
+            if velocity.abs() < 1e-12 {
+                if lower > 0. || upper < 0. {
+                    return None;
+                }
+            } else {
+                let t = [lower / velocity, upper / velocity];
+                interval[0] = interval[0].max(t[0].min(t[1]));
+                interval[1] = interval[1].min(t[0].max(t[1]));
+                if interval[0] > interval[1] {
+                    return None;
+                }
+            }
+        }
+    }
+    (interval[1] >= 0. && interval[1].is_finite()).then_some(interval)
+}
+
+fn notes_slide(cells: &[Vec<V3>], ink: &[Vec<V3>], clearance: f64) -> f64 {
+    let mut intervals = Vec::new();
+    for view in super::linear::VIEWS
+        .into_iter()
+        .filter(|v| v[1].abs() > 1e-8)
+    {
+        for cell in cells {
+            for segment in ink.iter().flat_map(|line| line.windows(2)) {
+                if let Some(interval) = slide_interval(cell, segment, view, clearance) {
+                    intervals.push(interval);
+                }
+            }
+        }
+    }
+    intervals.sort_by(|a, b| a[0].total_cmp(&b[0]).then(a[1].total_cmp(&b[1])));
+    let epsilon = clearance.max(1.) * 1e-9;
+    let mut slide = 0.;
+    for [start, end] in intervals {
+        if start > slide {
+            break;
+        }
+        if end >= slide {
+            slide = end + epsilon;
+        }
+    }
+    slide
 }
 
 /// Stroke a packed rectangle without changing the allocation. Shared by single
@@ -936,7 +1041,61 @@ mod tests {
     }
 
     #[test]
-    fn notes_column_stays_at_part_bounds_despite_remote_ink_and_stacks_without_overlap() {
+    fn notes_ignore_empty_space_inside_occupied_boxes_and_between_cells() {
+        let cell = vec![[0., 0., 0.], [10., 0., 0.], [10., 0., 1.], [0., 0., 1.]];
+        let outline = vec![vec![[-1., 0., -1.], [-1., 0., 2.], [11., 0., 2.]]];
+        assert_eq!(notes_slide(&[cell], &outline, 0.05), 0.);
+        let short = vec![[0., 0., 0.], [2., 0., 0.], [2., 0., 1.], [0., 0., 1.]];
+        let long = vec![[0., 0., -3.], [10., 0., -3.], [10., 0., -2.], [0., 0., -2.]];
+        assert_eq!(
+            notes_slide(&[short, long], &[vec![[8., 0., 0.2], [8., 0., 0.8]]], 0.05),
+            0.
+        );
+    }
+
+    #[test]
+    fn multiline_note_cells_leave_short_line_ends_clear() {
+        let mut layout = Layout::new(Bounds {
+            min: [0.; 3],
+            max: [40., 4., 4.],
+        });
+        let c = super::super::label("LONG LONG LONG\nA");
+        let first = layout.clone().notes(&c);
+        let cells = super::super::font().text_cells(&c.letters[0].text, 3.);
+        assert_eq!(cells.len(), 2);
+        let local = [
+            (cells[0][1][0] + cells[1][1][0]) / 2. + c.letters[0].at[0],
+            (cells[1][0][1] + cells[1][1][1]) / 2. + c.letters[0].at[1],
+        ];
+        let point = [
+            first.origin[0] + local[0] * first.text_scale,
+            first.origin[1],
+            first.origin[2] + local[1] * first.text_scale,
+        ];
+        layout.reserve(&[vec![point, geom::add(point, [0.01, 0., 0.])]]);
+        assert_eq!(
+            layout.notes(&c).lines,
+            first.lines,
+            "the unused end of the short line is not ink"
+        );
+    }
+
+    #[test]
+    fn notes_take_the_first_clear_downward_gap() {
+        let cell = vec![[0., 0., 0.], [10., 0., 0.], [10., 0., 1.], [0., 0., 1.]];
+        let crossing = vec![[0., 0., 0.5], [10., 0., 0.5]];
+        let interval = slide_interval(&cell, &crossing, [0., 1., 0.], 0.05).unwrap();
+        assert!((interval[0] + 0.55).abs() < 1e-12 && (interval[1] - 0.55).abs() < 1e-12);
+        let ink = vec![crossing, vec![[0., 0., -2.], [10., 0., -2.]]];
+        let slide = notes_slide(&[cell], &ink, 0.);
+        assert!(
+            (slide - 0.5).abs() < 1e-8,
+            "smallest gap, not a whole-block step: {slide}"
+        );
+    }
+
+    #[test]
+    fn notes_column_clears_reserved_ink_and_stacks_without_overlap() {
         for mm_per_unit in [1., 25.4] {
             let bounds = Bounds {
                 min: [0., -4., -4.],
@@ -946,12 +1105,24 @@ mod tests {
             let c = super::super::label("GENERAL NOTES\nMATERIAL: Steel C45");
             let first = layout.clone().notes(&c);
             // Existing feature ink must not recursively expand the notes area.
-            layout.reserve(&[vec![[-2000., -3000., -4000.], [5000., 6000., 7000.]]]);
+            layout.reserve(&[vec![[4000., 0., 4000.], [4001., 0., 4001.]]]);
             let placed = layout.notes(&c);
             assert_eq!(
                 first.lines, placed.lines,
                 "deterministic, part-relative placement"
             );
+            // Depth does not hide ink in the notes block's front projection.
+            let mut blocked = Layout::with_unit(bounds, mm_per_unit);
+            blocked.reserve(&[first
+                .lines
+                .iter()
+                .flatten()
+                .map(|p| [p[0], 100., p[2]])
+                .collect()]);
+            let moved = blocked.notes(&c);
+            // Real ink can leave clear gaps inside an annotation's total
+            // bounds; clearing it no longer requires passing the whole box.
+            assert!(moved.origin[2] < first.origin[2]);
             assert_eq!(placed.normal, [0., -1., 0.]);
             assert_eq!(placed.along, [1., 0., 0.]);
             let first_box = *layout.occupied.last().unwrap();
