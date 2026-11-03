@@ -27,7 +27,7 @@ with open("part.step", "rb") as stream:
 | `fingerprints(step)` | The existing fingerprints/3 document |
 | `correspond(old_step, new_step)` | The existing Rust revision correspondence document |
 | `capabilities()` | Versioned supported formats, inputs, operations and PMI import availability |
-| `__version__` | the package version, e.g. `"0.4.5"` (a Python string) |
+| `__version__` | the package version, e.g. `"0.4.6"` (a Python string) |
 
 Every geometry argument accepts a string path or STEP bytes. A string is always a
 path, never inline STEP text. Path inputs also accept the existing `.step.gz` /

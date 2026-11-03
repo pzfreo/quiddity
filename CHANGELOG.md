@@ -6,6 +6,15 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+## 0.4.6 (2026-11-03)
+
+Upgrading from 0.4.5: recognition schema `/6`, fingerprints `/3`, the `haecceity.pmi/1` schema and the PMI reader string `haecceity-pmi-read/15` are unchanged.
+- **Add mode keeps the file's own bytes (#185):** every Add write now keeps pre-existing carriers, usages, controls and presentation at their original ids. This reverses 0.4.5's Add-mode normalisation, which broke `datum_feature.WR2` when adding a datum to NIST CTC-01. Add writes that need entity repairs now fail atomically and name the repairs; use Replace for those. `WriteReport` adds `preserved_normalizations`.
+- **Source callout positions (#183):** PMI writing accepts an optional `haecceity.presentation/1` companion: Rust/JSON `write_with_presentation`, Python `presentation=`, CLI `--source-presentation`. `/1` adds the optional `Graphic.leader`. Readers that validate against the 0.4.5 schema (`additionalProperties: false`) reject documents that use it. `WriteReport` adds `presentation_warnings`. Without a companion, output is unchanged.
+- **Notes layout (#184):** unplaced feature notes become their own leadered callouts, and the general-notes block moves clear of drawn ink. Written presentation changes for files with feature notes or a crowded notes position.
+
+### Added
+
 - Notes blocks use actual projected strokes and row text cells, selecting the first clear downward offset instead of avoiding whole callout boxes. Feature-note extent matches frame placement.
 
 - Generate individual leadered callouts for unplaced feature notes; keep the general-notes block clear of generated, source-placed, and kept file ink.
