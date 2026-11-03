@@ -7564,13 +7564,16 @@ impl<'a> PartPlan<'a> {
                                 WriteError::Internal("invalid portable unit identity".into())
                             })?;
                             let mut emitted = Vec::<R>::new();
-                            for mut record in records {
-                                p21::visit_attributes_mut(&mut record, &mut |a| {
+                            for record in records {
+                                let mut entity = record.entity;
+                                p21::visit_attributes_mut(&mut entity, &mut |a| {
                                     if let A::EntityRef(id) = a {
                                         *a = emitted[*id as usize - 1].a();
                                     }
                                 });
-                                emitted.push(em.push(record, &[])?);
+                                emitted.push(
+                                    em.push(entity, &record.numbers.iter().collect::<Vec<_>>())?,
+                                );
                             }
                             let u = *emitted.last().ok_or_else(|| {
                                 WriteError::Internal("empty unit identity".into())

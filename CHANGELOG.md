@@ -10,7 +10,7 @@ in [docs/alpha1.md](docs/alpha1.md).
   run the NIST-only test in Linux CI and retain the opt-in corpus-wide run.
 - Preserve dimensions with no stated value without a refusal, invented measure
   or nonconformance, including their principles and qualifiers. Preserve projected
-  zones whose end has no geometry and report that statement as a factual finding.
+  zones whose end has no geometry and report that statement as `FindingKind::Fact`.
 - Reader binding advances to `haecceity-pmi-read/17` for the changed findings and
   anonymous unit identities; the JSON schema is unchanged.
 - Resolve anonymous attribute units by portable content, reusing or writing equal units in the destination. Replace retains

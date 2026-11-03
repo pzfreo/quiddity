@@ -1,11 +1,26 @@
 //! Portable identities for anonymous units. References are expanded by content, never by
 //! document-local id. The encoding retains named-unit kinds, SI prefixes, conversion
 //! factors, dimensions and derived-unit exponents. Derived-unit SETs are sorted by content.
+use super::model::Decimal;
 use crate::express;
 use crate::p21::{self, Attribute as A, Document, RawEntity};
 
 pub(super) const PREFIX: &str = "step-unit:";
 const CHILD: &str = "unit_entity";
+const NUMBER: &str = "unit_real";
+
+pub(super) struct UnitRecord {
+    pub(super) entity: RawEntity,
+    pub(super) numbers: Vec<Decimal>,
+}
+
+fn canonical_number(text: &str) -> Option<String> {
+    let mut text = Decimal::parse(text).ok()?.scaled(0).as_str().to_owned();
+    if !text.contains(['.', 'E', 'e']) {
+        text.push('.');
+    }
+    Some(text)
+}
 
 fn allowed(record: &RawEntity) -> bool {
     let names: Vec<&str> = match record {
@@ -35,14 +50,26 @@ pub(super) fn identity(doc: &Document, id: u64) -> Option<String> {
             return None;
         }
         path.push(id);
+        let real_texts = super::read::real_tokens(&doc.bytes()[doc.span(id)?]);
+        let mut real_texts = real_texts.iter();
         let mut valid = true;
         p21::visit_attributes_mut(&mut record, &mut |a| {
-            // REAL slots also accept INTEGER tokens. Equal exact numbers identify the
-            // same unit regardless of that spelling (never round a large integer).
-            if let A::Integer(value) = a
-                && value.unsigned_abs() <= (1u64 << 53)
-            {
-                *a = A::Real(*value as f64);
+            // Keep exact decimal contents, including digits beyond f64 precision.
+            // REAL slots also accept INTEGER tokens; canonicalize equal numeric values.
+            let number = match a {
+                A::Real(_) => real_texts.next().and_then(|s| canonical_number(s)),
+                A::Integer(value) => canonical_number(&value.to_string()),
+                _ => None,
+            };
+            if matches!(a, A::Real(_) | A::Integer(_)) {
+                if let Some(text) = number {
+                    *a = A::Typed {
+                        type_name: NUMBER.into(),
+                        value: Box::new(A::String(text)),
+                    };
+                } else {
+                    valid = false;
+                }
             }
             if let A::EntityRef(target) = a {
                 if let Some(text) = expand(doc, *target, path) {
@@ -77,8 +104,8 @@ pub(super) fn identity(doc: &Document, id: u64) -> Option<String> {
 
 /// Postorder records whose local references are one-based indices into this vector.
 /// Only the closed unit graph is accepted; external references cannot enter the writer.
-pub(super) fn records(identity: &str) -> Option<Vec<RawEntity>> {
-    fn parse(text: &str, depth: usize, out: &mut Vec<RawEntity>) -> Option<u64> {
+pub(super) fn records(identity: &str) -> Option<Vec<UnitRecord>> {
+    fn parse(text: &str, depth: usize, out: &mut Vec<UnitRecord>) -> Option<u64> {
         if depth >= 32 {
             return None;
         }
@@ -94,7 +121,30 @@ pub(super) fn records(identity: &str) -> Option<Vec<RawEntity>> {
             return None;
         }
         let mut valid = true;
+        let real_texts = super::read::real_tokens(&doc.bytes()[doc.span(1)?]);
+        let mut real_texts = real_texts.iter();
+        let mut numbers = Vec::new();
         p21::visit_attributes_mut(&mut record, &mut |a| {
+            if matches!(a, A::Real(_)) {
+                if let Some(number) = real_texts.next().and_then(|s| Decimal::parse(s).ok()) {
+                    numbers.push(number);
+                } else {
+                    valid = false;
+                }
+            }
+            if let A::Typed { type_name, value } = a
+                && type_name.eq_ignore_ascii_case(NUMBER)
+            {
+                if let A::String(text) = value.as_ref()
+                    && let Ok(number) = Decimal::parse(text)
+                    && number.to_f64().is_finite()
+                {
+                    *a = A::Real(number.to_f64());
+                    numbers.push(number);
+                } else {
+                    valid = false;
+                }
+            }
             if let A::EntityRef(_) = a {
                 valid = false;
             }
@@ -113,12 +163,15 @@ pub(super) fn records(identity: &str) -> Option<Vec<RawEntity>> {
         if !valid {
             return None;
         }
-        out.push(record);
+        out.push(UnitRecord {
+            entity: record,
+            numbers,
+        });
         Some(out.len() as u64)
     }
     let mut out = Vec::new();
     parse(identity.strip_prefix(PREFIX)?, 0, &mut out)?;
-    let root = out.last()?;
+    let root = &out.last()?.entity;
     let unit = |name: &str| {
         express::TARGET.is_a(name, "named_unit") || express::TARGET.is_a(name, "derived_unit")
     };
@@ -151,7 +204,17 @@ mod tests {
         let text: String = records
             .iter()
             .enumerate()
-            .map(|(i, r)| format!("#{}={};", i + 1, p21::encode(r).unwrap()))
+            .map(|(i, r)| {
+                format!(
+                    "#{}={};",
+                    i + 1,
+                    p21::Record::new(r.entity.clone())
+                        .state_reals(&r.numbers.iter().map(Decimal::as_str).collect::<Vec<_>>())
+                        .unwrap()
+                        .encode()
+                        .unwrap()
+                )
+            })
             .collect();
         let restored = doc(&text);
         assert_eq!(
@@ -160,5 +223,21 @@ mod tests {
         );
         assert!(super::records("step-unit:DERIVED_UNIT((#123))").is_none());
         assert!(super::records("#5").is_none());
+        let precise = |exponent| {
+            doc(&format!(
+                "#1=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT($,.METRE.));#2=DERIVED_UNIT_ELEMENT(#1,{exponent});#3=DERIVED_UNIT((#2));"
+            ))
+        };
+        let x = super::identity(&precise("1.000000000000000001"), 3).unwrap();
+        let y = super::identity(&precise("1.000000000000000002"), 3).unwrap();
+        assert_ne!(
+            x, y,
+            "distinct exact exponents must never bind the same unit"
+        );
+        assert!(super::records(&x).unwrap().iter().any(|r| {
+            r.numbers
+                .iter()
+                .any(|n| n.as_str() == "1.000000000000000001")
+        }));
     }
 }

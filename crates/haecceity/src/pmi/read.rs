@@ -271,7 +271,7 @@ fn enum_value(a: Option<&Attribute>) -> Option<&str> {
 }
 
 /// The REAL tokens of an instance's text, in order.
-fn real_tokens(text: &[u8]) -> Vec<String> {
+pub(super) fn real_tokens(text: &[u8]) -> Vec<String> {
     let mut out = Vec::new();
     let mut i = 0;
     let n = text.len();

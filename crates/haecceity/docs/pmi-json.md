@@ -534,7 +534,9 @@ in model coordinates; producing placed graphics requires the part geometry.
 Anonymous EXPRESS units in `OtherMeasure.unit` use a `step-unit:` content identity.
 It encodes the unit graph, including named-unit kinds, SI names and prefixes,
 conversion factors, dimensions, and derived-unit elements and exponents. Derived
-SETs are sorted by content; instance ids are excluded. Import reuses an equal unit
+SETs are sorted by content; instance ids are excluded. Numeric contents are
+canonicalized as exact decimals, so different exponents or factors cannot collapse
+through floating-point rounding. Import reuses an equal unit
 in the destination or writes the encoded unit fresh, including when B-rep writing
 creates a new STEP document. Duplicate equal units are interchangeable. Legacy
 name-only units still require exactly one matching source unit, except
