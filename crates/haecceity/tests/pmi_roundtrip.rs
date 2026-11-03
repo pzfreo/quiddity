@@ -240,9 +240,17 @@ fn roundtrip(
                 }
                 let max = doc.max_id();
                 for f in &r1.findings {
+                    if f.preserved_fact(&r0.findings, &r1.findings) {
+                        continue;
+                    }
                     if f.ids.iter().any(|&id| id > max) {
                         problems.push(format!("{stem}: a finding on what was written: {f:?}"));
-                    } else if !r0.findings.contains(f) {
+                    } else if !r0.findings.contains(f)
+                        && !(f.kind == FindingKind::Unconsumed
+                            && f.ids
+                                .first()
+                                .is_some_and(|id| report.retained_shared.contains(id)))
+                    {
                         problems.push(format!("{stem}: a new finding: {f:?}"));
                     }
                 }
@@ -250,7 +258,10 @@ fn roundtrip(
                     let geometry: std::collections::BTreeSet<u64> =
                         prov.geometry.iter().flatten().copied().collect();
                     for id in prov.all() {
-                        if !geometry.contains(&id) && doc1.get(id).is_some() {
+                        if !geometry.contains(&id)
+                            && !report.retained_shared.contains(&id)
+                            && doc1.get(id).is_some()
+                        {
                             problems.push(format!("{stem} part {i}: consumed #{id} survives"));
                         }
                     }
@@ -260,6 +271,14 @@ fn roundtrip(
                     doc.file_schema().unwrap(),
                     "{stem}: an AP242 file keeps its schema"
                 );
+                if !report.retained_shared.is_empty() {
+                    // This support remains used solely by unread PMI after replacement;
+                    // its accounting changes from consumed to explicitly reported.
+                    entry.insert(
+                        "retained shared support".into(),
+                        serde_json::json!(report.retained_shared),
+                    );
+                }
                 entry.insert(
                     "presentation removed".into(),
                     report.presentation_removed.len().into(),
@@ -437,23 +456,31 @@ fn control_datum_features_resolve_after_write_read() {
     let doc = Document::parse(bytes).unwrap();
     let read = pmi::read(&doc, &parts).unwrap();
     assert!(common::pmi_datums::unresolved(&read).is_empty());
-    // Like the committed CTC-01 copy, this control has four dimensions without a
-    // nominal value. Use the existing refusal harness, and pin those refusals so no
-    // datum loss can be hidden by removing newly refused requirements.
+    // All twelve dimensions, including the four with no stated value, are kept.
     let outcome = replace_all(&doc, &parts, &read, PresentationPolicy::RemovePresentation);
-    assert_eq!(
-        outcome.refused,
-        BTreeMap::from([(
-            "Dimension: a dimension without a nominal value (§N.N.N: it shall always be given)"
-                .into(),
-            4,
-        )])
-    );
+    assert!(outcome.refused.is_empty());
     let (bytes, _) = outcome.result.unwrap();
     let parts = read_part_definitions(&bytes).unwrap();
     let doc = Document::parse(bytes).unwrap();
     let written = pmi::read(&doc, &parts).unwrap();
     assert!(common::pmi_datums::unresolved(&written).is_empty());
+    for callout in &read.callouts {
+        for target in callout.links.iter().flat_map(|link| &link.targets) {
+            if let PresentedItem::Dimension(d) = target.item
+                && read.parts[target.part.0].dimensions[d.0].nominal.is_none()
+            {
+                assert!(
+                    written.callouts.iter().any(|c| c.id == callout.id
+                        && c.links
+                            .iter()
+                            .flat_map(|link| &link.targets)
+                            .any(|t| t == target)),
+                    "dimension without a value lost its original callout #{}",
+                    callout.id
+                );
+            }
+        }
+    }
     let labels: BTreeSet<_> = written.parts[0]
         .datums
         .iter()
@@ -656,4 +683,55 @@ fn thirteen_nist_target_subsets_with_datums_and_required_features_roundtrip_into
         total += count;
     }
     assert_eq!(total, 13);
+}
+
+/// Unread #348/#414 keep their auxiliary support. After the first write that
+/// support is unconsumed, and its compartments must still follow equal datums.
+#[test]
+fn unread_shared_datum_support_survives_repeated_replacement() {
+    let mut input =
+        file_bytes(&common::fixtures().join("ap242/nist/nist_ftc_06_asme1_ap242-e2.stp.gz"));
+    for pass in 0..2 {
+        let parts = read_part_definitions(&input).unwrap();
+        let doc = Document::parse(input).unwrap();
+        let read = pmi::read(&doc, &parts).unwrap();
+        let requested: Vec<_> = read
+            .parts
+            .iter()
+            .enumerate()
+            .map(|(i, p)| (PartId(i), p.clone()))
+            .collect();
+        let (edit, report) = pmi::write(
+            &doc,
+            &parts,
+            &requested,
+            Mode::Replace,
+            PresentationPolicy::RemovePresentation,
+        )
+        .unwrap();
+        let bytes = doc.apply(&edit).unwrap().bytes;
+        let definitions = read_part_definitions(&bytes).unwrap();
+        let after = Document::parse(bytes.clone()).unwrap();
+        let reread = pmi::read(&after, &definitions).unwrap();
+        for (i, p) in read.parts.iter().enumerate() {
+            assert!(
+                differences(&pmi::write::standard_form(p), &reread.parts[i]).is_empty(),
+                "pass {pass}"
+            );
+        }
+        for id in [348, 414] {
+            assert_eq!(
+                &doc.bytes()[doc.span(id).unwrap()],
+                &after.bytes()[after.span(id).unwrap()],
+                "unread #{id}, pass {pass}"
+            );
+        }
+        for id in [302, 303, 304] {
+            assert!(
+                report.retained_shared.contains(&id),
+                "pass {pass}: {report:?}"
+            );
+        }
+        input = bytes;
+    }
 }

@@ -421,7 +421,9 @@ These override anything below and any stream brief that says otherwise.
    instance must still pass the target table and no new `express_rules` violation may appear.
    Every other byte stays as it was, apart from `FILE_SCHEMA` and added instances; a repaired
    file's original record bytes are recoverable only through the report's original records.
-   An AP242 file stays AP242 and receives no upgrade repairs. Which corpus and NIST AP214/AP203
+   An AP242 file stays AP242 and receives no upgrade repairs, except R3 (below), which is
+   allowed only when the PMI being written requires a newer AP242 edition (decision
+   2026-11-03). Which corpus and NIST AP214/AP203
    files pass without repairs, pass with the listed repairs, or are refused is pinned per file;
    the original violations keep their verdicts and reasons.
 
@@ -812,8 +814,7 @@ objects and three table/precision API gaps are **not-applicable**. All 17 new di
 have individual verdicts in `references/pmi_write.json`; the NIST CTC-02 capture has no target
 semantic difference. The absent `specify_core` application loader remains explicitly unavailable.
 
-Other refusals remain: target sizes/placements that cannot be stated validly, non-exempt movable-target WR3 failures, an unstated group kind, a dimension without its nominal (§5.2.1), a
-projected zone whose model holds no origin geometry (§6.9.2.2), thread/knurl parameter counts
+Other refusals remain: target sizes/placements that cannot be stated validly, non-exempt movable-target WR3 failures, an unstated group kind, thread/knurl parameter counts
 outside their WHERE rules, non-finite/unrepresentable REAL values, unresolved attribute units/boolean values,
 and the separately scoped hole-definition writer (question 7). They are not silently omitted.
 
@@ -1502,7 +1503,7 @@ Settled by the implementation (where the design was open or silent):
   a named unit by its leaves), counts one named 'count'.
 - *Historical refusals (superseded by “Writer gaps and schema conflicts” above)*: notes
   (decision 5), tables and the part's decimal places (decision 3), material density
-  (decision 2), groups of unstated kind, dimensions without a nominal value, tolerances on a
+  (decision 2), groups of unstated kind, tolerances on a
   `shape_aspect_relationship` (the reader reads one from a feature as its composition), projected
   zones without their end, the affected plane, thread/knurl parameter counts outside WR1/WR2,
   booleans in attribute sets, attribute units the file does not name uniquely, and values that
@@ -2131,3 +2132,65 @@ but without `presentation`, the Rust and JSON APIs refuse a nonempty source inpu
 with a clear feature error, before writing anything. Ordinary writes without source
 input retain their previous behavior. Disabling default features does not enable
 JSON import or presentation drawing implicitly.
+
+### Issue #142: strict CTC/FTC JSON and STEP round trips
+
+Dimensions with no stated nominal value are retained with their features and
+callout associations. Replace retains the original drawn callouts for unchanged
+value-less dimensions and rebinds their associations to the replacement dimension,
+including with presentation generation disabled. The reader emits no nonconformance for the absent value;
+the writer emits no invented measure or empty dimension representation. CTC-01
+keeps all twelve dimensions (four have no value), and CTC-03 keeps its dimension
+without a value too. NIST SFA's eight valued CTC-01 dimensions are a subset.
+
+CTC-04's projected zone retains its length and a projection-end shape aspect
+without geometry. This is the source's statement, not an inferred origin.
+The reader reports that projection-end statement as a factual finding (`fact`),
+without a conformance judgement. Anonymous attribute units use portable
+`step-unit:` content identities, retaining named-unit kinds, prefixes, conversion
+factors and derived-unit elements/exponents. An equal destination unit is reused;
+otherwise it is written fresh (including B-rep output). No source id is resolved
+in a different document. Authored name-only units still require an unambiguous
+matching source unit content (equal duplicates are interchangeable); `gram`, `kilogram` and `milligram` can also be emitted from their
+kind and prefix. A value-less dimension with a stated principle or qualifier
+uses an empty descriptive item as its representation carrier; it gains no value.
+
+Replace keeps auxiliary datum-system/qualifier support shared with unread PMI
+(`WriteReport.retained_shared`). Shared datum-reference compartments are rebound
+only to equal replacement datums with equal feature content; changing or
+removing those datums retains the ordinary removal refusal. Requirement roots
+are replaced as before. FTC-06's unread #348 (target #2818 has no geometry) and
+its #414 qualification stay, while their shared #327 datum system and #415
+format qualifier remain valid. Identity attributes follow removed owners.
+This also covers support already marked unconsumed by an earlier replacement.
+The removal planner only overlooks edges that emission will rebind; applying
+the edit still checks that no reference dangles. Comparisons of PMI values and
+membership are unchanged.
+
+The enabled `pmi_json_roundtrip::nist_roundtrip` covers the ten available CTC/FTC
+AP242 models from committed fixtures. CI runs it with `json-import` on Linux;
+`nist_and_corpus_roundtrip` remains an ignored, explicitly invoked corpus-wide
+strict test. Both require empty identity differences without removing refused
+requirements, validate additions, and compare solid validity before and after.
+
+**R3 exception (maintainer decision 2026-11-03: allowed when needed).** CTC-04's JSON owner SELECT
+requires a newer AP242 edition. Without R3, the edition upgrade fails structural
+validation on 46 `INTEGER_REPRESENTATION_ITEM` records whose
+`literal_number.the_value` is REAL where the target requires INTEGER (first:
+#18284, `43.0`). No PMI item is removed to bypass that check.
+
+R3 writes only finite, exactly integral REAL values within ±2^53 as INTEGERs;
+it never rounds fractional values or relaxes schema validation. Each repair
+records the exact original and new entity text. R3 is used only on an edition
+upgrade that the written PMI requires; an AP242 file written in its own edition
+receives no repairs.
+
+The reader binding advances to `haecceity-pmi-read/17` because absent-value
+findings and anonymous unit identities change. The interchange schema remains /1.
+
+The ordinary round-trip pins now include FTC-06's retained support ids explicitly.
+Their accounting changes from consumed (also used by read tolerances) to reported
+(used only by unread #348/#414 after replacement). Verification permits only that
+Unconsumed transition on those auxiliary entities; semantic differences remain
+errors. FTC-06 also exercises four already-defined shared datum-target support
+exceptions, now pinned by entity triple because its write previously failed.

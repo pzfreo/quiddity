@@ -229,11 +229,10 @@ fn pmi_read_of_one_part() {
 /// together. `READER` is what `pmi check` holds a document's anchors to, so it must change
 /// whenever the reader's output does: when this fails, bump `pmi_json::READER` if `pmi::read`
 /// changed (a JSON-form change bumps `VERSION` instead), then re-pin both.
-// Reader /15 retains explicitly authored standalone composition members without
-// redundant aspects; old source semantics remain unchanged.
+// Reader /17 uses portable anonymous units and reports projected-zone facts.
 const READER_PIN: (&str, &str) = (
-    "haecceity-pmi-read/15",
-    "192fde06ad69cfd1675460e12fb63af6b63b77c0dfef183aba3d95ed99c8e6d6",
+    "haecceity-pmi-read/17",
+    "d5fa39d1d22dcc334522ad9a064e033fb936e31d6946817a14a32d366319ab71",
 );
 
 #[test]
@@ -882,11 +881,10 @@ fn pmi_write_replace_round_trips_through_the_command_line() {
         written += usize::from(w);
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
-    // The assembly, six of the seven specify-core inputs (nist_ctc_01_merge has dimensions
-    // without a nominal value) and the committed NIST models whose refusals are leaves (ftc_07,
-    // stc_06, stc_09, stc_10), plus CTC-02/FTC-10 now their 13 targets are written
-    // under the 2026-10-20 practice exemption; of NIST's set, also ftc_08 and stc_07.
-    assert_eq!(written, if with_nist { 15 } else { 13 }, "files written");
+    // All 21 committed inputs now write: CTC-01/03 keep absent values, FTC-06
+    // keeps unread shared support, and anonymous units resolve by entity.
+    // The optional archive adds STC-07/08 to those committed inputs.
+    assert_eq!(written, if with_nist { 23 } else { 21 }, "files written");
 }
 
 /// One file of [`pmi_write_replace_round_trips_through_the_command_line`]: its problems, and

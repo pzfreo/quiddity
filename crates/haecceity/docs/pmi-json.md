@@ -531,9 +531,31 @@ them `source: generated`. Unmarked graphics remain `source: file`.
 Generated graphics use the same geometry-based placement as the STEP writer,
 in model coordinates; producing placed graphics requires the part geometry.
 
-FTC-07 `OtherMeasure.unit = "derived_unit"` cannot identify one of several
-anonymous EXPRESS derived units. JSON import refuses it with the candidate
-count and a request for an unambiguous named unit; it never guesses a unit.
+Anonymous EXPRESS units in `OtherMeasure.unit` use a `step-unit:` content identity.
+It encodes the unit graph, including named-unit kinds, SI names and prefixes,
+conversion factors, dimensions, and derived-unit elements and exponents. Derived
+SETs are sorted by content; instance ids are excluded. Numeric contents are
+canonicalized as exact decimals, so different exponents or factors cannot collapse
+through floating-point rounding. Import reuses an equal unit
+in the destination or writes the encoded unit fresh, including when B-rep writing
+creates a new STEP document. Duplicate equal units are interchangeable. Legacy
+name-only units still require one distinct matching unit content (equal duplicates
+are interchangeable), except
+`gram`, `kilogram` and `milligram`, which can also be emitted from their kind/prefix.
+
+Dimensions without a stated nominal value retain their features and graphical
+callout links, with `nominal: null`; no value is invented and no nonconformance
+is reported. A projected zone with `end: null` writes an empty shape aspect as
+its mandatory projection-end carrier, retaining its length without inventing
+origin geometry.
+
+`pmi_json_roundtrip::nist_roundtrip` runs strict CTC/FTC acceptance in CI:
+STEP → PartPmi → JSON → PartPmi → STEP, with empty identity differences, schema
+and rule checks on additions, and unchanged solid validity. The larger run is
+available with `QUIDDITY_CORPUS=/path/to/corpus cargo test -p haecceity --release
+--features json-import --test pmi_json_roundtrip nist_and_corpus_roundtrip --
+--ignored --exact`. `HAECCEITY_NIST_PMI` optionally adds external NIST copies.
+
 Default-feature readers recover JSON identification-assignment item IDs.
 
 Unit definitions use globally unique caller IDs, or `unit:<kind>:<content-digest>`
@@ -627,3 +649,9 @@ advance along `+x_axis` and stand up along `normal × x_axis`.
 These fields remain optional within `haecceity.presentation/1`; older documents
 still deserialize. Consumers using `deny_unknown_fields` must update their
 presentation schema/types before consuming documents containing these additions.
+
+A projected zone whose end aspect has no geometry is preserved with `end: null`
+and reported as a `fact` finding. Facts are observations, without a conformance
+judgement. Value-less dimensions retain stated principles and type qualifiers;
+an empty descriptive representation item carries them without a numeric value.
+

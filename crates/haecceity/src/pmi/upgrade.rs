@@ -1,8 +1,9 @@
-//! Closed, reported repairs for an AP203/AP214 file gaining PMI. No general cleanup.
+//! Closed, reported repairs for an edition upgrade gaining PMI. No general cleanup.
 
 use super::{EditionRewrite, UpgradeRepairKind, WriteError, attr, attr_ref, is_a, leaf_names};
 use crate::express::{self, Kind, TypeDef};
 use crate::p21::{self, Attribute as A, Complex, Document, Edit, RawEntity};
+use crate::pmi::Decimal;
 use std::collections::BTreeSet;
 
 type Dimensions = [f64; 7];
@@ -51,6 +52,7 @@ pub(super) fn repair(
     edit: &mut Edit,
     excluded: &BTreeSet<u64>,
     emitted_dimensions: Vec<(Dimensions, A)>,
+    repair_integer_literals: bool,
 ) -> Result<(Repairs, usize), WriteError> {
     let mut repairs = Vec::new();
     let mut added = 0;
@@ -67,6 +69,46 @@ pub(super) fn repair(
             continue;
         };
         match record {
+            RawEntity::Simple {
+                name, attributes, ..
+            } if repair_integer_literals
+                && name.eq_ignore_ascii_case("integer_representation_item") =>
+            {
+                if let Some(A::Real(value)) = attr(doc, id, "literal_number", "the_value")
+                    && value.is_finite()
+                    && value.fract() == 0.
+                    && value.abs() <= (1u64 << 53) as f64
+                {
+                    // The parser's f64 can round a fractional or out-of-range source
+                    // token to an integer. Check the exact stated decimal as well.
+                    let tokens = super::super::read::real_tokens(
+                        &doc.bytes()[doc.span(id).ok_or(p21::P21Error::Missing(id))?],
+                    );
+                    let [text] = tokens.as_slice() else {
+                        continue;
+                    };
+                    let stated = Decimal::parse(text).map_err(|e| WriteError::Internal(e.0))?;
+                    let integer = *value as i64;
+                    let exact = Decimal::parse(&integer.to_string())
+                        .map_err(|e| WriteError::Internal(e.0))?;
+                    if !stated.cmp_value(&exact).is_eq() {
+                        continue;
+                    }
+                    let mut attributes = attributes.clone();
+                    let slots = express::TARGET.explicit_attributes(name).ok_or_else(|| {
+                        WriteError::Internal("integer_representation_item attributes absent".into())
+                    })?;
+                    if let Some(i) = slots
+                        .iter()
+                        .position(|a| a.entity == "literal_number" && a.name == "the_value")
+                    {
+                        attributes[i] = A::Integer(integer);
+                        record_text(doc, id)?;
+                        edit.replace(id, p21::simple(name, attributes));
+                        repairs.push((id, UpgradeRepairKind::R3IntegerLiteral));
+                    }
+                }
+            }
             RawEntity::Simple {
                 name, attributes, ..
             } if name.eq_ignore_ascii_case("cc_design_approval") => {
@@ -251,4 +293,43 @@ fn dimensions_for_si_unit(name: &str) -> Option<Dimensions> {
         _ => return None,
     };
     Some(d.map(f64::from))
+}
+
+#[cfg(test)]
+mod integer_tests {
+    use super::*;
+
+    #[test]
+    fn upgrade_repairs_only_exact_integral_integer_items() {
+        let bytes = b"ISO-10303-21;HEADER;FILE_DESCRIPTION((''),'2;1');FILE_NAME('','',(''),(''),'','','');FILE_SCHEMA(('AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF'));ENDSEC;DATA;
+#1=INTEGER_REPRESENTATION_ITEM('count',43.);
+#2=INTEGER_REPRESENTATION_ITEM('fraction',1.5);
+#3=INTEGER_REPRESENTATION_ITEM('large',18014398509481984.);
+#4=INTEGER_REPRESENTATION_ITEM('rounded fraction',43.0000000000000001);
+#5=INTEGER_REPRESENTATION_ITEM('above bound',9007199254740993.0);
+#6=INTEGER_REPRESENTATION_ITEM('underflow',1.E-9999);
+ENDSEC;END-ISO-10303-21;";
+        let doc = Document::parse(bytes.to_vec()).unwrap();
+        let mut unchanged = Edit::new();
+        assert_eq!(
+            repair(&doc, &mut unchanged, &BTreeSet::new(), vec![], false).unwrap(),
+            (vec![], 0)
+        );
+        assert!(unchanged.is_empty());
+        let mut edit = Edit::new();
+        let (repairs, added) = repair(&doc, &mut edit, &BTreeSet::new(), vec![], true).unwrap();
+        assert_eq!(repairs, vec![(1, UpgradeRepairKind::R3IntegerLiteral)]);
+        assert_eq!(added, 0);
+        let after = Document::parse(doc.apply(&edit).unwrap().bytes).unwrap();
+        assert_eq!(
+            attr(&after, 1, "literal_number", "the_value"),
+            Some(&A::Integer(43))
+        );
+        for id in [2, 3, 4, 5, 6] {
+            assert_eq!(
+                doc.span(id).map(|s| &doc.bytes()[s]),
+                after.span(id).map(|s| &after.bytes()[s])
+            );
+        }
+    }
 }

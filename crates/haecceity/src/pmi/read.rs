@@ -271,7 +271,7 @@ fn enum_value(a: Option<&Attribute>) -> Option<&str> {
 }
 
 /// The REAL tokens of an instance's text, in order.
-fn real_tokens(text: &[u8]) -> Vec<String> {
+pub(super) fn real_tokens(text: &[u8]) -> Vec<String> {
     let mut out = Vec::new();
     let mut i = 0;
     let n = text.len();
@@ -840,7 +840,9 @@ impl<'a> Reader<'a> {
                 self.get_str(id, "context_dependent_unit", "name")
                     .unwrap_or_default()
             } else {
-                names.join("+")
+                super::unit_identity::identity(self.doc, id).ok_or_else(|| {
+                    MeasureError::unitless(format!("unit #{id} has no portable content identity"))
+                })?
             };
             return Ok(Unit::Other(name));
         }
@@ -3151,16 +3153,7 @@ impl<'a> Reader<'a> {
                 prov.push(sdr);
                 Some(sdr)
             }
-            None => {
-                self.find(
-                    FindingKind::Nonconformance,
-                    part,
-                    id,
-                    &[],
-                    "a dimension without a dimensional_characteristic_representation: no value is stated (§5.2.1: the nominal value shall always be given); read without one",
-                );
-                None
-            }
+            None => None,
         };
         let principle = match sdr
             .and_then(|sdr| self.get_str(sdr, "representation", "name"))
@@ -3193,7 +3186,25 @@ impl<'a> Reader<'a> {
             .unwrap_or_default();
         for item in items {
             let name = self.name_of(item);
-            if self.is(item, "measure_representation_item") {
+            if self.is(item, "descriptive_representation_item")
+                && name.is_empty()
+                && self.text_of(item).as_deref() == Some("")
+                && (principle.is_some() || self.is(item, "qualified_representation_item"))
+            {
+                // A value-less representation can hold a principle/qualifier using an
+                // empty descriptive carrier. It states no nominal value.
+                prov.push(item);
+                for q in self.get_refs(item, "qualified_representation_item", "qualifiers") {
+                    if self.is(q, "type_qualifier") {
+                        qualifier = Some(Qualifier::from_name(
+                            &self
+                                .get_str(q, "type_qualifier", "name")
+                                .unwrap_or_default(),
+                        ));
+                        prov.push(q);
+                    }
+                }
+            } else if self.is(item, "measure_representation_item") {
                 let mut c = Vec::new();
                 let v = self.value(st, item, want, &mut c)?;
                 prov.extend(c);
@@ -3324,15 +3335,6 @@ impl<'a> Reader<'a> {
                 );
                 return None;
             }
-        }
-        if let (None, Some(sdr)) = (&nominal, sdr) {
-            self.find(
-                FindingKind::Nonconformance,
-                part,
-                id,
-                &[sdr],
-                "no 'nominal value' (it shall always be given, §5.2.1); read without one",
-            );
         }
 
         // Plus/minus tolerance (§5.2.3, §5.2.5).
@@ -4319,30 +4321,33 @@ impl<'a> Reader<'a> {
             if self.is(def, "projected_zone_definition") {
                 let end = self.get_ref(def, "projected_zone_definition", "projection_end")?;
                 let len = self.get_ref(def, "projected_zone_definition", "projected_length")?;
-                let end_f = match self.feature(st, end) {
-                    Some(f) => Some(f),
-                    None if self.usages(end).is_empty() && self.members(end).is_empty() => {
-                        // The projection end names no geometry: the zone is read without it.
-                        prov.push(end);
-                        prov.extend(self.id_attributes(end));
-                        self.find(
-                            FindingKind::Nonconformance,
-                            part,
-                            tol,
-                            &[def, end],
-                            "the projected zone's projection end identifies no face (§6.9.2.2); read without the end",
-                        );
-                        None
-                    }
-                    None => {
-                        self.find(
-                            FindingKind::Unresolved,
-                            part,
-                            tol,
-                            &[def, end],
-                            "the projection end does not resolve; tolerance not read",
-                        );
-                        return None;
+                let end_f = if self.usages(end).is_empty() && self.members(end).is_empty() {
+                    // A mandatory shape-aspect carrier can state no origin geometry.
+                    // Its absence is held directly by ProjectedZone::end.
+                    prov.push(end);
+                    prov.extend(self.id_attributes(end));
+                    st.absorbed.insert(end);
+                    self.find(
+                        FindingKind::Fact,
+                        part,
+                        def,
+                        &[end],
+                        "projected zone states a projection-end shape aspect with no geometry",
+                    );
+                    None
+                } else {
+                    match self.feature(st, end) {
+                        Some(f) => Some(f),
+                        None => {
+                            self.find(
+                                FindingKind::Unresolved,
+                                part,
+                                tol,
+                                &[def, end],
+                                "the projection end does not resolve; tolerance not read",
+                            );
+                            return None;
+                        }
                     }
                 };
                 let mut c = Vec::new();

@@ -6,6 +6,21 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+- Finish #142's strict CTC/FTC STEP → PartPmi → JSON → PartPmi → STEP gate;
+  run the NIST-only test in Linux CI and retain the opt-in corpus-wide run.
+- Preserve dimensions with no stated value without a refusal, invented measure
+  or nonconformance, including their principles and qualifiers. Preserve projected
+  zones whose end has no geometry and report that statement as `FindingKind::Fact`.
+- Reader binding advances to `haecceity-pmi-read/17` for the changed findings and
+  anonymous unit identities; the JSON schema is unchanged.
+- Resolve anonymous attribute units by portable content, reusing or writing equal units in the destination. Replace retains
+  auxiliary support shared with unread PMI, rebinding only equal replacement
+  datums, and reports it as `WriteReport.retained_shared`.
+
+- Upgrade repair R3: when the written PMI requires a newer AP242 edition, INTEGER
+  representation items written as exactly integral REALs are written as INTEGERs, each
+  reported; `UpgradeRepairKind` gains `R3IntegerLiteral`. NIST CTC-04 needs it.
+
 ## 0.4.6 (2026-11-03)
 
 Upgrading from 0.4.5: recognition schema `/6`, fingerprints `/3`, the `haecceity.pmi/1` schema and the PMI reader string `haecceity-pmi-read/15` are unchanged.

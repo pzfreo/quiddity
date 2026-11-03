@@ -227,7 +227,7 @@ fn nist_parts_are_their_files_read() {
         .filter(|p| p.to_string_lossy().ends_with(".stp.gz"))
         .collect();
     files.sort();
-    assert_eq!(files.len(), 7);
+    assert_eq!(files.len(), 13);
     for path in files {
         let name = path.file_name().unwrap().to_string_lossy().into_owned();
         let bytes = bytes(&path);

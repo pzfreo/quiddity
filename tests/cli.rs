@@ -17,6 +17,24 @@ fn quiddity(args: &[&str]) -> Output {
         .expect("quiddity runs")
 }
 
+fn native_pmi(path: &Path) -> haecceity::pmi::PmiRead {
+    let raw = std::fs::read(path).unwrap();
+    let bytes = if path.extension().is_some_and(|e| e == "gz") {
+        let mut bytes = Vec::new();
+        std::io::Read::read_to_end(
+            &mut flate2::read::GzDecoder::new(raw.as_slice()),
+            &mut bytes,
+        )
+        .unwrap();
+        bytes
+    } else {
+        raw
+    };
+    let doc = haecceity::p21::Document::parse(bytes.clone()).unwrap();
+    let parts = haecceity::step::read_part_definitions(&bytes).unwrap();
+    haecceity::pmi::read(&doc, &parts).unwrap()
+}
+
 fn broken(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/broken")
@@ -334,7 +352,7 @@ fn brep_carries_the_parts_pmi_and_names_what_it_does_not() {
     let dir = std::env::temp_dir().join(format!("quiddity-cli-brep-pmi-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ap242");
-    // One part with PMI the writer refuses some of (dimensions without a nominal value).
+    // All CTC-01 requirements are carried, including its four dimensions without a value.
     let input = fixtures.join("nist/nist_ctc_01_asme1_ap242-e1.stp.gz");
     let out_path = dir.join("ctc01.step");
     let out = quiddity(&[
@@ -354,14 +372,26 @@ fn brep_carries_the_parts_pmi_and_names_what_it_does_not() {
         "{report}"
     );
     let refused = report["pmi"]["refused"].as_array().unwrap();
-    assert_eq!(refused.len(), 4, "{report}");
-    assert!(
-        refused
-            .iter()
-            .all(|r| !r["why"].as_str().unwrap().is_empty())
-    );
+    assert!(refused.is_empty(), "{report}");
     let read = quiddity(&["pmi", "read", out_path.to_str().unwrap()]);
     assert!(read.status.success());
+    let after: serde_json::Value = serde_json::from_slice(&read.stdout).unwrap();
+    let dimensions = after["parts"][0]["pmi"]["dimensions"].as_array().unwrap();
+    assert_eq!(dimensions.len(), 12);
+    assert_eq!(
+        dimensions
+            .iter()
+            .filter(|d| d.get("nominal").is_none())
+            .count(),
+        4
+    );
+    let expected = native_pmi(&input);
+    let actual = native_pmi(&out_path);
+    let differences = haecceity::pmi::write::differences(
+        &haecceity::pmi::write::standard_form(&expected.parts[0]),
+        &actual.parts[0],
+    );
+    assert!(differences.is_empty(), "{differences:?}");
     // Several parts: their PMI is listed as not carried.
     let input = fixtures.join("write/editor_assembly_pin_alone.step.gz");
     let out_path = dir.join("assembly.step");
@@ -632,4 +662,93 @@ fn source_presentation_flag_requires_json_import() {
     assert!(!out.status.success());
     let error = String::from_utf8_lossy(&out.stderr);
     assert!(error.contains("unknown option") && error.contains("--source-presentation"));
+}
+
+#[test]
+fn brep_carries_portable_derived_units_from_nist() {
+    let dir = std::env::temp_dir().join(format!("quiddity-cli-brep-units-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ap242/nist");
+    for model in ["07", "10"] {
+        let input = fixtures.join(format!("nist_ftc_{model}_asme1_ap242-e2.stp.gz"));
+        let output = dir.join(format!("ftc{model}.step"));
+        let result = quiddity(&[
+            "brep",
+            input.to_str().unwrap(),
+            "-o",
+            output.to_str().unwrap(),
+        ]);
+        assert!(
+            result.status.success(),
+            "FTC-{model}: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let report: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
+        assert!(
+            report["pmi"]["refused"].as_array().unwrap().is_empty(),
+            "{report}"
+        );
+        let before = native_pmi(&input);
+        let after = native_pmi(&output);
+        assert!(
+            before
+                .findings
+                .iter()
+                .all(|f| f.kind != haecceity::pmi::FindingKind::Unitless),
+            "{:?}",
+            before.findings
+        );
+        let units = |read: &haecceity::pmi::PmiRead| {
+            let mut units: Vec<_> = read
+                .parts
+                .iter()
+                .flat_map(|p| &p.attributes)
+                .flat_map(|a| &a.items)
+                .filter_map(|(_, value)| match value {
+                    haecceity::pmi::AttributeValue::OtherMeasure { measure, unit, .. } => {
+                        Some((measure.clone(), unit.clone()))
+                    }
+                    _ => None,
+                })
+                .collect();
+            units.sort();
+            units
+        };
+        let expected = units(&before);
+        assert_eq!(expected.len(), 13);
+        assert_eq!(
+            expected
+                .iter()
+                .filter(|(_, unit)| unit.starts_with("step-unit:"))
+                .count(),
+            12
+        );
+        assert_eq!(units(&after), expected, "FTC-{model}");
+        // Freshly emitted unit graphs can share equal named units at different ids.
+        // A subsequent native replacement must reuse equal content without ambiguity.
+        let bytes = std::fs::read(&output).unwrap();
+        let doc = haecceity::p21::Document::parse(bytes.clone()).unwrap();
+        let parts = haecceity::step::read_part_definitions(&bytes).unwrap();
+        let requested: Vec<_> = after
+            .parts
+            .iter()
+            .cloned()
+            .enumerate()
+            .map(|(i, p)| (haecceity::pmi::PartId(i), p))
+            .collect();
+        let (edit, _) = haecceity::pmi::write(
+            &doc,
+            &parts,
+            &requested,
+            haecceity::pmi::Mode::Replace,
+            haecceity::pmi::write::PresentationPolicy::RemovePresentation,
+        )
+        .unwrap();
+        let written = doc.apply(&edit).unwrap().bytes;
+        let defs = haecceity::step::read_part_definitions(&written).unwrap();
+        let doc = haecceity::p21::Document::parse(written).unwrap();
+        let again = haecceity::pmi::read(&doc, &defs).unwrap();
+        assert_eq!(units(&again), expected, "FTC-{model}: second write");
+    }
+    std::fs::remove_dir_all(dir).unwrap();
 }

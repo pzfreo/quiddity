@@ -19,6 +19,7 @@ mod read;
 pub(crate) mod sites;
 pub mod standards;
 pub(crate) mod text;
+mod unit_identity;
 pub mod verify;
 mod without;
 pub mod write;
@@ -172,7 +173,7 @@ impl std::fmt::Display for ReadError {
 
 impl std::error::Error for ReadError {}
 
-/// Something the reader did not read, or read only through a stated interpretation.
+/// A factual observation, something not read, or a stated interpretation.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Finding {
     pub kind: FindingKind,
@@ -185,9 +186,29 @@ pub struct Finding {
     pub detail: String,
 }
 
+impl Finding {
+    /// Factual observations survive replacement under fresh entity ids. Match their
+    /// content and multiplicity, rather than their document-local provenance.
+    #[must_use]
+    pub fn preserved_fact(&self, before: &[Finding], after: &[Finding]) -> bool {
+        if self.kind != FindingKind::Fact {
+            return false;
+        }
+        let same = |f: &&Finding| {
+            f.kind == self.kind
+                && f.part == self.part
+                && f.entity == self.entity
+                && f.detail == self.detail
+        };
+        before.iter().filter(same).count() == after.iter().filter(same).count()
+    }
+}
+
 /// The kinds of finding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FindingKind {
+    /// A factual observation about a construct that is read and preserved.
+    Fact,
     /// A construct the reader does not read (a form the practice does not define, or one the
     /// model does not hold yet); not consumed.
     Unsupported,
@@ -221,6 +242,7 @@ impl FindingKind {
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
+            FindingKind::Fact => "fact",
             FindingKind::Unsupported => "unsupported",
             FindingKind::Nonconformance => "nonconformance",
             FindingKind::Unresolved => "unresolved-reference",

@@ -569,9 +569,8 @@ fn pmi_check(files: &[PathBuf]) -> (usize, usize) {
     (carried_whole, with_refusals)
 }
 
-/// PMI over a sample: every kind the writer writes, an assembly's two parts, refusals by the PMI
-/// writer (dimensions without a nominal value), and its failure to write a part's PMI at all
-/// (GRM-03), each named.
+/// PMI over a sample: every written kind, an assembly's two parts, CTC-01 including
+/// its dimensions without a value, and the named GRM-03 carry failure.
 #[test]
 fn sample_pmi_is_carried_or_refused_by_name() {
     let files: Vec<PathBuf> = [
@@ -587,7 +586,7 @@ fn sample_pmi_is_carried_or_refused_by_name() {
     .collect();
     let (whole, refused) = pmi_check(&files);
     assert!(
-        whole >= 4 && refused == 2,
+        whole >= 5 && refused == 1,
         "{whole} whole, {refused} with refusals"
     );
 }

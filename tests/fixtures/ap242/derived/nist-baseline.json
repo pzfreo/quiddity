@@ -122,7 +122,7 @@
   {
     "file": "nist_ctc_01_asme1_ap242-e1.stp.gz",
     "source_sha256": "036683e8358ac27d51a92c35362e175c91bc44d3b600a5c605fb496865edcd37",
-    "semantic_sha256": "5a832c888b3b9b7646deac05d0cac5f988b107654e5768ad30f2ddd0811b8278",
+    "semantic_sha256": "0cc7d0f64c2b464792ed4772e0398ab1900eb426164f6e6d13ff4e6712214bef",
     "dimensions_stated": 12,
     "dimensions_read": 12,
     "tolerances_stated": 6,
@@ -146,7 +146,7 @@
   {
     "file": "nist_ftc_07_asme1_ap242-e2.stp.gz",
     "source_sha256": "aa8115c12e12a99cc439477cbfd222916f9ec629fbb3c9002b18e0c264c9a892",
-    "semantic_sha256": "4e71dc22ae2243e19d230c42aa23fd1d08d6750ea4d50f7aff9b16b3204d8cf1",
+    "semantic_sha256": "563737b1b65c95810c695fd0b3567d46bcc1a61bb1d72a835ebc59c5f0c903da",
     "dimensions_stated": 17,
     "dimensions_read": 17,
     "tolerances_stated": 27,
@@ -158,7 +158,7 @@
   {
     "file": "nist_ftc_10_asme1_ap242-e2.stp.gz",
     "source_sha256": "9d7711f48e81831c5d1838fdac5c11c0de1aa9b61f3c1d67930a7638b3b25e69",
-    "semantic_sha256": "2eec6058d8a779e130b6bbd354f6dff3e347b06139466f9b2ad2e7b141449a1b",
+    "semantic_sha256": "9821bc044b7f675db4aa044b15b05b9d4411ea03616591bb01d475df1f7d7496",
     "dimensions_stated": 26,
     "dimensions_read": 26,
     "tolerances_stated": 40,
@@ -182,7 +182,7 @@
   {
     "file": "nist_stc_09_asme1_ap242-e4.stp.gz",
     "source_sha256": "41026b1f0d81830c6092b5147e0e084d2fa163169161c31af4ce06493d3c7d33",
-    "semantic_sha256": "7cce13d0ff9cb258cf1ca7b2d8746dcaf4d187da1d4b51f6052ad389be4e736d",
+    "semantic_sha256": "94daa6815d65fc443dd1f370d3450d2684b98f8d7b1da76a766163cd24724848",
     "dimensions_stated": 20,
     "dimensions_read": 20,
     "tolerances_stated": 27,

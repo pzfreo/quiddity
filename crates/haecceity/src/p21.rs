@@ -1375,7 +1375,7 @@ pub fn visit_attributes(e: &RawEntity, f: &mut impl FnMut(&Attribute)) {
     }
 }
 
-fn visit_attributes_mut(e: &mut RawEntity, f: &mut impl FnMut(&mut Attribute)) {
+pub(crate) fn visit_attributes_mut(e: &mut RawEntity, f: &mut impl FnMut(&mut Attribute)) {
     fn walk(a: &mut Attribute, f: &mut impl FnMut(&mut Attribute)) {
         f(a);
         match a {

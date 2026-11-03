@@ -251,19 +251,42 @@ fn assert_reads_back(w: &Written, part: PartId, p: &PartPmi) {
         w.read
             .findings
             .iter()
-            .filter(|f| f.ids.iter().any(|&id| id > w.max))
+            .filter(|f| f.kind != FindingKind::Fact && f.ids.iter().any(|&id| id > w.max))
             .collect::<Vec<_>>()
     );
     let on_written: Vec<&Finding> = w
         .read
         .findings
         .iter()
-        .filter(|f| f.ids.iter().any(|&id| id > w.max))
+        .filter(|f| f.kind != FindingKind::Fact && f.ids.iter().any(|&id| id > w.max))
         .collect();
     assert!(
         on_written.is_empty(),
         "findings on written instances: {on_written:#?}"
     );
+    let facts: Vec<_> = w
+        .read
+        .findings
+        .iter()
+        .filter(|f| {
+            f.kind == FindingKind::Fact
+                && f.part == Some(part)
+                && f.ids.iter().any(|&id| id > w.max)
+        })
+        .collect();
+    let projected_without_geometry = p
+        .tolerances
+        .iter()
+        .filter(|t| {
+            t.zone
+                .as_ref()
+                .and_then(|z| z.projected.as_ref())
+                .is_some_and(|z| z.end.is_none())
+        })
+        .count();
+    assert_eq!(facts.len(), projected_without_geometry);
+    assert!(facts.iter().all(|f| f.entity == "projected_zone_definition"
+        && f.detail == "projected zone states a projection-end shape aspect with no geometry"));
 }
 
 /// Four planar features, datums A–D on them.
@@ -9539,4 +9562,66 @@ fn shared_carrier_isolation_tracks_add_sharing_and_datum_promotion() {
             std::fs::write(Path::new(&dir).join(format!("{name}.step")), w.doc.bytes()).unwrap();
         }
     }
+}
+
+#[test]
+fn valueless_dimension_keeps_principle_and_qualifier_without_a_measure() {
+    for qualifier in [None, Some(Qualifier::Maximum)] {
+        let mut d = size(0, "1.", DimTolerance::None);
+        d.nominal = None;
+        d.principle = Some(Principle::EnvelopeRequirement);
+        d.qualifier = qualifier;
+        let p = PartPmi {
+            features: vec![faces(&[0])],
+            dimensions: vec![d],
+            ..PartPmi::default()
+        };
+        let w = written(&spool(), &p);
+        assert_eq!(w.read.parts[0].dimensions, p.dimensions);
+        assert!(w.added().iter().all(|&id| {
+            !w.names(id)
+                .iter()
+                .any(|name| name == "measure_representation_item")
+        }));
+        assert!(
+            w.added()
+                .iter()
+                .any(|&id| w.names(id) == ["shape_dimension_representation"])
+        );
+    }
+}
+
+#[test]
+fn projected_zone_without_end_geometry_keeps_its_fact() {
+    let f = fixture("ap242/nist/nist_ctc_04_asme1_ap242.stp.gz");
+    let before = pmi::read(&f.doc, &f.parts).unwrap();
+    let facts: Vec<_> = before
+        .findings
+        .iter()
+        .filter(|f| f.kind == FindingKind::Fact)
+        .collect();
+    assert_eq!(facts.len(), 1);
+    assert_eq!(facts[0].entity, "projected_zone_definition");
+    assert_eq!(
+        facts[0].detail,
+        "projected zone states a projection-end shape aspect with no geometry"
+    );
+    let p = &before.parts[0];
+    assert!(p.tolerances.iter().any(|t| {
+        t.zone
+            .as_ref()
+            .and_then(|z| z.projected.as_ref())
+            .is_some_and(|p| p.end.is_none())
+    }));
+    let w = written(&f, p);
+    assert_verified(&f, &w, p);
+    let after: Vec<_> = w
+        .read
+        .findings
+        .iter()
+        .filter(|f| f.kind == FindingKind::Fact)
+        .collect();
+    assert_eq!(after.len(), 1);
+    assert_eq!(after[0].detail, facts[0].detail);
+    assert!(after[0].preserved_fact(&before.findings, &w.read.findings));
 }

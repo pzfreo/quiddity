@@ -253,6 +253,20 @@ pub fn plan(
     seeds: &BTreeSet<u64>,
     policy: PresentationPolicy,
 ) -> Result<RemovalPlan, RemovalRefusal> {
+    plan_with_rebindings(doc, seeds, policy, &BTreeSet::new())
+}
+
+/// Writer-only edges which will be rebound to equivalent newly emitted semantic entities.
+#[allow(
+    clippy::result_large_err,
+    reason = "same complete cold-path refusal as plan"
+)]
+pub(crate) fn plan_with_rebindings(
+    doc: &Document,
+    seeds: &BTreeSet<u64>,
+    policy: PresentationPolicy,
+    rebound: &BTreeSet<(u64, u64)>,
+) -> Result<RemovalPlan, RemovalRefusal> {
     let mut refusal = RemovalRefusal {
         policy,
         ..RemovalRefusal::default()
@@ -277,6 +291,7 @@ pub fn plan(
         infrastructure,
         removed: seeds.clone(),
         containers: HashMap::new(),
+        rebound: rebound.clone(),
     };
     p.close(seeds.iter().copied().collect());
     let owned = p.removed.clone();
@@ -446,6 +461,7 @@ struct Container {
 
 struct Planner<'a> {
     doc: &'a Document,
+    rebound: BTreeSet<(u64, u64)>,
     policy: PresentationPolicy,
     infrastructure: BTreeSet<u64>,
     removed: BTreeSet<u64>,
@@ -527,7 +543,7 @@ impl Planner<'_> {
         let mut out: BTreeMap<u64, Vec<u64>> = BTreeMap::new();
         for &r in &self.removed {
             for &k in self.doc.referrers(r) {
-                if !self.removed.contains(&k) {
+                if !self.removed.contains(&k) && !self.rebound.contains(&(k, r)) {
                     out.entry(k).or_default().push(r);
                 }
             }

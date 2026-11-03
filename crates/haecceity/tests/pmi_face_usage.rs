@@ -96,7 +96,7 @@ fn written_pmi_reuses_each_faces_one_aspect_and_usage() {
         let doc = Document::parse(b).unwrap();
         let read = pmi::read(&doc, &parts).unwrap();
         // Match pmi_roundtrip's established refusal projection; never suppress linking
-        // failures. Missing nominals, hole authoring and ambiguous UDA units are unrelated.
+        // failures. Hole authoring remains outside this writer's scope.
         let mut expected = read.parts.clone();
         let mut edit = None;
         for _ in 0..8 {

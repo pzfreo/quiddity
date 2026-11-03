@@ -185,9 +185,20 @@ fn every_note_owner_is_json_step_json_identity_even_on_shared_features() {
 }
 
 #[test]
+fn dimension_without_stated_value_is_valid() {
+    let mut value = fixture("requirement-note.json");
+    value["pmi"]["dimensions"][0]["value"]["nominal"] = Value::Null;
+    value["pmi"]["dimensions"][0]["value"]["tolerance"] = json!("none");
+    // This is a source statement, not a reason to invent a value or drop the item.
+    assert!(json::validate(&value).is_ok());
+    identity(&value);
+}
+
+#[test]
 fn validate_refuses_geometry_independent_import_failures() {
     let original = fixture("requirement-note.json");
     for (path, replacement, reason) in [
+        // A fit still needs a nominal to which its class applies.
         (
             "/pmi/dimensions/0/value/nominal",
             Value::Null,

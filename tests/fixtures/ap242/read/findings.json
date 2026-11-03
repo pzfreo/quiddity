@@ -10,14 +10,8 @@
   "bracket_positions": {
    "not-modelled|property_definition|property \"…\" (\"…\") is not a construct the reader knows; not read": 1
   },
-  "nist_ctc_01_asme1_ap242-e1": {
-   "nonconformance|dimensional_location|a dimension without a dimensional_characteristic_representation: no value is stated (§N: the nominal value shall always be given); read without one": 2,
-   "nonconformance|dimensional_size|a dimension without a dimensional_characteristic_representation: no value is stated (§N: the nominal value shall always be given); read without one": 2
-  },
-  "nist_ctc_01_merge": {
-   "nonconformance|dimensional_location|a dimension without a dimensional_characteristic_representation: no value is stated (§N: the nominal value shall always be given); read without one": 2,
-   "nonconformance|dimensional_size|a dimension without a dimensional_characteristic_representation: no value is stated (§N: the nominal value shall always be given); read without one": 2
-  },
+  "nist_ctc_01_asme1_ap242-e1": {},
+  "nist_ctc_01_merge": {},
   "nist_ctc_02_asme1_ap242-e2": {
    "nonconformance|composite_shape_aspect|a composite_shape_aspect stating 'multiple elements' or 'pattern of features' (§N: composite_group_shape_aspect); read as that group": 21,
    "nonconformance|datum_feature|the datum feature identifies no face; its datum's usage does (§N puts it on the datum feature): read as the datum feature's faces": 1,
@@ -29,14 +23,12 @@
   "nist_ctc_03_asme1_ap242-e2": {
    "nonconformance|composite_shape_aspect|a composite_shape_aspect stating 'multiple elements' or 'pattern of features' (§N: composite_group_shape_aspect); read as that group": 23,
    "nonconformance|datum_feature|the datum feature identifies no face; its datum's usage does (§N puts it on the datum feature): read as the datum feature's faces": 2,
-   "nonconformance|dimensional_size|a dimension without a dimensional_characteristic_representation: no value is stated (§N: the nominal value shall always be given); read without one": 1,
    "nonconformance|property_definition|a property on a shape aspect that identifies no face or edge; read as on the part": 1,
    "nonconformance|shape_aspect|shape aspect identifies no face or edge; not read": 1,
    "not-modelled|property_definition|property \"…\" (\"…\") is not a construct the reader knows; not read": 1
   },
   "nist_ctc_04_asme1_ap242-e2": {
-   "nonconformance|geometric_tolerance+geometric_tolerance_with_datum_reference+position_tolerance|the projected zone's projection end identifies no face (§N); read without the end": 1,
-   "nonconformance|shape_aspect|shape aspect identifies no face or edge; not read": 1,
+   "fact|projected_zone_definition|projected zone states a projection-end shape aspect with no geometry": 1,
    "unconsumed|geometric_item_specific_usage|part of shape_aspect N, which is not read (its finding says why)": 1,
    "unresolved-reference|shape_aspect|items that are not faces, edges or geometry the reader holds: manifold_solid_brep; feature not read": 1
   },
@@ -130,11 +122,20 @@
   },
   "thumbwheel_thread_knurl": {
    "not-modelled|property_definition|property \"…\" (\"…\") is not a construct the reader knows; not read": 1
+  },
+  "nist_ctc_04_asme1_ap242": {
+   "fact|projected_zone_definition|projected zone states a projection-end shape aspect with no geometry": 1,
+   "unconsumed|geometric_item_specific_usage|part of shape_aspect N, which is not read (its finding says why)": 1,
+   "unresolved-reference|shape_aspect|items that are not faces, edges or geometry the reader holds: manifold_solid_brep; feature not read": 1
+  },
+  "nist_ctc_05_asme1_ap242": {
+   "nonconformance|compound_representation_item|type N dimension modifiers in a compound item named \"…\" (§N: 'modifiers'); read as the modifiers": 1,
+   "not-modelled|type_qualifier|qualifier type_qualifier \"…\" on a value (through a measure_qualification) is not held; the value is read without it": 4,
+   "unconsumed|type_qualifier|not reached from any part's PMI": 4
   }
  },
  "reasons": {
   "nonconformance|a composite_shape_aspect stating 'multiple elements' or 'pattern of features' (§N: composite_group_shape_aspect); read as that group": "PMI practice §6.4 writes several features taken together as a composite_group_shape_aspect named 'multiple elements' (or 'pattern of features', §6.4.1); these files (CATIA exports) write a plain composite_shape_aspect with that string. The string states the meaning, so it is read as that group, reported.",
-  "nonconformance|a dimension without a dimensional_characteristic_representation: no value is stated (§N: the nominal value shall always be given); read without one": "§5.2.1: the nominal value shall always be given. The file states the dimension and its features but no value representation; the reader reads the dimension with no nominal rather than drop or invent one.",
   "nonconformance|a group without members; not read": "A composite_group_shape_aspect with no member relationship (NIST STC-07 #14072): a group of nothing is not a feature.",
   "nonconformance|a property on a shape aspect that identifies no face or edge; read as on the part": "Notes (semantic text, CATIA 'NOTE' aspects) attached to a shape aspect that names no geometry (e.g. NIST CTC-02 #22163, the drawing's general notes). There is no feature to hold them on; they are read as on the part, reported.",
   "nonconformance|composite_group_shape_aspect names neither 'multiple elements' nor 'pattern of features' (§N); read as a group of unstated kind": "NIST FTC-09 writes composite_group_shape_aspects with empty name and description; §6.4 requires one of the two strings. Read as a group of unstated kind (GroupKind::Unstated), not guessed.",
@@ -142,7 +143,6 @@
   "nonconformance|limits_and_fits form_variance \"…\" holds the grade and grade is '' (§N: form_variance is the deviation, grade the grade); read as G and grade N": "NIST FTC-10's LIMITS_AND_FITS('G6','hole','','') puts the grade in form_variance (§5.2.5: form_variance is the fundamental deviation, grade the grade); read as G6, reported (the drawing states ⌀3.50 G6).",
   "nonconformance|shape aspect identifies no face or edge; not read": "Shape aspects with no item usage (no GISU or IIRU) and no members: CATIA 'GDT'/'DIMENSION' placeholders linked only to presentation, and default model views' aspects. With nothing identified there is no feature; items built on them are reported separately.",
   "nonconformance|the datum feature identifies no face; its datum's usage does (§N puts it on the datum feature): read as the datum feature's faces": "CATIA files put the datum feature's face usage on the DATUM (e.g. NIST CTC-02 #661 on datum D #128) and none on the DATUM_FEATURE; §6.5.1 Figure 36 puts it on the datum feature. Read as the datum feature's faces, reported.",
-  "nonconformance|the projected zone's projection end identifies no face (§N); read without the end": "NIST CTC-04 #18897 PROJECTED_ZONE_DEFINITION's projection_end #18894 is a shape aspect with no geometry; the projected length is read, the end is not (§6.9.2.2).",
   "nonconformance|type N dimension modifiers in a compound item named \"…\" (§N: 'modifiers'); read as the modifiers": "§5.3 names the compound item of type 2 modifiers 'modifiers'; these files name it 'dimensional note' or 'dimension modifiers type 2' (with a SET_REPRESENTATION_ITEM). Its items are Table 8 strings, read as the modifiers, reported.",
   "not-modelled|CATIA Geometric Set: CATIA-specific, to be ignored by other systems (UDA practice §N)": "UDA practice §6.3: shape aspects described 'CATIA Geometric Set' map CATIA's geometric sets and shall be ignored by other systems. Not PMI; reported, not read.",
   "not-modelled|explicit geometry of the derived feature (supplemental geometry) is not held; the derivation is": "A derived feature (centre_of_symmetry, §5.1.4) also names its explicit geometry; the model holds the derivation (kind and base features), not this geometry.",
@@ -155,6 +155,7 @@
   "unconsumed|part of shape_aspect N, which is not read (its finding says why)": "The usage of a shape aspect that is not read (it identifies the whole MANIFOLD_SOLID_BREP, for a geometric validation property).",
   "unresolved-reference|items that are not faces, edges or geometry the reader holds: manifold_solid_brep; feature not read": "A shape aspect identifying the whole solid (MANIFOLD_SOLID_BREP), used only by geometric validation properties; the model's features are faces, edges and supplemental geometry, so it is not read.",
   "unresolved-reference|the referenced datum is not a datum read for the part; tolerance not read": "NIST FTC-09 #11143 is toleranced on the second part's #9569 but cites datum system #9813 of the first part (general_datum_reference WR5): an assembly-level reference, not attributed to either part.",
-  "unresolved-reference|the toleranced feature was not read; tolerance not read": "The tolerance's toleranced shape aspect identifies no geometry (e.g. NIST FTC-06 #348 on #2818), so there is nothing to tolerance."
+  "unresolved-reference|the toleranced feature was not read; tolerance not read": "The tolerance's toleranced shape aspect identifies no geometry (e.g. NIST FTC-06 #348 on #2818), so there is nothing to tolerance.",
+  "fact|projected zone states a projection-end shape aspect with no geometry": "The projection end is an empty shape aspect in the source; its absence of geometry is preserved as ProjectedZone.end=None, without a conformance judgement."
  }
 }

@@ -62,17 +62,52 @@ fn items(p: &pmi::PartPmi) -> usize {
         + usize::from(p.decimal_places.is_some())
 }
 #[test]
-#[ignore = "strict #142 acceptance: existing source/writer refusals must remain visible; run with --ignored"]
+fn nist_roundtrip() {
+    strict_roundtrip(false);
+}
+
+#[test]
+#[ignore = "corpus-wide strict #142 acceptance; set QUIDDITY_CORPUS and run with --ignored"]
 fn nist_and_corpus_roundtrip() {
+    strict_roundtrip(true);
+}
+
+fn strict_roundtrip(include_corpus: bool) {
     let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
     let corpus = std::env::var_os("QUIDDITY_CORPUS")
         .map(PathBuf::from)
         .unwrap_or_else(|| manifest.join("../../../quiddity-corpus"));
-    if std::env::var_os("QUIDDITY_CORPUS_REQUIRED").is_some() {
-        assert!(corpus.is_dir(), "QUIDDITY_CORPUS_REQUIRED: corpus missing");
+    if include_corpus {
+        assert!(
+            corpus.is_dir(),
+            "strict corpus run requires a QUIDDITY_CORPUS directory"
+        );
     }
     let mut paths = vec![];
-    files(&corpus, &mut paths);
+    // The ten CTC/FTC AP242 models supplied for #142 are mandatory in CI.
+    // FTC-09 AP242 is absent from these inputs; the corpus includes its AP203 model.
+    for name in [
+        "nist_ctc_01_asme1_ap242-e1",
+        "nist_ctc_02_asme1_ap242-e2",
+        "nist_ctc_03_asme1_ap242-e2",
+        "nist_ctc_04_asme1_ap242",
+        "nist_ctc_05_asme1_ap242",
+        "nist_ftc_06_asme1_ap242-e2",
+        "nist_ftc_07_asme1_ap242-e2",
+        "nist_ftc_08_asme1_ap242-e2",
+        "nist_ftc_10_asme1_ap242-e2",
+        "nist_ftc_11_asme1_ap242-e3",
+    ] {
+        assert!(
+            manifest
+                .join(format!("../../tests/fixtures/ap242/nist/{name}.stp.gz"))
+                .is_file(),
+            "required NIST fixture missing: {name}"
+        );
+    }
+    if include_corpus {
+        files(&corpus, &mut paths);
+    }
     files(
         &manifest.join("../../tests/fixtures/ap242/nist"),
         &mut paths,
@@ -146,9 +181,45 @@ fn nist_and_corpus_roundtrip() {
                 *blocked.entry(e.to_string()).or_default() += 1;
             }
             Ok((output, report)) => {
+                if let Some(dir) = std::env::var_os("HAECCEITY_JSON_OUTPUT") {
+                    std::fs::create_dir_all(&dir).unwrap();
+                    let name = path.file_name().unwrap().to_string_lossy();
+                    let name = name
+                        .trim_end_matches(".gz")
+                        .trim_end_matches(".stp")
+                        .trim_end_matches(".step");
+                    let mut gz =
+                        flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::best());
+                    std::io::Write::write_all(&mut gz, &output).unwrap();
+                    std::fs::write(
+                        Path::new(&dir).join(format!("{name}.step.gz")),
+                        gz.finish().unwrap(),
+                    )
+                    .unwrap();
+                }
                 let after = Document::parse(output.clone()).unwrap();
                 let definitions = read_part_definitions(&output).unwrap();
                 let reread = pmi::read(&after, &definitions).unwrap();
+                // No value is supplied for these dimensions by either leg. Their
+                // original ink and semantic links must survive too.
+                for callout in &read.callouts {
+                    for target in callout.links.iter().flat_map(|link| &link.targets) {
+                        if let pmi::PresentedItem::Dimension(d) = target.item
+                            && read.parts[target.part.0].dimensions[d.0].nominal.is_none()
+                        {
+                            assert!(
+                                reread.callouts.iter().any(|c| c.id == callout.id
+                                    && c.links
+                                        .iter()
+                                        .flat_map(|l| &l.targets)
+                                        .any(|t| t == target)),
+                                "{}: dimension without a value lost callout #{}",
+                                path.display(),
+                                callout.id
+                            );
+                        }
+                    }
+                }
                 for (i, p) in read.parts.iter().enumerate() {
                     let differences = json::identity_differences(p, &reread.parts[i]);
                     if !differences.is_empty() {

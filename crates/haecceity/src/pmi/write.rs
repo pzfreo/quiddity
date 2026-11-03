@@ -37,8 +37,8 @@
 //! no establishing datum, nonpositive sizes, placement units unlike the part context, and
 //! movable point/circle/rectangle/circular-curve parameter sets rejected by the non-exempt
 //! `placed_datum_target_feature.WR3`; other invalid tolerance tables or inconsistent decimal
-//! defaults; hole definitions; groups of unstated kind; dimensions without a nominal;
-//! projected zones without an origin; unspecified/unsupported affected planes; invalid
+//! defaults; hole definitions; groups of unstated kind;
+//! unspecified/unsupported affected planes; invalid
 //! thread/knurl parameter sets; density units without scale or dimensions M L^-3; and
 //! values that are not Part 21 REALs.
 //!
@@ -68,7 +68,8 @@
 //! pass `express` validation against the table of the file's edition (the target edition for
 //! an AP242 edition without a table, and for an AP214/AP203 file that gains PMI, whose every
 //! instance must then pass, after only the closed R1 approval assignment and R2 conversion
-//! unit dimensions repairs in `upgrade.rs`, each recorded in [`WriteReport::repairs`], plus
+//! unit dimensions repairs in `upgrade.rs`, and the R3 integer-literal repair on
+//! JSON-driven AP242 edition upgrades, each recorded in [`WriteReport::repairs`], plus
 //! the keyword table above); and `express_rules::check_all` of the result (the WHERE, UNIQUE
 //! and global rules it evaluates, `restrict_representation_for_surface_condition` among them)
 //! must have no violation the original lacked except the exact registered conflicts above.
@@ -216,6 +217,7 @@ impl std::fmt::Display for WriteError {
                 for kind in [
                     UpgradeRepairKind::R1ApprovalAssignment,
                     UpgradeRepairKind::R2ConversionUnitDimensions,
+                    UpgradeRepairKind::R3IntegerLiteral,
                 ] {
                     let affected: Vec<_> = repairs
                         .iter()
@@ -294,13 +296,15 @@ pub enum SchemaChange {
     Upgraded { from: Vec<String>, to: String },
 }
 
-/// The closed list of repairs allowed only on an AP203/AP214 upgrade that adds PMI.
+/// The closed list of repairs allowed only on an edition upgrade that adds PMI.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UpgradeRepairKind {
     /// R1: retain an approval's items using AP242's broader approval assignment.
     R1ApprovalAssignment,
     /// R2: make a conversion unit's dimensions explicit, from its factor's unit.
     R2ConversionUnitDimensions,
+    /// R3: an exactly representable integral REAL in an INTEGER representation item.
+    R3IntegerLiteral,
 }
 
 impl std::fmt::Display for UpgradeRepairKind {
@@ -308,6 +312,7 @@ impl std::fmt::Display for UpgradeRepairKind {
         f.write_str(match self {
             Self::R1ApprovalAssignment => "R1 approval assignment",
             Self::R2ConversionUnitDimensions => "R2 conversion unit dimensions",
+            Self::R3IntegerLiteral => "R3 integer literal",
         })
     }
 }
@@ -396,6 +401,9 @@ pub struct WriteReport {
     pub added: usize,
     /// Instances removed (replace, remove), ascending.
     pub removed: Vec<u64>,
+    /// Auxiliary support still used by unread PMI; kept, with datum links rebound to
+    /// equivalent replacements. Requirement entities themselves are never retained here.
+    pub retained_shared: Vec<u64>,
     /// Kept instances rewritten by Replace/Remove, including removal from shared
     /// containers and retained producer text rechunking. Always empty in Add.
     pub rewritten: Vec<u64>,
@@ -863,6 +871,7 @@ fn write_inner(
         validated_against: edition.file_schema,
         added: 0,
         removed: Vec::new(),
+        retained_shared: Vec::new(),
         rewritten: Vec::new(),
         presentation_removed: Vec::new(),
         note_presentation_removed: Vec::new(),
@@ -894,6 +903,31 @@ fn write_inner(
 
     // Replace and remove: one removal plan for every named part's consumed instances.
     let mut removed: BTreeSet<u64> = BTreeSet::new();
+    let mut rebound = BTreeSet::new();
+    let mut kept_dimension_ink = BTreeSet::new();
+    if mode == Mode::Replace {
+        for plan in &mut plans {
+            for callout in &read.callouts {
+                for link in &callout.links {
+                    if let Some(&dimension) = plan.replacement_dimensions.get(&link.definition) {
+                        rebound.insert((link.association, link.definition));
+                        plan.retained_dimensions.insert(dimension);
+                        kept_dimension_ink.insert(link.association);
+                        let mut stack = vec![callout.id];
+                        while let Some(id) = stack.pop() {
+                            // Graphics do not own the semantic carriers they happen to name.
+                            if plan.replacement_dimensions.contains_key(&id)
+                                || !kept_dimension_ink.insert(id)
+                            {
+                                continue;
+                            }
+                            stack.extend(references(doc, id));
+                        }
+                    }
+                }
+            }
+        }
+    }
     if mode != Mode::Add {
         let mut seeds = BTreeSet::new();
         for (p, _) in &order {
@@ -906,8 +940,31 @@ fn write_inner(
                 if protected.is_some_and(|ids| ids.contains(id)) {
                     return false;
                 }
-                !geometry.contains(id)
+                !geometry.contains(id) && !kept_dimension_ink.contains(id)
             }));
+        }
+        let shared = shared_dependencies(doc, &seeds);
+        let replacements: BTreeSet<u64> = plans
+            .iter()
+            .flat_map(|p| p.replacement_datums.keys().copied())
+            .collect();
+        // Only detach an edge when emission has an equivalent datum to put back.
+        // An edit that changes/deletes that datum still receives the ordinary refusal.
+        let can_rebind = shared.iter().all(|&from| {
+            references(doc, from)
+                .iter()
+                .all(|to| !seeds.contains(to) || shared.contains(to) || replacements.contains(to))
+        });
+        if can_rebind {
+            for &from in &shared {
+                for to in references(doc, from) {
+                    if seeds.contains(&to) && !shared.contains(&to) {
+                        rebound.insert((from, to));
+                    }
+                }
+            }
+            seeds.retain(|id| !shared.contains(id));
+            report.retained_shared = shared.into_iter().collect();
         }
         if !seeds.is_empty() {
             // A presentation model (draughting model, view) the removal would empty is the
@@ -915,7 +972,7 @@ fn write_inner(
             // with the presentation it held, and lists it; under Refuse it is refused.
             let mut emptied: Vec<(u64, String)> = Vec::new();
             let plan = loop {
-                match removal::plan(doc, &seeds, policy) {
+                match removal::plan_with_rebindings(doc, &seeds, policy, &rebound) {
                     Ok(plan) => break plan,
                     Err(r)
                         if policy == PresentationPolicy::RemovePresentation
@@ -953,7 +1010,7 @@ fn write_inner(
                                         && validation_property(doc, b, &seeds))
                             })
                             .collect();
-                        if extra.len() != r.blockers.len() {
+                        if extra.is_empty() || extra.iter().all(|id| seeds.contains(id)) {
                             return Err(WriteError::Removal(Box::new(r)));
                         }
                         for b in extra {
@@ -966,6 +1023,12 @@ fn write_inner(
                     Err(r) => return Err(WriteError::Removal(Box::new(r))),
                 }
             };
+            let mut plan = plan;
+            plan.removed.retain(|id| !kept_dimension_ink.contains(id));
+            plan.rewritten
+                .retain(|id, _| !kept_dimension_ink.contains(id));
+            plan.presentation_removed
+                .retain(|(id, _)| !kept_dimension_ink.contains(id));
             #[cfg(feature = "json-import")]
             let plan = if let Some(protected) = protected {
                 let mut plan = plan;
@@ -1047,8 +1110,37 @@ fn write_inner(
     // Preserve the complete source document, including other selected parts and
     // incidental legacy normalization, for every Add write.
     em.preserve_kept = mode == Mode::Add;
+    let mut semantic_replacements = BTreeMap::new();
     for plan in &plans {
-        plan.emit(&mut em, &mut report, presentation_reader.as_ref())?;
+        plan.emit(
+            &mut em,
+            &mut report,
+            presentation_reader.as_ref(),
+            &mut semantic_replacements,
+        )?;
+    }
+    for from in rebound
+        .iter()
+        .map(|(from, _)| *from)
+        .collect::<BTreeSet<_>>()
+    {
+        let mut record = doc
+            .get(from)
+            .cloned()
+            .ok_or_else(|| WriteError::Internal(format!("shared #{from} missing")))?;
+        let mut changed = false;
+        p21::visit_attributes_mut(&mut record, &mut |a| {
+            if let A::EntityRef(to) = a
+                && rebound.contains(&(from, *to))
+                && let Some(replacement) = semantic_replacements.get(to)
+            {
+                *a = replacement.a();
+                changed = true;
+            }
+        });
+        if changed {
+            em.kept_rewrites.insert(from, record);
+        }
     }
     repair_legacy_text(&mut em, &read, parts, &mut report)?;
     let emitted_dimensions = em
@@ -1097,7 +1189,7 @@ fn write_inner(
             report.edition_rewrites = upgrade::rewrite_entities(doc, &mut edit, &excluded);
         }
         let (repairs, added_dimensions) =
-            upgrade::repair(doc, &mut edit, &excluded, emitted_dimensions)?;
+            upgrade::repair(doc, &mut edit, &excluded, emitted_dimensions, json_upgrade)?;
         report.added += added_dimensions;
         repairs
     } else {
@@ -1337,6 +1429,74 @@ fn violation_key(v: &Violation) -> String {
 // ---------------------------------------------------------------------------------------------
 // Instance access (the document's own records)
 // ---------------------------------------------------------------------------------------------
+
+fn references(doc: &Document, id: u64) -> BTreeSet<u64> {
+    let mut out = BTreeSet::new();
+    if let Some(record) = doc.get(id) {
+        p21::visit_attributes(record, &mut |a| {
+            if let A::EntityRef(id) = a {
+                out.insert(*id);
+            }
+        });
+    }
+    out
+}
+
+/// Auxiliary support owned jointly by consumed and unread semantic PMI. Roots such
+/// as datums, dimensions and tolerances are deliberately excluded.
+pub(crate) fn shared_dependencies(doc: &Document, consumed: &BTreeSet<u64>) -> BTreeSet<u64> {
+    let auxiliary = |id| {
+        [
+            "datum_system",
+            "general_datum_reference",
+            "datum_reference",
+            "value_format_type_qualifier",
+            "type_qualifier",
+            "precision_qualifier",
+        ]
+        .iter()
+        .any(|kind| is_a(doc, id, kind))
+    };
+    let mut shared = BTreeSet::new();
+    // After one replacement the original shared DRF is used solely by unread
+    // PMI. Its compartments are no longer consumed, but still refer to the
+    // datums being replaced. Rebind those exact edges on subsequent writes too.
+    for id in doc
+        .ids()
+        .filter(|id| !consumed.contains(id) && auxiliary(*id))
+    {
+        if references(doc, id)
+            .iter()
+            .any(|to| consumed.contains(to) && is_a(doc, *to, "datum"))
+            && doc.referrers(id).iter().any(|r| {
+                !consumed.contains(r)
+                    && removal::instance_family(doc, *r) == express::Family::SemanticPmi
+            })
+        {
+            shared.insert(id);
+        }
+    }
+    loop {
+        let more: Vec<_> = consumed
+            .iter()
+            .copied()
+            .filter(|id| {
+                auxiliary(*id)
+                    && !shared.contains(id)
+                    && doc.referrers(*id).iter().any(|r| {
+                        shared.contains(r)
+                            || (!consumed.contains(r)
+                                && removal::instance_family(doc, *r)
+                                    == express::Family::SemanticPmi)
+                    })
+            })
+            .collect();
+        if more.is_empty() {
+            return shared;
+        }
+        shared.extend(more);
+    }
+}
 
 fn leaf_names(doc: &Document, id: u64) -> Vec<String> {
     match doc.get(id) {
@@ -1627,7 +1787,7 @@ fn other_unit_name(doc: &Document, id: u64) -> Option<String> {
         return attr_str(doc, id, "context_dependent_unit", "name");
     }
     if has("derived_unit") || has("named_unit") {
-        return Some(names.join("+"));
+        return super::unit_identity::identity(doc, id);
     }
     None
 }
@@ -2531,6 +2691,10 @@ struct PartPlan<'a> {
     referenced: BTreeSet<usize>,
     /// Datums resolved to the part's existing datum (add): datum → (`#datum`, `#datum_feature`).
     existing_datums: BTreeMap<usize, (u64, Option<u64>)>,
+    /// Source datum entities with an equal replacement (including their feature content).
+    replacement_datums: BTreeMap<u64, usize>,
+    replacement_dimensions: BTreeMap<u64, usize>,
+    retained_dimensions: BTreeSet<usize>,
     /// Geometry → an existing supplemental geometry item with the same value.
     existing_geometry: BTreeMap<usize, u64>,
     kept_groups: BTreeMap<u64, String>,
@@ -2632,11 +2796,48 @@ impl<'a> PartPlan<'a> {
             twins: BTreeSet::new(),
             referenced: BTreeSet::new(),
             existing_datums: BTreeMap::new(),
+            replacement_datums: BTreeMap::new(),
+            replacement_dimensions: BTreeMap::new(),
+            retained_dimensions: BTreeSet::new(),
             existing_geometry: BTreeMap::new(),
             kept_groups: BTreeMap::new(),
             kept_occt_carriers: BTreeSet::new(),
             system_names: BTreeSet::new(),
         };
+        if mode == Mode::Replace {
+            let old = &read.parts[id.0];
+            if old.features == pmi.features && old.geometry == pmi.geometry {
+                for (i, dimension) in old.dimensions.iter().enumerate() {
+                    if dimension.nominal.is_none()
+                        && let Some(j) = pmi.dimensions.iter().position(|d| d == dimension)
+                    {
+                        for &source in &read.provenance.parts[id.0].dimensions[i] {
+                            if is_a(doc, source, "dimensional_size")
+                                || is_a(doc, source, "dimensional_location")
+                            {
+                                plan.replacement_dimensions.insert(source, j);
+                            }
+                        }
+                    }
+                }
+            }
+            for (i, datum) in old.datums.iter().enumerate() {
+                for (j, new) in pmi.datums.iter().enumerate() {
+                    let same_feature = match (datum.feature(), new.feature()) {
+                        (Some(a), Some(b)) => old.features[a.0] == pmi.features[b.0],
+                        (None, None) => true,
+                        _ => false,
+                    };
+                    if datum == new && same_feature && old.datum_targets == pmi.datum_targets {
+                        for &source in &read.provenance.parts[id.0].datums[i] {
+                            if is_a(doc, source, "datum") {
+                                plan.replacement_datums.insert(source, j);
+                            }
+                        }
+                    }
+                }
+            }
+        }
         plan.check(read);
         Ok(plan)
     }
@@ -3127,17 +3328,39 @@ impl<'a> PartPlan<'a> {
         }
     }
 
-    /// The document's unit the reader names `name` (an attribute's measure of another kind):
-    /// exactly one distinct instance, else refused.
-    fn other_unit(&self, name: &str) -> Result<u64, String> {
+    /// An equal content-identified unit, or None to emit it fresh. Legacy names must
+    /// identify exactly one distinct unit content. Source entity ids are never unit identities.
+    fn other_unit(&self, name: &str) -> Result<Option<u64>, String> {
+        if name.starts_with(super::unit_identity::PREFIX)
+            && super::unit_identity::records(name).is_none()
+        {
+            return Err("invalid portable unit identity".into());
+        }
         let found: Vec<u64> = self
             .doc
             .ids()
-            .filter(|&id| is_a(self.doc, id, "named_unit") || is_a(self.doc, id, "derived_unit"))
+            // other_unit_name only describes unit entities; avoid computing subtype
+            // closures for every geometry record for every attribute.
             .filter(|&id| other_unit_name(self.doc, id).as_deref() == Some(name))
             .collect();
         match found.as_slice() {
-            [u] => Ok(*u),
+            [u, ..] if name.starts_with(super::unit_identity::PREFIX) => Ok(Some(*u)),
+            [u] => Ok(Some(*u)),
+            [u, ..]
+                if super::unit_identity::identity(self.doc, *u).is_some_and(|identity| {
+                    found.iter().all(|id| {
+                        super::unit_identity::identity(self.doc, *id).as_deref()
+                            == Some(identity.as_str())
+                    })
+                }) =>
+            {
+                Ok(Some(*u))
+            } // repeated equal units do not make the name ambiguous
+            [] if name.starts_with(super::unit_identity::PREFIX)
+                || matches!(density_unit(name), Some(DensityUnit::Mass(_))) =>
+            {
+                Ok(None)
+            }
             [] => Err(format!("no unit of the file is {name:?}")),
             _ => Err(format!(
                 "{} units of the file are named {name:?}; which one is not stated",
@@ -3168,6 +3391,7 @@ impl<'a> PartPlan<'a> {
         em: &mut Emitter<'_>,
         report: &mut WriteReport,
         presentation_reader: Option<&crate::step::PartReader>,
+        semantic_replacements: &mut BTreeMap<u64, R>,
     ) -> Result<(), WriteError> {
         let mut st = Emitted::default();
         let p = self.pmi;
@@ -3448,10 +3672,20 @@ impl<'a> PartPlan<'a> {
             }
             st.datums.insert(i, datum);
         }
+        for (&source, &i) in &self.replacement_datums {
+            if let Some(&new) = st.datums.get(&i) {
+                semantic_replacements.insert(source, new);
+            }
+        }
         #[cfg(not(feature = "presentation"))]
         self.datum_symbols(em, &symbols, &st, report, presentation_reader)?;
         for i in 0..p.dimensions.len() {
             self.dimension(em, &mut st, pds, i)?;
+        }
+        for (&source, &i) in &self.replacement_dimensions {
+            if let Some(&new) = st.dimensions.get(&i) {
+                semantic_replacements.insert(source, new);
+            }
         }
         let mut names = self.system_names.clone();
         for (i, t) in p.tolerances.iter().enumerate() {
@@ -4120,13 +4354,25 @@ impl<'a> PartPlan<'a> {
                     graphics.push(g.clone());
                     continue;
                 }
+                if self.retained_dimensions.contains(&i) {
+                    graphics.push((
+                        vec![_st.dimensions[&i]],
+                        presentation::dimension_type(d),
+                        String::new(),
+                        [[0.; 3], [0., 0., 1.], [1., 0., 0.]],
+                        Vec::new(),
+                    ));
+                    continue;
+                }
                 let f = feature_of_dimension(d);
                 let tip = self
                     .feature_point(f.0)
                     .unwrap_or(points.first().copied().unwrap_or([0.; 3]));
                 let c = presentation::dimension(d);
                 let name = c.notation();
-                let p = if measurements.as_ref().is_some_and(|ms| ms[i].is_some()) {
+                let p = if c.polylines().is_empty()
+                    || measurements.as_ref().is_some_and(|ms| ms[i].is_some())
+                {
                     // The measured ladder below places it. Do not reserve a discarded
                     // bare-number slot that would push the control frames away.
                     crate::presentation::placement::Placed {
@@ -4237,7 +4483,9 @@ impl<'a> PartPlan<'a> {
             };
             let mut stacks = BTreeMap::<usize, Vec<(usize, presentation::Callout)>>::new();
             for (i, d) in self.pmi.dimensions.iter().enumerate() {
-                if is_placed(_st.dimensions[&i])
+                if self.retained_dimensions.contains(&i)
+                    || presentation::dimension(d).polylines().is_empty()
+                    || is_placed(_st.dimensions[&i])
                     || measurements.as_ref().is_some_and(|m| m[i].is_some())
                 {
                     continue;
@@ -4539,6 +4787,9 @@ impl<'a> PartPlan<'a> {
                 ));
             }
         }
+        // A dimension with no stated text has no new ink to place. Its source
+        // presentation can still be retained and linked to the written dimension.
+        graphics.retain(|g| !g.4.is_empty());
         if graphics.is_empty() {
             return Ok(());
         }
@@ -6335,18 +6586,44 @@ impl<'a> PartPlan<'a> {
             Some(Principle::Independency) => "independency",
             Some(Principle::EnvelopeRequirement) => "envelope requirement",
         };
-        let sdr = em.simple(
-            "shape_dimension_representation",
-            &[
-                ("name", s(principle)),
-                ("items", refs(items)),
-                ("context_of_items", em.reference(self.context)?.a()),
-            ],
-        )?;
-        em.simple(
-            "dimensional_characteristic_representation",
-            &[("dimension", dim.a()), ("representation", sdr.a())],
-        )?;
+        // A stated principle or qualifier still needs a representation when no measure
+        // is stated. An empty descriptive item supplies the required nonempty SET without
+        // inventing a value or a dimensional note.
+        if d.nominal.is_none()
+            && (d.qualifier.is_some() || (items.is_empty() && d.principle.is_some()))
+        {
+            let mut qualifiers = Vec::new();
+            if let Some(qual) = &d.qualifier {
+                let name = match qual {
+                    Qualifier::Maximum => "maximum",
+                    Qualifier::Minimum => "minimum",
+                    Qualifier::Average => "average",
+                    Qualifier::Other(name) => name,
+                };
+                qualifiers.push(em.simple("type_qualifier", &[("name", s(name))])?);
+            }
+            let mut kinds = vec!["descriptive_representation_item"];
+            let mut vals = vec![(("", "name"), s("")), (("", "description"), s(""))];
+            if !qualifiers.is_empty() {
+                kinds.push("qualified_representation_item");
+                vals.push((("", "qualifiers"), refs(qualifiers)));
+            }
+            items.push(em.instance(&kinds, &vals, &[])?);
+        }
+        if !items.is_empty() {
+            let sdr = em.simple(
+                "shape_dimension_representation",
+                &[
+                    ("name", s(principle)),
+                    ("items", refs(items)),
+                    ("context_of_items", em.reference(self.context)?.a()),
+                ],
+            )?;
+            em.simple(
+                "dimensional_characteristic_representation",
+                &[("dimension", dim.a()), ("representation", sdr.a())],
+            )?;
+        }
         let range = match &d.tolerance {
             DimTolerance::Deviations(b) => Some(em.tolerance_value(self.context, b)?),
             DimTolerance::Fit { class, .. } => Some(em.limits_and_fits(class)?),
@@ -6724,11 +7001,15 @@ impl<'a> PartPlan<'a> {
             if let Some(pz) = &z.projected {
                 let end = match pz.end {
                     Some(f) => self.feature(em, st, pds, f.0)?,
-                    None => {
-                        return Err(WriteError::Internal(
-                            "a projected zone without its end passed the checks".into(),
-                        ));
-                    }
+                    None => em.simple(
+                        "shape_aspect",
+                        &[
+                            ("name", s("")),
+                            ("description", s("")),
+                            ("of_shape", pds.a()),
+                            ("product_definitional", boolean(false)),
+                        ],
+                    )?,
                 };
                 let len = em.value(self.context, &pz.length)?;
                 em.simple(
@@ -7286,8 +7567,35 @@ impl<'a> PartPlan<'a> {
                             &[value],
                         )?
                     } else {
-                        let u = self.other_unit(unit).map_err(WriteError::Internal)?;
-                        let u = em.reference(u)?;
+                        let id = self.other_unit(unit).map_err(WriteError::Internal)?;
+                        let u = if let Some(id) = id {
+                            em.reference(id)?
+                        } else if let Some(&u) = em.other_units.get(unit) {
+                            u
+                        } else if let Some(DensityUnit::Mass(prefix)) = density_unit(unit) {
+                            em.mass_unit(prefix)?
+                        } else {
+                            let records = super::unit_identity::records(unit).ok_or_else(|| {
+                                WriteError::Internal("invalid portable unit identity".into())
+                            })?;
+                            let mut emitted = Vec::<R>::new();
+                            for record in records {
+                                let mut entity = record.entity;
+                                p21::visit_attributes_mut(&mut entity, &mut |a| {
+                                    if let A::EntityRef(id) = a {
+                                        *a = emitted[*id as usize - 1].a();
+                                    }
+                                });
+                                emitted.push(
+                                    em.push(entity, &record.numbers.iter().collect::<Vec<_>>())?,
+                                );
+                            }
+                            let u = *emitted.last().ok_or_else(|| {
+                                WriteError::Internal("empty unit identity".into())
+                            })?;
+                            em.other_units.insert(unit.clone(), u);
+                            u
+                        };
                         em.instance(
                             &["measure_representation_item"],
                             &[
