@@ -232,7 +232,7 @@ fn pmi_read_of_one_part() {
 // Reader /17 uses portable anonymous units and reports projected-zone facts.
 const READER_PIN: (&str, &str) = (
     "haecceity-pmi-read/17",
-    "51524842380c48da1e998584f1605169d70eec4504310a9f0871464be63a5694",
+    "d5fa39d1d22dcc334522ad9a064e033fb936e31d6946817a14a32d366319ab71",
 );
 
 #[test]
