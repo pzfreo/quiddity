@@ -421,7 +421,8 @@ These override anything below and any stream brief that says otherwise.
    instance must still pass the target table and no new `express_rules` violation may appear.
    Every other byte stays as it was, apart from `FILE_SCHEMA` and added instances; a repaired
    file's original record bytes are recoverable only through the report's original records.
-   An AP242 file stays AP242 and receives no upgrade repairs. Which corpus and NIST AP214/AP203
+   An AP242 file stays at its edition unless the JSON owner SELECT requires a newer
+   edition; that upgrade also permits R3 (below). Which corpus and NIST AP214/AP203
    files pass without repairs, pass with the listed repairs, or are refused is pinned per file;
    the original violations keep their verdicts and reasons.
 
@@ -1502,7 +1503,7 @@ Settled by the implementation (where the design was open or silent):
   a named unit by its leaves), counts one named 'count'.
 - *Historical refusals (superseded by “Writer gaps and schema conflicts” above)*: notes
   (decision 5), tables and the part's decimal places (decision 3), material density
-  (decision 2), groups of unstated kind, dimensions without a nominal value, tolerances on a
+  (decision 2), groups of unstated kind, tolerances on a
   `shape_aspect_relationship` (the reader reads one from a feature as its composition), projected
   zones without their end, the affected plane, thread/knurl parameter counts outside WR1/WR2,
   booleans in attribute sets, attribute units the file does not name uniquely, and values that
@@ -2131,3 +2132,43 @@ but without `presentation`, the Rust and JSON APIs refuse a nonempty source inpu
 with a clear feature error, before writing anything. Ordinary writes without source
 input retain their previous behavior. Disabling default features does not enable
 JSON import or presentation drawing implicitly.
+
+### Issue #142: strict CTC/FTC JSON and STEP round trips
+
+Dimensions with no stated nominal value are retained with their features and
+callout associations. The reader emits no nonconformance for the absent value;
+the writer emits no invented measure or empty dimension representation. CTC-01
+keeps all twelve dimensions (four have no value), and CTC-03 keeps its dimension
+without a value too. NIST SFA's eight valued CTC-01 dimensions are a subset.
+
+CTC-04's projected zone retains its length and a projection-end shape aspect
+without geometry. This is the source's statement, not an inferred origin.
+Anonymous attribute units retain their source `#id`, resolved by entity rather
+than a shared type label (FTC-07/10). Authored name-only units still require an
+unambiguous matching unit in the source document.
+
+Replace keeps auxiliary datum-system/qualifier support shared with unread PMI
+(`WriteReport.retained_shared`). Shared datum-reference compartments are rebound
+only to equal replacement datums with equal feature content; changing or
+removing those datums retains the ordinary removal refusal. Requirement roots
+are replaced as before. FTC-06's unread #348 (target #2818 has no geometry) and
+its #414 qualification stay, while their shared #327 datum system and #415
+format qualifier remain valid. Identity attributes follow removed owners.
+The removal planner only overlooks edges that emission will rebind; applying
+the edit still checks that no reference dangles. Comparisons of PMI values and
+membership are unchanged.
+
+The enabled `pmi_json_roundtrip::nist_roundtrip` covers the ten available CTC/FTC
+AP242 models from committed fixtures. CI runs it with `json-import` on Linux;
+`nist_and_corpus_roundtrip` remains an ignored, explicitly invoked corpus-wide
+strict test. Both require empty identity differences without removing refused
+requirements, validate additions, and compare solid validity before and after.
+
+CTC-04's JSON owner SELECT requires upgrading edition 1 to the target edition.
+The source also writes 46 INTEGER representation-item literals as integral
+REALs. Reported upgrade repair R3 writes those exact integral values as INTEGERs
+(only finite integers within ±2^53); it does not round fractional values or
+relax schema checking. Every repair records the original and new entity text.
+
+The reader binding advances to `haecceity-pmi-read/16` because absent-value
+findings and anonymous unit identities change. The interchange schema remains /1.

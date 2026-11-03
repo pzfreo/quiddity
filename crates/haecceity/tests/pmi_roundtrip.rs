@@ -250,7 +250,10 @@ fn roundtrip(
                     let geometry: std::collections::BTreeSet<u64> =
                         prov.geometry.iter().flatten().copied().collect();
                     for id in prov.all() {
-                        if !geometry.contains(&id) && doc1.get(id).is_some() {
+                        if !geometry.contains(&id)
+                            && !report.retained_shared.contains(&id)
+                            && doc1.get(id).is_some()
+                        {
                             problems.push(format!("{stem} part {i}: consumed #{id} survives"));
                         }
                     }
@@ -437,18 +440,9 @@ fn control_datum_features_resolve_after_write_read() {
     let doc = Document::parse(bytes).unwrap();
     let read = pmi::read(&doc, &parts).unwrap();
     assert!(common::pmi_datums::unresolved(&read).is_empty());
-    // Like the committed CTC-01 copy, this control has four dimensions without a
-    // nominal value. Use the existing refusal harness, and pin those refusals so no
-    // datum loss can be hidden by removing newly refused requirements.
+    // All twelve dimensions, including the four with no stated value, are kept.
     let outcome = replace_all(&doc, &parts, &read, PresentationPolicy::RemovePresentation);
-    assert_eq!(
-        outcome.refused,
-        BTreeMap::from([(
-            "Dimension: a dimension without a nominal value (§N.N.N: it shall always be given)"
-                .into(),
-            4,
-        )])
-    );
+    assert!(outcome.refused.is_empty());
     let (bytes, _) = outcome.result.unwrap();
     let parts = read_part_definitions(&bytes).unwrap();
     let doc = Document::parse(bytes).unwrap();

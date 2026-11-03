@@ -113,7 +113,7 @@ fn item_keys(p: &PartPmi) -> Vec<String> {
 /// `written` with `mode`: each written part reads back as written (replace, remove) or as its
 /// PMI before plus exactly the items written (add; a feature or datum equal to one the part
 /// has is that one), and for replace and remove nothing the reader consumed for it survives
-/// (its supplemental geometry excepted, which is the part's); every other part reads as
+/// (except supplemental geometry and auxiliary support still used by unread PMI); every other part reads as
 /// before; the parts keep their names and face and edge counts; and no finding is new.
 ///
 /// `base` is the document the edit was applied to: `before.doc`, unless the caller edited a
@@ -152,6 +152,11 @@ pub fn verify(
     fn text(doc: &Document, id: u64) -> Option<&[u8]> {
         doc.span(id).map(|s| &doc.bytes()[s])
     }
+    let consumed = written
+        .iter()
+        .flat_map(|(part, _)| before.read.provenance.parts[part.0].all())
+        .collect();
+    let shared = super::write::shared_dependencies(before.doc, &consumed);
     for part in 0..defs.len() {
         let old = &before.read.parts[part];
         let read = &after.read.parts[part];
@@ -201,6 +206,7 @@ pub fn verify(
                 let geometry: BTreeSet<u64> = prov.geometry.iter().flatten().copied().collect();
                 for id in prov.all() {
                     if !geometry.contains(&id)
+                        && !shared.contains(&id)
                         && text(base, id) == text(before.doc, id)
                         && after.doc.get(id).is_some()
                     {

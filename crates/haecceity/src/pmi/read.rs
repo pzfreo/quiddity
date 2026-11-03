@@ -840,7 +840,7 @@ impl<'a> Reader<'a> {
                 self.get_str(id, "context_dependent_unit", "name")
                     .unwrap_or_default()
             } else {
-                names.join("+")
+                format!("#{id}")
             };
             return Ok(Unit::Other(name));
         }
@@ -3151,16 +3151,7 @@ impl<'a> Reader<'a> {
                 prov.push(sdr);
                 Some(sdr)
             }
-            None => {
-                self.find(
-                    FindingKind::Nonconformance,
-                    part,
-                    id,
-                    &[],
-                    "a dimension without a dimensional_characteristic_representation: no value is stated (§5.2.1: the nominal value shall always be given); read without one",
-                );
-                None
-            }
+            None => None,
         };
         let principle = match sdr
             .and_then(|sdr| self.get_str(sdr, "representation", "name"))
@@ -3324,15 +3315,6 @@ impl<'a> Reader<'a> {
                 );
                 return None;
             }
-        }
-        if let (None, Some(sdr)) = (&nominal, sdr) {
-            self.find(
-                FindingKind::Nonconformance,
-                part,
-                id,
-                &[sdr],
-                "no 'nominal value' (it shall always be given, §5.2.1); read without one",
-            );
         }
 
         // Plus/minus tolerance (§5.2.3, §5.2.5).
@@ -4325,13 +4307,6 @@ impl<'a> Reader<'a> {
                         // The projection end names no geometry: the zone is read without it.
                         prov.push(end);
                         prov.extend(self.id_attributes(end));
-                        self.find(
-                            FindingKind::Nonconformance,
-                            part,
-                            tol,
-                            &[def, end],
-                            "the projected zone's projection end identifies no face (§6.9.2.2); read without the end",
-                        );
                         None
                     }
                     None => {

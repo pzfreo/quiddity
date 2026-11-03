@@ -214,12 +214,6 @@ pub(crate) fn model_refusals(id: PartId, p: &PartPmi) -> Vec<Refusal> {
 
     // Dimensions.
     for (i, d) in p.dimensions.iter().enumerate() {
-        if d.nominal.is_none() {
-            check.refuse(
-                ItemRef::Dimension(i),
-                "a dimension without a nominal value (§5.2.1: it shall always be given)",
-            );
-        }
         let mut vals: Vec<&Decimal> = d.nominal.iter().map(Value::decimal).collect();
         match &d.tolerance {
             DimTolerance::Deviations(b) | DimTolerance::Limits(b) => {
@@ -286,13 +280,6 @@ pub(crate) fn model_refusals(id: PartId, p: &PartPmi) -> Vec<Refusal> {
         }
     }
     for (i, t) in p.tolerances.iter().enumerate() {
-        if t.zone
-            .as_ref()
-            .and_then(|z| z.projected.as_ref())
-            .is_some_and(|pz| pz.end.is_none())
-        {
-            check.refuse(ItemRef::Tolerance(i), "a projected tolerance zone without its projection end (§6.9.2.2): the model states no origin geometry");
-        }
         if let Some(u) = &t.unit_basis {
             let lengths = std::iter::once(&u.size)
                 .chain(u.area.as_ref().and_then(|a| a.second.as_ref()))

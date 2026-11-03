@@ -229,10 +229,9 @@ fn pmi_read_of_one_part() {
 /// together. `READER` is what `pmi check` holds a document's anchors to, so it must change
 /// whenever the reader's output does: when this fails, bump `pmi_json::READER` if `pmi::read`
 /// changed (a JSON-form change bumps `VERSION` instead), then re-pin both.
-// Reader /15 retains explicitly authored standalone composition members without
-// redundant aspects; old source semantics remain unchanged.
+// Reader /16 preserves absent dimension values and identifies anonymous units by entity.
 const READER_PIN: (&str, &str) = (
-    "haecceity-pmi-read/15",
+    "haecceity-pmi-read/16",
     "192fde06ad69cfd1675460e12fb63af6b63b77c0dfef183aba3d95ed99c8e6d6",
 );
 

@@ -62,17 +62,28 @@ fn items(p: &pmi::PartPmi) -> usize {
         + usize::from(p.decimal_places.is_some())
 }
 #[test]
-#[ignore = "strict #142 acceptance: existing source/writer refusals must remain visible; run with --ignored"]
+fn nist_roundtrip() {
+    strict_roundtrip(false);
+}
+
+#[test]
+#[ignore = "corpus-wide strict #142 acceptance; set QUIDDITY_CORPUS and run with --ignored"]
 fn nist_and_corpus_roundtrip() {
+    strict_roundtrip(true);
+}
+
+fn strict_roundtrip(include_corpus: bool) {
     let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
     let corpus = std::env::var_os("QUIDDITY_CORPUS")
         .map(PathBuf::from)
         .unwrap_or_else(|| manifest.join("../../../quiddity-corpus"));
-    if std::env::var_os("QUIDDITY_CORPUS_REQUIRED").is_some() {
+    if include_corpus && std::env::var_os("QUIDDITY_CORPUS_REQUIRED").is_some() {
         assert!(corpus.is_dir(), "QUIDDITY_CORPUS_REQUIRED: corpus missing");
     }
     let mut paths = vec![];
-    files(&corpus, &mut paths);
+    if include_corpus {
+        files(&corpus, &mut paths);
+    }
     files(
         &manifest.join("../../tests/fixtures/ap242/nist"),
         &mut paths,
@@ -146,9 +157,45 @@ fn nist_and_corpus_roundtrip() {
                 *blocked.entry(e.to_string()).or_default() += 1;
             }
             Ok((output, report)) => {
+                if let Some(dir) = std::env::var_os("HAECCEITY_JSON_OUTPUT") {
+                    std::fs::create_dir_all(&dir).unwrap();
+                    let name = path.file_name().unwrap().to_string_lossy();
+                    let name = name
+                        .trim_end_matches(".gz")
+                        .trim_end_matches(".stp")
+                        .trim_end_matches(".step");
+                    let mut gz =
+                        flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::best());
+                    std::io::Write::write_all(&mut gz, &output).unwrap();
+                    std::fs::write(
+                        Path::new(&dir).join(format!("{name}.step.gz")),
+                        gz.finish().unwrap(),
+                    )
+                    .unwrap();
+                }
                 let after = Document::parse(output.clone()).unwrap();
                 let definitions = read_part_definitions(&output).unwrap();
                 let reread = pmi::read(&after, &definitions).unwrap();
+                // No value is supplied for these dimensions by either leg. Their
+                // original ink and semantic links must survive too.
+                for callout in &read.callouts {
+                    for target in callout.links.iter().flat_map(|link| &link.targets) {
+                        if let pmi::PresentedItem::Dimension(d) = target.item
+                            && read.parts[target.part.0].dimensions[d.0].nominal.is_none()
+                        {
+                            assert!(
+                                reread.callouts.iter().any(|c| c.id == callout.id
+                                    && c.links
+                                        .iter()
+                                        .flat_map(|l| &l.targets)
+                                        .any(|t| t == target)),
+                                "{}: dimension without a value lost callout #{}",
+                                path.display(),
+                                callout.id
+                            );
+                        }
+                    }
+                }
                 for (i, p) in read.parts.iter().enumerate() {
                     let differences = json::identity_differences(p, &reread.parts[i]);
                     if !differences.is_empty() {

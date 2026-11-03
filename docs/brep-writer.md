@@ -82,7 +82,7 @@ written faces and edges by index; that writer validates what it adds against the
 rules. Not carried, each named in `PmiCarried::refused` with its reason:
 
 - hole definitions (`PartPmi::holes`), which `pmi::write` neither writes nor refuses;
-- every item `pmi::write` refuses (for example a dimension without a nominal value, or a
+- every item `pmi::write` refuses (for example a
   validation property whose unit, a `derived_unit` or kilogram, the new file does not have), and
   every item that refers to one (`pmi::without`);
 - when `pmi::write` fails otherwise (its rule check of what it would add), every item, naming

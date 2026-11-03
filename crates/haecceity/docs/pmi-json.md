@@ -531,9 +531,26 @@ them `source: generated`. Unmarked graphics remain `source: file`.
 Generated graphics use the same geometry-based placement as the STEP writer,
 in model coordinates; producing placed graphics requires the part geometry.
 
-FTC-07 `OtherMeasure.unit = "derived_unit"` cannot identify one of several
-anonymous EXPRESS derived units. JSON import refuses it with the candidate
-count and a request for an unambiguous named unit; it never guesses a unit.
+Anonymous EXPRESS units in `OtherMeasure.unit` retain their source entity
+reference (`#id`). Import resolves that entity in the original STEP document and
+checks that it is a named or derived unit. Thus FTC-07/10 attributes sharing the
+label `derived_unit` retain their distinct units. Caller-authored unit names
+still require exactly one matching source unit; ambiguous names are refused.
+These references require the original STEP document, like topology anchors.
+
+Dimensions without a stated nominal value retain their features and graphical
+callout links, with `nominal: null`; no value is invented and no nonconformance
+is reported. A projected zone with `end: null` writes an empty shape aspect as
+its mandatory projection-end carrier, retaining its length without inventing
+origin geometry.
+
+`pmi_json_roundtrip::nist_roundtrip` runs strict CTC/FTC acceptance in CI:
+STEP → PartPmi → JSON → PartPmi → STEP, with empty identity differences, schema
+and rule checks on additions, and unchanged solid validity. The larger run is
+available with `QUIDDITY_CORPUS=/path/to/corpus cargo test -p haecceity --release
+--features json-import --test pmi_json_roundtrip nist_and_corpus_roundtrip --
+--ignored --exact`. `HAECCEITY_NIST_PMI` optionally adds external NIST copies.
+
 Default-feature readers recover JSON identification-assignment item IDs.
 
 Unit definitions use globally unique caller IDs, or `unit:<kind>:<content-digest>`

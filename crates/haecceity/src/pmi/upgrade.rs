@@ -1,4 +1,4 @@
-//! Closed, reported repairs for an AP203/AP214 file gaining PMI. No general cleanup.
+//! Closed, reported repairs for an edition upgrade gaining PMI. No general cleanup.
 
 use super::{EditionRewrite, UpgradeRepairKind, WriteError, attr, attr_ref, is_a, leaf_names};
 use crate::express::{self, Kind, TypeDef};
@@ -67,6 +67,29 @@ pub(super) fn repair(
             continue;
         };
         match record {
+            RawEntity::Simple {
+                name, attributes, ..
+            } if name.eq_ignore_ascii_case("integer_representation_item") => {
+                if let Some(A::Real(value)) = attr(doc, id, "literal_number", "the_value")
+                    && value.is_finite()
+                    && value.fract() == 0.
+                    && value.abs() <= (1u64 << 53) as f64
+                {
+                    let mut attributes = attributes.clone();
+                    let slots = express::TARGET.explicit_attributes(name).ok_or_else(|| {
+                        WriteError::Internal("integer_representation_item attributes absent".into())
+                    })?;
+                    if let Some(i) = slots
+                        .iter()
+                        .position(|a| a.entity == "literal_number" && a.name == "the_value")
+                    {
+                        attributes[i] = A::Integer(*value as i64);
+                        record_text(doc, id)?;
+                        edit.replace(id, p21::simple(name, attributes));
+                        repairs.push((id, UpgradeRepairKind::R3IntegerLiteral));
+                    }
+                }
+            }
             RawEntity::Simple {
                 name, attributes, ..
             } if name.eq_ignore_ascii_case("cc_design_approval") => {
@@ -251,4 +274,34 @@ fn dimensions_for_si_unit(name: &str) -> Option<Dimensions> {
         _ => return None,
     };
     Some(d.map(f64::from))
+}
+
+#[cfg(test)]
+mod integer_tests {
+    use super::*;
+
+    #[test]
+    fn upgrade_repairs_only_exact_integral_integer_items() {
+        let bytes = b"ISO-10303-21;HEADER;FILE_DESCRIPTION((''),'2;1');FILE_NAME('','','',(''),(''),'','');FILE_SCHEMA(('AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF'));ENDSEC;DATA;
+#1=INTEGER_REPRESENTATION_ITEM('count',43.);
+#2=INTEGER_REPRESENTATION_ITEM('fraction',1.5);
+#3=INTEGER_REPRESENTATION_ITEM('large',18014398509481984.);
+ENDSEC;END-ISO-10303-21;";
+        let doc = Document::parse(bytes.to_vec()).unwrap();
+        let mut edit = Edit::new();
+        let (repairs, added) = repair(&doc, &mut edit, &BTreeSet::new(), vec![]).unwrap();
+        assert_eq!(repairs, vec![(1, UpgradeRepairKind::R3IntegerLiteral)]);
+        assert_eq!(added, 0);
+        let after = Document::parse(doc.apply(&edit).unwrap().bytes).unwrap();
+        assert_eq!(
+            attr(&after, 1, "literal_number", "the_value"),
+            Some(&A::Integer(43))
+        );
+        for id in [2, 3] {
+            assert_eq!(
+                doc.span(id).map(|s| &doc.bytes()[s]),
+                after.span(id).map(|s| &after.bytes()[s])
+            );
+        }
+    }
 }

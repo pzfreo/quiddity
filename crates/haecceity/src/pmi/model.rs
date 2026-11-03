@@ -1170,7 +1170,7 @@ impl DatumSystem {
 pub struct Dimension {
     pub kind: DimensionKind,
     /// A length, or an angle for an angular dimension. `None` only where a file states no
-    /// nominal value (a nonconformance, §5.2.1: it shall always be given), read as such.
+    /// nominal value; read and written without inventing one.
     pub nominal: Option<Value>,
     pub tolerance: DimTolerance,
     /// Maximum, minimum, average (§5.2.2 Table 6).
@@ -3063,7 +3063,8 @@ pub enum AttributeValue {
     Boolean(bool),
     Measure(Value),
     /// A measure of a kind other than length or plane angle: its type name, value and unit
-    /// name, as stated.
+    /// name, as stated. Anonymous units use their source entity reference (`#id`),
+    /// resolved against the original STEP document when writing.
     OtherMeasure {
         measure: String,
         value: Decimal,
