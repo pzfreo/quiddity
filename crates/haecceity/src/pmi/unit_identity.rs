@@ -6,8 +6,8 @@ use crate::express;
 use crate::p21::{self, Attribute as A, Document, RawEntity};
 
 pub(super) const PREFIX: &str = "step-unit:";
-const CHILD: &str = "unit_entity";
-const NUMBER: &str = "unit_real";
+const CHILD: &str = "UNIT_ENTITY";
+const NUMBER: &str = "UNIT_REAL";
 
 pub(super) struct UnitRecord {
     pub(super) entity: RawEntity,

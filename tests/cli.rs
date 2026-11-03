@@ -17,6 +17,24 @@ fn quiddity(args: &[&str]) -> Output {
         .expect("quiddity runs")
 }
 
+fn native_pmi(path: &Path) -> haecceity::pmi::PmiRead {
+    let raw = std::fs::read(path).unwrap();
+    let bytes = if path.extension().is_some_and(|e| e == "gz") {
+        let mut bytes = Vec::new();
+        std::io::Read::read_to_end(
+            &mut flate2::read::GzDecoder::new(raw.as_slice()),
+            &mut bytes,
+        )
+        .unwrap();
+        bytes
+    } else {
+        raw
+    };
+    let doc = haecceity::p21::Document::parse(bytes.clone()).unwrap();
+    let parts = haecceity::step::read_part_definitions(&bytes).unwrap();
+    haecceity::pmi::read(&doc, &parts).unwrap()
+}
+
 fn broken(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/broken")
@@ -358,15 +376,22 @@ fn brep_carries_the_parts_pmi_and_names_what_it_does_not() {
     let read = quiddity(&["pmi", "read", out_path.to_str().unwrap()]);
     assert!(read.status.success());
     let after: serde_json::Value = serde_json::from_slice(&read.stdout).unwrap();
-    let before = quiddity(&["pmi", "read", input.to_str().unwrap()]);
-    assert!(before.status.success());
-    let before: serde_json::Value = serde_json::from_slice(&before.stdout).unwrap();
     let dimensions = after["parts"][0]["pmi"]["dimensions"].as_array().unwrap();
     assert_eq!(dimensions.len(), 12);
     assert_eq!(
-        dimensions,
-        before["parts"][0]["pmi"]["dimensions"].as_array().unwrap()
+        dimensions
+            .iter()
+            .filter(|d| d.get("nominal").is_none())
+            .count(),
+        4
     );
+    let expected = native_pmi(&input);
+    let actual = native_pmi(&out_path);
+    let differences = haecceity::pmi::write::differences(
+        &haecceity::pmi::write::standard_form(&expected.parts[0]),
+        &actual.parts[0],
+    );
+    assert!(differences.is_empty(), "{differences:?}");
     // Several parts: their PMI is listed as not carried.
     let input = fixtures.join("write/editor_assembly_pin_alone.step.gz");
     let out_path = dir.join("assembly.step");
@@ -663,25 +688,16 @@ fn brep_carries_portable_derived_units_from_nist() {
             report["pmi"]["refused"].as_array().unwrap().is_empty(),
             "{report}"
         );
-        let read = |path: &Path| {
-            let raw = std::fs::read(path).unwrap();
-            let bytes = if path.extension().is_some_and(|e| e == "gz") {
-                let mut bytes = Vec::new();
-                std::io::Read::read_to_end(
-                    &mut flate2::read::GzDecoder::new(raw.as_slice()),
-                    &mut bytes,
-                )
-                .unwrap();
-                bytes
-            } else {
-                raw
-            };
-            let doc = haecceity::p21::Document::parse(bytes.clone()).unwrap();
-            let parts = haecceity::step::read_part_definitions(&bytes).unwrap();
-            haecceity::pmi::read(&doc, &parts).unwrap()
-        };
-        let before = read(&input);
-        let after = read(&output);
+        let before = native_pmi(&input);
+        let after = native_pmi(&output);
+        assert!(
+            before
+                .findings
+                .iter()
+                .all(|f| f.kind != haecceity::pmi::FindingKind::Unitless),
+            "{:?}",
+            before.findings
+        );
         let units = |read: &haecceity::pmi::PmiRead| {
             let mut units: Vec<_> = read
                 .parts
@@ -699,11 +715,13 @@ fn brep_carries_portable_derived_units_from_nist() {
             units
         };
         let expected = units(&before);
-        assert!(!expected.is_empty());
-        assert!(
+        assert_eq!(expected.len(), 13);
+        assert_eq!(
             expected
                 .iter()
-                .any(|(_, unit)| unit.starts_with("step-unit:"))
+                .filter(|(_, unit)| unit.starts_with("step-unit:"))
+                .count(),
+            12
         );
         assert_eq!(units(&after), expected, "FTC-{model}");
         // Freshly emitted unit graphs can share equal named units at different ids.
