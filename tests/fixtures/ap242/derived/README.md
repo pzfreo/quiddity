@@ -43,3 +43,11 @@ each adds one non-fatal `Nonconformance` finding for the repeated source identif
 refusal counts are unchanged. The other fifteen rows are unchanged. Structural tests
 in `pmi_xcaf_read.rs` check source identifiers, unique JSON references and the recovered
 non-runout zone independently; the existing audit remains strict.
+
+Reader `/16` (#142) refreshes four existing semantic expectations. CTC-01 no
+longer reports its four dimensions without values as nonconformances. FTC-07,
+FTC-10 and STC-09 retain anonymous attribute units by source entity reference
+instead of the ambiguous `derived_unit` label. Source hashes, all stated/read
+PMI counts, and refusal counts are unchanged. The strict NIST JSON/STEP tests
+check the complete model and source callout links independently of this legacy
+audit; no output-hash test or baseline case is added.
