@@ -139,8 +139,8 @@
       "test": "crates/haecceity/tests/pmi_read.rs (nist_expected_pmi)"
     },
     {
-      "agreed": 277,
-      "cases": 425,
+      "agreed": 310,
+      "cases": 533,
       "deferred": [
         {
           "captured": false,

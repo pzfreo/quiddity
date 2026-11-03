@@ -681,3 +681,54 @@ fn thirteen_nist_target_subsets_with_datums_and_required_features_roundtrip_into
     }
     assert_eq!(total, 13);
 }
+
+/// Unread #348/#414 keep their auxiliary support. After the first write that
+/// support is unconsumed, and its compartments must still follow equal datums.
+#[test]
+fn unread_shared_datum_support_survives_repeated_replacement() {
+    let mut input =
+        file_bytes(&common::fixtures().join("ap242/nist/nist_ftc_06_asme1_ap242-e2.stp.gz"));
+    for pass in 0..2 {
+        let parts = read_part_definitions(&input).unwrap();
+        let doc = Document::parse(input).unwrap();
+        let read = pmi::read(&doc, &parts).unwrap();
+        let requested: Vec<_> = read
+            .parts
+            .iter()
+            .enumerate()
+            .map(|(i, p)| (PartId(i), p.clone()))
+            .collect();
+        let (edit, report) = pmi::write(
+            &doc,
+            &parts,
+            &requested,
+            Mode::Replace,
+            PresentationPolicy::RemovePresentation,
+        )
+        .unwrap();
+        let bytes = doc.apply(&edit).unwrap().bytes;
+        let definitions = read_part_definitions(&bytes).unwrap();
+        let after = Document::parse(bytes.clone()).unwrap();
+        let reread = pmi::read(&after, &definitions).unwrap();
+        for (i, p) in read.parts.iter().enumerate() {
+            assert!(
+                differences(&pmi::write::standard_form(p), &reread.parts[i]).is_empty(),
+                "pass {pass}"
+            );
+        }
+        for id in [348, 414] {
+            assert_eq!(
+                &doc.bytes()[doc.span(id).unwrap()],
+                &after.bytes()[after.span(id).unwrap()],
+                "unread #{id}, pass {pass}"
+            );
+        }
+        for id in [302, 303, 304] {
+            assert!(
+                report.retained_shared.contains(&id),
+                "pass {pass}: {report:?}"
+            );
+        }
+        input = bytes;
+    }
+}

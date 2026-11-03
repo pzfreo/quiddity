@@ -400,7 +400,7 @@ pub struct WriteReport {
     pub added: usize,
     /// Instances removed (replace, remove), ascending.
     pub removed: Vec<u64>,
-    /// Consumed support still used by unread PMI; kept, with datum links rebound to
+    /// Auxiliary support still used by unread PMI; kept, with datum links rebound to
     /// equivalent replacements. Requirement entities themselves are never retained here.
     pub retained_shared: Vec<u64>,
     /// Kept instances rewritten by Replace/Remove, including removal from shared
@@ -1457,6 +1457,24 @@ pub(crate) fn shared_dependencies(doc: &Document, consumed: &BTreeSet<u64>) -> B
         .any(|kind| is_a(doc, id, kind))
     };
     let mut shared = BTreeSet::new();
+    // After one replacement the original shared DRF is used solely by unread
+    // PMI. Its compartments are no longer consumed, but still refer to the
+    // datums being replaced. Rebind those exact edges on subsequent writes too.
+    for id in doc
+        .ids()
+        .filter(|id| !consumed.contains(id) && auxiliary(*id))
+    {
+        if references(doc, id)
+            .iter()
+            .any(|to| consumed.contains(to) && is_a(doc, *to, "datum"))
+            && doc.referrers(id).iter().any(|r| {
+                !consumed.contains(r)
+                    && removal::instance_family(doc, *r) == express::Family::SemanticPmi
+            })
+        {
+            shared.insert(id);
+        }
+    }
     loop {
         let more: Vec<_> = consumed
             .iter()

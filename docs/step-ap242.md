@@ -2156,6 +2156,7 @@ removing those datums retains the ordinary removal refusal. Requirement roots
 are replaced as before. FTC-06's unread #348 (target #2818 has no geometry) and
 its #414 qualification stay, while their shared #327 datum system and #415
 format qualifier remain valid. Identity attributes follow removed owners.
+This also covers support already marked unconsumed by an earlier replacement.
 The removal planner only overlooks edges that emission will rebind; applying
 the edit still checks that no reference dangles. Comparisons of PMI values and
 membership are unchanged.
