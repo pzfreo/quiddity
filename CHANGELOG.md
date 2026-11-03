@@ -9,9 +9,11 @@ in [docs/alpha1.md](docs/alpha1.md).
 ## 0.4.6 (2026-11-03)
 
 Upgrading from 0.4.5: recognition schema `/6`, fingerprints `/3`, the `haecceity.pmi/1` schema and the PMI reader string `haecceity-pmi-read/15` are unchanged.
-- **Add mode keeps the file's own bytes (#185):** every Add write now keeps pre-existing carriers, usages, controls and presentation at their original ids. This reverses 0.4.5's Add-mode normalisation, which broke `datum_feature.WR2` when adding a datum to NIST CTC-01. Add writes that need entity repairs now fail atomically and name the repairs; use Replace for those. `WriteReport` adds `preserved_normalizations`.
-- **Source callout positions (#183):** PMI writing accepts an optional `haecceity.presentation/1` companion: Rust/JSON `write_with_presentation`, Python `presentation=`, CLI `--source-presentation`. `/1` adds the optional `Graphic.leader`. Readers that validate against the 0.4.5 schema (`additionalProperties: false`) reject documents that use it. `WriteReport` adds `presentation_warnings`. Without a companion, output is unchanged.
-- **Notes layout (#184):** unplaced feature notes become their own leadered callouts, and the general-notes block moves clear of drawn ink. Written presentation changes for files with feature notes or a crowded notes position.
+- **Add mode keeps the file's own bytes (#185):** every Add write now keeps pre-existing carriers, usages, controls and presentation at their original ids. This reverses 0.4.5's Add-mode normalisation, which broke `datum_feature.WR2` when adding a datum to NIST CTC-01. Any Add write that would change an original entity fails atomically with `WriteError::AddPreservation`, which names the entities. That covers R1/R2 upgrade repairs and AP214 keyword rewrites; use Replace for those. Skipped normalisations are reported in `WriteReport.preserved_normalizations` as `legacy-text-rechunking`, `kept-usage-factoring`, `functional-sar-isolation` or `legacy-endpoint-retirement`.
+- **Source callout positions (#183):** PMI writing accepts an optional `haecceity.presentation/1` companion: Rust/JSON `write_with_presentation`, Python `presentation=`, and CLI `--source-presentation` on `quiddity pmi write` (exactly one selected part) and `quiddity pmi json import`. The CLI flag exists only in json-import builds. `/1` adds the optional `Graphic.leader`; readers that validate against the 0.4.5 schema (`additionalProperties: false`) reject documents that use it. Without a companion, #183 changes nothing.
+- **Notes layout (#184):** unplaced feature notes become their own leadered callouts, and the general-notes block moves clear of drawn ink. Written presentation changes for files with feature notes or a crowded notes position; four writer goldens changed (`pmi_gaps`, `pmi_gaps_gram`, `spool_fits_intent`, `assembly_plate_pin_intent`).
+- **Reports:** `WriteReport` adds `presentation_warnings` (placed text edge-on or overlapping, and feature notes whose glyphs can't be drawn) and `preserved_normalizations`. The CLI `pmi write` report and the Python report gain both as optional keys; `pmi json import` adds `presentation_warnings`. Python `writer_findings` gains both categories.
+- **Rust API:** `WriteError` gains `AddPreservation` and is not `#[non_exhaustive]`, so exhaustive matches need an arm. `json::presentation::Graphic` gains the pub field `leader` and is not `#[non_exhaustive]`, so struct literals must supply it.
 
 ### Added
 
@@ -34,7 +36,7 @@ Upgrading from 0.4.5: recognition schema `/6`, fingerprints `/3`, the `haecceity
   without moving supplied positions. Saved views remain a later phase.
 - `haecceity.presentation/1` adds optional `Graphic.leader` (a model-space point
   in millimetres). Old companions still read. `WriteReport` adds
-  `presentation_warnings`; existing writer goldens remain unchanged.
+  `presentation_warnings`; #183 changes no writer golden.
 
 ### Fixed
 
@@ -43,7 +45,7 @@ Upgrading from 0.4.5: recognition schema `/6`, fingerprints `/3`, the `haecceity
   Retained legacy aliases no longer generate classification certificates or gain
   checker exemptions; before/after checks retain their original findings. Reuse
   across representations sharing a context is limited to Add preservation.
-  CLI and Python report tests pin preserved-normalization records and names.
+  The CLI and Python reports carry `preserved_normalizations` records (`{id, normalization}`).
 - **Add preserves original entity bytes:** every Add write keeps pre-existing
   carriers, usages, controls and presentation at their original ids. Add no longer
   retires legacy endpoint wrappers, isolates functional SARs or rechunks retained
