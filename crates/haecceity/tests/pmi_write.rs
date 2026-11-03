@@ -5012,13 +5012,18 @@ fn nist_ap203_upgrade_repairs() {
             datums: vec![datum("Z", 0)],
             ..PartPmi::default()
         };
+        let refusal = write(&f, &[(PartId(0), p.clone())], Mode::Add)
+            .err()
+            .expect("Add must not repair original entities");
         assert!(
-            matches!(
-                write(&f, &[(PartId(0), p.clone())], Mode::Add),
-                Err(WriteError::AddPreservation(_))
-            ),
-            "{name}: Add must not repair original entities"
+            matches!(&refusal, WriteError::AddPreservation { ids: changed, .. } if *changed == ids)
         );
+        if name == "nist_ctc_01_asme1_rd.stp" {
+            assert_eq!(
+                refusal.to_string(),
+                "Add would change original entities [14, 15]; R1 approval assignment on entities [14, 15]. Replace performs these repairs. When the part has no PMI, Replace keeps everything already in the part; on a part with existing PMI, Replace re-authors that PMI."
+            );
+        }
         let w = match write(&f, &[(PartId(0), p.clone())], Mode::Replace) {
             Ok(w) => w,
             Err(e) => {
@@ -5125,7 +5130,7 @@ fn conversion_dimensions_reuse_and_follow_conversion_and_derived_units() {
     });
     assert!(matches!(
         write(&f, &[(PartId(0), p.clone())], Mode::Add),
-        Err(WriteError::AddPreservation(ids))
+        Err(WriteError::AddPreservation { ids, .. })
             if ids == vec![900000003, 900000006, 900000008, 900000013, 900000014]
     ));
     let w = write(&f, &[(PartId(0), p.clone())], Mode::Replace).unwrap();
@@ -8547,7 +8552,7 @@ fn ap214_product_type_keyword_only_and_readback() {
     assert!(empty.report.edition_rewrites.is_empty());
     let p = product_type_pmi();
     assert!(
-        matches!(write(&f, &[(PartId(0), p.clone())], Mode::Add), Err(WriteError::AddPreservation(ids)) if ids == vec![132])
+        matches!(write(&f, &[(PartId(0), p.clone())], Mode::Add), Err(WriteError::AddPreservation { ids, .. }) if ids == vec![132])
     );
     let w = write(&f, &[(PartId(0), p.clone())], Mode::Replace).unwrap();
     assert_reads_back(&w, PartId(0), &p);
@@ -8821,8 +8826,42 @@ fn add_plain_requirements_do_not_inherit_specialized_aspect_meaning() {
 }
 
 #[test]
+fn unrelated_note_on_a_legacy_part_adds_no_classification_entities() {
+    use common::pmi_usage::{introduced_violations, is_a, same_kept_scope, violations};
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/xcaf/plate-legacy-datum-location.step.gz");
+    let input = open(&path);
+    let add = PartPmi {
+        attributes: part_notes(),
+        ..PartPmi::default()
+    };
+    let output = write(&input, &[(PartId(0), add.clone())], Mode::Add).unwrap();
+    assert_verified_as(&input, &output, &add, Mode::Add);
+    assert_original_entities_unchanged(&input.doc, &output.doc);
+    for ty in [
+        "applied_classification_assignment",
+        "class",
+        "classification_role",
+    ] {
+        assert!(
+            !output.added().iter().any(|id| is_a(&output.doc, *id, ty)),
+            "unexpected {ty}"
+        );
+    }
+    assert!(output.report.geometry_carrier_exemptions.is_empty());
+    assert_eq!(violations(&input.doc).len(), 4);
+    assert_eq!(violations(&output.doc), violations(&input.doc));
+    assert!(introduced_violations(&input.doc, &output.doc).is_empty());
+    for alias in [1004, 1109] {
+        assert!(same_kept_scope(&input.doc, &output.doc, alias));
+    }
+}
+
+#[test]
 fn add_on_legacy_plate_preserves_datums_and_forwarders() {
-    use common::pmi_usage::{geometry, is_a, reference, violations};
+    use common::pmi_usage::{
+        geometry, introduced_violations, is_a, reference, same_kept_scope, violations,
+    };
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/xcaf/plate-legacy-datum-location.step.gz");
     let f = open(&path);
@@ -8915,27 +8954,12 @@ fn add_on_legacy_plate_preserves_datums_and_forwarders() {
         );
     }
     assert_eq!(geometry(&w.doc, 1100), geometry(&f.doc, 1100));
-    assert!(violations(&w.doc).is_empty(), "{:?}", violations(&w.doc));
-    // The exception is certified by Add, not inferred for every legacy alias.
-    // Removing only the new classifications restores all four strict findings.
-    let certificates: Vec<_> = common::pmi_usage::exemptions(&w.doc)
-        .into_iter()
-        .filter(|e| e.condition == "kept-carrier-legacy-forwarder")
-        .collect();
-    assert_eq!(certificates.len(), 2);
-    let mut strip = haecceity::p21::Edit::new();
-    for e in certificates {
-        assert!(e.association > f.doc.max_id());
-        strip.remove(e.association);
+    assert_eq!(violations(&f.doc).len(), 4);
+    assert_eq!(violations(&w.doc), violations(&f.doc));
+    assert!(introduced_violations(&f.doc, &w.doc).is_empty());
+    for alias in [1004, 1109] {
+        assert!(same_kept_scope(&f.doc, &w.doc, alias));
     }
-    let uncertified = Document::parse(w.doc.apply(&strip).unwrap().bytes).unwrap();
-    assert_eq!(violations(&uncertified).len(), 4);
-
-    // The new preservation metadata must not block a later normal Replace.
-    let reopened = open_bytes(w.doc.bytes().to_vec());
-    let model = w.read.parts[0].clone();
-    let replaced = write(&reopened, &[(PartId(0), model.clone())], Mode::Replace).unwrap();
-    assert_verified_as(&reopened, &replaced, &model, Mode::Replace);
     assert_eq!(
         w.report
             .preserved_normalizations

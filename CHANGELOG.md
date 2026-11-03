@@ -25,6 +25,12 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
+- Add upgrade refusals name the required repairs and entity ids, explain that
+  Replace retains a part with no PMI, and warn that it re-authors existing PMI.
+  Retained legacy aliases no longer generate classification certificates or gain
+  checker exemptions; before/after checks retain their original findings. Reuse
+  across representations sharing a context is limited to Add preservation.
+  CLI and Python report tests pin preserved-normalization records and names.
 - **Add preserves original entity bytes:** every Add write keeps pre-existing
   carriers, usages, controls and presentation at their original ids. Add no longer
   retires legacy endpoint wrappers, isolates functional SARs or rechunks retained

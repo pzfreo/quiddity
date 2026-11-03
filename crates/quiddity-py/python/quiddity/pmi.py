@@ -1,5 +1,6 @@
 """In-process haecceity PMI JSON ↔ AP242 STEP, with verified byte-buffer writes."""
 import json
+from copy import deepcopy
 import os
 from importlib.resources import files
 
@@ -34,10 +35,35 @@ def _part(part: int | None) -> int | None:
     return part
 
 
+def _writer_findings(writer: dict) -> list[dict]:
+    """Project canonical writer diagnostics without renaming their fields or values."""
+    findings = []
+    for category in (
+        "long_strings", "preserved_normalizations", "kept_unconsumed",
+        "preexisting_violations", "preexisting_rule_violations", "practice_schema_conflicts",
+        "repairs", "edition_rewrites", "left_unreferenced", "note_migrations",
+        "note_presentation_removed",
+    ):
+        items = writer.get(category)
+        if isinstance(items, list):
+            findings.extend({**deepcopy(item), "category": category} for item in items)
+    messages = writer.get("presentation_warnings")
+    if isinstance(messages, list):
+        findings.extend({"category": "presentation_warnings", "message": message} for message in messages)
+    if "edition_undetermined" in writer:
+        findings.append({"category": "edition_undetermined", "file_schema": writer["edition_undetermined"],
+                         "validated_against": writer.get("validated_against")})
+    return findings
+
+
 def write(geometry: str | os.PathLike | bytes, document: str | dict, *, part: int | None = None, report: bool = False, presentation: str | dict | None = None) -> bytes | tuple[bytes, dict]:
     """Return verified AP242 bytes, or (bytes, import-report dict) with report=True; no files written."""
     output, details = pmi_write(_step(geometry), _document(document), _part(part), report, None if presentation is None else _document(presentation))
-    return (output, json.loads(details)) if report else output
+    if not report:
+        return output
+    details = json.loads(details)
+    details["writer_findings"] = _writer_findings(details["writer"])
+    return output, details
 
 
 def read(step: str | os.PathLike | bytes, *, part: int | None = None, anchors: str = "index") -> dict:

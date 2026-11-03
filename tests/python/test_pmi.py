@@ -68,6 +68,33 @@ def test_nist_write_report():
     assert all("category" in finding for finding in report["writer_findings"])
 
 
+def test_preserved_normalizations_findings_shape_and_names():
+    # Python's public writer currently uses Replace. Exercise the shared report
+    # projection directly with canonical Add diagnostics, without a new Add API.
+    writer = {"preserved_normalizations": [
+        {"id": 1004, "normalization": "legacy-endpoint-retirement"},
+        {"id": 2001, "normalization": "functional-sar-isolation"},
+        {"id": 2002, "normalization": "functional-sar-unwrapping"},
+        {"id": 2003, "normalization": "kept-usage-factoring"},
+        {"id": 2004, "normalization": "legacy-text-rechunking"},
+    ]}
+    original = deepcopy(writer)
+    assert pmi._writer_findings(writer) == [
+        {"category": "preserved_normalizations", "id": 1004, "normalization": "legacy-endpoint-retirement"},
+        {"category": "preserved_normalizations", "id": 2001, "normalization": "functional-sar-isolation"},
+        {"category": "preserved_normalizations", "id": 2002, "normalization": "functional-sar-unwrapping"},
+        {"category": "preserved_normalizations", "id": 2003, "normalization": "kept-usage-factoring"},
+        {"category": "preserved_normalizations", "id": 2004, "normalization": "legacy-text-rechunking"},
+    ]
+    assert writer == original
+    assert pmi._writer_findings({}) == []
+    assert pmi._writer_findings({"preserved_normalizations": []}) == []
+    nested = {"kept_unconsumed": [{"ids": [1004], "detail": "kept"}]}
+    projected = pmi._writer_findings(nested)
+    projected[0]["ids"].append(1109)
+    assert nested["kept_unconsumed"][0]["ids"] == [1004]
+
+
 def test_occt_density_repair_report():
     source = ROOT / "crates/haecceity/tests/fixtures/q142/occt-density-plate.step.gz"
     document = pmi.read(source)

@@ -1500,6 +1500,26 @@ fn derived_geometry_does_not_regress_any_nist_pmi() {
 }
 
 #[test]
+fn preserved_normalizations_have_the_documented_json_shape() {
+    let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("crates/haecceity/tests/fixtures/xcaf/plate-legacy-datum-location.step.gz");
+    let step = source.to_str().unwrap();
+    let (mut doc, _) = ok(&["pmi", "read", step]);
+    doc["parts"] = json!([{"part": 0, "pmi": {"general": [{"class": {"text": "ISO 2768-m"}}]}}]);
+    let (_, output) = write_cli(step, &doc, "preserved-normalizations", &[]);
+    let (report, _) = write_ok(&output, "preserved normalizations");
+    assert_eq!(
+        report["preserved_normalizations"],
+        json!([
+            {"id": 1004, "normalization": "legacy-endpoint-retirement"},
+            {"id": 1109, "normalization": "legacy-endpoint-retirement"},
+        ])
+    );
+    assert_eq!(report["instances"]["replaced"], 0);
+    assert!(report.get("geometry_carrier_exemptions").is_none());
+}
+
+#[test]
 fn ap214_product_type_rewrites_are_reported() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("crates/haecceity/tests/fixtures/ap214_product_type.step");

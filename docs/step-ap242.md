@@ -1965,7 +1965,6 @@ normalizations, whether or not a datum is requested.
 | `kept-carrier-datum-member` | A multi-face datum's independent leaf and that face's selected kept carrier. |
 | `kept-carrier-datum-composite` | The datum root and an exact kept whole-feature carrier, when one exists. |
 | `kept-carrier-independent-feature` | A non-datum leaf needing an independent usage (including a subset of a kept SET IIRU). |
-| `kept-carrier-legacy-forwarder` | An explicitly classified unchanged legacy alias sharing the same actual usage records and scope as its retained carrier. |
 
 The independent checker requires an explicit composition certificate (or identical
 kept group scope), same-part geometry containment and independent representations
@@ -1973,13 +1972,11 @@ for new direct usages. Datum exceptions require `.T.`, exactly one establishment
 and a dimensional representation for the combined §6.5.3 form. Only the certified
 new usage is excluded from §5.1 duplicates. Unrelated source aspects receive no
 exemption; duplicate scalar keys and ordinary redundant shells remain errors.
-Legacy alias preservation is explicitly recorded by an
-`applied_classification_assignment` pairing the alias and carrier, with class
-`kept-carrier-legacy-forwarder` and role `haecceity.preservation/1`. It adds no
-geometry or composition. The reader consumes this producer metadata with the
-paired aspects so it cannot block a later Replace, and does not treat it as an
-item identifier. Without that certificate the checker still rejects
-redundant legacy aliases, including untouched input and corruption fixtures.
+Legacy aliases remain visible as pre-existing checker findings. Add emits no
+classification certificates or other markers for them, and no name or marker
+grants an exemption. Before/after tests require zero `introduced_violations` and
+check the retained aliases' actual geometry usages, scope signatures and
+`of_shape` links. Skipped endpoint retirement is diagnostic report data only.
 For CTC-01 `[24, 41]` the selected kept carriers are #298 and #322, never the other
 aspects #324/#336 on face 41; `[24, 0]` selects only #298. CTC-01's 26 existing
 strict checker findings remain visible: preservation tests require identical
@@ -1987,13 +1984,31 @@ before/after findings and zero introduced violations, rather than exempting the
 source's unrelated duplicates. No EXPRESS rule is exempted.
 
 `WriteReport.preserved_normalizations` records source `id` and skipped
-`normalization`: `legacy-endpoint-retirement`, `functional-sar-isolation`,
+`normalization`. The canonical CLI write report has this optional JSON shape:
+
+```json
+{"preserved_normalizations":[{"id":1004,"normalization":"legacy-endpoint-retirement"}]}
+```
+
+Every entry has exactly `id` (an original entity id, integer) and `normalization`
+(a string). The key is omitted when empty. The names are
+`legacy-endpoint-retirement`, `functional-sar-isolation`,
 `functional-sar-unwrapping`, `kept-usage-factoring` (a retained SET or specialized
-usage), or `legacy-text-rechunking`. CLI/Python reports expose the same optional collection.
+usage), and `legacy-text-rechunking`. Python's canonical `report["writer"]` uses
+the same shape; `report["writer_findings"]` adds
+`"category":"preserved_normalizations"` to each entry without changing its fields
+or names. Python's public write API currently uses Replace, so Add-only entries
+are absent there; the common findings projection supports these canonical records.
+
 Add verifies every original entity's exact bytes before returning an edit. AP203
 or AP214 upgrades needing original-entity repairs fail atomically with
-`WriteError::AddPreservation` and the affected ids; Replace can perform those
-repairs. Header-only upgrades with no entity repairs remain possible.
+`WriteError::AddPreservation`. The refusal lists the R1 approval-assignment or R2
+conversion-unit-dimension repairs and their ids (or the AP214 keyword rewrite).
+Replace performs those repairs. When a part has no PMI, Replace retains everything
+already in it; when it has existing PMI, Replace re-authors that PMI. Header-only
+upgrades with no entity repairs remain possible. Cross-representation carrier
+reuse in the same context is limited to Add preservation; Replace keeps its exact
+representation requirement.
 
 Kept `.F.` (or unknown) product-definitional aspects are never promoted in any
 mode: doing so violates `datum_feature.WR2`. Promotion of kept `.T.` aspects is

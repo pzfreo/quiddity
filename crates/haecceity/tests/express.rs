@@ -747,7 +747,7 @@ fn corpus_upgrades_are_pinned() {
                         matches!(
                             pmi::write(&doc, &parts, &requested, pmi::Mode::Add,
                                 pmi::write::PresentationPolicy::RemovePresentation),
-                            Err(pmi::write::WriteError::AddPreservation(ids)) if ids == changed
+                            Err(pmi::write::WriteError::AddPreservation { ids, .. }) if ids == changed
                         ),
                         "{n}: Add must refuse exactly {changed:?}"
                     );

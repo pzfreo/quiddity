@@ -188,7 +188,11 @@ pub enum WriteError {
     P21(P21Error),
     /// Add cannot preserve these source entities while performing a schema
     /// upgrade/repair. Nothing is applied; Replace is the explicit rewriting mode.
-    AddPreservation(Vec<u64>),
+    AddPreservation {
+        ids: Vec<u64>,
+        repairs: Vec<(u64, UpgradeRepairKind)>,
+        edition_rewrites: Vec<EditionRewrite>,
+    },
     /// The writer's own invariant failed (a defect), described.
     Internal(String),
 }
@@ -203,10 +207,34 @@ impl std::fmt::Display for WriteError {
         };
         match self {
             WriteError::Parts(s) => write!(f, "parts: {s}"),
-            WriteError::AddPreservation(ids) => write!(
-                f,
-                "Add would change original entities {ids:?}; use Replace for schema upgrades requiring entity repairs"
-            ),
+            WriteError::AddPreservation {
+                ids,
+                repairs,
+                edition_rewrites,
+            } => {
+                write!(f, "Add would change original entities {ids:?}")?;
+                for kind in [
+                    UpgradeRepairKind::R1ApprovalAssignment,
+                    UpgradeRepairKind::R2ConversionUnitDimensions,
+                ] {
+                    let affected: Vec<_> = repairs
+                        .iter()
+                        .filter(|(_, repair)| *repair == kind)
+                        .map(|(id, _)| *id)
+                        .collect();
+                    if !affected.is_empty() {
+                        write!(f, "; {kind} on entities {affected:?}")?;
+                    }
+                }
+                for rewrite in edition_rewrites {
+                    write!(
+                        f,
+                        "; AP214 keyword rewrite {} -> {} on entity #{}",
+                        rewrite.from, rewrite.to, rewrite.id
+                    )?;
+                }
+                f.write_str(". Replace performs these repairs. When the part has no PMI, Replace keeps everything already in the part; on a part with existing PMI, Replace re-authors that PMI.")
+            }
             WriteError::Invalid { part, errors } => {
                 write!(f, "part {} PMI is not valid", part.0)?;
                 list(f, &errors.iter().map(|e| e.0.clone()).collect::<Vec<_>>())
@@ -339,11 +367,11 @@ impl std::fmt::Display for LongStringWarning {
 pub struct GeometryCarrierExemption {
     pub part: PartId,
     /// Preservation: `kept-carrier-datum-feature`, `kept-carrier-datum-member`,
-    /// `kept-carrier-datum-composite`, `kept-carrier-independent-feature`, or
-    /// `kept-carrier-legacy-forwarder`. Functional endpoints use
+    /// `kept-carrier-datum-composite`, or `kept-carrier-independent-feature`.
+    /// Functional endpoints use
     /// `shared-carrier-controlled-pair` / `shared-carrier-datum-target-support`.
     pub condition: &'static str,
-    /// The independent aspect (or retained legacy alias), and its precise
+    /// The independent aspect and its precise
     /// preserved geometric carrier. Multi-face datum members are reported per face.
     pub aspect: u64,
     pub feature: u64,
@@ -398,8 +426,8 @@ pub struct WriteReport {
     /// Actual violations of the named practice/schema conflicts on newly added instances
     /// (maintainer decision 2026-10-20). The rule engine itself remains unchanged.
     pub practice_schema_conflicts: Vec<RuleViolation>,
-    /// Narrow §5.1 exceptions: independent additions preserving kept carriers, retained
-    /// legacy forwarders, and private endpoints disambiguating shared-carrier SARs.
+    /// Narrow §5.1 exceptions: independent additions preserving kept carriers,
+    /// and private endpoints disambiguating shared-carrier SARs.
     pub geometry_carrier_exemptions: Vec<GeometryCarrierExemption>,
     /// Add keeps these source records instead of performing the named 0.4.5
     /// normalization: (original instance, normalization not performed).
@@ -1172,7 +1200,11 @@ fn write_inner(
             })
             .collect();
         if !changed.is_empty() {
-            return Err(WriteError::AddPreservation(changed));
+            return Err(WriteError::AddPreservation {
+                ids: changed,
+                repairs: report.repairs.iter().map(|r| (r.id, r.repair)).collect(),
+                edition_rewrites: report.edition_rewrites.clone(),
+            });
         }
     }
     Ok((edit, report))
@@ -5849,7 +5881,6 @@ impl<'a> PartPlan<'a> {
             let mut todo = vec![alias];
             let mut visited = BTreeSet::new();
             let mut by_rep: BTreeMap<u64, BTreeSet<u64>> = BTreeMap::new();
-            let mut relations = Vec::new();
             let mut direct = false;
             while let Some(aspect) = todo.pop() {
                 if !visited.insert(aspect) {
@@ -5897,9 +5928,6 @@ impl<'a> PartPlan<'a> {
                         )
                         && !is_a(self.doc, member, "datum")
                     {
-                        if aspect == alias {
-                            relations.push(r);
-                        }
                         todo.push(member);
                     }
                 }
@@ -5928,57 +5956,6 @@ impl<'a> PartPlan<'a> {
             }
             em.preserved_normalizations
                 .insert((alias, "legacy-endpoint-retirement"));
-            if self.pmi == &PartPmi::default() {
-                continue;
-            }
-            // This classification records the preservation decision without
-            // adding geometric composition or changing the source alias. The
-            // checker still requires identical actual usage records and scope.
-            let certified = self.doc.referrers(alias).iter().copied().any(|r| {
-                is_a(self.doc, r, "applied_classification_assignment")
-                    && attr_ref(self.doc, r, "classification_assignment", "role")
-                        .and_then(|role| attr_str(self.doc, role, "classification_role", "name"))
-                        .as_deref()
-                        == Some("haecceity.preservation/1")
-                    && attr_ref(self.doc, r, "classification_assignment", "assigned_class")
-                        .and_then(|class| attr_str(self.doc, class, "group", "name"))
-                        .as_deref()
-                        == Some("kept-carrier-legacy-forwarder")
-                    && attr_refs(self.doc, r, "applied_classification_assignment", "items")
-                        .into_iter()
-                        .collect::<BTreeSet<_>>()
-                        == BTreeSet::from([alias, owner])
-            });
-            if !certified {
-                let class = em.simple(
-                    "class",
-                    &[
-                        ("name", s("kept-carrier-legacy-forwarder")),
-                        ("description", A::Unset),
-                    ],
-                )?;
-                let role = em.simple(
-                    "classification_role",
-                    &[
-                        ("name", s("haecceity.preservation/1")),
-                        ("description", A::Unset),
-                    ],
-                )?;
-                em.simple(
-                    "applied_classification_assignment",
-                    &[
-                        ("assigned_class", class.a()),
-                        ("role", role.a()),
-                        ("items", refs([R::Old(alias), R::Old(owner)])),
-                    ],
-                )?;
-            }
-            em.carrier_exemptions.push((
-                self.id,
-                "kept-carrier-legacy-forwarder",
-                R::Old(alias),
-                R::Old(owner),
-            ));
         }
         Ok(())
     }
@@ -6057,11 +6034,21 @@ impl<'a> PartPlan<'a> {
                         // same face in an independent representation. Reuse its
                         // carrier on reopen when the part context still agrees.
                         valid &= usage_rep == Some(rep)
-                            || usage_rep.is_some_and(|other| {
-                                is_a(doc, other, "shape_representation")
-                                    && attr_ref(doc, other, "representation", "context_of_items")
-                                        == attr_ref(doc, rep, "representation", "context_of_items")
-                            });
+                            || (em.preserve_kept
+                                && usage_rep.is_some_and(|other| {
+                                    is_a(doc, other, "shape_representation")
+                                        && attr_ref(
+                                            doc,
+                                            other,
+                                            "representation",
+                                            "context_of_items",
+                                        ) == attr_ref(
+                                            doc,
+                                            rep,
+                                            "representation",
+                                            "context_of_items",
+                                        )
+                                }));
                         got.extend(attr_refs(
                             doc,
                             r,

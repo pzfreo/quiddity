@@ -313,6 +313,32 @@ fn signature(
     cache.insert(id, s.clone());
     s
 }
+/// Compare a kept aspect's scope and actual usage records across an Add. This
+/// never grants an exemption: pre-existing aliases remain visible in violations.
+pub fn same_kept_scope(before: &Document, after: &Document, aspect: u64) -> bool {
+    let key = |doc: &Document| {
+        let content: BTreeMap<_, _> = doc
+            .ids()
+            .filter(|id| is_a(doc, *id, "shape_aspect"))
+            .map(|id| (id, geometry(doc, id)))
+            .collect();
+        let signature = signature(
+            doc,
+            aspect,
+            &content,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        );
+        (
+            geometry_usages(doc, aspect),
+            content.get(&aspect).cloned(),
+            signature,
+            reference(doc, aspect, "shape_aspect", "of_shape"),
+        )
+    };
+    key(before) == key(after)
+}
+
 /// A structurally verified shared-carrier exception. No names/markers grant exemptions.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Exemption {
@@ -610,52 +636,6 @@ pub fn exemptions(doc: &Document) -> Vec<Exemption> {
                     aspect,
                     feature,
                     association: aspect,
-                });
-            }
-        }
-        // Only an explicit Add preservation classification can exempt a kept
-        // alias. Untouched inputs and synthetic corruption stay strict.
-        if attr(doc, aspect, "shape_aspect", "name") != Some(&Attribute::String("DIMENSION".into()))
-            || owns_gisu(doc, aspect)
-        {
-            continue;
-        }
-        for association in doc.referrers(aspect).iter().copied().filter(|r| {
-            is_a(doc, *r, "applied_classification_assignment")
-                && reference(doc, *r, "classification_assignment", "role")
-                    .and_then(|role| attr(doc, role, "classification_role", "name"))
-                    == Some(&Attribute::String("haecceity.preservation/1".into()))
-                && reference(doc, *r, "classification_assignment", "assigned_class")
-                    .and_then(|class| attr(doc, class, "group", "name"))
-                    == Some(&Attribute::String("kept-carrier-legacy-forwarder".into()))
-        }) {
-            let mut items = Vec::new();
-            if let Some(a) = attr(
-                doc,
-                association,
-                "applied_classification_assignment",
-                "items",
-            ) {
-                references(a, &mut items);
-            }
-            if items.len() != 2 || !items.contains(&aspect) {
-                continue;
-            }
-            let Some(feature) = items.into_iter().find(|id| *id != aspect) else {
-                continue;
-            };
-            if (neutral(doc, feature) || is_a(doc, feature, "datum_feature"))
-                && reference(doc, aspect, "shape_aspect", "of_shape")
-                    == reference(doc, feature, "shape_aspect", "of_shape")
-                && signatures.get(&aspect) == signatures.get(&feature)
-                && !content[&aspect].is_empty()
-                && geometry_usages(doc, aspect) == geometry_usages(doc, feature)
-            {
-                out.push(Exemption {
-                    condition: "kept-carrier-legacy-forwarder",
-                    aspect,
-                    feature,
-                    association,
                 });
             }
         }
