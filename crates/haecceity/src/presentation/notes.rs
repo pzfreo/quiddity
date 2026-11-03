@@ -219,6 +219,46 @@ pub fn general_notes(p: &PartPmi) -> Vec<Row> {
     rows
 }
 
+/// Face/feature-owned prose gets its own leadered callout rather than a block row.
+/// Typed writes migrate Notes to semantic-text attributes; JSON writes retain Notes.
+pub(crate) fn feature_notes(p: &PartPmi) -> Vec<(Row, FeatureId)> {
+    let mut rows = Vec::new();
+    for (i, a) in p.attributes.iter().enumerate() {
+        if a.name == "semantic text"
+            && let Some(NoteOwner::Feature(feature)) = a.on
+        {
+            let text = a
+                .items
+                .iter()
+                .filter_map(|(_, value)| match value {
+                    AttributeValue::Text(text) => Some(text.as_str()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            rows.push((
+                Row {
+                    source: Source::Attribute(i),
+                    text,
+                },
+                feature,
+            ));
+        }
+    }
+    for (i, note) in p.notes.iter().enumerate() {
+        if let Some(NoteOwner::Feature(feature)) = note.on {
+            rows.push((
+                Row {
+                    source: Source::Note(i),
+                    text: note.text.clone(),
+                },
+                feature,
+            ));
+        }
+    }
+    rows
+}
+
 /// Left-aligned rows at the same capital height as dimensions, headed as Draftwright's table.
 pub fn notes_block(rows: &[Row]) -> Callout {
     if rows.is_empty() {

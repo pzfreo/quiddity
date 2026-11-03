@@ -4411,9 +4411,61 @@ impl<'a> PartPlan<'a> {
         #[cfg(feature = "presentation")]
         {
             use crate::presentation::{self, notes};
-            // Reserve the finished graphics, including extension lines, before placing new ink.
+            // Discard preliminary packing strokes: only the final graphics occupy
+            // the notes search, including extension lines and source placements.
+            local_layout.clear_notes_ink();
             for (_, _, _, _, lines) in &graphics {
                 local_layout.reserve(lines);
+            }
+            // Kept foreign callouts are obstacles too; reserve each separately so
+            // empty space between distant annotations remains available.
+            for lines in kept_callout_points(self.doc, em.removed) {
+                local_layout.reserve(&lines);
+            }
+            for (row, feature) in notes::feature_notes(self.pmi) {
+                let property = _st.properties[&row.source];
+                if is_placed(property) {
+                    continue;
+                }
+                if let Some(missing) = row
+                    .text
+                    .chars()
+                    .find(|&c| !presentation::font().supports(c))
+                {
+                    report.presentation_warnings.push(format!("part {} feature note {:?}: no generated callout for unsupported glyph {missing:?}; semantic text retained", self.id.0, row.source));
+                    continue;
+                }
+                let c = presentation::label(&row.text);
+                if c.polylines().is_empty() {
+                    report.presentation_warnings.push(format!(
+                        "part {} feature note {:?}: no visible text ink; semantic text retained",
+                        self.id.0, row.source
+                    ));
+                    continue;
+                }
+                let p = if let Some((point, normal, extent)) =
+                    presentation_part.as_ref().and_then(|part| {
+                        presentation::placement::feature_site(part, self.pmi, feature).map(
+                            |(point, normal, face)| {
+                                (point, normal, part.face_bounds(face).max_extent() / factor)
+                            },
+                        )
+                    }) {
+                    local_layout.on_label(point.map(|x| x / factor), normal, &c, extent)
+                } else {
+                    local_layout.place(
+                        self.feature_point(feature.0).unwrap_or([0.; 3]),
+                        self.feature_axis(feature.0),
+                        &c,
+                    )
+                };
+                graphics.push((
+                    vec![property],
+                    "feature note",
+                    c.notation(),
+                    [p.origin, p.normal, p.along],
+                    p.lines,
+                ));
             }
             for (i, t) in self
                 .pmi
@@ -4456,8 +4508,6 @@ impl<'a> PartPlan<'a> {
                 .collect();
             if !rows.is_empty() {
                 let c = notes::notes_block(&rows);
-                // Appended annotations stay byte-identical, but still occupy space.
-                local_layout.reserve_notes(&kept_notes_points(self.doc, em.removed));
                 let p = local_layout.notes(&c);
                 let scale = local_layout.text_height() / 3.;
                 for (i, text) in c.letters.iter().enumerate() {
@@ -4488,6 +4538,9 @@ impl<'a> PartPlan<'a> {
                     p.lines,
                 ));
             }
+        }
+        if graphics.is_empty() {
+            return Ok(());
         }
         #[cfg(all(feature = "json-import", feature = "presentation"))]
         source_presentation::overlap_warnings(&graphics, &placed, report);
@@ -7399,25 +7452,30 @@ impl<'a> PartPlan<'a> {
     }
 }
 
-/// Tessellated/polyline ink of kept general notes, including repositioned tessellated sets.
+/// Ink of each kept callout, including repositioned tessellated sets.
 /// Read only: reserve foreign presentation without moving or restating it.
 #[cfg(feature = "presentation")]
-fn kept_notes_points(doc: &Document, removed: &BTreeSet<u64>) -> Vec<Vec<[f64; 3]>> {
+fn kept_callout_points(doc: &Document, removed: &BTreeSet<u64>) -> Vec<Vec<Vec<[f64; 3]>>> {
     use crate::geom;
     let mut out = Vec::new();
     let roots = doc.ids().filter(|id| {
         !removed.contains(id)
-            && is_a(doc, *id, "draughting_callout")
-            && attr_str(doc, *id, "representation_item", "name").as_deref() == Some("General notes")
+            && (is_a(doc, *id, "draughting_callout") || is_a(doc, *id, "annotation_occurrence"))
     });
     for root in roots {
+        let mut ink = Vec::new();
         let identity = ([0.; 3], [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]);
-        let mut stack = vec![(root, identity)];
+        let mut stack = vec![(root, identity, false)];
         let mut seen = BTreeSet::new();
-        while let Some((id, mut frame)) = stack.pop() {
-            if !seen.insert(id) {
+        while let Some((id, mut frame, leaving)) = stack.pop() {
+            if leaving {
+                seen.remove(&id);
                 continue;
             }
+            if removed.contains(&id) || !seen.insert(id) {
+                continue;
+            }
+            stack.push((id, frame, true));
             let transform = |frame: ([f64; 3], [[f64; 3]; 3]), p: [f64; 3]| {
                 (0..3).fold(frame.0, |q, k| geom::add(q, geom::scale(frame.1[k], p[k])))
             };
@@ -7451,68 +7509,134 @@ fn kept_notes_points(doc: &Document, removed: &BTreeSet<u64>) -> Vec<Vec<[f64; 3
                 let basis = [x, y, z].map(|v| geom::sub(transform(frame, v), frame.0));
                 frame = (transform(frame, origin), basis);
             }
-            if let Some(p) = point_of(doc, id) {
-                out.push(vec![transform(frame, p)]);
-            }
-            // Full conics conservatively enclose any trimmed annotation arcs.
-            if let Some(position) = attr_ref(doc, id, "conic", "position") {
-                let radius = ["radius", "semi_axis_1", "semi_axis_2"]
-                    .iter()
-                    .filter_map(|field| {
-                        match attr(
-                            doc,
-                            id,
-                            if *field == "radius" {
-                                "circle"
-                            } else {
-                                "ellipse"
-                            },
-                            field,
-                        )? {
-                            A::Real(r) => Some(*r),
-                            A::Integer(r) => Some(*r as f64),
-                            _ => None,
-                        }
-                    })
-                    .fold(0., f64::max);
-                if let Some(centre) =
-                    attr_ref(doc, position, "placement", "location").and_then(|p| point_of(doc, p))
-                {
-                    let centre = transform(frame, centre);
-                    out.push(vec![
-                        geom::sub(centre, [radius; 3]),
-                        geom::add(centre, [radius; 3]),
-                    ]);
-                }
-            }
-            if let Some(A::List(points)) = attr(doc, id, "coordinates_list", "position_coords") {
-                let points = points
-                    .iter()
-                    .filter_map(|p| {
-                        let A::List(v) = p else { return None };
-                        let mut xyz = [0.; 3];
-                        for (i, a) in v.iter().take(3).enumerate() {
-                            xyz[i] = match a {
-                                A::Real(x) => *x,
-                                A::Integer(x) => *x as f64,
-                                _ => return None,
-                            };
-                        }
-                        Some(transform(frame, xyz))
-                    })
+            let number = |a: &A| match a {
+                A::Real(x) => Some(*x),
+                A::Integer(x) => Some(*x as f64),
+                _ => None,
+            };
+            let xyz = |a: &A| {
+                let A::List(v) = a else { return None };
+                Some([number(v.first()?)?, number(v.get(1)?)?, number(v.get(2)?)?])
+            };
+            if is_a(doc, id, "polyline") {
+                let points: Option<Vec<_>> = attr_refs(doc, id, "polyline", "points")
+                    .into_iter()
+                    .map(|p| point_of(doc, p).map(|p| transform(frame, p)))
                     .collect();
-                out.push(points);
+                if let Some(points) = points {
+                    ink.push(points);
+                }
+                continue;
+            }
+            if is_a(doc, id, "tessellated_curve_set") {
+                let coords = attr_ref(doc, id, "tessellated_curve_set", "coordinates")
+                    .and_then(|c| attr(doc, c, "coordinates_list", "position_coords"));
+                if let (Some(A::List(coords)), Some(A::List(strips))) = (
+                    coords,
+                    attr(doc, id, "tessellated_curve_set", "line_strips"),
+                ) {
+                    // Keep strip boundaries and original indices. A coordinate
+                    // array is not a polyline and must not join unrelated glyphs.
+                    for strip in strips {
+                        let A::List(indices) = strip else { continue };
+                        let points: Option<Vec<_>> = indices
+                            .iter()
+                            .map(|index| {
+                                let A::Integer(index) = index else {
+                                    return None;
+                                };
+                                let index = usize::try_from(*index).ok()?.checked_sub(1)?;
+                                xyz(coords.get(index)?).map(|p| transform(frame, p))
+                            })
+                            .collect();
+                        if let Some(points) = points {
+                            ink.push(points);
+                        }
+                    }
+                }
+                continue;
+            }
+            let curve = attr_ref(doc, id, "trimmed_curve", "basis_curve").unwrap_or(id);
+            if let Some(position) = attr_ref(doc, curve, "conic", "position") {
+                let origin =
+                    attr_ref(doc, position, "placement", "location").and_then(|p| point_of(doc, p));
+                let direction = |field, fallback| {
+                    attr_ref(doc, position, "axis2_placement_3d", field)
+                        .and_then(|d| attr(doc, d, "direction", "direction_ratios"))
+                        .and_then(xyz)
+                        .and_then(geom::unit)
+                        .unwrap_or(fallback)
+                };
+                let z = direction("axis", [0., 0., 1.]);
+                let x = direction("ref_direction", [1., 0., 0.]);
+                let y = geom::unit(geom::cross(z, x)).unwrap_or([0., 1., 0.]);
+                let x = geom::cross(y, z);
+                let rx = attr(doc, curve, "circle", "radius")
+                    .or_else(|| attr(doc, curve, "ellipse", "semi_axis_1"))
+                    .and_then(number);
+                let ry = attr(doc, curve, "circle", "radius")
+                    .or_else(|| attr(doc, curve, "ellipse", "semi_axis_2"))
+                    .and_then(number);
+                if let (Some(origin), Some(rx), Some(ry)) = (origin, rx, ry) {
+                    let trim = |field| {
+                        let A::List(values) = attr(doc, id, "trimmed_curve", field)? else {
+                            return None;
+                        };
+                        values.iter().find_map(|v| match v {
+                            A::Typed { value, .. } => number(value),
+                            A::EntityRef(p) => point_of(doc, *p).map(|p| {
+                                let d = geom::sub(p, origin);
+                                (geom::dot(d, y) / ry).atan2(geom::dot(d, x) / rx)
+                            }),
+                            _ => number(v),
+                        })
+                    };
+                    let angles = if curve == id {
+                        Some((0., std::f64::consts::TAU))
+                    } else {
+                        trim("trim_1").zip(trim("trim_2"))
+                    };
+                    if let Some((mut a, mut b)) = angles {
+                        if attr_enum(doc, id, "trimmed_curve", "sense_agreement") == Some("F") {
+                            std::mem::swap(&mut a, &mut b);
+                        }
+                        let span = if (b - a).abs() >= std::f64::consts::TAU - 1e-9 {
+                            std::f64::consts::TAU
+                        } else {
+                            (b - a).rem_euclid(std::f64::consts::TAU)
+                        };
+                        ink.push(
+                            (0..=64)
+                                .map(|i| {
+                                    let t = a + span * f64::from(i) / 64.;
+                                    transform(
+                                        frame,
+                                        geom::add(
+                                            origin,
+                                            geom::add(
+                                                geom::scale(x, rx * t.cos()),
+                                                geom::scale(y, ry * t.sin()),
+                                            ),
+                                        ),
+                                    )
+                                })
+                                .collect(),
+                        );
+                    }
+                }
+                continue;
             }
             if let Some(e) = doc.get(id) {
                 p21::visit_attributes(e, &mut |a| {
                     if let A::EntityRef(next) = a
                         && Some(*next) != location
                     {
-                        stack.push((*next, frame));
+                        stack.push((*next, frame, false));
                     }
                 });
             }
         }
+        out.push(ink);
     }
     out
 }
@@ -7525,6 +7649,7 @@ fn needs_callouts(p: &PartPmi) -> bool {
             || !p.tolerances.is_empty()
             || p.surface_textures.iter().any(|t| t.on.is_some())
             || !crate::presentation::notes::general_notes(p).is_empty()
+            || !crate::presentation::notes::feature_notes(p).is_empty()
     }
     #[cfg(not(feature = "presentation"))]
     {

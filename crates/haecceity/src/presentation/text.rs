@@ -125,6 +125,32 @@ impl Font {
     pub fn supports(&self, c: char) -> bool {
         c == '\n' || glyph(c).is_some()
     }
+    /// Tight cells for nonblank physical lines, in the same centred coordinates
+    /// as `text`. Strip counts preserve the font's actual multiline placement.
+    pub(crate) fn text_cells(&self, s: &str, size: f64) -> Vec<[P; 2]> {
+        let ink = self.text(s, size);
+        let mut first = 0;
+        let mut cells = Vec::new();
+        for row in s.split('\n') {
+            let count: usize = row
+                .chars()
+                .filter_map(glyph)
+                .map(|(_, lines)| lines.len())
+                .sum();
+            let mut bounds = [[f64::INFINITY; 2], [f64::NEG_INFINITY; 2]];
+            for p in ink.lines[first..first + count].iter().flatten() {
+                for k in 0..2 {
+                    bounds[0][k] = bounds[0][k].min(p[k]);
+                    bounds[1][k] = bounds[1][k].max(p[k]);
+                }
+            }
+            if bounds[0][0].is_finite() {
+                cells.push(bounds);
+            }
+            first += count;
+        }
+        cells
+    }
     /// Single-stroke ink centred on its bounds. Missing characters are recorded for validation.
     pub fn text(&self, s: &str, size: f64) -> Laid {
         let mut lines = Vec::new();

@@ -2094,6 +2094,15 @@ face anchors. The flag is also retained on `pmi write`, whose `quiddity-pmi` inp
 uses the Rust route's canonical semantic ids. Both routes select one part.
 `--presentation refuse|remove` still controls removal of existing presentation.
 
+Unplaced feature-owned notes get separate callouts with leaders to their faces,
+using the existing placement search. Part notes remain in the general-notes block,
+which takes the first clear downward offset in the existing readable layout
+projections. It tests individual text cells against actual polyline segments,
+including kept file curve strips, with a small clearance; empty space inside a
+callout's overall bounds does not push the block away. Blank feature text and
+unsupported CAD-font glyphs retain semantics and report a presentation warning instead of generating invalid ink.
+No additional input fields are required.
+
 The companion is `haecceity.presentation/1`. Each item's first graphic with a
 `plane_id`, `text_placements` or `leader` supplies its main placement. It must
 have a text position; the plane defaults to that text frame when omitted.

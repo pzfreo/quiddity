@@ -1,5 +1,7 @@
 //! Bounds-relative regression evidence for generated and serialized notes.
 #![cfg(all(feature = "presentation", feature = "json-import"))]
+mod common;
+
 use haecceity::{
     geom::Bounds,
     json,
@@ -79,61 +81,13 @@ fn notes_stay_beside_part_in_json_and_written_step() {
             semantic = json::identify(semantic.pmi, None).unwrap();
         }
         let part = step::read_part(doc.bytes(), &defs[0]).unwrap();
-        let bounds = part.bounds();
         let generated = json::presentation::generated(&semantic, &part).unwrap();
-        println!("{name}: bounds {:?}..{:?}", bounds.min, bounds.max);
-        let mut note_boxes = Vec::new();
-        let mut seen = std::collections::BTreeSet::new();
-        for (key, graphics) in &generated.items {
-            for g in graphics {
-                if !seen.insert(g.id.clone()) {
-                    continue;
-                }
-                if g.name == "General notes"
-                    || semantic
-                        .ids
-                        .get("notes")
-                        .is_some_and(|ids| ids.contains(key))
-                {
-                    let b = ink(&g.polylines);
-                    let gap = 2. * Layout::new(bounds).text_height();
-                    assert!((b.min[0] - bounds.max[0] - gap).abs() < 1e-6);
-                    assert!(b.max[2] <= bounds.min[2] - gap + 1e-6);
-                    assert!((b.min[1] - bounds.centre()[1]).abs() < 1e-6);
-                    for other in &note_boxes {
-                        let other: &Bounds = other;
-                        assert!(
-                            b.min[2] >= other.max[2] + gap - 1e-6
-                                || other.min[2] >= b.max[2] + gap - 1e-6
-                        );
-                    }
-                    note_boxes.push(b);
-                    println!(
-                        "  {key}: origin {:?}, ink {:?}..{:?}",
-                        g.text_placements[0].origin,
-                        ink(&g.polylines).min,
-                        ink(&g.polylines).max
-                    );
-                }
-            }
-        }
         assert_eq!(unique_notes(&generated).len(), 1);
-        // Both paths combine settings; check against the independent layout rule.
-        let rows = notes::general_notes(&semantic.pmi);
-        if !rows.is_empty() {
-            let c = notes::notes_block(&rows);
-            let placed = Layout::new(bounds).notes(&c);
-            println!(
-                "  combined block: {:?}, ink {:?}..{:?}",
-                placed.origin,
-                ink(&placed.lines).min,
-                ink(&placed.lines).max
-            );
-        }
-        assert!(!generated.items.is_empty() || name == "cadgen plate");
+        assert_notes_beside_and_clear(name, &part, &generated, &unique_notes(&generated));
         let mut writable = semantic.pmi.clone();
         // CTC-01 omits four nominal values; the writer correctly refuses those.
         writable.dimensions.retain(|d| d.nominal.is_some());
+        let rows = notes::general_notes(&writable);
         let (edit, _) = pmi::write(
             &doc,
             &defs,
@@ -154,27 +108,161 @@ fn notes_stay_beside_part_in_json_and_written_step() {
             .unwrap();
         let serialized_notes = unique_notes(&drawn);
         assert_eq!(serialized_notes.len(), 1);
-        // Compare actual serialized STEP ink with the independent layout call.
-        let expected = Layout::new(bounds).notes(&notes::notes_block(&rows));
-        let expected = ink(&expected.lines);
-        for g in serialized_notes {
-            let actual = ink(&g.polylines);
-            for k in 0..3 {
+        assert_notes_beside_and_clear(name, &part, &drawn, &serialized_notes);
+        // Exercise the production placement entry point with all final ink
+        // reserved, as the writer does immediately before placing this block.
+        // Do not reproduce the slide search here or assume an empty layout.
+        let mut layout = Layout::new(part.bounds());
+        let mut seen = std::collections::BTreeSet::new();
+        for graphic in drawn.items.values().flatten().chain(&drawn.unlinked) {
+            if graphic.name != "General notes" && seen.insert(graphic.id.clone()) {
+                layout.reserve(&graphic.polylines);
+            }
+        }
+        let expected = layout.notes(&notes::notes_block(&rows));
+        for block in serialized_notes {
+            assert!(
+                strokes(&block.polylines) == strokes(&expected.lines),
+                "{name}: writer JSON ink against occupied layout"
+            );
+            let root = block
+                .id
+                .as_ref()
+                .unwrap()
+                .strip_prefix("step:")
+                .unwrap()
+                .parse::<u64>()
+                .unwrap();
+            let actual = step_block_ink(&written, root);
+            assert_eq!(
+                actual.len(),
+                block.polylines.len(),
+                "{name}: STEP/JSON strip count"
+            );
+            assert!(
+                strokes(&actual) == strokes(&block.polylines),
+                "{name}: STEP ink against writer JSON"
+            );
+        }
+    }
+}
+
+fn step_block_ink(doc: &Document, root: u64) -> Vec<Vec<[f64; 3]>> {
+    use haecceity::p21::{Attribute as A, RawEntity};
+    let number = |a: &A| match a {
+        A::Real(x) => *x,
+        A::Integer(x) => *x as f64,
+        _ => panic!("non-numeric STEP coordinate"),
+    };
+    refs(doc, root)
+        .into_iter()
+        .flat_map(|occurrence| {
+            assert!(is(doc, occurrence, "tessellated_annotation_occurrence"));
+            let set = *refs(doc, occurrence).last().unwrap();
+            let curve = refs(doc, set)[0];
+            assert!(is(doc, curve, "tessellated_curve_set"));
+            let coords = refs(doc, curve)[0];
+            let Some(RawEntity::Simple { attributes, .. }) = doc.get(coords) else {
+                panic!("coordinates list")
+            };
+            let Some(A::List(points)) = attributes.last() else {
+                panic!("position coordinates")
+            };
+            let points: Vec<[f64; 3]> = points
+                .iter()
+                .map(|point| {
+                    let A::List(xyz) = point else {
+                        panic!("STEP point")
+                    };
+                    assert_eq!(xyz.len(), 3);
+                    [number(&xyz[0]), number(&xyz[1]), number(&xyz[2])]
+                })
+                .collect();
+            let Some(RawEntity::Simple { attributes, .. }) = doc.get(curve) else {
+                panic!("curve set")
+            };
+            let Some(A::List(strips)) = attributes.last() else {
+                panic!("line strips")
+            };
+            strips
+                .iter()
+                .map(|strip| {
+                    let A::List(indices) = strip else {
+                        panic!("curve strip")
+                    };
+                    indices
+                        .iter()
+                        .map(|index| {
+                            let A::Integer(index) = index else {
+                                panic!("curve index")
+                            };
+                            points[usize::try_from(*index).unwrap().checked_sub(1).unwrap()]
+                        })
+                        .collect()
+                })
+                .collect::<Vec<Vec<_>>>()
+        })
+        .collect()
+}
+
+fn assert_notes_beside_and_clear(
+    name: &str,
+    part: &haecceity::Part,
+    drawn: &json::presentation::Presentation,
+    blocks: &[&json::presentation::Graphic],
+) {
+    use haecceity::{geom, hlr, presentation::linear};
+    let bounds = part.bounds();
+    let gap = 2. * Layout::new(bounds).text_height();
+    // Check the real part outline in the block's own readable front plane.
+    // The bounds checks also rule out ink enclosed inside that outline.
+    let front = hlr::View::new([0., -1., 0.], [0., 0., 1.]).unwrap();
+    let outline: Vec<Vec<_>> = hlr::project(part, &front)
+        .unwrap()
+        .into_iter()
+        .filter(|curve| curve.visible)
+        .map(|curve| {
+            curve
+                .points
+                .into_iter()
+                .map(|p| geom::add(geom::scale(front.x, p[0]), geom::scale(front.y, p[1])))
+                .collect()
+        })
+        .collect();
+    assert!(
+        !outline.is_empty(),
+        "{name}: missing projected part outline"
+    );
+    for block in blocks {
+        let b = ink(&block.polylines);
+        assert!(
+            (b.min[0] - bounds.max[0] - gap).abs() < 1e-6,
+            "{name}: notes stay beside max X"
+        );
+        assert!(
+            b.max[2] <= bounds.min[2] - gap + 1e-6,
+            "{name}: notes stay below the part"
+        );
+        assert!(
+            (b.min[1] - bounds.centre()[1]).abs() < 1e-6,
+            "{name}: front-plane notes"
+        );
+        assert!(
+            !common::ink::within_clearance(&block.polylines, &outline, front.toward, 1e-6),
+            "{name}: notes overlap the part outline"
+        );
+        let mut seen = std::collections::BTreeSet::new();
+        for other in drawn.items.values().flatten().chain(&drawn.unlinked) {
+            if other.id == block.id || !seen.insert(other.id.clone()) {
+                continue;
+            }
+            for view in linear::VIEWS.into_iter().filter(|v| v[1].abs() > 1e-8) {
                 assert!(
-                    (actual.min[k] - expected.min[k]).abs() < 1e-6,
-                    "{name}: min {actual:?} vs {expected:?}"
-                );
-                assert!(
-                    (actual.max[k] - expected.max[k]).abs() < 1e-6,
-                    "{name}: max {actual:?} vs {expected:?}"
+                    !common::ink::within_clearance(&block.polylines, &other.polylines, view, 1e-6),
+                    "{name}: notes overlap {} in {view:?}",
+                    other.name
                 );
             }
-            println!(
-                "  STEP {}: ink {:?}..{:?}",
-                g.name,
-                ink(&g.polylines).min,
-                ink(&g.polylines).max
-            );
         }
     }
 }

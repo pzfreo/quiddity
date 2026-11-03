@@ -6,6 +6,10 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+- Notes blocks use actual projected strokes and row text cells, selecting the first clear downward offset instead of avoiding whole callout boxes. Feature-note extent matches frame placement.
+
+- Generate individual leadered callouts for unplaced feature notes; keep the general-notes block clear of generated, source-placed, and kept file ink.
+
 - Source callouts honour /1 text alignment, attach leaders to the box edge towards
   the tip, and refuse conflicting placements on a shared datum symbol. JSON CLI
   import accepts `--source-presentation` with xcaf requirement ids.
