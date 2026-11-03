@@ -93,9 +93,7 @@ pub(super) fn identity(doc: &Document, id: u64) -> Option<String> {
             && name.eq_ignore_ascii_case("derived_unit")
             && let Some(A::List(elements)) = attributes.first_mut()
         {
-            elements.sort_by_key(|a| {
-                p21::encode(&p21::simple("element", vec![a.clone()])).unwrap_or_default()
-            });
+            elements.sort_by_key(|a| p21::encode(&p21::simple("ELEMENT", vec![a.clone()])).ok());
         }
         p21::encode(&record).ok()
     }
