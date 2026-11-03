@@ -15,6 +15,10 @@ fingerprints or evidence status. Precedence is:
 Thus a refusal cannot erase a feature claim, and body evidence cannot erase either.
 A feature face may belong to several records but belongs to only one accounting group.
 Refusals overlapping a feature remain available in `records`.
+Sealed cylindrical cavities belong to `interior_voids`, including their closing
+faces. Their void-shell cylinders are excluded during hole recognition, so neither
+`holes` nor `hole_patterns` duplicate those face claims. This exclusion does not
+remove the interior-void claim or reclassify its faces as body geometry.
 Readers accept older documents: absent `face_accounting` deserializes to `None`,
 which means **unknown accounting**, never “no unexplained faces”. New empty parts
 have `Some([])`. `SCHEMA_VERSION` and `schema_version(features)` now always select 6;

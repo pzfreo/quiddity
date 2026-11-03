@@ -52,6 +52,8 @@ mod recognition;
 mod recognition_evidence;
 #[path = "reconcile.rs"]
 mod reconcile;
+#[path = "sealed_voids.rs"]
+mod sealed_voids;
 #[path = "section_geometry.rs"]
 mod section_geometry;
 #[path = "section_recess.rs"]

@@ -109,6 +109,21 @@ internal. The published registry has 45 families; raw recogniser APIs retain the
 internal types. Intrinsic fingerprints use exact-motion working measurements, with
 axes resolved at extraction; no provenance-frame repair is needed by correspondence.
 
+## Sealed interior voids and holes
+
+A cylindrical cavity on a closed interior shell is an `interior_voids` feature,
+not a hole. The hole recognizer splits each solid into edge-connected shells and
+rejects cylinders on closed inward-facing shells (negative signed volume) before
+building hole stacks. This does not depend on the interior-void sampler's grid
+resolution. Such cylinders produce no `holes`, `hole_patterns`, or hole-derived
+records. Their complete skin, including closing faces, remains accounted to the
+`interior_voids` record when recognized by that family.
+
+Blind holes, through holes, and holes opening into pockets connected to the outside
+remain on the outer shell and retain their existing recognition. Interior chambers
+with an opening can still be `interior_voids`; the presence of that record alone
+does not suppress holes. No schema change is required.
+
 ## Spotfaces and counterbores (For #118)
 
 A near-side cylindrical step is a `spotface` only when its depth is at most 1.0 mm
