@@ -561,7 +561,7 @@ const GEOMETRIC_CLASSES: [(&str, GeometricClass); 3] = [
     ("L", GeometricClass::L),
 ];
 
-const FINDING_KINDS: [FindingKind; 10] = [
+const FINDING_KINDS: [FindingKind; 11] = [
     FindingKind::Fact,
     FindingKind::Unsupported,
     FindingKind::Nonconformance,

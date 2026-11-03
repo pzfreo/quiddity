@@ -264,6 +264,29 @@ fn assert_reads_back(w: &Written, part: PartId, p: &PartPmi) {
         on_written.is_empty(),
         "findings on written instances: {on_written:#?}"
     );
+    let facts: Vec<_> = w
+        .read
+        .findings
+        .iter()
+        .filter(|f| {
+            f.kind == FindingKind::Fact
+                && f.part == Some(part)
+                && f.ids.iter().any(|&id| id > w.max)
+        })
+        .collect();
+    let projected_without_geometry = p
+        .tolerances
+        .iter()
+        .filter(|t| {
+            t.zone
+                .as_ref()
+                .and_then(|z| z.projected.as_ref())
+                .is_some_and(|z| z.end.is_none())
+        })
+        .count();
+    assert_eq!(facts.len(), projected_without_geometry);
+    assert!(facts.iter().all(|f| f.entity == "projected_zone_definition"
+        && f.detail == "projected zone states a projection-end shape aspect with no geometry"));
 }
 
 /// Four planar features, datums A–D on them.
