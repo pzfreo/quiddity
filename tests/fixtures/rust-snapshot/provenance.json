@@ -112,8 +112,8 @@
     "tests/fixtures/ap242/assembly/nested.step": "13a91d18297a06b9cde494a7d3f978d42faa16639217d6479922480773b86cc6",
     "tests/fixtures/ap242/assembly/wrapped.step": "7abc9d96cc743623f9a5c5c923ffafded48f99a6f48745ffa4386d5e8e57368d",
     "tests/fixtures/ap242/derived/GRM-03_thumbwheel_drive_screw_AP242_PMI.step.gz": "48b4a9f8ac8348d17b953afe7d9a49577aa60bdca653c6e4b1f62443d99d5244",
-    "tests/fixtures/ap242/derived/README.md": "2108b3ec0c5b7bde068977159743e96bba6e2afff01c1f4b33beaca402a384a2",
-    "tests/fixtures/ap242/derived/nist-baseline.json": "f264ff7d66e10693682ebf84994115117fea0bff749c1128c15afc14483ab9d3",
+    "tests/fixtures/ap242/derived/README.md": "4fa379b0b42662356a03a3255fbddd1c8a7a8595b4223a6da3a2f1c94bd38168",
+    "tests/fixtures/ap242/derived/nist-baseline.json": "1b851d8fcbade46bae1228a29a531a46856d86b3c5dd5e64a82d3fc0d8823cd7",
     "tests/fixtures/ap242/express/corpus_upgrade.json": "30a93be4ee3dce8b587346ea9ba2bc920d8ee08b00f59119fa5f31441db36553",
     "tests/fixtures/ap242/express/families.json": "2b5d5bf7d5f8af9c9f3c82c1a516f3e08849817721590edf81b7d4618b59e322",
     "tests/fixtures/ap242/express/known_nist_violations.json": "e8b4502cda2934c7b2030490a42858bf2dd16184ef756729ca981e1011a029f5",
@@ -167,7 +167,7 @@
     "tests/fixtures/ap242/presentation-placement/corners-flatness.step.gz": "ca8cbe6e63210ac4a705f5d29c0065381472de827fb6918822803e9613c78407",
     "tests/fixtures/ap242/presentation-placement/plate.step.gz": "7334abcbf5128a26768fb896d386a9b282d7d99fd221755598c142d4df5b2188",
     "tests/fixtures/ap242/presentation-placement/spindle.step.gz": "4ef62b408cb99a1addb9ab17bf43ac50d8d7a0f9b46db9121ba7677b48d47395",
-    "tests/fixtures/ap242/read/findings.json": "aa4a8b3950d561cfcdc59e42ab132cfb6ff060bb83040da3aa2ee250e0e4408b",
+    "tests/fixtures/ap242/read/findings.json": "5498af47ac9f56430543dfacff01a1569fc4bf88220ec6850467bdee38fedbb4",
     "tests/fixtures/ap242/reexport/01-NIST-control-ctc01.stp.gz": "42276d82f4d8551a748ebc487a686de6aade2be2c326490388f90e873c105642",
     "tests/fixtures/ap242/reexport/09-NIST-reexported-by-SE.stp.gz": "ccd886dc21959632b2ee99db6f3036b239948848d63b7c131d7b3b0fb6899be9",
     "tests/fixtures/ap242/removal/handmade.stp": "c1050f2d9ef07e4ad9e0d832c5263aeb5e4426486c7c931b49eb72c4b5c5e689",
@@ -4676,7 +4676,7 @@
     "pattern_publication/parts/ce6d9950a73a6beb.step.gz.json.gz": "f38590441f2ba388bd71644a69cb6dc57921d922e6604fcd27dff839bb3fc360",
     "pattern_publication/parts/e66bb72e930f6a46.step.gz.json.gz": "e8493470a06a0395f5802d0f66ba6e257ef8cda6ccbd125201675fc9691e940e",
     "pattern_publication/parts/ef7e51c60e7131c4.step.gz.json.gz": "0cb2e25673259583351d3e309d5a940bb7224ad705f2cf127cd1f24178ea6aeb",
-    "pmi.json.gz": "a775333ed2372752a8cdbc7b147ea7956e542920df0ea93fba8877108ebf8bbc",
+    "pmi.json.gz": "5374b2ba384e75dbbd74e94765c6ecfb421a0b71b50648af627e1b3d606d048d",
     "probes.json.gz": "49baabd529382c13eac6ef9b87372f0c9294f69048d6b90e56570842f12bbe08",
     "quality_recess_publication.json.gz": "d686ab4ffcebafb7b4a54be73add71c26c32f519b1d3c2f5e17591e59402e78b",
     "recess_documents/corpus/cadgenbench/flanged_spool_132.step.json.gz": "39e94251e1cf600d61138e58a5b276e799225b767239785f9495270dbecfc09e",
@@ -5890,5 +5890,5 @@
     "sections/test/parts/fc9cb0ef3d518aa4.step.gz.json.gz": "ad246bd3ca231dda3e7fe1fc54cd798984e7dcd9da376dcb609c3c42001086f8",
     "step_levels.json.gz": "b1d837579387b475bfb90cc5670098890fdfe83fddcbf0e2236a24207c2de1ff"
   },
-  "source_commit": "e40d92252283f55d95ccd74e133459255ff2089a"
+  "source_commit": "2f8c935a81e6a1d832fd5397fe1d1822abaeedb2"
 }
