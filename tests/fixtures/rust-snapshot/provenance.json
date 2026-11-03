@@ -3060,6 +3060,7 @@
     "tests/fixtures/nist_ftc_07_asme1_ap242-e2.stp.gz": "641c42c53a2b5c8ea79d15a99c5ee4fc7d511b9edcbc4970ffa25a7807370af4",
     "tests/fixtures/nonprincipal_37.step": "bdf987ad2a890562a733c0d6c29b2a0c62ad22540796271e8e514765064f7d70",
     "tests/fixtures/occt_trimmed_parabola.step": "365cf578d61c3f64a1848d1b9c1de1cbf461403ab1a2ef643a1322295d5af2d8",
+    "tests/fixtures/open_hole_controls.step.gz": "8e5ef8927b40b145a94236a1bd70bf1af4327627ce83e63e6e656d88b9819427",
     "tests/fixtures/open_shell.step": "22624c1bea883c0e10bdb04e8377df61daa5df39b8e65b93d7ad52996d9ad6fa",
     "tests/fixtures/parabola_cut_cone.step": "71c199877c2fc038b2908837d0564c3478add931d5ee7cc0e87eb93773b06788",
     "tests/fixtures/partial_hole_exits.step.gz": "641aff0bac9aeaa8319c1ecadbdce1eed2c0c2fa87083649263f2af97d6c631f",
@@ -3151,6 +3152,7 @@
     "tests/fixtures/revolution_shaft.step.gz": "df86c9889045e2ab351772906ead5ca38ff81ec3b6156bcec64484261a13dbdc",
     "tests/fixtures/rotated_seam_band.step": "6c57a30a733a59f1b73230746d22db123f59f1911d6fdea4b34f2f0bcf71a761",
     "tests/fixtures/rounded_box_r1.step": "04d1e139052d2f7730a3757880faaf51590d8c34049f4679edf4a0a365ec5de0",
+    "tests/fixtures/sealed_cylindrical_voids.step.gz": "4164cc85760e6de2537220f3cca689f2f6aee785bea043d4176865223a6649fc",
     "tests/fixtures/section.json.gz": "ae1dd7afea8259dea5f7afb7444216ab5b368c2b94e101bce0ff4f001d9a0c50",
     "tests/fixtures/section_recess_publication_baseline.json": "2c2a45a4f4c940469405d87a6a6b526c53f4fc0b91d93a0b7186cd3f84eeceb3",
     "tests/fixtures/semicircular_blind_slot.step": "28bc0ba86c8c6a0718f7bf6d94ed6eed6a9dc62d52cd823ec5f6cf0aad1c8498",
@@ -5890,5 +5892,5 @@
     "sections/test/parts/fc9cb0ef3d518aa4.step.gz.json.gz": "ad246bd3ca231dda3e7fe1fc54cd798984e7dcd9da376dcb609c3c42001086f8",
     "step_levels.json.gz": "b1d837579387b475bfb90cc5670098890fdfe83fddcbf0e2236a24207c2de1ff"
   },
-  "source_commit": "2f8c935a81e6a1d832fd5397fe1d1822abaeedb2"
+  "source_commit": "a2af2625711f682daca8d41de95dce226f462098"
 }
