@@ -7,8 +7,9 @@
 //! `removal.rs`, seeded with the part's [`Provenance`](super::Provenance)) and writes the new
 //! items, so that afterwards `read(part) == new`; [`Mode::Remove`] is a replace with nothing.
 //! Every untouched byte of the file is kept ([`Document::apply`]).
-//! On an AP214 upgrade gaining PMI, the closed identical-attribute subtype table in
+//! On an AP214 Replace upgrade gaining PMI, the closed identical-attribute subtype table in
 //! `upgrade.rs` changes only entity keywords, recorded in [`WriteReport::edition_rewrites`].
+//! Add refuses any upgrade needing source-entity repairs, keeping the document unchanged.
 //! Currently `PRODUCT_TYPE` becomes `PRODUCT_RELATED_PRODUCT_CATEGORY`, keeping its id,
 //! name, description, products and all other record bytes. Other undeclared types block upgrades.
 //!
@@ -57,8 +58,10 @@
 //!
 //! **Usages** (maintainer decision, 2026-10-09): one `geometric_item_specific_usage` per face;
 //! dimensions and tolerances reuse the feature's aspect directly (§5.1 / §6.5), including
-//! datum features. A feature of several faces is composed of one member shape aspect per face
-//! (`PartPlan::usages`). Part notes in words are 'semantic text' attribute sets (PMI practice
+//! datum features. A new datum on a kept carrier has independent per-face GISUs in
+//! fresh representations (IIRU UR1/UR2), under the reported §5.1 preservation exception;
+//! no kept carrier is promoted. A feature of several faces is composed of one member
+//! shape aspect per face (`PartPlan::usages`). Part notes in words are 'semantic text' attribute sets (PMI practice
 //! §7.4); surface texture is ISO 10303-1110's form (`PartPlan::surface_texture`).
 //!
 //! **Validation before returning.** The edit is applied; every added or replaced instance must
@@ -108,7 +111,9 @@ pub const MAX_STRING_LITERAL_BYTES: usize = super::text::MAX_LITERAL_BYTES;
 /// What [`write`] does with each named part's existing PMI.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
-    /// Write the items beside the part's existing PMI. A datum label the part already has
+    /// Append the items without changing any original entity bytes. Schema upgrades
+    /// requiring source-entity repairs fail with [`WriteError::AddPreservation`].
+    /// A datum label the part already has
     /// resolves to its existing datum (the same faces), or is refused (other faces).
     Add,
     /// Remove what the reader consumed for the part and write the items: afterwards
@@ -181,6 +186,13 @@ pub enum WriteError {
     Rules(Vec<RuleViolation>),
     /// Part 21 could not be written.
     P21(P21Error),
+    /// Add cannot preserve these source entities while performing a schema
+    /// upgrade/repair. Nothing is applied; Replace is the explicit rewriting mode.
+    AddPreservation {
+        ids: Vec<u64>,
+        repairs: Vec<(u64, UpgradeRepairKind)>,
+        edition_rewrites: Vec<EditionRewrite>,
+    },
     /// The writer's own invariant failed (a defect), described.
     Internal(String),
 }
@@ -195,6 +207,34 @@ impl std::fmt::Display for WriteError {
         };
         match self {
             WriteError::Parts(s) => write!(f, "parts: {s}"),
+            WriteError::AddPreservation {
+                ids,
+                repairs,
+                edition_rewrites,
+            } => {
+                write!(f, "Add would change original entities {ids:?}")?;
+                for kind in [
+                    UpgradeRepairKind::R1ApprovalAssignment,
+                    UpgradeRepairKind::R2ConversionUnitDimensions,
+                ] {
+                    let affected: Vec<_> = repairs
+                        .iter()
+                        .filter(|(_, repair)| *repair == kind)
+                        .map(|(id, _)| *id)
+                        .collect();
+                    if !affected.is_empty() {
+                        write!(f, "; {kind} on entities {affected:?}")?;
+                    }
+                }
+                for rewrite in edition_rewrites {
+                    write!(
+                        f,
+                        "; AP214 keyword rewrite {} -> {} on entity #{}",
+                        rewrite.from, rewrite.to, rewrite.id
+                    )?;
+                }
+                f.write_str(". Replace performs these repairs. When the part has no PMI, Replace keeps everything already in the part; on a part with existing PMI, Replace re-authors that PMI.")
+            }
             WriteError::Invalid { part, errors } => {
                 write!(f, "part {} PMI is not valid", part.0)?;
                 list(f, &errors.iter().map(|e| e.0.clone()).collect::<Vec<_>>())
@@ -321,14 +361,18 @@ impl std::fmt::Display for LongStringWarning {
     }
 }
 
-/// A private forwarding aspect disambiguating a shared carrier's functional SAR (PMI §5.1).
-/// Both OCCT 7.9.3 XCAF and NIST SFA 5.41 read the direct SAR as composition.
+/// A narrow PMI §5.1 carrier-sharing exception, either an independent datum feature
+/// preserving a kept carrier or a private endpoint disambiguating a functional SAR.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GeometryCarrierExemption {
     pub part: PartId,
-    /// `shared-carrier-controlled-pair` or `shared-carrier-datum-target-support`.
+    /// Preservation: `kept-carrier-datum-feature`, `kept-carrier-datum-member`,
+    /// `kept-carrier-datum-composite`, or `kept-carrier-independent-feature`.
+    /// Functional endpoints use
+    /// `shared-carrier-controlled-pair` / `shared-carrier-datum-target-support`.
     pub condition: &'static str,
-    /// The added private aspect, and the actual geometric carrier it composes.
+    /// The independent aspect and its precise
+    /// preserved geometric carrier. Multi-face datum members are reported per face.
     pub aspect: u64,
     pub feature: u64,
 }
@@ -352,9 +396,8 @@ pub struct WriteReport {
     pub added: usize,
     /// Instances removed (replace, remove), ascending.
     pub removed: Vec<u64>,
-    /// Kept instances rewritten without removed members, own legacy text rechunked,
-    /// geometric carriers specialized to datum features, or functional SAR endpoints
-    /// isolated/unwrapped to disambiguate shared-carrier relationships.
+    /// Kept instances rewritten by Replace/Remove, including removal from shared
+    /// containers and retained producer text rechunking. Always empty in Add.
     pub rewritten: Vec<u64>,
     /// Presentation and validation properties removed with the replaced PMI.
     pub presentation_removed: Vec<(u64, String)>,
@@ -383,8 +426,12 @@ pub struct WriteReport {
     /// Actual violations of the named practice/schema conflicts on newly added instances
     /// (maintainer decision 2026-10-20). The rule engine itself remains unchanged.
     pub practice_schema_conflicts: Vec<RuleViolation>,
-    /// Exact private endpoint additions authorized for ambiguous shared-carrier SARs (2026-11-02).
+    /// Narrow §5.1 exceptions: independent additions preserving kept carriers,
+    /// and private endpoints disambiguating shared-carrier SARs.
     pub geometry_carrier_exemptions: Vec<GeometryCarrierExemption>,
+    /// Add keeps these source records instead of performing the named 0.4.5
+    /// normalization: (original instance, normalization not performed).
+    pub preserved_normalizations: Vec<(u64, &'static str)>,
 }
 
 fn occt_semantic_features(p: &PartPmi) -> BTreeSet<usize> {
@@ -838,6 +885,7 @@ fn write_inner(
         preexisting_rule_violations: Vec::new(),
         practice_schema_conflicts: Vec::new(),
         geometry_carrier_exemptions: Vec::new(),
+        preserved_normalizations: Vec::new(),
     };
 
     report
@@ -996,6 +1044,9 @@ fn write_inner(
         .flatten();
     // Emission, part by part.
     let mut em = Emitter::new(doc, edition, &mut edit, &removed);
+    // Preserve the complete source document, including other selected parts and
+    // incidental legacy normalization, for every Add write.
+    em.preserve_kept = mode == Mode::Add;
     for plan in &plans {
         plan.emit(&mut em, &mut report, presentation_reader.as_ref())?;
     }
@@ -1014,6 +1065,7 @@ fn write_inner(
     let added = em.count;
     let practice_exemptions = em.practice_exemptions.clone();
     let carrier_exemptions = em.carrier_exemptions.clone();
+    report.preserved_normalizations = em.preserved_normalizations.iter().copied().collect();
     report.rewritten.extend(em.kept_rewrites.keys().copied());
     report.removed.extend(em.retired.iter().copied());
     report.removed.sort_unstable();
@@ -1067,7 +1119,10 @@ fn write_inner(
             |(part, condition, aspect, feature)| GeometryCarrierExemption {
                 part,
                 condition,
-                aspect: written.ids[&aspect],
+                aspect: match aspect {
+                    R::Old(id) => id,
+                    R::New(id) => written.ids[&id],
+                },
                 feature: match feature {
                     R::Old(id) => id,
                     R::New(id) => written.ids[&id],
@@ -1136,13 +1191,29 @@ fn write_inner(
         return Err(WriteError::Rules(bad));
     }
     report.preexisting_rule_violations = kept;
+    if mode == Mode::Add {
+        let changed: Vec<_> = doc
+            .ids()
+            .filter(|id| {
+                doc.span(*id).map(|span| &doc.bytes()[span])
+                    != after.span(*id).map(|span| &after.bytes()[span])
+            })
+            .collect();
+        if !changed.is_empty() {
+            return Err(WriteError::AddPreservation {
+                ids: changed,
+                repairs: report.repairs.iter().map(|r| (r.id, r.repair)).collect(),
+                edition_rewrites: report.edition_rewrites.clone(),
+            });
+        }
+    }
     Ok((edit, report))
 }
 
 /// Our ordering property marks a JSON-written part. Its consumed descriptive PMI
 /// (not foreign graphics or supplemental source geometry) was emitted by haecceity.
-/// Explicit attribute representations are also our producer convention. In Add,
-/// repair those legacy literals in place, retaining the parent's id and all links.
+/// Explicit attribute representations are also our producer convention. Replace
+/// repairs legacy literals in place; Add preserves and reports them instead.
 fn repair_legacy_text(
     em: &mut Emitter<'_>,
     read: &PmiRead,
@@ -1208,6 +1279,11 @@ fn repair_legacy_text(
             continue;
         };
         if super::text::literal_len(text) <= MAX_STRING_LITERAL_BYTES {
+            continue;
+        }
+        if em.preserve_kept {
+            em.preserved_normalizations
+                .insert((id, "legacy-text-rechunking"));
             continue;
         }
         // The label is source text too; rechunking must not impose a new limit on it.
@@ -1331,25 +1407,6 @@ fn plain_forwarder(doc: &Document, id: u64) -> bool {
         }
     }
     members == 1
-}
-
-fn replace_reference(record: &mut RawEntity, from: u64, to: u64) {
-    fn replace(a: &mut A, from: u64, to: u64) {
-        match a {
-            A::EntityRef(id) if *id == from => *id = to,
-            A::List(items) => items.iter_mut().for_each(|a| replace(a, from, to)),
-            A::Typed { value, .. } => replace(value, from, to),
-            _ => {}
-        }
-    }
-    match record {
-        RawEntity::Simple { attributes, .. } => {
-            attributes.iter_mut().for_each(|a| replace(a, from, to))
-        }
-        RawEntity::Complex { parts, .. } => parts
-            .iter_mut()
-            .for_each(|p| p.attributes.iter_mut().for_each(|a| replace(a, from, to))),
-    }
 }
 
 /// Attribute `attr` declared by `entity` of instance `id`.
@@ -1692,7 +1749,9 @@ pub struct Emitter<'a> {
     shape_representations: BTreeMap<u64, u64>,
     occt_stopping: BTreeSet<R>,
     direct_gisu: BTreeSet<R>,
-    carrier_exemptions: Vec<(PartId, &'static str, NewId, R)>,
+    carrier_exemptions: Vec<(PartId, &'static str, R, R)>,
+    preserved_normalizations: BTreeSet<(u64, &'static str)>,
+    preserve_kept: bool,
     kept_rewrites: BTreeMap<u64, RawEntity>,
     retired: BTreeSet<u64>,
 }
@@ -1719,6 +1778,8 @@ impl<'a> Emitter<'a> {
             occt_stopping: BTreeSet::new(),
             direct_gisu: BTreeSet::new(),
             carrier_exemptions: Vec::new(),
+            preserved_normalizations: BTreeSet::new(),
+            preserve_kept: false,
             kept_rewrites: BTreeMap::new(),
             retired: BTreeSet::new(),
         }
@@ -1870,7 +1931,7 @@ impl<'a> Emitter<'a> {
         self.push(record, stated)
     }
 
-    /// The same typed mapping for an added record or an in-place kept-aspect promotion.
+    /// The typed mapping for an added record.
     fn entity_record(
         &self,
         types: &[&str],
@@ -3112,10 +3173,10 @@ impl<'a> PartPlan<'a> {
         let p = self.pmi;
         let pds = em.reference(self.def.shape)?;
         // Replace consumes the selected part's modelled wrappers in its removal
-        // plan. Only Add has kept legacy endpoints to normalize; scanning the
+        // plan. Add reports its retained legacy endpoints; scanning the
         // whole source graph here on every Replace needlessly revisits the B-rep.
         if self.mode == Mode::Add {
-            self.reuse_legacy_endpoints(em)?;
+            self.preserve_legacy_endpoints(em)?;
         }
         let pd = em.reference(self.def.product_definition)?;
 
@@ -3333,7 +3394,7 @@ impl<'a> PartPlan<'a> {
             }
         }
         if self.mode == Mode::Add {
-            self.repair_kept_occt_relationships(em, &mut st, pds)?;
+            self.preserve_kept_occt_relationships(em, &st);
         }
         for (i, t) in p.datum_targets.iter().enumerate() {
             self.datum_target(em, &mut st, pds, i, t)?;
@@ -4898,38 +4959,13 @@ impl<'a> PartPlan<'a> {
         Ok(())
     }
 
-    /// Specialize the exact kept carrier without changing its geometry or group scope.
-    fn promote_kept_datum(&self, em: &mut Emitter<'_>, id: u64) -> Result<(), WriteError> {
-        let record = em
-            .kept_rewrites
-            .get(&id)
-            .or_else(|| self.doc.get(id))
-            .ok_or_else(|| WriteError::Internal("missing kept carrier".into()))?;
-        let mut types: Vec<String> = match record {
-            RawEntity::Simple { name, .. } => vec![name.to_ascii_lowercase()],
-            RawEntity::Complex { parts, .. } => {
-                parts.iter().map(|p| p.name.to_ascii_lowercase()).collect()
+    fn datum_carrier_exemption(&self, em: &mut Emitter<'_>, aspect: R, feature: R) {
+        if let R::New(id) = aspect {
+            let entry = (self.id, "kept-carrier-datum-feature", R::New(id), feature);
+            if !em.carrier_exemptions.contains(&entry) {
+                em.carrier_exemptions.push(entry);
             }
-        };
-        if types.iter().any(|n| em.edition.is_a(n, "datum_feature")) {
-            return Ok(());
         }
-        types.push("datum_feature".into());
-        let mut vals = Vec::new();
-        for name in ["name", "description", "of_shape", "product_definitional"] {
-            vals.push((
-                ("shape_aspect", name),
-                attr(self.doc, id, "shape_aspect", name)
-                    .cloned()
-                    .ok_or_else(|| {
-                        WriteError::Internal(format!("kept carrier #{id} lacks {name}"))
-                    })?,
-            ));
-        }
-        let types: Vec<_> = types.iter().map(String::as_str).collect();
-        em.kept_rewrites
-            .insert(id, em.entity_record(&types, &vals)?);
-        Ok(())
     }
 
     /// The instance of feature `i` (memoised; features of equal content share one).
@@ -4992,12 +5028,16 @@ impl<'a> PartPlan<'a> {
                     if let Some(owner) = self.existing_owner(em, *rep, &all, None)? {
                         let compatible = !combined_size
                             && match (role, owner) {
-                                (Role::Plain, _) => true, // existing_owner returns only neutral or datum aspects.
+                                (Role::Plain, _) => !self.kept_needs_independence(em, owner),
                                 (Role::DatumFeature | Role::DatumFeatureOfSize(_), R::Old(id))
                                     if is_a(self.doc, id, "datum_feature")
-                                        || neutral_aspect(self.doc, id) =>
+                                        && attr(
+                                            self.doc,
+                                            id,
+                                            "shape_aspect",
+                                            "product_definitional",
+                                        ) == Some(&boolean(true)) =>
                                 {
-                                    self.promote_kept_datum(em, id)?;
                                     true
                                 }
                                 _ => false,
@@ -5006,11 +5046,25 @@ impl<'a> PartPlan<'a> {
                             st.features.insert(c, owner);
                             return Ok(owner);
                         }
+                        if self.is_datum_aspect(c) && !combined_size {
+                            let types = if items.len() > 1 {
+                                vec!["datum_feature", "composite_shape_aspect"]
+                            } else {
+                                vec!["datum_feature"]
+                            };
+                            let r = em.instance(&types, &base(true), &[])?;
+                            self.kept_datum_usages(em, st, pds, r, &keys, Some(owner))?;
+                            st.features.insert(c, r);
+                            return Ok(r);
+                        }
                     }
                 }
                 // A specialized aspect is not an interchangeable feature. Share its
                 // geometry through neutral carriers, preserving the specialized scope.
                 for (rep, items) in &keys {
+                    if self.is_datum_aspect(c) && self.has_kept_usage(em, *rep, items[0]) {
+                        continue;
+                    }
                     self.kept_item_carrier(
                         em,
                         st,
@@ -5088,7 +5142,15 @@ impl<'a> PartPlan<'a> {
                     }
                 };
                 st.features.insert(c, r);
-                self.usages(em, st, pds, r, Some(c), items)?;
+                if self.is_datum_aspect(c)
+                    && keys
+                        .iter()
+                        .any(|(rep, items)| self.has_kept_usage(em, *rep, items[0]))
+                {
+                    self.kept_datum_usages(em, st, pds, r, &keys, None)?;
+                } else {
+                    self.usages(em, st, pds, r, Some(c), items)?;
+                }
                 r
             }
             Feature::Group { members, kind } => {
@@ -5112,13 +5174,12 @@ impl<'a> PartPlan<'a> {
                         .map(|(id, _)| (!is_a(self.doc, *id, "datum_feature"), *id))
                         .collect();
                     owners.sort_unstable();
-                    if let Some((_, id)) = owners.first() {
-                        if matches!(
-                            self.roles.get(&c),
-                            Some(Role::DatumFeature | Role::DatumFeatureOfSize(_))
-                        ) {
-                            self.promote_kept_datum(em, *id)?;
-                        }
+                    if let Some((_, id)) = owners.first()
+                        && (!self.is_datum_aspect(c)
+                            || (is_a(self.doc, *id, "datum_feature")
+                                && attr(self.doc, *id, "shape_aspect", "product_definitional")
+                                    == Some(&boolean(true))))
+                    {
                         let carrier = em.reference(*id)?;
                         st.features.insert(c, carrier);
                         return Ok(carrier);
@@ -5150,6 +5211,20 @@ impl<'a> PartPlan<'a> {
                 } else {
                     em.instance(&[ty], &vals, &[])?
                 };
+                if self.is_datum_aspect(c) {
+                    let wanted = Keys {
+                        p: self.pmi,
+                        stated: true,
+                    }
+                    .feature(FeatureId(c));
+                    if let Some((&id, _)) = self
+                        .kept_groups
+                        .iter()
+                        .find(|(id, key)| **key == wanted && !em.removed.contains(id))
+                    {
+                        self.datum_carrier_exemption(em, r, em.reference(id)?);
+                    }
+                }
                 for m in ms {
                     em.simple(
                         "shape_aspect_relationship",
@@ -5332,6 +5407,249 @@ impl<'a> PartPlan<'a> {
         )
     }
 
+    fn kept_usage_owners(&self, em: &Emitter<'_>, rep: R, item: R) -> Vec<u64> {
+        let (R::Old(rep), R::Old(item)) = (rep, item) else {
+            return Vec::new();
+        };
+        self.doc
+            .referrers(item)
+            .iter()
+            .copied()
+            .filter(|u| {
+                !em.removed.contains(u)
+                    && !em.retired.contains(u)
+                    && is_a(self.doc, *u, "item_identified_representation_usage")
+                    && !is_a(self.doc, *u, "draughting_model_item_association")
+                    && attr_ref(
+                        self.doc,
+                        *u,
+                        "item_identified_representation_usage",
+                        "used_representation",
+                    ) == Some(rep)
+            })
+            .filter_map(|u| {
+                attr_ref(
+                    self.doc,
+                    u,
+                    "item_identified_representation_usage",
+                    "definition",
+                )
+            })
+            .filter(|owner| {
+                attr_ref(self.doc, *owner, "shape_aspect", "of_shape") == Some(self.def.shape)
+            })
+            .collect()
+    }
+
+    fn kept_face_carrier(
+        &self,
+        em: &Emitter<'_>,
+        rep: R,
+        item: R,
+    ) -> Result<Option<R>, WriteError> {
+        if let Some(owner) = self.existing_owner(em, rep, &[item], None)? {
+            return Ok(Some(owner));
+        }
+        let mut owners = self.kept_usage_owners(em, rep, item);
+        owners.sort_by_key(|id| (!reusable_aspect(self.doc, *id), *id));
+        owners.first().map(|id| em.reference(*id)).transpose()
+    }
+
+    fn has_kept_usage(&self, em: &Emitter<'_>, rep: R, item: R) -> bool {
+        !self.kept_usage_owners(em, rep, item).is_empty()
+    }
+
+    /// Functional outgoing SARs make OCCT collect unrelated geometry from a
+    /// neutral carrier. Isolate the new requirement, never edit the kept SAR.
+    fn kept_functional_sars(&self, owner: R) -> Vec<u64> {
+        let R::Old(owner) = owner else {
+            return Vec::new();
+        };
+        self.doc
+            .referrers(owner)
+            .iter()
+            .copied()
+            .filter(|r| {
+                attr_ref(
+                    self.doc,
+                    *r,
+                    "shape_aspect_relationship",
+                    "relating_shape_aspect",
+                ) == Some(owner)
+                    && (is_a(self.doc, *r, "feature_for_datum_target_relationship")
+                        || self.doc.referrers(*r).iter().any(|t| {
+                            attr_ref(
+                                self.doc,
+                                *t,
+                                "geometric_tolerance",
+                                "toleranced_shape_aspect",
+                            ) == Some(*r)
+                        }))
+            })
+            .collect()
+    }
+
+    fn kept_needs_independence(&self, em: &Emitter<'_>, owner: R) -> bool {
+        em.preserve_kept
+            && !self.occt_record_stops_at(em, owner)
+            && !self.kept_functional_sars(owner).is_empty()
+    }
+
+    fn independent_kept_usage(
+        &self,
+        em: &mut Emitter<'_>,
+        member: R,
+        item: R,
+        carrier: R,
+        condition: &'static str,
+    ) -> Result<(), WriteError> {
+        let own_rep = em.simple(
+            "shape_representation",
+            &[
+                ("name", s("")),
+                ("items", refs([item])),
+                ("context_of_items", em.reference(self.context)?.a()),
+            ],
+        )?;
+        Self::usage(em, member, own_rep, item)?;
+        // The kept carrier gains only a backlink to the same geometry/subset. The new aspect has no outgoing path through a kept
+        // functional SAR, which would confuse OCCT's ordinary aspect traversal.
+        em.simple(
+            "shape_aspect_relationship",
+            &[
+                ("name", s("")),
+                ("description", s("")),
+                ("relating_shape_aspect", carrier.a()),
+                ("related_shape_aspect", member.a()),
+            ],
+        )?;
+        em.carrier_exemptions
+            .push((self.id, condition, member, carrier));
+        if em.preserve_kept
+            && condition == "kept-carrier-independent-feature"
+            && let (R::Old(owner), R::Old(item)) = (carrier, item)
+        {
+            for &usage in self.doc.referrers(owner) {
+                if !is_a(self.doc, usage, "item_identified_representation_usage")
+                    || is_a(self.doc, usage, "draughting_model_item_association")
+                    || attr_ref(
+                        self.doc,
+                        usage,
+                        "item_identified_representation_usage",
+                        "definition",
+                    ) != Some(owner)
+                {
+                    continue;
+                }
+                let items = attr_refs(
+                    self.doc,
+                    usage,
+                    "item_identified_representation_usage",
+                    "identified_item",
+                );
+                if items.contains(&item) && (items.len() > 1 || !reusable_aspect(self.doc, owner)) {
+                    em.preserved_normalizations
+                        .insert((usage, "kept-usage-factoring"));
+                }
+            }
+        }
+        for sar in self.kept_functional_sars(carrier) {
+            em.preserved_normalizations
+                .insert((sar, "functional-sar-isolation"));
+        }
+        Ok(())
+    }
+
+    /// Each kept face gets an independent aspect/usage; untouched faces use the
+    /// normal shared-carrier path. Reports name the actual per-face aspect and
+    /// one deterministically selected source carrier, not the multi-face root.
+    fn kept_datum_usages(
+        &self,
+        em: &mut Emitter<'_>,
+        st: &mut Emitted,
+        pds: R,
+        feature: R,
+        keys: &[(R, Vec<R>)],
+        carrier: Option<R>,
+    ) -> Result<(), WriteError> {
+        if keys.len() > 1
+            && let Some(carrier) = carrier
+        {
+            em.carrier_exemptions
+                .push((self.id, "kept-carrier-datum-composite", feature, carrier));
+        }
+        for (rep, face_items) in keys {
+            let item = face_items[0];
+            if let Some(carrier) = self.kept_face_carrier(em, *rep, item)? {
+                let member = if keys.len() == 1 {
+                    feature
+                } else {
+                    let member = em.simple(
+                        "shape_aspect",
+                        &[
+                            ("name", s("")),
+                            ("description", s("")),
+                            ("of_shape", pds.a()),
+                            ("product_definitional", boolean(true)),
+                        ],
+                    )?;
+                    em.simple(
+                        "shape_aspect_relationship",
+                        &[
+                            ("name", s("")),
+                            ("description", s("")),
+                            ("relating_shape_aspect", feature.a()),
+                            ("related_shape_aspect", member.a()),
+                        ],
+                    )?;
+                    member
+                };
+                let condition = if keys.len() == 1 {
+                    "kept-carrier-datum-feature"
+                } else {
+                    "kept-carrier-datum-member"
+                };
+                self.independent_kept_usage(em, member, item, carrier, condition)?;
+            } else {
+                let key = (*rep, face_items.clone());
+                let member = if keys.len() == 1 {
+                    feature
+                } else if let Some(&member) = st.shared.get(&key) {
+                    member
+                } else if let Some(&owner) = st.owners.get(&key) {
+                    self.feature(em, st, pds, owner)?
+                } else {
+                    let member = em.simple(
+                        "shape_aspect",
+                        &[
+                            ("name", s("")),
+                            ("description", s("")),
+                            ("of_shape", pds.a()),
+                            ("product_definitional", boolean(true)),
+                        ],
+                    )?;
+                    Self::usage(em, member, *rep, item)?;
+                    st.shared.insert(key, member);
+                    member
+                };
+                if member == feature {
+                    Self::usage(em, member, *rep, item)?;
+                } else {
+                    em.simple(
+                        "shape_aspect_relationship",
+                        &[
+                            ("name", s("")),
+                            ("description", s("")),
+                            ("relating_shape_aspect", feature.a()),
+                            ("related_shape_aspect", member.a()),
+                        ],
+                    )?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// The usages of a feature's items: one `geometric_item_specific_usage` per item
     /// (maintainer decision 2026-10-09, which OpenCascade reads; the PMI practice's §5.1
     /// Figure 5 alternative, one `item_identified_representation_usage` of a
@@ -5430,9 +5748,33 @@ impl<'a> PartPlan<'a> {
         if let Some(&r) = st.shared.get(&key) {
             return Ok(Some(r));
         }
-        if let Some(r) = self.existing_owner(em, rep, &[*item], None)? {
+        if let Some(r) = self.existing_owner(em, rep, &[*item], None)?
+            && !self.kept_needs_independence(em, r)
+        {
             st.shared.insert(key, r);
             return Ok(Some(r));
+        }
+        if em.preserve_kept
+            && let Some(owner) = self.kept_face_carrier(em, rep, *item)?
+        {
+            let leaf = em.simple(
+                "shape_aspect",
+                &[
+                    ("name", s("")),
+                    ("description", s("")),
+                    ("of_shape", pds.a()),
+                    ("product_definitional", boolean(true)),
+                ],
+            )?;
+            self.independent_kept_usage(
+                em,
+                leaf,
+                *item,
+                owner,
+                "kept-carrier-independent-feature",
+            )?;
+            st.shared.insert(key, leaf);
+            return Ok(Some(leaf));
         }
         let (R::Old(rep_id), R::Old(item_id)) = (rep, *item) else {
             return Ok(None);
@@ -5535,9 +5877,51 @@ impl<'a> PartPlan<'a> {
         Ok(None)
     }
 
-    /// Retire kept legacy endpoint wrappers too (Add): old dimensions must refer to the
-    /// same datum/neutral aspect as new dimensions. Compose scopes of their own remain.
-    fn reuse_legacy_endpoints(&self, em: &mut Emitter<'_>) -> Result<(), WriteError> {
+    fn kept_geometry_usages(&self, aspect: u64) -> BTreeSet<u64> {
+        let mut usages = BTreeSet::new();
+        let mut todo = vec![aspect];
+        let mut seen = BTreeSet::new();
+        while let Some(aspect) = todo.pop() {
+            if !seen.insert(aspect) {
+                continue;
+            }
+            for &r in self.doc.referrers(aspect) {
+                if is_a(self.doc, r, "item_identified_representation_usage")
+                    && !is_a(self.doc, r, "draughting_model_item_association")
+                    && attr_ref(
+                        self.doc,
+                        r,
+                        "item_identified_representation_usage",
+                        "definition",
+                    ) == Some(aspect)
+                {
+                    usages.insert(r);
+                }
+                if geometric_composition(self.doc, r)
+                    && attr_ref(
+                        self.doc,
+                        r,
+                        "shape_aspect_relationship",
+                        "relating_shape_aspect",
+                    ) == Some(aspect)
+                    && let Some(member) = attr_ref(
+                        self.doc,
+                        r,
+                        "shape_aspect_relationship",
+                        "related_shape_aspect",
+                    )
+                    && !is_a(self.doc, member, "datum")
+                {
+                    todo.push(member);
+                }
+            }
+        }
+        usages
+    }
+
+    /// Preserve legacy endpoint wrappers and report the normalization Add forgoes.
+    /// The source alias and its dimensions retain their original identities.
+    fn preserve_legacy_endpoints(&self, em: &mut Emitter<'_>) -> Result<(), WriteError> {
         for alias in self.doc.ids() {
             if em.removed.contains(&alias)
                 || em.retired.contains(&alias)
@@ -5550,7 +5934,6 @@ impl<'a> PartPlan<'a> {
             let mut todo = vec![alias];
             let mut visited = BTreeSet::new();
             let mut by_rep: BTreeMap<u64, BTreeSet<u64>> = BTreeMap::new();
-            let mut relations = Vec::new();
             let mut direct = false;
             while let Some(aspect) = todo.pop() {
                 if !visited.insert(aspect) {
@@ -5598,9 +5981,6 @@ impl<'a> PartPlan<'a> {
                         )
                         && !is_a(self.doc, member, "datum")
                     {
-                        if aspect == alias {
-                            relations.push(r);
-                        }
                         todo.push(member);
                     }
                 }
@@ -5622,24 +6002,13 @@ impl<'a> PartPlan<'a> {
             else {
                 continue;
             };
-            if !neutral_aspect(self.doc, alias) && !is_a(self.doc, owner, "datum_feature") {
+            if (!neutral_aspect(self.doc, alias) && !is_a(self.doc, owner, "datum_feature"))
+                || self.kept_geometry_usages(alias) != self.kept_geometry_usages(owner)
+            {
                 continue;
             }
-            em.retired.insert(alias);
-            em.retired.extend(relations.iter().copied());
-            for &r in self.doc.referrers(alias) {
-                if em.removed.contains(&r) || em.retired.contains(&r) {
-                    continue;
-                }
-                let mut record = em
-                    .kept_rewrites
-                    .get(&r)
-                    .cloned()
-                    .or_else(|| self.doc.get(r).cloned())
-                    .ok_or_else(|| WriteError::Internal("missing alias referrer".into()))?;
-                replace_reference(&mut record, alias, owner);
-                em.kept_rewrites.insert(r, record);
-            }
+            em.preserved_normalizations
+                .insert((alias, "legacy-endpoint-retirement"));
         }
         Ok(())
     }
@@ -5708,12 +6077,31 @@ impl<'a> PartPlan<'a> {
                         && attr_ref(doc, r, "item_identified_representation_usage", "definition")
                             == Some(aspect)
                     {
-                        valid &= attr_ref(
+                        let usage_rep = attr_ref(
                             doc,
                             r,
                             "item_identified_representation_usage",
                             "used_representation",
-                        ) == Some(rep);
+                        );
+                        // A previous append-only write may have attached this
+                        // same face in an independent representation. Reuse its
+                        // carrier on reopen when the part context still agrees.
+                        valid &= usage_rep == Some(rep)
+                            || (em.preserve_kept
+                                && usage_rep.is_some_and(|other| {
+                                    is_a(doc, other, "shape_representation")
+                                        && attr_ref(
+                                            doc,
+                                            other,
+                                            "representation",
+                                            "context_of_items",
+                                        ) == attr_ref(
+                                            doc,
+                                            rep,
+                                            "representation",
+                                            "context_of_items",
+                                        )
+                                }));
                         got.extend(attr_refs(
                             doc,
                             r,
@@ -6078,7 +6466,8 @@ impl<'a> PartPlan<'a> {
             ],
         )?;
         if let R::New(id) = endpoint {
-            em.carrier_exemptions.push((self.id, condition, id, member));
+            em.carrier_exemptions
+                .push((self.id, condition, R::New(id), member));
         }
         Ok(endpoint)
     }
@@ -6130,26 +6519,11 @@ impl<'a> PartPlan<'a> {
         member
     }
 
-    /// Add can make a previously unshared kept carrier shared, or specialize it to a
-    /// datum. Repair the functional SAR, never redirect the new dimension/tolerance.
-    fn repair_kept_occt_relationships(
-        &self,
-        em: &mut Emitter<'_>,
-        st: &mut Emitted,
-        pds: R,
-    ) -> Result<(), WriteError> {
+    /// Report the source SAR normalizations Add deliberately leaves unapplied.
+    fn preserve_kept_occt_relationships(&self, em: &mut Emitter<'_>, st: &Emitted) {
         for id in self.doc.ids() {
-            if em.removed.contains(&id) || em.retired.contains(&id) {
-                continue;
-            }
-            let Some(RawEntity::Simple {
-                name, attributes, ..
-            }) = em.kept_rewrites.get(&id).or_else(|| self.doc.get(id))
-            else {
-                continue;
-            };
-            let support = name.eq_ignore_ascii_case("feature_for_datum_target_relationship");
-            let pair = name.eq_ignore_ascii_case("shape_aspect_relationship")
+            let support = is_a(self.doc, id, "feature_for_datum_target_relationship");
+            let pair = leaf_names(self.doc, id) == ["shape_aspect_relationship"]
                 && self.doc.referrers(id).iter().any(|t| {
                     attr_ref(
                         self.doc,
@@ -6158,67 +6532,46 @@ impl<'a> PartPlan<'a> {
                         "toleranced_shape_aspect",
                     ) == Some(id)
                 });
-            if !(support || pair) || attributes.len() != 4 {
+            if !support && !pair {
                 continue;
             }
-            let (Some(A::EntityRef(left)), Some(A::EntityRef(right))) =
-                (attributes.get(2), attributes.get(3))
-            else {
+            let Some(left) = attr_ref(
+                self.doc,
+                id,
+                "shape_aspect_relationship",
+                "relating_shape_aspect",
+            ) else {
                 continue;
             };
-            let (left, right) = (*left, *right);
-            let name = name.clone();
-            let original_attributes = attributes.clone();
-            let mut attributes = original_attributes.clone();
-            let left_shell = self.kept_private_endpoint(left);
-            let actual_left = left_shell.map_or(left, |m| m.0);
+            let actual_left = self.kept_private_endpoint(left).map_or(left, |m| m.0);
             if attr_ref(self.doc, actual_left, "shape_aspect", "of_shape") != Some(self.def.shape) {
                 continue;
             }
             let isolate = st.occt_protected.contains(&R::Old(actual_left))
                 && !self.occt_record_stops_at(em, R::Old(actual_left))
                 && (!support || self.occt_has_direct_gisu(em, R::Old(actual_left)));
-            let condition = if support {
-                "shared-carrier-datum-target-support"
-            } else {
-                "shared-carrier-controlled-pair"
-            };
-            for (slot, old, shell) in [
-                (2, left, left_shell),
-                (
-                    3,
-                    right,
-                    if pair {
-                        self.kept_private_endpoint(right)
-                    } else {
-                        None
-                    },
-                ),
-            ] {
-                if support && slot == 3 {
+            for field in ["relating_shape_aspect", "related_shape_aspect"] {
+                if support && field == "related_shape_aspect" {
                     continue;
                 }
+                let Some(old) = attr_ref(self.doc, id, "shape_aspect_relationship", field) else {
+                    continue;
+                };
+                let shell = self.kept_private_endpoint(old);
                 let actual = shell.map_or(old, |m| m.0);
                 let eligible = isolate
                     && !self.occt_record_stops_at(em, R::Old(actual))
                     && attr_ref(self.doc, actual, "shape_aspect", "of_shape")
                         == Some(self.def.shape);
-                if eligible {
-                    if shell.is_none() {
-                        attributes[slot] = self
-                            .isolate_carrier(em, pds, em.reference(actual)?, condition)?
-                            .a();
-                    }
-                } else if let Some((member, composition)) = shell {
-                    attributes[slot] = em.reference(member)?.a();
-                    em.retired.extend([old, composition]);
+                if eligible && shell.is_none() {
+                    em.preserved_normalizations
+                        .insert((id, "functional-sar-isolation"));
+                } else if !eligible && shell.is_some() {
+                    em.preserved_normalizations
+                        .insert((id, "functional-sar-unwrapping"));
                 }
             }
-            if attributes != original_attributes {
-                em.kept_rewrites.insert(id, p21::simple(&name, attributes));
-            }
         }
-        Ok(())
     }
 
     fn tolerance(

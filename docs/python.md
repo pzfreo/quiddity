@@ -95,6 +95,17 @@ adding `category` to identify the source collection (for example
 `preexisting_violations`, `repairs`, or `kept_unconsumed`). This keeps input reader
 repairs distinct from writer diagnostics and from findings in the output.
 
+The optional canonical `writer["preserved_normalizations"]` collection is an array
+of objects with exactly `id` (original STEP entity id, integer) and `normalization`
+(string). For example, `{"id":1004,"normalization":"legacy-endpoint-retirement"}`
+becomes `{"category":"preserved_normalizations","id":1004,"normalization":"legacy-endpoint-retirement"}`
+in `writer_findings`. The names are `legacy-endpoint-retirement`,
+`functional-sar-isolation`, `functional-sar-unwrapping`, `kept-usage-factoring`
+and `legacy-text-rechunking`. The canonical key is omitted when empty, and produces
+no findings. These diagnostics concern Add preservation; Python's current public
+write API uses Replace, so it normally has none. The findings projection preserves
+the shape and names of canonical Add reports without introducing a Python Add API.
+
 The schemas are also installed as `quiddity/schema/haecceity.pmi-1.json` and
 `quiddity/schema/haecceity.presentation-1.json`, byte-identical to haecceity's.
 Other producers can load these files with their own JSON Schema validator.

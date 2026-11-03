@@ -132,45 +132,6 @@ fn pmi_read(
         .map_err(|e| e.raised(py))
 }
 
-/// Preserve the canonical writer report and expose its warning-bearing collections as a list.
-fn writer_findings(writer: &Value) -> Vec<Value> {
-    let mut out = Vec::new();
-    for category in [
-        "long_strings",
-        "kept_unconsumed",
-        "preexisting_violations",
-        "preexisting_rule_violations",
-        "practice_schema_conflicts",
-        "repairs",
-        "edition_rewrites",
-        "left_unreferenced",
-        "note_migrations",
-        "note_presentation_removed",
-    ] {
-        if let Some(items) = writer[category].as_array() {
-            for item in items {
-                let mut finding = item.clone();
-                finding["category"] = value!(category);
-                out.push(finding);
-            }
-        }
-    }
-    if let Some(warnings) = writer["presentation_warnings"].as_array() {
-        out.extend(
-            warnings
-                .iter()
-                .map(|message| value!({"category": "presentation_warnings", "message": message})),
-        );
-    }
-    if let Some(schema) = writer.get("edition_undetermined") {
-        out.push(
-            value!({"category": "edition_undetermined", "file_schema": schema,
-            "validated_against": writer["validated_against"]}),
-        );
-    }
-    out
-}
-
 fn import_report(
     doc: &Document,
     output: &[u8],
@@ -201,7 +162,7 @@ fn import_report(
         "schema": "haecceity.pmi/1", "part": selected, "added": report.added,
         "differences": differences, "presentation_removed": report.presentation_removed,
         "read_findings": findings(before), "output_findings": findings(&after),
-        "writer_findings": writer_findings(&writer), "writer": writer,
+        "writer": writer,
     }))
 }
 

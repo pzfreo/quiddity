@@ -1273,8 +1273,9 @@ fn pmi_write_replaces_an_existing_destination_through_a_link_keeping_its_permiss
 }
 
 /// Add onto a corpus part (AP214, no PMI): written as AP242 (decision 1), every item read back,
-/// a datum feature symbol for A; then remove: the part reads back as it did at first. An AP203
-/// file whose instances do not all validate against AP242 is refused, naming them.
+/// a datum feature symbol for A; then remove: the part reads back as it did at first.
+/// Add refuses AP203 source repairs atomically; Replace reports the closed repairs.
+/// Instances outside that repair list remain refused in either mode.
 #[test]
 fn pmi_write_add_then_remove_returns_a_corpus_part_to_its_pmi() {
     let Some(corpus) = common::corpus_dir() else {
@@ -1342,8 +1343,15 @@ fn pmi_write_add_then_remove_returns_a_corpus_part_to_its_pmi() {
     let (read, _) = ok(&["pmi", "read", p]);
     let mut doc = read.clone();
     doc["parts"] = json!([{"part": 0, "pmi": {"general": [{"class": {"text": "ISO 2768-m"}}]}}]);
-    let (out, o) = write_cli(p, &doc, "edition-repaired", &[]);
+    let (out, o) = write_cli(p, &doc, "edition-preserved", &[]);
+    let error = write_refused(&out, &o, "edition preserved");
+    assert!(
+        error.contains("Add would change original entities [14, 15]"),
+        "{error}"
+    );
+    let (out, o) = write_cli(p, &doc, "edition-repaired", &["--mode", "replace"]);
     let (report, _) = write_ok(&o, "edition repaired");
+    assert_eq!(report["mode"], "replace");
     let repairs = report["repairs"].as_array().unwrap();
     assert_eq!(
         repairs
@@ -1492,6 +1500,26 @@ fn derived_geometry_does_not_regress_any_nist_pmi() {
 }
 
 #[test]
+fn preserved_normalizations_have_the_documented_json_shape() {
+    let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("crates/haecceity/tests/fixtures/xcaf/plate-legacy-datum-location.step.gz");
+    let step = source.to_str().unwrap();
+    let (mut doc, _) = ok(&["pmi", "read", step]);
+    doc["parts"] = json!([{"part": 0, "pmi": {"general": [{"class": {"text": "ISO 2768-m"}}]}}]);
+    let (_, output) = write_cli(step, &doc, "preserved-normalizations", &[]);
+    let (report, _) = write_ok(&output, "preserved normalizations");
+    assert_eq!(
+        report["preserved_normalizations"],
+        json!([
+            {"id": 1004, "normalization": "legacy-endpoint-retirement"},
+            {"id": 1109, "normalization": "legacy-endpoint-retirement"},
+        ])
+    );
+    assert_eq!(report["instances"]["replaced"], 0);
+    assert!(report.get("geometry_carrier_exemptions").is_none());
+}
+
+#[test]
 fn ap214_product_type_rewrites_are_reported() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("crates/haecceity/tests/fixtures/ap214_product_type.step");
@@ -1503,8 +1531,15 @@ fn ap214_product_type_rewrites_are_reported() {
             "magnitude": {"value": "0.05", "unit": "mm"}}],
         "material": {"id": "6061-T6"},
     }}]);
-    let (out, output) = write_cli(step, &doc, "product-type", &[]);
+    let (out, output) = write_cli(step, &doc, "product-type-preserved", &[]);
+    let error = write_refused(&out, &output, "product type preserved");
+    assert!(
+        error.contains("Add would change original entities [132]"),
+        "{error}"
+    );
+    let (out, output) = write_cli(step, &doc, "product-type", &["--mode", "replace"]);
     let (report, _) = write_ok(&output, "product-type");
+    assert_eq!(report["mode"], "replace");
     assert_eq!(
         report["edition_rewrites"],
         json!([{
@@ -1513,7 +1548,7 @@ fn ap214_product_type_rewrites_are_reported() {
     );
     assert_eq!(report["instances"]["replaced"], 1);
     let (back, _) = ok(&["pmi", "read", out.to_str().unwrap()]);
-    assert!(read_back_differences(&doc, &back, "add").is_empty());
+    assert!(read_back_differences(&doc, &back, "replace").is_empty());
 }
 
 #[cfg(all(feature = "json-import", feature = "presentation"))]

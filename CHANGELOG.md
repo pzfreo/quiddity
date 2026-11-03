@@ -27,6 +27,30 @@ in [docs/alpha1.md](docs/alpha1.md).
   in millimetres). Old companions still read. `WriteReport` adds
   `presentation_warnings`; existing writer goldens remain unchanged.
 
+### Fixed
+
+- Add upgrade refusals name the required repairs and entity ids, explain that
+  Replace retains a part with no PMI, and warn that it re-authors existing PMI.
+  Retained legacy aliases no longer generate classification certificates or gain
+  checker exemptions; before/after checks retain their original findings. Reuse
+  across representations sharing a context is limited to Add preservation.
+  CLI and Python report tests pin preserved-normalization records and names.
+- **Add preserves original entity bytes:** every Add write keeps pre-existing
+  carriers, usages, controls and presentation at their original ids. Add no longer
+  retires legacy endpoint wrappers, isolates functional SARs or rechunks retained
+  legacy text, superseding 0.4.5's normalization behavior. Skipped normalizations
+  appear in `WriteReport.preserved_normalizations`; schema upgrades requiring entity
+  repairs now fail atomically in Add (use Replace for those repairs).
+- Adding a datum on a kept face or pattern emits a separate `.T.` `datum_feature`,
+  fixing NIST CTC-01's `.F.` perpendicularity carrier (`datum_feature.WR2`). Only
+  faces with kept usages get independent GISUs in new representations; uncovered
+  faces use ordinary carriers. Pattern datums retain their member scope. Non-datum
+  additions also get independent usages when safe reuse is impossible. Each narrow
+  CAx-IF §5.1 exception names the actual aspect and preserved carrier in
+  `WriteReport.geometry_carrier_exemptions`; unrelated source aspects are not exempt.
+  Kept carriers are never promoted in any mode; datum leaves created in the same
+  write remain reusable. No EXPRESS validation rule is exempted.
+
 ## 0.4.5 (2026-11-02)
 
 Upgrading from 0.4.4: recognition schema `/6`, fingerprints `/3` and the `haecceity.pmi/1` schema are unchanged. The PMI reader string advances to `haecceity-pmi-read/15`. Semantic PMI reads as before, with two exceptions: the datum findings below, and aspects that 0.4.5 writes named `haecceity.feature/1`. Old files are unaffected by the second.

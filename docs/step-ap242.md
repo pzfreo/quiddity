@@ -636,10 +636,12 @@ toleranced relationships are no longer misread as feature composition; document 
   `DatumFeature`, and can need controlled-pair isolation. Dimension endpoints
   and direct tolerance targets still reference the actual datum feature; only
   the functional relationship's context is private. §6.5 reuse remains mandatory.
-  Add evaluates kept as well as new characteristics. It isolates a kept functional
-  SAR if a new characteristic makes its carrier shared, and removes a private
-  shell when datum promotion makes it unnecessary. Rewritten associations are
-  reported in `rewritten`; forwarding shells are never promoted or reused.
+  Every Add write preserves all original entity bytes, including functional SARs
+  and private shells. New requirements reuse safe carriers; if reuse would traverse
+  a kept functional SAR, they receive independent geometry usages instead (the
+  preservation exceptions below). `preserved_normalizations` reports each retained
+  SAR whose isolation was skipped. Replace retains the normalization behavior.
+  Forwarding shells are never promoted or reused as datum features.
 
   [OCCT 7.9.3 `collectShapeAspect`, lines 2889–2940](https://github.com/Open-Cascade-SAS/OCCT/blob/V7_9_3/src/STEPCAFControl/STEPCAFControl_Reader.cxx#L2889-L2940)
   takes the ordinary carrier's outgoing non-dimensional-location SARs as children
@@ -1896,14 +1898,16 @@ ISO string-length violation. CLI write reports expose optional `long_strings`;
 Python also exposes these entries in its warning-bearing findings list. Empty
 warning collections do not change existing report JSON.
 
-Haecceity's own legacy descriptive metadata is repaired, including in Add mode:
+Replace repairs haecceity's own legacy descriptive metadata:
 the ordering property identifies a JSON-written part's consumed descriptive PMI
 (excluding supplemental source geometry), and `haecceity.pmi/1 attribute`
 representations identify producer-owned text directly. Oversized retained legacy
 descriptive items become ordered chunk containers **at their original ids**,
 keeping every incoming reference and logical value. Their ids appear in `rewritten`.
 Foreign unconsumed records and presentation are not classified as producer metadata.
-Replace writes new bounded metadata through the normal emitter.
+Replace writes new bounded metadata through the normal emitter. Add retains every
+source record, including oversized producer text, and reports skipped
+`legacy-text-rechunking` in `preserved_normalizations` alongside the length warning.
 
 The B-rep writer preserves source product ids/names, including copies into rebuilt
 product/header records, and reports oversized copies. `WriteOptions.name` creates
@@ -1934,18 +1938,95 @@ The 2026-10-09 OCCT decision remains: one GISU per face. IIRU UR2 permits only o
 usage per (representation, definition), so several GISUs cannot identify one
 aspect in one representation. A multi-face feature is gathered by a composite of
 per-face aspects. Properly overlapping face sets share those same members; an
-exact match reuses the entire aspect. A kept ordinary carrier gaining a datum is
-specialized at the same id (and reported in `rewritten`), preserving its attributes
-and GISUs. A kept pattern similarly gains `datum_feature` in its existing complex
-group record, preserving its member semantics (§6.5.2).
+exact match reuses the entire aspect unless doing so would specialize a kept
+carrier to a datum feature. Adding a datum is append-only: a new `.T.`
+`datum_feature` has its own GISU to the face in a new `shape_representation`,
+with the original context and the same face entity (no copied geometry). Each
+per-face usage has its own representation keys, preserving IIRU UR1/UR2. These
+representations do not gain a shape-definition link or replace the part's B-rep.
+Each face with a kept usage receives an independent per-face leaf; a multi-face
+root gathers those leaves. An uncovered face uses the ordinary carrier and original
+representation, without an exemption. A plain SAR from the selected kept carrier
+to the new leaf certifies their common geometry without giving the new leaf an
+outgoing path through the source's functional SARs. OCCT requires the new datum's
+own GISU: a composition-only datum is unattached in XCAF on both CTC-01 faces.
+A kept pattern gets a separate complex group/datum feature with the same member
+scope, rather than a nested group. Existing controls and presentation retain their
+original ids and bytes. Every Add write also retains legacy endpoint wrappers,
+functional SARs and oversized legacy text. It performs none of those source
+normalizations, whether or not a datum is requested.
+
+`WriteReport.geometry_carrier_exemptions` lists the exact `part`, `condition`,
+`aspect` and preserved `feature`. The preservation conditions are:
+
+| Condition | Certified scope |
+| --- | --- |
+| `kept-carrier-datum-feature` | A single-face datum's independent usage, or a datum on a kept group with identical member scope. |
+| `kept-carrier-datum-member` | A multi-face datum's independent leaf and that face's selected kept carrier. |
+| `kept-carrier-datum-composite` | The datum root and an exact kept whole-feature carrier, when one exists. |
+| `kept-carrier-independent-feature` | A non-datum leaf needing an independent usage (including a subset of a kept SET IIRU). |
+
+The independent checker requires an explicit composition certificate (or identical
+kept group scope), same-part geometry containment and independent representations
+for new direct usages. Datum exceptions require `.T.`, exactly one establishment,
+and a dimensional representation for the combined §6.5.3 form. Only the certified
+new usage is excluded from §5.1 duplicates. Unrelated source aspects receive no
+exemption; duplicate scalar keys and ordinary redundant shells remain errors.
+Legacy aliases remain visible as pre-existing checker findings. Add emits no
+classification certificates or other markers for them, and no name or marker
+grants an exemption. Before/after tests require zero `introduced_violations` and
+check the retained aliases' actual geometry usages, scope signatures and
+`of_shape` links. Skipped endpoint retirement is diagnostic report data only.
+For CTC-01 `[24, 41]` the selected kept carriers are #298 and #322, never the other
+aspects #324/#336 on face 41; `[24, 0]` selects only #298. CTC-01's 26 existing
+strict checker findings remain visible: preservation tests require identical
+before/after findings and zero introduced violations, rather than exempting the
+source's unrelated duplicates. No EXPRESS rule is exempted.
+
+`WriteReport.preserved_normalizations` records source `id` and skipped
+`normalization`. The canonical CLI write report has this optional JSON shape:
+
+```json
+{"preserved_normalizations":[{"id":1004,"normalization":"legacy-endpoint-retirement"}]}
+```
+
+Every entry has exactly `id` (an original entity id, integer) and `normalization`
+(a string). The key is omitted when empty. The names are
+`legacy-endpoint-retirement`, `functional-sar-isolation`,
+`functional-sar-unwrapping`, `kept-usage-factoring` (a retained SET or specialized
+usage), and `legacy-text-rechunking`. Python's canonical `report["writer"]` uses
+the same shape; `report["writer_findings"]` adds
+`"category":"preserved_normalizations"` to each entry without changing its fields
+or names. Python's public write API currently uses Replace, so Add-only entries
+are absent there; the common findings projection supports these canonical records.
+
+Add verifies every original entity's exact bytes before returning an edit. AP203
+or AP214 upgrades needing original-entity repairs fail atomically with
+`WriteError::AddPreservation`. The refusal lists the R1 approval-assignment or R2
+conversion-unit-dimension repairs and their ids (or the AP214 keyword rewrite).
+Replace performs those repairs. When a part has no PMI, Replace retains everything
+already in it; when it has existing PMI, Replace re-authors that PMI. Header-only
+upgrades with no entity repairs remain possible. Cross-representation carrier
+reuse in the same context is limited to Add preservation; Replace keeps its exact
+representation requirement.
+
+Kept `.F.` (or unknown) product-definitional aspects are never promoted in any
+mode: doing so violates `datum_feature.WR2`. Promotion of kept `.T.` aspects is
+also removed, since their identity belongs to the input file. Carriers created
+in the same write remain safe to reuse: the planner assigns datum roles before
+emission, emits `.T.` datum leaves directly, and reuses those leaves within that
+write. No source record is rewritten in that case. These decisions supersede
+#181's review-round-4 in-place Add promotion assertions; the kept-face and
+kept-pattern tests now require exact original entity text instead.
 
 Without presentation, §6.5.3's datum combined with its own size remains a
-`dimensional_size_with_datum_feature`, including on a kept face. It composes the
-kept geometry carrier rather than promoting that carrier to a dimension: existing
+`dimensional_size_with_datum_feature`, including on a kept face. It gets independent
+geometry usages rather than promoting that carrier to a dimension: existing
 feature controls must remain feature controls. This record has its own dimensional
 characteristic representation and nominal, so it is not a redundant forwarding
-aspect. The checker distinguishes that semantic dimension from an ordinary datum
-feature and rejects the bare shell if its dimensional representation is missing.
+aspect. The checker keeps direct-use signatures strict. Only a certified preservation
+exception distinguishes the independent datum's semantic identity from its kept
+carrier; a combined form without its dimensional representation remains an error.
 Presentation-enabled output retains separate datum/size definitions. A datum on
 another feature does not enable the combined form.
 
@@ -1970,9 +2051,10 @@ An ordinary feature may reuse only a neutral shape aspect/union or a datum featu
 with the same feature meaning. Applied areas, thread runouts, per-member patterns,
 all-around/between scopes and tolerance zones remain distinct (§6.5.2). Their GISUs
 can be factored onto neutral per-item members, preserving their own scope. Kept
-neutral composites gain `datum_feature` at their existing id even in complex form.
-Existing datum features are preferred to legacy `DIMENSION` copies; Add also
-retargets and removes those legacy wrappers. A second datum label on an already
+neutral composites retain their original identity; Add establishes its own datum
+feature. Existing datum features are preferred to legacy `DIMENSION` copies; Add
+retains those wrappers and reports their preservation instead of retargeting or
+removing them. A second datum label on an already
 established feature is refused (`datum_feature.WR1`). Relationship-target and datum-target-support endpoints follow the narrow
 shared-carrier exemption in the writer gaps section; affected-plane links remain
 direct. The reader excludes these functional relationships from composition.
