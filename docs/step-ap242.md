@@ -2150,7 +2150,8 @@ without a conformance judgement. Anonymous attribute units use portable
 factors and derived-unit elements/exponents. An equal destination unit is reused;
 otherwise it is written fresh (including B-rep output). No source id is resolved
 in a different document. Authored name-only units still require an unambiguous
-matching source unit. A value-less dimension with a stated principle or qualifier
+matching source unit; `gram`, `kilogram` and `milligram` can also be emitted from their
+kind and prefix. A value-less dimension with a stated principle or qualifier
 uses an empty descriptive item as its representation carrier; it gains no value.
 
 Replace keeps auxiliary datum-system/qualifier support shared with unread PMI

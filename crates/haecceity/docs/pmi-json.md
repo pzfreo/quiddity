@@ -537,7 +537,8 @@ conversion factors, dimensions, and derived-unit elements and exponents. Derived
 SETs are sorted by content; instance ids are excluded. Import reuses an equal unit
 in the destination or writes the encoded unit fresh, including when B-rep writing
 creates a new STEP document. Duplicate equal units are interchangeable. Legacy
-name-only units still require exactly one matching source unit.
+name-only units still require exactly one matching source unit, except
+`gram`, `kilogram` and `milligram`, which can also be emitted from their kind/prefix.
 
 Dimensions without a stated nominal value retain their features and graphical
 callout links, with `nominal: null`; no value is invented and no nonconformance

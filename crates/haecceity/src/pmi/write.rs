@@ -3340,7 +3340,11 @@ impl<'a> PartPlan<'a> {
         match found.as_slice() {
             [u, ..] if name.starts_with(super::unit_identity::PREFIX) => Ok(Some(*u)),
             [u] => Ok(Some(*u)),
-            [] if name.starts_with(super::unit_identity::PREFIX) => Ok(None), // emit from content
+            [] if name.starts_with(super::unit_identity::PREFIX)
+                || matches!(density_unit(name), Some(DensityUnit::Mass(_))) =>
+            {
+                Ok(None)
+            }
             [] => Err(format!("no unit of the file is {name:?}")),
             _ => Err(format!(
                 "{} units of the file are named {name:?}; which one is not stated",
@@ -7552,6 +7556,8 @@ impl<'a> PartPlan<'a> {
                             em.reference(id)?
                         } else if let Some(&u) = em.other_units.get(unit) {
                             u
+                        } else if let Some(DensityUnit::Mass(prefix)) = density_unit(unit) {
+                            em.mass_unit(prefix)?
                         } else {
                             let records = super::unit_identity::records(unit).ok_or_else(|| {
                                 WriteError::Internal("invalid portable unit identity".into())
