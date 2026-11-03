@@ -17,6 +17,10 @@ in [docs/alpha1.md](docs/alpha1.md).
   auxiliary support shared with unread PMI, rebinding only equal replacement
   datums, and reports it as `WriteReport.retained_shared`.
 
+- Proposed JSON-driven AP242 edition-upgrade repair R3 retains exact integral values
+  in INTEGER representation items written as REALs; `UpgradeRepairKind` gains
+  `R3IntegerLiteral`. Isolated in a separate review commit, pending the maintainer decision.
+
 ## 0.4.6 (2026-11-03)
 
 Upgrading from 0.4.5: recognition schema `/6`, fingerprints `/3`, the `haecceity.pmi/1` schema and the PMI reader string `haecceity-pmi-read/15` are unchanged.

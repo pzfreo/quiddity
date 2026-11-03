@@ -2674,6 +2674,7 @@ pub fn write_report_json(
                         "repair": match r.repair {
                             write::UpgradeRepairKind::R1ApprovalAssignment => "R1",
                             write::UpgradeRepairKind::R2ConversionUnitDimensions => "R2",
+                            write::UpgradeRepairKind::R3IntegerLiteral => "R3",
                         },
                         "original_record": r.original_record,
                         "new_record": r.new_record,

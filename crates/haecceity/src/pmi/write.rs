@@ -68,7 +68,8 @@
 //! pass `express` validation against the table of the file's edition (the target edition for
 //! an AP242 edition without a table, and for an AP214/AP203 file that gains PMI, whose every
 //! instance must then pass, after only the closed R1 approval assignment and R2 conversion
-//! unit dimensions repairs in `upgrade.rs`, each recorded in [`WriteReport::repairs`], plus
+//! unit dimensions repairs in `upgrade.rs`, and the proposed R3 integer-literal repair on
+//! JSON-driven AP242 edition upgrades, each recorded in [`WriteReport::repairs`], plus
 //! the keyword table above); and `express_rules::check_all` of the result (the WHERE, UNIQUE
 //! and global rules it evaluates, `restrict_representation_for_surface_condition` among them)
 //! must have no violation the original lacked except the exact registered conflicts above.
@@ -216,6 +217,7 @@ impl std::fmt::Display for WriteError {
                 for kind in [
                     UpgradeRepairKind::R1ApprovalAssignment,
                     UpgradeRepairKind::R2ConversionUnitDimensions,
+                    UpgradeRepairKind::R3IntegerLiteral,
                 ] {
                     let affected: Vec<_> = repairs
                         .iter()
@@ -301,6 +303,8 @@ pub enum UpgradeRepairKind {
     R1ApprovalAssignment,
     /// R2: make a conversion unit's dimensions explicit, from its factor's unit.
     R2ConversionUnitDimensions,
+    /// R3: an exactly representable integral REAL in an INTEGER representation item.
+    R3IntegerLiteral,
 }
 
 impl std::fmt::Display for UpgradeRepairKind {
@@ -308,6 +312,7 @@ impl std::fmt::Display for UpgradeRepairKind {
         f.write_str(match self {
             Self::R1ApprovalAssignment => "R1 approval assignment",
             Self::R2ConversionUnitDimensions => "R2 conversion unit dimensions",
+            Self::R3IntegerLiteral => "R3 integer literal",
         })
     }
 }
@@ -1184,7 +1189,7 @@ fn write_inner(
             report.edition_rewrites = upgrade::rewrite_entities(doc, &mut edit, &excluded);
         }
         let (repairs, added_dimensions) =
-            upgrade::repair(doc, &mut edit, &excluded, emitted_dimensions)?;
+            upgrade::repair(doc, &mut edit, &excluded, emitted_dimensions, json_upgrade)?;
         report.added += added_dimensions;
         repairs
     } else {
