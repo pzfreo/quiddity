@@ -421,9 +421,9 @@ These override anything below and any stream brief that says otherwise.
    instance must still pass the target table and no new `express_rules` violation may appear.
    Every other byte stays as it was, apart from `FILE_SCHEMA` and added instances; a repaired
    file's original record bytes are recoverable only through the report's original records.
-   An AP242 file stays AP242 and receives no upgrade repairs, apart from the
-   proposed JSON edition-upgrade R3 exception below (isolated for review, not
-   approved as a maintainer decision). Which corpus and NIST AP214/AP203
+   An AP242 file stays AP242 and receives no upgrade repairs, except R3 (below), which is
+   allowed only when the PMI being written requires a newer AP242 edition (decision
+   2026-11-03). Which corpus and NIST AP214/AP203
    files pass without repairs, pass with the listed repairs, or are refused is pinned per file;
    the original violations keep their verdicts and reasons.
 
@@ -2173,7 +2173,7 @@ AP242 models from committed fixtures. CI runs it with `json-import` on Linux;
 strict test. Both require empty identity differences without removing refused
 requirements, validate additions, and compare solid validity before and after.
 
-**Proposed R3 exception (separate review commit).** CTC-04's JSON owner SELECT
+**R3 exception (maintainer decision 2026-11-03: allowed when needed).** CTC-04's JSON owner SELECT
 requires a newer AP242 edition. Without R3, the edition upgrade fails structural
 validation on 46 `INTEGER_REPRESENTATION_ITEM` records whose
 `literal_number.the_value` is REAL where the target requires INTEGER (first:
@@ -2181,9 +2181,9 @@ validation on 46 `INTEGER_REPRESENTATION_ITEM` records whose
 
 R3 writes only finite, exactly integral REAL values within ±2^53 as INTEGERs;
 it never rounds fractional values or relaxes schema validation. Each repair
-records the exact original and new entity text. This exception changes the
-AP242 no-repairs decision and remains proposed, isolated so it can be dropped
-without losing the reader, unit-transfer, qualifier or finding fixes.
+records the exact original and new entity text. R3 is used only on an edition
+upgrade that the written PMI requires; an AP242 file written in its own edition
+receives no repairs.
 
 The reader binding advances to `haecceity-pmi-read/17` because absent-value
 findings and anonymous unit identities change. The interchange schema remains /1.

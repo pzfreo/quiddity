@@ -17,9 +17,9 @@ in [docs/alpha1.md](docs/alpha1.md).
   auxiliary support shared with unread PMI, rebinding only equal replacement
   datums, and reports it as `WriteReport.retained_shared`.
 
-- Proposed JSON-driven AP242 edition-upgrade repair R3 retains exact integral values
-  in INTEGER representation items written as REALs; `UpgradeRepairKind` gains
-  `R3IntegerLiteral`. Isolated in a separate review commit, pending the maintainer decision.
+- Upgrade repair R3: when the written PMI requires a newer AP242 edition, INTEGER
+  representation items written as exactly integral REALs are written as INTEGERs, each
+  reported; `UpgradeRepairKind` gains `R3IntegerLiteral`. NIST CTC-04 needs it.
 
 ## 0.4.6 (2026-11-03)
 
