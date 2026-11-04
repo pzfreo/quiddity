@@ -1,6 +1,6 @@
 //! A lossless Part 21 (ISO 10303-21) document: the file's own bytes, every DATA instance's id,
 //! parsed record and exact byte range, and edits (add, replace, remove instances; change
-//! `FILE_SCHEMA`) written so that every untouched byte is copied unchanged. With no edit, the
+//! `FILE_SCHEMA` and append `FILE_DESCRIPTION` entries) written so untouched bytes are copied unchanged. With no edit, the
 //! output is the input. It knows nothing about any schema or about PMI.
 //!
 //! Records are step-io's [`RawEntity`]. [`Attribute::String`] contains decoded Unicode
@@ -306,6 +306,7 @@ enum Op {
     Rename(u64, String),
     Remove(u64),
     FileSchema(Vec<String>),
+    FileDescription(String),
 }
 
 impl Edit {
@@ -341,6 +342,11 @@ impl Edit {
     /// [`Document::file_schema`] returns them).
     pub fn set_file_schema(&mut self, schemas: Vec<String>) {
         self.ops.push(Op::FileSchema(schemas));
+    }
+
+    /// Append a missing description entry, preserving existing entries and implementation level.
+    pub(crate) fn add_file_description(&mut self, description: &str) {
+        self.ops.push(Op::FileDescription(description.into()));
     }
 
     #[must_use]
@@ -553,6 +559,7 @@ impl Document {
         let mut renamed = BTreeMap::new();
         let mut removed: BTreeSet<u64> = BTreeSet::new();
         let mut schema: Option<&Vec<String>> = None;
+        let mut descriptions = Vec::new();
         for op in &edit.ops {
             match op {
                 Op::Replace(id, _) | Op::Rename(id, _) | Op::Remove(id) => {
@@ -584,6 +591,7 @@ impl Document {
                         }
                     }
                 }
+                Op::FileDescription(s) => descriptions.push(s),
                 Op::FileSchema(s) => {
                     if schema.replace(s).is_some() {
                         return Err(P21Error::EditedTwice(None));
@@ -727,6 +735,45 @@ impl Document {
             let list = Attribute::List(schemas.iter().cloned().map(Attribute::String).collect());
             let text = format!("FILE_SCHEMA({});", encode_attribute_text(&list)?);
             patches.push((self.header_spans[at].clone(), text));
+        }
+        if !descriptions.is_empty() {
+            let at = self
+                .graph
+                .header
+                .iter()
+                .position(
+                    |h| matches!(h, RawEntity::Simple { name, .. } if name == "FILE_DESCRIPTION"),
+                )
+                .ok_or_else(|| P21Error::Parse("no FILE_DESCRIPTION".into()))?;
+            let RawEntity::Simple { attributes, .. } = &self.graph.header[at] else {
+                return Err(P21Error::Parse(
+                    "FILE_DESCRIPTION is not a simple record".into(),
+                ));
+            };
+            let mut attributes = attributes.clone();
+            let Some(Attribute::List(entries)) = attributes.first_mut() else {
+                return Err(P21Error::Parse(
+                    "FILE_DESCRIPTION has no description list".into(),
+                ));
+            };
+            let mut changed = false;
+            for description in descriptions {
+                let entry = Attribute::String(description.clone());
+                if !entries.contains(&entry) {
+                    entries.push(entry);
+                    changed = true;
+                }
+            }
+            if changed {
+                let args = attributes
+                    .iter()
+                    .map(encode_attribute_text)
+                    .collect::<Result<Vec<_>, _>>()?;
+                patches.push((
+                    self.header_spans[at].clone(),
+                    format!("FILE_DESCRIPTION({});", args.join(",")),
+                ));
+            }
         }
         if !edit.adds.is_empty() {
             let Some(&(_, endsec)) = self.data_sections.last() else {

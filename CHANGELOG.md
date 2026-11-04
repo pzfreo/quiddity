@@ -6,6 +6,8 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+- **PMI presentation conformance (CAx-IF PMI 4.1):** source leaders use tessellated subsets alongside their callouts; placeholders carry a direct axis placement, standard PMI type names and semantic links. Alignment moves from visible placeholder names to AP242 application identification metadata; older files remain readable. PMI writes append the recommended-practice header reference without replacing existing descriptions.
+
 ## 0.4.7 (2026-11-04)
 
 Upgrading from 0.4.6: recognition schema `/6`, fingerprints `/3` and the `haecceity.pmi/1` schema are unchanged. The PMI reader string moves from `haecceity-pmi-read/15` to `/17`.

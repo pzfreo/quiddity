@@ -4771,7 +4771,9 @@ fn written_files_are_the_writers_current_output() {
             committed == bytes,
             "{name}: the writer's output changed; run export_written_files and tools/check_pmi_occt.py"
         );
-        assert_composite_components(&Document::parse(bytes).unwrap());
+        let doc = Document::parse(bytes).unwrap();
+        common::pmi_conformance::assert_conforms(&doc);
+        assert_composite_components(&doc);
     }
 }
 
@@ -5240,7 +5242,7 @@ fn conversion_dimensions_that_cannot_be_determined_are_refused() {
 }
 
 /// Check the report's exact records and all intervening original bytes (including comments
-/// and whitespace); only FILE_SCHEMA, repaired records and appended instances may differ.
+/// and whitespace); only FILE_SCHEMA, the RP description, repaired records and additions may differ.
 fn assert_repair_bytes(before: &Document, after: &Document, report: &WriteReport) {
     let repaired: BTreeSet<u64> = report.repairs.iter().map(|r| r.id).collect();
     for id in before.ids() {
@@ -5265,11 +5267,11 @@ fn assert_repair_bytes(before: &Document, after: &Document, report: &WriteReport
     }
     // Reconstruct the output directly from original bytes plus the reported replacements,
     // the schema replacement and exactly the added records. This also verifies non-record bytes.
-    let schema_span = |doc: &Document| {
+    let header_span = |doc: &Document, keyword: &[u8]| {
         let start = doc
             .bytes()
-            .windows(11)
-            .position(|w| w == b"FILE_SCHEMA")
+            .windows(keyword.len())
+            .position(|w| w == keyword)
             .unwrap();
         let end = start
             + doc.bytes()[start..]
@@ -5284,10 +5286,12 @@ fn assert_repair_bytes(before: &Document, after: &Document, report: &WriteReport
         .iter()
         .map(|r| (before.span(r.id).unwrap(), r.new_record.as_bytes().to_vec()))
         .collect();
-    replacements.push((
-        schema_span(before),
-        after.bytes()[schema_span(after)].to_vec(),
-    ));
+    for keyword in [b"FILE_SCHEMA".as_slice(), b"FILE_DESCRIPTION".as_slice()] {
+        replacements.push((
+            header_span(before, keyword),
+            after.bytes()[header_span(after, keyword)].to_vec(),
+        ));
+    }
     replacements.sort_by_key(|(span, _)| span.start);
     let mut expected = before.bytes().to_vec();
     for (span, text) in replacements.into_iter().rev() {
@@ -9624,4 +9628,62 @@ fn projected_zone_without_end_geometry_keeps_its_fact() {
     assert_eq!(after.len(), 1);
     assert_eq!(after[0].detail, facts[0].detail);
     assert!(after[0].preserved_fact(&before.findings, &w.read.findings));
+}
+
+#[test]
+fn writer_outputs_obey_cax_if_presentation_structure() {
+    for (name, bytes) in written_cases() {
+        let bytes = bytes.unwrap_or_else(|| panic!("{name}: input missing"));
+        let doc = Document::parse(bytes).unwrap();
+        let issues = common::pmi_conformance::issues(&doc);
+        assert!(issues.is_empty(), "{name}: {issues:#?}");
+    }
+}
+
+#[test]
+fn pmi_header_reference_preserves_other_content_and_is_idempotent() {
+    let f = gap_spool();
+    let pmi = common::pmi_gaps::every_kind();
+    let w = written(&f, &pmi);
+    let header = |doc: &Document| {
+        doc.header()
+            .iter()
+            .find_map(|h| match h {
+                RawEntity::Simple {
+                    name, attributes, ..
+                } if name == "FILE_DESCRIPTION" => Some(attributes.clone()),
+                _ => None,
+            })
+            .unwrap()
+    };
+    let before = header(&f.doc);
+    let after = header(&w.doc);
+    assert_eq!(&after[1..], &before[1..]);
+    let (Attribute::List(old), Attribute::List(new)) = (&before[0], &after[0]) else {
+        unreachable!()
+    };
+    assert_eq!(&new[..old.len()], old);
+    assert_eq!(
+        new.last(),
+        Some(&Attribute::String(common::pmi_conformance::PMI_RP.into()))
+    );
+    for record in f.doc.header() {
+        if !matches!(record, RawEntity::Simple { name, .. } if name == "FILE_DESCRIPTION" || name == "FILE_SCHEMA")
+        {
+            let RawEntity::Simple {
+                name, attributes, ..
+            } = record
+            else {
+                unreachable!()
+            };
+            assert!(w.doc.header().iter().any(|after| matches!(after,
+                RawEntity::Simple { name: n, attributes: a, .. } if n == name && a == attributes)));
+        }
+    }
+    let f = File {
+        parts: read_part_definitions(w.doc.bytes()).unwrap(),
+        doc: w.doc,
+    };
+    let again = write(&f, &[(PartId(0), pmi)], Mode::Replace).unwrap();
+    assert_eq!(header(&again.doc), after);
 }

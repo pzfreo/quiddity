@@ -129,6 +129,7 @@ fn positions_planes_leaders_and_individual_notes_read_back() {
     let source = input(&semantic);
     presentation::validate(&serde_json::to_value(&source).unwrap()).unwrap();
     let (bytes, _) = write(&doc, &defs, &semantic, source.clone()).unwrap();
+    common::pmi_conformance::assert_conforms(&Document::parse(bytes.clone()).unwrap());
     let read = read_placed(bytes);
     {
         let callout = haecceity::presentation::dimension(&semantic.pmi.dimensions[0]);
@@ -942,4 +943,167 @@ fn string_post_short_dimension_does_not_push_notes_out_of_empty_space() {
             }
         }
     }
+}
+
+#[test]
+fn placed_notes_alignment_and_leaders_survive_two_writes() {
+    let (doc, defs, semantic) = cube();
+    let mut source = input(&semantic);
+    for graphics in source.items.values_mut() {
+        graphics[0].text_placements[0].alignment = Some("top right".into());
+    }
+    let (first, _) = write(&doc, &defs, &semantic, source).unwrap();
+    let placed = read_placed(first.clone());
+    let defs = read_part_definitions(&first).unwrap();
+    let doc = Document::parse(first).unwrap();
+    let read = pmi::read(&doc, &defs).unwrap();
+    let semantic = json::identify(read.parts[0].clone(), Some(&read.identifiers.parts[0])).unwrap();
+    let (second, _) = write(&doc, &defs, &semantic, placed.clone()).unwrap();
+    let doc = Document::parse(second.clone()).unwrap();
+    common::pmi_conformance::assert_conforms(&doc);
+    let reread = read_placed(second.clone());
+    for (id, graphics) in &placed.items {
+        let first = &graphics[0];
+        let next = &reread.items[id][0];
+        assert_eq!(next.text_placements, first.text_placements, "{id}");
+        assert_eq!(next.leader, first.leader, "{id}");
+        assert_eq!(next.polylines, first.polylines, "{id}");
+    }
+    let read = pmi::read(&doc, &defs).unwrap();
+    assert_eq!(read.parts[0].notes, semantic.pmi.notes);
+    // Optional live XCAF probe, using the repository's existing OCP environment.
+    if let Ok(path) = std::env::var("QUIDDITY_SFA_SYNTHETIC_OUTPUT") {
+        std::fs::write(path, second).unwrap();
+    }
+}
+
+#[test]
+fn older_placeholder_names_still_supply_alignment() {
+    let (doc, defs, semantic) = cube();
+    let (bytes, _) = write(&doc, &defs, &semantic, input(&semantic)).unwrap();
+    let doc = Document::parse(bytes).unwrap();
+    let mut edit = haecceity::p21::Edit::new();
+    for id in doc
+        .ids()
+        .filter(|&id| common::pmi_usage::is_a(&doc, id, "annotation_placeholder_occurrence"))
+    {
+        let mut record = doc.get(id).unwrap().clone();
+        if let haecceity::p21::RawEntity::Simple { attributes, .. } = &mut record {
+            attributes[0] =
+                haecceity::p21::Attribute::String("haecceity placed text: top right".into());
+        }
+        edit.replace(id, record);
+    }
+    let read = read_placed(doc.apply(&edit).unwrap().bytes);
+    assert!(
+        read.items
+            .values()
+            .flatten()
+            .flat_map(|g| &g.text_placements)
+            .any(|p| p.alignment.as_deref() == Some("top right"))
+    );
+}
+
+#[test]
+fn conformance_check_detects_each_sfa_regression() {
+    use haecceity::p21::{Attribute as A, Edit, RawEntity};
+    let (doc, defs, semantic) = cube();
+    let (bytes, _) = write(&doc, &defs, &semantic, input(&semantic)).unwrap();
+    let doc = Document::parse(bytes).unwrap();
+    let placeholder = doc
+        .ids()
+        .find(|&id| common::pmi_usage::is_a(&doc, id, "annotation_placeholder_occurrence"))
+        .unwrap();
+    let set = common::pmi_usage::reference(&doc, placeholder, "styled_item", "item").unwrap();
+    let tao = doc
+        .ids()
+        .find(|&id| common::pmi_usage::is_a(&doc, id, "tessellated_annotation_occurrence"))
+        .unwrap();
+    let tset = common::pmi_usage::reference(&doc, tao, "styled_item", "item").unwrap();
+    for fault in 0..6 {
+        let mut edit = Edit::new();
+        let id = match fault {
+            0 => tao,
+            1 | 2 => set,
+            3 => tset,
+            4 => placeholder,
+            _ => tao,
+        };
+        let mut record = doc.get(id).unwrap().clone();
+        let RawEntity::Simple {
+            name, attributes, ..
+        } = &mut record
+        else {
+            unreachable!()
+        };
+        match fault {
+            0 => {
+                *name = "ANNOTATION_CURVE_OCCURRENCE".into();
+                let point = doc
+                    .ids()
+                    .find(|&id| common::pmi_usage::is_a(&doc, id, "cartesian_point"))
+                    .unwrap();
+                let line = edit.add(haecceity::p21::simple(
+                    "POLYLINE",
+                    vec![
+                        A::String("".into()),
+                        A::List(vec![A::EntityRef(point), A::EntityRef(point)]),
+                    ],
+                ));
+                attributes[2] = line.to_ref();
+            }
+            1 => {
+                if let A::List(members) = &mut attributes[1] {
+                    members.retain(|a| !matches!(a, A::EntityRef(r) if common::pmi_usage::is_a(&doc, *r, "axis2_placement_3d")));
+                }
+            }
+            2 => attributes[0] = A::String("".into()),
+            3 => attributes[0] = A::String("feature note".into()),
+            4 => attributes[0] = A::String("haecceity placed text: centre".into()),
+            _ => {
+                *name = "ANNOTATION_CURVE_OCCURRENCE".into();
+                // Valid ACO item, but an invalid mixture with the other TAOs.
+                let point = doc
+                    .ids()
+                    .find(|&id| common::pmi_usage::is_a(&doc, id, "cartesian_point"))
+                    .unwrap();
+                let line = edit.add(haecceity::p21::simple(
+                    "POLYLINE",
+                    vec![
+                        A::String("".into()),
+                        A::List(vec![A::EntityRef(point), A::EntityRef(point)]),
+                    ],
+                ));
+                let set = edit.add(haecceity::p21::simple(
+                    "GEOMETRIC_CURVE_SET",
+                    vec![A::String("note".into()), A::List(vec![line.to_ref()])],
+                ));
+                attributes[2] = set.to_ref();
+            }
+        }
+        edit.replace(id, record);
+        let bad = Document::parse(doc.apply(&edit).unwrap().bytes).unwrap();
+        let issues = common::pmi_conformance::issues(&bad);
+        let expected = [
+            "item must be",
+            "missing direct axis",
+            "Table 18",
+            "Table 18",
+            "transport data",
+            "mixed ACO",
+        ][fault];
+        assert!(
+            issues.iter().any(|i| i.contains(expected)),
+            "fault {fault}: {issues:?}"
+        );
+    }
+    let no_ref = String::from_utf8(doc.bytes().to_vec()).unwrap().replace(
+        common::pmi_conformance::PMI_RP,
+        "unrelated header description",
+    );
+    assert!(
+        common::pmi_conformance::issues(&Document::parse(no_ref.into_bytes()).unwrap())
+            .iter()
+            .any(|i| i.contains("§1.2"))
+    );
 }

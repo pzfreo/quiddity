@@ -757,6 +757,18 @@ pub fn instance_family(doc: &Document, id: u64) -> Family {
     if family != Family::Other {
         return family;
     }
+    // Application placement keys belong to their placeholder, not semantic PMI.
+    if let RawEntity::Simple {
+        name, attributes, ..
+    } = e
+        && TARGET.is_a(name, "applied_identification_assignment")
+        && let Some(Attribute::EntityRef(role)) = attributes.get(1)
+        && matches!(doc.get(*role), Some(RawEntity::Simple { name, attributes, .. })
+            if name == "IDENTIFICATION_ROLE" && matches!(attributes.first(), Some(Attribute::String(s))
+                if s == "haecceity.presentation/1 text alignment"))
+    {
+        return Family::Presentation;
+    }
     let validation_property = |t: u64| {
         doc.get(t).is_some_and(|d| match d {
             RawEntity::Simple {

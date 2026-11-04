@@ -8,6 +8,7 @@ pub mod drawing;
 pub mod ink;
 #[path = "../../../../tests/common/parallel.rs"]
 pub mod parallel;
+pub mod pmi_conformance;
 pub mod pmi_datums;
 pub mod pmi_gaps;
 pub mod pmi_targets;

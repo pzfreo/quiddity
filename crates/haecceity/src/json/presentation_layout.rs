@@ -223,32 +223,46 @@ pub(super) fn placeholder(
             "#{id}: non-positive or unresolved placeholder line spacing"
         ));
     }
+    // RP 7.2.2 requires a direct axis placement. A box can repeat that
+    // placement; report one insertion frame, retaining older box-only files.
+    let axis = members
+        .iter()
+        .copied()
+        .find(|&r| is(doc, r, "axis2_placement_3d"));
+    let box_id = members.iter().copied().find(|&r| is(doc, r, "planar_box"));
+    let frame = axis.and_then(|r| placement(doc, r)).or_else(|| {
+        box_id
+            .and_then(|r| reference(attr(doc, r, "planar_box", "placement")))
+            .and_then(|r| placement(doc, r))
+    });
     let mut found = false;
-    for member in members {
-        let frame = if is(doc, member, "planar_box") {
-            reference(attr(doc, member, "planar_box", "placement"))
-                .and_then(|id| placement(doc, id))
-        } else {
-            placement(doc, member)
-        };
-        if let Some(frame) = frame
-            && let Some(mut placed) = TextPlacement::at(transform.then(frame), scale)
-        {
-            placed.line_spacing =
-                spacing.map(|height| height * scale * geom::norm(transform.axes[1]));
-            if is(doc, member, "planar_box") {
-                placed.height = positive(attr(doc, member, "planar_extent", "size_in_y"))
-                    .map(|height| height * scale * geom::norm(transform.axes[1]));
-            }
-            if let Some(alignment) = text(attr(doc, id, "representation_item", "name"))
-                .strip_prefix("haecceity placed text: ")
-            {
-                placed.alignment = Some(alignment.into());
-            }
-            graphic.step_ids.push(member);
-            graphic.text_placements.push(placed);
-            found = true;
-        }
+    if let Some(frame) = frame
+        && let Some(mut placed) = TextPlacement::at(transform.then(frame), scale)
+    {
+        placed.line_spacing = spacing.map(|height| height * scale * geom::norm(transform.axes[1]));
+        placed.height = box_id
+            .and_then(|r| positive(attr(doc, r, "planar_extent", "size_in_y")))
+            .map(|height| height * scale * geom::norm(transform.axes[1]));
+        placed.alignment = doc
+            .referrers(id)
+            .iter()
+            .find_map(|&r| {
+                if !is(doc, r, "applied_identification_assignment") {
+                    return None;
+                }
+                let role = reference(attr(doc, r, "identification_assignment", "role"))?;
+                (text(attr(doc, role, "identification_role", "name"))
+                    == "haecceity.presentation/1 text alignment")
+                    .then(|| text(attr(doc, r, "identification_assignment", "assigned_id")))
+            })
+            .or_else(|| {
+                text(attr(doc, id, "representation_item", "name"))
+                    .strip_prefix("haecceity placed text: ")
+                    .map(str::to_owned)
+            });
+        graphic.step_ids.extend(axis.into_iter().chain(box_id));
+        graphic.text_placements.push(placed);
+        found = true;
     }
     graphic.unsupported.push(format!(
         "#{id}: placeholder has no editable literal{}",
