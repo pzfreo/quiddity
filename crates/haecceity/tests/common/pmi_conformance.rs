@@ -113,6 +113,22 @@ pub fn issues(doc: &Document) -> Vec<String> {
                     "§8.4: #{item} annotation set name is not in Table 18"
                 ));
             }
+            if occurrence == "tessellated_annotation_occurrence"
+                && let Some(item) = item
+            {
+                for curve in refs(attr(doc, item, "tessellated_geometric_set", "children")) {
+                    if is_a(doc, curve, "tessellated_curve_set") {
+                        let name = attr(doc, curve, "representation_item", "name");
+                        if name != Some(&A::String("haecceity leader".into()))
+                            && name != attr(doc, item, "representation_item", "name")
+                        {
+                            issues.push(format!(
+                                "§8.4: #{curve} curve name differs from its annotation set"
+                            ));
+                        }
+                    }
+                }
+            }
             if occurrence == "annotation_placeholder_occurrence" {
                 let members = item
                     .map(|r| refs(attr(doc, r, "geometric_set", "elements")))

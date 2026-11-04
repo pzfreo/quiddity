@@ -1206,7 +1206,13 @@ fn write_inner(
 
     if added > 0 {
         // CAx-IF PMI 4.1 §1.2; preserve the input's other header entries.
-        edit.add_file_description("CAx-IF Rec.Pracs.---Representation and Presentation of Product Manufacturing Information (PMI)---4.1---2024-06-20");
+        edit.set_file_description_reference(
+            "CAx-IF Rec.Pracs.---Representation and Presentation of Product Manufacturing Information (PMI)---4.1---2024-06-20",
+            &[
+                "CAx-IF Rec.Pracs.---Representation and Presentation of Product Manufacturing Information (PMI)---",
+                "CAx-IF Rec.Pracs.---Representation and Presentation of PMI",
+            ],
+        );
     }
 
     // The backstop: apply, validate what was made, compare the rules.
@@ -4861,9 +4867,11 @@ impl<'a> PartPlan<'a> {
         let mut callouts = Vec::new();
         #[cfg(all(feature = "json-import", feature = "presentation"))]
         let mut placeholders = BTreeMap::new();
+        #[cfg(all(feature = "json-import", feature = "presentation"))]
+        let mut alignment_role = None;
         for (definition, annotation_type, name, [origin, normal, along], lines) in graphics {
-            // Solid Edge uses these names in its tree. Keep the full note wording
-            // with the drawn curves, independently of the short annotation title.
+            // Solid Edge uses the callout title in its tree. Note wording also
+            // remains in the semantic text and the drawn curves.
             let title = if annotation_type == "note" {
                 "General notes"
             } else {
@@ -4908,6 +4916,7 @@ impl<'a> PartPlan<'a> {
                 } else {
                     vec![(source_lines.as_slice(), false)]
                 };
+                let first_occurrence = occurrences.len();
                 for (source_lines, leader) in subsets {
                     // Blank note rows still occupy their measured height in the block,
                     // but AP242 tessellated_curve_set requires nonempty line strips.
@@ -4943,17 +4952,8 @@ impl<'a> PartPlan<'a> {
                                 "name",
                                 s(if leader {
                                     "haecceity leader"
-                                } else if annotation_type == "note"
-                                    && super::text::literal_len(&name) <= MAX_STRING_LITERAL_BYTES
-                                {
-                                    &name
-                                } else if annotation_type == "note" {
-                                    // This generated label duplicates the semantic text. The
-                                    // full wording remains in bounded descriptive items and
-                                    // in the drawn curves; a schema label cannot be chunked.
-                                    "General notes"
                                 } else {
-                                    annotation_type
+                                    presented_type(annotation_type)
                                 }),
                             ),
                             ("coordinates", list.a()),
@@ -4976,9 +4976,11 @@ impl<'a> PartPlan<'a> {
                         ],
                     )?;
                     occurrences.push(occurrence);
-                    if annotation_type == "note" {
-                        callouts.push((vec![definition], occurrence, annotation_type));
-                    }
+                }
+                if annotation_type == "note"
+                    && let Some(&occurrence) = occurrences.get(first_occurrence)
+                {
+                    callouts.push((vec![definition], occurrence, annotation_type));
                 }
             }
             #[cfg(all(feature = "json-import", feature = "presentation"))]
@@ -4991,6 +4993,7 @@ impl<'a> PartPlan<'a> {
                         source_height,
                         title,
                         presented_type(annotation_type),
+                        &mut alignment_role,
                     )?;
                     occurrences.push(placeholder);
                     Some(placeholder)

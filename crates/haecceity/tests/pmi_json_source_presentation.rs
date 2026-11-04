@@ -9,76 +9,10 @@ use haecceity::{
     pmi::{self, *},
     step::read_part_definitions,
 };
-use serde_json::json;
 use std::io::Read;
 
-fn cube() -> (
-    Document,
-    Vec<haecceity::step::PartDefinition>,
-    json::Semantic,
-) {
-    let bytes = std::fs::read(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../tests/fixtures/ties/cube.step"
-    ))
-    .unwrap();
-    let defs = read_part_definitions(&bytes).unwrap();
-    let doc = Document::parse(bytes).unwrap();
-    let p = PartPmi {
-        features: vec![Feature::Items(vec![Anchor::Face(FaceIndex(0))])],
-        datums: vec![
-            Datum::new(DatumLabel::new("A").unwrap(), Some(FeatureId(0)), vec![]).unwrap(),
-        ],
-        dimensions: vec![Dimension {
-            kind: DimensionKind::Size {
-                feature: FeatureId(0),
-                kind: SizeKind::Thickness,
-                path: None,
-                angle: None,
-            },
-            nominal: Some(Value::length(
-                Decimal::parse("10.000").unwrap(),
-                LengthUnit::Millimetre,
-            )),
-            tolerance: DimTolerance::Basic,
-            qualifier: None,
-            modifiers: vec![],
-            principle: None,
-        }],
-        notes: vec![
-            Note {
-                kind: "general note".into(),
-                text: "FLAG 1 MASK BEFORE COATING".into(),
-                on: Some(NoteOwner::Feature(FeatureId(0))),
-                callouts: vec![],
-            },
-            Note {
-                kind: "general note".into(),
-                text: "PLACED GENERAL NOTE".into(),
-                on: None,
-                callouts: vec![],
-            },
-            Note {
-                kind: "general note".into(),
-                text: "UNPLACED GENERAL NOTE".into(),
-                on: None,
-                callouts: vec![],
-            },
-        ],
-        ..Default::default()
-    };
-    (doc, defs, json::identify(p, None).unwrap())
-}
-fn graphic(origin: [f64; 3]) -> serde_json::Value {
-    json!({"source":"file", "name":"source", "polylines":[], "triangles":[], "text":[], "step_ids":[], "unsupported":[], "plane_id":"source-plane", "leader":[1.,2.,3.], "text_placements":[{"origin":origin,"x_axis":[1.,0.,0.],"normal":[0.,0.,1.],"height":2.5}]})
-}
-fn input(semantic: &json::Semantic) -> Presentation {
-    serde_json::from_value(json!({"schema":"haecceity.presentation/1","length_unit":"millimetre","semantic_ids":[], "items": {
-        semantic.ids["dimensions"][0].clone(): [graphic([80.,90.,70.])],
-        semantic.ids["notes"][0].clone(): [graphic([100.,110.,70.])],
-        semantic.ids["notes"][1].clone(): [graphic([140.,110.,70.])],
-    }, "unlinked":[], "planes":[{"id":"source-plane","name":"source","origin":[0.,0.,70.],"x_axis":[1.,0.,0.],"normal":[0.,0.,1.]}]})).unwrap()
-}
+use common::pmi_source::{cube, graphic, input};
+
 fn read_placed(bytes: Vec<u8>) -> Presentation {
     let defs = read_part_definitions(&bytes).unwrap();
     let doc = Document::parse(bytes).unwrap();
@@ -1106,4 +1040,110 @@ fn conformance_check_detects_each_sfa_regression() {
             .iter()
             .any(|i| i.contains("§1.2"))
     );
+}
+
+#[test]
+fn placeholder_roles_follow_rp_and_ap242_semantic_carriers() {
+    use common::pmi_usage::{attr, is_a, reference};
+    use haecceity::p21::Attribute as A;
+    let doc = Document::parse(common::pmi_source::written()).unwrap();
+    let mut roles = std::collections::BTreeMap::new();
+    for id in doc
+        .ids()
+        .filter(|&r| is_a(&doc, r, "annotation_placeholder_occurrence"))
+    {
+        let set = reference(&doc, id, "styled_item", "item").unwrap();
+        let Some(A::String(kind)) = attr(&doc, set, "representation_item", "name") else {
+            panic!("kind")
+        };
+        let Some(A::Enum(role)) = attr(&doc, id, "annotation_placeholder_occurrence", "role")
+        else {
+            panic!("role")
+        };
+        if kind == "datum" {
+            assert_eq!(role, "ANNOTATION_TEXT"); // Datum-feature label, not a DATUM carrier.
+        } else {
+            assert_eq!(role, "GPS_DATA");
+        }
+        let associations: Vec<_> = doc
+            .referrers(id)
+            .iter()
+            .copied()
+            .filter(|&r| {
+                is_a(
+                    &doc,
+                    r,
+                    "draughting_model_item_association_with_placeholder",
+                )
+            })
+            .collect();
+        assert_eq!(associations.len(), 1, "APO inverse cardinality");
+        if kind == "note" {
+            let definition = reference(
+                &doc,
+                associations[0],
+                "item_identified_representation_usage",
+                "definition",
+            )
+            .unwrap();
+            assert!(is_a(&doc, definition, "property_definition"));
+            // RP 7.2.2 + AP242 APO.WR2 / md_pmi_name_and_type_correlation:
+            // semantic notes are GPS_DATA, not unassociated annotation text.
+        }
+        *roles.entry(kind.clone()).or_insert(0) += 1;
+    }
+    assert_eq!(roles["datum"], 1);
+    assert_eq!(roles["linear dimension"], 1);
+    assert_eq!(roles["note"], 2);
+    let alignment_roles = doc
+        .ids()
+        .filter(|&id| {
+            is_a(&doc, id, "identification_role")
+                && attr(&doc, id, "identification_role", "name")
+                    == Some(&A::String("haecceity.presentation/1 text alignment".into()))
+        })
+        .count();
+    assert_eq!(alignment_roles, 1, "one role is shared by all placements");
+}
+
+#[test]
+fn leader_subsets_do_not_duplicate_semantic_associations() {
+    use common::pmi_usage::{is_a, reference};
+    let doc = Document::parse(common::pmi_source::written()).unwrap();
+    let mut unique = std::collections::BTreeSet::new();
+    for id in doc
+        .ids()
+        .filter(|&r| is_a(&doc, r, "draughting_model_item_association"))
+    {
+        let model = reference(
+            &doc,
+            id,
+            "item_identified_representation_usage",
+            "used_representation",
+        )
+        .unwrap();
+        let definition = reference(
+            &doc,
+            id,
+            "item_identified_representation_usage",
+            "definition",
+        )
+        .unwrap();
+        assert!(
+            unique.insert((model, definition)),
+            "DMIA/IIRU.UR2 duplicated #{id}"
+        );
+    }
+    assert!(!unique.is_empty());
+    let leader_sets = doc
+        .ids()
+        .filter(|&id| {
+            is_a(&doc, id, "tessellated_curve_set")
+                && common::pmi_usage::attr(&doc, id, "representation_item", "name")
+                    == Some(&haecceity::p21::Attribute::String(
+                        "haecceity leader".into(),
+                    ))
+        })
+        .count();
+    assert_eq!(leader_sets, 4);
 }

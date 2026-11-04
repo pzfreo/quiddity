@@ -306,7 +306,7 @@ enum Op {
     Rename(u64, String),
     Remove(u64),
     FileSchema(Vec<String>),
-    FileDescription(String),
+    FileDescription(String, Vec<String>),
 }
 
 impl Edit {
@@ -344,9 +344,13 @@ impl Edit {
         self.ops.push(Op::FileSchema(schemas));
     }
 
-    /// Append a missing description entry, preserving existing entries and implementation level.
-    pub(crate) fn add_file_description(&mut self, description: &str) {
-        self.ops.push(Op::FileDescription(description.into()));
+    /// Best-effort reference update: replace matching older references, or append
+    /// when absent. Missing/malformed descriptions and unchanged bytes are retained.
+    pub(crate) fn set_file_description_reference(&mut self, description: &str, prefixes: &[&str]) {
+        self.ops.push(Op::FileDescription(
+            description.into(),
+            prefixes.iter().map(|s| (*s).into()).collect(),
+        ));
     }
 
     #[must_use]
@@ -591,7 +595,9 @@ impl Document {
                         }
                     }
                 }
-                Op::FileDescription(s) => descriptions.push(s),
+                Op::FileDescription(s, prefixes) => {
+                    descriptions.push((s.as_str(), prefixes.as_slice()))
+                }
                 Op::FileSchema(s) => {
                     if schema.replace(s).is_some() {
                         return Err(P21Error::EditedTwice(None));
@@ -736,44 +742,22 @@ impl Document {
             let text = format!("FILE_SCHEMA({});", encode_attribute_text(&list)?);
             patches.push((self.header_spans[at].clone(), text));
         }
-        if !descriptions.is_empty() {
-            let at = self
-                .graph
-                .header
+        let description_at = self.graph.header.iter().position(
+            |h| matches!(h, RawEntity::Simple { name, .. } if name == "FILE_DESCRIPTION"),
+        );
+        let updated = file_description_attributes(
+            description_at.map(|at| &self.graph.header[at]),
+            &descriptions,
+        );
+        if let (Some(at), Some(attributes)) = (description_at, updated) {
+            let args = attributes
                 .iter()
-                .position(
-                    |h| matches!(h, RawEntity::Simple { name, .. } if name == "FILE_DESCRIPTION"),
-                )
-                .ok_or_else(|| P21Error::Parse("no FILE_DESCRIPTION".into()))?;
-            let RawEntity::Simple { attributes, .. } = &self.graph.header[at] else {
-                return Err(P21Error::Parse(
-                    "FILE_DESCRIPTION is not a simple record".into(),
-                ));
-            };
-            let mut attributes = attributes.clone();
-            let Some(Attribute::List(entries)) = attributes.first_mut() else {
-                return Err(P21Error::Parse(
-                    "FILE_DESCRIPTION has no description list".into(),
-                ));
-            };
-            let mut changed = false;
-            for description in descriptions {
-                let entry = Attribute::String(description.clone());
-                if !entries.contains(&entry) {
-                    entries.push(entry);
-                    changed = true;
-                }
-            }
-            if changed {
-                let args = attributes
-                    .iter()
-                    .map(encode_attribute_text)
-                    .collect::<Result<Vec<_>, _>>()?;
-                patches.push((
-                    self.header_spans[at].clone(),
-                    format!("FILE_DESCRIPTION({});", args.join(",")),
-                ));
-            }
+                .map(encode_attribute_text)
+                .collect::<Result<Vec<_>, _>>()?;
+            patches.push((
+                self.header_spans[at].clone(),
+                format!("FILE_DESCRIPTION({});", args.join(",")),
+            ));
         }
         if !edit.adds.is_empty() {
             let Some(&(_, endsec)) = self.data_sections.last() else {
@@ -1014,6 +998,40 @@ fn statement_end(b: &[u8], mut pos: usize, anchors: bool) -> Option<usize> {
         }
     }
     None
+}
+
+// The reference is advisory; absent or malformed headers never prevent a DATA
+// edit. Returning None also preserves every original header byte on a no-op.
+fn file_description_attributes(
+    header: Option<&RawEntity>,
+    descriptions: &[(&str, &[String])],
+) -> Option<Vec<Attribute>> {
+    let RawEntity::Simple { attributes, .. } = header? else {
+        return None;
+    };
+    let Attribute::List(entries) = attributes.first()? else {
+        return None;
+    };
+    let mut updated = entries.clone();
+    for (description, prefixes) in descriptions {
+        let mut seen = false;
+        updated = updated.into_iter().filter_map(|entry| {
+            if matches!(&entry, Attribute::String(s) if s == description || prefixes.iter().any(|p| s.starts_with(p))) {
+                if seen { return None; }
+                seen = true;
+                Some(Attribute::String((*description).into()))
+            } else { Some(entry) }
+        }).collect();
+        if !seen {
+            updated.push(Attribute::String((*description).into()));
+        }
+    }
+    if &updated == entries {
+        return None;
+    }
+    let mut attributes = attributes.clone();
+    attributes[0] = Attribute::List(updated);
+    Some(attributes)
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1437,5 +1455,26 @@ pub(crate) fn visit_attributes_mut(e: &mut RawEntity, f: &mut impl FnMut(&mut At
             .iter_mut()
             .flat_map(|p| &mut p.attributes)
             .for_each(|a| walk(a, f)),
+    }
+}
+
+#[cfg(test)]
+mod description_reference_tests {
+    use super::*;
+    #[test]
+    fn absent_or_non_list_description_skips_reference() {
+        let prefixes = vec!["reference---".into()];
+        let requests = [("reference---current", prefixes.as_slice())];
+        // step-io requires FILE_DESCRIPTION when parsing a complete file. The
+        // edit-layer fallback nevertheless accepts a missing header explicitly.
+        assert_eq!(file_description_attributes(None, &requests), None);
+        let malformed = simple(
+            "FILE_DESCRIPTION",
+            vec![Attribute::String("not a list".into())],
+        );
+        assert_eq!(
+            file_description_attributes(Some(&malformed), &requests),
+            None
+        );
     }
 }

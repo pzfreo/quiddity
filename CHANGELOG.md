@@ -6,6 +6,8 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+- **PMI conformance review:** make header references optional on malformed headers and replace older PMI references; preserve unchanged header bytes. Normalize curve names, deduplicate semantic links, and select placeholder roles by their AP242 carriers. Add a synthetic placed-text/leader OCCT golden and require every tolerance callout to receive geometry checks.
+
 - **PMI presentation conformance (CAx-IF PMI 4.1):** source leaders use tessellated subsets alongside their callouts; placeholders carry a direct axis placement, standard PMI type names and semantic links. Alignment moves from visible placeholder names to AP242 application identification metadata; older files remain readable. PMI writes append the recommended-practice header reference without replacing existing descriptions.
 
 ## 0.4.7 (2026-11-04)

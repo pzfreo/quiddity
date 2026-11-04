@@ -4429,6 +4429,11 @@ fn canonical_thumbwheel_input(f: File) -> File {
 /// onto their original corpus files. `None` for a case whose input is missing (the corpus).
 fn written_cases() -> Vec<(String, Option<Vec<u8>>)> {
     let mut out = Vec::new();
+    #[cfg(all(feature = "json-import", feature = "presentation"))]
+    out.push((
+        "source_placements_cube".into(),
+        Some(common::pmi_source::written()),
+    ));
     out.push((
         "pmi_gaps".into(),
         Some(
@@ -6634,6 +6639,7 @@ fn sample_datums_and_frames(doc: &Document, read: &PmiRead, def: &PartDefinition
             "{name}: interior face {face}, anchor={foot:?}, face normal={n:?}, annotation normal={plane_normal:?}"
         );
     }
+    let mut checked_tolerances = BTreeSet::new();
     for callout in doc.ids().filter(|&id| is(id, "draughting_callout")) {
         // A Table 18 name is a display category, not the semantic owner. In
         // particular, thread callouts use "label". Check every actual tolerance
@@ -6653,6 +6659,10 @@ fn sample_datums_and_frames(doc: &Document, read: &PmiRead, def: &PartDefinition
         else {
             continue;
         };
+        assert!(
+            checked_tolerances.insert(index),
+            "tolerance {index} checked twice"
+        );
         let lines = graphic_lines(doc, callout);
         let leader = lines.last().unwrap();
         let reach = leader
@@ -6691,6 +6701,11 @@ fn sample_datums_and_frames(doc: &Document, read: &PmiRead, def: &PartDefinition
             reach / largest
         );
     }
+    assert_eq!(
+        checked_tolerances.len(),
+        p.tolerances.len(),
+        "every tolerance must have a checked callout"
+    );
 }
 #[cfg(feature = "presentation")]
 fn measured_foot(
@@ -9691,4 +9706,94 @@ fn pmi_header_reference_preserves_other_content_and_is_idempotent() {
     };
     let again = write(&f, &[(PartId(0), pmi)], Mode::Replace).unwrap();
     assert_eq!(header(&again.doc), after);
+}
+
+fn header_fixture(description: Option<&str>) -> File {
+    let f = fixture("ties/cube.step");
+    let mut bytes = f.doc.bytes().to_vec();
+    let start = bytes
+        .windows(b"FILE_DESCRIPTION".len())
+        .position(|s| s == b"FILE_DESCRIPTION")
+        .unwrap();
+    let end = bytes
+        .windows(b"FILE_NAME".len())
+        .position(|s| s == b"FILE_NAME")
+        .unwrap();
+    let replacement = description.map_or_else(String::new, |s| format!("{s}\n"));
+    bytes.splice(start..end, replacement.bytes());
+    open_bytes(bytes)
+}
+fn header_material() -> PartPmi {
+    PartPmi {
+        material: Some(Material {
+            id: "synthetic material".into(),
+            name: None,
+            density: None,
+        }),
+        ..Default::default()
+    }
+}
+fn description_text(doc: &Document) -> Option<String> {
+    let text = std::str::from_utf8(doc.bytes()).unwrap();
+    let start = text.find("FILE_DESCRIPTION")?;
+    let end = text.find("FILE_NAME").unwrap();
+    Some(text[start..end].to_owned())
+}
+
+#[test]
+fn pmi_header_malformed_description_does_not_block_writes() {
+    let f = header_fixture(Some("FILE_DESCRIPTION( 'not a list' , '2;1' );"));
+    let w = written(&f, &header_material());
+    assert_eq!(description_text(&w.doc), description_text(&f.doc));
+    assert_eq!(
+        w.read.parts[0].material.as_ref().unwrap().id,
+        "synthetic material"
+    );
+}
+
+#[test]
+fn pmi_header_current_reference_retains_all_original_bytes() {
+    let description = format!(
+        "FILE_DESCRIPTION( ( /* keep */ '\\X2\\03B1\\X0\\' , '{}' ), '2;1' );",
+        common::pmi_conformance::PMI_RP
+    );
+    let f = header_fixture(Some(&description));
+    let w = written(&f, &header_material());
+    assert_eq!(description_text(&w.doc), description_text(&f.doc));
+}
+
+#[test]
+fn pmi_header_replaces_older_reference_and_preserves_unicode_description() {
+    let description = "FILE_DESCRIPTION(('\\X2\\03B1\\X0\\','CAx-IF Rec.Pracs.---Representation and Presentation of Product Manufacturing Information (PMI)---4.0.12---2023-03-10','other header content'),'2;1');";
+    let f = header_fixture(Some(description));
+    let w = written(&f, &header_material());
+    let attrs = |doc: &Document| {
+        doc.header()
+            .iter()
+            .find_map(|r| match r {
+                RawEntity::Simple {
+                    name, attributes, ..
+                } if name == "FILE_DESCRIPTION" => Some(attributes.clone()),
+                _ => None,
+            })
+            .unwrap()
+    };
+    let before = attrs(&f.doc);
+    let after = attrs(&w.doc);
+    let (Attribute::List(old), Attribute::List(new)) = (&before[0], &after[0]) else {
+        panic!("description list")
+    };
+    assert_eq!(new.len(), 3);
+    assert_eq!(new[0], old[0]);
+    assert_eq!(
+        new[1],
+        Attribute::String(common::pmi_conformance::PMI_RP.into())
+    );
+    assert_eq!(new[2], old[2]);
+    assert_eq!(&after[1..], &before[1..]);
+    assert!(
+        description_text(&w.doc)
+            .unwrap()
+            .contains("\\X2\\03B1\\X0\\")
+    );
 }

@@ -11,6 +11,8 @@ pub mod parallel;
 pub mod pmi_conformance;
 pub mod pmi_datums;
 pub mod pmi_gaps;
+#[cfg(all(feature = "json-import", feature = "presentation"))]
+pub mod pmi_source;
 pub mod pmi_targets;
 pub mod pmi_usage;
 #[path = "../../../../tests/common/snapshot.rs"]

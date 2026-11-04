@@ -26,6 +26,7 @@ pub(super) struct Placement {
     text_anchor: [f64; 2],
     leader: Option<[f64; 3]>,
     callout: Callout,
+    gps_data: bool,
 }
 
 fn point(em: &mut Emitter<'_>, p: [f64; 3]) -> Result<R, WriteError> {
@@ -276,6 +277,10 @@ pub(super) fn prepare(
                 text_anchor,
                 leader: g.leader,
                 callout,
+                // RP 7.2.2 requires GPS_DATA for semantic PMI, including
+                // property_definition notes (7.4). Applied feature labels use
+                // shape_aspect carriers, outside AP242 APO.WR2's GPS correlation.
+                gps_data: !matches!(collection.as_str(), "datums" | "threads"),
             },
         );
     }
@@ -316,6 +321,7 @@ impl Placement {
         default_height: f64,
         name: &str,
         kind: &str,
+        alignment_role: &mut Option<R>,
     ) -> Result<R, WriteError> {
         let o = point(em, self.text.origin.map(|v| v / factor))?;
         let n = direction(em, self.text.normal)?;
@@ -357,7 +363,14 @@ impl Placement {
                 ("name", s(name)),
                 ("styles", refs([style])),
                 ("item", set.a()),
-                ("role", en("gps_data")),
+                (
+                    "role",
+                    en(if self.gps_data {
+                        "gps_data"
+                    } else {
+                        "annotation_text"
+                    }),
+                ),
                 ("line_spacing", A::Real(height)),
             ],
         )?;
@@ -365,16 +378,21 @@ impl Placement {
         // an AP242 identification assignment, outside the displayed names (RP
         // 7.2.2 / 8.4). No extra text occurrence is rendered over the strokes.
         if let Some(alignment) = &self.text.alignment {
-            let role = em.simple(
-                "identification_role",
-                &[
-                    ("name", s("haecceity.presentation/1 text alignment")),
-                    (
-                        "description",
-                        s("Application text alignment key; not annotation text"),
-                    ),
-                ],
-            )?;
+            let role = if let Some(role) = *alignment_role {
+                role
+            } else {
+                em.simple(
+                    "identification_role",
+                    &[
+                        ("name", s("haecceity.presentation/1 text alignment")),
+                        (
+                            "description",
+                            s("Application text alignment key; not annotation text"),
+                        ),
+                    ],
+                )?
+            };
+            *alignment_role = Some(role);
             em.simple(
                 "applied_identification_assignment",
                 &[
@@ -453,7 +471,11 @@ impl PartPlan<'_> {
                 }
                 let kind = match key.0.as_str() {
                     "datums" => "datum",
-                    "dimensions" => presentation::dimension_type(&self.pmi.dimensions[key.1]),
+                    "dimensions" => match self.pmi.dimensions[key.1].kind {
+                        DimensionKind::Location { angle: None, .. }
+                        | DimensionKind::Size { angle: Some(_), .. } => "general dimension",
+                        _ => presentation::dimension_type(&self.pmi.dimensions[key.1]),
+                    },
                     "tolerances" => presentation::tolerance_type(&self.pmi.tolerances[key.1]),
                     "threads" => "label",
                     "surface_textures" => "surface roughness",

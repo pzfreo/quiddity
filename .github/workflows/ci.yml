@@ -55,7 +55,8 @@ jobs:
       - run: cargo test -p haecceity --release --no-default-features --test pmi_write
         if: runner.os == 'Linux'
       # Strict STEP -> PartPmi -> JSON -> PartPmi -> STEP, with no corpus scan.
-      # The archive uses default features, so run this json-import gate explicitly.
+      # The workspace archive unifies json-import through quiddity-py (including
+      # the source-presentation binary); keep this strict NIST gate explicit.
       - run: cargo test -p haecceity --release --features json-import --test pmi_json_roundtrip nist_roundtrip -- --exact
         if: runner.os == 'Linux'
       # nextest does not run doc-tests.
