@@ -112,7 +112,8 @@ pub const MAX_STRING_LITERAL_BYTES: usize = super::text::MAX_LITERAL_BYTES;
 /// What [`write`] does with each named part's existing PMI.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
-    /// Append the items without changing any original entity bytes. Schema upgrades
+    /// Append the items without changing original DATA instances. The header gains the
+    /// CAx-IF PMI practice reference when absent. Schema upgrades
     /// requiring source-entity repairs fail with [`WriteError::AddPreservation`].
     /// A datum label the part already has
     /// resolves to its existing datum (the same faces), or is refused (other faces).
@@ -1201,6 +1202,17 @@ fn write_inner(
             from: schema.clone(),
             to: express::TARGET_SCHEMA.to_string(),
         };
+    }
+
+    if added > 0 {
+        // CAx-IF PMI 4.1 §1.2; preserve the input's other header entries.
+        edit.set_file_description_reference(
+            "CAx-IF Rec.Pracs.---Representation and Presentation of Product Manufacturing Information (PMI)---4.1---2024-06-20",
+            &[
+                "CAx-IF Rec.Pracs.---Representation and Presentation of Product Manufacturing Information (PMI)---",
+                "CAx-IF Rec.Pracs.---Representation and Presentation of PMI",
+            ],
+        );
     }
 
     // The backstop: apply, validate what was made, compare the rules.
@@ -4853,9 +4865,13 @@ impl<'a> PartPlan<'a> {
         };
         let mut planes = Vec::new();
         let mut callouts = Vec::new();
+        #[cfg(all(feature = "json-import", feature = "presentation"))]
+        let mut placeholders = BTreeMap::new();
+        #[cfg(all(feature = "json-import", feature = "presentation"))]
+        let mut alignment_role = None;
         for (definition, annotation_type, name, [origin, normal, along], lines) in graphics {
-            // Solid Edge uses these names in its tree. Keep the full note wording
-            // with the drawn curves, independently of the short annotation title.
+            // Solid Edge uses the callout title in its tree. Note wording also
+            // remains in the semantic text and the drawn curves.
             let title = if annotation_type == "note" {
                 "General notes"
             } else {
@@ -4878,91 +4894,119 @@ impl<'a> PartPlan<'a> {
                 };
                 #[cfg(not(feature = "presentation"))]
                 let source_lines = &lines;
+                // RP 8.3 / 8.3.1: keep the leader tessellated, as a separate
+                // coplanar subset after the main text, even for out-of-plane tips.
                 #[cfg(all(feature = "json-import", feature = "presentation"))]
-                let source_lines = if self
+                let leader_start = self
                     .source_for_definitions(symbols, _st, &[definition])
-                    .is_some_and(|p| p.has_leader())
-                {
-                    &source_lines[..source_lines.len().saturating_sub(1)]
+                    .and_then(|p| p.leader_start());
+                #[cfg(not(all(feature = "json-import", feature = "presentation")))]
+                let leader_start: Option<usize> = None;
+                let subsets = if let Some(split) = leader_start {
+                    let mut subsets = vec![(&source_lines[..split], false)];
+                    // Scope rings may be in a plane parallel to, but offset from,
+                    // the text plane. Each leader stroke is a coplanar subset.
+                    subsets.extend(
+                        source_lines[split..]
+                            .chunks(1)
+                            .enumerate()
+                            .map(|(i, line)| (line, split + i + 1 == source_lines.len())),
+                    );
+                    subsets
                 } else {
-                    source_lines.as_slice()
+                    vec![(source_lines.as_slice(), false)]
                 };
-                // Blank note rows still occupy their measured height in the block,
-                // but AP242 tessellated_curve_set requires nonempty line strips.
-                #[cfg(feature = "presentation")]
-                if source_lines.is_empty() {
-                    continue;
-                }
-                let coordinates: Vec<A> = source_lines
-                    .iter()
-                    .flatten()
-                    .map(|p| A::List(p.map(A::Real).to_vec()))
-                    .collect();
-                let mut strips = Vec::new();
-                let mut first = 1i64;
-                for l in source_lines {
-                    strips.push(A::List(
-                        (0..l.len() as i64).map(|k| A::Integer(first + k)).collect(),
-                    ));
-                    first += l.len() as i64;
-                }
-                let list = em.simple(
-                    "coordinates_list",
-                    &[
-                        ("name", s("")),
-                        ("npoints", A::Integer(coordinates.len() as i64)),
-                        ("position_coords", A::List(coordinates)),
-                    ],
-                )?;
-                let curves = em.simple(
-                    "tessellated_curve_set",
-                    &[
-                        (
-                            "name",
-                            s(
-                                if annotation_type == "note"
-                                    && super::text::literal_len(&name) <= MAX_STRING_LITERAL_BYTES
-                                {
-                                    &name
-                                } else if annotation_type == "note" {
-                                    // This generated label duplicates the semantic text. The
-                                    // full wording remains in bounded descriptive items and
-                                    // in the drawn curves; a schema label cannot be chunked.
-                                    "General notes"
+                let first_occurrence = occurrences.len();
+                for (source_lines, leader) in subsets {
+                    // Blank note rows still occupy their measured height in the block,
+                    // but AP242 tessellated_curve_set requires nonempty line strips.
+                    #[cfg(feature = "presentation")]
+                    if source_lines.is_empty() {
+                        continue;
+                    }
+                    let coordinates: Vec<A> = source_lines
+                        .iter()
+                        .flatten()
+                        .map(|p| A::List(p.map(A::Real).to_vec()))
+                        .collect();
+                    let mut strips = Vec::new();
+                    let mut first = 1i64;
+                    for l in source_lines {
+                        strips.push(A::List(
+                            (0..l.len() as i64).map(|k| A::Integer(first + k)).collect(),
+                        ));
+                        first += l.len() as i64;
+                    }
+                    let list = em.simple(
+                        "coordinates_list",
+                        &[
+                            ("name", s("")),
+                            ("npoints", A::Integer(coordinates.len() as i64)),
+                            ("position_coords", A::List(coordinates)),
+                        ],
+                    )?;
+                    let curves = em.simple(
+                        "tessellated_curve_set",
+                        &[
+                            (
+                                "name",
+                                s(if leader {
+                                    "haecceity leader"
                                 } else {
-                                    annotation_type
-                                },
+                                    presented_type(annotation_type)
+                                }),
                             ),
-                        ),
-                        ("coordinates", list.a()),
-                        ("line_strips", A::List(strips)),
-                    ],
-                )?;
-                let set = em.simple(
-                    "tessellated_geometric_set",
-                    &[("name", s(annotation_type)), ("children", refs([curves]))],
-                )?;
-                let occurrence = em.simple(
-                    "tessellated_annotation_occurrence",
-                    &[
-                        ("name", s(title)),
-                        ("styles", refs([line_style])),
-                        ("item", set.a()),
-                    ],
-                )?;
-                occurrences.push(occurrence);
-                if annotation_type == "note" {
+                            ("coordinates", list.a()),
+                            ("line_strips", A::List(strips)),
+                        ],
+                    )?;
+                    let set = em.simple(
+                        "tessellated_geometric_set",
+                        &[
+                            ("name", s(presented_type(annotation_type))),
+                            ("children", refs([curves])),
+                        ],
+                    )?;
+                    let occurrence = em.simple(
+                        "tessellated_annotation_occurrence",
+                        &[
+                            ("name", s(title)),
+                            ("styles", refs([line_style])),
+                            ("item", set.a()),
+                        ],
+                    )?;
+                    occurrences.push(occurrence);
+                }
+                if annotation_type == "note"
+                    && let Some(&occurrence) = occurrences.get(first_occurrence)
+                {
                     callouts.push((vec![definition], occurrence, annotation_type));
                 }
             }
             #[cfg(all(feature = "json-import", feature = "presentation"))]
-            if let Some(source) = self.source_for_definitions(symbols, _st, &definition) {
-                occurrences.extend(source.emit_metadata(em, line_style, factor, source_height)?);
-            }
+            let placeholder =
+                if let Some(source) = self.source_for_definitions(symbols, _st, &definition) {
+                    let placeholder = source.emit_metadata(
+                        em,
+                        line_style,
+                        factor,
+                        source_height,
+                        (title, presented_type(annotation_type)),
+                        &mut alignment_role,
+                    )?;
+                    occurrences.push(placeholder);
+                    Some(placeholder)
+                } else {
+                    None
+                };
             let callout = em.simple(
                 "draughting_callout",
                 &[("name", s(title)), ("contents", refs(occurrences))],
             )?;
+            #[cfg(all(feature = "json-import", feature = "presentation"))]
+            if let Some(placeholder) = placeholder {
+                placeholders.insert(callout, placeholder);
+            }
             let (o, n, a) = (
                 point(em, origin)?,
                 direction(em, normal)?,
@@ -5016,25 +5060,33 @@ impl<'a> PartPlan<'a> {
         // leaves Solid Edge 2026's typed imports and symbolic graphics identical.
         for (definitions, callout, _annotation_type) in callouts {
             for definition in definitions {
-                em.simple(
-                    "draughting_model_item_association",
-                    &[
-                        ("name", s("PMI representation to presentation link")),
-                        ("description", {
-                            #[cfg(feature = "json-import")]
-                            if self.identifiers.is_some() {
-                                s("haecceity.generated/1")
-                            } else {
-                                s("")
-                            }
-                            #[cfg(not(feature = "json-import"))]
+                let mut attributes = vec![
+                    ("name", s("PMI representation to presentation link")),
+                    ("description", {
+                        #[cfg(feature = "json-import")]
+                        if self.identifiers.is_some() {
+                            s("haecceity.generated/1")
+                        } else {
                             s("")
-                        }),
-                        ("definition", definition.a()),
-                        ("used_representation", model.a()),
-                        ("identified_item", callout.a()),
-                    ],
-                )?;
+                        }
+                        #[cfg(not(feature = "json-import"))]
+                        s("")
+                    }),
+                    ("definition", definition.a()),
+                    ("used_representation", model.a()),
+                    ("identified_item", callout.a()),
+                ];
+                #[cfg(all(feature = "json-import", feature = "presentation"))]
+                let placeholder = placeholders.get(&callout);
+                #[cfg(not(all(feature = "json-import", feature = "presentation")))]
+                let placeholder: Option<&R> = None;
+                let entity = if let Some(placeholder) = placeholder {
+                    attributes.push(("annotation_placeholder", placeholder.a()));
+                    "draughting_model_item_association_with_placeholder"
+                } else {
+                    "draughting_model_item_association"
+                };
+                em.simple(entity, &attributes)?;
             }
         }
         Ok(())
@@ -9008,6 +9060,15 @@ impl Keys<'_> {
             Some(NoteOwner::Tolerance(t)) => format!("tolerance {}", self.tolerance(t.0)),
             Some(NoteOwner::DatumTarget(t)) => format!("datum target {}", self.target(t.0)),
         }
+    }
+}
+
+/// CAx-IF PMI 4.1 Table 18. Internal layout categories need not be STEP type names.
+fn presented_type(kind: &str) -> &str {
+    match kind {
+        "feature note" | "placed note" => "note",
+        "thread" => "label",
+        other => other,
     }
 }
 

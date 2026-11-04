@@ -407,6 +407,9 @@ fn draw(
                 .map(|i| coords.get(*i).copied().flatten().map(at))
                 .collect();
             if let Some(line) = line {
+                if text(attr(doc, id, "representation_item", "name")) == "haecceity leader" {
+                    g.leader = line.first().copied();
+                }
                 g.polylines.push(line);
             } else {
                 g.unsupported

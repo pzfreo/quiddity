@@ -26,6 +26,7 @@ pub(super) struct Placement {
     text_anchor: [f64; 2],
     leader: Option<[f64; 3]>,
     callout: Callout,
+    gps_data: bool,
 }
 
 fn point(em: &mut Emitter<'_>, p: [f64; 3]) -> Result<R, WriteError> {
@@ -182,11 +183,12 @@ pub(super) fn prepare(
         let key = known
             .get(id.as_str())
             .ok_or_else(|| invalid(id, "unknown semantic id"))?;
-        // A graphic without placement metadata requests no override. Multiple view
-        // variants use the first main placement until view-specific placement exists.
+        // A plane alone also accompanies regenerated graphic-only callouts. It
+        // supplies no text insertion point and requests no source override.
+        // Multiple view variants use the first main text placement.
         let Some(g) = graphics
             .iter()
-            .find(|g| g.plane_id.is_some() || !g.text_placements.is_empty() || g.leader.is_some())
+            .find(|g| !g.text_placements.is_empty() || g.leader.is_some())
         else {
             continue;
         };
@@ -275,6 +277,10 @@ pub(super) fn prepare(
                 text_anchor,
                 leader: g.leader,
                 callout,
+                // RP 7.2.2 requires GPS_DATA for semantic PMI, including
+                // property_definition notes (7.4). Applied feature labels use
+                // shape_aspect carriers, outside AP242 APO.WR2's GPS correlation.
+                gps_data: !matches!(collection.as_str(), "datums" | "threads"),
             },
         );
     }
@@ -286,8 +292,8 @@ pub(super) fn prepare(
 }
 
 impl Placement {
-    pub(super) fn has_leader(&self) -> bool {
-        self.leader.is_some()
+    pub(super) fn leader_start(&self) -> Option<usize> {
+        self.leader.map(|_| self.callout.polylines().len())
     }
     fn scale(&self, default_height: f64) -> f64 {
         self.text.height.map_or(default_height / 3., |height| {
@@ -313,7 +319,9 @@ impl Placement {
         style: R,
         factor: f64,
         default_height: f64,
-    ) -> Result<Vec<R>, WriteError> {
+        (name, kind): (&str, &str),
+        alignment_role: &mut Option<R>,
+    ) -> Result<R, WriteError> {
         let o = point(em, self.text.origin.map(|v| v / factor))?;
         let n = direction(em, self.text.normal)?;
         let x = direction(em, self.text.x_axis)?;
@@ -342,47 +350,58 @@ impl Placement {
                 ("placement", placement.a()),
             ],
         )?;
-        let set = em.simple("geometric_set", &[("name", s("")), ("elements", refs([b]))])?;
+        // RP 7.2.2: the axis placement must be a direct set member; the
+        // optional box alone does not supply the placeholder's insertion frame.
+        let set = em.simple(
+            "geometric_set",
+            &[("name", s(kind)), ("elements", refs([placement, b]))],
+        )?;
         let placeholder = em.simple(
             "annotation_placeholder_occurrence",
             &[
-                (
-                    "name",
-                    s(&self.text.alignment.as_ref().map_or_else(
-                        || "haecceity placed text".into(),
-                        |a| format!("haecceity placed text: {a}"),
-                    )),
-                ),
+                ("name", s(name)),
                 ("styles", refs([style])),
                 ("item", set.a()),
-                ("role", en("annotation_text")),
+                (
+                    "role",
+                    en(if self.gps_data {
+                        "gps_data"
+                    } else {
+                        "annotation_text"
+                    }),
+                ),
                 ("line_spacing", A::Real(height)),
             ],
         )?;
-        let mut out = vec![placeholder];
-        if self.leader.is_some() {
-            let drawn = self.draw(factor, default_height);
-            let leader = drawn
-                .last()
-                .ok_or_else(|| invalid(&self.id, "leader geometry missing"))?;
-            let points = leader
-                .iter()
-                .map(|&p| point(em, p))
-                .collect::<Result<Vec<_>, _>>()?;
-            let line = em.simple(
-                "polyline",
-                &[("name", s("haecceity leader")), ("points", refs(points))],
-            )?;
-            out.push(em.simple(
-                "annotation_curve_occurrence",
+        // APO has no alignment attribute. Keep the application vocabulary key in
+        // an AP242 identification assignment, outside the displayed names (RP
+        // 7.2.2 / 8.4). No extra text occurrence is rendered over the strokes.
+        if let Some(alignment) = &self.text.alignment {
+            let role = if let Some(role) = *alignment_role {
+                role
+            } else {
+                em.simple(
+                    "identification_role",
+                    &[
+                        ("name", s("haecceity.presentation/1 text alignment")),
+                        (
+                            "description",
+                            s("Application text alignment key; not annotation text"),
+                        ),
+                    ],
+                )?
+            };
+            *alignment_role = Some(role);
+            em.simple(
+                "applied_identification_assignment",
                 &[
-                    ("name", s("haecceity leader")),
-                    ("styles", refs([style])),
-                    ("item", line.a()),
+                    ("assigned_id", s(alignment)),
+                    ("role", role.a()),
+                    ("items", refs([placeholder])),
                 ],
-            )?);
+            )?;
         }
-        Ok(out)
+        Ok(placeholder)
     }
 }
 
@@ -451,9 +470,13 @@ impl PartPlan<'_> {
                 }
                 let kind = match key.0.as_str() {
                     "datums" => "datum",
-                    "dimensions" => presentation::dimension_type(&self.pmi.dimensions[key.1]),
+                    "dimensions" => match self.pmi.dimensions[key.1].kind {
+                        DimensionKind::Location { angle: None, .. }
+                        | DimensionKind::Size { angle: Some(_), .. } => "general dimension",
+                        _ => presentation::dimension_type(&self.pmi.dimensions[key.1]),
+                    },
                     "tolerances" => presentation::tolerance_type(&self.pmi.tolerances[key.1]),
-                    "threads" => "thread",
+                    "threads" => "label",
                     "surface_textures" => "surface roughness",
                     _ => "placed note",
                 };

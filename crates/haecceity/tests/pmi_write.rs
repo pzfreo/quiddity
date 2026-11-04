@@ -4429,6 +4429,11 @@ fn canonical_thumbwheel_input(f: File) -> File {
 /// onto their original corpus files. `None` for a case whose input is missing (the corpus).
 fn written_cases() -> Vec<(String, Option<Vec<u8>>)> {
     let mut out = Vec::new();
+    #[cfg(all(feature = "json-import", feature = "presentation"))]
+    out.push((
+        "source_placements_cube".into(),
+        Some(common::pmi_source::written()),
+    ));
     out.push((
         "pmi_gaps".into(),
         Some(
@@ -4771,7 +4776,9 @@ fn written_files_are_the_writers_current_output() {
             committed == bytes,
             "{name}: the writer's output changed; run export_written_files and tools/check_pmi_occt.py"
         );
-        assert_composite_components(&Document::parse(bytes).unwrap());
+        let doc = Document::parse(bytes).unwrap();
+        common::pmi_conformance::assert_conforms(&doc);
+        assert_composite_components(&doc);
     }
 }
 
@@ -4946,11 +4953,18 @@ fn opencascade_puts_a_parts_pmi_on_its_prototype() {
         let blocks:Vec<_>=f.doc.ids().filter(|&id| matches!(f.doc.get(id),Some(RawEntity::Simple{name,..}) if name.eq_ignore_ascii_case("draughting_callout")) && test_attribute(&f.doc,id,"representation_item","name")==Some(&Attribute::String("General notes".into()))).collect();
         assert_eq!(blocks.len(), 1);
         assert_eq!(refs_of(&f.doc, blocks[0]).len(), 2);
-        assert_general_notes_names(
-            &f.doc,
-            blocks[0],
-            "GENERAL NOTES\n1  GENERAL TOLERANCES ISO 2768-f\n2  MATERIAL: Steel C45",
-        );
+        use haecceity::presentation::notes::{Row, Source, notes_block};
+        let expected = notes_block(&[
+            Row {
+                source: Source::General(0),
+                text: "GENERAL TOLERANCES ISO 2768-f".into(),
+            },
+            Row {
+                source: Source::Material,
+                text: "MATERIAL: Steel C45".into(),
+            },
+        ]);
+        assert_general_notes_names(&f.doc, blocks[0], &expected);
     }
     let pin = &parts[1];
     let label = pin["label"].as_str().unwrap();
@@ -5240,7 +5254,7 @@ fn conversion_dimensions_that_cannot_be_determined_are_refused() {
 }
 
 /// Check the report's exact records and all intervening original bytes (including comments
-/// and whitespace); only FILE_SCHEMA, repaired records and appended instances may differ.
+/// and whitespace); only FILE_SCHEMA, the RP description, repaired records and additions may differ.
 fn assert_repair_bytes(before: &Document, after: &Document, report: &WriteReport) {
     let repaired: BTreeSet<u64> = report.repairs.iter().map(|r| r.id).collect();
     for id in before.ids() {
@@ -5265,11 +5279,11 @@ fn assert_repair_bytes(before: &Document, after: &Document, report: &WriteReport
     }
     // Reconstruct the output directly from original bytes plus the reported replacements,
     // the schema replacement and exactly the added records. This also verifies non-record bytes.
-    let schema_span = |doc: &Document| {
+    let header_span = |doc: &Document, keyword: &[u8]| {
         let start = doc
             .bytes()
-            .windows(11)
-            .position(|w| w == b"FILE_SCHEMA")
+            .windows(keyword.len())
+            .position(|w| w == keyword)
             .unwrap();
         let end = start
             + doc.bytes()[start..]
@@ -5284,10 +5298,12 @@ fn assert_repair_bytes(before: &Document, after: &Document, report: &WriteReport
         .iter()
         .map(|r| (before.span(r.id).unwrap(), r.new_record.as_bytes().to_vec()))
         .collect();
-    replacements.push((
-        schema_span(before),
-        after.bytes()[schema_span(after)].to_vec(),
-    ));
+    for keyword in [b"FILE_SCHEMA".as_slice(), b"FILE_DESCRIPTION".as_slice()] {
+        replacements.push((
+            header_span(before, keyword),
+            after.bytes()[header_span(after, keyword)].to_vec(),
+        ));
+    }
     replacements.sort_by_key(|(span, _)| span.start);
     let mut expected = before.bytes().to_vec();
     for (span, text) in replacements.into_iter().rev() {
@@ -6630,37 +6646,36 @@ fn sample_datums_and_frames(doc: &Document, read: &PmiRead, def: &PartDefinition
             "{name}: interior face {face}, anchor={foot:?}, face normal={n:?}, annotation normal={plane_normal:?}"
         );
     }
+    let mut checked_tolerances = BTreeSet::new();
     for callout in doc.ids().filter(|&id| is(id, "draughting_callout")) {
-        let occurrence = refs_of(doc, callout)[0];
-        let set = *refs_of(doc, occurrence).last().unwrap();
-        let kind = test_attribute(doc, set, "representation_item", "name").unwrap();
-        if kind == &Attribute::String("datum".into())
-            || kind == &Attribute::String("linear dimension".into())
-            || kind == &Attribute::String("diameter dimension".into())
-            || kind == &Attribute::String("note".into())
-            || kind == &Attribute::String("surface roughness".into())
-            || kind == &Attribute::String("thread".into())
-        {
+        // A Table 18 name is a display category, not the semantic owner. In
+        // particular, thread callouts use "label". Check every actual tolerance
+        // through its DMIA rather than guessing from presentation set names.
+        let Some(index) = doc
+            .referrers(callout)
+            .iter()
+            .copied()
+            .filter(|&id| is(id, "draughting_model_item_association"))
+            .find_map(|association| {
+                let root = refs_of(doc, association)[0];
+                read.provenance.parts[0]
+                    .tolerances
+                    .iter()
+                    .position(|ids| ids.contains(&root))
+            })
+        else {
             continue;
-        }
+        };
+        assert!(
+            checked_tolerances.insert(index),
+            "tolerance {index} checked twice"
+        );
         let lines = graphic_lines(doc, callout);
         let leader = lines.last().unwrap();
         let reach = leader
             .iter()
             .map(|q| geom::dist(*q, leader[0]))
             .fold(0., f64::max);
-        let association = doc
-            .referrers(callout)
-            .iter()
-            .copied()
-            .find(|&id| is(id, "draughting_model_item_association"))
-            .unwrap();
-        let root = refs_of(doc, association)[0];
-        let index = read.provenance.parts[0]
-            .tolerances
-            .iter()
-            .position(|ids| ids.contains(&root))
-            .unwrap();
         let mut fs = Vec::new();
         match p.tolerances[index].target {
             ToleranceTarget::Feature(f) => faces(p, f, 0, &mut fs),
@@ -6693,6 +6708,18 @@ fn sample_datums_and_frames(doc: &Document, read: &PmiRead, def: &PartDefinition
             reach / largest
         );
     }
+    // Feature-off writes datum symbols only, so there are no tolerance frames
+    // to check. Presentation builds must cover every stated tolerance.
+    let expected = if cfg!(feature = "presentation") {
+        p.tolerances.len()
+    } else {
+        0
+    };
+    assert_eq!(
+        checked_tolerances.len(),
+        expected,
+        "every written tolerance frame must have a checked callout"
+    );
 }
 #[cfg(feature = "presentation")]
 fn measured_foot(
@@ -7731,9 +7758,7 @@ fn written_settings_have_one_notes_block_and_face_texture_symbols_with_valid_lin
                 == Some(&Attribute::String("General notes".into()))
         })
         .unwrap();
-    let expected = presentation::notes::notes_block(&presentation::notes::general_notes(&p))
-        .cells
-        .join("\n");
+    let expected = presentation::notes::notes_block(&presentation::notes::general_notes(&p));
     assert_general_notes_names(&w.doc, note, &expected);
     let occurrences = refs_of(&w.doc, note);
     assert_eq!(
@@ -7916,7 +7941,10 @@ fn absent_settings_add_no_notes_and_append_does_not_restate_foreign_settings() {
         .filter(|&id| w.names(id) == ["draughting_callout"])
         .collect();
     assert_eq!(new_notes.len(), 1);
-    assert_general_notes_names(&w.doc, new_notes[0], "GENERAL NOTES\n1  Added only");
+    let expected = haecceity::presentation::notes::notes_block(
+        &haecceity::presentation::notes::general_notes(&new),
+    );
+    assert_general_notes_names(&w.doc, new_notes[0], &expected);
     let blank = written(&f, &PartPmi::default());
     assert!(
         blank
@@ -7926,9 +7954,14 @@ fn absent_settings_add_no_notes_and_append_does_not_restate_foreign_settings() {
     );
 }
 
-// The tree title is short; the complete, unmodified wording stays with the drawn strokes.
+// Names follow Table 18; check the complete wording in the actual drawn strokes.
 #[cfg(feature = "presentation")]
-fn assert_general_notes_names(doc: &Document, callout: u64, expected: &str) {
+fn assert_general_notes_names(
+    doc: &Document,
+    callout: u64,
+    expected: &haecceity::presentation::Callout,
+) {
+    use haecceity::geom;
     let assert_title = |id| {
         assert_eq!(
             test_attribute(doc, id, "representation_item", "name"),
@@ -7959,10 +7992,52 @@ fn assert_general_notes_names(doc: &Document, callout: u64, expected: &str) {
         assert_eq!(curves.len(), 1);
         assert_eq!(
             test_attribute(doc, curves[0], "representation_item", "name"),
-            Some(&Attribute::String(expected.into()))
+            Some(&Attribute::String("note".into()))
         );
         assert!(!occurrence_lines(doc, occurrence).is_empty());
     }
+    let (origin, normal, along) = annotation_basis(doc, callout);
+    let up = geom::cross(normal, along);
+    let mut actual: Vec<Vec<[f64; 2]>> = graphic_lines(doc, callout)
+        .into_iter()
+        .map(|line| {
+            line.into_iter()
+                .map(|p| {
+                    let q = geom::sub(p, origin);
+                    [geom::dot(q, along), geom::dot(q, up)]
+                })
+                .collect()
+        })
+        .collect();
+    let expected = expected.polylines();
+    let width = |lines: &[Vec<[f64; 2]>]| {
+        let mut lo = f64::INFINITY;
+        let mut hi = f64::NEG_INFINITY;
+        for p in lines.iter().flatten() {
+            lo = lo.min(p[0]);
+            hi = hi.max(p[0]);
+        }
+        hi - lo
+    };
+    // The model sets text height. Fit that one scale; preserve all authored
+    // glyphs, positions, stroke vertices and the annotation-plane origin.
+    let scale = width(&actual) / width(&expected);
+    assert!(scale.is_finite() && scale > 0.);
+    assert_eq!(actual.len(), expected.len(), "complete notes-block ink");
+    for line in expected {
+        let index = actual
+            .iter()
+            .position(|candidate| {
+                candidate.len() == line.len()
+                    && candidate.iter().zip(&line).all(|(a, b)| {
+                        (a[0] - b[0] * scale).abs() < 1e-8 * scale.max(1.)
+                            && (a[1] - b[1] * scale).abs() < 1e-8 * scale.max(1.)
+                    })
+            })
+            .expect("each expected note stroke must be drawn in its authored position");
+        actual.swap_remove(index);
+    }
+    assert!(actual.is_empty());
 }
 
 #[cfg(feature = "presentation")]
@@ -8026,9 +8101,7 @@ fn full_notes_and_face_finishes_clear_the_three_sample_parts_without_moving_dime
             })
             .collect();
         assert_eq!(blocks.len(), 1, "{name}: one complete notes block");
-        let expected = presentation::notes::notes_block(&presentation::notes::general_notes(&p))
-            .cells
-            .join("\n");
+        let expected = presentation::notes::notes_block(&presentation::notes::general_notes(&p));
         assert_general_notes_names(&w.doc, blocks[0], &expected);
         assert_notes_clear(&w.doc);
         sample_linear_dimensions(&w.doc, &w.read, &f.parts[0]);
@@ -8606,8 +8679,8 @@ fn ap214_product_type_keyword_only_and_readback() {
             assert_eq!(before, after, "#{id} changed");
         }
     }
-    // Reverse only the schema edit, remove additions, and reverse the keyword: all bytes,
-    // including whitespace/comments between records, return exactly to the input.
+    // Reverse the schema edit, the added RP reference and instances, and the
+    // keyword: every remaining byte, including whitespace/comments, is original.
     let mut undo = haecceity::p21::Edit::new();
     undo.set_file_schema(f.doc.file_schema().unwrap());
     for id in w.doc.ids().filter(|id| *id > f.doc.max_id()) {
@@ -8619,6 +8692,12 @@ fn ap214_product_type_keyword_only_and_readback() {
         "PrOdUcT_TyPe /* category */",
         1,
     );
+    let rp_entry = format!(",'{}'", common::pmi_conformance::PMI_RP);
+    assert!(
+        restored.contains(&rp_entry),
+        "PMI writes must identify the RP"
+    );
+    let restored = restored.replacen(&rp_entry, "", 1);
     assert_eq!(restored.as_bytes(), f.doc.bytes());
 
     // Neither AP242 nor AP203 qualifies for an AP214 rewrite. AP242 keeps its preexisting
@@ -9624,4 +9703,157 @@ fn projected_zone_without_end_geometry_keeps_its_fact() {
     assert_eq!(after.len(), 1);
     assert_eq!(after[0].detail, facts[0].detail);
     assert!(after[0].preserved_fact(&before.findings, &w.read.findings));
+}
+
+#[test]
+fn presentation_goldens_obey_cax_if_structure() {
+    // The existing written_files_are_the_writers_current_output test checks
+    // these against freshly written outputs and applies this same validator.
+    for entry in std::fs::read_dir(write_dir()).unwrap() {
+        let path = entry.unwrap().path();
+        if !path.to_string_lossy().ends_with(".step.gz") {
+            continue;
+        }
+        let doc = Document::parse(file_bytes(&path)).unwrap();
+        let issues = common::pmi_conformance::issues(&doc);
+        assert!(issues.is_empty(), "{}: {issues:#?}", path.display());
+    }
+}
+
+#[test]
+fn pmi_header_reference_preserves_other_content_and_is_idempotent() {
+    let f = gap_spool();
+    let pmi = common::pmi_gaps::every_kind();
+    let w = written(&f, &pmi);
+    let header = |doc: &Document| {
+        doc.header()
+            .iter()
+            .find_map(|h| match h {
+                RawEntity::Simple {
+                    name, attributes, ..
+                } if name == "FILE_DESCRIPTION" => Some(attributes.clone()),
+                _ => None,
+            })
+            .unwrap()
+    };
+    let before = header(&f.doc);
+    let after = header(&w.doc);
+    assert_eq!(&after[1..], &before[1..]);
+    let (Attribute::List(old), Attribute::List(new)) = (&before[0], &after[0]) else {
+        unreachable!()
+    };
+    assert_eq!(&new[..old.len()], old);
+    assert_eq!(
+        new.last(),
+        Some(&Attribute::String(common::pmi_conformance::PMI_RP.into()))
+    );
+    for record in f.doc.header() {
+        if !matches!(record, RawEntity::Simple { name, .. } if name == "FILE_DESCRIPTION" || name == "FILE_SCHEMA")
+        {
+            let RawEntity::Simple {
+                name, attributes, ..
+            } = record
+            else {
+                unreachable!()
+            };
+            assert!(w.doc.header().iter().any(|after| matches!(after,
+                RawEntity::Simple { name: n, attributes: a, .. } if n == name && a == attributes)));
+        }
+    }
+    let f = File {
+        parts: read_part_definitions(w.doc.bytes()).unwrap(),
+        doc: w.doc,
+    };
+    let again = write(&f, &[(PartId(0), pmi)], Mode::Replace).unwrap();
+    assert_eq!(header(&again.doc), after);
+}
+
+fn header_fixture(description: Option<&str>) -> File {
+    let f = fixture("ties/cube.step");
+    let mut bytes = f.doc.bytes().to_vec();
+    let start = bytes
+        .windows(b"FILE_DESCRIPTION".len())
+        .position(|s| s == b"FILE_DESCRIPTION")
+        .unwrap();
+    let end = bytes
+        .windows(b"FILE_NAME".len())
+        .position(|s| s == b"FILE_NAME")
+        .unwrap();
+    let replacement = description.map_or_else(String::new, |s| format!("{s}\n"));
+    bytes.splice(start..end, replacement.bytes());
+    open_bytes(bytes)
+}
+fn header_material() -> PartPmi {
+    PartPmi {
+        material: Some(Material {
+            id: "synthetic material".into(),
+            name: None,
+            density: None,
+        }),
+        ..Default::default()
+    }
+}
+fn description_text(doc: &Document) -> Option<String> {
+    let text = std::str::from_utf8(doc.bytes()).unwrap();
+    let start = text.find("FILE_DESCRIPTION")?;
+    let end = text.find("FILE_NAME").unwrap();
+    Some(text[start..end].to_owned())
+}
+
+#[test]
+fn pmi_header_malformed_description_does_not_block_writes() {
+    let f = header_fixture(Some("FILE_DESCRIPTION( 'not a list' , '2;1' );"));
+    let w = written(&f, &header_material());
+    assert_eq!(description_text(&w.doc), description_text(&f.doc));
+    assert_eq!(
+        w.read.parts[0].material.as_ref().unwrap().id,
+        "synthetic material"
+    );
+}
+
+#[test]
+fn pmi_header_current_reference_retains_all_original_bytes() {
+    let description = format!(
+        "FILE_DESCRIPTION( ( /* keep */ '\\X2\\03B1\\X0\\' , '{}' ), '2;1' );",
+        common::pmi_conformance::PMI_RP
+    );
+    let f = header_fixture(Some(&description));
+    let w = written(&f, &header_material());
+    assert_eq!(description_text(&w.doc), description_text(&f.doc));
+}
+
+#[test]
+fn pmi_header_replaces_older_reference_and_preserves_unicode_description() {
+    let description = "FILE_DESCRIPTION(('\\X2\\03B1\\X0\\','CAx-IF Rec.Pracs.---Representation and Presentation of Product Manufacturing Information (PMI)---4.0.12---2023-03-10','other header content'),'2;1');";
+    let f = header_fixture(Some(description));
+    let w = written(&f, &header_material());
+    let attrs = |doc: &Document| {
+        doc.header()
+            .iter()
+            .find_map(|r| match r {
+                RawEntity::Simple {
+                    name, attributes, ..
+                } if name == "FILE_DESCRIPTION" => Some(attributes.clone()),
+                _ => None,
+            })
+            .unwrap()
+    };
+    let before = attrs(&f.doc);
+    let after = attrs(&w.doc);
+    let (Attribute::List(old), Attribute::List(new)) = (&before[0], &after[0]) else {
+        panic!("description list")
+    };
+    assert_eq!(new.len(), 3);
+    assert_eq!(new[0], old[0]);
+    assert_eq!(
+        new[1],
+        Attribute::String(common::pmi_conformance::PMI_RP.into())
+    );
+    assert_eq!(new[2], old[2]);
+    assert_eq!(&after[1..], &before[1..]);
+    assert!(
+        description_text(&w.doc)
+            .unwrap()
+            .contains("\\X2\\03B1\\X0\\")
+    );
 }

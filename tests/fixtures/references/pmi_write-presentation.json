@@ -693,6 +693,18 @@
    "key": "nist_ftc_10_targets occt part 0 datum target L2",
    "verdict": "not-applicable",
    "reason": "PMI practice §6.6.2 Table 11 and NIST FTC-10 use a base datum_target for explicit area/curve geometry. OCCT 7.9.3 ReadDatums downcasts every target to PlacedDatumTargetFeature and skips base targets (STEPCAFControl_Reader.cxx 3032–3035); changing an area to placed would violate the non-exempt placed-target WR1. XCAF has no explicit curve target kind either. Rust preserves the standard geometry/target/datum; all four original FTC-10 areas pass clean-copy round trips. Raw schema/rule validation remains mandatory outside the reported target WR5."
+  },
+  {
+   "detail": "no callout OpenCascade links to those faces",
+   "key": "source_placements_cube occt note \"general note\" [0]",
+   "verdict": "rust-correct",
+   "reason": "PMI practice §7.4 represents the feature note with a property_definition whose definition is the feature shape_aspect, and §7.2.3 links its placeholder through DMIAWP. Text and face ownership round-trip in haecceity. OCCT 7.9.3 ReadGDTs accepts property-definition DMIA but collects shapes only from Definition().ShapeAspect(), so the note becomes an unattached CommonLabel. See https://github.com/Open-Cascade-SAS/OCCT/blob/V7_9_3/src/STEPCAFControl/STEPCAFControl_Reader.cxx#L4838."
+  },
+  {
+   "detail": "faces [0]",
+   "key": "source_placements_cube occt missing datum A #353",
+   "verdict": "rust-correct",
+   "reason": "PMI practice §6.5 permits the standalone datum and its datum_feature on face 0; both read back in haecceity. OCCT 7.9.3 STEPCAFControl_Reader::ReadGDTs skips datum-feature presentation and imports datums only through geometric-tolerance datum references. This synthetic fixture has no such tolerance. See https://github.com/Open-Cascade-SAS/OCCT/blob/V7_9_3/src/STEPCAFControl/STEPCAFControl_Reader.cxx#L4721."
   }
  ],
  "pin_changes_2026_10_20": {
@@ -749,92 +761,6 @@
    "presentation removed": 0,
    "refuse policy": "written",
    "sha256": "2bd726f9fe86aeb96ab517ce876e5696e7951310df5c4fbca36276d65879067b"
-  }
- },
- "loader_unavailable": {
-  "pmi_gaps": {
-   "status": {
-    "unavailable": "specify_core is not installed in this environment"
-   },
-   "verdict": "not-applicable",
-   "reason": "The requested read-only quiddity venv contains OCP 7.9.3.1 but no specify_core. XCAF transfer and the safe label walk are required and captured independently; the separate specify-core application loader was not run. All earlier application-loader pins remain unchanged."
-  },
-  "pmi_gaps_gram": {
-   "status": {
-    "unavailable": "specify_core is not installed in this environment"
-   },
-   "verdict": "not-applicable",
-   "reason": "The requested read-only quiddity venv contains OCP 7.9.3.1 but no specify_core. XCAF transfer and the safe label walk are required and captured independently; the separate specify-core application loader was not run. All earlier application-loader pins remain unchanged."
-  },
-  "datum_targets": {
-   "status": {
-    "unavailable": "specify_core is not installed in this environment"
-   },
-   "verdict": "not-applicable",
-   "reason": "The requested read-only quiddity venv contains OCP 7.9.3.1 but no specify_core. XCAF transfer and the safe label walk are required and captured independently; the separate specify-core application loader was not run. All earlier application-loader pins remain unchanged."
-  },
-  "datum_targets_shared_support": {
-   "status": {
-    "unavailable": "specify_core is not installed in this environment"
-   },
-   "verdict": "not-applicable",
-   "reason": "The requested read-only quiddity venv contains OCP 7.9.3.1 but no specify_core. XCAF transfer and the safe label walk are required and captured independently; the separate specify-core application loader was not run. All earlier application-loader pins remain unchanged."
-  },
-  "decimal_default": {
-   "status": {
-    "unavailable": "specify_core is not installed in this environment"
-   },
-   "verdict": "not-applicable",
-   "reason": "The requested read-only quiddity venv contains OCP 7.9.3.1 but no specify_core. XCAF transfer and the safe label walk are required and captured independently; the separate specify-core application loader was not run. All earlier application-loader pins remain unchanged."
-  },
-  "nist_ctc_02_targets": {
-   "status": {
-    "unavailable": "specify_core is not installed in this environment"
-   },
-   "verdict": "not-applicable",
-   "reason": "The requested read-only quiddity venv contains OCP 7.9.3.1 but no specify_core. XCAF transfer and the safe label walk are required and captured independently; the separate specify-core application loader was not run. All earlier application-loader pins remain unchanged."
-  },
-  "nist_ftc_10_targets": {
-   "status": {
-    "unavailable": "specify_core is not installed in this environment"
-   },
-   "verdict": "not-applicable",
-   "reason": "The requested read-only quiddity venv contains OCP 7.9.3.1 but no specify_core. XCAF transfer and the safe label walk are required and captured independently; the separate specify-core application loader was not run. All earlier application-loader pins remain unchanged."
-  },
-  "assembly_plate_pin_intent": {
-   "status": {
-    "unavailable": "specify_core is not installed in this environment"
-   },
-   "verdict": "not-applicable",
-   "reason": "Thread-callout golden recaptured with OCP: XCAF transfer and safe label walking pass. This read-only venv has no legacy Python specify_core application loader, so that separate loader was not run; Rust Specify write/reopen is checked by its workspace tests."
-  },
-  "editor_assembly_pin_alone": {
-   "status": {
-    "unavailable": "specify_core is not installed in this environment"
-   },
-   "verdict": "not-applicable",
-   "reason": "Thread-callout golden recaptured with OCP: XCAF transfer and safe label walking pass. This read-only venv has no legacy Python specify_core application loader, so that separate loader was not run; Rust Specify write/reopen is checked by its workspace tests."
-  },
-  "string_post_tapped_intent": {
-   "status": {
-    "unavailable": "specify_core is not installed in this environment"
-   },
-   "verdict": "not-applicable",
-   "reason": "Thread-callout golden recaptured with OCP: XCAF transfer and safe label walking pass. This read-only venv has no legacy Python specify_core application loader, so that separate loader was not run; Rust Specify write/reopen is checked by its workspace tests."
-  },
-  "thread_replaced": {
-   "status": {
-    "unavailable": "specify_core is not installed in this environment"
-   },
-   "verdict": "not-applicable",
-   "reason": "Thread-callout golden recaptured with OCP: XCAF transfer and safe label walking pass. This read-only venv has no legacy Python specify_core application loader, so that separate loader was not run; Rust Specify write/reopen is checked by its workspace tests."
-  },
-  "thumbwheel_thread_knurl_intent": {
-   "status": {
-    "unavailable": "specify_core is not installed in this environment"
-   },
-   "verdict": "not-applicable",
-   "reason": "Thread-callout golden recaptured with OCP: XCAF transfer and safe label walking pass. This read-only venv has no legacy Python specify_core application loader, so that separate loader was not run; Rust Specify write/reopen is checked by its workspace tests."
   }
  }
 }
