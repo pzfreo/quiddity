@@ -6635,36 +6635,30 @@ fn sample_datums_and_frames(doc: &Document, read: &PmiRead, def: &PartDefinition
         );
     }
     for callout in doc.ids().filter(|&id| is(id, "draughting_callout")) {
-        let occurrence = refs_of(doc, callout)[0];
-        let set = *refs_of(doc, occurrence).last().unwrap();
-        let kind = test_attribute(doc, set, "representation_item", "name").unwrap();
-        if kind == &Attribute::String("datum".into())
-            || kind == &Attribute::String("linear dimension".into())
-            || kind == &Attribute::String("diameter dimension".into())
-            || kind == &Attribute::String("note".into())
-            || kind == &Attribute::String("surface roughness".into())
-            || kind == &Attribute::String("thread".into())
-        {
+        // A Table 18 name is a display category, not the semantic owner. In
+        // particular, thread callouts use "label". Check every actual tolerance
+        // through its DMIA rather than guessing from presentation set names.
+        let Some(index) = doc
+            .referrers(callout)
+            .iter()
+            .copied()
+            .filter(|&id| is(id, "draughting_model_item_association"))
+            .find_map(|association| {
+                let root = refs_of(doc, association)[0];
+                read.provenance.parts[0]
+                    .tolerances
+                    .iter()
+                    .position(|ids| ids.contains(&root))
+            })
+        else {
             continue;
-        }
+        };
         let lines = graphic_lines(doc, callout);
         let leader = lines.last().unwrap();
         let reach = leader
             .iter()
             .map(|q| geom::dist(*q, leader[0]))
             .fold(0., f64::max);
-        let association = doc
-            .referrers(callout)
-            .iter()
-            .copied()
-            .find(|&id| is(id, "draughting_model_item_association"))
-            .unwrap();
-        let root = refs_of(doc, association)[0];
-        let index = read.provenance.parts[0]
-            .tolerances
-            .iter()
-            .position(|ids| ids.contains(&root))
-            .unwrap();
         let mut fs = Vec::new();
         match p.tolerances[index].target {
             ToleranceTarget::Feature(f) => faces(p, f, 0, &mut fs),
