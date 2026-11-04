@@ -1,6 +1,10 @@
 //! Structural CAx-IF PMI 4.1 checks, independent of writer byte snapshots and SFA.
 use super::pmi_usage::{attr, is_a, reference};
-use haecceity::p21::{Attribute as A, Document, RawEntity};
+use haecceity::{
+    express,
+    p21::{Attribute as A, Document, RawEntity},
+};
+use std::collections::BTreeMap;
 
 pub const PMI_RP: &str = "CAx-IF Rec.Pracs.---Representation and Presentation of Product Manufacturing Information (PMI)---4.1---2024-06-20";
 const TYPES: &[&str] = &[
@@ -59,7 +63,27 @@ pub fn issues(doc: &Document) -> Vec<String> {
     }
     let mut aco = false;
     let mut tao = false;
-    for id in doc.ids() {
+    // Cache schema ancestry once per entity type. Body records can vastly
+    // outnumber PMI; every annotation occurrence and callout is still checked.
+    let mut kinds = BTreeMap::<String, bool>::new();
+    let mut annotation = |name: &str| {
+        if let Some(&found) = kinds.get(name) {
+            return found;
+        }
+        let found = express::is_a(name, "annotation_occurrence")
+            || express::is_a(name, "draughting_callout");
+        kinds.insert(name.to_owned(), found);
+        found
+    };
+    let ids: Vec<_> = doc
+        .ids()
+        .filter(|&id| match doc.get(id) {
+            Some(RawEntity::Simple { name, .. }) => annotation(name),
+            Some(RawEntity::Complex { parts, .. }) => parts.iter().any(|p| annotation(&p.name)),
+            None => false,
+        })
+        .collect();
+    for id in ids {
         for (occurrence, allowed) in [
             ("annotation_curve_occurrence", "geometric_curve_set"),
             ("annotation_fill_area_occurrence", "annotation_fill_area"),
