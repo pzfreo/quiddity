@@ -9,8 +9,10 @@ in [docs/alpha1.md](docs/alpha1.md).
 - Recognize sealed cylindrical voids only as `interior_voids`; exclude their
   cylinders from holes, hole patterns, and hole-derived records while retaining
   complete void face accounting. Exterior-connected holes are unchanged.
-  Sealed voids use shared closed-shell evidence and boundary-integral volumes,
-  including cavities missed by the air-sampling grid (`volume_method: closed_shell`).
+  Every sealed shell, including spheres and cavities missed by the air-sampling
+  grid, now receives a `closed_shell` record using shared shell evidence and
+  boundary-integral volume. Existing sealed void records' volume/sample fields
+  and fingerprints change accordingly; sampled record IDs retain their order.
 
 - Finish #142's strict CTC/FTC STEP → PartPmi → JSON → PartPmi → STEP gate;
   run the NIST-only test in Linux CI and retain the opt-in corpus-wide run.

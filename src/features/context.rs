@@ -26,6 +26,24 @@ pub(super) struct SealedVoidShell {
     pub volume: f64,
 }
 
+/// Negative groups prove voids only when the largest boundary group proves an outward
+/// outer skin. Inverted or ambiguous outer skins retain the recognizers' old behavior.
+fn classify_shell_groups(solid: usize, groups: Vec<(Vec<usize>, f64)>) -> Vec<SealedVoidShell> {
+    let Some(largest) = groups.iter().map(|(_, v)| v.abs()).max_by(f64::total_cmp) else {
+        return Vec::new();
+    };
+    if groups.iter().any(|(_, v)| !v.is_finite())
+        || groups.iter().any(|(_, v)| v.abs() == largest && *v <= 0.0)
+    {
+        return Vec::new();
+    }
+    groups
+        .into_iter()
+        .filter(|(_, volume)| *volume < 0.0)
+        .map(|(faces, volume)| SealedVoidShell { solid, faces, volume: -volume })
+        .collect()
+}
+
 pub struct Context<'a> {
     pub part: &'a Part,
     bounds: OnceLock<Bounds>,
@@ -142,7 +160,8 @@ internal_entry! {
 
     /// Shared sealed-air proof for holes and interior voids: closed edge-connected shells
     /// with inward orientation (negative signed volume). Mouths into open pockets remain on
-    /// the outer shell. This does not depend on face order or a grid's ability to resolve air.
+    /// the outer shell. The largest-|volume| group must be outward-facing. This does not
+    /// depend on face order or a grid's ability to resolve air.
     pub(super) fn sealed_void_shells(&self) -> &[SealedVoidShell] {
         self.sealed_void_shells.get_or_init(|| {
             let part = self.part;
@@ -167,13 +186,14 @@ internal_entry! {
                 if shells.len() < 2 || !part.solid_is_valid(solid) {
                     continue;
                 }
-                for faces in shells {
-                    if let Some((volume, _)) = part.shell_mass(&faces)
-                        && volume < 0.0
-                    {
-                        enclosed.push(SealedVoidShell { solid, faces, volume: -volume });
-                    }
-                }
+                // An unmeasured group could be the outer skin; it cannot be omitted from
+                // the orientation proof by considering only the groups whose mass resolved.
+                let Some(groups) = shells.into_iter().map(|faces| {
+                    part.shell_mass(&faces).map(|(volume, _)| (faces, volume))
+                }).collect::<Option<Vec<_>>>() else {
+                    continue;
+                };
+                enclosed.extend(classify_shell_groups(solid, groups));
             }
             enclosed
         })
@@ -222,5 +242,33 @@ internal_entry! {
         let probe = Probe::Solid(RayCaster::for_solid(&prism, 0));
         let whole = probe_volume(&probe).filter(|&w| w > 0.0)?;
         Some(common_volume(self.solid_classifier(solid), &probe)? / whole)
+    }
+}
+
+#[cfg(test)]
+mod shell_group_tests {
+    use super::*;
+
+    #[test]
+    fn an_inverted_outer_group_keeps_its_exterior_hole_candidates() {
+        // Faces 7 and 8 are exterior hole walls on the outer group. Even with an
+        // additional negative group, an inverted outer skin supplies no sealed-air proof.
+        for outer in [-100.0, -8.0] {
+            for groups in [
+                vec![(vec![2, 7, 8], outer), (vec![10], 8.0), (vec![11], -2.0)],
+                vec![(vec![11], -2.0), (vec![10], 8.0), (vec![2, 7, 8], outer)],
+            ] {
+                let sealed = classify_shell_groups(0, groups);
+                assert!(sealed.is_empty());
+                let kept: Vec<_> = [7, 8].into_iter().filter(|f|
+                    !sealed.iter().any(|shell| shell.faces.contains(f))
+                ).collect();
+                assert_eq!(kept, [7, 8]);
+            }
+        }
+        let sealed = classify_shell_groups(0, vec![(vec![2, 7, 8], 100.0), (vec![11], -2.0)]);
+        assert_eq!(sealed.len(), 1);
+        assert_eq!(sealed[0].faces, [11]);
+        assert_eq!(sealed[0].volume, 2.0);
     }
 }
