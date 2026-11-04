@@ -270,7 +270,10 @@ fn every_file_round_trips_with_step_io_records_and_extents() {
     }
     // Only the deliberately broken fixtures fail to parse, and step-io refuses them too.
     assert!(
-        refused.iter().all(|r| r.contains("/broken/")),
+        // Normalise Windows separators: the line holds the fixture's path.
+        refused
+            .iter()
+            .all(|r| r.replace('\\', "/").contains("/broken/")),
         "refused outside fixtures/broken: {refused:#?}"
     );
     assert!(problems.is_empty(), "{problems:#?}");
