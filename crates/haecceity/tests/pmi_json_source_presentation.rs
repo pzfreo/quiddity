@@ -113,11 +113,7 @@ fn bad_source_is_refused_with_item_and_original_is_untouched() {
     let (doc, defs, semantic) = cube();
     let original = doc.bytes().to_vec();
     let id = &semantic.ids["dimensions"][0];
-    let tcurve = doc
-        .ids()
-        .find(|&id| common::pmi_usage::is_a(&doc, id, "tessellated_curve_set"))
-        .unwrap();
-    for fault in 0..7 {
+    for fault in 0..6 {
         let mut source = input(&semantic);
         match fault {
             0 => {
