@@ -1463,7 +1463,7 @@ mod description_reference_tests {
     use super::*;
     #[test]
     fn absent_or_non_list_description_skips_reference() {
-        let prefixes = vec!["reference---".into()];
+        let prefixes = ["reference---".into()];
         let requests = [("reference---current", prefixes.as_slice())];
         // step-io requires FILE_DESCRIPTION when parsing a complete file. The
         // edit-layer fallback nevertheless accepts a missing header explicitly.

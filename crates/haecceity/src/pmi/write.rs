@@ -4991,8 +4991,7 @@ impl<'a> PartPlan<'a> {
                         line_style,
                         factor,
                         source_height,
-                        title,
-                        presented_type(annotation_type),
+                        (title, presented_type(annotation_type)),
                         &mut alignment_role,
                     )?;
                     occurrences.push(placeholder);

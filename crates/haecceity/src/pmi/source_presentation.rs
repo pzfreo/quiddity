@@ -319,8 +319,7 @@ impl Placement {
         style: R,
         factor: f64,
         default_height: f64,
-        name: &str,
-        kind: &str,
+        (name, kind): (&str, &str),
         alignment_role: &mut Option<R>,
     ) -> Result<R, WriteError> {
         let o = point(em, self.text.origin.map(|v| v / factor))?;
