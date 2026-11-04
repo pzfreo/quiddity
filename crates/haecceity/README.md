@@ -19,6 +19,27 @@ manufacturing features. Use haecceity directly when you need the geometry itself
 haecceity = "0.2"
 ```
 
+## Selected assembly bodies
+
+`step::StepFile` parses a STEP file once. `file.part(index)` reads one part definition
+in its own coordinates; `file.placed(&keep)` reads chosen body instances in their original
+file coordinates. Supply the whole-file `Part::face_source(face).instance` numbers (or
+`PartDefinition::placements[].instances`), not indices into `file.parts`.
+
+For a plate and two coincident copies of a pin, a caller can retain the plate and either
+pin. The library reads the caller's selection; it does not decide which bodies coincide.
+Every retained face and edge keeps its original STEP entity and instance number, so a
+reference to the dropped copy cannot accidentally attach to the retained copy. Local
+face, edge, vertex and solid indices, including unresolved-geometry indices, are rebuilt.
+`Source::instance` is therefore not necessarily the resulting solid's local index.
+
+Selection order does not reorder the geometry, repeated numbers are ignored, and an empty
+selection or any unknown number is refused with `StepError::Unsupported`. Repeated reads
+reuse the parsed file and do not change previously returned parts. This API does not make
+the initial `StepFile::read` a streaming or geometry-free operation.
+
+## Presentation
+
 The default `presentation` feature exposes `haecceity::presentation`: dimension/tolerance
 notation, feature control frames, datum frames, and local 2D text/symbol strokes shared with
 drawing clients. Every newly written dimension and tolerance gets a graphical callout;

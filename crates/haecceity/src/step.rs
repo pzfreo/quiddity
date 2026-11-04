@@ -1952,15 +1952,17 @@ impl Parsed {
 
 /// Which shapes [`build`] reads, and where.
 #[derive(Clone, Copy)]
-enum Scope {
+enum Scope<'a> {
     /// Every instance, the file's roots placed by this proper rigid motion.
     Placed(Placement),
+    /// Only these whole-file instance numbers, at their original placements.
+    Selected(&'a [usize]),
     /// Only the instances of product definition `#N` where it is first placed, in its own
     /// coordinates (as its shape representation states them, no placement applied).
     Own(u64),
 }
 
-fn build(parsed: &Parsed, scope: Scope) -> Result<Read, StepError> {
+fn build(parsed: &Parsed, scope: Scope<'_>) -> Result<Read, StepError> {
     let Parsed {
         model,
         report,
@@ -1968,7 +1970,7 @@ fn build(parsed: &Parsed, scope: Scope) -> Result<Read, StepError> {
     } = parsed;
     let outer = match scope {
         Scope::Placed(outer) => outer,
-        Scope::Own(_) => IDENTITY,
+        Scope::Own(_) | Scope::Selected(_) => IDENTITY,
     };
     let outer = &outer;
     let mut ids = FileIds::new(graph, model, report);
@@ -2070,10 +2072,33 @@ fn build(parsed: &Parsed, scope: Scope) -> Result<Read, StepError> {
         }
     }
 
+    // Select after enumerating every instance, before building any geometry. Filtering the
+    // enumeration itself would renumber the retained bodies and lose their source identity.
+    let selected = if let Scope::Selected(keep) = scope {
+        if keep.is_empty() {
+            return Err(StepError::Unsupported(
+                "no placed body instances selected".into(),
+            ));
+        }
+        let mut selected = vec![false; instance_of.len()];
+        for &instance in keep {
+            let entry = selected.get_mut(instance).ok_or_else(|| {
+                StepError::Unsupported(format!(
+                    "placed body instance {instance} is out of range ({} instances)",
+                    instance_of.len()
+                ))
+            })?;
+            *entry = true;
+        }
+        Some(selected)
+    } else {
+        None
+    };
+
     // Own frame: only the shells of the definition's first placement are read, unplaced; every
     // instance keeps the number the whole file's read gives it.
     let own = match scope {
-        Scope::Placed(_) => None,
+        Scope::Placed(_) | Scope::Selected(_) => None,
         Scope::Own(definition) => {
             let mut first = None;
             for (index, (def, _)) in placed.iter().enumerate() {
@@ -2105,6 +2130,9 @@ fn build(parsed: &Parsed, scope: Scope) -> Result<Read, StepError> {
     let (mut native_faces, mut native_edges) = (Vec::new(), Vec::new());
     let mut vertex_count = 0;
     for (is_solid, placement, faces, instance) in shells {
+        if selected.as_ref().is_some_and(|keep| !keep[instance]) {
+            continue;
+        }
         reader.placement = match own {
             None => placement,
             Some(own) if instance_of[instance] == Some(own) => IDENTITY,
@@ -2411,7 +2439,8 @@ pub struct Component {
 }
 
 /// A STEP file read once: its distinct parts and its assemblies, and each part's [`Part`] in
-/// its own coordinates on demand ([`StepFile::part`]) without parsing the file again.
+/// its own coordinates ([`StepFile::part`]), or chosen placed bodies ([`StepFile::placed`]),
+/// on demand without parsing the file again.
 pub struct StepFile {
     parsed: Parsed,
     /// The distinct parts, as [`read_part_definitions`] gives them.
@@ -2439,6 +2468,23 @@ impl StepFile {
     /// Panics if there is no such part, as indexing does.
     pub fn part(&self, index: usize) -> Result<Part, StepError> {
         own_part(&self.parsed, &self.parts[index])
+    }
+
+    /// Read the placed bodies selected by their whole-file [`Source::instance`] numbers,
+    /// as [`read_step`] places them. These are body-instance numbers, not indices into
+    /// [`Self::parts`]; a part definition can have several bodies and placements.
+    ///
+    /// Every retained face and edge keeps its original source entity and instance number.
+    /// Local face, edge, vertex and solid indices are rebuilt, including unresolved-face
+    /// and unresolved-edge indices. Geometry stays in file coordinates, without merging
+    /// coincident bodies or deciding which copies a caller should keep.
+    ///
+    /// `keep` is a set: duplicates are ignored and the result follows whole-file traversal
+    /// order, regardless of selection order. An empty selection or any unknown instance
+    /// number returns [`StepError::Unsupported`]. The parsed file is reused; the selected
+    /// geometry is built afresh and existing parts are not changed.
+    pub fn placed(&self, keep: &[usize]) -> Result<Part, StepError> {
+        build(&self.parsed, Scope::Selected(keep)).map(|read| read.part)
     }
 }
 
@@ -2966,6 +3012,17 @@ mod tests {
     }
     use super::*;
     use crate::hlr::{Plane, Unresolved, View, project, section};
+
+    #[test]
+    fn selected_bodies_reuse_the_files_geometry_parse() {
+        let bytes = std::fs::read(fixture("ap242/assembly/assembly.step")).unwrap();
+        let before = GEOMETRY_PARSES.with(std::cell::Cell::get);
+        let file = StepFile::read(&bytes).unwrap();
+        file.placed(&[0, 2]).unwrap();
+        file.placed(&[1]).unwrap();
+        file.part(1).unwrap();
+        assert_eq!(GEOMETRY_PARSES.with(std::cell::Cell::get) - before, 1);
+    }
 
     #[test]
     fn byte_snapshot_decoding_uses_the_same_extension_policy_as_file_reading() {
