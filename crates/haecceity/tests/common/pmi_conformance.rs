@@ -4,7 +4,7 @@ use haecceity::{
     express,
     p21::{Attribute as A, Document, RawEntity},
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub const PMI_RP: &str = "CAx-IF Rec.Pracs.---Representation and Presentation of Product Manufacturing Information (PMI)---4.1---2024-06-20";
 const TYPES: &[&str] = &[
@@ -63,6 +63,18 @@ pub fn issues(doc: &Document) -> Vec<String> {
     }
     let mut aco = false;
     let mut tao = false;
+    // Table 18 mandates the parent set's category. Matching child curve names
+    // is our writer policy, not a rule for retained foreign presentation (NIST
+    // legitimately leaves those child names empty). Locate our model's contents
+    // structurally so the stronger writer check cannot rewrite foreign graphics.
+    let writer_occurrences: BTreeSet<_> = doc.ids().filter(|&id| {
+        matches!(doc.get(id), Some(RawEntity::Simple { name, .. }) if name.eq_ignore_ascii_case("draughting_model"))
+            && matches!(attr(doc, id, "representation", "name"),
+                Some(A::String(name)) if name == "PMI callouts" || name == "datum feature symbols")
+    }).flat_map(|model| refs(attr(doc, model, "representation", "items")))
+      .flat_map(|plane| refs(attr(doc, plane, "annotation_plane", "elements")))
+      .flat_map(|callout| refs(attr(doc, callout, "draughting_callout", "contents")))
+      .collect();
     // Cache schema ancestry once per entity type. Body records can vastly
     // outnumber PMI; every annotation occurrence and callout is still checked.
     let mut kinds = BTreeMap::<String, bool>::new();
@@ -114,6 +126,7 @@ pub fn issues(doc: &Document) -> Vec<String> {
                 ));
             }
             if occurrence == "tessellated_annotation_occurrence"
+                && writer_occurrences.contains(&id)
                 && let Some(item) = item
             {
                 for curve in refs(attr(doc, item, "tessellated_geometric_set", "children")) {

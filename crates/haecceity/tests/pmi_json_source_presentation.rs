@@ -113,7 +113,11 @@ fn bad_source_is_refused_with_item_and_original_is_untouched() {
     let (doc, defs, semantic) = cube();
     let original = doc.bytes().to_vec();
     let id = &semantic.ids["dimensions"][0];
-    for fault in 0..6 {
+    let tcurve = doc
+        .ids()
+        .find(|&id| common::pmi_usage::is_a(&doc, id, "tessellated_curve_set"))
+        .unwrap();
+    for fault in 0..7 {
         let mut source = input(&semantic);
         match fault {
             0 => {
@@ -954,13 +958,18 @@ fn conformance_check_detects_each_sfa_regression() {
         .find(|&id| common::pmi_usage::is_a(&doc, id, "tessellated_annotation_occurrence"))
         .unwrap();
     let tset = common::pmi_usage::reference(&doc, tao, "styled_item", "item").unwrap();
-    for fault in 0..6 {
+    let tcurve = doc
+        .ids()
+        .find(|&id| common::pmi_usage::is_a(&doc, id, "tessellated_curve_set"))
+        .unwrap();
+    for fault in 0..7 {
         let mut edit = Edit::new();
         let id = match fault {
             0 => tao,
             1 | 2 => set,
             3 => tset,
             4 => placeholder,
+            6 => tcurve,
             _ => tao,
         };
         let mut record = doc.get(id).unwrap().clone();
@@ -994,6 +1003,7 @@ fn conformance_check_detects_each_sfa_regression() {
             2 => attributes[0] = A::String("".into()),
             3 => attributes[0] = A::String("feature note".into()),
             4 => attributes[0] = A::String("haecceity placed text: centre".into()),
+            6 => attributes[0] = A::String("feature note".into()),
             _ => {
                 *name = "ANNOTATION_CURVE_OCCURRENCE".into();
                 // Valid ACO item, but an invalid mixture with the other TAOs.
@@ -1025,6 +1035,7 @@ fn conformance_check_detects_each_sfa_regression() {
             "Table 18",
             "transport data",
             "mixed ACO",
+            "curve name differs",
         ][fault];
         assert!(
             issues.iter().any(|i| i.contains(expected)),
