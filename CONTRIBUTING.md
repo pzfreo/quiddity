@@ -1,4 +1,4 @@
-# Contributing to quiddity-rust
+# Contributing to quiddity
 
 Contributions are welcome: bug reports, fixes, features and documentation.
 
@@ -32,16 +32,17 @@ cargo clippy --workspace --all-targets --release -- -D warnings
 QUIDDITY_CORPUS_REQUIRED=1 cargo test --workspace --release
 ```
 
-## Contributor License Agreement
+## Developer Certificate of Origin
 
-quiddity-rust is released under the Apache License 2.0. So that the copyright
-owner can keep licensing contributions on those and any other terms, every
-contributor agrees to the
-[Contributor License Agreement](CLA.md). You keep the copyright to your work;
-the CLA grants a licence, not an assignment.
+Contributions are accepted under the project's licence, Apache-2.0 (its section 5 covers
+contributions). Each commit must be signed off to certify the
+[Developer Certificate of Origin 1.1](https://developercertificate.org/): that you wrote the
+change, or otherwise have the right to submit it under that licence. Sign off with
+`git commit -s`, which adds a line with your real name and email:
 
-On your first pull request a bot asks you to sign by replying:
+```
+Signed-off-by: Your Name <you@example.com>
+```
 
-> I have read the CLA Document and I hereby sign the CLA
-
-Pull requests cannot merge until the CLA is signed.
+A check on pull requests from forks confirms every commit is signed off. To sign off commits
+already made, `git rebase --signoff main` and force-push the branch.

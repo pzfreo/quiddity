@@ -6,9 +6,17 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
-- **PMI conformance review:** make header references optional on malformed headers and replace older PMI references; preserve unchanged header bytes. Normalize curve names, deduplicate semantic links, and select placeholder roles by their AP242 carriers. Add a synthetic placed-text/leader OCCT golden and require every tolerance callout to receive geometry checks.
+### Changed
 
-- **PMI presentation conformance (CAx-IF PMI 4.1):** source leaders use tessellated subsets alongside their callouts; placeholders carry a direct axis placement, standard PMI type names and semantic links. Alignment moves from visible placeholder names to AP242 application identification metadata; older files remain readable. PMI writes append the recommended-practice header reference without replacing existing descriptions.
+- Contributions are taken under Apache-2.0 with a Developer Certificate of Origin sign-off
+  (`git commit -s`) instead of the Contributor License Agreement; `CLA.md` and its workflow are
+  removed, and a DCO check runs on pull requests from forks.
+- **PMI presentation follows the CAx-IF PMI Recommended Practice 4.1:** source leaders are
+  tessellated within their callouts (no bare polyline curve occurrences); placeholders carry a
+  direct axis placement, the standard PMI type names and links to their semantic PMI; curve sets
+  use Table 18 names (`note`, `label`, ...). Alignment moves from placeholder names to AP242
+  identification metadata, and older files remain readable. PMI writes add the recommended-practice
+  reference to FILE_DESCRIPTION, replacing an older PMI reference and keeping everything else.
 
 ## 0.4.7 (2026-11-04)
 
