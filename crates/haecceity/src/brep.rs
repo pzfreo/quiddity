@@ -300,8 +300,10 @@ pub struct Source {
     /// The instance id (`#N`) in the file.
     pub entity: u64,
     /// Which placed instance of a shape the face or edge is part of: the reader's placed solids,
-    /// numbered in reading order (a solid's instance number is its index in [`Part::solids`]),
-    /// then each placement of a surface model.
+    /// numbered in whole-file reading order, then each placement of a surface model.
+    /// A solid's instance number equals its index in the whole-file read's [`Part::solids`].
+    /// Reading selected bodies or one part definition keeps that original number, which
+    /// need not equal the solid's index in the resulting part.
     pub instance: usize,
 }
 
