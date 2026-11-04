@@ -6708,10 +6708,17 @@ fn sample_datums_and_frames(doc: &Document, read: &PmiRead, def: &PartDefinition
             reach / largest
         );
     }
+    // Feature-off writes datum symbols only, so there are no tolerance frames
+    // to check. Presentation builds must cover every stated tolerance.
+    let expected = if cfg!(feature = "presentation") {
+        p.tolerances.len()
+    } else {
+        0
+    };
     assert_eq!(
         checked_tolerances.len(),
-        p.tolerances.len(),
-        "every tolerance must have a checked callout"
+        expected,
+        "every written tolerance frame must have a checked callout"
     );
 }
 #[cfg(feature = "presentation")]
