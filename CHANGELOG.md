@@ -6,6 +6,20 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+## 0.4.7 (2026-11-04)
+
+Upgrading from 0.4.6: recognition schema `/6`, fingerprints `/3` and the `haecceity.pmi/1` schema are unchanged. The PMI reader string moves from `haecceity-pmi-read/15` to `/17`.
+- **Sealed interior voids are not holes (#189):** a closed internal cavity (a void shell of the solid) is reported only as `interior_voids`, no longer also as `holes` and `hole_patterns`. Every sealed shell, spheres included, now gets an exact `closed_shell` record from its shell volume, so existing void records' volume and sample fields, and their fingerprints, change. Existing `interior_voids` ids keep their order. Holes that open to the outside are unchanged.
+- **PMI round trip on the NIST CTC/FTC models (#188):** all ten available CTC/FTC AP242 files round-trip with empty differences, and the NIST strict test runs in CI.
+  - Dimensions with no stated value are written through unchanged, with no refusal from `write` or `validate` (Python no longer raises `PmiError` for them), no invented value and no nonconformance finding.
+  - A projected zone whose end has no geometry is kept and written; the reader reports it as a `fact` finding (it was `nonconformance`).
+  - Anonymous attribute units are matched by content, so PMI carried into a new file (`quiddity brep --pmi`) binds the same unit; that path also writes the standard mass units it needs.
+  - Replace keeps datum support shared with PMI it can't read, and rebinds it only to equal replacement datums (`WriteReport.retained_shared`).
+  - Upgrade repair R3: when the written PMI needs a newer AP242 edition, INTEGER representation items written as exactly integral REALs are written as INTEGERs, each reported.
+- **Rust API:** `FindingKind` gains `Fact` and `UpgradeRepairKind` gains `R3IntegerLiteral`; neither enum is `#[non_exhaustive]`, so exhaustive matches need an arm. `pmi::write::WriteReport` (non-exhaustive) gains `retained_shared: Vec<u64>`. New: `Finding::preserved_fact` and `Part::shell_mass` (signed volume and area of a closed shell).
+- **CLI and Python:** write reports gain `retained_shared` as an optional key; PMI JSON findings can now have `kind: "fact"`.
+
+### Details
 - Recognize sealed cylindrical voids only as `interior_voids`; exclude their
   cylinders from holes, hole patterns, and hole-derived records while retaining
   complete void face accounting. Exterior-connected holes are unchanged.
