@@ -660,18 +660,6 @@
    "key": "nist_ftc_10_targets occt part 0 datum target L2",
    "verdict": "not-applicable",
    "reason": "PMI practice §6.6.2 Table 11 and NIST FTC-10 use a base datum_target for explicit area/curve geometry. OCCT 7.9.3 ReadDatums downcasts every target to PlacedDatumTargetFeature and skips base targets (STEPCAFControl_Reader.cxx 3032–3035); changing an area to placed would violate the non-exempt placed-target WR1. XCAF has no explicit curve target kind either. Rust preserves the standard geometry/target/datum; all four original FTC-10 areas pass clean-copy round trips. Raw schema/rule validation remains mandatory outside the reported target WR5."
-  },
-  {
-   "detail": "no callout OpenCascade links to those faces",
-   "key": "source_placements_cube occt note \"general note\" [0]",
-   "verdict": "rust-correct",
-   "reason": "PMI practice §7.4 represents the feature note with a property_definition whose definition is the feature shape_aspect, and §7.2.3 links its placeholder through DMIAWP. Text and face ownership round-trip in haecceity. OCCT 7.9.3 ReadGDTs accepts property-definition DMIA but collects shapes only from Definition().ShapeAspect(), so the note becomes an unattached CommonLabel. See https://github.com/Open-Cascade-SAS/OCCT/blob/V7_9_3/src/STEPCAFControl/STEPCAFControl_Reader.cxx#L4838."
-  },
-  {
-   "detail": "faces [0]",
-   "key": "source_placements_cube occt missing datum A #353",
-   "verdict": "rust-correct",
-   "reason": "PMI practice §6.5 permits the standalone datum and its datum_feature on face 0; both read back in haecceity. OCCT 7.9.3 STEPCAFControl_Reader::ReadGDTs skips datum-feature presentation and imports datums only through geometric-tolerance datum references. This synthetic fixture has no such tolerance. See https://github.com/Open-Cascade-SAS/OCCT/blob/V7_9_3/src/STEPCAFControl/STEPCAFControl_Reader.cxx#L4721."
   }
  ],
  "pin_changes_2026_10_20": {

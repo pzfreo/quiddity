@@ -4953,11 +4953,18 @@ fn opencascade_puts_a_parts_pmi_on_its_prototype() {
         let blocks:Vec<_>=f.doc.ids().filter(|&id| matches!(f.doc.get(id),Some(RawEntity::Simple{name,..}) if name.eq_ignore_ascii_case("draughting_callout")) && test_attribute(&f.doc,id,"representation_item","name")==Some(&Attribute::String("General notes".into()))).collect();
         assert_eq!(blocks.len(), 1);
         assert_eq!(refs_of(&f.doc, blocks[0]).len(), 2);
-        assert_general_notes_names(
-            &f.doc,
-            blocks[0],
-            "GENERAL NOTES\n1  GENERAL TOLERANCES ISO 2768-f\n2  MATERIAL: Steel C45",
-        );
+        use haecceity::presentation::notes::{Row, Source, notes_block};
+        let expected = notes_block(&[
+            Row {
+                source: Source::General(0),
+                text: "GENERAL TOLERANCES ISO 2768-f".into(),
+            },
+            Row {
+                source: Source::Material,
+                text: "MATERIAL: Steel C45".into(),
+            },
+        ]);
+        assert_general_notes_names(&f.doc, blocks[0], &expected);
     }
     let pin = &parts[1];
     let label = pin["label"].as_str().unwrap();
@@ -7744,9 +7751,7 @@ fn written_settings_have_one_notes_block_and_face_texture_symbols_with_valid_lin
                 == Some(&Attribute::String("General notes".into()))
         })
         .unwrap();
-    let expected = presentation::notes::notes_block(&presentation::notes::general_notes(&p))
-        .cells
-        .join("\n");
+    let expected = presentation::notes::notes_block(&presentation::notes::general_notes(&p));
     assert_general_notes_names(&w.doc, note, &expected);
     let occurrences = refs_of(&w.doc, note);
     assert_eq!(
@@ -7929,7 +7934,10 @@ fn absent_settings_add_no_notes_and_append_does_not_restate_foreign_settings() {
         .filter(|&id| w.names(id) == ["draughting_callout"])
         .collect();
     assert_eq!(new_notes.len(), 1);
-    assert_general_notes_names(&w.doc, new_notes[0], "GENERAL NOTES\n1  Added only");
+    let expected = haecceity::presentation::notes::notes_block(
+        &haecceity::presentation::notes::general_notes(&new),
+    );
+    assert_general_notes_names(&w.doc, new_notes[0], &expected);
     let blank = written(&f, &PartPmi::default());
     assert!(
         blank
@@ -7939,9 +7947,14 @@ fn absent_settings_add_no_notes_and_append_does_not_restate_foreign_settings() {
     );
 }
 
-// The tree title is short; the complete, unmodified wording stays with the drawn strokes.
+// Names follow Table 18; check the complete wording in the actual drawn strokes.
 #[cfg(feature = "presentation")]
-fn assert_general_notes_names(doc: &Document, callout: u64, expected: &str) {
+fn assert_general_notes_names(
+    doc: &Document,
+    callout: u64,
+    expected: &haecceity::presentation::Callout,
+) {
+    use haecceity::geom;
     let assert_title = |id| {
         assert_eq!(
             test_attribute(doc, id, "representation_item", "name"),
@@ -7972,10 +7985,52 @@ fn assert_general_notes_names(doc: &Document, callout: u64, expected: &str) {
         assert_eq!(curves.len(), 1);
         assert_eq!(
             test_attribute(doc, curves[0], "representation_item", "name"),
-            Some(&Attribute::String(expected.into()))
+            Some(&Attribute::String("note".into()))
         );
         assert!(!occurrence_lines(doc, occurrence).is_empty());
     }
+    let (origin, normal, along) = annotation_basis(doc, callout);
+    let up = geom::cross(normal, along);
+    let mut actual: Vec<Vec<[f64; 2]>> = graphic_lines(doc, callout)
+        .into_iter()
+        .map(|line| {
+            line.into_iter()
+                .map(|p| {
+                    let q = geom::sub(p, origin);
+                    [geom::dot(q, along), geom::dot(q, up)]
+                })
+                .collect()
+        })
+        .collect();
+    let expected = expected.polylines();
+    let width = |lines: &[Vec<[f64; 2]>]| {
+        let mut lo = f64::INFINITY;
+        let mut hi = f64::NEG_INFINITY;
+        for p in lines.iter().flatten() {
+            lo = lo.min(p[0]);
+            hi = hi.max(p[0]);
+        }
+        hi - lo
+    };
+    // The model sets text height. Fit that one scale; preserve all authored
+    // glyphs, positions, stroke vertices and the annotation-plane origin.
+    let scale = width(&actual) / width(&expected);
+    assert!(scale.is_finite() && scale > 0.);
+    assert_eq!(actual.len(), expected.len(), "complete notes-block ink");
+    for line in expected {
+        let index = actual
+            .iter()
+            .position(|candidate| {
+                candidate.len() == line.len()
+                    && candidate.iter().zip(&line).all(|(a, b)| {
+                        (a[0] - b[0] * scale).abs() < 1e-8 * scale.max(1.)
+                            && (a[1] - b[1] * scale).abs() < 1e-8 * scale.max(1.)
+                    })
+            })
+            .expect("each expected note stroke must be drawn in its authored position");
+        actual.swap_remove(index);
+    }
+    assert!(actual.is_empty());
 }
 
 #[cfg(feature = "presentation")]
@@ -8039,9 +8094,7 @@ fn full_notes_and_face_finishes_clear_the_three_sample_parts_without_moving_dime
             })
             .collect();
         assert_eq!(blocks.len(), 1, "{name}: one complete notes block");
-        let expected = presentation::notes::notes_block(&presentation::notes::general_notes(&p))
-            .cells
-            .join("\n");
+        let expected = presentation::notes::notes_block(&presentation::notes::general_notes(&p));
         assert_general_notes_names(&w.doc, blocks[0], &expected);
         assert_notes_clear(&w.doc);
         sample_linear_dimensions(&w.doc, &w.read, &f.parts[0]);
