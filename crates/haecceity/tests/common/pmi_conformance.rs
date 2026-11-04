@@ -80,6 +80,15 @@ pub fn issues(doc: &Document) -> Vec<String> {
                     "§7.2/8.1/8.2: #{id} {occurrence} item must be {allowed}"
                 ));
             }
+            // Table 18 applies to annotation sets, not body wireframe sets
+            // such as the NIST models' GEOMETRIC_CURVE_SET('wire', ...).
+            if let Some(item) = item
+                && !matches!(attr(doc, item, "representation_item", "name"), Some(A::String(s)) if TYPES.contains(&s.as_str()))
+            {
+                issues.push(format!(
+                    "§8.4: #{item} annotation set name is not in Table 18"
+                ));
+            }
             if occurrence == "annotation_placeholder_occurrence" {
                 let members = item
                     .map(|r| refs(attr(doc, r, "geometric_set", "elements")))
@@ -105,17 +114,6 @@ pub fn issues(doc: &Document) -> Vec<String> {
                     ));
                 }
             }
-        }
-        if [
-            "geometric_set",
-            "annotation_fill_area",
-            "tessellated_geometric_set",
-        ]
-        .iter()
-        .any(|ty| is_a(doc, id, ty))
-            && !matches!(attr(doc, id, "representation_item", "name"), Some(A::String(s)) if TYPES.contains(&s.as_str()))
-        {
-            issues.push(format!("§8.4: #{id} set name is not in Table 18"));
         }
         if is_a(doc, id, "draughting_callout") {
             let name = attr(doc, id, "representation_item", "name");

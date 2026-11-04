@@ -9631,12 +9631,17 @@ fn projected_zone_without_end_geometry_keeps_its_fact() {
 }
 
 #[test]
-fn writer_outputs_obey_cax_if_presentation_structure() {
-    for (name, bytes) in written_cases() {
-        let bytes = bytes.unwrap_or_else(|| panic!("{name}: input missing"));
-        let doc = Document::parse(bytes).unwrap();
+fn presentation_goldens_obey_cax_if_structure() {
+    // The existing written_files_are_the_writers_current_output test checks
+    // these against freshly written outputs and applies this same validator.
+    for entry in std::fs::read_dir(write_dir()).unwrap() {
+        let path = entry.unwrap().path();
+        if !path.to_string_lossy().ends_with(".step.gz") {
+            continue;
+        }
+        let doc = Document::parse(file_bytes(&path)).unwrap();
         let issues = common::pmi_conformance::issues(&doc);
-        assert!(issues.is_empty(), "{name}: {issues:#?}");
+        assert!(issues.is_empty(), "{}: {issues:#?}", path.display());
     }
 }
 
