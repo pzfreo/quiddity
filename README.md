@@ -192,8 +192,9 @@ The operations are `recognise` and `correspond`.
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), and [docs/development.md](docs/development.md) for
-how the test suite and regression snapshots work. Contributions are under the
-[CLA](CLA.md). Licensed under [Apache-2.0](LICENSE).
+how the test suite and regression snapshots work. Contributions are taken under
+[Apache-2.0](LICENSE), with each commit signed off (`git commit -s`) under the
+[Developer Certificate of Origin](CONTRIBUTING.md#developer-certificate-of-origin).
 
 ## History
 

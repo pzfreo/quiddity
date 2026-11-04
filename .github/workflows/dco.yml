@@ -1,0 +1,32 @@
+# Developer Certificate of Origin: every commit in a pull request from a fork carries a
+# Signed-off-by line (`git commit -s`). See CONTRIBUTING.md.
+name: DCO
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  sign-off:
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Every commit is signed off
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          missing=$(git log --no-merges --format='%h%x09%s%x09%(trailers:key=Signed-off-by,valueonly,separator=;)' "$BASE..$HEAD" \
+            | awk -F'\t' '$3 == "" { print $1 " " $2 }')
+          if [ -n "$missing" ]; then
+            echo "These commits have no Signed-off-by line. Sign off with 'git commit -s' (see CONTRIBUTING.md):"
+            echo "$missing"
+            exit 1
+          fi
+          echo "Every commit is signed off."

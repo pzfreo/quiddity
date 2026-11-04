@@ -6,6 +6,12 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+### Changed
+
+- Contributions are taken under Apache-2.0 with a Developer Certificate of Origin sign-off
+  (`git commit -s`) instead of the Contributor License Agreement; `CLA.md` and its workflow are
+  removed, and a DCO check runs on pull requests from forks.
+
 ## 0.4.7 (2026-11-04)
 
 Upgrading from 0.4.6: recognition schema `/6`, fingerprints `/3` and the `haecceity.pmi/1` schema are unchanged. The PMI reader string moves from `haecceity-pmi-read/15` to `/17`.
