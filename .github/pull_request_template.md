@@ -2,6 +2,6 @@
 
 ## Validation
 
-## Contributor License Agreement
+## Developer Certificate of Origin
 
-- [ ] I have read the [CLA](https://github.com/pzfreo/quiddity/blob/main/CLA.md) and agree to it. If I am contributing on behalf of an organisation, I am authorised to agree on its behalf.
+- [ ] Every commit is signed off (`git commit -s`), certifying the [DCO](https://developercertificate.org/) as described in [CONTRIBUTING.md](https://github.com/pzfreo/quiddity/blob/main/CONTRIBUTING.md#developer-certificate-of-origin).
