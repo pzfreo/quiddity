@@ -8610,8 +8610,8 @@ fn ap214_product_type_keyword_only_and_readback() {
             assert_eq!(before, after, "#{id} changed");
         }
     }
-    // Reverse only the schema edit, remove additions, and reverse the keyword: all bytes,
-    // including whitespace/comments between records, return exactly to the input.
+    // Reverse the schema edit, the added RP reference and instances, and the
+    // keyword: every remaining byte, including whitespace/comments, is original.
     let mut undo = haecceity::p21::Edit::new();
     undo.set_file_schema(f.doc.file_schema().unwrap());
     for id in w.doc.ids().filter(|id| *id > f.doc.max_id()) {
@@ -8623,6 +8623,12 @@ fn ap214_product_type_keyword_only_and_readback() {
         "PrOdUcT_TyPe /* category */",
         1,
     );
+    let rp_entry = format!(",'{}'", common::pmi_conformance::PMI_RP);
+    assert!(
+        restored.contains(&rp_entry),
+        "PMI writes must identify the RP"
+    );
+    let restored = restored.replacen(&rp_entry, "", 1);
     assert_eq!(restored.as_bytes(), f.doc.bytes());
 
     // Neither AP242 nor AP203 qualifies for an AP214 rewrite. AP242 keeps its preexisting
