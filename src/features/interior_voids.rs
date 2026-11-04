@@ -55,6 +55,40 @@ pub(super) struct Analysis {
     pub refusals: Vec<InteriorVoidRefusal>,
 }
 
+/// Keep the grid's historical record slots, replacing sampled sealed skins in place.
+/// Only previously undetected shells are appended, so they cannot renumber existing voids.
+fn with_sealed_shells(mut sampled: Analysis, sealed: Vec<Occurrence<InteriorVoid>>) -> Analysis {
+    let faces: BTreeSet<_> = sealed
+        .iter()
+        .flat_map(|s| s.defining.iter().copied())
+        .collect();
+    let mut emitted = BTreeSet::new();
+    sampled.accepted.retain_mut(|occurrence| {
+        if let Some((index, replacement)) = sealed.iter().enumerate().find(|(_, s)| {
+            s.record.body_index == occurrence.record.body_index && s.defining == occurrence.defining
+        }) {
+            if !emitted.insert(index) {
+                return false;
+            }
+            *occurrence = replacement.clone();
+            true
+        } else {
+            // A coarse component spanning a proved shell and other air cannot own that skin.
+            !occurrence.defining.iter().any(|f| faces.contains(f))
+        }
+    });
+    sampled
+        .refusals
+        .retain(|r| !r.candidate.void_faces.iter().any(|f| faces.contains(f)));
+    sampled.accepted.extend(
+        sealed
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, occurrence)| (!emitted.contains(&index)).then_some(occurrence)),
+    );
+    sampled
+}
+
 internal_entry! {
 /// `recognise_interior_voids`.
 pub fn recognise_interior_voids(part: &Part) -> Vec<InteriorVoid> {
@@ -494,6 +528,25 @@ pub fn discover(ctx: &Context<'_>) -> Vec<Occurrence<InteriorVoid>> {
 pub(super) fn analyse(ctx: &Context<'_>) -> Analysis {
     let part = ctx.part;
     let keys = ctx.body_keys(true);
+    let sealed = ctx.sealed_void_shells();
+    let sealed_records: Vec<_> = sealed
+        .iter()
+        .map(|shell| Occurrence {
+            record: InteriorVoid {
+                body_index: shell.solid,
+                body_key: keys[shell.solid].clone(),
+                void_faces: shell.faces.clone(),
+                openings: Vec::new(),
+                estimated_volume: shell.volume,
+                volume_method: "closed_shell",
+                grid_pitch: 0.0,
+                enclosed_samples: 0,
+                air_samples: 0,
+            },
+            defining: shell.faces.clone(),
+            context: Vec::new(),
+        })
+        .collect();
     let mut out = Vec::new();
     let mut refusals = Vec::new();
     for (body_index, key) in keys.into_iter().enumerate() {
@@ -599,15 +652,69 @@ pub(super) fn analyse(ctx: &Context<'_>) -> Analysis {
                 .cmp(&b.candidate.enclosed_samples),
         )
     });
-    Analysis {
-        accepted: out,
-        refusals,
-    }
+    with_sealed_shells(
+        Analysis {
+            accepted: out,
+            refusals,
+        },
+        sealed_records,
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sampled_void_ids_survive_sealed_replacements_and_new_shells() {
+        let occurrence = |body_index, face, volume_method| Occurrence {
+            record: InteriorVoid {
+                body_index,
+                body_key: None,
+                void_faces: vec![face],
+                openings: if volume_method == "six_axis_grid" {
+                    vec![vec![face + 1]]
+                } else {
+                    vec![]
+                },
+                estimated_volume: 12.0,
+                volume_method,
+                grid_pitch: if volume_method == "six_axis_grid" {
+                    1.0
+                } else {
+                    0.0
+                },
+                enclosed_samples: if volume_method == "six_axis_grid" {
+                    12
+                } else {
+                    0
+                },
+                air_samples: if volume_method == "six_axis_grid" {
+                    24
+                } else {
+                    0
+                },
+            },
+            defining: vec![face],
+            context: Vec::new(),
+        };
+        let open = occurrence(0, 20, "six_axis_grid");
+        let mut sampled_sealed = occurrence(0, 10, "six_axis_grid");
+        sampled_sealed.record.openings.clear();
+        let other_body = occurrence(1, 40, "six_axis_grid");
+        let canonical = occurrence(0, 10, "closed_shell");
+        let unseen = occurrence(0, 5, "closed_shell");
+        let merged = with_sealed_shells(
+            Analysis {
+                accepted: vec![open.clone(), sampled_sealed, other_body.clone()],
+                refusals: Vec::new(),
+            },
+            vec![unseen.clone(), canonical.clone()],
+        );
+        // /0 and /2 remain the old open records; /1 is updated in place. The new
+        // shell is /3 even though it precedes all of them in body/face ordering.
+        assert_eq!(merged.accepted, [open, canonical, other_body, unseen]);
+    }
 
     #[test]
     fn lattice_maps_onto_itself_when_a_nonintegral_box_is_turned_over() {

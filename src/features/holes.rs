@@ -758,7 +758,7 @@ pub fn discover(
     let part = ctx.part;
     let cyls = ctx.cylinders();
     let (z, cross) = z_then_cross(cyls);
-    let internal: Vec<_> = full_cylinders(&z)
+    let mut internal: Vec<_> = full_cylinders(&z)
         .into_iter()
         .chain(full_cylinders(&cross))
         .filter(|c| !c.external)
@@ -766,6 +766,9 @@ pub fn discover(
     if internal.is_empty() {
         return Vec::new();
     }
+    let enclosed: BTreeSet<_> = ctx.sealed_void_shells().iter()
+        .flat_map(|shell| shell.faces.iter().copied()).collect();
+    internal.retain(|c| !enclosed.contains(&c.face));
     let stacks = merge_stacks(part, merge_runs(&segments(&internal), line_key));
     let mut out = Vec::new();
     for stack in stacks {

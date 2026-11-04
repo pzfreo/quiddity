@@ -568,9 +568,16 @@ impl Part {
     /// through such a shell depends on the point it is measured from; one that moves with the
     /// part keeps the volume unchanged by a placement, as OpenCascade's is.
     pub fn solid_mass(&self, solid: usize) -> Option<(f64, f64)> {
+        self.shell_mass(&self.solids[solid].faces)
+    }
+
+    /// Signed volume and area of closed, oriented shells. An outer shell has positive
+    /// volume; a solid's inward-facing void shell has negative volume. The reference point
+    /// follows these faces so the integral remains stable under rigid motion.
+    pub fn shell_mass(&self, faces: &[usize]) -> Option<(f64, f64)> {
         let mut centre = [0.0; 3];
         let mut uses = 0usize;
-        for &face in &self.solids[solid].faces {
+        for &face in faces {
             for lp in &self.faces[face].loops {
                 // TopExp_Explorer meets each edge's two vertices at each use, and a vertex loop
                 // as the two ends of the degenerate edge OpenCascade makes of it.
@@ -587,7 +594,7 @@ impl Part {
         }
         let centre = geom::scale(centre, 1.0 / uses.max(1) as f64);
         let (mut flux, mut area) = (0.0, 0.0);
-        for &face in &self.solids[solid].faces {
+        for &face in faces {
             let [a, f, nx, ny, nz] = self.face_terms(face)?;
             let f = f - geom::dot(centre, [nx, ny, nz]);
             area += a;
