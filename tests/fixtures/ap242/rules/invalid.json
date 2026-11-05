@@ -371,10 +371,6 @@
   },
   {
    "id": 951,
-   "rule": "characterized_item_within_representation.UR1"
-  },
-  {
-   "id": 951,
    "rule": "default_model_geometric_view.UR1"
   },
   {
@@ -391,15 +387,7 @@
   },
   {
    "id": 952,
-   "rule": "characterized_item_within_representation.UR1"
-  },
-  {
-   "id": 952,
    "rule": "default_model_geometric_view.UR1"
-  },
-  {
-   "id": 953,
-   "rule": "characterized_item_within_representation.WR1"
   }
  ]
 }

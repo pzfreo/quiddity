@@ -953,7 +953,7 @@ fn write_inner(
     } else {
         order
             .iter()
-            .flat_map(|(id, _)| notes_view::owned_roots(doc, parts[id.0].shape))
+            .flat_map(|(id, _)| notes_view::owned_roots(doc, parts[id.0].shape, &read.saved_views))
             .collect()
     };
     let mut kept_view_ink = BTreeSet::new();
@@ -965,6 +965,9 @@ fn write_inner(
         .collect();
     while let Some(id) = work.pop() {
         if is_a(doc, id, "shape_representation")
+            // A semantic placeholder's GPS_DATA follows the replaced semantic
+            // association. Keeping it alone would orphan APO (§7.2.3).
+            || is_a(doc, id, "annotation_placeholder_occurrence")
             || is_a(doc, id, "representation_context")
             || is_a(doc, id, "product_definition_shape")
             || leaf_names(doc, id)
@@ -975,14 +978,6 @@ fn write_inner(
             continue;
         }
         work.extend(references(doc, id));
-    }
-    for &id in &kept_view_ink {
-        rebound.extend(
-            references(doc, id)
-                .into_iter()
-                .filter(|to| kept_view_ink.contains(to))
-                .map(|to| (id, to)),
-        );
     }
     if mode != Mode::Add {
         let mut seeds = BTreeSet::new();
@@ -1084,10 +1079,31 @@ fn write_inner(
                 }
             };
             let mut plan = plan;
-            plan.removed.retain(|id| !kept_view_ink.contains(id));
-            plan.rewritten.retain(|id, _| !kept_view_ink.contains(id));
+            // A container of a removed semantic placeholder must follow the
+            // planner's rewrite/removal. Restore only complete surviving graphs.
+            let mut surviving_view_ink = kept_view_ink.clone();
+            loop {
+                let incomplete: Vec<_> = surviving_view_ink
+                    .iter()
+                    .copied()
+                    .filter(|id| {
+                        references(doc, *id)
+                            .iter()
+                            .any(|r| plan.removed.contains(r) && !surviving_view_ink.contains(r))
+                    })
+                    .collect();
+                if incomplete.is_empty() {
+                    break;
+                }
+                for id in incomplete {
+                    surviving_view_ink.remove(&id);
+                }
+            }
+            plan.removed.retain(|id| !surviving_view_ink.contains(id));
+            plan.rewritten
+                .retain(|id, _| !surviving_view_ink.contains(id));
             plan.presentation_removed
-                .retain(|(id, _)| !kept_view_ink.contains(id));
+                .retain(|(id, _)| !surviving_view_ink.contains(id));
             plan.removed.retain(|id| !kept_dimension_ink.contains(id));
             plan.rewritten
                 .retain(|id, _| !kept_dimension_ink.contains(id));
@@ -4944,19 +4960,21 @@ impl<'a> PartPlan<'a> {
                 notes_view.include(*basis, lines);
             }
         }
-        notes_view.include_kept(
-            self.doc,
-            em.removed,
-            self.context,
-            self.def.shape,
-            self.def.product_definition,
-        );
-        if let Some(part) = &presentation_part {
-            let b = part.bounds();
-            notes_view.include_bounds(b.min.map(|x| x / factor), b.max.map(|x| x / factor));
-        } else {
-            for &p in &points {
-                notes_view.include_point(p);
+        if notes_view.has_notes() {
+            notes_view.include_kept(
+                self.doc,
+                em.removed,
+                self.context,
+                self.def.shape,
+                self.def.product_definition,
+            );
+            if let Some(part) = &presentation_part {
+                let b = part.bounds();
+                notes_view.include_bounds(b.min.map(|x| x / factor), b.max.map(|x| x / factor));
+            } else {
+                for &p in &points {
+                    notes_view.include_point(p);
+                }
             }
         }
         let mut notes_planes = Vec::new();

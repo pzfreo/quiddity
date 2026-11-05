@@ -22,6 +22,9 @@ fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
     ]
 }
 impl Frame {
+    pub(super) fn has_notes(&self) -> bool {
+        self.basis.is_some()
+    }
     pub(super) fn one_plane(&self) -> bool {
         !self.several_planes
     }
@@ -136,7 +139,12 @@ impl Frame {
                                 _ => None,
                             })
                             .collect();
-                        v?.try_into().ok()
+                        let value: [f64; 3] = v?.try_into().ok()?;
+                        if field == "location" {
+                            Some(value)
+                        } else {
+                            crate::geom::unit(value)
+                        }
                     })
                     .unwrap_or(default)
             };
@@ -364,12 +372,14 @@ impl PartPlan<'_> {
 
 /// Only our precise Notes/global-model pairing is eligible for owned cleanup.
 /// Foreign saved views are never enrolled merely because they contain a camera.
-pub(super) fn owned_roots(doc: &Document, shape: u64) -> BTreeSet<u64> {
+pub(super) fn owned_roots(
+    doc: &Document,
+    shape: u64,
+    views: &[super::super::SavedView],
+) -> BTreeSet<u64> {
     let mut roots = BTreeSet::new();
-    for view in doc
-        .ids()
-        .filter(|id| is_a(doc, *id, "model_geometric_view"))
-    {
+    for view in views {
+        let view = view.id;
         let Some(model) = attr_ref(doc, view, "characterized_item_within_representation", "rep")
         else {
             continue;

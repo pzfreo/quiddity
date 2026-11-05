@@ -10341,3 +10341,71 @@ fn coplanar_source_general_notes_share_one_saved_view_plane() {
     assert!(haecceity::express_rules::check_all(&f.doc).is_empty());
     common::pmi_conformance::assert_conforms(&f.doc);
 }
+
+#[cfg(all(feature = "presentation", feature = "json-import"))]
+#[test]
+fn foreign_saved_views_do_not_orphan_semantic_placeholders() {
+    let f = open_bytes(common::pmi_source::written());
+    // The fixture has source placeholders in a global model. Give that model
+    // an imported camera-only saved view, exercising the pre-edition-2 route.
+    let model = f
+        .doc
+        .ids()
+        .find(|&id| common::pmi_usage::is_a(&f.doc, id, "draughting_model"))
+        .unwrap();
+    let context =
+        common::pmi_usage::reference(&f.doc, model, "representation", "context_of_items").unwrap();
+    let point = f.doc.ids().find(|&id|common::pmi_usage::is_a(&f.doc,id,"cartesian_point") && matches!(test_attribute(&f.doc,id,"cartesian_point","coordinates"),Some(Attribute::List(v)) if v.len()==3)).unwrap();
+    let n = f.doc.max_id() + 1;
+    let lines = format!(
+        "#{n}=AXIS2_PLACEMENT_3D('',#{point},$,$);\n#{}=CARTESIAN_POINT('',(-10.,-10.));\n#{}=AXIS2_PLACEMENT_2D('',#{},$);\n#{}=PLANAR_BOX('',20.,20.,#{});\n#{}=VIEW_VOLUME(.PARALLEL.,#{point},40.,0.,.F.,80.,.F.,.T.,#{});\n#{}=CAMERA_MODEL_D3('Imported',#{n},#{});\n#{}=DRAUGHTING_MODEL('Imported',(#{}),#{context});\n",
+        n + 1,
+        n + 2,
+        n + 1,
+        n + 3,
+        n + 2,
+        n + 4,
+        n + 3,
+        n + 5,
+        n + 4,
+        n + 6,
+        n + 5
+    );
+    let mut text = String::from_utf8(f.doc.bytes().to_vec()).unwrap();
+    let end = text.rfind("ENDSEC;").unwrap();
+    text.insert_str(end, &lines);
+    let before = open_bytes(text.into_bytes());
+    let mut edit = haecceity::p21::Edit::new();
+    let RawEntity::Simple {
+        name, attributes, ..
+    } = before.doc.get(n + 6).unwrap()
+    else {
+        panic!("model")
+    };
+    let mut values = attributes.clone();
+    let mut items = vec![Attribute::EntityRef(n + 5)];
+    let Some(Attribute::List(contents)) =
+        test_attribute(&before.doc, model, "representation", "items")
+    else {
+        panic!("items")
+    };
+    items.extend(contents.clone());
+    values[1] = Attribute::List(items);
+    edit.replace(n + 6, haecceity::p21::simple(name, values));
+    let before = open_bytes(before.doc.apply(&edit).unwrap().bytes);
+    let read = pmi::read(&before.doc, &before.parts).unwrap();
+    let after = write(
+        &before,
+        &[(PartId(0), read.parts[0].clone())],
+        Mode::Replace,
+    )
+    .unwrap();
+    common::pmi_conformance::assert_conforms(&after.doc);
+    assert!(
+        after
+            .read
+            .saved_views
+            .iter()
+            .any(|v| v.name == "Imported" && v.camera == n + 5)
+    );
+}

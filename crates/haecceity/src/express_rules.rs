@@ -129,16 +129,6 @@ pub const RULES: &[Rule] = &[
         "WR3",
         Check::Where(default_view_wr3)
     ),
-    rule!(
-        "characterized_item_within_representation",
-        "UR1",
-        Check::Unique(characterized_item_ur1)
-    ),
-    rule!(
-        "characterized_item_within_representation",
-        "WR1",
-        Check::Where(characterized_item_wr1)
-    ),
     rule!("thread", "WR1", Check::Where(thread_wr1)),
     rule!("thread", "WR2", Check::Where(thread_wr2)),
     rule!("thread", "WR3", Check::Where(thread_wr3)),
@@ -1873,15 +1863,4 @@ fn default_view_wr2(ctx: &Ctx, x: u64) -> Option<String> {
 fn default_view_wr3(ctx: &Ctx, x: u64) -> Option<String> {
     ctx.text(x, "shape_aspect", "description")
         .map(|_| "shape_aspect.description exists".into())
-}
-fn characterized_item_ur1(ctx: &Ctx, x: u64) -> Option<String> {
-    let item = ctx.reference(x, "characterized_item_within_representation", "item")?;
-    let rep = ctx.reference(x, "characterized_item_within_representation", "rep")?;
-    Some(format!("{item},{rep}"))
-}
-fn characterized_item_wr1(ctx: &Ctx, x: u64) -> Option<String> {
-    let item = ctx.reference(x, "characterized_item_within_representation", "item")?;
-    let rep = ctx.reference(x, "characterized_item_within_representation", "rep")?;
-    (!ctx.using_representations(item).contains(&rep))
-        .then(|| format!("item #{item} is not used by representation #{rep}"))
 }

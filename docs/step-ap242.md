@@ -517,7 +517,8 @@ is unchanged and stays close to the part.
 `DEFAULT_MODEL_GEOMETRIC_VIEW('Notes',$,#camera,#view,'Notes',$,#part_shape,*)`
 is the schema-table's internal Part 21 mapping: both inherited names agree, both
 descriptions are absent, and product_definitional is derived. `express_rules`
-checks its UR1 and WR1–WR3, plus characterized-item membership and uniqueness.
+checks its UR1 and WR1–WR3. The structural conformance checks also verify camera
+membership in the saved draughting model.
 Edition 1 is upgraded through the existing validated upgrade path when notes need
 the edition-2 saved-view entities. Add still refuses any upgrade requiring changes
 to source DATA records. An existing default is retained and Notes becomes an ordinary
@@ -527,9 +528,12 @@ and a factual finding. Coplanar source notes share the notes annotation plane.
 
 `PmiRead.saved_views` exposes names, camera references, displayed representation/items
 and default flags, including the pre-edition-2 camera-only form. References remain
-scoped to the original document. Foreign saved views and their presentation survive
-native replacement; generated Notes views are recognized by their Notes/global-model
-pairing and mapped part and removed on replace/remove before regeneration.
+scoped to the original document. Foreign cameras and surviving presentation remain
+on native replacement. Semantic placeholders follow their replaced associations
+(§7.2.3); their containers are pruned by the normal removal planner, rather than
+retaining a placeholder without its semantic association. Generated Notes views are
+recognized by their Notes/global-model pairing and mapped part and removed on
+replace/remove before regeneration.
 
 The saved view is related to the global model by
 `MECHANICAL_DESIGN_AND_DRAUGHTING_RELATIONSHIP('','',#notes_view,#global)`;
