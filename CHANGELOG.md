@@ -20,6 +20,8 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Changed
 
+- Notes view windows lie at the view-plane distance in camera coordinates, and Notes
+  models list their planes’ callouts directly, matching NIST CTC-02 and SFA 5.41.
 - Notes view windows use explicit 3D placements compatible with SFA 5.41; camera axes
   remain unchanged. Materials without a separate name repeat their ID as description,
   avoiding empty semantic text while preserving the reader round trip.

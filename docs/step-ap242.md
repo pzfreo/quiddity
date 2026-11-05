@@ -498,7 +498,8 @@ These override anything below and any stream brief that says otherwise.
 When the writer emits general notes in one geometric plane, it also emits a saved view
 named `Notes`, following CAx-IF PMI RP 4.1 §§9.4.2, 9.4.2.1, 9.4.2.5–7 and 9.4.4.
 The existing general-notes callout and annotation plane stay in the global
-`DRAUGHTING_MODEL('PMI callouts')`. The view references that annotation plane, a
+`DRAUGHTING_MODEL('PMI callouts')`. The view references that annotation plane and its draughting callouts as direct items
+(RP §9.4.2.1 Fig. 96, as in NIST CTC-02), a
 `CAMERA_MODEL_D3('Notes')`, and an identity `MAPPED_ITEM` of the part's shape
 representation. A `STYLED_ITEM` assigns `NULL_STYLE(.NULL.)` to the map, retaining
 the part's own colours. The styled item belongs to an ordinary
@@ -519,9 +520,11 @@ camera basis. The eye is the frame centre minus z times D, with D twice the fram
 3D diagonal. The parallel view volume has projection point (0,0,0), positive view
 plane distance D, front/back clipping disabled, distances 0 and 2D, and side clipping
 enabled. Its unrotated `PLANAR_BOX` has 10% margin and bottom-left placement
-(-width/2,-height/2,0). Its placement is explicitly `AXIS2_PLACEMENT_3D` with
+(-width/2,-height/2,D), on the view plane in camera coordinates (§9.4.2.6).
+The same floating-point D is used for this Z coordinate and the view-plane distance. Its placement is explicitly `AXIS2_PLACEMENT_3D` with
 axis (0,0,1) and ref_direction (1,0,0), matching NIST CTC-02 and SFA 5.41's
-camera reader. The camera axes remain unchanged; Solid Edge 2026 confirmed the
+camera reader. Reusing the writer-owned view includes the callouts of both
+retained and new notes planes; the global PMI model is unchanged. The camera axes remain unchanged; Solid Edge 2026 confirmed the
 view upright and unmirrored. All lengths use the part context's unit. Notes placement itself
 is unchanged and stays close to the part.
 

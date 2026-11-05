@@ -5178,7 +5178,7 @@ impl<'a> PartPlan<'a> {
                 )?;
                 planes.push(annotation_plane);
                 if general_note {
-                    notes_planes.push(annotation_plane);
+                    notes_planes.push((annotation_plane, vec![callout]));
                 }
             }
             if annotation_type != "note" {
@@ -5192,11 +5192,11 @@ impl<'a> PartPlan<'a> {
                     ("name", s("General notes")),
                     ("styles", refs([plane_style])),
                     ("item", surface.a()),
-                    ("elements", refs(note_elements)),
+                    ("elements", refs(note_elements.iter().copied())),
                 ],
             )?;
             planes.push(plane);
-            notes_planes.push(plane);
+            notes_planes.push((plane, note_elements));
         }
         let model_name = em.model_name(if cfg!(feature = "presentation") {
             "PMI callouts"

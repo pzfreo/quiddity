@@ -9928,6 +9928,55 @@ fn pmi_header_replaces_older_reference_and_preserves_unicode_description() {
 }
 
 #[cfg(feature = "presentation")]
+fn assert_notes_view_window_and_callout_membership(
+    doc: &Document,
+    view: &haecceity::pmi::SavedView,
+) {
+    use common::pmi_usage::{is_a, reference};
+    let volume = reference(doc, view.camera, "camera_model_d3", "perspective_of_volume").unwrap();
+    let window = reference(doc, volume, "view_volume", "view_window").unwrap();
+    let placement = reference(doc, window, "planar_box", "placement").unwrap();
+    assert!(is_a(doc, placement, "axis2_placement_3d"));
+    let location = reference(doc, placement, "placement", "location").unwrap();
+    let Some(Attribute::List(corner)) =
+        test_attribute(doc, location, "cartesian_point", "coordinates")
+    else {
+        panic!("window origin")
+    };
+    assert_eq!(corner.len(), 3);
+    assert_eq!(
+        Some(&corner[2]),
+        test_attribute(doc, volume, "view_volume", "view_plane_distance"),
+        "window origin lies on the view plane, with the identical REAL value"
+    );
+    let mut callouts = 0;
+    for plane in view
+        .contents
+        .iter()
+        .filter(|id| is_a(doc, **id, "annotation_plane"))
+    {
+        let Some(Attribute::List(elements)) =
+            test_attribute(doc, *plane, "annotation_plane", "elements")
+        else {
+            panic!("plane elements")
+        };
+        for element in elements {
+            let Attribute::EntityRef(callout) = element else {
+                panic!("plane element reference")
+            };
+            if is_a(doc, *callout, "draughting_callout") {
+                callouts += 1;
+                assert!(
+                    view.contents.contains(callout),
+                    "Notes items must contain plane #{plane}'s callout #{callout}"
+                );
+            }
+        }
+    }
+    assert!(callouts > 0, "exercise callouts in the Notes-view planes");
+}
+
+#[cfg(feature = "presentation")]
 #[test]
 fn notes_saved_view_frames_part_and_ink_and_roundtrips() {
     use common::pmi_usage::is_a;
@@ -9967,7 +10016,8 @@ fn notes_saved_view_frames_part_and_ink_and_roundtrips() {
         .iter()
         .find(|&&id| is_a(doc, id, "annotation_plane"))
         .unwrap();
-    assert_eq!(view.contents.len(), 3);
+    assert_eq!(view.contents.len(), 4);
+    assert_notes_view_window_and_callout_membership(doc, view);
     let callout = common::pmi_usage::reference(doc, plane, "annotation_plane", "elements");
     assert!(callout.is_none(), "elements is an aggregate");
     let Attribute::List(elements) =
@@ -10043,7 +10093,7 @@ fn notes_saved_view_frames_part_and_ink_and_roundtrips() {
         &vec![
             Attribute::Real(-width / 2.),
             Attribute::Real(-height / 2.),
-            Attribute::Real(0.)
+            Attribute::Real(d)
         ]
     );
     assert!(is_a(doc, placement, "axis2_placement_3d"));
@@ -10431,7 +10481,8 @@ fn coplanar_source_general_notes_share_one_saved_view_plane() {
     let view = &read.saved_views[0];
     assert_eq!(view.name, "Notes");
     assert!(view.is_default);
-    assert_eq!(view.contents.len(), 3);
+    assert_eq!(view.contents.len(), 5);
+    assert_notes_view_window_and_callout_membership(&f.doc, view);
     let plane = view
         .contents
         .iter()
@@ -10556,6 +10607,7 @@ fn add_reuses_owned_notes_model_and_camera_up_is_upright() {
         1
     );
     assert_notes_add_preserves_other_bytes(&before.doc, &old, &added);
+    assert_notes_view_window_and_callout_membership(&added.doc, view);
     let planes: Vec<_> = view
         .contents
         .iter()

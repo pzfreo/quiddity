@@ -210,7 +210,7 @@ impl PartPlan<'_> {
         &self,
         em: &mut Emitter<'_>,
         global: R,
-        planes: &[R],
+        planes: &[(R, Vec<R>)],
         frame: Frame,
         report: &mut WriteReport,
     ) -> Result<(), WriteError> {
@@ -314,7 +314,8 @@ impl PartPlan<'_> {
                 ("ref_direction", x.a()),
             ],
         )?;
-        let corner = point(em, &[-w / 2., -h / 2., 0.])?;
+        // The window origin is on the view plane in camera coordinates (§9.4.2.6).
+        let corner = point(em, &[-w / 2., -h / 2., d])?;
         let window_z = direction(em, [0., 0., 1.])?;
         let window_x = direction(em, [1., 0., 0.])?;
         let placement = em.simple(
@@ -358,14 +359,32 @@ impl PartPlan<'_> {
                 ("perspective_of_volume", volume.a()),
             ],
         )?;
+        // Saved-view membership includes both the plane and its callouts, as in
+        // RP §9.4.2.1 Fig. 96. SFA does not traverse annotation_plane.elements.
+        let mut items = vec![cam];
+        if own.is_some() {
+            for plane in frame.kept_planes {
+                items.push(R::Old(plane));
+                for callout in attr_refs(self.doc, plane, "annotation_plane", "elements") {
+                    if is_a(self.doc, callout, "draughting_callout")
+                        && !items.contains(&R::Old(callout))
+                    {
+                        items.push(R::Old(callout));
+                    }
+                }
+            }
+        }
+        for (plane, callouts) in planes {
+            items.push(*plane);
+            for callout in callouts {
+                if !items.contains(callout) {
+                    items.push(*callout);
+                }
+            }
+        }
         if let Some(own) = own {
-            let items = refs(
-                [cam]
-                    .into_iter()
-                    .chain(frame.kept_planes.iter().copied().map(R::Old))
-                    .chain(planes.iter().copied())
-                    .chain([R::Old(own.part)]),
-            );
+            items.push(R::Old(own.part));
+            let items = refs(items);
             em.kept_rewrites.insert(
                 own.model,
                 p21::simple(
@@ -471,15 +490,7 @@ impl PartPlan<'_> {
             "draughting_model",
             &[
                 ("name", s("Notes")),
-                (
-                    "items",
-                    refs(
-                        [cam]
-                            .into_iter()
-                            .chain(planes.iter().copied())
-                            .chain([part]),
-                    ),
-                ),
+                ("items", refs(items.into_iter().chain([part]))),
                 ("context_of_items", em.reference(self.context)?.a()),
             ],
         )?;
