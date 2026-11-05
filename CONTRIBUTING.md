@@ -45,4 +45,4 @@ Signed-off-by: Your Name <you@example.com>
 ```
 
 A check on pull requests from forks confirms every commit is signed off. To sign off commits
-already made, `git rebase --signoff main` and force-push the branch.
+already made, `git fetch upstream && git rebase --signoff upstream/main` (with `upstream` this repository) and force-push the branch.

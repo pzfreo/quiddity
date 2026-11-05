@@ -20,13 +20,22 @@ jobs:
       - name: Every commit is signed off
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
           HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
-          missing=$(git log --no-merges --format='%h%x09%s%x09%(trailers:key=Signed-off-by,valueonly,separator=;)' "$BASE..$HEAD" \
-            | awk -F'\t' '$3 == "" { print $1 " " $2 }')
+          # The PR's own commits: not on the base, nor on a newer base the branch has merged in.
+          missing=""
+          for c in $(git rev-list --no-merges "$HEAD" --not "$BASE" "origin/$BASE_REF"); do
+            # A sign-off is a Signed-off-by trailer with a name and an email.
+            if ! git log -1 --format='%(trailers:key=Signed-off-by,valueonly)' "$c" \
+                | grep -Eq '^[^<>]*[^<> ][^<>]* <[^<>@ ]+@[^<> ]+>$'; then
+              missing="$missing$(git log -1 --format='%h %s' "$c")
+          "
+            fi
+          done
           if [ -n "$missing" ]; then
-            echo "These commits have no Signed-off-by line. Sign off with 'git commit -s' (see CONTRIBUTING.md):"
-            echo "$missing"
+            echo "These commits have no Signed-off-by line with a name and email. Sign off with 'git commit -s' (see CONTRIBUTING.md):"
+            printf '%s' "$missing"
             exit 1
           fi
           echo "Every commit is signed off."
