@@ -501,11 +501,19 @@ The existing general-notes callout and annotation plane stay in the global
 `DRAUGHTING_MODEL('PMI callouts')`. The view references that annotation plane, a
 `CAMERA_MODEL_D3('Notes')`, and an identity `MAPPED_ITEM` of the part's shape
 representation. A `STYLED_ITEM` assigns `NULL_STYLE(.NULL.)` to the map, retaining
-the part's own colours. Both draughting models use the part's geometric context.
+the part's own colours. The styled item belongs to an ordinary
+`REPRESENTATION('Notes part styling',(#styled),#ctx)`, while the mapped item itself
+belongs to the Notes draughting model. RP §9.4.2.1 shows the styled item directly
+in that model, but the actual `draughting_model.WR2` requires exactly one style
+assignment whose number of non-curve styles is *not* one. A NULL-only assignment
+has one non-curve style and fails that predicate. Keeping the style in a separate
+representation is the closest form that retains NULL styling and passes WR2; rule
+fixtures exercise both forms. Both draughting models use the part's geometric context.
 No relationship from the global model to the shape is added.
 
-The camera's z axis is the negated notes-plane normal (camera to target); x is the
-plane's along direction. The frame encloses all eight corners of the part's B-rep
+The camera's z axis is the negated notes-plane normal (camera to target); x is
+the negated text-along direction. Camera y = z × x equals text up = normal × along,
+so the notes are upright. The live OCCT test checks its read `UpDirection`. The frame encloses all eight corners of the part's B-rep
 bounding box, including curve/surface extrema, and the final notes strokes in the
 camera basis. The eye is the frame centre minus z times D, with D twice the frame's
 3D diagonal. The parallel view volume has projection point (0,0,0), positive view
@@ -519,24 +527,33 @@ is the schema-table's internal Part 21 mapping: both inherited names agree, both
 descriptions are absent, and product_definitional is derived. `express_rules`
 checks its UR1 and WR1–WR3. The structural conformance checks also verify camera
 membership in the saved draughting model.
-Edition 1 is upgraded through the existing validated upgrade path when notes need
-the edition-2 saved-view entities. Add still refuses any upgrade requiring changes
-to source DATA records. An existing default is retained and Notes becomes an ordinary
+Replace upgrades edition-1 files with notes to edition 4 through the existing
+validated upgrade path. If that optional upgrade cannot pass validation, the writer
+retains edition 1 and reports that the Notes view was skipped. Add retains edition 1
+and skips the optional view with the same factual finding; notes still write. An existing default is retained and Notes becomes an ordinary
 `MODEL_GEOMETRIC_VIEW`, with a factual report entry. General notes spanning several
 planes (including parallel offset planes and source placements) get no new Notes view
-and a factual finding. Coplanar source notes share the notes annotation plane.
+and a factual finding. Coplanar notes with different text-along or text-up directions
+get a several-orientations finding instead. This includes opposite normals.
+Coplanar source notes with matching orientation share the notes annotation plane.
 
 The CLI reader binding is `haecceity-pmi-read/18`: a default view no longer produces
 an erroneous finding that its shape aspect has no face or edge.
 
 `PmiRead.saved_views` exposes names, camera references, displayed representation/items
 and default flags, including the pre-edition-2 camera-only form. References remain
-scoped to the original document. Foreign cameras and surviving presentation remain
-on native replacement. Semantic placeholders follow their replaced associations
+scoped to the original document. Foreign saved views and cameras remain on native
+replacement; their replaced callouts follow the existing presentation-removal planner,
+so replacement does not duplicate their ink. Semantic placeholders follow their replaced associations
 (§7.2.3); their containers are pruned by the normal removal planner, rather than
 retaining a placeholder without its semantic association. Generated Notes views are
 recognized by their Notes/global-model pairing and mapped part and removed on
-replace/remove before regeneration.
+replace/remove before regeneration. Add reuses an existing writer-owned Notes model
+and geometric-view record at their original ids, replacing only their camera and
+private camera support. The reused model references both existing and new note
+planes and frames all their ink. These owned records are the narrow exception to
+Add's original-DATA preservation; foreign views remain unchanged. Draughting-model
+names are unique (UR1); appended global models use a numbered suffix when needed.
 
 The saved view is related to the global model by
 `MECHANICAL_DESIGN_AND_DRAUGHTING_RELATIONSHIP('','',#notes_view,#global)`;

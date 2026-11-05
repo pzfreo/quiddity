@@ -115,7 +115,8 @@ pub const MAX_STRING_LITERAL_BYTES: usize = super::text::MAX_LITERAL_BYTES;
 /// What [`write`] does with each named part's existing PMI.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
-    /// Append the items without changing original DATA instances. The header gains the
+    /// Append while preserving original DATA, except for updating an owned Notes view
+    /// and its private camera support. Foreign views are unchanged. The header gains the
     /// CAx-IF PMI practice reference when absent. Schema upgrades
     /// requiring source-entity repairs fail with [`WriteError::AddPreservation`].
     /// A datum label the part already has
@@ -684,6 +685,56 @@ fn write_inner(
     )],
     #[cfg(feature = "json-import")] identity: Option<IdentityInput<'_>>,
 ) -> Result<(Edit, WriteReport), WriteError> {
+    let attempt = |allow| {
+        write_attempt(
+            doc,
+            parts,
+            pmi,
+            mode,
+            policy,
+            #[cfg(feature = "json-import")]
+            presentation,
+            #[cfg(feature = "json-import")]
+            identity,
+            allow,
+        )
+    };
+    let result = attempt(true);
+    if matches!(
+        &result,
+        Err(WriteError::Edition { .. }
+            | WriteError::Schema(_)
+            | WriteError::Rules(_)
+            | WriteError::AddPreservation { .. })
+    ) && doc
+        .file_schema()?
+        .first()
+        .and_then(|s| express::edition(s))
+        .is_some_and(|e| std::ptr::eq(e, &express::AP242_ED1))
+        && let Ok(written) = attempt(false)
+    {
+        return Ok(written);
+    }
+    result
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "writer inputs plus optional upgrade control"
+)]
+fn write_attempt(
+    doc: &Document,
+    parts: &[PartDefinition],
+    pmi: &[(PartId, PartPmi)],
+    mode: Mode,
+    policy: PresentationPolicy,
+    #[cfg(feature = "json-import")] presentation: &[(
+        PartId,
+        crate::json::presentation::Presentation,
+    )],
+    #[cfg(feature = "json-import")] identity: Option<IdentityInput<'_>>,
+    _allow_notes_upgrade: bool,
+) -> Result<(Edit, WriteReport), WriteError> {
     #[cfg(feature = "json-import")]
     let (identifiers, protected) =
         identity.map_or((None, None), |(ids, kept)| (Some(ids), Some(kept)));
@@ -779,8 +830,9 @@ fn write_inner(
     let json_upgrade = false;
     // Saved-view identifiers/defaults were introduced in AP242 edition 2.
     #[cfg(feature = "presentation")]
-    let notes_upgrade = express::edition(&first)
-        .is_some_and(|e| std::ptr::eq(e, &express::AP242_ED1))
+    let notes_upgrade = _allow_notes_upgrade
+        && mode == Mode::Replace
+        && express::edition(&first).is_some_and(|e| std::ptr::eq(e, &express::AP242_ED1))
         && order
             .iter()
             .any(|(_, p)| !crate::presentation::notes::general_notes(p).is_empty());
@@ -945,9 +997,6 @@ fn write_inner(
             }
         }
     }
-    // Saved views are file-owned presentation. Preserve foreign cameras and
-    // displayed contents across native read/write, including Remove; only the
-    // Notes views recognized as ours participate in owned cleanup.
     let owned_views: BTreeSet<_> = if read.saved_views.is_empty() {
         BTreeSet::new()
     } else {
@@ -956,29 +1005,6 @@ fn write_inner(
             .flat_map(|(id, _)| notes_view::owned_roots(doc, parts[id.0].shape, &read.saved_views))
             .collect()
     };
-    let mut kept_view_ink = BTreeSet::new();
-    let mut work: Vec<_> = read
-        .saved_views
-        .iter()
-        .filter(|view| !owned_views.contains(&view.id))
-        .flat_map(|view| [view.id, view.representation])
-        .collect();
-    while let Some(id) = work.pop() {
-        if is_a(doc, id, "shape_representation")
-            // A semantic placeholder's GPS_DATA follows the replaced semantic
-            // association. Keeping it alone would orphan APO (§7.2.3).
-            || is_a(doc, id, "annotation_placeholder_occurrence")
-            || is_a(doc, id, "representation_context")
-            || is_a(doc, id, "product_definition_shape")
-            || leaf_names(doc, id)
-                .iter()
-                .any(|name| express::TARGET.family(name) == Some(express::Family::SemanticPmi))
-            || !kept_view_ink.insert(id)
-        {
-            continue;
-        }
-        work.extend(references(doc, id));
-    }
     if mode != Mode::Add {
         let mut seeds = BTreeSet::new();
         for (p, _) in &order {
@@ -997,7 +1023,6 @@ fn write_inner(
         if policy == PresentationPolicy::RemovePresentation {
             seeds.extend(&owned_views);
         }
-        seeds.retain(|id| !kept_view_ink.contains(id));
         let shared = shared_dependencies(doc, &seeds);
         let replacements: BTreeSet<u64> = plans
             .iter()
@@ -1079,31 +1104,6 @@ fn write_inner(
                 }
             };
             let mut plan = plan;
-            // A container of a removed semantic placeholder must follow the
-            // planner's rewrite/removal. Restore only complete surviving graphs.
-            let mut surviving_view_ink = kept_view_ink.clone();
-            loop {
-                let incomplete: Vec<_> = surviving_view_ink
-                    .iter()
-                    .copied()
-                    .filter(|id| {
-                        references(doc, *id)
-                            .iter()
-                            .any(|r| plan.removed.contains(r) && !surviving_view_ink.contains(r))
-                    })
-                    .collect();
-                if incomplete.is_empty() {
-                    break;
-                }
-                for id in incomplete {
-                    surviving_view_ink.remove(&id);
-                }
-            }
-            plan.removed.retain(|id| !surviving_view_ink.contains(id));
-            plan.rewritten
-                .retain(|id, _| !surviving_view_ink.contains(id));
-            plan.presentation_removed
-                .retain(|(id, _)| !surviving_view_ink.contains(id));
             plan.removed.retain(|id| !kept_dimension_ink.contains(id));
             plan.rewritten
                 .retain(|id, _| !kept_dimension_ink.contains(id));
@@ -1234,6 +1234,7 @@ fn write_inner(
             (d, r.a())
         })
         .collect();
+    let view_edits = em.view_edits.clone();
     let added = em.count;
     let practice_exemptions = em.practice_exemptions.clone();
     let carrier_exemptions = em.carrier_exemptions.clone();
@@ -1383,8 +1384,9 @@ fn write_inner(
         let changed: Vec<_> = doc
             .ids()
             .filter(|id| {
-                doc.span(*id).map(|span| &doc.bytes()[span])
-                    != after.span(*id).map(|span| &after.bytes()[span])
+                !view_edits.contains(id)
+                    && doc.span(*id).map(|span| &doc.bytes()[span])
+                        != after.span(*id).map(|span| &after.bytes()[span])
             })
             .collect();
         if !changed.is_empty() {
@@ -2010,6 +2012,8 @@ pub struct Emitter<'a> {
     preserve_kept: bool,
     kept_rewrites: BTreeMap<u64, RawEntity>,
     retired: BTreeSet<u64>,
+    view_edits: BTreeSet<u64>,
+    model_names: BTreeSet<String>,
 }
 
 impl<'a> Emitter<'a> {
@@ -2038,7 +2042,23 @@ impl<'a> Emitter<'a> {
             preserve_kept: false,
             kept_rewrites: BTreeMap::new(),
             retired: BTreeSet::new(),
+            view_edits: BTreeSet::new(),
+            model_names: doc
+                .ids()
+                .filter(|id| !removed.contains(id) && is_a(doc, *id, "draughting_model"))
+                .filter_map(|id| attr_str(doc, id, "representation", "name"))
+                .collect(),
         }
+    }
+
+    fn model_name(&mut self, base: &str) -> String {
+        let mut name = base.to_owned();
+        let mut n = 2;
+        while !self.model_names.insert(name.clone()) {
+            name = format!("{base} ({n})");
+            n += 1;
+        }
+        name
     }
 
     fn practice_conflict(&mut self, instance: R, rules: &[&'static str]) {
@@ -5176,17 +5196,15 @@ impl<'a> PartPlan<'a> {
             planes.push(plane);
             notes_planes.push(plane);
         }
+        let model_name = em.model_name(if cfg!(feature = "presentation") {
+            "PMI callouts"
+        } else {
+            "datum feature symbols"
+        });
         let model = em.simple(
             "draughting_model",
             &[
-                (
-                    "name",
-                    s(if cfg!(feature = "presentation") {
-                        "PMI callouts"
-                    } else {
-                        "datum feature symbols"
-                    }),
-                ),
+                ("name", s(&model_name)),
                 ("items", refs(planes)),
                 ("context_of_items", context.a()),
             ],

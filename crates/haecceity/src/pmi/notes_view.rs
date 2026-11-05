@@ -6,6 +6,8 @@ pub(super) struct Frame {
     basis: Option<[[f64; 3]; 3]>,
     points: Vec<[f64; 3]>,
     several_planes: bool,
+    several_orientations: bool,
+    kept_planes: Vec<u64>,
 }
 
 fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
@@ -26,17 +28,21 @@ impl Frame {
         self.basis.is_some()
     }
     pub(super) fn one_plane(&self) -> bool {
-        !self.several_planes
+        !self.several_planes && !self.several_orientations
     }
     pub(super) fn new() -> Self {
         Self::default()
     }
     pub(super) fn include(&mut self, basis: [[f64; 3]; 3], lines: &[Vec<[f64; 3]>]) {
-        if let Some([origin, normal, _]) = self.basis {
+        if let Some([origin, normal, along]) = self.basis {
             if dot(normal, basis[1]).abs() < 1. - 1e-8
                 || dot(sub(basis[0], origin), normal).abs() > 1e-6
             {
                 self.several_planes = true;
+            } else if dot(along, basis[2]) < 1. - 1e-8
+                || dot(cross(normal, along), cross(basis[1], basis[2])) < 1. - 1e-8
+            {
+                self.several_orientations = true;
             }
         } else {
             self.basis = Some(basis);
@@ -114,6 +120,38 @@ impl Frame {
             if !named && !note_ink {
                 continue;
             }
+            self.kept_planes.push(plane);
+            for &member in &members {
+                let Some(set) = attr_ref(doc, member, "styled_item", "item") else {
+                    continue;
+                };
+                for child in attr_refs(doc, set, "tessellated_geometric_set", "children") {
+                    let Some(coords) = attr_ref(doc, child, "tessellated_item", "coordinates")
+                        .or_else(|| attr_ref(doc, child, "tessellated_curve_set", "coordinates"))
+                    else {
+                        continue;
+                    };
+                    if let Some(A::List(points)) =
+                        attr(doc, coords, "coordinates_list", "position_coords")
+                    {
+                        for point in points {
+                            if let A::List(v) = point {
+                                let p: Option<Vec<_>> = v
+                                    .iter()
+                                    .map(|a| match a {
+                                        A::Real(x) => Some(*x),
+                                        A::Integer(x) => Some(*x as f64),
+                                        _ => None,
+                                    })
+                                    .collect();
+                                if let Some(p) = p.and_then(|v| v.try_into().ok()) {
+                                    self.points.push(p);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             let Some(item) = attr_ref(doc, plane, "styled_item", "item") else {
                 continue;
             };
@@ -169,6 +207,38 @@ impl PartPlan<'_> {
         frame: Frame,
         report: &mut WriteReport,
     ) -> Result<(), WriteError> {
+        if em.edition.entity("model_geometric_view").is_none() {
+            report.saved_view_findings.push(Finding {kind:FindingKind::Fact,part:Some(self.id),ids:vec![],entity:"draughting_model".into(),detail:"Notes saved view was not written: edition 1 retained; the optional view requires edition 2 or later".into()});
+            return Ok(());
+        }
+        let own = if self.mode == Mode::Add {
+            own_view(self.doc, self.def.shape)
+        } else {
+            None
+        };
+        if own.is_none() && em.model_names.contains("Notes") {
+            report.saved_view_findings.push(Finding {
+                kind: FindingKind::Fact,
+                part: Some(self.id),
+                ids: vec![],
+                entity: "draughting_model".into(),
+                detail:
+                    "existing Notes draughting model retained; no second Notes model was written"
+                        .into(),
+            });
+            return Ok(());
+        }
+        if frame.several_orientations && !frame.several_planes {
+            report.saved_view_findings.push(Finding {
+                kind: FindingKind::Fact,
+                part: Some(self.id),
+                ids: vec![],
+                entity: "annotation_plane".into(),
+                detail: "general notes have several orientations; no Notes saved view was written"
+                    .into(),
+            });
+            return Ok(());
+        }
         if frame.several_planes {
             report.saved_view_findings.push(Finding {
                 kind: FindingKind::Fact,
@@ -183,8 +253,9 @@ impl PartPlan<'_> {
             return Ok(());
         };
         let z = normal.map(|x| -x);
-        let y = cross(z, along);
-        let axes = [along, y, z];
+        let x = along.map(|v| -v);
+        let y = cross(z, x);
+        let axes = [x, y, z];
         let mut min = [f64::INFINITY; 3];
         let mut max = [f64::NEG_INFINITY; 3];
         for p in frame.points {
@@ -225,7 +296,7 @@ impl PartPlan<'_> {
         };
         let eye = point(em, &eye)?;
         let z = direction(em, z)?;
-        let x = direction(em, along)?;
+        let x = direction(em, x)?;
         let vrs = em.simple(
             "axis2_placement_3d",
             &[
@@ -272,6 +343,72 @@ impl PartPlan<'_> {
                 ("perspective_of_volume", volume.a()),
             ],
         )?;
+        if let Some(own) = own {
+            let items = refs(
+                [cam]
+                    .into_iter()
+                    .chain(frame.kept_planes.iter().copied().map(R::Old))
+                    .chain(planes.iter().copied())
+                    .chain([R::Old(own.part)]),
+            );
+            em.kept_rewrites.insert(
+                own.model,
+                p21::simple(
+                    "DRAUGHTING_MODEL",
+                    vec![s("Notes"), items, em.reference(self.context)?.a()],
+                ),
+            );
+            let mut view = self
+                .doc
+                .get(own.view)
+                .ok_or_else(|| WriteError::Internal("missing owned view".into()))?
+                .clone();
+            crate::p21::visit_attributes_mut(&mut view, &mut |a| {
+                if *a == A::EntityRef(own.camera) {
+                    *a = cam.a();
+                }
+            });
+            em.kept_rewrites.insert(own.view, view);
+            em.view_edits.extend([own.view, own.model]);
+            // Retire only private camera support. Shared origins/placements and
+            // cameras referenced by another view remain untouched.
+            let mut private = BTreeSet::new();
+            let mut pending = vec![own.camera];
+            while let Some(id) = pending.pop() {
+                if private.insert(id) {
+                    pending.extend(references(self.doc, id));
+                }
+            }
+            loop {
+                let shared: Vec<_> = private
+                    .iter()
+                    .copied()
+                    .filter(|id| {
+                        self.doc
+                            .referrers(*id)
+                            .iter()
+                            .any(|r| !private.contains(r) && ![own.view, own.model].contains(r))
+                    })
+                    .collect();
+                if shared.is_empty() {
+                    break;
+                }
+                for id in shared {
+                    private.remove(&id);
+                }
+            }
+            em.view_edits.extend(&private);
+            em.retired.extend(private);
+            report.saved_view_findings.push(Finding {
+                kind: FindingKind::Fact,
+                part: Some(self.id),
+                ids: vec![own.view],
+                entity: "draughting_model".into(),
+                detail: "reused the writer-owned Notes saved view for the added general notes"
+                    .into(),
+            });
+            return Ok(());
+        }
         let identity = em.simple(
             "axis2_placement_3d",
             &[("name", s("")), ("location", origin.a())],
@@ -295,7 +432,7 @@ impl PartPlan<'_> {
             "presentation_style_assignment",
             &[("styles", A::List(vec![typed("null_style", en("null"))]))],
         )?;
-        em.simple(
+        let styled = em.simple(
             "styled_item",
             &[
                 ("name", s("")),
@@ -303,6 +440,17 @@ impl PartPlan<'_> {
                 ("item", part.a()),
             ],
         )?;
+        // DRAUGHTING_MODEL.WR2 rejects a directly contained NULL-only styled
+        // mapped item. Keep that style in an ordinary representation instead.
+        em.simple(
+            "representation",
+            &[
+                ("name", s("Notes part styling")),
+                ("items", refs([styled])),
+                ("context_of_items", em.reference(self.context)?.a()),
+            ],
+        )?;
+        em.model_names.insert("Notes".into());
         let model = em.simple(
             "draughting_model",
             &[
@@ -370,6 +518,62 @@ impl PartPlan<'_> {
     }
 }
 
+pub(super) struct OwnView {
+    view: u64,
+    model: u64,
+    camera: u64,
+    part: u64,
+}
+pub(super) fn own_view(doc: &Document, shape: u64) -> Option<OwnView> {
+    for view in doc
+        .ids()
+        .filter(|id| is_a(doc, *id, "model_geometric_view"))
+    {
+        let Some(model) = attr_ref(doc, view, "characterized_item_within_representation", "rep")
+        else {
+            continue;
+        };
+        if attr_str(doc, model, "representation", "name").as_deref() != Some("Notes") {
+            continue;
+        }
+        let related = doc.referrers(model).iter().any(|id| {
+            is_a(doc, *id, "mechanical_design_and_draughting_relationship")
+                && attr_ref(doc, *id, "representation_relationship", "rep_1") == Some(model)
+                && attr_ref(doc, *id, "representation_relationship", "rep_2").is_some_and(|g| {
+                    attr_str(doc, g, "representation", "name")
+                        .is_some_and(|n| n == "PMI callouts" || n.starts_with("PMI callouts ("))
+                })
+        });
+        if !related {
+            continue;
+        }
+        for part in attr_refs(doc, model, "representation", "items") {
+            let matches = attr_ref(doc, part, "mapped_item", "mapping_source")
+                .and_then(|m| attr_ref(doc, m, "representation_map", "mapped_representation"))
+                .is_some_and(|rep| {
+                    doc.referrers(rep).iter().any(|r| {
+                        attr_ref(doc, *r, "property_definition_representation", "definition")
+                            == Some(shape)
+                    })
+                });
+            if matches {
+                return Some(OwnView {
+                    view,
+                    model,
+                    camera: attr_ref(
+                        doc,
+                        view,
+                        "characterized_item_within_representation",
+                        "item",
+                    )?,
+                    part,
+                });
+            }
+        }
+    }
+    None
+}
+
 /// Only our precise Notes/global-model pairing is eligible for owned cleanup.
 /// Foreign saved views are never enrolled merely because they contain a camera.
 pub(super) fn owned_roots(
@@ -406,8 +610,8 @@ pub(super) fn owned_roots(
                 is_a(doc, *id, "mechanical_design_and_draughting_relationship")
                     && attr_ref(doc, *id, "representation_relationship", "rep_1") == Some(model)
                     && attr_ref(doc, *id, "representation_relationship", "rep_2").is_some_and(|g| {
-                        attr_str(doc, g, "representation", "name").as_deref()
-                            == Some("PMI callouts")
+                        attr_str(doc, g, "representation", "name")
+                            .is_some_and(|n| n == "PMI callouts" || n.starts_with("PMI callouts ("))
                     })
             })
             .collect();
@@ -421,13 +625,42 @@ pub(super) fn owned_roots(
                 continue;
             }
             roots.insert(item);
-            roots.extend(
-                doc.referrers(item)
-                    .iter()
-                    .copied()
-                    .filter(|id| is_a(doc, *id, "styled_item")),
-            );
+            for &styled in doc
+                .referrers(item)
+                .iter()
+                .filter(|id| is_a(doc, **id, "styled_item"))
+            {
+                roots.insert(styled);
+                roots.extend(doc.referrers(styled).iter().copied().filter(|id| {
+                    attr_str(doc, *id, "representation", "name").as_deref()
+                        == Some("Notes part styling")
+                }));
+            }
         }
     }
     roots
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn opposite_normals_and_flipped_along_are_distinct_text_orientations() {
+        for (normal, along) in [
+            ([0., 0., -1.], [1., 0., 0.]),
+            ([0., 0., -1.], [-1., 0., 0.]),
+            ([0., 0., 1.], [-1., 0., 0.]),
+        ] {
+            let mut f = Frame::new();
+            f.include([[0.; 3], [0., 0., 1.], [1., 0., 0.]], &[]);
+            f.include([[0.; 3], normal, along], &[]);
+            assert!(!f.one_plane());
+            assert!(f.several_orientations);
+            assert!(!f.several_planes);
+        }
+        let mut f = Frame::new();
+        f.include([[0.; 3], [0., 0., 1.], [1., 0., 0.]], &[]);
+        f.include([[2., 3., 0.], [0., 0., 1.], [1., 0., 0.]], &[]);
+        assert!(f.one_plane());
+    }
 }

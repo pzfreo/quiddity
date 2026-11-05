@@ -172,6 +172,21 @@ def child(mode: str, path: str) -> None:
     reader.SetColorMode(True)
     if reader.ReadFile(path) != c.IFSelect_RetDone or not reader.Transfer(doc):
         sys.exit(3)
+    if mode == "notes-up":
+        from OCP.XCAFDoc import XCAFDoc_View
+
+        labels = c.TDF_LabelSequence()
+        c.XCAFDoc_DocumentTool.ViewTool_s(doc.Main()).GetViewLabels(labels)
+        found = False
+        for i in range(1, labels.Length() + 1):
+            view = XCAFDoc_View.Set_s(labels.Value(i)).GetObject()
+            if view.Name() is not None and view.Name().ToCString() == "Notes":
+                up = view.UpDirection()
+                direction = (up.X(), up.Y(), up.Z())
+                assert max(abs(a - b) for a, b in zip(direction, (0., 0., 1.))) < 1e-8, direction
+                found = True
+        assert found, "OCCT did not read the Notes camera"
+        sys.exit(0)
     for label in _labels(c.XCAFDoc_DocumentTool.ShapeTool_s(doc.Main())):
         name = _attribute(label, "TDataStd_Name")
         if name is not None:

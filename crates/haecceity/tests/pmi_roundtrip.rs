@@ -427,22 +427,8 @@ fn compare_pins(
     let reasons = pins["reasons"].as_object().unwrap();
     let pinned = pins[section].as_object().unwrap();
     for (stem, got) in actual {
-        // View preservation changes support-record counts. Verify actual removal
-        // structurally above; keep the requirement/refusal evidence pinned here.
-        let normalize = |value: &serde_json::Value| {
-            let mut value = value.clone();
-            if let Some(object) = value.as_object_mut() {
-                object.remove("presentation removed");
-                if let Some(policy) = object.get_mut("refuse policy")
-                    && policy.as_str().is_some_and(|s| s.starts_with("refused: "))
-                {
-                    *policy = serde_json::json!("refused: presentation blockers");
-                }
-            }
-            value
-        };
         match pinned.get(stem) {
-            Some(p) if normalize(p) == normalize(got) => {}
+            Some(p) if p == got => {}
             Some(p) => problems.push(format!(
                 "{section} {stem}: changed\n  pinned {p}\n  actual {got}"
             )),

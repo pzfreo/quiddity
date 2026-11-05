@@ -1248,12 +1248,7 @@ fn add_datum_preserves_the_kept_geometric_carrier() {
 #[test]
 fn ctc01_add_datums_preserve_foreign_perpendicularity_and_location() {
     use common::pmi_usage::{is_a, reference};
-    let mut input = fixture("ap242/nist/nist_ctc_01_asme1_ap242-e1.stp.gz");
-    if cfg!(feature = "presentation") {
-        // This case exercises kept carriers and notes on a canonical source;
-        // the raw edition-1 R3 refusal is covered by the notes-clearance test.
-        input.doc = common::canonical_notes_source(&input.doc);
-    }
+    let input = fixture("ap242/nist/nist_ctc_01_asme1_ap242-e1.stp.gz");
     let before = pmi::read(&input.doc, &input.parts).unwrap();
     let p = &before.parts[0];
     let perpendicularity = p
@@ -1668,6 +1663,7 @@ fn ctc01_added_datums_attach_in_live_occt_without_changing_foreign_pmi() {
     let mut command = std::process::Command::new(python);
     command
         .env("PYTHONDONTWRITEBYTECODE", "1")
+        .env("PYTHONPATH", "/Users/paul/repos/specify-core/src")
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/common/ctc01_add_occt.py"))
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools"))
         .arg(&original);
@@ -3267,7 +3263,7 @@ fn specify_intents_written_onto_the_original_files() {
             Json::Array(a) => a,
             one => vec![one],
         };
-        let mut f = open(&path);
+        let f = open(&path);
         let spec = fixture(&format!("ap242/specify/{case}.step.gz"));
         let spec_read = pmi::read(&spec.doc, &spec.parts).unwrap();
         let mut pmi_ = Vec::new();
@@ -3287,29 +3283,11 @@ fn specify_intents_written_onto_the_original_files() {
         }
         let w = match write(&f, &pmi_, Mode::Add) {
             Ok(w) => w,
-            Err(WriteError::AddPreservation { repairs, .. })
-                if cfg!(feature = "presentation")
-                    && !repairs.is_empty()
-                    && repairs.iter().all(|(_, kind)| {
-                        *kind == haecceity::pmi::write::UpgradeRepairKind::R3IntegerLiteral
-                    }) =>
-            {
-                f.doc = common::canonical_notes_source(&f.doc);
-                write(&f, &pmi_, Mode::Add).unwrap()
-            }
             Err(e) => {
                 problems.push(format!("{case}: {e}"));
                 continue;
             }
         };
-        match &w.report.schema {
-            SchemaChange::Kept(schema) => assert_eq!(*schema, f.doc.file_schema().unwrap()),
-            SchemaChange::Upgraded { from, to } => {
-                assert_eq!(*from, f.doc.file_schema().unwrap());
-                assert_eq!(*to, express::TARGET_SCHEMA);
-                assert_eq!(w.doc.file_schema().unwrap(), vec![to.clone()]);
-            }
-        }
         entry.insert("schema".into(), format!("{:?}", w.report.schema).into());
         let mut diffs: Vec<String> = Vec::new();
         let before = pmi::read(&f.doc, &f.parts).unwrap();
@@ -3361,14 +3339,7 @@ fn specify_intents_written_onto_the_original_files() {
     }
     let pinned = pins["corpus"]["cases"].as_object().unwrap();
     for (case, got) in &actual {
-        let semantic_fields = |value: &Json| {
-            let mut value = value.clone();
-            if let Some(object) = value.as_object_mut() {
-                object.remove("schema");
-            }
-            value
-        };
-        if pinned.get(case).map(semantic_fields) != Some(semantic_fields(got)) {
+        if pinned.get(case) != Some(got) {
             problems.push(format!(
                 "corpus {case}:\n  pinned {:?}\n  actual {got}",
                 pinned.get(case)
@@ -4815,23 +4786,18 @@ fn export_written_files() {
     }
 }
 
-/// Frozen OCCT captures remain semantic reference evidence. Check current output
-/// structurally; saved-view additions need no new byte snapshots or committed reports.
-/// The live Notes oracle below reads the new writer's actual output.
+/// The committed written files are what the writer writes now (so OpenCascade's captures of
+/// them are of the current writer's output); re-export and re-capture when this fails.
 #[test]
-fn written_files_keep_the_captured_semantics_and_conform() {
+fn written_files_are_the_writers_current_output() {
     for (name, bytes) in written_cases() {
         let Some(bytes) = bytes else { continue };
         let committed = file_bytes(&write_dir().join(format!("{name}.step.gz")));
-        let old = open_bytes(committed);
-        let current = open_bytes(bytes);
-        let old_read = pmi::read(&old.doc, &old.parts).unwrap();
-        let new_read = pmi::read(&current.doc, &current.parts).unwrap();
-        assert_eq!(
-            old_read.parts, new_read.parts,
-            "{name}: semantics differ from OCCT reference input"
+        assert!(
+            committed == bytes,
+            "{name}: the writer's output changed; run export_written_files and tools/check_pmi_occt.py"
         );
-        let doc = current.doc;
+        let doc = Document::parse(bytes).unwrap();
         common::pmi_conformance::assert_conforms(&doc);
         assert_composite_components(&doc);
     }
@@ -7986,12 +7952,13 @@ fn absent_settings_add_no_notes_and_append_does_not_restate_foreign_settings() {
     };
     let w = write(&carried, &[(PartId(0), new.clone())], Mode::Add).unwrap();
     assert_verified_as(&carried, &w, &new, Mode::Add);
-    for id in carried.doc.ids() {
-        assert_eq!(
-            &carried.doc.bytes()[carried.doc.span(id).unwrap()],
-            &w.doc.bytes()[w.doc.span(id).unwrap()],
-            "foreign entity #{id}"
-        );
+    // Only the writer-owned saved view/camera may change on this Add.
+    for id in carried
+        .doc
+        .ids()
+        .filter(|id| !w.report.removed.contains(id) && !w.report.rewritten.contains(id))
+    {
+        assert_same_record(&carried.doc, &w.doc, id);
     }
     assert_notes_clear(&w.doc);
     let new_notes: Vec<_> = w
@@ -9986,12 +9953,18 @@ fn notes_saved_view_frames_part_and_ink_and_roundtrips() {
         "direction_ratios",
     );
     assert_eq!(z, normal.map(|v| -v));
-    assert_eq!(x, along);
+    assert_eq!(x, along.map(|v| -v));
     let y = [
         z[1] * x[2] - z[2] * x[1],
         z[2] * x[0] - z[0] * x[2],
         z[0] * x[1] - z[1] * x[0],
     ];
+    let text_up = [
+        normal[1] * along[2] - normal[2] * along[1],
+        normal[2] * along[0] - normal[0] * along[2],
+        normal[0] * along[1] - normal[1] * along[0],
+    ];
+    assert_eq!(y, text_up, "camera up must agree with the text");
     let volume = reference(view.camera, "camera_model_d3", "perspective_of_volume");
     let d = real(volume, "view_volume", "view_plane_distance");
     assert!(d > 0.);
@@ -10087,6 +10060,14 @@ fn notes_saved_view_frames_part_and_ink_and_roundtrips() {
             value: Box::new(Attribute::Enum("NULL".into()))
         }]))
     );
+    assert!(doc.referrers(styled).iter().any(|id| test_attribute(
+        doc,
+        *id,
+        "representation",
+        "name"
+    ) == Some(&Attribute::String(
+        "Notes part styling".into()
+    ))));
     let source = reference(mapped, "mapped_item", "mapping_source");
     assert_eq!(
         reference(source, "representation_map", "mapping_origin"),
@@ -10130,7 +10111,18 @@ fn notes_saved_view_frames_part_and_ink_and_roundtrips() {
 #[test]
 fn notes_add_keeps_existing_default_and_reports_an_ordinary_view() {
     let w = written(&gap_spool(), &settings_pmi());
-    let before = open_bytes(w.doc.bytes().to_vec());
+    let model = w.read.saved_views[0].representation;
+    let RawEntity::Simple {
+        name, attributes, ..
+    } = w.doc.get(model).unwrap()
+    else {
+        panic!("model")
+    };
+    let mut values = attributes.clone();
+    values[0] = Attribute::String("Imported default".into());
+    let mut edit = haecceity::p21::Edit::new();
+    edit.replace(model, haecceity::p21::simple(name, values));
+    let before = open_bytes(w.doc.apply(&edit).unwrap().bytes);
     let p = PartPmi {
         attributes: part_notes(),
         ..PartPmi::default()
@@ -10255,9 +10247,10 @@ fn check_notes_saved_view_in_live_occt() {
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("notes.step");
     std::fs::write(&path, w.doc.bytes()).unwrap();
-    for mode in ["read", "load"] {
+    for mode in ["read", "load", "notes-up"] {
         let result = std::process::Command::new(&python)
             .env("PYTHONDONTWRITEBYTECODE", "1")
+            .env("PYTHONPATH", "/Users/paul/repos/specify-core/src")
             .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools/check_pmi_occt.py"))
             .args(["--child", mode])
             .arg(&path)
@@ -10276,7 +10269,7 @@ fn check_notes_saved_view_in_live_occt() {
 
 #[cfg(feature = "presentation")]
 #[test]
-fn foreign_saved_view_camera_and_contents_survive_replace_and_remove() {
+fn foreign_saved_view_camera_survives_without_duplicating_replaced_ink() {
     let w = written(&gap_spool(), &settings_pmi());
     let view = w.read.saved_views[0].clone();
     let RawEntity::Simple {
@@ -10295,15 +10288,22 @@ fn foreign_saved_view_camera_and_contents_survive_replace_and_remove() {
         (Mode::Remove, PartPmi::default()),
     ] {
         let after = write(&before, &[(PartId(0), p)], mode).unwrap();
-        assert_eq!(
-            after.read.saved_views.iter().find(|v| v.id == view.id),
-            Some(&view)
-        );
-        for id in [view.id, view.camera, view.representation]
-            .into_iter()
-            .chain(view.contents.iter().copied())
-        {
-            assert_same_record(&before.doc, &after.doc, id);
+        let kept = after
+            .read
+            .saved_views
+            .iter()
+            .find(|v| v.id == view.id)
+            .unwrap();
+        assert_eq!(kept.name, view.name);
+        assert_eq!(kept.camera, view.camera);
+        assert_eq!(kept.is_default, view.is_default);
+        assert_same_record(&before.doc, &after.doc, view.camera);
+        if mode == Mode::Remove {
+            assert!(kept.contents.iter().all(|id| !common::pmi_usage::is_a(
+                &after.doc,
+                *id,
+                "annotation_plane"
+            )));
         }
         assert_eq!(
             after
@@ -10458,4 +10458,171 @@ fn foreign_saved_views_do_not_orphan_semantic_placeholders() {
             .iter()
             .any(|v| v.name == "Imported" && v.camera == n + 5)
     );
+}
+
+#[cfg(feature = "presentation")]
+#[test]
+fn add_reuses_owned_notes_model_and_camera_up_is_upright() {
+    let w = written(&gap_spool(), &settings_pmi());
+    let old = w.read.saved_views[0].clone();
+    let before = open_bytes(w.doc.bytes().to_vec());
+    let added = write(
+        &before,
+        &[(
+            PartId(0),
+            PartPmi {
+                attributes: part_notes(),
+                ..Default::default()
+            },
+        )],
+        Mode::Add,
+    )
+    .unwrap();
+    assert_eq!(added.read.saved_views.len(), 1);
+    let view = &added.read.saved_views[0];
+    assert_eq!(view.id, old.id);
+    assert_eq!(view.representation, old.representation);
+    assert!(view.is_default);
+    assert_ne!(view.camera, old.camera);
+    assert_eq!(
+        added
+            .doc
+            .ids()
+            .filter(
+                |id| test_attribute(&added.doc, *id, "representation", "name")
+                    == Some(&Attribute::String("Notes".into()))
+            )
+            .count(),
+        1
+    );
+    assert_eq!(
+        added
+            .report
+            .rewritten
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from([old.id, old.representation])
+    );
+    for id in before
+        .doc
+        .ids()
+        .filter(|id| !added.report.removed.contains(id) && !added.report.rewritten.contains(id))
+    {
+        assert_same_record(&before.doc, &added.doc, id);
+    }
+    let planes: Vec<_> = view
+        .contents
+        .iter()
+        .filter(|id| common::pmi_usage::is_a(&added.doc, **id, "annotation_plane"))
+        .collect();
+    assert_eq!(
+        planes.len(),
+        2,
+        "reuse retains the old and added notes planes"
+    );
+    assert!(haecceity::express_rules::check_all(&added.doc).is_empty());
+    let f = open_bytes(added.doc.bytes().to_vec());
+    let removed = write(&f, &[(PartId(0), PartPmi::default())], Mode::Remove).unwrap();
+    assert!(removed.read.saved_views.is_empty());
+}
+
+#[cfg(feature = "presentation")]
+#[test]
+fn edition_one_add_notes_succeeds_without_upgrading_or_repairing_source() {
+    let f = fixture("ap242/nist/nist_ctc_01_asme1_ap242-e1.stp.gz");
+    let added = write(
+        &f,
+        &[(
+            PartId(0),
+            PartPmi {
+                attributes: part_notes(),
+                ..Default::default()
+            },
+        )],
+        Mode::Add,
+    )
+    .unwrap();
+    assert_eq!(
+        added.doc.file_schema().unwrap(),
+        f.doc.file_schema().unwrap()
+    );
+    assert!(added.report.repairs.is_empty());
+    assert!(added.added().iter().all(|id| !common::pmi_usage::is_a(
+        &added.doc,
+        *id,
+        "model_geometric_view"
+    )));
+    assert!(
+        added
+            .report
+            .saved_view_findings
+            .iter()
+            .any(|f| f.kind == FindingKind::Fact && f.detail.contains("edition 1 retained"))
+    );
+    for id in f.doc.ids() {
+        assert_same_record(&f.doc, &added.doc, id);
+    }
+}
+
+#[cfg(feature = "presentation")]
+#[test]
+fn nist_replace_presentation_counts_match_main() {
+    use common::pmi_usage::is_a;
+    for (name, callouts, occurrences, removed) in [
+        ("nist_ctc_01_asme1_ap242-e1", 21, 21, 487),
+        ("nist_ctc_02_asme1_ap242-e2", 37, 37, 1473),
+        ("nist_ctc_03_asme1_ap242-e2", 29, 30, 939),
+        ("nist_ctc_05_asme1_ap242", 20, 40, 96),
+        ("nist_ftc_06_asme1_ap242-e2", 64, 65, 2066),
+        ("nist_stc_10_asme1_ap242-e2", 96, 96, 2459),
+    ] {
+        let input = fixture(&format!("ap242/nist/{name}.stp.gz"));
+        let mut p = pmi::read(&input.doc, &input.parts).unwrap().parts;
+        let w = loop {
+            let request: Vec<_> = p
+                .iter()
+                .enumerate()
+                .map(|(i, p)| (PartId(i), p.clone()))
+                .collect();
+            match write(&input, &request, Mode::Replace) {
+                Ok(w) => break w,
+                Err(WriteError::Refused(rs)) => {
+                    for (i, p) in p.iter_mut().enumerate() {
+                        *p = pmi::without(
+                            p,
+                            &rs.iter()
+                                .filter(|r| r.part == PartId(i))
+                                .map(|r| r.item)
+                                .collect::<Vec<_>>(),
+                        );
+                    }
+                }
+                Err(e) => panic!("{name}: {e}"),
+            }
+        };
+        assert_eq!(
+            w.doc
+                .ids()
+                .filter(|id| is_a(&w.doc, *id, "draughting_callout"))
+                .count(),
+            callouts,
+            "{name}"
+        );
+        assert_eq!(
+            w.doc
+                .ids()
+                .filter(|id| [
+                    "annotation_curve_occurrence",
+                    "tessellated_annotation_occurrence",
+                    "annotation_placeholder_occurrence"
+                ]
+                .iter()
+                .any(|ty| is_a(&w.doc, *id, ty)))
+                .count(),
+            occurrences,
+            "{name}"
+        );
+        assert_eq!(w.report.presentation_removed.len(), removed, "{name}");
+    }
 }

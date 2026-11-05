@@ -110,6 +110,16 @@ macro_rules! rule {
 /// Every rule [`check_all`] evaluates, by entity and label.
 pub const RULES: &[Rule] = &[
     rule!(
+        "draughting_model",
+        "UR1",
+        Check::Unique(draughting_model_ur1)
+    ),
+    rule!(
+        "draughting_model",
+        "WR2",
+        Check::Where(draughting_model_wr2)
+    ),
+    rule!(
         "default_model_geometric_view",
         "UR1",
         Check::Unique(default_view_ur1)
@@ -1863,4 +1873,39 @@ fn default_view_wr2(ctx: &Ctx, x: u64) -> Option<String> {
 fn default_view_wr3(ctx: &Ctx, x: u64) -> Option<String> {
     ctx.text(x, "shape_aspect", "description")
         .map(|_| "shape_aspect.description exists".into())
+}
+
+fn draughting_model_ur1(ctx: &Ctx, x: u64) -> Option<String> {
+    ctx.text(x, "representation", "name")
+}
+// Exact Part 46 query: each styled mapped shape item must have exactly one
+// style assignment whose number of non-curve styles is NOT one. In particular,
+// a NULL-only assignment cannot be directly in a draughting model's items.
+fn draughting_model_wr2(ctx: &Ctx, x: u64) -> Option<String> {
+    for styled in ctx
+        .items(x)
+        .into_iter()
+        .filter(|id| ctx.is(*id, "styled_item"))
+    {
+        let Some(item) = ctx.reference(styled, "styled_item", "item") else {
+            continue;
+        };
+        if !ctx.is(item, "mapped_item") {
+            continue;
+        }
+        let shape = ctx
+            .reference(item, "mapped_item", "mapping_source")
+            .and_then(|m| ctx.reference(m, "representation_map", "mapped_representation"));
+        let assignments = ctx.references(styled, "styled_item", "styles");
+        let accepted=assignments.iter().filter(|id| {
+            let Some(Attribute::List(styles))=ctx.attr(**id,"presentation_style_assignment","styles") else {return false;};
+            styles.iter().filter(|style| !matches!(style,Attribute::EntityRef(id) if ctx.is(*id,"curve_style"))).count()!=1
+        }).count();
+        if !shape.is_some_and(|id| ctx.is(id, "shape_representation")) || accepted != 1 {
+            return Some(format!(
+                "styled mapped item #{styled} requires a shape representation and exactly one assignment with a non-curve style count other than one"
+            ));
+        }
+    }
+    None
 }

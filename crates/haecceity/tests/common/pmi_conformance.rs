@@ -70,7 +70,7 @@ pub fn issues(doc: &Document) -> Vec<String> {
     let writer_occurrences: BTreeSet<_> = doc.ids().filter(|&id| {
         matches!(doc.get(id), Some(RawEntity::Simple { name, .. }) if name.eq_ignore_ascii_case("draughting_model"))
             && matches!(attr(doc, id, "representation", "name"),
-                Some(A::String(name)) if name == "PMI callouts" || name == "datum feature symbols")
+                Some(A::String(name)) if name == "PMI callouts" || name.starts_with("PMI callouts (") || name == "datum feature symbols" || name.starts_with("datum feature symbols ("))
     }).flat_map(|model| refs(attr(doc, model, "representation", "items")))
       .flat_map(|plane| refs(attr(doc, plane, "annotation_plane", "elements")))
       .flat_map(|callout| refs(attr(doc, callout, "draughting_callout", "contents")))
