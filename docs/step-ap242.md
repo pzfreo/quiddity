@@ -519,7 +519,10 @@ camera basis. The eye is the frame centre minus z times D, with D twice the fram
 3D diagonal. The parallel view volume has projection point (0,0,0), positive view
 plane distance D, front/back clipping disabled, distances 0 and 2D, and side clipping
 enabled. Its unrotated `PLANAR_BOX` has 10% margin and bottom-left placement
-(-width/2,-height/2). All lengths use the part context's unit. Notes placement itself
+(-width/2,-height/2,0). Its placement is explicitly `AXIS2_PLACEMENT_3D` with
+axis (0,0,1) and ref_direction (1,0,0), matching NIST CTC-02 and SFA 5.41's
+camera reader. The camera axes remain unchanged; Solid Edge 2026 confirmed the
+view upright and unmirrored. All lengths use the part context's unit. Notes placement itself
 is unchanged and stays close to the part.
 
 `DEFAULT_MODEL_GEOMETRIC_VIEW('Notes',$,#camera,#view,'Notes',$,#part_shape,*)`
@@ -540,8 +543,15 @@ and a factual finding. Coplanar notes with different text-along or text-up direc
 get a several-orientations finding instead. This includes opposite normals.
 Coplanar source notes with matching orientation share the notes annotation plane.
 
-The CLI reader binding is `haecceity-pmi-read/18`: a default view no longer produces
-an erroneous finding that its shape aspect has no face or edge.
+The CLI reader binding is `haecceity-pmi-read/19`. It retains /18's default-view
+finding correction and recognizes material identifier fallback. When no separate
+material name is known, the writer repeats the material ID in the descriptive
+item's description, avoiding empty semantic text. The representation is named
+`material identification (no separate name)`; the property still follows the
+material practice's `material property` / `material name` convention. That readable
+representation name lets our reader retain `Material.name=None`; an explicitly
+stated name, including one equal to the ID, stays distinct. Other consumers see
+nonempty material identification text. No additional carrier entities are needed.
 
 `PmiRead.saved_views` exposes names, camera references, displayed representation/items
 and default flags, including the pre-edition-2 camera-only form. References remain

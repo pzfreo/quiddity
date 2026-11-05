@@ -225,11 +225,11 @@ fn pmi_read_of_one_part() {
     assert!(String::from_utf8_lossy(&out.stderr).contains("usage: quiddity"));
 }
 
-/// Reader /18 recognizes default views as presentation rather than reporting a
-/// face-less shape aspect. Verify that behavior and the public binding structurally.
+/// Reader /19 retains /18 saved-view recognition and reads material-ID fallback
+/// representations. Verify saved-view behavior and the public binding structurally.
 #[test]
 fn reader_version_covers_saved_view_support() {
-    assert_eq!(pmi_json::READER, "haecceity-pmi-read/18");
+    assert_eq!(pmi_json::READER, "haecceity-pmi-read/19");
     for stem in [
         "nist_ftc_08_asme1_ap242-e2",
         "nist_ftc_11_asme1_ap242-e3",

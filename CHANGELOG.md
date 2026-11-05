@@ -15,9 +15,14 @@ in [docs/alpha1.md](docs/alpha1.md).
   only the first eligible part gets a Notes view. Notes on several planes or with
   several text orientations produce a factual finding instead. The PMI reader exposes saved views,
   and replace/remove clean up the writer's Notes view. The CLI reader binding is now
-  `haecceity-pmi-read/18`: default views no longer produce a face-less shape-aspect finding.
+  `haecceity-pmi-read/19`: default views no longer produce a face-less shape-aspect finding,
+  and material identifier fallback preserves absence of a separate name.
 
 ### Changed
+
+- Notes view windows use explicit 3D placements compatible with SFA 5.41; camera axes
+  remain unchanged. Materials without a separate name repeat their ID as description,
+  avoiding empty semantic text while preserving the reader round trip.
 
 - PMI writes give new draughting models unique names to satisfy UR1, including on
   assemblies without notes. Appended models use names such as `PMI callouts (2)` or

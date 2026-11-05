@@ -2876,7 +2876,8 @@ pub struct Material {
     /// 'AMS4928'); specify-core's files state the material's name here.
     pub id: String,
     /// The material name (`descriptive_representation_item.description`, §4.1: 'Titanium
-    /// 6-4'); `None` when empty.
+    /// 6-4'); `None` when empty or when an identifier-only representation uses
+    /// the ID as display text without stating a separate name.
     pub name: Option<String>,
     /// The density when stated (§4.2), with its own unit.
     pub density: Option<Density>,

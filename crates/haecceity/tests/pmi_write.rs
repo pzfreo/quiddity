@@ -225,8 +225,10 @@ fn assert_notes_add_preserves_other_bytes(before: &Document, view: &SavedView, a
         r(vrs, "axis2_placement_3d", "axis"),
         r(vrs, "axis2_placement_3d", "ref_direction"),
         r(placement, "placement", "location"),
+        r(placement, "axis2_placement_3d", "axis"),
+        r(placement, "axis2_placement_3d", "ref_direction"),
     ]);
-    assert_eq!(removed.len(), 9, "exact private camera support");
+    assert_eq!(removed.len(), 11, "exact private camera support");
     let rewritten = BTreeSet::from([view.id, view.representation]);
     assert_eq!(
         after.report.removed,
@@ -237,7 +239,7 @@ fn assert_notes_add_preserves_other_bytes(before: &Document, view: &SavedView, a
         rewritten.iter().copied().collect::<Vec<_>>()
     );
     let excluded: BTreeSet<_> = removed.union(&rewritten).copied().collect();
-    assert_eq!(excluded.len(), 11);
+    assert_eq!(excluded.len(), 13);
     for id in before.ids().filter(|id| !excluded.contains(id)) {
         let span = after
             .doc
@@ -10038,11 +10040,28 @@ fn notes_saved_view_frames_part_and_ink_and_roundtrips() {
     };
     assert_eq!(
         corner,
-        &vec![Attribute::Real(-width / 2.), Attribute::Real(-height / 2.)]
+        &vec![
+            Attribute::Real(-width / 2.),
+            Attribute::Real(-height / 2.),
+            Attribute::Real(0.)
+        ]
+    );
+    assert!(is_a(doc, placement, "axis2_placement_3d"));
+    assert_eq!(
+        xyz(
+            reference(placement, "axis2_placement_3d", "axis"),
+            "direction",
+            "direction_ratios"
+        ),
+        [0., 0., 1.]
     );
     assert_eq!(
-        test_attribute(doc, placement, "axis2_placement_2d", "ref_direction"),
-        Some(&Attribute::Unset)
+        xyz(
+            reference(placement, "axis2_placement_3d", "ref_direction"),
+            "direction",
+            "direction_ratios"
+        ),
+        [1., 0., 0.]
     );
     let b = haecceity::step::read_part(doc.bytes(), &f.parts[0])
         .unwrap()
@@ -10795,5 +10814,44 @@ fn edition_one_replace_without_a_notes_view_keeps_schema_and_literals() {
             reference(&w.doc, n + 8, "representation", "context_of_items"),
             Some(context)
         );
+    }
+}
+
+#[test]
+fn material_identifier_fallback_is_nonempty_and_preserves_separate_name_presence() {
+    for name in [None, Some("Alu_G6061_T6"), Some("Aluminium 6061 T6")] {
+        let p = PartPmi {
+            material: Some(Material {
+                id: "Alu_G6061_T6".into(),
+                name: name.map(str::to_owned),
+                density: None,
+            }),
+            ..Default::default()
+        };
+        let w = written(&gap_spool(), &p);
+        assert_eq!(w.read.parts[0].material, p.material);
+        let item = w
+            .added()
+            .into_iter()
+            .find(|id| {
+                test_attribute(&w.doc, *id, "representation_item", "name")
+                    == Some(&Attribute::String("Alu_G6061_T6".into()))
+                    && common::pmi_usage::is_a(&w.doc, *id, "descriptive_representation_item")
+            })
+            .unwrap();
+        assert_eq!(
+            test_attribute(
+                &w.doc,
+                item,
+                "descriptive_representation_item",
+                "description"
+            ),
+            Some(&Attribute::String(name.unwrap_or("Alu_G6061_T6").into()))
+        );
+        assert!(haecceity::express_rules::check_all(&w.doc).is_empty());
+        let before = open_bytes(w.doc.bytes().to_vec());
+        let again = written(&before, &w.read.parts[0]);
+        assert_eq!(again.read.parts[0].material, p.material);
+        assert_verified(&before, &again, &p);
     }
 }

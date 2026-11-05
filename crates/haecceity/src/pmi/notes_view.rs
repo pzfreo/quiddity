@@ -314,10 +314,17 @@ impl PartPlan<'_> {
                 ("ref_direction", x.a()),
             ],
         )?;
-        let corner = point(em, &[-w / 2., -h / 2.])?;
+        let corner = point(em, &[-w / 2., -h / 2., 0.])?;
+        let window_z = direction(em, [0., 0., 1.])?;
+        let window_x = direction(em, [1., 0., 0.])?;
         let placement = em.simple(
-            "axis2_placement_2d",
-            &[("name", s("")), ("location", corner.a())],
+            "axis2_placement_3d",
+            &[
+                ("name", s("")),
+                ("location", corner.a()),
+                ("axis", window_z.a()),
+                ("ref_direction", window_x.a()),
+            ],
         )?;
         let win = em.simple(
             "planar_box",

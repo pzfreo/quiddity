@@ -24,6 +24,10 @@ pub mod verify;
 mod without;
 pub mod write;
 
+// A descriptive, schema-standard representation name distinguishes an ID used
+// as display text from a separately stated material name, without empty text.
+pub(crate) const MATERIAL_ID_FALLBACK_REP: &str = "material identification (no separate name)";
+
 pub use model::*;
 pub use read::read;
 #[cfg(feature = "json-import")]

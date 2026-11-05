@@ -5537,7 +5537,13 @@ impl<'a> Reader<'a> {
                                 .get_str(item, "representation_item", "name")
                                 .unwrap_or_default();
                             let name = self.text_of(item).filter(|s| !s.is_empty());
-                            found = Some((id, name));
+                            // Preserve absence of a separate name when the writer
+                            // supplies the ID as nonempty text for other consumers.
+                            let identifier_fallback =
+                                self.get_str(rep, "representation", "name").as_deref()
+                                    == Some(super::MATERIAL_ID_FALLBACK_REP)
+                                    && name.as_deref() == Some(id.as_str());
+                            found = Some((id, if identifier_fallback { None } else { name }));
                             prov.extend([pdr, rep, item]);
                         }
                     }

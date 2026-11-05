@@ -3892,11 +3892,12 @@ impl<'a> PartPlan<'a> {
             )?;
         }
         if let Some(m) = &p.material {
+            let material_name = m.name.as_deref().filter(|name| !name.is_empty());
             let item = em.simple(
                 "descriptive_representation_item",
                 &[
                     ("name", s(&m.id)),
-                    ("description", s(m.name.as_deref().unwrap_or(""))),
+                    ("description", s(material_name.unwrap_or(&m.id))),
                 ],
             )?;
             let _property = self.property(
@@ -3904,7 +3905,11 @@ impl<'a> PartPlan<'a> {
                 pd,
                 "material property",
                 "material name",
-                "material name",
+                if material_name.is_some() {
+                    "material name"
+                } else {
+                    super::MATERIAL_ID_FALLBACK_REP
+                },
                 &[item],
             )?;
             #[cfg(feature = "presentation")]
