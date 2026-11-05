@@ -527,8 +527,11 @@ is the schema-table's internal Part 21 mapping: both inherited names agree, both
 descriptions are absent, and product_definitional is derived. `express_rules`
 checks its UR1 and WR1–WR3. The structural conformance checks also verify camera
 membership in the saved draughting model.
-Replace upgrades edition-1 files with notes to edition 4 through the existing
-validated upgrade path. If that optional upgrade cannot pass validation, the writer
+Replace first checks Notes-view eligibility while retaining edition 1. Only when
+a view is eligible does it attempt the existing validated upgrade to edition 4;
+the upgrade is kept only if that attempt actually writes the view. Several planes,
+several orientations or a retained Notes model therefore do not cause an optional
+upgrade or R3 repairs. If that optional upgrade cannot pass validation, the writer
 retains edition 1 and reports that the Notes view was skipped. Add retains edition 1
 and skips the optional view with the same factual finding; notes still write. An existing default is retained and Notes becomes an ordinary
 `MODEL_GEOMETRIC_VIEW`, with a factual report entry. General notes spanning several
@@ -554,7 +557,10 @@ private camera support. The reused model references both existing and new note
 planes and frames all their ink. These owned records are the narrow exception to
 Add's original-DATA preservation; foreign views remain unchanged. Draughting-model
 names are unique (UR1); appended global models and JSON preservation’s `As Drawn`
-linking models use a numbered suffix when needed.
+linking models use a numbered suffix when needed, including on assemblies without
+notes. Since UR1 makes the name `Notes` unique across the file, an assembly gets a
+Notes view for only its first eligible part in part-id order. Other parts retain
+their notes and receive a factual finding that no second Notes model was written.
 
 The saved view is related to the global model by
 `MECHANICAL_DESIGN_AND_DRAUGHTING_RELATIONSHIP('','',#notes_view,#global)`;

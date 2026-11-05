@@ -275,12 +275,7 @@ fn roundtrip(
                     pmi::write::SchemaChange::Upgraded { to, .. } => {
                         assert_eq!(to, haecceity::express::TARGET_SCHEMA);
                         assert!(
-                            r1.saved_views.iter().any(|v| v.name == "Notes")
-                                || report
-                                    .saved_view_findings
-                                    .iter()
-                                    .any(|f| f.kind == FindingKind::Fact
-                                        && f.detail.contains("general notes span several planes")),
+                            r1.saved_views.iter().any(|v| v.name == "Notes"),
                             "{stem}: Notes requires the edition upgrade"
                         );
                     }

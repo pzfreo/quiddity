@@ -206,6 +206,51 @@ fn assert_original_entities_unchanged(before: &Document, after: &Document) {
     }
 }
 
+/// Pin the only original DATA edits permitted when Add reuses our Notes view.
+#[cfg(feature = "presentation")]
+fn assert_notes_add_preserves_other_bytes(before: &Document, view: &SavedView, after: &Written) {
+    use common::pmi_usage::reference;
+    let r = |id, entity, attribute| reference(before, id, entity, attribute).unwrap();
+    let vrs = r(view.camera, "camera_model_d3", "view_reference_system");
+    let volume = r(view.camera, "camera_model_d3", "perspective_of_volume");
+    let window = r(volume, "view_volume", "view_window");
+    let placement = r(window, "planar_box", "placement");
+    let removed = BTreeSet::from([
+        view.camera,
+        vrs,
+        volume,
+        window,
+        placement,
+        r(vrs, "placement", "location"),
+        r(vrs, "axis2_placement_3d", "axis"),
+        r(vrs, "axis2_placement_3d", "ref_direction"),
+        r(placement, "placement", "location"),
+    ]);
+    assert_eq!(removed.len(), 9, "exact private camera support");
+    let rewritten = BTreeSet::from([view.id, view.representation]);
+    assert_eq!(
+        after.report.removed,
+        removed.iter().copied().collect::<Vec<_>>()
+    );
+    assert_eq!(
+        after.report.rewritten,
+        rewritten.iter().copied().collect::<Vec<_>>()
+    );
+    let excluded: BTreeSet<_> = removed.union(&rewritten).copied().collect();
+    assert_eq!(excluded.len(), 11);
+    for id in before.ids().filter(|id| !excluded.contains(id)) {
+        let span = after
+            .doc
+            .span(id)
+            .unwrap_or_else(|| panic!("original #{id} removed"));
+        assert_eq!(
+            &before.bytes()[before.span(id).unwrap()],
+            &after.doc.bytes()[span],
+            "original #{id} rewritten"
+        );
+    }
+}
+
 /// Writes `p` as part 0's PMI (replacing what it had) and checks it reads back as written,
 /// with no finding about what was written.
 fn written(f: &File, p: &PartPmi) -> Written {
@@ -7952,14 +7997,7 @@ fn absent_settings_add_no_notes_and_append_does_not_restate_foreign_settings() {
     };
     let w = write(&carried, &[(PartId(0), new.clone())], Mode::Add).unwrap();
     assert_verified_as(&carried, &w, &new, Mode::Add);
-    // Only the writer-owned saved view/camera may change on this Add.
-    for id in carried
-        .doc
-        .ids()
-        .filter(|id| !w.report.removed.contains(id) && !w.report.rewritten.contains(id))
-    {
-        assert_same_record(&carried.doc, &w.doc, id);
-    }
+    assert_notes_add_preserves_other_bytes(&carried.doc, &original.read.saved_views[0], &w);
     assert_notes_clear(&w.doc);
     let new_notes: Vec<_> = w
         .added()
@@ -9612,16 +9650,6 @@ fn shared_carrier_isolation_tracks_add_sharing_and_datum_promotion() {
     .unwrap();
     assert!(is_a(&initial.doc, carrier, "datum_feature"));
     let mut edit = haecceity::p21::Edit::new();
-    // This case promises complete foreign-DATA preservation. Treat the fixture's
-    // saved view as imported; owned Notes-camera updates have a separate test.
-    for view in &initial.read.saved_views {
-        let mut record = initial.doc.get(view.representation).unwrap().clone();
-        let RawEntity::Simple { attributes, .. } = &mut record else {
-            panic!("view model")
-        };
-        attributes[0] = Attribute::String("Imported view".into());
-        edit.replace(view.representation, record);
-    }
     let shell = edit.add(haecceity::p21::simple(
         "SHAPE_ASPECT",
         vec![
@@ -9657,6 +9685,9 @@ fn shared_carrier_isolation_tracks_add_sharing_and_datum_promotion() {
     };
     let retained = write(&input, &[(PartId(0), add.clone())], Mode::Add).unwrap();
     assert_verified_as(&input, &retained, &add, Mode::Add);
+    #[cfg(feature = "presentation")]
+    assert_notes_add_preserves_other_bytes(&input.doc, &initial.read.saved_views[0], &retained);
+    #[cfg(not(feature = "presentation"))]
     assert_original_entities_unchanged(&input.doc, &retained.doc);
     assert!(
         retained
@@ -10505,22 +10536,7 @@ fn add_reuses_owned_notes_model_and_camera_up_is_upright() {
             .count(),
         1
     );
-    assert_eq!(
-        added
-            .report
-            .rewritten
-            .iter()
-            .copied()
-            .collect::<BTreeSet<_>>(),
-        BTreeSet::from([old.id, old.representation])
-    );
-    for id in before
-        .doc
-        .ids()
-        .filter(|id| !added.report.removed.contains(id) && !added.report.rewritten.contains(id))
-    {
-        assert_same_record(&before.doc, &added.doc, id);
-    }
+    assert_notes_add_preserves_other_bytes(&before.doc, &old, &added);
     let planes: Vec<_> = view
         .contents
         .iter()
@@ -10670,4 +10686,114 @@ fn edition_one_replace_skips_optional_view_when_upgrade_cannot_validate() {
         *id,
         "model_geometric_view"
     )));
+}
+
+#[cfg(feature = "presentation")]
+#[test]
+fn edition_one_replace_without_a_notes_view_keeps_schema_and_literals() {
+    use common::pmi_usage::{is_a, reference};
+    for (model_name, plane_name, finding) in [
+        (
+            "Foreign notes",
+            "General notes",
+            "general notes span several planes",
+        ),
+        (
+            "Notes",
+            "Unrelated",
+            "existing Notes draughting model retained",
+        ),
+    ] {
+        let f = fixture("ap242/nist/nist_ctc_01_asme1_ap242-e1.stp.gz");
+        let context = f
+            .doc
+            .ids()
+            .find(|id| is_a(&f.doc, *id, "geometric_representation_context"))
+            .unwrap();
+        let style = f
+            .doc
+            .ids()
+            .find(|id| is_a(&f.doc, *id, "presentation_style_assignment"))
+            .unwrap();
+        let n = f.doc.max_id() + 1;
+        // Independent foreign note ink survives Replace; its Z-normal plane
+        // differs from the writer's Y-normal notes plane. The alternate case
+        // reserves the Notes model name without adding another notes plane.
+        let records = format!(
+            "#{n}=CARTESIAN_POINT('',(0.,0.,0.));\n#{}=CARTESIAN_POINT('',(1.,0.,0.));\n#{}=POLYLINE('',(#{n},#{}));\n#{}=ANNOTATION_CURVE_OCCURRENCE('',(#{style}),#{});\n#{}=DRAUGHTING_CALLOUT('',(#{}));\n#{}=AXIS2_PLACEMENT_3D('',#{n},$,$);\n#{}=PLANE('',#{});\n#{}=ANNOTATION_PLANE('{plane_name}',(#{style}),#{},(#{}));\n#{}=DRAUGHTING_MODEL('{model_name}',(#{}),#{context});\n",
+            n + 1,
+            n + 2,
+            n + 1,
+            n + 3,
+            n + 2,
+            n + 4,
+            n + 3,
+            n + 5,
+            n + 6,
+            n + 5,
+            n + 7,
+            n + 6,
+            n + 4,
+            n + 8,
+            n + 7
+        );
+        let mut text = String::from_utf8(f.doc.bytes().to_vec()).unwrap();
+        let end = text.rfind("ENDSEC;").unwrap();
+        text.insert_str(end, &records);
+        let input = open_bytes(text.into_bytes());
+        let w = write(
+            &input,
+            &[(
+                PartId(0),
+                PartPmi {
+                    attributes: part_notes(),
+                    ..Default::default()
+                },
+            )],
+            Mode::Replace,
+        )
+        .unwrap();
+        assert_eq!(
+            w.doc.file_schema().unwrap(),
+            input.doc.file_schema().unwrap()
+        );
+        assert!(matches!(w.report.schema, SchemaChange::Kept(_)));
+        assert!(
+            w.report.repairs.is_empty(),
+            "{model_name}: no R3 repairs without a view"
+        );
+        assert!(w.read.saved_views.iter().all(|v| v.name != "Notes"));
+        assert!(
+            w.report
+                .saved_view_findings
+                .iter()
+                .any(|f| f.kind == FindingKind::Fact && f.detail.contains(finding))
+        );
+        for id in n..=n + 8 {
+            assert_eq!(
+                &input.doc.bytes()[input.doc.span(id).unwrap()],
+                &w.doc.bytes()[w.doc.span(id).unwrap()]
+            );
+        }
+        // Pin one original integral REAL that would be repaired by R3.
+        let integer = input
+            .doc
+            .ids()
+            .find(|id| {
+                is_a(&input.doc, *id, "integer_representation_item")
+                    && matches!(
+                        test_attribute(&input.doc, *id, "literal_number", "the_value"),
+                        Some(Attribute::Real(_))
+                    )
+            })
+            .unwrap();
+        assert_eq!(
+            &input.doc.bytes()[input.doc.span(integer).unwrap()],
+            &w.doc.bytes()[w.doc.span(integer).unwrap()]
+        );
+        assert_eq!(
+            reference(&w.doc, n + 8, "representation", "context_of_items"),
+            Some(context)
+        );
+    }
 }

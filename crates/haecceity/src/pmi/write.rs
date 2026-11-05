@@ -699,23 +699,16 @@ fn write_inner(
             allow,
         )
     };
-    let result = attempt(true);
-    if matches!(
-        &result,
-        Err(WriteError::Edition { .. }
-            | WriteError::Schema(_)
-            | WriteError::Rules(_)
-            | WriteError::AddPreservation { .. })
-    ) && doc
-        .file_schema()?
-        .first()
-        .and_then(|s| express::edition(s))
-        .is_some_and(|e| std::ptr::eq(e, &express::AP242_ED1))
-        && let Ok(written) = attempt(false)
+    // Discover eligibility in the retained edition first. Refused writes never
+    // retry; Add/Remove never attempt an optional edition upgrade.
+    let (edit, report, state) = attempt(false)?;
+    if mode == Mode::Replace
+        && state == notes_view::State::NeedsUpgrade
+        && let Ok((upgraded, upgraded_report, notes_view::State::Written)) = attempt(true)
     {
-        return Ok(written);
+        return Ok((upgraded, upgraded_report));
     }
-    result
+    Ok((edit, report))
 }
 
 #[allow(
@@ -733,8 +726,8 @@ fn write_attempt(
         crate::json::presentation::Presentation,
     )],
     #[cfg(feature = "json-import")] identity: Option<IdentityInput<'_>>,
-    _allow_notes_upgrade: bool,
-) -> Result<(Edit, WriteReport), WriteError> {
+    allow_notes_upgrade: bool,
+) -> Result<(Edit, WriteReport, notes_view::State), WriteError> {
     #[cfg(feature = "json-import")]
     let (identifiers, protected) =
         identity.map_or((None, None), |(ids, kept)| (Some(ids), Some(kept)));
@@ -828,16 +821,17 @@ fn write_attempt(
             })));
     #[cfg(not(feature = "json-import"))]
     let json_upgrade = false;
-    // Saved-view identifiers/defaults were introduced in AP242 edition 2.
+    // Only a successful retained-edition pass can request this upgrade: it
+    // found an eligible Notes view that edition 1 could not encode.
     #[cfg(feature = "presentation")]
-    let notes_upgrade = _allow_notes_upgrade
+    let notes_upgrade = allow_notes_upgrade
         && mode == Mode::Replace
-        && express::edition(&first).is_some_and(|e| std::ptr::eq(e, &express::AP242_ED1))
-        && order
-            .iter()
-            .any(|(_, p)| !crate::presentation::notes::general_notes(p).is_empty());
+        && express::edition(&first).is_some_and(|e| std::ptr::eq(e, &express::AP242_ED1));
     #[cfg(not(feature = "presentation"))]
-    let notes_upgrade = false;
+    let notes_upgrade = {
+        let _ = allow_notes_upgrade;
+        false
+    };
     let edition_upgrade = json_upgrade || notes_upgrade;
     let edition: &'static Edition = if edition_upgrade {
         express::TARGET
@@ -1234,6 +1228,7 @@ fn write_attempt(
             (d, r.a())
         })
         .collect();
+    let notes_view_state = em.notes_view_state;
     let view_edits = em.view_edits.clone();
     let added = em.count;
     let practice_exemptions = em.practice_exemptions.clone();
@@ -1397,7 +1392,7 @@ fn write_attempt(
             });
         }
     }
-    Ok((edit, report))
+    Ok((edit, report, notes_view_state))
 }
 
 /// Our ordering property marks a JSON-written part. Its consumed descriptive PMI
@@ -2014,6 +2009,7 @@ pub struct Emitter<'a> {
     retired: BTreeSet<u64>,
     view_edits: BTreeSet<u64>,
     model_names: BTreeSet<String>,
+    notes_view_state: notes_view::State,
 }
 
 impl<'a> Emitter<'a> {
@@ -2043,6 +2039,7 @@ impl<'a> Emitter<'a> {
             kept_rewrites: BTreeMap::new(),
             retired: BTreeSet::new(),
             view_edits: BTreeSet::new(),
+            notes_view_state: notes_view::State::Absent,
             model_names: doc
                 .ids()
                 .filter(|id| !removed.contains(id) && is_a(doc, *id, "draughting_model"))

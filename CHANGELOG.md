@@ -11,12 +11,17 @@ in [docs/alpha1.md](docs/alpha1.md).
 - General notes now have a default AP242 Notes saved view, facing their annotation plane
   and framing the part and notes together upright. Add preserves foreign views/defaults
   and reuses its own Notes view. Edition-1 Add writes skip the optional view; Replace
-  upgrades edition 1 to edition 4 when possible. Notes on several planes or with
+  upgrades edition 1 to edition 4 only when the view can be written. In assemblies,
+  only the first eligible part gets a Notes view. Notes on several planes or with
   several text orientations produce a factual finding instead. The PMI reader exposes saved views,
   and replace/remove clean up the writer's Notes view. The CLI reader binding is now
   `haecceity-pmi-read/18`: default views no longer produce a face-less shape-aspect finding.
 
 ### Changed
+
+- PMI writes give new draughting models unique names to satisfy UR1, including on
+  assemblies without notes. Appended models use names such as `PMI callouts (2)` or
+  `datum feature symbols (2)`; preserved presentation linking models also use suffixes.
 
 - Contributions are taken under Apache-2.0 with a Developer Certificate of Origin sign-off
   (`git commit -s`) instead of the Contributor License Agreement; `CLA.md` and its workflow are

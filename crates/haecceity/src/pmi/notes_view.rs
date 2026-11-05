@@ -1,6 +1,13 @@
 //! CAx-IF PMI 4.1 §9.4: the notes plane, viewed square-on in the part's units.
 use super::*;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum State {
+    Absent,
+    NeedsUpgrade,
+    Written,
+}
+
 #[derive(Default)]
 pub(super) struct Frame {
     basis: Option<[[f64; 3]; 3]>,
@@ -207,10 +214,6 @@ impl PartPlan<'_> {
         frame: Frame,
         report: &mut WriteReport,
     ) -> Result<(), WriteError> {
-        if em.edition.entity("model_geometric_view").is_none() {
-            report.saved_view_findings.push(Finding {kind:FindingKind::Fact,part:Some(self.id),ids:vec![],entity:"draughting_model".into(),detail:"Notes saved view was not written: edition 1 retained; the optional view requires edition 2 or later".into()});
-            return Ok(());
-        }
         let own = if self.mode == Mode::Add {
             own_view(self.doc, self.def.shape)
         } else {
@@ -252,6 +255,11 @@ impl PartPlan<'_> {
         let Some([_, normal, along]) = frame.basis else {
             return Ok(());
         };
+        if em.edition.entity("model_geometric_view").is_none() {
+            em.notes_view_state = State::NeedsUpgrade;
+            report.saved_view_findings.push(Finding {kind:FindingKind::Fact,part:Some(self.id),ids:vec![],entity:"draughting_model".into(),detail:"Notes saved view was not written: edition 1 retained; the optional view requires edition 2 or later".into()});
+            return Ok(());
+        }
         let z = normal.map(|x| -x);
         let x = along.map(|v| -v);
         let y = cross(z, x);
@@ -370,6 +378,7 @@ impl PartPlan<'_> {
             });
             em.kept_rewrites.insert(own.view, view);
             em.view_edits.extend([own.view, own.model]);
+            em.notes_view_state = State::Written;
             // Retire only private camera support. Shared origins/placements and
             // cameras referenced by another view remain untouched.
             let mut private = BTreeSet::new();
@@ -514,6 +523,7 @@ impl PartPlan<'_> {
             "default_model_geometric_view"
         };
         em.instance(&[ty], &vals, &[])?;
+        em.notes_view_state = State::Written;
         Ok(())
     }
 }
