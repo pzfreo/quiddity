@@ -96,6 +96,9 @@ mod upgrade;
 
 #[path = "authoring.rs"]
 mod authoring;
+
+#[path = "notes_view.rs"]
+mod notes_view;
 pub(crate) use authoring::model_refusals;
 
 type A = Attribute;
@@ -392,6 +395,8 @@ pub struct WriteReport {
     pub long_strings: Vec<LongStringWarning>,
     /// Source placement diagnostics; placed callouts are never moved.
     pub presentation_warnings: Vec<String>,
+    /// Factual saved-view decisions, including notes on several planes and a kept default.
+    pub saved_view_findings: Vec<Finding>,
     /// R1/R2 upgrade repairs, in instance id order; empty whenever no upgrade occurs.
     pub repairs: Vec<UpgradeRepair>,
     /// Closed AP214 subtype-to-supertype keyword rewrites, ascending by instance id.
@@ -772,7 +777,17 @@ fn write_inner(
             })));
     #[cfg(not(feature = "json-import"))]
     let json_upgrade = false;
-    let edition: &'static Edition = if json_upgrade {
+    // Saved-view identifiers/defaults were introduced in AP242 edition 2.
+    #[cfg(feature = "presentation")]
+    let notes_upgrade = express::edition(&first)
+        .is_some_and(|e| std::ptr::eq(e, &express::AP242_ED1))
+        && order
+            .iter()
+            .any(|(_, p)| !crate::presentation::notes::general_notes(p).is_empty());
+    #[cfg(not(feature = "presentation"))]
+    let notes_upgrade = false;
+    let edition_upgrade = json_upgrade || notes_upgrade;
+    let edition: &'static Edition = if edition_upgrade {
         express::TARGET
     } else if ap242 {
         express::edition(&first).unwrap_or(express::TARGET)
@@ -867,6 +882,7 @@ fn write_inner(
         schema: SchemaChange::Kept(schema.clone()),
         long_strings: Vec::new(),
         presentation_warnings: Vec::new(),
+        saved_view_findings: Vec::new(),
         repairs: Vec::new(),
         edition_rewrites: Vec::new(),
         validated_against: edition.file_schema,
@@ -929,6 +945,45 @@ fn write_inner(
             }
         }
     }
+    // Saved views are file-owned presentation. Preserve foreign cameras and
+    // displayed contents across native read/write, including Remove; only the
+    // Notes views recognized as ours participate in owned cleanup.
+    let owned_views: BTreeSet<_> = if read.saved_views.is_empty() {
+        BTreeSet::new()
+    } else {
+        order
+            .iter()
+            .flat_map(|(id, _)| notes_view::owned_roots(doc, parts[id.0].shape))
+            .collect()
+    };
+    let mut kept_view_ink = BTreeSet::new();
+    let mut work: Vec<_> = read
+        .saved_views
+        .iter()
+        .filter(|view| !owned_views.contains(&view.id))
+        .flat_map(|view| [view.id, view.representation])
+        .collect();
+    while let Some(id) = work.pop() {
+        if is_a(doc, id, "shape_representation")
+            || is_a(doc, id, "representation_context")
+            || is_a(doc, id, "product_definition_shape")
+            || leaf_names(doc, id)
+                .iter()
+                .any(|name| express::TARGET.family(name) == Some(express::Family::SemanticPmi))
+            || !kept_view_ink.insert(id)
+        {
+            continue;
+        }
+        work.extend(references(doc, id));
+    }
+    for &id in &kept_view_ink {
+        rebound.extend(
+            references(doc, id)
+                .into_iter()
+                .filter(|to| kept_view_ink.contains(to))
+                .map(|to| (id, to)),
+        );
+    }
     if mode != Mode::Add {
         let mut seeds = BTreeSet::new();
         for (p, _) in &order {
@@ -944,6 +999,10 @@ fn write_inner(
                 !geometry.contains(id) && !kept_dimension_ink.contains(id)
             }));
         }
+        if policy == PresentationPolicy::RemovePresentation {
+            seeds.extend(&owned_views);
+        }
+        seeds.retain(|id| !kept_view_ink.contains(id));
         let shared = shared_dependencies(doc, &seeds);
         let replacements: BTreeSet<u64> = plans
             .iter()
@@ -1025,6 +1084,10 @@ fn write_inner(
                 }
             };
             let mut plan = plan;
+            plan.removed.retain(|id| !kept_view_ink.contains(id));
+            plan.rewritten.retain(|id, _| !kept_view_ink.contains(id));
+            plan.presentation_removed
+                .retain(|(id, _)| !kept_view_ink.contains(id));
             plan.removed.retain(|id| !kept_dimension_ink.contains(id));
             plan.rewritten
                 .retain(|id, _| !kept_dimension_ink.contains(id));
@@ -1178,7 +1241,7 @@ fn write_inner(
     report.added = added;
 
     // Decision 1: an AP214/AP203 file that gains PMI becomes AP242, if it can.
-    let upgrade = added > 0 && (!ap242 || json_upgrade);
+    let upgrade = added > 0 && (!ap242 || edition_upgrade);
     let repaired = if upgrade {
         // Work on the original records; removal/presentation rewrites are never repaired.
         let excluded = removed
@@ -1189,8 +1252,13 @@ fn write_inner(
         if first.to_ascii_uppercase().starts_with("AUTOMOTIVE_DESIGN") {
             report.edition_rewrites = upgrade::rewrite_entities(doc, &mut edit, &excluded);
         }
-        let (repairs, added_dimensions) =
-            upgrade::repair(doc, &mut edit, &excluded, emitted_dimensions, json_upgrade)?;
+        let (repairs, added_dimensions) = upgrade::repair(
+            doc,
+            &mut edit,
+            &excluded,
+            emitted_dimensions,
+            edition_upgrade,
+        )?;
         report.added += added_dimensions;
         repairs
     } else {
@@ -4863,6 +4931,37 @@ impl<'a> PartPlan<'a> {
                 ],
             )
         };
+        #[cfg(feature = "presentation")]
+        let general_definitions: BTreeSet<_> = crate::presentation::notes::general_notes(self.pmi)
+            .iter()
+            .map(|row| _st.properties[&row.source])
+            .collect();
+        #[cfg(not(feature = "presentation"))]
+        let general_definitions = BTreeSet::<R>::new();
+        let mut notes_view = notes_view::Frame::new();
+        for (definitions, kind, _, basis, lines) in &graphics {
+            if *kind == "note" || definitions.iter().any(|d| general_definitions.contains(d)) {
+                notes_view.include(*basis, lines);
+            }
+        }
+        notes_view.include_kept(
+            self.doc,
+            em.removed,
+            self.context,
+            self.def.shape,
+            self.def.product_definition,
+        );
+        if let Some(part) = &presentation_part {
+            let b = part.bounds();
+            notes_view.include_bounds(b.min.map(|x| x / factor), b.max.map(|x| x / factor));
+        } else {
+            for &p in &points {
+                notes_view.include_point(p);
+            }
+        }
+        let mut notes_planes = Vec::new();
+        let mut note_elements = Vec::new();
+        let mut note_surface = None;
         let mut planes = Vec::new();
         let mut callouts = Vec::new();
         #[cfg(all(feature = "json-import", feature = "presentation"))]
@@ -5022,19 +5121,42 @@ impl<'a> PartPlan<'a> {
                 ],
             )?;
             let plane = em.simple("plane", &[("name", s(title)), ("position", placement.a())])?;
-            let annotation_plane = em.simple(
-                "annotation_plane",
-                &[
-                    ("name", s(title)),
-                    ("styles", refs([plane_style])),
-                    ("item", plane.a()),
-                    ("elements", refs([callout])),
-                ],
-            )?;
-            planes.push(annotation_plane);
+            let general_note = annotation_type == "note"
+                || definition.iter().any(|d| general_definitions.contains(d));
+            if general_note && notes_view.one_plane() {
+                note_surface.get_or_insert(plane);
+                note_elements.push(callout);
+            } else {
+                let annotation_plane = em.simple(
+                    "annotation_plane",
+                    &[
+                        ("name", s(title)),
+                        ("styles", refs([plane_style])),
+                        ("item", plane.a()),
+                        ("elements", refs([callout])),
+                    ],
+                )?;
+                planes.push(annotation_plane);
+                if general_note {
+                    notes_planes.push(annotation_plane);
+                }
+            }
             if annotation_type != "note" {
                 callouts.push((definition, callout, annotation_type));
             }
+        }
+        if let Some(surface) = note_surface {
+            let plane = em.simple(
+                "annotation_plane",
+                &[
+                    ("name", s("General notes")),
+                    ("styles", refs([plane_style])),
+                    ("item", surface.a()),
+                    ("elements", refs(note_elements)),
+                ],
+            )?;
+            planes.push(plane);
+            notes_planes.push(plane);
         }
         let model = em.simple(
             "draughting_model",
@@ -5051,6 +5173,9 @@ impl<'a> PartPlan<'a> {
                 ("context_of_items", context.a()),
             ],
         )?;
+        if !notes_planes.is_empty() {
+            self.notes_view(em, model, &notes_planes, notes_view, report)?;
+        }
         // No mechanical_design_and_draughting_relationship relates the model to the part's
         // shape representation (maintainer decision, 2026-10-09): specify-core's OpenCascade
         // loader crashed on every file with one (docs/step-ap242.md gives the cause); the

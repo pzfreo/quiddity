@@ -6,6 +6,13 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+### Added
+
+- General notes now have a default AP242 Notes saved view, facing their annotation plane
+  and framing the part and notes together. Add preserves existing views/defaults; notes on
+  several planes produce a factual finding instead. The PMI reader exposes saved views,
+  and replace/remove clean up the writer's Notes view.
+
 ### Changed
 
 - Contributions are taken under Apache-2.0 with a Developer Certificate of Origin sign-off

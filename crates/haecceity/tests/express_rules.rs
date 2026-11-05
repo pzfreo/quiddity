@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 
 use haecceity::express;
 use haecceity::express_rules::{GLOBAL_RULES, RULES, RuleViolation, check_all};
-use haecceity::p21::Document;
+use haecceity::p21::{Attribute, Document, RawEntity};
 use serde_json::{Value, json};
 
 fn fixtures() -> PathBuf {
@@ -914,5 +914,105 @@ fn tolerance_relationship_wr3_checks_cycles_across_names() {
         !check_all(&valid)
             .iter()
             .any(|v| v.rule == "geometric_tolerance_relationship.WR3")
+    );
+}
+
+#[test]
+fn default_saved_view_rules_check_both_names_descriptions_and_uniqueness() {
+    let base = every_kind();
+    let base_doc = Document::parse(base.as_bytes().to_vec()).unwrap();
+    let n = base_doc.max_id() + 1;
+    let axis = instances(&base, "AXIS2_PLACEMENT_3D")[0];
+    let shape = instances(&base, "PRODUCT_DEFINITION_SHAPE")[0];
+    let dm = instances(&base, "DRAUGHTING_MODEL")[0];
+    let context = *refs_in(line(&base, dm)).last().unwrap();
+    let text = append(
+        &base,
+        &[
+            format!("#{n}=CARTESIAN_POINT('',(-10.,-10.));"),
+            format!("#{}=AXIS2_PLACEMENT_2D('',#{n},$);", n + 1),
+            format!("#{}=PLANAR_BOX('',20.,20.,#{});", n + 2, n + 1),
+            format!("#{}=CARTESIAN_POINT('',(0.,0.,0.));", n + 3),
+            format!(
+                "#{}=VIEW_VOLUME(.PARALLEL.,#{},40.,0.,.F.,80.,.F.,.T.,#{});",
+                n + 4,
+                n + 3,
+                n + 2
+            ),
+            format!("#{}=CAMERA_MODEL_D3('Notes',#{axis},#{});", n + 5, n + 4),
+            format!(
+                "#{}=DRAUGHTING_MODEL('Notes',(#{}),#{context});",
+                n + 6,
+                n + 5
+            ),
+            format!(
+                "#{}=DEFAULT_MODEL_GEOMETRIC_VIEW('Notes',$,#{},#{},'Notes',$,#{shape},*);",
+                n + 7,
+                n + 5,
+                n + 6
+            ),
+        ],
+    );
+    let doc = Document::parse(text.as_bytes().to_vec()).unwrap();
+    assert!(new_violations(&base, &text).is_empty());
+    let view = doc
+        .ids()
+        .find(|&id| common::pmi_usage::is_a(&doc, id, "default_model_geometric_view"))
+        .unwrap();
+    let RawEntity::Simple {
+        name, attributes, ..
+    } = doc.get(view).unwrap()
+    else {
+        panic!("internal mapping")
+    };
+    let slots = express::TARGET.explicit_attributes(name).unwrap();
+    for (entity, field, value, want) in [
+        (
+            "shape_aspect",
+            "name",
+            Attribute::String("Different".into()),
+            "default_model_geometric_view.WR1",
+        ),
+        (
+            "characterized_object",
+            "description",
+            Attribute::String("".into()),
+            "default_model_geometric_view.WR2",
+        ),
+        (
+            "shape_aspect",
+            "description",
+            Attribute::String("".into()),
+            "default_model_geometric_view.WR3",
+        ),
+    ] {
+        let mut values = attributes.clone();
+        let i = slots
+            .iter()
+            .position(|s| s.entity == entity && s.name == field)
+            .unwrap();
+        values[i] = value;
+        let mut edit = haecceity::p21::Edit::new();
+        edit.replace(view, haecceity::p21::simple(name, values));
+        let changed = Document::parse(doc.apply(&edit).unwrap().bytes).unwrap();
+        let violations: Vec<_> = check_all(&changed)
+            .into_iter()
+            .filter(|v| v.id == view)
+            .collect();
+        assert_eq!(
+            violations.iter().map(|v| v.rule).collect::<Vec<_>>(),
+            vec![want]
+        );
+    }
+    let mut edit = haecceity::p21::Edit::new();
+    edit.add(haecceity::p21::Record::new(haecceity::p21::simple(
+        name,
+        attributes.clone(),
+    )));
+    let changed = Document::parse(doc.apply(&edit).unwrap().bytes).unwrap();
+    assert!(
+        check_all(&changed)
+            .iter()
+            .any(|v| v.rule == "default_model_geometric_view.UR1")
     );
 }

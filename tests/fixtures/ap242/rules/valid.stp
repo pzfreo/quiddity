@@ -124,5 +124,15 @@ DATA;
 /* a draughting model related from the part's shape */
 #270=DRAUGHTING_MODEL('',(#215),#9);
 #271=MECHANICAL_DESIGN_AND_DRAUGHTING_RELATIONSHIP('','',#12,#270);
+/* Saved-view camera and default-view inheritance (AP242 edition 2+). */
+#940=AXIS2_PLACEMENT_3D('',#10,$,$);
+#941=CARTESIAN_POINT('',(-10.,-10.));
+#942=AXIS2_PLACEMENT_2D('',#941,$);
+#943=PLANAR_BOX('',20.,20.,#942);
+#944=VIEW_VOLUME(.PARALLEL.,#10,40.,0.,.F.,80.,.F.,.T.,#943);
+#948=CAMERA_MODEL_D3('Notes',#940,#944);
+#949=CAMERA_MODEL_D3('Other',#940,#944);
+#950=DRAUGHTING_MODEL('Notes',(#948),#9);
+#951=DEFAULT_MODEL_GEOMETRIC_VIEW('Notes',$,#948,#950,'Notes',$,#7,*);
 ENDSEC;
 END-ISO-10303-21;

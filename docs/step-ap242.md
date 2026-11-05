@@ -493,6 +493,53 @@ These override anything below and any stream brief that says otherwise.
    form's source URL and sha256 (not the EXPRESS file itself); step-io's author is not contacted
    (haecceity rebuilds and checks the id map itself).
 
+## Notes saved view (2026-11-05)
+
+When the writer emits general notes in one geometric plane, it also emits a saved view
+named `Notes`, following CAx-IF PMI RP 4.1 §§9.4.2, 9.4.2.1, 9.4.2.5–7 and 9.4.4.
+The existing general-notes callout and annotation plane stay in the global
+`DRAUGHTING_MODEL('PMI callouts')`. The view references that annotation plane, a
+`CAMERA_MODEL_D3('Notes')`, and an identity `MAPPED_ITEM` of the part's shape
+representation. A `STYLED_ITEM` assigns `NULL_STYLE(.NULL.)` to the map, retaining
+the part's own colours. Both draughting models use the part's geometric context.
+No relationship from the global model to the shape is added.
+
+The camera's z axis is the negated notes-plane normal (camera to target); x is the
+plane's along direction. The frame encloses all eight corners of the part's B-rep
+bounding box, including curve/surface extrema, and the final notes strokes in the
+camera basis. The eye is the frame centre minus z times D, with D twice the frame's
+3D diagonal. The parallel view volume has projection point (0,0,0), positive view
+plane distance D, front/back clipping disabled, distances 0 and 2D, and side clipping
+enabled. Its unrotated `PLANAR_BOX` has 10% margin and bottom-left placement
+(-width/2,-height/2). All lengths use the part context's unit. Notes placement itself
+is unchanged and stays close to the part.
+
+`DEFAULT_MODEL_GEOMETRIC_VIEW('Notes',$,#camera,#view,'Notes',$,#part_shape,*)`
+is the schema-table's internal Part 21 mapping: both inherited names agree, both
+descriptions are absent, and product_definitional is derived. `express_rules`
+checks its UR1 and WR1–WR3, plus characterized-item membership and uniqueness.
+Edition 1 is upgraded through the existing validated upgrade path when notes need
+the edition-2 saved-view entities. Add still refuses any upgrade requiring changes
+to source DATA records. An existing default is retained and Notes becomes an ordinary
+`MODEL_GEOMETRIC_VIEW`, with a factual report entry. General notes spanning several
+planes (including parallel offset planes and source placements) get no new Notes view
+and a factual finding. Coplanar source notes share the notes annotation plane.
+
+`PmiRead.saved_views` exposes names, camera references, displayed representation/items
+and default flags, including the pre-edition-2 camera-only form. References remain
+scoped to the original document. Foreign saved views and their presentation survive
+native replacement; generated Notes views are recognized by their Notes/global-model
+pairing and mapped part and removed on replace/remove before regeneration.
+
+The saved view is related to the global model by
+`MECHANICAL_DESIGN_AND_DRAUGHTING_RELATIONSHIP('','',#notes_view,#global)`;
+rep_1/rep_2 follow §9.4.4. The live regression invokes `tools/check_pmi_occt.py`
+for both XCAF transfer/name walking and specify-core `load.load_all`. Both also loaded
+the private plate acceptance output successfully with the MDADR present. The old
+2026-10-09 global-to-shape departure below therefore remains limited to that older
+relationship; no MDADR departure is needed for this saved view. SFA and Solid Edge
+inspection are the maintainer's acceptance checks, not inferred from OCCT loading.
+
 ## Maintainer decisions (2026-10-09)
 
 From specify-core-rust's questions Q16, Q20 (2) and Q3 (its upstream needs U15 and U3). As

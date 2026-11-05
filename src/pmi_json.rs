@@ -2632,6 +2632,7 @@ pub fn write_report_json(
         .put("version", json!(VERSION))
         .put("mode", json!(mode))
         .put("presentation", json!(presentation))
+        .opt("saved_view_findings", (!report.saved_view_findings.is_empty()).then(|| json!(report.saved_view_findings.iter().map(finding_json).collect::<Vec<_>>())))
         .opt("presentation_warnings", (!report.presentation_warnings.is_empty()).then(|| json!(report.presentation_warnings)))
         .put(
             "parts",

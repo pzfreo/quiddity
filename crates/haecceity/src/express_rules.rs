@@ -109,6 +109,36 @@ macro_rules! rule {
 
 /// Every rule [`check_all`] evaluates, by entity and label.
 pub const RULES: &[Rule] = &[
+    rule!(
+        "default_model_geometric_view",
+        "UR1",
+        Check::Unique(default_view_ur1)
+    ),
+    rule!(
+        "default_model_geometric_view",
+        "WR1",
+        Check::Where(default_view_wr1)
+    ),
+    rule!(
+        "default_model_geometric_view",
+        "WR2",
+        Check::Where(default_view_wr2)
+    ),
+    rule!(
+        "default_model_geometric_view",
+        "WR3",
+        Check::Where(default_view_wr3)
+    ),
+    rule!(
+        "characterized_item_within_representation",
+        "UR1",
+        Check::Unique(characterized_item_ur1)
+    ),
+    rule!(
+        "characterized_item_within_representation",
+        "WR1",
+        Check::Where(characterized_item_wr1)
+    ),
     rule!("thread", "WR1", Check::Where(thread_wr1)),
     rule!("thread", "WR2", Check::Where(thread_wr2)),
     rule!("thread", "WR3", Check::Where(thread_wr3)),
@@ -1823,4 +1853,35 @@ fn restrict_representation_for_surface_condition_wr1(ctx: &Ctx) -> Vec<(u64, Str
             })
         })
         .collect()
+}
+
+// AP242 ed4 long form: default_model_geometric_view's two name slots
+// agree, both descriptions are absent, and of_shape is unique per model.
+fn default_view_ur1(ctx: &Ctx, x: u64) -> Option<String> {
+    ctx.reference(x, "shape_aspect", "of_shape")
+        .map(|id| id.to_string())
+}
+fn default_view_wr1(ctx: &Ctx, x: u64) -> Option<String> {
+    let a = ctx.text(x, "characterized_object", "name")?;
+    let b = ctx.text(x, "shape_aspect", "name")?;
+    (a != b).then(|| "characterized_object.name differs from shape_aspect.name".into())
+}
+fn default_view_wr2(ctx: &Ctx, x: u64) -> Option<String> {
+    ctx.text(x, "characterized_object", "description")
+        .map(|_| "characterized_object.description exists".into())
+}
+fn default_view_wr3(ctx: &Ctx, x: u64) -> Option<String> {
+    ctx.text(x, "shape_aspect", "description")
+        .map(|_| "shape_aspect.description exists".into())
+}
+fn characterized_item_ur1(ctx: &Ctx, x: u64) -> Option<String> {
+    let item = ctx.reference(x, "characterized_item_within_representation", "item")?;
+    let rep = ctx.reference(x, "characterized_item_within_representation", "rep")?;
+    Some(format!("{item},{rep}"))
+}
+fn characterized_item_wr1(ctx: &Ctx, x: u64) -> Option<String> {
+    let item = ctx.reference(x, "characterized_item_within_representation", "item")?;
+    let rep = ctx.reference(x, "characterized_item_within_representation", "rep")?;
+    (!ctx.using_representations(item).contains(&rep))
+        .then(|| format!("item #{item} is not used by representation #{rep}"))
 }

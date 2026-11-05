@@ -48,6 +48,9 @@ pub struct PmiRead {
     pub accounting: Accounting,
     /// Presented annotations in STEP instance order, including graphic-only callouts.
     pub callouts: Vec<GraphicalCallout>,
+    /// File-owned saved views in instance order. Camera and contents are STEP
+    /// references into this reading's document, as for graphical callouts.
+    pub saved_views: Vec<SavedView>,
 }
 
 impl PartialEq for PmiRead {
@@ -58,9 +61,22 @@ impl PartialEq for PmiRead {
             && self.identifiers == other.identifiers
             && self.accounting == other.accounting
             && self.callouts == other.callouts
+            && self.saved_views == other.saved_views
     }
 }
 impl Eq for PmiRead {}
+
+/// A named camera and displayed contents (CAx-IF PMI 4.1 §9.4.2).
+/// Kept separate from semantic PMI: Add preserves these records unchanged.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SavedView {
+    pub id: u64,
+    pub name: String,
+    pub camera: u64,
+    pub representation: u64,
+    pub contents: Vec<u64>,
+    pub is_default: bool,
+}
 
 /// One presented annotation: a draughting callout, or an occurrence outside all callouts.
 /// Annotation planes are containers; their elements are listed instead. Read-only evidence,

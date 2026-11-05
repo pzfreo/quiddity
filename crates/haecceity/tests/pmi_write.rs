@@ -9857,3 +9857,396 @@ fn pmi_header_replaces_older_reference_and_preserves_unicode_description() {
             .contains("\\X2\\03B1\\X0\\")
     );
 }
+
+#[cfg(feature = "presentation")]
+#[test]
+fn notes_saved_view_frames_part_and_ink_and_roundtrips() {
+    use common::pmi_usage::is_a;
+    let f = gap_spool();
+    let p = settings_pmi();
+    let w = written(&f, &p);
+    assert!(haecceity::express_rules::check_all(&w.doc).is_empty());
+    common::pmi_conformance::assert_conforms(&w.doc);
+    let view = w
+        .read
+        .saved_views
+        .iter()
+        .find(|v| v.name == "Notes")
+        .unwrap();
+    assert!(view.is_default);
+    let doc = &w.doc;
+    let reference = |id, entity, name| match test_attribute(doc, id, entity, name).unwrap() {
+        Attribute::EntityRef(id) => *id,
+        _ => panic!("reference"),
+    };
+    let real = |id, entity, name| match test_attribute(doc, id, entity, name).unwrap() {
+        Attribute::Real(x) => *x,
+        _ => panic!("real"),
+    };
+    let xyz = |id, entity, name| {
+        let Attribute::List(a) = test_attribute(doc, id, entity, name).unwrap() else {
+            panic!("vector")
+        };
+        std::array::from_fn::<_, 3, _>(|i| match a[i] {
+            Attribute::Real(x) => x,
+            Attribute::Integer(x) => x as f64,
+            _ => panic!("number"),
+        })
+    };
+    let plane = *view
+        .contents
+        .iter()
+        .find(|&&id| is_a(doc, id, "annotation_plane"))
+        .unwrap();
+    assert_eq!(view.contents.len(), 3);
+    let callout = common::pmi_usage::reference(doc, plane, "annotation_plane", "elements");
+    assert!(callout.is_none(), "elements is an aggregate");
+    let Attribute::List(elements) =
+        test_attribute(doc, plane, "annotation_plane", "elements").unwrap()
+    else {
+        panic!("elements")
+    };
+    let Attribute::EntityRef(callout) = elements[0] else {
+        panic!("callout")
+    };
+    let (_, normal, along) = annotation_basis(doc, callout);
+    let vrs = reference(view.camera, "camera_model_d3", "view_reference_system");
+    let eye = xyz(
+        reference(vrs, "placement", "location"),
+        "cartesian_point",
+        "coordinates",
+    );
+    let z = xyz(
+        reference(vrs, "axis2_placement_3d", "axis"),
+        "direction",
+        "direction_ratios",
+    );
+    let x = xyz(
+        reference(vrs, "axis2_placement_3d", "ref_direction"),
+        "direction",
+        "direction_ratios",
+    );
+    assert_eq!(z, normal.map(|v| -v));
+    assert_eq!(x, along);
+    let y = [
+        z[1] * x[2] - z[2] * x[1],
+        z[2] * x[0] - z[0] * x[2],
+        z[0] * x[1] - z[1] * x[0],
+    ];
+    let volume = reference(view.camera, "camera_model_d3", "perspective_of_volume");
+    let d = real(volume, "view_volume", "view_plane_distance");
+    assert!(d > 0.);
+    assert_eq!(
+        xyz(
+            reference(volume, "view_volume", "projection_point"),
+            "cartesian_point",
+            "coordinates"
+        ),
+        [0.; 3]
+    );
+    for field in ["front_plane_clipping", "back_plane_clipping"] {
+        assert_eq!(
+            test_attribute(doc, volume, "view_volume", field),
+            Some(&Attribute::Enum("F".into()))
+        );
+    }
+    let win = reference(volume, "view_volume", "view_window");
+    let width = real(win, "planar_extent", "size_in_x");
+    let height = real(win, "planar_extent", "size_in_y");
+    let placement = reference(win, "planar_box", "placement");
+    let Attribute::List(corner) = test_attribute(
+        doc,
+        reference(placement, "placement", "location"),
+        "cartesian_point",
+        "coordinates",
+    )
+    .unwrap() else {
+        panic!("corner")
+    };
+    assert_eq!(
+        corner,
+        &vec![Attribute::Real(-width / 2.), Attribute::Real(-height / 2.)]
+    );
+    assert_eq!(
+        test_attribute(doc, placement, "axis2_placement_2d", "ref_direction"),
+        Some(&Attribute::Unset)
+    );
+    let b = haecceity::step::read_part(doc.bytes(), &f.parts[0])
+        .unwrap()
+        .bounds();
+    let mut points = Vec::new();
+    for mask in 0..8 {
+        points.push(std::array::from_fn(|i| {
+            if mask & (1 << i) == 0 {
+                b.min[i]
+            } else {
+                b.max[i]
+            }
+        }));
+    }
+    points.extend(graphic_lines(doc, callout).into_iter().flatten());
+    let dot = |a: [f64; 3], b: [f64; 3]| a.into_iter().zip(b).map(|(a, b)| a * b).sum::<f64>();
+    for p in points {
+        let q = std::array::from_fn(|i| p[i] - eye[i]);
+        assert!(dot(q, x).abs() <= width / 2. + 1e-6);
+        assert!(dot(q, y).abs() <= height / 2. + 1e-6);
+        assert!(dot(q, z) > 0. && dot(q, z) < 2. * d);
+    }
+    let mapped = *view
+        .contents
+        .iter()
+        .find(|&&id| is_a(doc, id, "mapped_item"))
+        .unwrap();
+    let source = reference(mapped, "mapped_item", "mapping_source");
+    assert_eq!(
+        reference(source, "representation_map", "mapping_origin"),
+        reference(mapped, "mapped_item", "mapping_target")
+    );
+    let relation = doc
+        .ids()
+        .find(|&id| {
+            is_a(doc, id, "mechanical_design_and_draughting_relationship")
+                && common::pmi_usage::reference(doc, id, "representation_relationship", "rep_1")
+                    == Some(view.representation)
+        })
+        .unwrap();
+    let global = reference(relation, "representation_relationship", "rep_2");
+    assert_eq!(
+        test_attribute(doc, global, "representation", "name"),
+        Some(&Attribute::String("PMI callouts".into()))
+    );
+    assert!(refs_of(doc, global).contains(&plane));
+    let reopened = open_bytes(w.doc.bytes().to_vec());
+    let again = written(&reopened, &w.read.parts[0]);
+    assert_eq!(again.read.saved_views.len(), 1);
+    assert!(again.read.saved_views[0].is_default);
+    let removed = write(&reopened, &[(PartId(0), PartPmi::default())], Mode::Remove).unwrap();
+    assert!(removed.read.saved_views.is_empty());
+    for id in [
+        view.id,
+        view.camera,
+        view.representation,
+        volume,
+        win,
+        mapped,
+        source,
+        relation,
+    ] {
+        assert!(removed.doc.get(id).is_none(), "owned #{id} remains");
+    }
+}
+
+#[cfg(feature = "presentation")]
+#[test]
+fn notes_add_keeps_existing_default_and_reports_an_ordinary_view() {
+    let w = written(&gap_spool(), &settings_pmi());
+    let before = open_bytes(w.doc.bytes().to_vec());
+    let p = PartPmi {
+        attributes: part_notes(),
+        ..PartPmi::default()
+    };
+    let added = write(&before, &[(PartId(0), p)], Mode::Add).unwrap();
+    for id in before.doc.ids() {
+        assert_same_record(&before.doc, &added.doc, id);
+    }
+    assert_eq!(
+        added
+            .read
+            .saved_views
+            .iter()
+            .filter(|v| v.is_default)
+            .count(),
+        1
+    );
+    assert_eq!(added.read.saved_views.len(), 2);
+    assert!(!added.read.saved_views[1].is_default);
+    assert!(
+        added
+            .report
+            .saved_view_findings
+            .iter()
+            .any(|f| f.kind == FindingKind::Fact && f.detail.contains("ordinary saved view"))
+    );
+    assert!(haecceity::express_rules::check_all(&added.doc).is_empty());
+}
+
+#[cfg(feature = "presentation")]
+#[test]
+fn notes_on_several_planes_leave_add_views_unchanged_and_report_a_fact() {
+    let w = written(&gap_spool(), &settings_pmi());
+    let plane = w
+        .doc
+        .ids()
+        .find(|&id| {
+            common::pmi_usage::is_a(&w.doc, id, "annotation_plane")
+                && test_attribute(&w.doc, id, "representation_item", "name")
+                    == Some(&Attribute::String("General notes".into()))
+        })
+        .unwrap();
+    let surface = common::pmi_usage::reference(&w.doc, plane, "styled_item", "item").unwrap();
+    let pos =
+        common::pmi_usage::reference(&w.doc, surface, "elementary_surface", "position").unwrap();
+    let point = common::pmi_usage::reference(&w.doc, pos, "placement", "location").unwrap();
+    let mut edit = haecceity::p21::Edit::new();
+    // Parallel, distinct planes still count as several planes.
+    edit.replace(
+        point,
+        haecceity::p21::simple(
+            "CARTESIAN_POINT",
+            vec![
+                Attribute::String("".into()),
+                Attribute::List(vec![
+                    Attribute::Real(0.),
+                    Attribute::Real(17.),
+                    Attribute::Real(0.),
+                ]),
+            ],
+        ),
+    );
+    let before = open_bytes(w.doc.apply(&edit).unwrap().bytes);
+    let p = PartPmi {
+        attributes: part_notes(),
+        ..PartPmi::default()
+    };
+    let added = write(&before, &[(PartId(0), p)], Mode::Add).unwrap();
+    for id in before.doc.ids() {
+        assert_same_record(&before.doc, &added.doc, id);
+    }
+    assert_eq!(added.read.saved_views, w.read.saved_views);
+    assert!(
+        added
+            .report
+            .saved_view_findings
+            .iter()
+            .any(|f| f.kind == FindingKind::Fact
+                && f.detail
+                    == "general notes span several planes; no Notes saved view was written")
+    );
+}
+
+#[cfg(all(feature = "presentation", feature = "json-import"))]
+#[test]
+fn source_general_notes_on_several_planes_have_no_notes_view() {
+    let (doc, defs, semantic) = common::pmi_source::cube();
+    let source = common::pmi_source::input(&semantic);
+    let (bytes, report) = haecceity::json::write_with_presentation(
+        &doc,
+        &defs,
+        &[(PartId(0), semantic)],
+        PresentationPolicy::RemovePresentation,
+        &[(PartId(0), source)],
+    )
+    .unwrap();
+    let f = open_bytes(bytes);
+    let read = pmi::read(&f.doc, &f.parts).unwrap();
+    assert!(read.saved_views.is_empty());
+    assert!(
+        report
+            .saved_view_findings
+            .iter()
+            .any(|f| f.kind == FindingKind::Fact
+                && f.detail.contains("general notes span several planes"))
+    );
+    common::pmi_conformance::assert_conforms(&f.doc);
+}
+
+#[cfg(feature = "presentation")]
+#[test]
+#[ignore = "requires HAECCEITY_OCCT_PYTHON with OCP and specify_core installed"]
+fn notes_saved_view_loads_in_live_occt_and_specify_core() {
+    let python = std::env::var_os("HAECCEITY_OCCT_PYTHON").expect("set OCP Python");
+    let w = written(&gap_spool(), &settings_pmi());
+    let dir = std::env::temp_dir().join(format!("haecceity-notes-occt-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("notes.step");
+    std::fs::write(&path, w.doc.bytes()).unwrap();
+    for mode in ["read", "load"] {
+        let result = std::process::Command::new(&python)
+            .env("PYTHONDONTWRITEBYTECODE", "1")
+            .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools/check_pmi_occt.py"))
+            .args(["--child", mode])
+            .arg(&path)
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{mode}: {:?}\n{}\n{}",
+            result.status,
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[cfg(feature = "presentation")]
+#[test]
+fn foreign_saved_view_camera_and_contents_survive_replace_and_remove() {
+    let w = written(&gap_spool(), &settings_pmi());
+    let view = w.read.saved_views[0].clone();
+    let RawEntity::Simple {
+        name, attributes, ..
+    } = w.doc.get(view.representation).unwrap()
+    else {
+        panic!("model")
+    };
+    let mut values = attributes.clone();
+    values[0] = Attribute::String("Imported view".into());
+    let mut edit = haecceity::p21::Edit::new();
+    edit.replace(view.representation, haecceity::p21::simple(name, values));
+    let before = open_bytes(w.doc.apply(&edit).unwrap().bytes);
+    for (mode, p) in [
+        (Mode::Replace, settings_pmi()),
+        (Mode::Remove, PartPmi::default()),
+    ] {
+        let after = write(&before, &[(PartId(0), p)], mode).unwrap();
+        assert_eq!(
+            after.read.saved_views.iter().find(|v| v.id == view.id),
+            Some(&view)
+        );
+        for id in [view.id, view.camera, view.representation]
+            .into_iter()
+            .chain(view.contents.iter().copied())
+        {
+            assert_same_record(&before.doc, &after.doc, id);
+        }
+        assert_eq!(
+            after
+                .read
+                .saved_views
+                .iter()
+                .filter(|v| v.is_default)
+                .count(),
+            1
+        );
+    }
+}
+
+#[cfg(feature = "presentation")]
+fn assert_same_record(before: &Document, after: &Document, id: u64) {
+    match (before.get(id).unwrap(), after.get(id).unwrap()) {
+        (
+            RawEntity::Simple {
+                name: a,
+                attributes: x,
+                ..
+            },
+            RawEntity::Simple {
+                name: b,
+                attributes: y,
+                ..
+            },
+        ) => {
+            assert_eq!(a, b);
+            assert_eq!(x, y);
+        }
+        (RawEntity::Complex { parts: a, .. }, RawEntity::Complex { parts: b, .. }) => {
+            assert_eq!(a.len(), b.len());
+            for (a, b) in a.iter().zip(b) {
+                assert_eq!(a.name, b.name);
+                assert_eq!(a.attributes, b.attributes);
+            }
+        }
+        _ => panic!("record #{id} changed its mapping"),
+    }
+}
