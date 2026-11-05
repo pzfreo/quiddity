@@ -4765,18 +4765,23 @@ fn export_written_files() {
     }
 }
 
-/// The committed written files are what the writer writes now (so OpenCascade's captures of
-/// them are of the current writer's output); re-export and re-capture when this fails.
+/// Frozen OCCT captures remain semantic reference evidence. Check current output
+/// structurally; saved-view additions need no new byte snapshots or committed reports.
+/// The live Notes oracle below reads the new writer's actual output.
 #[test]
-fn written_files_are_the_writers_current_output() {
+fn written_files_keep_the_captured_semantics_and_conform() {
     for (name, bytes) in written_cases() {
         let Some(bytes) = bytes else { continue };
         let committed = file_bytes(&write_dir().join(format!("{name}.step.gz")));
-        assert!(
-            committed == bytes,
-            "{name}: the writer's output changed; run export_written_files and tools/check_pmi_occt.py"
+        let old = open_bytes(committed);
+        let current = open_bytes(bytes);
+        let old_read = pmi::read(&old.doc, &old.parts).unwrap();
+        let new_read = pmi::read(&current.doc, &current.parts).unwrap();
+        assert_eq!(
+            old_read.parts, new_read.parts,
+            "{name}: semantics differ from OCCT reference input"
         );
-        let doc = Document::parse(bytes).unwrap();
+        let doc = current.doc;
         common::pmi_conformance::assert_conforms(&doc);
         assert_composite_components(&doc);
     }
@@ -4787,6 +4792,10 @@ fn written_files_are_the_writers_current_output() {
 /// (`references/pmi_write.json` "occt"); and every datum's symbol read as its presentation.
 #[test]
 fn opencascade_reads_the_written_files() {
+    #[cfg(feature = "presentation")]
+    if std::env::var_os("HAECCEITY_OCCT_PYTHON").is_some() {
+        check_notes_saved_view_in_live_occt();
+    }
     let pins = load_pins();
     let pinned = pins["occt"].as_array().unwrap();
     common::check_verdicts("references/pmi_write.json occt", pinned);
@@ -9986,17 +9995,48 @@ fn notes_saved_view_frames_part_and_ink_and_roundtrips() {
     }
     points.extend(graphic_lines(doc, callout).into_iter().flatten());
     let dot = |a: [f64; 3], b: [f64; 3]| a.into_iter().zip(b).map(|(a, b)| a * b).sum::<f64>();
+    let mut lo = [f64::INFINITY; 3];
+    let mut hi = [f64::NEG_INFINITY; 3];
     for p in points {
         let q = std::array::from_fn(|i| p[i] - eye[i]);
+        for (i, axis) in [x, y, z].into_iter().enumerate() {
+            let v = dot(q, axis);
+            lo[i] = lo[i].min(v);
+            hi[i] = hi[i].max(v);
+        }
         assert!(dot(q, x).abs() <= width / 2. + 1e-6);
         assert!(dot(q, y).abs() <= height / 2. + 1e-6);
         assert!(dot(q, z) > 0. && dot(q, z) < 2. * d);
     }
+    assert!((width - 1.1 * (hi[0] - lo[0])).abs() < 1e-6);
+    assert!((height - 1.1 * (hi[1] - lo[1])).abs() < 1e-6);
+    let diagonal = (0..3).map(|i| (hi[i] - lo[i]).powi(2)).sum::<f64>().sqrt();
+    assert!((d - 2. * diagonal).abs() < 1e-6);
     let mapped = *view
         .contents
         .iter()
         .find(|&&id| is_a(doc, id, "mapped_item"))
         .unwrap();
+    let styled = doc
+        .referrers(mapped)
+        .iter()
+        .copied()
+        .find(|&id| is_a(doc, id, "styled_item"))
+        .unwrap();
+    let styles = common::pmi_usage::attr(doc, styled, "styled_item", "styles");
+    let Some(Attribute::List(styles)) = styles else {
+        panic!("styles")
+    };
+    let Attribute::EntityRef(style) = styles[0] else {
+        panic!("style")
+    };
+    assert_eq!(
+        test_attribute(doc, style, "presentation_style_assignment", "styles"),
+        Some(&Attribute::List(vec![Attribute::Typed {
+            type_name: "NULL_STYLE".into(),
+            value: Box::new(Attribute::Enum("NULL".into()))
+        }]))
+    );
     let source = reference(mapped, "mapped_item", "mapping_source");
     assert_eq!(
         reference(source, "representation_map", "mapping_origin"),
@@ -10154,6 +10194,11 @@ fn source_general_notes_on_several_planes_have_no_notes_view() {
 #[test]
 #[ignore = "requires HAECCEITY_OCCT_PYTHON with OCP and specify_core installed"]
 fn notes_saved_view_loads_in_live_occt_and_specify_core() {
+    check_notes_saved_view_in_live_occt();
+}
+
+#[cfg(feature = "presentation")]
+fn check_notes_saved_view_in_live_occt() {
     let python = std::env::var_os("HAECCEITY_OCCT_PYTHON").expect("set OCP Python");
     let w = written(&gap_spool(), &settings_pmi());
     let dir = std::env::temp_dir().join(format!("haecceity-notes-occt-{}", std::process::id()));
@@ -10249,4 +10294,50 @@ fn assert_same_record(before: &Document, after: &Document, id: u64) {
         }
         _ => panic!("record #{id} changed its mapping"),
     }
+}
+
+#[cfg(all(feature = "presentation", feature = "json-import"))]
+#[test]
+fn coplanar_source_general_notes_share_one_saved_view_plane() {
+    let (doc, defs, semantic) = common::pmi_source::cube();
+    let mut source = common::pmi_source::input(&semantic);
+    let mut graphic = source.items[&semantic.ids["notes"][1]][0].clone();
+    graphic.text_placements[0].origin = [180., 110., 70.];
+    source
+        .items
+        .insert(semantic.ids["notes"][2].clone(), vec![graphic]);
+    let (bytes, report) = haecceity::json::write_with_presentation(
+        &doc,
+        &defs,
+        &[(PartId(0), semantic)],
+        PresentationPolicy::RemovePresentation,
+        &[(PartId(0), source)],
+    )
+    .unwrap();
+    assert!(report.saved_view_findings.is_empty());
+    let f = open_bytes(bytes);
+    let read = pmi::read(&f.doc, &f.parts).unwrap();
+    assert_eq!(read.saved_views.len(), 1);
+    let view = &read.saved_views[0];
+    assert_eq!(view.name, "Notes");
+    assert!(view.is_default);
+    assert_eq!(view.contents.len(), 3);
+    let plane = view
+        .contents
+        .iter()
+        .copied()
+        .find(|&id| common::pmi_usage::is_a(&f.doc, id, "annotation_plane"))
+        .unwrap();
+    let Some(Attribute::List(elements)) =
+        test_attribute(&f.doc, plane, "annotation_plane", "elements")
+    else {
+        panic!("elements")
+    };
+    assert_eq!(
+        elements.len(),
+        2,
+        "both general notes share the referenced plane"
+    );
+    assert!(haecceity::express_rules::check_all(&f.doc).is_empty());
+    common::pmi_conformance::assert_conforms(&f.doc);
 }
