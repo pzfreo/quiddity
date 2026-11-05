@@ -867,14 +867,34 @@ fn datum_symbols(w: &Written) -> Vec<String> {
             .find(|&p| w.names(p) == ["annotation_plane"] && refs_of(&w.doc, p).contains(&callout))
             .expect("the callout's annotation plane is in the model");
         assert!(refs_of(&w.doc, plane).len() >= 3);
-        assert!(
-            !w.doc
-                .referrers(model)
-                .iter()
-                .any(|&r| w.names(r) == ["mechanical_design_and_draughting_relationship"]),
-            "the model is not related to the shape (maintainer decision 2026-10-09: \
-             OpenCascade 7.9 crashes on that relationship)"
-        );
+        for &relationship in w.doc.referrers(model) {
+            if w.names(relationship) != ["mechanical_design_and_draughting_relationship"] {
+                continue;
+            }
+            // The Notes -> global relationship is required by §9.4.4;
+            // the global model still has no relationship to the part shape.
+            assert_eq!(
+                common::pmi_usage::reference(
+                    &w.doc,
+                    relationship,
+                    "representation_relationship",
+                    "rep_2"
+                ),
+                Some(model)
+            );
+            let saved = common::pmi_usage::reference(
+                &w.doc,
+                relationship,
+                "representation_relationship",
+                "rep_1",
+            )
+            .unwrap();
+            assert_eq!(w.names(saved), ["draughting_model"]);
+            assert_eq!(
+                test_attribute(&w.doc, saved, "representation", "name"),
+                Some(&Attribute::String("Notes".into()))
+            );
+        }
         let datum = w
             .doc
             .referrers(feature)
@@ -1228,7 +1248,12 @@ fn add_datum_preserves_the_kept_geometric_carrier() {
 #[test]
 fn ctc01_add_datums_preserve_foreign_perpendicularity_and_location() {
     use common::pmi_usage::{is_a, reference};
-    let input = fixture("ap242/nist/nist_ctc_01_asme1_ap242-e1.stp.gz");
+    let mut input = fixture("ap242/nist/nist_ctc_01_asme1_ap242-e1.stp.gz");
+    if cfg!(feature = "presentation") {
+        // This case exercises kept carriers and notes on a canonical source;
+        // the raw edition-1 R3 refusal is covered by the notes-clearance test.
+        input.doc = common::canonical_notes_source(&input.doc);
+    }
     let before = pmi::read(&input.doc, &input.parts).unwrap();
     let p = &before.parts[0];
     let perpendicularity = p
