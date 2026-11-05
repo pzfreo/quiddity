@@ -58,3 +58,13 @@ prefixes, conversion factors and exact decimal exponents replace source ids.
 All source hashes, stated/read counts and refusal counts remain unchanged.
 The new B-rep test checks all 13 measured attributes (12 derived units) through
 a fresh document and subsequent replacement; no audit case or hash test is added.
+
+
+Reader `/18` refreshes only STC06 and STC10's semantic expectations. Each loses
+one erroneous nonconformance finding that its `default_model_geometric_view`
+is a shape aspect without a face or edge (STC06 #11930; STC10 #15). Saved views
+are presentation; their shape-aspect role does not require face geometry. All
+resolved PMI, other findings, source hashes, stated/read counts and refusal counts
+are unchanged, as are the other fifteen rows. The complete Rust PMI snapshot
+records the reader-binding change and these two finding removals; the exact audit
+comparison and its coverage are unchanged.
