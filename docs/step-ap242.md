@@ -553,7 +553,8 @@ and geometric-view record at their original ids, replacing only their camera and
 private camera support. The reused model references both existing and new note
 planes and frames all their ink. These owned records are the narrow exception to
 Add's original-DATA preservation; foreign views remain unchanged. Draughting-model
-names are unique (UR1); appended global models use a numbered suffix when needed.
+names are unique (UR1); appended global models and JSON preservation’s `As Drawn`
+linking models use a numbered suffix when needed.
 
 The saved view is related to the global model by
 `MECHANICAL_DESIGN_AND_DRAUGHTING_RELATIONSHIP('','',#notes_view,#global)`;

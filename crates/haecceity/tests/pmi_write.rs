@@ -9612,6 +9612,16 @@ fn shared_carrier_isolation_tracks_add_sharing_and_datum_promotion() {
     .unwrap();
     assert!(is_a(&initial.doc, carrier, "datum_feature"));
     let mut edit = haecceity::p21::Edit::new();
+    // This case promises complete foreign-DATA preservation. Treat the fixture's
+    // saved view as imported; owned Notes-camera updates have a separate test.
+    for view in &initial.read.saved_views {
+        let mut record = initial.doc.get(view.representation).unwrap().clone();
+        let RawEntity::Simple { attributes, .. } = &mut record else {
+            panic!("view model")
+        };
+        attributes[0] = Attribute::String("Imported view".into());
+        edit.replace(view.representation, record);
+    }
     let shell = edit.add(haecceity::p21::simple(
         "SHAPE_ASPECT",
         vec![

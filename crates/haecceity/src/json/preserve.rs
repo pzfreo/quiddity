@@ -208,6 +208,15 @@ pub(super) fn attach(
     let mut edit = Edit::new();
     let mut attached = BTreeSet::new();
     let mut added = 0;
+    let mut names: BTreeSet<_> = doc
+        .ids()
+        .filter(|id| is(doc, *id, "draughting_model"))
+        .filter_map(|id| match attr(doc, id, "representation", "name") {
+            Some(Attribute::String(name)) => Some(name.clone()),
+            _ => None,
+        })
+        .collect();
+    let mut serial = 1;
     for mut k in kept {
         let new = *read
             .json_carriers
@@ -224,10 +233,21 @@ pub(super) fn attach(
         // A source can attach several definitions/placeholders to one callout, and
         // support aliases can split during typed emission. Separate linking models
         // keep UR1/UR2 valid while reusing all original drawn graphics and placements.
+        let name = loop {
+            let candidate = if serial == 1 {
+                "As Drawn".into()
+            } else {
+                format!("As Drawn ({serial})")
+            };
+            serial += 1;
+            if names.insert(candidate.clone()) {
+                break candidate;
+            }
+        };
         let model = edit.add(crate::p21::simple(
             "DRAUGHTING_MODEL",
             vec![
-                Attribute::String("As Drawn".into()),
+                Attribute::String(name),
                 Attribute::List(vec![Attribute::EntityRef(k.item)]),
                 Attribute::EntityRef(k.context),
             ],
