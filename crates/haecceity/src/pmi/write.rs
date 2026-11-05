@@ -69,7 +69,7 @@
 //! an AP242 edition without a table, and for an AP214/AP203 file that gains PMI, whose every
 //! instance must then pass, after only the closed R1 approval assignment and R2 conversion
 //! unit dimensions repairs in `upgrade.rs`, and the R3 integer-literal repair on
-//! JSON-driven AP242 edition upgrades, each recorded in [`WriteReport::repairs`], plus
+//! AP242 edition upgrades for JSON owners or Notes views, each recorded in [`WriteReport::repairs`], plus
 //! the keyword table above); and `express_rules::check_all` of the result (the WHERE, UNIQUE
 //! and global rules it evaluates, `restrict_representation_for_surface_condition` among them)
 //! must have no violation the original lacked except the exact registered conflicts above.

@@ -564,6 +564,45 @@ fn ctc_01_notes_block_clears_kept_callout_ink() {
         ],
         ..Default::default()
     };
+    // Notes' default-view entity needs edition 2+. The original edition-1
+    // fixture has integral REAL integer items that need R3 on upgrade; Add
+    // must refuse that repair rather than changing kept source records.
+    assert!(
+        matches!(pmi::write(&doc,&defs,&[(PartId(0),pmi.clone())],pmi::write::Mode::Add,pmi::write::PresentationPolicy::RemovePresentation),
+        Err(pmi::write::WriteError::AddPreservation { repairs, .. })
+            if !repairs.is_empty() && repairs.iter().all(|(_,kind)| *kind==pmi::write::UpgradeRepairKind::R3IntegerLiteral))
+    );
+    // Canonical source copy for the independent ink-clearance assertion below.
+    // Geometry, callouts and their placements are retained at their original ids.
+    let mut canonical = haecceity::p21::Edit::new();
+    canonical.set_file_schema(vec![haecceity::express::TARGET_SCHEMA.into()]);
+    for id in doc.ids() {
+        let Some(haecceity::p21::RawEntity::Simple {
+            name, attributes, ..
+        }) = doc.get(id)
+        else {
+            continue;
+        };
+        if !name.eq_ignore_ascii_case("integer_representation_item") {
+            continue;
+        }
+        let Some(haecceity::p21::Attribute::Real(value)) =
+            common::pmi_usage::attr(&doc, id, "literal_number", "the_value")
+        else {
+            continue;
+        };
+        assert_eq!(value.fract(), 0.);
+        let index = haecceity::express::TARGET
+            .explicit_attributes(name)
+            .unwrap()
+            .iter()
+            .position(|slot| slot.entity == "literal_number" && slot.name == "the_value")
+            .unwrap();
+        let mut values = attributes.clone();
+        values[index] = haecceity::p21::Attribute::Integer(*value as i64);
+        canonical.replace(id, haecceity::p21::simple(name, values));
+    }
+    let doc = Document::parse(doc.apply(&canonical).unwrap().bytes).unwrap();
     let mut rebuilt = pmi::read(&doc, &defs).unwrap().parts.remove(0);
     // The source has four nominal-less dimensions the typed writer refuses;
     // keep the eight stated dimensions for the regeneration case, without
