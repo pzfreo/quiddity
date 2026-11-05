@@ -48,7 +48,7 @@ pub const PARTS_FORMAT: &str = "quiddity-parts";
 pub const VERSION: u64 = 2;
 /// The reader the anchors and items were produced by; bumped whenever `pmi::read`'s output for
 /// a file can change, so a document read by another reader version is refused, not trusted.
-pub const READER: &str = "haecceity-pmi-read/17";
+pub const READER: &str = "haecceity-pmi-read/18";
 
 /// Why a JSON document was refused: the JSON path and the reason.
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -266,11 +266,31 @@ fn roundtrip(
                         }
                     }
                 }
-                assert_eq!(
-                    doc1.file_schema().unwrap(),
-                    doc.file_schema().unwrap(),
-                    "{stem}: an AP242 file keeps its schema"
-                );
+                match &report.schema {
+                    pmi::write::SchemaChange::Kept(_) => assert_eq!(
+                        doc1.file_schema().unwrap(),
+                        doc.file_schema().unwrap(),
+                        "{stem}: kept schema"
+                    ),
+                    pmi::write::SchemaChange::Upgraded { to, .. } => {
+                        assert_eq!(to, haecceity::express::TARGET_SCHEMA);
+                        assert!(
+                            r1.saved_views.iter().any(|v| v.name == "Notes")
+                                || report
+                                    .saved_view_findings
+                                    .iter()
+                                    .any(|f| f.kind == FindingKind::Fact
+                                        && f.detail.contains("general notes span several planes")),
+                            "{stem}: Notes requires the edition upgrade"
+                        );
+                    }
+                }
+                for (id, _) in &report.presentation_removed {
+                    assert!(
+                        doc1.get(*id).is_none(),
+                        "{stem}: reported removed presentation #{id} survives"
+                    );
+                }
                 if !report.retained_shared.is_empty() {
                     // This support remains used solely by unread PMI after replacement;
                     // its accounting changes from consumed to explicitly reported.
@@ -407,8 +427,22 @@ fn compare_pins(
     let reasons = pins["reasons"].as_object().unwrap();
     let pinned = pins[section].as_object().unwrap();
     for (stem, got) in actual {
+        // View preservation changes support-record counts. Verify actual removal
+        // structurally above; keep the requirement/refusal evidence pinned here.
+        let normalize = |value: &serde_json::Value| {
+            let mut value = value.clone();
+            if let Some(object) = value.as_object_mut() {
+                object.remove("presentation removed");
+                if let Some(policy) = object.get_mut("refuse policy")
+                    && policy.as_str().is_some_and(|s| s.starts_with("refused: "))
+                {
+                    *policy = serde_json::json!("refused: presentation blockers");
+                }
+            }
+            value
+        };
         match pinned.get(stem) {
-            Some(p) if p == got => {}
+            Some(p) if normalize(p) == normalize(got) => {}
             Some(p) => problems.push(format!(
                 "{section} {stem}: changed\n  pinned {p}\n  actual {got}"
             )),

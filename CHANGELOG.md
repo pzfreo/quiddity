@@ -11,7 +11,8 @@ in [docs/alpha1.md](docs/alpha1.md).
 - General notes now have a default AP242 Notes saved view, facing their annotation plane
   and framing the part and notes together. Add preserves existing views/defaults; notes on
   several planes produce a factual finding instead. The PMI reader exposes saved views,
-  and replace/remove clean up the writer's Notes view.
+  and replace/remove clean up the writer's Notes view. The CLI reader binding is now
+  `haecceity-pmi-read/18`: default views no longer produce a face-less shape-aspect finding.
 
 ### Changed
 

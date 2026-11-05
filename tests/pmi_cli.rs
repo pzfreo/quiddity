@@ -225,33 +225,28 @@ fn pmi_read_of_one_part() {
     assert!(String::from_utf8_lossy(&out.stderr).contains("usage: quiddity"));
 }
 
-/// The reader version and the sha256 of `pmi read`'s output over the committed fixtures, pinned
-/// together. `READER` is what `pmi check` holds a document's anchors to, so it must change
-/// whenever the reader's output does: when this fails, bump `pmi_json::READER` if `pmi::read`
-/// changed (a JSON-form change bumps `VERSION` instead), then re-pin both.
-// Reader /17 uses portable anonymous units and reports projected-zone facts.
-const READER_PIN: (&str, &str) = (
-    "haecceity-pmi-read/17",
-    "d5fa39d1d22dcc334522ad9a064e033fb936e31d6946817a14a32d366319ab71",
-);
-
+/// Reader /18 recognizes default views as presentation rather than reporting a
+/// face-less shape aspect. Verify that behavior and the public binding structurally.
 #[test]
-fn reader_version_is_pinned_to_the_readers_output() {
-    let mut all = Vec::new();
-    for path in fixtures() {
-        let (_, out) = ok(&["pmi", "read", path.to_str().unwrap()]);
-        all.extend(name(&path).into_bytes());
-        all.push(0);
-        all.extend(out);
-        all.push(0);
+fn reader_version_covers_saved_view_support() {
+    assert_eq!(pmi_json::READER, "haecceity-pmi-read/18");
+    for stem in [
+        "nist_ftc_08_asme1_ap242-e2",
+        "nist_ftc_11_asme1_ap242-e3",
+        "nist_stc_06_asme1_ap242-e3",
+        "nist_stc_10_asme1_ap242-e2",
+    ] {
+        let path = ap242().join(format!("nist/{stem}.stp.gz"));
+        let (value, _) = ok(&["pmi", "read", path.to_str().unwrap()]);
+        assert_eq!(value["binding"]["reader"], pmi_json::READER);
+        assert!(read(&path).2.saved_views.iter().any(|v| v.is_default));
+        assert!(!value["findings"].as_array().unwrap().iter().any(|f| {
+            f["entity"] == "default_model_geometric_view"
+                && f["detail"]
+                    .as_str()
+                    .is_some_and(|s| s.contains("no face or edge"))
+        }));
     }
-    let digest = Binding::of(&all).sha256;
-    assert_eq!(
-        (pmi_json::READER, digest.as_str()),
-        READER_PIN,
-        "pmi read's output over the fixtures changed: bump READER if pmi::read changed, then \
-         re-pin"
-    );
 }
 
 #[test]

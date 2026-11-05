@@ -133,3 +133,37 @@ pub fn sha256_hex(data: &[u8]) -> String {
     }
     h.iter().map(|x| format!("{x:08x}")).collect()
 }
+
+/// A canonical edition-4 copy for Notes tests that retain the original ink.
+/// Integral REAL integer-item literals need R3 when upgrading the source;
+/// production Add refuses those repairs. No geometry or placement is changed.
+pub fn canonical_notes_source(doc: &haecceity::p21::Document) -> haecceity::p21::Document {
+    use haecceity::p21::{Attribute as A, Document, Edit, RawEntity};
+    let mut edit = Edit::new();
+    edit.set_file_schema(vec![haecceity::express::TARGET_SCHEMA.into()]);
+    for id in doc.ids() {
+        let Some(RawEntity::Simple {
+            name, attributes, ..
+        }) = doc.get(id)
+        else {
+            continue;
+        };
+        if !name.eq_ignore_ascii_case("integer_representation_item") {
+            continue;
+        }
+        let Some(A::Real(value)) = pmi_usage::attr(doc, id, "literal_number", "the_value") else {
+            continue;
+        };
+        assert_eq!(value.fract(), 0.);
+        let index = haecceity::express::TARGET
+            .explicit_attributes(name)
+            .unwrap()
+            .iter()
+            .position(|slot| slot.entity == "literal_number" && slot.name == "the_value")
+            .unwrap();
+        let mut values = attributes.clone();
+        values[index] = A::Integer(*value as i64);
+        edit.replace(id, haecceity::p21::simple(name, values));
+    }
+    Document::parse(doc.apply(&edit).unwrap().bytes).unwrap()
+}

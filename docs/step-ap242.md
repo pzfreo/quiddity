@@ -526,6 +526,9 @@ to source DATA records. An existing default is retained and Notes becomes an ord
 planes (including parallel offset planes and source placements) get no new Notes view
 and a factual finding. Coplanar source notes share the notes annotation plane.
 
+The CLI reader binding is `haecceity-pmi-read/18`: a default view no longer produces
+an erroneous finding that its shape aspect has no face or edge.
+
 `PmiRead.saved_views` exposes names, camera references, displayed representation/items
 and default flags, including the pre-edition-2 camera-only form. References remain
 scoped to the original document. Foreign cameras and surviving presentation remain
