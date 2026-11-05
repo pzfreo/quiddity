@@ -10626,3 +10626,38 @@ fn nist_replace_presentation_counts_match_main() {
         assert_eq!(w.report.presentation_removed.len(), removed, "{name}");
     }
 }
+
+#[cfg(feature = "presentation")]
+#[test]
+fn edition_one_replace_skips_optional_view_when_upgrade_cannot_validate() {
+    let f = fixture("ap242/nist/nist_ctc_01_asme1_ap242-e1.stp.gz");
+    // Preserve an existing nonintegral legacy literal: R3 cannot repair it for
+    // edition 4. Optional presentation must not turn that into a write refusal.
+    let id = f.doc.max_id() + 1;
+    let mut text = String::from_utf8(f.doc.bytes().to_vec()).unwrap();
+    let end = text.rfind("ENDSEC;").unwrap();
+    text.insert_str(
+        end,
+        &format!("#{id}=INTEGER_REPRESENTATION_ITEM('legacy',1.5);\n"),
+    );
+    let f = open_bytes(text.into_bytes());
+    let p = PartPmi {
+        attributes: part_notes(),
+        ..Default::default()
+    };
+    let w = write(&f, &[(PartId(0), p)], Mode::Replace).unwrap();
+    assert_eq!(w.doc.file_schema().unwrap(), f.doc.file_schema().unwrap());
+    assert_same_record(&f.doc, &w.doc, id);
+    assert!(w.report.repairs.is_empty());
+    assert!(
+        w.report
+            .saved_view_findings
+            .iter()
+            .any(|f| f.kind == FindingKind::Fact && f.detail.contains("edition 1 retained"))
+    );
+    assert!(!w.added().iter().any(|id| common::pmi_usage::is_a(
+        &w.doc,
+        *id,
+        "model_geometric_view"
+    )));
+}
