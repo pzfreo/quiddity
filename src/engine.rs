@@ -11,6 +11,7 @@ macro_rules! internal_entry {
 
 #[path = "body.rs"]
 pub(crate) mod body;
+#[cfg(feature = "cli")]
 #[path = "cli.rs"]
 pub mod cli;
 #[path = "correspondence/mod.rs"]

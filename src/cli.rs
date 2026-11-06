@@ -38,8 +38,8 @@
 //! Exit status: 0 with the JSON on stdout; 1 with the error on stderr when a file cannot be
 //! read (an unreadable, truncated, incomplete or unsupported STEP file is refused, never
 //! recognised as empty), a PMI document is refused, or a write is refused or does not verify;
-//! 2 with the usage on stderr for bad arguments. `-h`/`--help` prints the usage on stdout and
-//! exits 0.
+//! 2 with the usage on stderr for bad arguments. The command line is parsed by clap:
+//! `-h`/`--help` (on any command) prints the help on stdout and exits 0, `--version` the version.
 //!
 //! `quiddity brep <file.step> -o <out.step>`: writes the part's B-rep as read (an inverted
 //! shell repaired) to a new AP242 file (`haecceity::brep_write`) with its semantic PMI, and
@@ -53,8 +53,13 @@
 //!
 //! `quiddity serve`: recognition and correspondence as a JSON-lines service on stdin and stdout
 //! (`crate::serve` has the protocol); exits 0 at the end of the input.
+//!
+//! `quiddity completions <SHELL>`: a completion script for bash, zsh, fish, powershell or
+//! elvish, on stdout.
 
 use std::path::{Path, PathBuf};
+
+use clap::{Args, CommandFactory, Parser, Subcommand};
 
 use crate::kernel::p21;
 use crate::kernel::pmi::write::{Mode, PresentationPolicy};
@@ -68,55 +73,150 @@ use crate::serve::{self, Failure};
 #[path = "bin/quiddity/pmi_interchange.rs"]
 mod pmi_interchange;
 
-#[cfg(feature = "json-import")]
-const JSON_USAGE: &str = "PMI interchange (--features json-import):
-       quiddity pmi json export <file.step> [--part N]
-       quiddity pmi json import <geometry.step> <pmi.json> -o <out.step> [--part N]
-                         [--anchors <verified-face-namespace.json>] [--source-presentation FILE]
-       quiddity pmi json validate <pmi-or-presentation.json>
-       quiddity pmi json presentation <file.step> [--part N]
-       quiddity pmi write <file.step> <pmi.json> -o <out.step> --source-presentation FILE";
-
-const USAGE: &str = "usage: quiddity <file.step>
-       quiddity correspond <old.json|old.step> <new.json|new.step>
-       quiddity evidence <file.step> [--framed]
-       quiddity fingerprints <file.step>
-       quiddity capabilities
-       quiddity serve
-       quiddity parts <file.step>
-       quiddity pmi read <file.step> [--part N]
-       quiddity pmi check <file.step> <pmi.json>
-       quiddity pmi write <file.step> <pmi.json> -o <out.step> [--mode add|replace|remove]
-                          [--presentation refuse|remove]
-       quiddity brep <file.step> -o <out.step> [--pmi <pmi.json>]
-                          (B-rep and PMI to a new AP242 file; --pmi: that PMI, not the file's)
-
-`quiddity <file.step>` prints JSON: each family's records, their `fingerprints`, and the
+const AFTER_HELP: &str =
+    "`quiddity <file.step>` prints JSON: each family's records, their `fingerprints`, and the
 versioned recognition `document`. `quiddity serve` answers JSON-lines requests on stdin
 (`recognise`, `correspond`), one response line each on stdout.
-With `--features f3d`, part inputs also accept .f3d (geometry only).";
+With `--features f3d`, part inputs also accept .f3d (geometry only).
 
-const COMMANDS: [&str; 8] = [
-    "correspond",
-    "serve",
-    "parts",
-    "pmi",
-    "brep",
-    "evidence",
-    "fingerprints",
-    "capabilities",
-];
+Exit status: 0 with the JSON on stdout; 1 with the error on stderr when a file cannot be read
+or an operation is refused; 2 for wrong usage. `quiddity <command> --help` gives a command's
+arguments.";
+
+/// The command line. Values that were always checked here (`--part`, `--mode`,
+/// `--presentation`) are kept as text and checked by [`main`], with their own messages; only the
+/// shape of the command line is clap's.
+#[derive(Parser)]
+#[command(
+    name = "quiddity",
+    bin_name = "quiddity",
+    version,
+    about = "Manufacturing feature recognition from STEP B-rep models",
+    after_help = AFTER_HELP,
+    args_conflicts_with_subcommands = true,
+    arg_required_else_help = true,
+    disable_help_subcommand = true
+)]
+struct Cli {
+    /// recognise the part's features and print them as JSON
+    #[arg(value_name = "FILE.STEP", allow_hyphen_values = true)]
+    file: Option<String>,
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// match two revisions' features and print the correspondence as JSON
+    Correspond {
+        /// the old revision: a recognition result written by `quiddity <file.step>`, or a STEP
+        /// file
+        #[arg(value_name = "OLD.JSON|OLD.STEP", allow_hyphen_values = true)]
+        old: String,
+        /// the new revision, likewise
+        #[arg(value_name = "NEW.JSON|NEW.STEP", allow_hyphen_values = true)]
+        new: String,
+    },
+    /// print the part's recognition evidence as JSON
+    Evidence {
+        #[arg(value_name = "FILE.STEP", allow_hyphen_values = true)]
+        file: String,
+        /// in the part's own frame, with the frame given
+        #[arg(long)]
+        framed: bool,
+    },
+    /// print the part's feature fingerprints as JSON
+    Fingerprints {
+        #[arg(value_name = "FILE.STEP", allow_hyphen_values = true)]
+        file: String,
+    },
+    /// print this build's versioned capabilities as JSON
+    Capabilities,
+    /// answer JSON-lines requests (`recognise`, `correspond`) on stdin, one response line each on
+    /// stdout
+    Serve,
+    /// list the file's distinct parts and the binding that face and edge numbers refer to
+    Parts {
+        #[arg(value_name = "FILE.STEP", allow_hyphen_values = true)]
+        file: String,
+    },
+    /// read, check and write AP242 semantic PMI
+    #[command(subcommand_required = true, arg_required_else_help = true)]
+    Pmi {
+        #[command(subcommand)]
+        command: Pmi,
+    },
+    /// write the B-rep and its PMI to a new AP242 file
+    Brep(BrepArgs),
+    /// print a shell completion script to stdout
+    Completions {
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
+}
+
+#[derive(Subcommand)]
+enum Pmi {
+    /// print the semantic PMI of every part (or part N) and the reader's findings
+    Read {
+        #[arg(value_name = "FILE.STEP", allow_hyphen_values = true)]
+        file: String,
+        /// only part N, as `quiddity parts` lists them
+        #[arg(long, value_name = "N", allow_hyphen_values = true)]
+        part: Option<String>,
+    },
+    /// check a PMI document against the file and print it in its canonical form
+    Check {
+        #[arg(value_name = "FILE.STEP", allow_hyphen_values = true)]
+        file: String,
+        #[arg(value_name = "PMI.JSON", allow_hyphen_values = true)]
+        json: String,
+    },
+    /// write a PMI document's parts into the file as AP242 semantic PMI, verified by reading it
+    /// back
+    Write(WriteArgs),
+    /// PMI interchange: the versioned semantic and presentation JSON schemas
+    #[cfg(feature = "json-import")]
+    #[command(subcommand_required = true, arg_required_else_help = true)]
+    Json {
+        #[command(subcommand)]
+        command: pmi_interchange::JsonCommand,
+    },
+}
+
+/// Prints *message* as a usage error of the command at *path*, with that command's usage; 2.
+fn usage_error(path: &[&str], message: &str) -> u8 {
+    let mut command = Cli::command();
+    command.build();
+    let mut sub = &mut command;
+    for name in path {
+        sub = sub
+            .find_subcommand_mut(name)
+            .expect("the command line has the command");
+    }
+    eprintln!("quiddity: {message}\n{}", sub.render_usage());
+    2
+}
 
 /// Run the Rust command line on arguments after the program name.
 pub fn main(args: &[String]) -> u8 {
-    let result = match args {
-        [flag] if flag == "-h" || flag == "--help" => {
-            println!("{USAGE}");
-            #[cfg(feature = "json-import")]
-            println!("\n{JSON_USAGE}");
-            return 0;
+    let argv = std::iter::once("quiddity").chain(args.iter().map(String::as_str));
+    let cli = match Cli::try_parse_from(argv) {
+        Ok(cli) => cli,
+        Err(e) => {
+            let _ = e.print();
+            return u8::try_from(e.exit_code()).unwrap_or(2);
         }
-        [command] if command == "serve" => {
+    };
+    let command = match (cli.file, cli.command) {
+        (Some(path), _) => {
+            return print(recognise(&path).map_err(|failure| failure.to_string()));
+        }
+        (None, Some(command)) => command,
+        (None, None) => return usage_error(&[], "a STEP file or a command is needed"),
+    };
+    let result = match command {
+        Command::Serve => {
             return match serve::serve(std::io::stdin().lock(), std::io::stdout().lock()) {
                 Ok(()) => 0,
                 Err(error) => {
@@ -125,59 +225,53 @@ pub fn main(args: &[String]) -> u8 {
                 }
             };
         }
-        [command] if command == "capabilities" => Ok(crate::file_api::capabilities()),
-        [command, path] if command == "fingerprints" => crate::file_api::fingerprints_file(path),
-        [command, path] if command == "evidence" => crate::file_api::evidence_file(path, false),
-        [command, path, flag] if command == "evidence" && flag == "--framed" => {
-            crate::file_api::evidence_file(path, true)
+        Command::Completions { shell } => {
+            clap_complete::generate(
+                shell,
+                &mut Cli::command(),
+                "quiddity",
+                &mut std::io::stdout(),
+            );
+            return 0;
         }
-        [command, old, new] if command == "correspond" => {
-            correspond(old, new).map_err(|failure| failure.to_string())
+        Command::Capabilities => Ok(crate::file_api::capabilities()),
+        Command::Fingerprints { file } => crate::file_api::fingerprints_file(&file),
+        Command::Evidence { file, framed } => crate::file_api::evidence_file(&file, framed),
+        Command::Correspond { old, new } => {
+            correspond(&old, &new).map_err(|failure| failure.to_string())
         }
-        [command, path] if command == "parts" => parts(path),
-        [command, rest @ ..] if command == "brep" => match BrepArgs::parse(rest) {
-            Ok(b) => brep(&b),
-            Err(e) => {
-                eprintln!("quiddity: {e}\n{USAGE}");
-                return 2;
+        Command::Parts { file } => parts(&file),
+        Command::Brep(b) => brep(&b),
+        #[cfg(feature = "json-import")]
+        Command::Pmi {
+            command: Pmi::Json { command },
+        } => pmi_interchange::run(command),
+        Command::Pmi {
+            command: Pmi::Read { file, part },
+        } => match part.map(|n| n.parse::<usize>().map_err(|_| n)).transpose() {
+            Ok(part) => pmi_read(&file, part),
+            Err(n) => {
+                return usage_error(
+                    &["pmi", "read"],
+                    &format!("--part takes a part index, not {n:?}"),
+                );
             }
         },
-        #[cfg(feature = "json-import")]
-        [command, format, rest @ ..] if command == "pmi" && format == "json" => {
-            pmi_interchange::run(rest)
-        }
-        [command, read, path] if command == "pmi" && read == "read" => pmi_read(path, None),
-        [command, read, path, flag, n]
-            if command == "pmi" && read == "read" && flag == "--part" =>
-        {
-            match n.parse::<usize>() {
-                Ok(n) => pmi_read(path, Some(n)),
-                Err(_) => {
-                    eprintln!("quiddity: --part takes a part index, not {n:?}\n{USAGE}");
-                    return 2;
-                }
-            }
-        }
-        [command, check, path, json] if command == "pmi" && check == "check" => {
-            pmi_check(path, json)
-        }
-        [command, write, rest @ ..] if command == "pmi" && write == "write" => {
-            match WriteArgs::parse(rest) {
-                Ok(w) => pmi_write(&w),
-                Err(e) => {
-                    eprintln!("quiddity: {e}\n{USAGE}");
-                    return 2;
-                }
-            }
-        }
-        [path] if !COMMANDS.contains(&path.as_str()) => {
-            recognise(path).map_err(|failure| failure.to_string())
-        }
-        _ => {
-            eprintln!("{USAGE}");
-            return 2;
-        }
+        Command::Pmi {
+            command: Pmi::Check { file, json },
+        } => pmi_check(&file, &json),
+        Command::Pmi {
+            command: Pmi::Write(w),
+        } => match w.options() {
+            Ok((mode, policy)) => pmi_write(&w, mode, policy),
+            Err(e) => return usage_error(&["pmi", "write"], &e),
+        },
     };
+    print(result)
+}
+
+/// The JSON on stdout (0), or the error on stderr (1).
+fn print(result: Result<String, String>) -> u8 {
     match result {
         Ok(json) => {
             println!("{json}");
@@ -304,40 +398,22 @@ fn pmi_check(path: &str, json: &str) -> Result<String, String> {
 }
 
 /// `brep`'s arguments.
+#[derive(Args)]
 struct BrepArgs {
+    #[arg(value_name = "FILE.STEP")]
     step: String,
+    /// the new AP242 file (gzipped when its name ends in .gz)
+    #[arg(
+        short = 'o',
+        long = "output",
+        value_name = "OUT.STEP",
+        allow_hyphen_values = true
+    )]
     out: String,
+    /// write this PMI document's part PMI in place of the file's (bound to this file by `pmi
+    /// read` or `pmi check`; the file must have one part)
+    #[arg(long, value_name = "PMI.JSON", allow_hyphen_values = true)]
     pmi: Option<String>,
-}
-
-impl BrepArgs {
-    /// From the arguments after `brep`; a usage error names what is wrong.
-    fn parse(args: &[String]) -> Result<BrepArgs, String> {
-        let (mut step, mut out, mut pmi) = (None, None, None);
-        let mut it = args.iter();
-        while let Some(a) = it.next() {
-            let slot = match a.as_str() {
-                "-o" | "--output" => &mut out,
-                "--pmi" => &mut pmi,
-                s if s.starts_with('-') => return Err(format!("unknown option {s:?}")),
-                _ => {
-                    if step.replace(a.clone()).is_some() {
-                        return Err("brep takes one STEP file".into());
-                    }
-                    continue;
-                }
-            };
-            let v = it.next().ok_or_else(|| format!("{a} takes a value"))?;
-            if slot.replace(v.clone()).is_some() {
-                return Err(format!("{a} is given twice"));
-            }
-        }
-        Ok(BrepArgs {
-            step: step.ok_or("brep takes a STEP file")?,
-            out: out.ok_or("brep needs -o <out.step>")?,
-            pmi,
-        })
-    }
 }
 
 /// Write the part's B-rep to *out* (gzipped when its name ends in `.gz`); the write's report.
@@ -472,87 +548,59 @@ fn brep(args: &BrepArgs) -> Result<String, String> {
 }
 
 /// `pmi write`'s arguments.
+#[derive(Args)]
 struct WriteArgs {
+    #[arg(value_name = "FILE.STEP")]
     step: String,
+    #[arg(value_name = "PMI.JSON")]
     json: String,
+    /// the output file (gzipped when its name ends in .gz), written only when it verifies
+    #[arg(
+        short = 'o',
+        long = "output",
+        value_name = "OUT.STEP",
+        allow_hyphen_values = true
+    )]
     out: String,
-    mode: Mode,
-    policy: PresentationPolicy,
+    /// add (the default) beside each part's PMI, replace it, or remove it
+    #[arg(long, value_name = "add|replace|remove", allow_hyphen_values = true)]
+    mode: Option<String>,
+    /// for replace and remove: remove the presentation of the PMI removed (the default), or
+    /// refuse naming it
+    #[arg(long, value_name = "refuse|remove", allow_hyphen_values = true)]
+    presentation: Option<String>,
+    /// a presentation JSON document to draw the written PMI from
     #[cfg(feature = "json-import")]
+    #[arg(long, value_name = "FILE", allow_hyphen_values = true)]
     source_presentation: Option<String>,
 }
 
 impl WriteArgs {
-    /// From the arguments after `pmi write`; a usage error names what is wrong.
-    fn parse(args: &[String]) -> Result<WriteArgs, String> {
-        fn once<T>(slot: &mut Option<T>, flag: &str, v: T) -> Result<(), String> {
-            if slot.replace(v).is_some() {
-                return Err(format!("{flag} is given twice"));
-            }
-            Ok(())
-        }
-        let mut positional = Vec::new();
-        #[cfg(feature = "json-import")]
-        let mut source_presentation = None;
-        let (mut out, mut mode, mut policy) = (None, None, None);
-        let mut it = args.iter();
-        while let Some(a) = it.next() {
-            let mut value = || {
-                it.next()
-                    .cloned()
-                    .ok_or_else(|| format!("{a} takes a value"))
-            };
-            match a.as_str() {
-                "-o" | "--output" => once(&mut out, "-o", value()?)?,
-                "--mode" => {
-                    let v = value()?;
-                    let m = match v.as_str() {
-                        "add" => Mode::Add,
-                        "replace" => Mode::Replace,
-                        "remove" => Mode::Remove,
-                        _ => return Err(format!("--mode takes add, replace or remove, not {v:?}")),
-                    };
-                    once(&mut mode, a, m)?;
-                }
-                #[cfg(feature = "json-import")]
-                "--source-presentation" => once(&mut source_presentation, a, value()?)?,
-                "--presentation" => {
-                    let v = value()?;
-                    let p = match v.as_str() {
-                        "refuse" => PresentationPolicy::Refuse,
-                        "remove" => PresentationPolicy::RemovePresentation,
-                        _ => {
-                            return Err(format!(
-                                "--presentation takes refuse or remove, not {v:?}"
-                            ));
-                        }
-                    };
-                    once(&mut policy, a, p)?;
-                }
-                s if s.starts_with('-') => return Err(format!("unknown option {s:?}")),
-                _ => positional.push(a.clone()),
-            }
-        }
-        let [step, json] = <[String; 2]>::try_from(positional)
-            .map_err(|_| "pmi write takes a STEP file and a PMI document".to_string())?;
-        let out = out.ok_or("pmi write needs -o <out.step>")?;
-        let mode = mode.unwrap_or(Mode::Add);
+    /// The mode and presentation policy; a usage error names what is wrong.
+    fn options(&self) -> Result<(Mode, PresentationPolicy), String> {
+        let mode = match self.mode.as_deref() {
+            None | Some("add") => Mode::Add,
+            Some("replace") => Mode::Replace,
+            Some("remove") => Mode::Remove,
+            Some(v) => return Err(format!("--mode takes add, replace or remove, not {v:?}")),
+        };
+        let policy = match self.presentation.as_deref() {
+            None => None,
+            Some("refuse") => Some(PresentationPolicy::Refuse),
+            Some("remove") => Some(PresentationPolicy::RemovePresentation),
+            Some(v) => return Err(format!("--presentation takes refuse or remove, not {v:?}")),
+        };
         if mode == Mode::Add && policy.is_some() {
             return Err("--presentation applies to replace and remove, not add".into());
         }
-        Ok(WriteArgs {
-            step,
-            json,
-            out,
+        Ok((
             mode,
-            policy: policy.unwrap_or(PresentationPolicy::RemovePresentation),
-            #[cfg(feature = "json-import")]
-            source_presentation,
-        })
+            policy.unwrap_or(PresentationPolicy::RemovePresentation),
+        ))
     }
 }
 
-fn pmi_write(w: &WriteArgs) -> Result<String, String> {
+fn pmi_write(w: &WriteArgs, mode: Mode, policy: PresentationPolicy) -> Result<String, String> {
     if part_input::is_f3d(&w.step) {
         #[cfg(not(feature = "f3d"))]
         part_input::fusion_step(&[]).map_err(|e| format!("{}: {e}", w.step))?;
@@ -582,7 +630,7 @@ fn pmi_write(w: &WriteArgs) -> Result<String, String> {
         .iter()
         .map(|p| {
             let mut pmi = p.pmi.clone();
-            if w.mode == Mode::Add {
+            if mode == Mode::Add {
                 let mut stated = before
                     .parts
                     .get(p.part.0)
@@ -614,10 +662,10 @@ fn pmi_write(w: &WriteArgs) -> Result<String, String> {
     };
     #[cfg(feature = "json-import")]
     let result = crate::kernel::pmi::write::write_with_presentation(
-        &doc, &defs, &pmi, w.mode, w.policy, &source,
+        &doc, &defs, &pmi, mode, policy, &source,
     );
     #[cfg(not(feature = "json-import"))]
-    let result = crate::kernel::pmi::write(&doc, &defs, &pmi, w.mode, w.policy);
+    let result = crate::kernel::pmi::write(&doc, &defs, &pmi, mode, policy);
     let (edit, report) = result.map_err(|e| format!("{step}: write refused: {e}"))?;
     let written = doc
         .apply(&edit)
@@ -669,7 +717,7 @@ fn pmi_write(w: &WriteArgs) -> Result<String, String> {
             snapshot(&doc, &defs, &before),
             &doc,
             &pmi,
-            w.mode,
+            mode,
             snapshot(&doc1, &defs1, &after),
         )
         .into_result()?;
@@ -696,8 +744,7 @@ fn pmi_write(w: &WriteArgs) -> Result<String, String> {
     }
     let mut parts: Vec<PartId> = pmi.iter().map(|(p, _)| *p).collect();
     parts.sort();
-    let json = pmi_json::write_report_json(
-        w.mode, w.policy, &parts, &input, &output, &report, &findings,
-    );
+    let json =
+        pmi_json::write_report_json(mode, policy, &parts, &input, &output, &report, &findings);
     Ok(serde_json::to_string_pretty(&json).expect("JSON serialises"))
 }

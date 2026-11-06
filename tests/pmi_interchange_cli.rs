@@ -342,3 +342,35 @@ fn json_import_source_requires_presentation_drawing() {
     );
     assert!(!output.exists());
 }
+
+/// `pmi json`'s usage errors are clap's (exit 2, nothing on stdout); a bad `--part` value is
+/// still refused by quiddity with its own message (exit 1).
+#[test]
+fn json_usage_errors_exit_2_and_a_bad_part_exits_1() {
+    let cube = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/ties/cube.step");
+    for args in [
+        &["pmi", "json"][..],
+        &["pmi", "json", "frob"],
+        &["pmi", "json", "export"],
+        &["pmi", "json", "export", cube, "--part"],
+        &["pmi", "json", "export", cube, "--part", "0", "--part", "0"],
+        &["pmi", "json", "export", cube, "-o", "out.step"],
+        &["pmi", "json", "import", cube, "pmi.json"],
+        &["pmi", "json", "validate"],
+    ] {
+        let out = cli(args);
+        assert_eq!(out.status.code(), Some(2), "{args:?}");
+        assert!(out.stdout.is_empty(), "{args:?}");
+        assert!(!out.stderr.is_empty(), "{args:?}");
+    }
+    for command in ["export", "presentation"] {
+        let out = cli(&["pmi", "json", command, cube, "--part", "q"]);
+        assert_eq!(out.status.code(), Some(1), "{command}");
+        assert!(out.stdout.is_empty(), "{command}");
+        assert_eq!(
+            String::from_utf8_lossy(&out.stderr),
+            "quiddity: --part must be an index\n",
+            "{command}"
+        );
+    }
+}

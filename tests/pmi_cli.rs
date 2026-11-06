@@ -222,7 +222,12 @@ fn pmi_read_of_one_part() {
     assert!(err.contains(&format!("there is no part {n}")), "{err}");
     let out = quiddity(&["pmi", "read", p, "--part", "x"]);
     assert_eq!(out.status.code(), Some(2));
-    assert!(String::from_utf8_lossy(&out.stderr).contains("usage: quiddity"));
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains("quiddity: --part takes a part index, not \"x\""),
+        "{err}"
+    );
+    assert!(err.contains("Usage: quiddity pmi read"), "{err}");
 }
 
 /// Reader /19 retains /18 saved-view recognition and reads material-ID fallback

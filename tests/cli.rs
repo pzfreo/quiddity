@@ -56,23 +56,96 @@ fn help_prints_usage_and_succeeds() {
         let out = quiddity(&[flag]);
         assert!(out.status.success(), "{flag}");
         let usage = String::from_utf8_lossy(&out.stdout);
-        assert!(usage.starts_with("usage: quiddity"));
+        assert!(usage.contains("Usage: quiddity [FILE.STEP]"), "{usage}");
         for command in [
-            "quiddity correspond",
-            "quiddity parts <file.step>",
-            "quiddity pmi read <file.step> [--part N]",
-            "quiddity pmi check <file.step> <pmi.json>",
-            "quiddity pmi write <file.step> <pmi.json> -o <out.step> [--mode add|replace|remove]",
-            "[--presentation refuse|remove]",
+            "correspond",
+            "evidence",
+            "fingerprints",
+            "capabilities",
+            "serve",
+            "parts",
+            "pmi",
+            "brep",
+            "completions",
         ] {
-            assert!(usage.contains(command), "{flag}: {usage}");
+            assert!(
+                usage.contains(&format!("\n  {command} ")),
+                "{flag}: {usage}"
+            );
         }
-        assert_eq!(
-            usage.contains("--source-presentation FILE"),
-            cfg!(feature = "json-import")
-        );
         assert!(out.stderr.is_empty());
     }
+    // Each command's own help names its arguments.
+    for (command, expected) in [
+        (
+            &["correspond"][..],
+            &["Usage: quiddity correspond <OLD.JSON|OLD.STEP> <NEW.JSON|NEW.STEP>"][..],
+        ),
+        (&["parts"], &["Usage: quiddity parts <FILE.STEP>"]),
+        (
+            &["evidence"],
+            &["Usage: quiddity evidence [OPTIONS] <FILE.STEP>", "--framed"],
+        ),
+        (
+            &["pmi", "read"],
+            &[
+                "Usage: quiddity pmi read [OPTIONS] <FILE.STEP>",
+                "--part <N>",
+            ],
+        ),
+        (
+            &["pmi", "check"],
+            &["Usage: quiddity pmi check <FILE.STEP> <PMI.JSON>"],
+        ),
+        (
+            &["pmi", "write"],
+            &[
+                "Usage: quiddity pmi write [OPTIONS] --output <OUT.STEP> <FILE.STEP> <PMI.JSON>",
+                "--mode <add|replace|remove>",
+                "--presentation <refuse|remove>",
+            ],
+        ),
+    ] {
+        for flag in ["-h", "--help"] {
+            let out = quiddity(&[command, &[flag]].concat());
+            assert_eq!(out.status.code(), Some(0), "{command:?} {flag}");
+            assert!(out.stderr.is_empty(), "{command:?} {flag}");
+            let help = String::from_utf8_lossy(&out.stdout);
+            for text in expected {
+                assert!(help.contains(text), "{command:?} {flag}: {help}");
+            }
+        }
+    }
+    let write = quiddity(&["pmi", "write", "--help"]);
+    assert_eq!(
+        String::from_utf8_lossy(&write.stdout).contains("--source-presentation <FILE>"),
+        cfg!(feature = "json-import")
+    );
+}
+
+/// `completions` prints a script naming the program and its commands for each shell; `--version`
+/// the version.
+#[test]
+fn completions_and_version_are_printed() {
+    for shell in ["bash", "zsh", "fish", "powershell", "elvish"] {
+        let out = quiddity(&["completions", shell]);
+        assert_eq!(out.status.code(), Some(0), "{shell}");
+        assert!(out.stderr.is_empty(), "{shell}");
+        let script = String::from_utf8_lossy(&out.stdout);
+        for word in ["quiddity", "correspond", "brep", "presentation"] {
+            assert!(script.contains(word), "{shell}: {word}");
+        }
+    }
+    let out = quiddity(&["completions", "tcsh"]);
+    assert_eq!(out.status.code(), Some(2));
+    assert!(out.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("invalid value 'tcsh'"));
+    let out = quiddity(&["--version"]);
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        format!("quiddity {}\n", env!("CARGO_PKG_VERSION"))
+    );
 }
 
 #[test]
@@ -147,9 +220,11 @@ fn bad_arguments_print_usage_and_fail() {
         let out = quiddity(args);
         assert_eq!(out.status.code(), Some(2), "{args:?}");
         assert!(out.stdout.is_empty(), "{args:?}");
+        // clap's usage, or (a flag missing its value) its pointer to `--help`.
+        let err = String::from_utf8_lossy(&out.stderr);
         assert!(
-            String::from_utf8_lossy(&out.stderr).contains("usage: quiddity"),
-            "{args:?}"
+            err.contains("Usage: quiddity") || err.contains("For more information, try '--help'"),
+            "{args:?}: {err}"
         );
     }
 }
@@ -316,11 +391,14 @@ fn an_unresolved_open_edge_curve_is_reported() {
 
 #[test]
 fn brep_writes_the_part_and_reports() {
-    let usage = String::from_utf8_lossy(&quiddity(&["--help"]).stdout).into_owned();
-    assert!(
-        usage.contains("quiddity brep <file.step> -o <out.step> [--pmi <pmi.json>]"),
-        "{usage}"
-    );
+    let usage = String::from_utf8_lossy(&quiddity(&["brep", "--help"]).stdout).into_owned();
+    for text in [
+        "Usage: quiddity brep [OPTIONS] --output <OUT.STEP> <FILE.STEP>",
+        "-o, --output <OUT.STEP>",
+        "--pmi <PMI.JSON>",
+    ] {
+        assert!(usage.contains(text), "{usage}");
+    }
     let dir = std::env::temp_dir().join(format!("quiddity-cli-brep-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let input = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -661,7 +739,7 @@ fn source_presentation_flag_requires_json_import() {
     ]);
     assert!(!out.status.success());
     let error = String::from_utf8_lossy(&out.stderr);
-    assert!(error.contains("unknown option") && error.contains("--source-presentation"));
+    assert!(error.contains("unexpected argument") && error.contains("--source-presentation"));
 }
 
 #[test]
