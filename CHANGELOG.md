@@ -23,6 +23,13 @@ in [docs/alpha1.md](docs/alpha1.md).
   file order: `#N`, entity type (each leaf of a complex instance) and referenced instances.
   **Rust API:** new `file_api::parts` and `file_api::step_entities`; `quiddity parts` now goes
   through `file_api::parts`, with unchanged output.
+- `correspondence::congruent(a, b)` proves two parts geometrically identical: it returns a
+  proper rigid motion taking `a` onto `b` with the face pairs, or `None`. It tries an exact
+  B-rep match, the centroid translation, then `align`, and accepts a motion only when every
+  face matches and samples of the trimmed faces agree both ways within 1e-5 mm. Names are never
+  read, and mirror images do not match. `congruent_with(a, af, b, bf)` takes fingerprints
+  already made, for comparing one part against many. It moves draftwright's pack check into
+  quiddity for Specify to share. haecceity gains `Part::same_brep`, the exact B-rep comparison.
 
 ### Changed
 
