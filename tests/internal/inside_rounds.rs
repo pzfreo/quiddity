@@ -482,11 +482,29 @@ fn ctc05_inside_rounds_and_spherical_corners_are_claimed() {
     competing.faces[17].surface = wall.surface;
     competing.faces[17].reversed = wall.reversed;
     assert!(fillets::curved_wall_corner(&competing, 11, at, run.z, run.origin, radius).is_none());
+    // #205 adds closed bore floor 207 to the claim: it was unexplained only in the
+    // framed reading. Prove it independently; retain every round/profile assertion.
+    let Surface::Plane { frame: floor } = part.faces[207].surface else {
+        panic!("the added bore floor must be planar")
+    };
+    let Surface::Cylinder { frame: wall, .. } = part.faces[205].surface else {
+        panic!("the floor must terminate the cylindrical bore")
+    };
+    assert!(geom::norm(geom::cross(floor.z, wall.z)) < 1e-9);
+    assert!(!part.face_edges(207).is_empty());
+    for edge in part.face_edges(207) {
+        let neighbours = &part.edge_faces()[edge];
+        assert_eq!(neighbours.len(), 2);
+        assert!(neighbours.iter().all(|f| [205, 206, 207].contains(f)));
+    }
     for (reading, unexplained) in [
-        (quiddity::correspondence::recognise(&part), 31),
+        (quiddity::correspondence::recognise(&part), 30),
         (quiddity::correspondence::caller_space_recognise(&part), 20),
     ] {
         let d = quiddity::recognition::document(&reading, part.faces.len());
+        assert!(d.records.iter().any(|r| {
+            r.family == "holes" && r.faces == [205, 206, 207] && r.parameters["bottom"] == "flat"
+        }));
         // For #127, a projected pocket's complete claim reserves its treatment 147.
         // The existing convex fillet 151 keeps its established recess co-ownership.
         for (face, round_family) in [(147, "blends"), (151, "fillets")] {
