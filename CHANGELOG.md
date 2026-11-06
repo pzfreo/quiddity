@@ -6,6 +6,12 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+### Fixed
+
+- Circular blind steps remain recognised when a secondary cut adds a convex planar
+  neighbour along an intact cylindrical wall. Geometric corner supports and a complete
+  wall boundary proof prevent admitting interrupted walls (#208).
+
 ### Added
 
 - `quiddity completions SHELL` prints a shell completion script (bash, zsh, fish,
