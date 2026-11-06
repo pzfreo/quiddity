@@ -175,5 +175,5 @@ availability and for confusion with existing crates before publishing.
 2. One repository or separate ones for `ap242*`, and when?
 3. Should `ap242-presentation` be part of the solidcore offer, or stay a Specify/Draftwright
    concern?
-4. Crate names: is `ap242` available and unambiguous on crates.io?
+4. Crate names: `ap242` was unclaimed on crates.io on 2026-11-06. Claim it early, or choose a less generic name?
 5. Does Specify want to edit geometry (and so use the bridge itself), or only annotate it?
