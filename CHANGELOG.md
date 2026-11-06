@@ -11,6 +11,12 @@ in [docs/alpha1.md](docs/alpha1.md).
 - `quiddity completions SHELL` prints a shell completion script (bash, zsh, fish,
   powershell or elvish) to stdout; the README gives the install one-liners. `quiddity
   --version` prints the version.
+- `correspondence::congruent(a, b)` proves two parts geometrically identical: it returns a
+  proper rigid motion taking `a` onto `b` with the face pairs, or `None`. It tries an exact
+  B-rep match, the centroid translation, then `align`, and accepts a motion only when every
+  face matches and samples of the trimmed faces agree both ways within 1e-5 mm. Names are never
+  read, and mirror images do not match. It moves draftwright's pack check into quiddity for
+  Specify to share. haecceity gains `Part::same_brep`, the exact B-rep comparison.
 
 ### Changed
 
