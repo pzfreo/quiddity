@@ -47,8 +47,7 @@ pub struct FeatureFingerprint {
     /// Placement: the area-weighted centroid of its faces; bosses use their axial midpoint,
     /// plates restore the projected strips removed by convex edge treatments (#134).
     pub position: Option<V3>,
-    /// The part's faces that define it, ascending. Patterns retain their members'
-    /// pre-floor claims.
+    /// The part's faces that define it, ascending (a pattern's are its members').
     pub faces: Vec<usize>,
     /// Neighbourhood: for each of its faces and each face that one meets,
     /// `type>in|out:type:convex|concave|smooth|unknown` (`in` when the neighbour is its own),
@@ -1327,10 +1326,7 @@ fn derived_faces(
 ) -> Vec<usize> {
     let (Some(pool), Some(defining)) = (
         json.get(base).and_then(Value::as_array),
-        features
-            .pattern_defining
-            .get(base)
-            .or_else(|| features.defining.get(base)),
+        features.defining.get(base),
     ) else {
         panic!("family {family} takes its faces from {base}, which has no defining faces");
     };

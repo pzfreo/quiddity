@@ -602,7 +602,6 @@ fn carry(
         section_recess_patterns,
         section_recess_refusal,
         defining,
-        pattern_defining,
     } = features;
     let mut relative = BTreeMap::new();
     let mut family = |name: &str, n: usize, paths: Vec<String>| {
@@ -812,7 +811,6 @@ fn carry(
         section_recess_refusal,
         // The working part's faces are the caller's, under the same indices.
         defining,
-        pattern_defining,
     };
     crate::published_records::PublishedFeatures::new(features, relative, *motion, source, reach)
 }

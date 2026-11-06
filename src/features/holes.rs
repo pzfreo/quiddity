@@ -13,7 +13,7 @@
 //! hole proving no one valid solid is skipped, not refused. The aggregate's inventory takes the
 //! retry where `strict_refusal_retries` says Python's would (`super::inventory_in`).
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
@@ -902,14 +902,14 @@ pub fn discover(
 /// `direction` points into the recess. Every boundary edge must have exactly one other
 /// incident face, an own wall at the deepest end. A larger plane, an interrupted floor,
 /// a non-manifold edge or another accepted owner's claim cannot become this floor.
-/// Identical wall sets are equivalent descriptions and share additions from this rule.
+/// The first individual owner wins, even when a later record has identical walls.
 pub(crate) fn claim_flat_floor(
     part: &Part,
     direction: V3,
     faces: &mut Vec<usize>,
     constituent: &[usize],
     occupied: &BTreeSet<usize>,
-    floor_owners: &mut BTreeMap<usize, Vec<usize>>,
+    floor_owners: &mut BTreeSet<usize>,
 ) {
     let spans: Vec<_> = faces
         .iter()
@@ -948,11 +948,7 @@ pub(crate) fn claim_flat_floor(
     let floors: Vec<_> = constituent
         .iter()
         .copied()
-        .filter(|f| {
-            !faces.contains(f)
-                && !occupied.contains(f)
-                && floor_owners.get(f).is_none_or(|owner| owner == &walls)
-        })
+        .filter(|f| !faces.contains(f) && !occupied.contains(f) && !floor_owners.contains(f))
         .filter(|&f| {
             if !super::planes::effective_plane(part, f)
                 .is_some_and(|(n, _)| geom::norm(geom::cross(n, direction)) <= 1e-7)
@@ -978,9 +974,7 @@ pub(crate) fn claim_flat_floor(
     if floors.is_empty() {
         return;
     }
-    for &floor in &floors {
-        floor_owners.entry(floor).or_insert_with(|| walls.clone());
-    }
+    floor_owners.extend(floors.iter().copied());
     faces.extend(floors);
     faces.sort_unstable();
     faces.dedup();

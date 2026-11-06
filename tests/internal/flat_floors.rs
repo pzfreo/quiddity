@@ -9,9 +9,10 @@ fn controls() -> quiddity::Part {
 }
 
 #[test]
-fn flat_floor_completion_keeps_existing_pattern_claims() {
+fn flat_floor_completion_patterns_follow_completed_members() {
     use quiddity::correspondence::fingerprint::{fingerprint, published_fingerprint};
     use quiddity::framed_records::{Rigid, map_features};
+    use std::collections::BTreeSet;
 
     let part =
         quiddity::read_step_file(&common::fixtures().join("flat_floor_patterns.step.gz")).unwrap();
@@ -21,6 +22,14 @@ fn flat_floor_completion_keeps_existing_pattern_claims() {
     assert_eq!(before.pockets.len(), 3);
     assert_eq!(before.hole_patterns.len(), 1);
     assert_eq!(before.pocket_patterns.len(), 1);
+    assert_eq!(
+        serde_json::to_value(&before.hole_patterns).unwrap(),
+        serde_json::to_value(&after.hole_patterns).unwrap()
+    );
+    assert_eq!(
+        serde_json::to_value(&before.pocket_patterns).unwrap(),
+        serde_json::to_value(&after.pocket_patterns).unwrap()
+    );
     for family in ["holes", "pockets"] {
         assert_eq!(before.defining[family].len(), after.defining[family].len());
         for (walls, completed) in before.defining[family].iter().zip(&after.defining[family]) {
@@ -28,41 +37,47 @@ fn flat_floor_completion_keeps_existing_pattern_claims() {
             assert_eq!(completed.len(), walls.len() + 1);
         }
     }
-    let old_fingerprints = fingerprint(&part, &before);
-    let new_fingerprints = fingerprint(&part, &after);
-    for family in ["hole_patterns", "pocket_patterns"] {
-        let old: Vec<_> = old_fingerprints
-            .features
-            .iter()
-            .filter(|f| f.family == family)
-            .collect();
-        let new: Vec<_> = new_fingerprints
-            .features
-            .iter()
-            .filter(|f| f.family == family)
-            .collect();
+    let old = fingerprint(&part, &before);
+    let new = fingerprint(&part, &after);
+    for (pattern, parent) in [("hole_patterns", "holes"), ("pocket_patterns", "pockets")] {
+        let old = old.features.iter().find(|f| f.family == pattern).unwrap();
+        let new = new.features.iter().find(|f| f.family == pattern).unwrap();
+        let members: BTreeSet<_> = after.defining[parent].iter().flatten().copied().collect();
+        assert_eq!(new.faces.iter().copied().collect::<BTreeSet<_>>(), members);
+        assert!(old.faces.iter().all(|f| new.faces.contains(f)));
         assert_eq!(
-            old, new,
-            "{family} claims and fingerprints must stay unchanged"
+            new.faces.len(),
+            old.faces.len() + 3,
+            "{pattern} gains all three member floors"
         );
+        assert_eq!(old.sizes, new.sizes);
+        assert_eq!(old.traits, new.traits);
     }
-    // Exercise the publication mapping's transfer of retained parent claims too.
-    let mut old_claims = after.clone();
-    for family in ["holes", "pockets"] {
-        old_claims
-            .defining
-            .insert(family, before.defining[family].clone());
-    }
-    old_claims.pattern_defining.clear();
-    let motion = Rigid::from_placement(&IDENTITY);
-    let old = map_features(old_claims, &motion).features;
-    let new = map_features(after, &motion).features;
-    let old = published_fingerprint(&part, &old);
-    let new = published_fingerprint(&part, &new);
-    for family in ["hole_patterns", "pocket_patterns"] {
-        let old: Vec<_> = old.features.iter().filter(|f| f.family == family).collect();
-        let new: Vec<_> = new.features.iter().filter(|f| f.family == family).collect();
-        assert_eq!(old, new, "published {family}");
+    // Publication must derive the same member union after identity or oblique motion.
+    let (s, c) = 0.37_f64.sin_cos();
+    for at in [
+        IDENTITY,
+        [[c, 0., s, 123.456], [0., 1., 0., -78.9], [-s, 0., c, 41.3]],
+    ] {
+        let motion = Rigid::from_placement(&at);
+        let published = map_features(after.clone(), &motion).features;
+        let fingerprints = published_fingerprint(&part, &published);
+        for (pattern, parent) in [("hole_patterns", "holes"), ("pocket_patterns", "pockets")] {
+            let members: BTreeSet<_> = published.defining[parent]
+                .iter()
+                .flatten()
+                .copied()
+                .collect();
+            let pattern = fingerprints
+                .features
+                .iter()
+                .find(|f| f.family == pattern)
+                .unwrap();
+            assert_eq!(
+                pattern.faces.iter().copied().collect::<BTreeSet<_>>(),
+                members
+            );
+        }
     }
 }
 
@@ -103,7 +118,7 @@ fn flat_blind_hole_claims_its_closed_floor() {
         found.defining["step_levels"]
             .iter()
             .any(|faces| faces.contains(&floor)),
-        "body-level evidence is retained alongside the owned floor"
+        "step-level evidence is retained alongside the owned floor"
     );
 }
 
@@ -137,17 +152,20 @@ fn closed_blind_pocket_claims_its_floor() {
     let found = features::recognise(&part);
     let claims: Vec<_> = ["pockets", "prismatic_pockets"]
         .into_iter()
-        .flat_map(|family| found.defining[family].iter())
-        .filter(|faces| faces.contains(&floor))
+        .flat_map(|family| {
+            found.defining[family]
+                .iter()
+                .map(move |faces| (family, faces))
+        })
+        .filter(|(_, faces)| faces.contains(&floor))
         .collect();
-    assert!(!claims.is_empty());
-    for faces in &claims {
-        assert_eq!(faces.len(), 5);
-        assert_eq!(
-            faces, &claims[0],
-            "equivalent descriptions share the same closed floor"
-        );
-    }
+    assert_eq!(
+        claims.len(),
+        1,
+        "only the first individual record may own the floor"
+    );
+    assert_eq!(claims[0].0, "pockets", "pockets precede prismatic pockets");
+    assert_eq!(claims[0].1.len(), 5);
 }
 
 #[test]
@@ -179,7 +197,7 @@ fn pocket_continuing_into_a_slot_does_not_claim_the_shared_floor() {
 }
 
 #[test]
-fn existing_owner_and_rigid_motion_preserve_floor_ownership() {
+fn flat_floor_first_owner_wins_even_for_identical_walls_under_motion() {
     let base = controls();
     let floor = floor_at(&base, 12.);
     let (s, c) = 0.37_f64.sin_cos();
@@ -195,7 +213,7 @@ fn existing_owner_and_rigid_motion_preserve_floor_ownership() {
             .unwrap();
         let mut faces = hole.defining.clone();
         let mut occupied = [floor].into_iter().collect();
-        let mut floor_owners = std::collections::BTreeMap::new();
+        let mut floor_owners = std::collections::BTreeSet::new();
         holes::claim_flat_floor(
             &part,
             hole.record.axis,
@@ -215,7 +233,7 @@ fn existing_owner_and_rigid_motion_preserve_floor_ownership() {
             &mut floor_owners,
         );
         assert!(faces.contains(&floor));
-        assert_eq!(floor_owners.keys().copied().collect::<Vec<_>>(), [floor]);
+        assert_eq!(floor_owners.iter().copied().collect::<Vec<_>>(), [floor]);
         let mut duplicate = hole.defining.clone();
         holes::claim_flat_floor(
             &part,
@@ -225,7 +243,11 @@ fn existing_owner_and_rigid_motion_preserve_floor_ownership() {
             &occupied,
             &mut floor_owners,
         );
-        assert_eq!(duplicate, faces);
+        assert_eq!(
+            duplicate, hole.defining,
+            "the first owner wins even for identical walls"
+        );
+        assert!(faces.contains(&floor), "the first owner retains the floor");
         let mut competing = hole.defining.clone();
         competing.push(
             (0..part.faces.len())
@@ -259,6 +281,56 @@ fn existing_owner_and_rigid_motion_preserve_floor_ownership() {
         assert_eq!(competing, original);
         let n = quiddity::features::graph::normal(&part, floor).unwrap();
         assert!(geom::norm(geom::cross(n, hole.record.axis)) < 1e-9);
+    }
+}
+
+#[test]
+fn flat_floor_evidence_and_body_coowners_are_explicit_and_exhaustive() {
+    use std::collections::{BTreeMap, BTreeSet};
+    let part = controls();
+    let floor = floor_at(&part, 12.);
+    let hole = holes::discover_verified(&Context::new(&part), &[])
+        .unwrap()
+        .into_iter()
+        .find(|h| h.record.diameter == 8.)
+        .unwrap();
+    let coowners = [
+        "step_levels",
+        "risers",
+        "thin_wall_bodies",
+        "sheet_metal_bodies",
+        "plates",
+        "polygonal_stock",
+        "turned_bodies",
+    ];
+    let families: BTreeSet<_> = quiddity::recognition::RECORD_TYPES
+        .iter()
+        .map(|(f, _)| *f)
+        .chain(coowners)
+        .chain(["unknown_family"])
+        .collect();
+    for family in families {
+        let defining = BTreeMap::from([(family, vec![vec![floor]])]);
+        let occupied = features::floor_claims_occupied(&defining);
+        let mut faces = hole.defining.clone();
+        holes::claim_flat_floor(
+            &part,
+            hole.record.axis,
+            &mut faces,
+            &hole.context,
+            &occupied,
+            &mut BTreeSet::new(),
+        );
+        assert_eq!(
+            faces.contains(&floor),
+            coowners.contains(&family),
+            "{family}"
+        );
+        assert_eq!(
+            defining[family],
+            [vec![floor]],
+            "existing evidence is retained"
+        );
     }
 }
 

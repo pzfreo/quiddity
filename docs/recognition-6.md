@@ -183,11 +183,17 @@ claim an already-consulted planar floor perpendicular to the inward depth
 direction, when every boundary edge meets their own deepest walls. A larger
 plane, or a floor continuing into a slot or step, remains context. One shared
 rule completes these claims after reconciliation and the existing completion
-stages; record parameters and other families' claims are retained.
+stages; record parameters are retained. Derived patterns follow their members and
+therefore include the members' completed floor claims.
 
-Body-level evidence can coexist with the new recess claim. Equivalent cavity
-descriptions with identical walls share the addition; existing manufacturing
-claims otherwise take precedence. Section-recess claims are unchanged pending
+Whole-body classifications `thin_wall_bodies`, `sheet_metal_bodies`, `plates`,
+`polygonal_stock` and `turned_bodies` can coexist with the new recess claim.
+Evidence families `step_levels` and `risers` are not individual manufacturing
+features, as in draftwright: they may co-own a floor with the feature that closes it.
+No other family is a co-owner exception. Existing manufacturing claims take
+precedence; competing new individual records use first-owner priority: holes,
+pockets, then prismatic pockets, even when their walls are identical.
+Section-recess claims are unchanged pending
 #206. See [face accounting](face-accounting.md) for ownership precedence and the
 distinction between discovery evidence and completed claims.
 

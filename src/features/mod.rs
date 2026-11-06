@@ -235,13 +235,9 @@ pub struct Features {
     pub section_recess_refusal: Option<section_recess_family::SectionRecessFamilyError>,
     /// Each family's defining faces, record by record, under the family's field name. Derived
     /// families (hole, gusset rib, slot, pocket and oriented slot patterns) have none of their own: their
-    /// members' pre-floor claims are theirs ([`crate::correspondence`]).
+    /// members' faces are theirs ([`crate::correspondence`]).
     #[serde(skip)]
     pub defining: Defining,
-    /// Parent claims retained before floor completion, so derived pattern families keep
-    /// their existing claims (including earlier drill-point completion).
-    #[serde(skip)]
-    pub(crate) pattern_defining: Defining,
 }
 
 /// Defining faces by family field name, then record.
@@ -376,7 +372,7 @@ pub(crate) fn recognise_in(ctx: &Context<'_>, mut inventory: Inventory) -> Featu
         face_grooves::append(ctx, &mut features)
     });
     // Complete recess floors in this same post-reconciliation completion pass, after
-    // append/suppression has finished: an added claim must never alter another family.
+    // append/suppression has finished: added claims must not feed recognition decisions.
     if failures.len() == before {
         // Adapt accepted records once; every family then uses the same rule and the
         // owner's failure boundary. A failed hole family must not disable pocket floors.
@@ -406,42 +402,11 @@ pub(crate) fn recognise_in(ctx: &Context<'_>, mut inventory: Inventory) -> Featu
                 &prismatic_pocket_constituents,
             ));
         }
-        for (parent, has_patterns) in [
-            ("holes", !features.hole_patterns.is_empty()),
-            ("pockets", !features.pocket_patterns.is_empty()),
-        ] {
-            if has_patterns && floors.iter().any(|(family, ..)| *family == parent) {
-                features
-                    .pattern_defining
-                    .insert(parent, features.defining[parent].clone());
-            }
-        }
-        // Existing manufacturing claims win. Body-level evidence is retained alongside
-        // the recess claim, as in the residual-feature passes: it describes the body,
-        // not exclusive ownership of a cavity.
-        // The stable priority is holes, pockets, then prismatic pockets. Identical wall
-        // sets describe the same cavity and share additions; section recesses stay intact.
-        let occupied = features
-            .defining
-            .iter()
-            .filter_map(|(&family, claims)| {
-                (!matches!(
-                    family,
-                    "step_levels"
-                        | "risers"
-                        | "thin_wall_bodies"
-                        | "sheet_metal_bodies"
-                        | "plates"
-                        | "polygonal_stock"
-                        | "turned_bodies"
-                ))
-                .then_some(claims)
-            })
-            .flatten()
-            .flatten()
-            .copied()
-            .collect();
-        let mut floor_owners = BTreeMap::new();
+        // Individual manufacturing claims are exclusive. The first new owner wins,
+        // in order: holes, pockets, then prismatic pockets, even for identical walls.
+        // Evidence and body classifications may coexist; section recesses stay intact.
+        let occupied = floor_claims_occupied(&features.defining);
+        let mut floor_owners = BTreeSet::new();
         for (family, index, direction, constituents) in floors {
             post!(family, "claim_flat_floor", || {
                 let faces = &mut features.defining.get_mut(family).unwrap()[index];
@@ -469,6 +434,31 @@ pub(crate) fn recognise_in(ctx: &Context<'_>, mut inventory: Inventory) -> Featu
     failures.sort_by(|a, b| (&a.family, &a.stage).cmp(&(&b.family, &b.stage)));
     features.failures = failures;
     features
+}
+
+/// Reserve individual manufacturing claims before floor completion. Levels and risers
+/// are evidence families, not individual manufacturing features (also in draftwright).
+/// They and the existing whole-body classifications are the only co-owner exceptions.
+pub(crate) fn floor_claims_occupied(defining: &Defining) -> BTreeSet<usize> {
+    defining
+        .iter()
+        .filter_map(|(&family, claims)| {
+            (!matches!(
+                family,
+                "step_levels"
+                    | "risers"
+                    | "thin_wall_bodies"
+                    | "sheet_metal_bodies"
+                    | "plates"
+                    | "polygonal_stock"
+                    | "turned_bodies"
+            ))
+            .then_some(claims)
+        })
+        .flatten()
+        .flatten()
+        .copied()
+        .collect()
 }
 
 /// Both consumers of the recess projection share the same boundary and failure ledger.
@@ -1087,7 +1077,6 @@ fn inventory_in_with(
         ),
         failures,
         defining: defining.defining,
-        pattern_defining: Defining::new(),
         evidence_status: defining.evidence_status,
     };
     // The thin-wall rule reads the risers this inventory carries, in its order.
