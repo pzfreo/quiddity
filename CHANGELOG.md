@@ -14,6 +14,10 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Changed
 
+- Accepted flat-bottomed blind holes and blind pockets now claim a planar floor when
+  every boundary edge joins their own deepest walls. Shared floors remain context;
+  existing claims and recognition decisions are retained (#205, #207).
+
 - The `quiddity` command line (the binary and the Python console script) is parsed by clap
   instead of by hand. For everything that worked before, commands, flags, defaults, exit
   codes, output and refusals are unchanged, as are the messages for values checked by quiddity

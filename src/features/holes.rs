@@ -4,6 +4,8 @@
 //! optional spotface become one hole, and a bore interrupted by a crossing hole is recombined.
 //! Each stack's ends are classified from the faces beyond them, which decides the opening, the
 //! bottom and the depth.
+//! After reconciliation, drill points and uniquely closed planar flat floors are added to
+//! accepted claims. The flat-floor rule is shared with blind pockets; shared planes remain context.
 //!
 //! Python's default inventory retries with `local_degradation` set when this family's strict
 //! evidence refuses on a part whose solids are not all valid; three corpus parts take it
@@ -11,7 +13,7 @@
 //! hole proving no one valid solid is skipped, not refused. The aggregate's inventory takes the
 //! retry where `strict_refusal_retries` says Python's would (`super::inventory_in`).
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -894,6 +896,95 @@ pub fn discover(
     }
     out
 }
+}
+
+/// Claim an already-consulted flat floor after reconciliation, for holes and pockets alike.
+/// `direction` points into the recess. Every boundary edge must have exactly one other
+/// incident face, an own wall at the deepest end. A larger plane, an interrupted floor,
+/// a non-manifold edge or another accepted owner's claim cannot become this floor.
+/// Identical wall sets are equivalent descriptions and share additions from this rule.
+pub(crate) fn claim_flat_floor(
+    part: &Part,
+    direction: V3,
+    faces: &mut Vec<usize>,
+    constituent: &[usize],
+    occupied: &BTreeSet<usize>,
+    floor_owners: &mut BTreeMap<usize, Vec<usize>>,
+) {
+    let spans: Vec<_> = faces
+        .iter()
+        .map(|&face| {
+            let span = part
+                .face_edges(face)
+                .into_iter()
+                .flat_map(|e| {
+                    [
+                        part.edges[e].start,
+                        part.edges[e].midpoint(),
+                        part.edges[e].end,
+                    ]
+                })
+                .map(|p| geom::dot(p, direction))
+                .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), s| {
+                    (lo.min(s), hi.max(s))
+                });
+            (face, span)
+        })
+        .collect();
+    let (start, end) = spans.iter().fold(
+        (f64::INFINITY, f64::NEG_INFINITY),
+        |(lo, hi), (_, (a, b))| (lo.min(*a), hi.max(*b)),
+    );
+    // Relative to the recess size, not its placement in file coordinates.
+    let tol = 1e-7 * (end - start).max(1.);
+    // Some corner-notch seeds already define a floor. A coplanar floor piece is
+    // never a wall closing another floor piece, even if the seed claims both.
+    let mut walls: Vec<_> = spans
+        .into_iter()
+        .filter_map(|(face, (lo, hi))| (hi - lo > tol).then_some(face))
+        .collect();
+    walls.sort_unstable();
+    walls.dedup();
+    let floors: Vec<_> = constituent
+        .iter()
+        .copied()
+        .filter(|f| {
+            !faces.contains(f)
+                && !occupied.contains(f)
+                && floor_owners.get(f).is_none_or(|owner| owner == &walls)
+        })
+        .filter(|&f| {
+            if !super::graph::is_planar(part, f)
+                || !super::graph::normal(part, f)
+                    .is_some_and(|n| geom::norm(geom::cross(n, direction)) <= 1e-7)
+            {
+                return false;
+            }
+            let edges = part.face_edges(f);
+            !edges.is_empty()
+                && edges.iter().all(|&e| {
+                    let adjacent = &part.edge_faces()[e];
+                    adjacent.len() == 2
+                        && adjacent.iter().all(|g| *g == f || walls.contains(g))
+                        && [
+                            part.edges[e].start,
+                            part.edges[e].midpoint(),
+                            part.edges[e].end,
+                        ]
+                        .iter()
+                        .all(|&p| (geom::dot(p, direction) - end).abs() <= tol)
+                })
+        })
+        .collect();
+    if floors.is_empty() {
+        return;
+    }
+    for &floor in &floors {
+        floor_owners.entry(floor).or_insert_with(|| walls.clone());
+    }
+    faces.extend(floors);
+    faces.sort_unstable();
+    faces.dedup();
 }
 
 /// Extend a completed inventory's record claim with its already-consulted drill

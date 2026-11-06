@@ -380,6 +380,9 @@ pub struct Accounting {
     #[serde(default)]
     pub body_reasons: BTreeMap<quiddity::recognition::BodyReason, u64>,
     pub feature: u64,
+    /// Non-stock labelled faces claimed by any record in the supported document.
+    #[serde(default)]
+    pub labelled_feature_claimed: u64,
     pub body: u64,
     pub refused: u64,
     pub unexplained: u64,
@@ -393,6 +396,7 @@ impl Accounting {
             *self.body_reasons.entry(reason).or_default() += count;
         }
         self.feature += other.feature;
+        self.labelled_feature_claimed += other.labelled_feature_claimed;
         self.body += other.body;
         self.refused += other.refused;
         self.unexplained += other.unexplained;
@@ -403,7 +407,10 @@ impl Accounting {
         let mut out = Self::default();
         for (group, &label) in groups.iter().zip(seg) {
             match group {
-                FaceAccounting::Feature { .. } => out.feature += 1,
+                FaceAccounting::Feature { .. } => {
+                    out.feature += 1;
+                    out.labelled_feature_claimed += u64::from(label != 24);
+                }
                 FaceAccounting::Body { reason } => {
                     out.body += 1;
                     out.stock_body += u64::from(label == 24);
@@ -992,8 +999,16 @@ mod tests {
             },
             FaceAccounting::Unexplained,
             FaceAccounting::Unexplained,
+            FaceAccounting::Feature {
+                record_ids: vec!["holes/0".into()],
+            },
+            FaceAccounting::Feature {
+                record_ids: vec!["plates/0".into()],
+            },
         ];
-        let counts = Accounting::measure(&groups, &[23, 24, 24, 0]);
+        let counts = Accounting::measure(&groups, &[23, 24, 24, 0, 12, 24]);
+        assert_eq!(counts.feature, 2);
+        assert_eq!(counts.labelled_feature_claimed, 1);
         assert_eq!(counts.feature_as_body, 1);
         assert_eq!(counts.stock_unexplained, 1);
         assert_eq!(counts.stock_body, 1);

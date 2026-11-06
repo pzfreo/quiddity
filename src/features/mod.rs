@@ -288,6 +288,8 @@ pub(crate) fn recognise_in(ctx: &Context<'_>, mut inventory: Inventory) -> Featu
             .collect()
     };
     let hole_constituents = constituents("holes");
+    let pocket_constituents = constituents("pockets");
+    let prismatic_pocket_constituents = constituents("prismatic_pockets");
     let boss_constituents = constituents("polygonal_bosses");
     let mut features = inventory.accepted();
     let (section_recesses, refusals, patterns, refusal) = match projection {
@@ -368,6 +370,80 @@ pub(crate) fn recognise_in(ctx: &Context<'_>, mut inventory: Inventory) -> Featu
     });
     post!("face_grooves", "append", || {
         face_grooves::append(ctx, &mut features)
+    });
+    // Complete recess floors in this same post-reconciliation completion pass, after
+    // append/suppression has finished: an added claim must never alter another family.
+    post!("holes", "claim_flat_floor", || {
+        // Existing claims win. For duplicate recess descriptions the stable priority is
+        // holes, pockets, then prismatic pockets. Identical wall sets describe the same
+        // cavity and share the addition; section recesses keep their own claims.
+        let occupied = features
+            .defining
+            .values()
+            .flatten()
+            .flatten()
+            .copied()
+            .collect();
+        let mut floor_owners = BTreeMap::new();
+        for (record, faces) in features
+            .holes
+            .iter()
+            .zip(features.defining.get_mut("holes").unwrap())
+        {
+            if record.bottom == holes::Bottom::Flat
+                && let Some(constituent) = hole_constituents.get(faces)
+            {
+                holes::claim_flat_floor(
+                    ctx.part,
+                    record.axis,
+                    faces,
+                    constituent,
+                    &occupied,
+                    &mut floor_owners,
+                );
+            }
+        }
+        for (record, faces) in features
+            .pockets
+            .iter()
+            .zip(features.defining.get_mut("pockets").unwrap())
+        {
+            if let Some(constituent) = pocket_constituents.get(faces) {
+                let axis = recess_records::third_axis(
+                    recess_records::axis_index(record.width_axis),
+                    recess_records::axis_index(record.long_axis),
+                );
+                let mut direction = [0.; 3];
+                direction[axis] = -f64::from(record.open_sign);
+                holes::claim_flat_floor(
+                    ctx.part,
+                    direction,
+                    faces,
+                    constituent,
+                    &occupied,
+                    &mut floor_owners,
+                );
+            }
+        }
+        for (record, faces) in features
+            .prismatic_pockets
+            .iter()
+            .zip(features.defining.get_mut("prismatic_pockets").unwrap())
+        {
+            if let Some(constituent) = prismatic_pocket_constituents.get(faces) {
+                let axis = recess_records::axis_index(record.axis.chars().next().unwrap());
+                let mut direction = [0.; 3];
+                direction[axis] = -f64::from(record.open_sign);
+                holes::claim_flat_floor(
+                    ctx.part,
+                    direction,
+                    faces,
+                    constituent,
+                    &occupied,
+                    &mut floor_owners,
+                );
+            }
+        }
     });
     if failures.len() != before {
         // A post-pass may already have mutated records or claims. Discard everything,
