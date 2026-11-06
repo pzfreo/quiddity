@@ -41,6 +41,12 @@ fn flat_blind_hole_claims_its_closed_floor() {
     assert_eq!(record.bottom, holes::Bottom::Flat);
     assert!(faces.contains(&floor));
     assert_eq!(faces.len(), 2);
+    assert!(
+        found.defining["step_levels"]
+            .iter()
+            .any(|faces| faces.contains(&floor)),
+        "body-level evidence is retained alongside the owned floor"
+    );
 }
 
 #[test]

@@ -364,6 +364,8 @@ pub struct ModelScore {
     pub scores: Vec<Score>,
     /// All hole claims against the union of through- and blind-hole labels.
     pub holes: Counts,
+    /// Any defining claim, excluding body-level step_levels/risers evidence.
+    pub any_feature: Counts,
     /// Read failures/panics remain in denominators as missed labelled faces and instances.
     pub error: Option<String>,
     pub section_recess_refusal: Option<String>,
@@ -774,8 +776,25 @@ pub fn evaluate(
         .flatten()
         .copied()
         .collect();
+    let any_faces: Faces = features
+        .as_ref()
+        .unwrap_or(&empty)
+        .defining
+        .iter()
+        .filter_map(|(&family, claims)| {
+            (!matches!(family, "step_levels" | "risers")).then_some(claims)
+        })
+        .flatten()
+        .flatten()
+        .copied()
+        .collect();
     Ok(ModelScore {
         id: id.into(),
+        any_feature: Counts {
+            true_positive: any_faces.iter().filter(|&&f| truth.seg[f] != 24).count() as u64,
+            predicted: any_faces.len() as u64,
+            labelled: truth.seg.iter().filter(|&&c| c != 24).count() as u64,
+        },
         holes: Counts {
             true_positive: hole_faces
                 .iter()

@@ -374,12 +374,17 @@ pub(crate) fn recognise_in(ctx: &Context<'_>, mut inventory: Inventory) -> Featu
     // Complete recess floors in this same post-reconciliation completion pass, after
     // append/suppression has finished: an added claim must never alter another family.
     post!("holes", "claim_flat_floor", || {
-        // Existing claims win. For duplicate recess descriptions the stable priority is
+        // Existing manufacturing claims win. Body-level evidence is retained alongside
+        // the recess claim: it describes the body's levels, not ownership of a cavity.
+        // For duplicate recess descriptions the stable priority is
         // holes, pockets, then prismatic pockets. Identical wall sets describe the same
         // cavity and share the addition; section recesses keep their own claims.
         let occupied = features
             .defining
-            .values()
+            .iter()
+            .filter_map(|(&family, claims)| {
+                (!matches!(family, "step_levels" | "risers")).then_some(claims)
+            })
             .flatten()
             .flatten()
             .copied()
