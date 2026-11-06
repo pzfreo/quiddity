@@ -11,6 +11,18 @@ in [docs/alpha1.md](docs/alpha1.md).
 - `quiddity completions SHELL` prints a shell completion script (bash, zsh, fish,
   powershell or elvish) to stdout; the README gives the install one-liners. `quiddity
   --version` prints the version.
+- **Evidence (#202):** `quiddity-rust/evidence/1` gains `edge_sources`, parallel to
+  `face_sources`: per edge, the STEP `EDGE_CURVE` `{entity, instance}` it was read from, or
+  null. The key is additive, so the schema version stays `/1` (as for `failures`); existing
+  keys and values are unchanged. **Rust API:** `EvidenceDocument` (not `#[non_exhaustive]`)
+  gains `edge_sources`, so struct literals need it; new alias `EvidenceEdgeSource`.
+- **Python (#202):** `pmi.read(step, findings=True)` returns `(document, findings)`, keeping the
+  reader's findings on the selected part (or no part) from a successful read; without the
+  argument the result is the same dict as before. `quiddity.parts(step)` returns exactly
+  `quiddity parts`' JSON. `quiddity.step_entities(step)` lists the file's DATA instances in
+  file order: `#N`, entity type (each leaf of a complex instance) and referenced instances.
+  **Rust API:** new `file_api::parts` and `file_api::step_entities`; `quiddity parts` now goes
+  through `file_api::parts`, with unchanged output.
 
 ### Changed
 

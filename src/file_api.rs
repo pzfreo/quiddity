@@ -2,7 +2,14 @@
 use serde::Serialize;
 use serde_json::json;
 
-use crate::{Part, evidence_view, kernel::step, serve};
+use crate::{
+    Part, evidence_view,
+    kernel::{
+        p21::{self, Attribute, RawEntity},
+        step,
+    },
+    pmi_json, serve,
+};
 
 /// Pretty JSON with the CLI's terminating newline.
 pub fn json<T: Serialize>(value: &T) -> Result<String, String> {
@@ -53,6 +60,42 @@ pub fn anchor(part: &Part, face: usize) -> Result<String, String> {
 pub fn fingerprints_file(path: &str) -> Result<String, String> {
     let (output, _) = serve::recognise_file(path).map_err(|e| e.to_string())?;
     serde_json::to_string_pretty(&output.recognition.fingerprints).map_err(|e| e.to_string())
+}
+
+/// `quiddity parts`: the distinct parts of the STEP text *step* (index, name, face and edge
+/// counts, placements) and the binding of *binding*, the bytes the caller read (the same as
+/// *step* unless converted, as from Fusion). Pretty JSON without the CLI's trailing newline.
+pub fn parts(step: &[u8], binding: &[u8]) -> Result<String, String> {
+    let defs = step::read_part_definitions(step).map_err(|e| e.to_string())?;
+    let json = pmi_json::parts_json(&defs, &pmi_json::Binding::of(binding));
+    serde_json::to_string_pretty(&json).map_err(|e| e.to_string())
+}
+
+/// Every DATA instance of the Part 21 text *step*, in file order, as compact JSON: its `id`
+/// (`#N`), its `types` (the upper-case entity name, or each leaf of a complex instance in the
+/// order written) and the instances it `refs`erences, in attribute order with repeats.
+pub fn step_entities(step: Vec<u8>) -> Result<String, String> {
+    let doc = p21::Document::parse(step).map_err(|e| e.to_string())?;
+    let mut ids: Vec<u64> = doc.ids().collect();
+    ids.sort_by_key(|&id| doc.span(id).map(|span| span.start));
+    let rows: Vec<_> = ids
+        .into_iter()
+        .filter_map(|id| {
+            let entity = doc.get(id)?;
+            let types: Vec<&str> = match entity {
+                RawEntity::Simple { name, .. } => vec![name],
+                RawEntity::Complex { parts, .. } => parts.iter().map(|p| p.name.as_str()).collect(),
+            };
+            let mut refs = Vec::new();
+            p21::visit_attributes(entity, &mut |a| {
+                if let Attribute::EntityRef(target) = a {
+                    refs.push(*target);
+                }
+            });
+            Some(json!({"id": id, "types": types, "refs": refs}))
+        })
+        .collect();
+    serde_json::to_string(&rows).map_err(|e| e.to_string())
 }
 
 /// Versioned capabilities, with no Python or OpenCascade dependency.
