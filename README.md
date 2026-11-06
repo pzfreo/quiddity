@@ -16,7 +16,7 @@ Status: **0.4.7** (2026-11-04). See [CHANGELOG.md](CHANGELOG.md).
 | | |
 |---|---|
 | Command line | `cargo install quiddity` |
-| Rust library | `quiddity = "0.4"` in `[dependencies]` (the geometry kernel is the `haecceity` crate) |
+| Rust library | `quiddity = "0.4"` in `[dependencies]` (the geometry is the `haecceity` crate, a B-rep reader and query library) |
 | Python 3.11+ | `pip install quiddity` (an abi3 wheel with no Python dependencies; see [Python](docs/python.md)) |
 
 Optional Cargo features (all off by default):
@@ -186,7 +186,7 @@ The operations are `recognise` and `correspond`.
 | Package | What it is |
 |---|---|
 | `quiddity` (crate) | recognition, fingerprints, correspondence, the PMI JSON and the command line |
-| `haecceity` (crate, `crates/haecceity`) | the geometry kernel: STEP reading, B-rep, measurement, and semantic PMI reading and writing; re-exported as `quiddity::kernel` |
+| `haecceity` (crate, `crates/haecceity`) | the geometry: STEP reading, the B-rep, measurement and queries, and semantic PMI reading and writing (it does not model; see its README); re-exported as `quiddity::kernel` |
 | `quiddity` (Python, `crates/quiddity-py`) | the Python wheel over both |
 
 ## Contributing

@@ -1,10 +1,11 @@
-//! Haecceity: an exact B-rep geometry kernel in pure Rust, the kernel under quiddity. STEP
-//! import, the B-rep model, exact geometry,
-//! faces in parameter space, rays and point classification, shared volumes and face coverage,
-//! and analytic surfaces recovered from freeform ones.
+//! Haecceity: an exact B-rep reader and geometry query library in pure Rust, the geometry under
+//! quiddity. STEP import, the B-rep model, exact geometry, faces in parameter space, rays and
+//! point classification, shared volumes and face coverage, analytic surfaces recovered from
+//! freeform ones, and semantic AP242 PMI. It reads, queries and writes B-reps; it does not model
+//! them (no booleans, fillets or offsets: see the README's Scope).
 //!
-//! *Haecceity* is "thisness": the particular thing itself, as *quiddity* is "whatness". The
-//! kernel holds the exact geometry of this part; quiddity says what kind of features it has.
+//! *Haecceity* is "thisness": the particular thing itself, as *quiddity* is "whatness".
+//! haecceity holds the exact geometry of this part; quiddity says what kind of features it has.
 //!
 //! A malformed or unsupported file is refused with a typed error, never a panic: library code
 //! may not `unwrap`, `expect`, `panic!` or reach `unreachable!` except at a site with a targeted
