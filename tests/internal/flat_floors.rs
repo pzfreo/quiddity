@@ -98,11 +98,18 @@ fn pocket_continuing_into_a_slot_does_not_claim_the_shared_floor() {
     let floor = floor_at(&part, 109.);
     let discovered = pockets::discover_verified(&Context::new(&part)).unwrap();
     assert!(
-        discovered.iter().any(|p| p.context.contains(&floor)),
-        "the shared floor must be consulted by a recognised pocket"
+        discovered
+            .iter()
+            .any(|p| p.record.width == 18. && p.record.length == 28. && p.context.contains(&floor)),
+        "the main pocket sharing its floor with the slot must be recognised"
     );
     let found = features::recognise(&part);
-    assert!(!found.pockets.is_empty());
+    assert!(
+        found
+            .pockets
+            .iter()
+            .any(|p| p.width == 18. && p.length == 28.)
+    );
     for family in ["pockets", "prismatic_pockets"] {
         assert!(
             found.defining[family]

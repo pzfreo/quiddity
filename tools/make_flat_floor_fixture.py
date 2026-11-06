@@ -18,7 +18,7 @@ part -= Pos(12, 20, 8) * Cylinder(4, 8, align=cylinder)
 part -= Pos(38, 20, 8) * Cylinder(5, 8, align=cylinder)
 part -= Pos(41, 17, 8) * Box(14, 6, 8, align=minimum)
 part -= Pos(65, 12, 8) * Box(18, 16, 8, align=minimum)
-part -= Pos(100, 12, 8) * Box(18, 16, 8, align=minimum)
+part -= Pos(100, 8, 8) * Box(18, 28, 8, align=minimum)
 part -= Pos(106, 0, 8) * Box(6, 14, 8, align=minimum)
 path = Path(__file__).resolve().parents[1] / 'tests/fixtures/flat_floor_controls.step'
 export_step(part, str(path))
