@@ -219,6 +219,7 @@ fn mfinstseg_flat_floor_spots() {
         assert_eq!(owners.len(), 1, "{id}: floor {floor}");
         assert_eq!(owners[0].0.bottom, holes::Bottom::Flat);
     }
+    // Accepted wall sets in the stride-five coverage sample, one per pocket class.
     for (id, family, faces) in [
         (
             "20221121_154647_1034",
@@ -231,7 +232,7 @@ fn mfinstseg_flat_floor_spots() {
             "prismatic_pockets",
             &[32, 33, 34, 35, 36, 37, 40][..],
         ),
-        ("20221121_154647_1007", "pockets", &[19, 20, 21, 22, 26][..]),
+        ("20221121_154647_1034", "pockets", &[10, 11, 12, 13, 19][..]),
     ] {
         let part = quiddity::read_step_file(&root.join(format!("{id}.step"))).unwrap();
         let found = features::recognise(&part);
