@@ -63,6 +63,6 @@ fn main() {
         a[2..].split(',').map(|v| (axis, v.parse().unwrap())).collect()
     }).unwrap_or_else(|| vec![(1, 0.0), (0, 0.0), (2, 70.0), (0, -26.0), (1, 0.001), (1, 1.0)]);
     for (axis, at) in sweep {
-        run("step-brep every_kind", &mut k, body, axis, at);
+        run("imported part", &mut k, body, axis, at);
     }
 }
