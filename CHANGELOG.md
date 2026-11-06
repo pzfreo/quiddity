@@ -20,25 +20,30 @@ Upgrading from 0.4.7: recognition schema `/6`, fingerprints `/3` and the `haecce
   and reuses its own Notes view. Edition-1 Add writes skip the optional view; Replace
   upgrades edition 1 to edition 4 only when the view can be written. In assemblies,
   only the first eligible part gets a Notes view. Notes on several planes or with
-  several text orientations produce a factual finding instead. The PMI reader exposes saved views,
+  several text orientations produce a factual finding instead. `PmiRead.saved_views` lists saved views,
   and replace/remove clean up the writer's Notes view. The CLI reader binding is now
   `haecceity-pmi-read/19`: default views no longer produce a face-less shape-aspect finding,
   and material identifier fallback preserves absence of a separate name.
 
+  Notes view windows lie on the view plane in camera coordinates, with explicit 3D
+  placements, and the Notes model lists its planes' callouts directly, matching NIST CTC-02
+  and SFA 5.41 (#198).
+- **Rust API:** `PmiRead` (not `#[non_exhaustive]`) gains `saved_views: Vec<SavedView>`, so
+  struct literals and exhaustive patterns need it. New: `pmi::SavedView`. `WriteReport`
+  (non-exhaustive) gains `saved_view_findings`.
+- **CLI and Python:** write reports gain `saved_view_findings` as an optional key.
+
 ### Changed
 
-- Notes view windows lie at the view-plane distance in camera coordinates, and Notes
-  models list their planes’ callouts directly, matching NIST CTC-02 and SFA 5.41.
-- Notes view windows use explicit 3D placements compatible with SFA 5.41; camera axes
-  remain unchanged. Materials without a separate name repeat their ID as description,
-  avoiding empty semantic text while preserving the reader round trip.
+- Materials without a separate name repeat their ID as description, avoiding empty
+  semantic text while preserving the reader round trip (#198).
 - PMI writes give new draughting models unique names to satisfy UR1, including on
   assemblies without notes. Appended models use names such as `PMI callouts (2)` or
-  `datum feature symbols (2)`; preserved presentation linking models also use suffixes.
+  `datum feature symbols (2)`; preserved presentation linking models also use suffixes (#198).
 - Contributions are taken under Apache-2.0 with a Developer Certificate of Origin sign-off
   (`git commit -s`) instead of the Contributor License Agreement; `CLA.md` and its workflow are
-  removed, and a DCO check runs on pull requests from forks.
-- **PMI presentation follows the CAx-IF PMI Recommended Practice 4.1:** source leaders are
+  removed, and a DCO check runs on pull requests from forks (#192, #197).
+- **PMI presentation follows the CAx-IF PMI Recommended Practice 4.1 (#193):** source leaders are
   tessellated within their callouts (no bare polyline curve occurrences); placeholders carry a
   direct axis placement, the standard PMI type names and links to their semantic PMI; curve sets
   use Table 18 names (`note`, `label`, ...). Alignment moves from placeholder names to AP242
