@@ -69,6 +69,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     results.sort_by_key(|(i, _)| *i);
     let mut scores = vec![mfinstseg::Score::default(); classes.len()];
     let mut accounting = mfinstseg::Accounting::default();
+    let mut holes = mfinstseg::Counts::default();
     let mut model_accounting = Vec::new();
     let mut failures = Vec::new();
     let mut errors = Vec::new();
@@ -81,6 +82,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Err(e) => errors.push(serde_json::json!({"id":ids[i],"error":e})),
             Ok(model) => {
                 accounting.add(&model.accounting);
+                holes.add(&model.holes);
                 model_accounting
                     .push(serde_json::json!({"id":model.id,"accounting":model.accounting}));
                 instance_scored_models += usize::from(model.instances_available);
@@ -109,7 +111,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     let rows: Vec<_> = classes.iter().zip(&scores).map(|(c,s)| serde_json::json!({"id":c.id,"name":c.name,"covered":!c.families.is_empty(),"counts":s,"face_precision":s.faces.precision(),"face_recall":s.faces.recall(),"instance_precision":s.instances.as_ref().map(|s|s.precision()),"instance_recall":s.instances.as_ref().map(|s|s.recall())})).collect();
-    let report = serde_json::json!({"schema":2,"models":ids.len(),"accounting":accounting,"model_accounting":model_accounting,"classes":rows,"recognition_failures":failures,"section_recess_refusals":refusals,"label_errors":errors,"label_warnings":label_warnings,"instance_scored_models":instance_scored_models,"face_scored_models":ids.len()-errors.len(),"mapping":serde_json::from_str::<serde_json::Value>(include_str!("../tests/fixtures/mfinstseg_mapping.json"))?});
+    let report = serde_json::json!({"schema":2,"models":ids.len(),"holes":holes,"accounting":accounting,"model_accounting":model_accounting,"classes":rows,"recognition_failures":failures,"section_recess_refusals":refusals,"label_errors":errors,"label_warnings":label_warnings,"instance_scored_models":instance_scored_models,"face_scored_models":ids.len()-errors.len(),"mapping":serde_json::from_str::<serde_json::Value>(include_str!("../tests/fixtures/mfinstseg_mapping.json"))?});
     std::fs::write(&args[3], serde_json::to_string_pretty(&report)? + "\n")?;
     if let Some(path) = std::env::var_os("MFINSTSEG_PER_MODEL") {
         std::fs::write(path, serde_json::to_string(&per_model)? + "\n")?;

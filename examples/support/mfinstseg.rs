@@ -333,7 +333,7 @@ impl Counts {
     pub fn recall(&self) -> f64 {
         ratio(self.true_positive, self.labelled)
     }
-    fn add(&mut self, other: &Self) {
+    pub fn add(&mut self, other: &Self) {
         self.true_positive += other.true_positive;
         self.predicted += other.predicted;
         self.labelled += other.labelled;
@@ -362,6 +362,8 @@ impl Score {
 pub struct ModelScore {
     pub id: String,
     pub scores: Vec<Score>,
+    /// All hole claims against the union of through- and blind-hole labels.
+    pub holes: Counts,
     /// Read failures/panics remain in denominators as missed labelled faces and instances.
     pub error: Option<String>,
     pub section_recess_refusal: Option<String>,
@@ -762,8 +764,26 @@ pub fn evaluate(
     let truth =
         truth.ok_or_else(|| format!("{id}: {}", error.as_deref().unwrap_or("missing labels")))?;
     let empty = quiddity::features::Features::default();
+    let hole_faces: Faces = features
+        .as_ref()
+        .unwrap_or(&empty)
+        .defining
+        .get("holes")
+        .into_iter()
+        .flatten()
+        .flatten()
+        .copied()
+        .collect();
     Ok(ModelScore {
         id: id.into(),
+        holes: Counts {
+            true_positive: hole_faces
+                .iter()
+                .filter(|&&f| matches!(truth.seg[f], 1 | 12))
+                .count() as u64,
+            predicted: hole_faces.len() as u64,
+            labelled: truth.seg.iter().filter(|&&c| matches!(c, 1 | 12)).count() as u64,
+        },
         // Failed recognition is fully unexplained, never silently absent from totals.
         accounting: accounting.unwrap_or_else(|| Accounting {
             unexplained: truth.seg.len() as u64,
