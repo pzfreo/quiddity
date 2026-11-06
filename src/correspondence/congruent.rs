@@ -34,34 +34,46 @@ const DEFLECTION: f64 = 0.1;
 /// centroid and mean normal, and samples of each trimmed face lie on its partner within 1e-5
 /// mm, in both directions. A reflection is never considered, so a mirror image is not
 /// congruent unless it is also a rotated copy (the part is achiral).
+///
+/// A part with a face whose area the kernel cannot integrate, or with an unresolved face or
+/// edge, matches only through [`Part::same_brep`]: an exact copy of itself.
+///
+/// It fingerprints both parts; [`congruent_with`] takes fingerprints already made, for a caller
+/// comparing one part against many.
 pub fn congruent(a: &Part, b: &Part) -> Option<(Motion, Vec<(usize, usize)>)> {
     if a.same_brep(b) {
-        return Some((
-            Motion::IDENTITY,
-            (0..a.faces.len()).map(|i| (i, i)).collect(),
-        ));
+        return Some(identity(a));
     }
-    if a.faces.len() != b.faces.len()
-        || a.edges.len() != b.edges.len()
-        || a.solids.len() != b.solids.len()
-        || a.faces.is_empty()
-        || !a.unresolved_faces().is_empty()
-        || !b.unresolved_faces().is_empty()
-        || !a.unresolved_edges().is_empty()
-        || !b.unresolved_edges().is_empty()
-    {
+    if !comparable(a, b) {
         return None;
     }
     let none = Features::default();
-    let (af, bf) = (fingerprint(a, &none), fingerprint(b, &none));
-    if !close(af.scale, bf.scale) || af.faces.len() != bf.faces.len() {
+    congruent_with(a, &fingerprint(a, &none), b, &fingerprint(b, &none))
+}
+
+/// [`congruent`], with *af* and *bf* the [`fingerprint`]s of *a* and *b* (with any features: only
+/// the faces are proven, the features only help [`align`]).
+pub fn congruent_with(
+    a: &Part,
+    af: &Fingerprints,
+    b: &Part,
+    bf: &Fingerprints,
+) -> Option<(Motion, Vec<(usize, usize)>)> {
+    if a.same_brep(b) {
+        return Some(identity(a));
+    }
+    if !comparable(a, b)
+        || !close(af.scale, bf.scale)
+        || af.faces.len() != a.faces.len()
+        || bf.faces.len() != b.faces.len()
+    {
         return None;
     }
-    let prove = |m: &Motion| proper(m).then(|| equal_at(a, &af, b, &bf, m)).flatten();
+    let prove = |m: &Motion| proper(m).then(|| equal_at(a, af, b, bf, m)).flatten();
     if let Some(faces) = prove(&Motion::IDENTITY) {
         return Some((Motion::IDENTITY, faces));
     }
-    if let (Some(ca), Some(cb)) = (centroid(&af), centroid(&bf)) {
+    if let (Some(ca), Some(cb)) = (centroid(af), centroid(bf)) {
         let shift = Motion {
             t: geom::sub(cb, ca),
             ..Motion::IDENTITY
@@ -70,7 +82,7 @@ pub fn congruent(a: &Part, b: &Part) -> Option<(Motion, Vec<(usize, usize)>)> {
             return Some((shift, faces));
         }
     }
-    let (motion, alignment) = align(&af, &bf, &Default::default());
+    let (motion, alignment) = align(af, bf, &Default::default());
     alignment
         .found
         .then(|| prove(&motion))
@@ -78,11 +90,31 @@ pub fn congruent(a: &Part, b: &Part) -> Option<(Motion, Vec<(usize, usize)>)> {
         .map(|faces| (motion, faces))
 }
 
+fn identity(a: &Part) -> (Motion, Vec<(usize, usize)>) {
+    (
+        Motion::IDENTITY,
+        (0..a.faces.len()).map(|i| (i, i)).collect(),
+    )
+}
+
+/// Equal topology counts, and nothing the face proof cannot read.
+fn comparable(a: &Part, b: &Part) -> bool {
+    a.faces.len() == b.faces.len()
+        && a.edges.len() == b.edges.len()
+        && a.solids.len() == b.solids.len()
+        && !a.faces.is_empty()
+        && [a, b]
+            .iter()
+            .all(|p| p.unresolved_faces().is_empty() && p.unresolved_edges().is_empty())
+}
+
 fn close(a: f64, b: f64) -> bool {
     a.is_finite() && b.is_finite() && (a - b).abs() <= RELATIVE * a.abs().max(b.abs()).max(1.0)
 }
 
-/// An orthonormal rotation with determinant +1: no reflection.
+/// An orthonormal rotation with determinant +1: no reflection. Defence in depth: the face proof
+/// already rejects a mirror image (a reflection moves some trimmed face off its partner), and
+/// [`align`] solves proper rotations only, but a reflected candidate is refused before it.
 fn proper(m: &Motion) -> bool {
     let r = m.r;
     let orthonormal = (0..3).all(|i| {
@@ -165,4 +197,35 @@ fn equal_at(
         pairs.push((i, bj));
     }
     Some(pairs)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reflections_are_not_proper() {
+        let mirror = Motion {
+            r: [[-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            t: [0.0; 3],
+        };
+        assert!(!proper(&mirror));
+        let inversion = Motion {
+            r: [[-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]],
+            t: [1.0, 2.0, 3.0],
+        };
+        assert!(!proper(&inversion));
+        let scaled = Motion {
+            r: [[2.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            t: [0.0; 3],
+        };
+        assert!(!proper(&scaled));
+        let (c, s) = (0.6, 0.8);
+        let turn = Motion {
+            r: [[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]],
+            t: [5.0, 0.0, 0.0],
+        };
+        assert!(proper(&turn));
+        assert!(proper(&Motion::IDENTITY));
+    }
 }

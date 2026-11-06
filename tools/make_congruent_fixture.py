@@ -1,4 +1,7 @@
-"""Regenerate tests/congruent/hex_bolt.step with build123d.
+"""Original Apache-2.0 geometry for correspondence::congruent; no external model.
+
+Regenerate tests/congruent/hex_bolt.step. Run with build123d 0.11.1 (cadquery-ocp 7.9.3.1) /
+Python 3.14; the committed file was written by Open CASCADE 7.9.
 
 An M3 x 8 hex-head bolt (5.5 mm across flats, 2 mm head, 3 mm shank), head up, built in place
 at (36, -10.2411048785, 25.5) rather than moved there by a placement, as exporters write each
@@ -8,8 +11,8 @@ of the shank's seam, which `correspondence::congruent` must reject before trying
 translation (tests/congruent.rs). It lives outside tests/fixtures, which are the Rust snapshot's
 inputs: it is not a recognition fixture. No external dataset is used.
 
-Usage: uv run --no-project --python 3.12 --with build123d \
-    python tools/make_congruent_fixture.py [output directory]
+Usage: uv run --no-project --python 3.14 --with build123d==0.11.1 \
+    --with cadquery-ocp-novtk==7.9.3.1 python tools/make_congruent_fixture.py [output directory]
 """
 
 import sys

@@ -15,8 +15,9 @@ in [docs/alpha1.md](docs/alpha1.md).
   proper rigid motion taking `a` onto `b` with the face pairs, or `None`. It tries an exact
   B-rep match, the centroid translation, then `align`, and accepts a motion only when every
   face matches and samples of the trimmed faces agree both ways within 1e-5 mm. Names are never
-  read, and mirror images do not match. It moves draftwright's pack check into quiddity for
-  Specify to share. haecceity gains `Part::same_brep`, the exact B-rep comparison.
+  read, and mirror images do not match. `congruent_with(a, af, b, bf)` takes fingerprints
+  already made, for comparing one part against many. It moves draftwright's pack check into
+  quiddity for Specify to share. haecceity gains `Part::same_brep`, the exact B-rep comparison.
 
 ### Changed
 

@@ -30,7 +30,7 @@ use crate::kernel::geom::{self, V3};
 use crate::published_records::PublishedFeatures;
 
 pub use align::Motion;
-pub use congruent::congruent;
+pub use congruent::{congruent, congruent_with};
 pub use fingerprint::{
     FINGERPRINT_VERSION, FaceFingerprint, FeatureFingerprint, Fingerprints, fingerprint,
 };

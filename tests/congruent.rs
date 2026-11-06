@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use quiddity::Part;
 use quiddity::correspondence::align::align;
-use quiddity::correspondence::{Motion, congruent, fingerprint};
+use quiddity::correspondence::{Motion, congruent, congruent_with, fingerprint};
 use quiddity::kernel::read_step;
 use quiddity::kernel::step::read_step_file_placed;
 
@@ -120,6 +120,9 @@ fn translated_symmetric_copies_match_by_translation() {
             assert!((got[i] - t[i]).abs() <= 1e-9, "{got:?} != {t:?}");
         }
         assert_bijection(&pairs, a.faces.len());
+        // The same from fingerprints made once.
+        let (af, bf) = (fingerprint(&a, &none), fingerprint(&b, &none));
+        assert_eq!(congruent_with(&a, &af, &b, &bf), Some((m, pairs)));
         // And back.
         assert!(congruent(&b, &a).is_some());
     }
