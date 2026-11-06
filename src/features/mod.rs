@@ -373,63 +373,65 @@ pub(crate) fn recognise_in(ctx: &Context<'_>, mut inventory: Inventory) -> Featu
     });
     // Complete recess floors in this same post-reconciliation completion pass, after
     // append/suppression has finished: an added claim must never alter another family.
-    // Adapt accepted records once; every family then uses the same rule and the
-    // owner's failure boundary. A failed hole family must not disable pocket floors.
-    let mut floors = Vec::new();
-    for (index, record) in features.holes.iter().enumerate() {
-        if record.bottom == holes::Bottom::Flat {
-            floors.push(("holes", index, record.axis, &hole_constituents));
-        }
-    }
-    for (index, record) in features.pockets.iter().enumerate() {
-        let axis = recess_records::third_axis(
-            recess_records::axis_index(record.width_axis),
-            recess_records::axis_index(record.long_axis),
-        );
-        let mut direction = [0.; 3];
-        direction[axis] = -f64::from(record.open_sign);
-        floors.push(("pockets", index, direction, &pocket_constituents));
-    }
-    for (index, record) in features.prismatic_pockets.iter().enumerate() {
-        let axis = recess_records::axis_index(record.axis.chars().next().unwrap());
-        let mut direction = [0.; 3];
-        direction[axis] = -f64::from(record.open_sign);
-        floors.push((
-            "prismatic_pockets",
-            index,
-            direction,
-            &prismatic_pocket_constituents,
-        ));
-    }
-    // Existing manufacturing claims win. Body-level evidence is retained alongside
-    // the recess claim: it describes the body's levels, not ownership of a cavity.
-    // The stable priority is holes, pockets, then prismatic pockets. Identical wall
-    // sets describe the same cavity and share additions; section recesses stay intact.
-    let occupied = features
-        .defining
-        .iter()
-        .filter_map(|(&family, claims)| {
-            (!matches!(family, "step_levels" | "risers")).then_some(claims)
-        })
-        .flatten()
-        .flatten()
-        .copied()
-        .collect();
-    let mut floor_owners = BTreeMap::new();
-    for (family, index, direction, constituents) in floors {
-        post!(family, "claim_flat_floor", || {
-            let faces = &mut features.defining.get_mut(family).unwrap()[index];
-            if let Some(constituent) = constituents.get(faces) {
-                holes::claim_flat_floor(
-                    ctx.part,
-                    direction,
-                    faces,
-                    constituent,
-                    &occupied,
-                    &mut floor_owners,
-                );
+    if failures.len() == before {
+        // Adapt accepted records once; every family then uses the same rule and the
+        // owner's failure boundary. A failed hole family must not disable pocket floors.
+        let mut floors = Vec::new();
+        for (index, record) in features.holes.iter().enumerate() {
+            if record.bottom == holes::Bottom::Flat {
+                floors.push(("holes", index, record.axis, &hole_constituents));
             }
-        });
+        }
+        for (index, record) in features.pockets.iter().enumerate() {
+            let axis = recess_records::third_axis(
+                recess_records::axis_index(record.width_axis),
+                recess_records::axis_index(record.long_axis),
+            );
+            let mut direction = [0.; 3];
+            direction[axis] = -f64::from(record.open_sign);
+            floors.push(("pockets", index, direction, &pocket_constituents));
+        }
+        for (index, record) in features.prismatic_pockets.iter().enumerate() {
+            let axis = recess_records::axis_index(record.axis.chars().next().unwrap());
+            let mut direction = [0.; 3];
+            direction[axis] = -f64::from(record.open_sign);
+            floors.push((
+                "prismatic_pockets",
+                index,
+                direction,
+                &prismatic_pocket_constituents,
+            ));
+        }
+        // Existing manufacturing claims win. Body-level evidence is retained alongside
+        // the recess claim: it describes the body's levels, not ownership of a cavity.
+        // The stable priority is holes, pockets, then prismatic pockets. Identical wall
+        // sets describe the same cavity and share additions; section recesses stay intact.
+        let occupied = features
+            .defining
+            .iter()
+            .filter_map(|(&family, claims)| {
+                (!matches!(family, "step_levels" | "risers")).then_some(claims)
+            })
+            .flatten()
+            .flatten()
+            .copied()
+            .collect();
+        let mut floor_owners = BTreeMap::new();
+        for (family, index, direction, constituents) in floors {
+            post!(family, "claim_flat_floor", || {
+                let faces = &mut features.defining.get_mut(family).unwrap()[index];
+                if let Some(constituent) = constituents.get(faces) {
+                    holes::claim_flat_floor(
+                        ctx.part,
+                        direction,
+                        faces,
+                        constituent,
+                        &occupied,
+                        &mut floor_owners,
+                    );
+                }
+            });
+        }
     }
     if failures.len() != before {
         // A post-pass may already have mutated records or claims. Discard everything,
