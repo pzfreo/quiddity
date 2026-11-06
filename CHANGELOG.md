@@ -6,6 +6,30 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+### Added
+
+- `quiddity completions SHELL` prints a shell completion script (bash, zsh, fish,
+  powershell or elvish) to stdout; the README gives the install one-liners. `quiddity
+  --version` prints the version.
+
+### Changed
+
+- The `quiddity` command line (the binary and the Python console script) is parsed by clap
+  instead of by hand. For everything that worked before, commands, flags, defaults, exit
+  codes, output and refusals are unchanged, as are the messages for values checked by quiddity
+  (`--part`, `--mode`, `--presentation`). Help and usage errors are clap's (`Usage: quiddity
+  …`, on stderr with exit 2 as before). Newly refused or changed: `pmi json` usage errors (a
+  missing argument or `-o`, an unknown command, an unknown, repeated or valueless option) exit
+  2 instead of 1, with clap's message (a bad `--part` value is still refused with exit 1);
+  `evidence --framed` with no file exits 2 (was 1, `--framed` read as the file); a trailing
+  flag with no value is reported by clap; `-h`/`--help` after a command (`parts`, `evidence`,
+  `fingerprints`, `capabilities`, …) shows its help and exits 0 (was an error: 1 where read as
+  a file, 2 for `capabilities`); `-V` prints the version (was read as a file, exit 1); a file
+  to recognise named `completions` must be given as `./completions`. Newly accepted: a positional after
+  the flags (`evidence --framed part.step`, `pmi read --part 1 part.step`), `-- FILE`, and `--option=VALUE`
+  (`--output=out.step`). The command line is the root crate's default `cli` feature, so a
+  library build can leave clap out (`default-features = false`).
+
 ## 0.4.8 (2026-11-06)
 
 Upgrading from 0.4.7: recognition schema `/6`, fingerprints `/3` and the `haecceity.pmi/1` schema are unchanged. The PMI reader string moves from `haecceity-pmi-read/17` to `/19`.

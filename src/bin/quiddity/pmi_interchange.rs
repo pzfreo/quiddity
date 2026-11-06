@@ -3,14 +3,73 @@ use super::*;
 use crate::kernel::json::{self as interchange, Anchors};
 use serde_json::{Value, json};
 
-pub(super) fn run(args: &[String]) -> Result<String, String> {
-    let (command, rest) = args.split_first().ok_or("missing json command")?;
-    let result = match command.as_str() {
-        "validate" => {
-            let [path] = rest else {
-                return Err("usage: quiddity pmi json validate <pmi-or-presentation.json>".into());
-            };
-            let value = read_json(path)?;
+/// `quiddity pmi json`'s commands.
+#[derive(clap::Subcommand)]
+pub(super) enum JsonCommand {
+    /// validate a semantic PMI or presentation JSON document
+    Validate {
+        #[arg(value_name = "PMI-OR-PRESENTATION.JSON", allow_hyphen_values = true)]
+        path: String,
+    },
+    /// print a part's semantic PMI as interchange JSON
+    Export {
+        #[arg(value_name = "FILE.STEP", allow_hyphen_values = true)]
+        step: String,
+        #[command(flatten)]
+        part: PartArg,
+    },
+    /// print a part's PMI presentation as JSON
+    Presentation {
+        #[arg(value_name = "FILE.STEP", allow_hyphen_values = true)]
+        step: String,
+        #[command(flatten)]
+        part: PartArg,
+    },
+    /// write interchange JSON into the STEP geometry as AP242 PMI, verified by reading it back
+    Import {
+        #[arg(value_name = "GEOMETRY.STEP", allow_hyphen_values = true)]
+        step: String,
+        #[arg(value_name = "PMI.JSON", allow_hyphen_values = true)]
+        json: String,
+        /// the output STEP file
+        #[arg(short = 'o', value_name = "OUT.STEP", allow_hyphen_values = true)]
+        out: String,
+        #[command(flatten)]
+        part: PartArg,
+        /// a consumer-verified face namespace to bind the anchors to
+        #[arg(
+            long,
+            value_name = "VERIFIED-FACE-NAMESPACE.JSON",
+            allow_hyphen_values = true
+        )]
+        anchors: Option<String>,
+        /// a presentation JSON document to draw the written PMI from
+        #[arg(long, value_name = "FILE", allow_hyphen_values = true)]
+        source_presentation: Option<String>,
+    },
+}
+
+/// `--part N`, checked here.
+#[derive(clap::Args)]
+pub(super) struct PartArg {
+    /// part N, as `quiddity parts` lists them (needed when the file has several)
+    #[arg(long = "part", value_name = "N", allow_hyphen_values = true)]
+    value: Option<String>,
+}
+
+impl PartArg {
+    fn index(&self) -> Result<Option<usize>, String> {
+        self.value
+            .as_deref()
+            .map(|v| v.parse().map_err(|_| "--part must be an index".to_string()))
+            .transpose()
+    }
+}
+
+pub(super) fn run(command: JsonCommand) -> Result<String, String> {
+    let result = match command {
+        JsonCommand::Validate { path } => {
+            let value = read_json(&path)?;
             if value["schema"] == "haecceity.presentation/1" {
                 interchange::presentation::validate(&value)
             } else {
@@ -19,43 +78,28 @@ pub(super) fn run(args: &[String]) -> Result<String, String> {
             .map_err(|e| e.to_string())?;
             Ok(json!({"valid":true,"schema":value["schema"]}))
         }
-        "export" | "presentation" => {
-            let (path, options) = rest.split_first().ok_or("missing STEP input")?;
-            let opts = options_parse(options, false)?;
-            let (bytes, defs) = part_definitions(path)?;
-            let part = choose_part(opts.part, &defs)?;
-            let doc = p21::Document::parse(bytes.step).map_err(|e| e.to_string())?;
-            let read = pmi::read(&doc, &defs).map_err(|e| e.to_string())?;
-            let semantic = interchange::identify(
-                read.parts[part].clone(),
-                Some(&read.identifiers.parts[part]),
-            )
-            .map_err(|e| e.to_string())?;
-            if command == "export" {
-                interchange::to_value(&semantic).map_err(|e| e.to_string())
-            } else {
-                serde_json::to_value(
-                    interchange::presentation::read(&doc, &read, PartId(part), &semantic)
-                        .map_err(|e| e.to_string())?,
-                )
-                .map_err(|e| e.to_string())
-            }
-        }
-        "import" => {
-            let [step, json_path, options @ ..] = rest else {
-                return Err("usage: quiddity pmi json import <geometry.step> <pmi.json> -o <out.step> [--part N] [--anchors <anchors.json>] [--source-presentation FILE]".into());
-            };
-            if part_input::is_f3d(step) {
+        JsonCommand::Export { step, part } => export(&step, &part, true),
+        JsonCommand::Presentation { step, part } => export(&step, &part, false),
+        JsonCommand::Import {
+            step,
+            json: json_path,
+            out,
+            part,
+            anchors: anchors_path,
+            source_presentation,
+        } => {
+            if part_input::is_f3d(&step) {
                 return Err("json import requires original STEP geometry".into());
             }
-            let opts = options_parse(options, true)?;
-            let out = opts.out.ok_or("import requires -o <out.step>")?;
+            let part = part.index()?;
+            let out = out.as_str();
+            let step = step.as_str();
             let (bytes, defs) = part_definitions(step)?;
-            let part = choose_part(opts.part, &defs)?;
+            let part = choose_part(part, &defs)?;
             let doc = p21::Document::parse(bytes.step).map_err(|e| e.to_string())?;
             let mut anchors = Anchors::read(&doc, &defs[part]);
-            if let Some(path) = opts.anchors {
-                let support = read_json(path)?;
+            if let Some(path) = anchors_path {
+                let support = read_json(&path)?;
                 let schema = support["schema"]
                     .as_u64()
                     .and_then(|v| u8::try_from(v).ok())
@@ -67,13 +111,12 @@ pub(super) fn run(args: &[String]) -> Result<String, String> {
                     .bind_support(schema, faces)
                     .map_err(|e| e.to_string())?;
             }
-            let semantic = interchange::from_value(&read_json(json_path)?, &anchors)
+            let semantic = interchange::from_value(&read_json(&json_path)?, &anchors)
                 .map_err(|e| e.to_string())?;
             let expected = semantic.pmi.clone();
-            let source = opts
-                .source_presentation
+            let source = source_presentation
                 .map(|path| {
-                    interchange::presentation::from_value(read_json(path)?)
+                    interchange::presentation::from_value(read_json(&path)?)
                         .map(|p| (PartId(part), p))
                         .map_err(|e| format!("{path}: {e}"))
                 })
@@ -102,42 +145,31 @@ pub(super) fn run(args: &[String]) -> Result<String, String> {
             }
             Ok(result)
         }
-        _ => Err(format!("unknown PMI JSON command {command:?}")),
     }?;
     serde_json::to_string_pretty(&result).map_err(|e| e.to_string())
 }
-struct Options<'a> {
-    part: Option<usize>,
-    out: Option<&'a str>,
-    anchors: Option<&'a str>,
-    source_presentation: Option<&'a str>,
-}
-fn options_parse(args: &[String], import: bool) -> Result<Options<'_>, String> {
-    let mut opts = Options {
-        part: None,
-        out: None,
-        anchors: None,
-        source_presentation: None,
-    };
-    let mut rest = args;
-    while let [flag, value, tail @ ..] = rest {
-        match flag.as_str() {
-            "--part" if opts.part.is_none() => {
-                opts.part = Some(value.parse().map_err(|_| "--part must be an index")?)
-            }
-            "-o" if import && opts.out.is_none() => opts.out = Some(value),
-            "--anchors" if import && opts.anchors.is_none() => opts.anchors = Some(value),
-            "--source-presentation" if import && opts.source_presentation.is_none() => {
-                opts.source_presentation = Some(value)
-            }
-            _ => return Err(format!("unknown or repeated option {flag:?}")),
-        };
-        rest = tail;
+
+/// `export` (the part's semantic PMI) or `presentation` (its presentation).
+fn export(path: &str, part: &PartArg, semantic_only: bool) -> Result<Value, String> {
+    let part = part.index()?;
+    let (bytes, defs) = part_definitions(path)?;
+    let part = choose_part(part, &defs)?;
+    let doc = p21::Document::parse(bytes.step).map_err(|e| e.to_string())?;
+    let read = pmi::read(&doc, &defs).map_err(|e| e.to_string())?;
+    let semantic = interchange::identify(
+        read.parts[part].clone(),
+        Some(&read.identifiers.parts[part]),
+    )
+    .map_err(|e| e.to_string())?;
+    if semantic_only {
+        interchange::to_value(&semantic).map_err(|e| e.to_string())
+    } else {
+        serde_json::to_value(
+            interchange::presentation::read(&doc, &read, PartId(part), &semantic)
+                .map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())
     }
-    if !rest.is_empty() {
-        return Err(format!("option {:?} needs a value", rest[0]));
-    }
-    Ok(opts)
 }
 fn choose_part(selected: Option<usize>, defs: &[PartDefinition]) -> Result<usize, String> {
     match selected {

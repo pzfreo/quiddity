@@ -13,14 +13,25 @@ keywords = ["cad", "step", "brep", "feature-recognition", "manufacturing"]
 categories = ["science", "parser-implementations"]
 include = ["/src", "/README.md", "/CHANGELOG.md", "/LICENSE", "/NOTICE"]
 
+[[bin]]
+name = "quiddity"
+path = "src/bin/quiddity.rs"
+required-features = ["cli"]
+
 [features]
-default = ["presentation"]
+default = ["presentation", "cli"]
+# The `quiddity` command line (`quiddity::cli`, the binary and the Python console script) and
+# its shell completion scripts. Library consumers that build for WASM can turn it off
+# (`default-features = false`) so clap stays out of their build.
+cli = ["dep:clap", "dep:clap_complete"]
 presentation = ["haecceity/presentation"]
 json = ["haecceity/json"]
 json-import = ["json", "haecceity/json-import"]
 f3d = ["haecceity/f3d"]
 
 [dependencies]
+clap = { version = "4.6.1", features = ["derive"], optional = true }
+clap_complete = { version = "4.6", optional = true }
 flate2 = "1.1.10"
 haecceity = { path = "crates/haecceity", version = "=0.4.8", default-features = false }
 serde = { version = "1.0.229", features = ["derive"] }

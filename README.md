@@ -23,6 +23,9 @@ Optional Cargo features (all off by default):
 - `json-import`: the versioned PMI JSON interchange (`pmi json …` commands).
 - `f3d`: Autodesk Fusion `.f3d` input (visible solid geometry only, no PMI; see [Fusion input](docs/f3d.md)).
 
+The command line is the default `cli` feature; a library build that does not want clap (WASM,
+say) can use `default-features = false, features = ["presentation"]`.
+
 ## Quick start
 
 ```sh
@@ -161,8 +164,11 @@ quiddity pmi write <file.step> <pmi.json> -o <out.step> [--mode add|replace|remo
                    [--presentation refuse|remove]     write PMI into the file
 quiddity brep <file.step> -o <out.step> [--pmi <pmi.json>]   the B-rep and PMI as a new AP242 file
 quiddity serve                                        JSON-lines requests on stdin
+quiddity completions <SHELL>                          a shell completion script
 quiddity --help
 ```
+
+`quiddity <command> --help` gives a command's arguments.
 
 Every command prints JSON. Files may be `.step`, `.stp` or gzipped. The exit code is 0 for
 success, 1 for an unreadable file or a refused operation, and 2 for wrong usage.
@@ -170,6 +176,16 @@ success, 1 for an unreadable file or a refused operation, and 2 for wrong usage.
 `quiddity serve` keeps one process open for applications: one JSON request per line on
 stdin, one response line per request on stdout, e.g. `{"id":1,"op":"recognise","step":"part.step"}`.
 The operations are `recognise` and `correspond`.
+
+**Shell completion.** `quiddity completions SHELL` prints a completion script for `bash`,
+`zsh`, `fish`, `powershell` or `elvish`:
+
+```sh
+mkdir -p ~/.local/share/bash-completion/completions && quiddity completions bash > ~/.local/share/bash-completion/completions/quiddity
+mkdir -p ~/.zfunc && quiddity completions zsh > ~/.zfunc/_quiddity
+# zsh: add `fpath=(~/.zfunc $fpath)` before `compinit` in ~/.zshrc, then restart zsh
+mkdir -p ~/.config/fish/completions && quiddity completions fish > ~/.config/fish/completions/quiddity.fish
+```
 
 ## Limits
 

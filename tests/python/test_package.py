@@ -109,7 +109,7 @@ def test_capabilities_version_and_console_script():
     assert caps == json.loads(cli("capabilities").stdout)
     executable = Path(sys.executable).parent / ("quiddity.exe" if os.name == "nt" else "quiddity")
     run = subprocess.run([str(executable), "--help"], capture_output=True)
-    assert run.returncode == 0 and b"quiddity evidence" in run.stdout
+    assert run.returncode == 0 and b"Usage: quiddity" in run.stdout and b"\n  evidence " in run.stdout
     assert cli("evidence").returncode == 2
 
 
