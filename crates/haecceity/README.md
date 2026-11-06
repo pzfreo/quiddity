@@ -1,8 +1,9 @@
 # haecceity
 
-An exact B-rep geometry kernel in pure Rust, with no OpenCascade or other native dependency.
-It is the kernel under [quiddity](https://crates.io/crates/quiddity), which recognises
-manufacturing features. Use haecceity directly when you need the geometry itself.
+An exact B-rep reader and geometry query library in pure Rust, with no OpenCascade or other
+native dependency. It reads, queries and writes B-reps, and does not model them (see
+[Scope](#scope)). It is the geometry under [quiddity](https://crates.io/crates/quiddity), which
+recognises manufacturing features. Use haecceity directly when you need the geometry itself.
 
 - **STEP:** reads AP203, AP214 and AP242 files (plain or gzipped) into a B-rep `Part`:
   solids, faces, edges and their exact surfaces and curves. A malformed or unsupported file is
@@ -16,7 +17,7 @@ manufacturing features. Use haecceity directly when you need the geometry itself
 
 ```toml
 [dependencies]
-haecceity = "0.2"
+haecceity = "0.4"
 ```
 
 ## Scope
