@@ -266,11 +266,26 @@ fn roundtrip(
                         }
                     }
                 }
-                assert_eq!(
-                    doc1.file_schema().unwrap(),
-                    doc.file_schema().unwrap(),
-                    "{stem}: an AP242 file keeps its schema"
-                );
+                match &report.schema {
+                    pmi::write::SchemaChange::Kept(_) => assert_eq!(
+                        doc1.file_schema().unwrap(),
+                        doc.file_schema().unwrap(),
+                        "{stem}: kept schema"
+                    ),
+                    pmi::write::SchemaChange::Upgraded { to, .. } => {
+                        assert_eq!(to, haecceity::express::TARGET_SCHEMA);
+                        assert!(
+                            r1.saved_views.iter().any(|v| v.name == "Notes"),
+                            "{stem}: Notes requires the edition upgrade"
+                        );
+                    }
+                }
+                for (id, _) in &report.presentation_removed {
+                    assert!(
+                        doc1.get(*id).is_none(),
+                        "{stem}: reported removed presentation #{id} survives"
+                    );
+                }
                 if !report.retained_shared.is_empty() {
                     // This support remains used solely by unread PMI after replacement;
                     // its accounting changes from consumed to explicitly reported.

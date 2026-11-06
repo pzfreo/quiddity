@@ -48,7 +48,7 @@ pub const PARTS_FORMAT: &str = "quiddity-parts";
 pub const VERSION: u64 = 2;
 /// The reader the anchors and items were produced by; bumped whenever `pmi::read`'s output for
 /// a file can change, so a document read by another reader version is refused, not trusted.
-pub const READER: &str = "haecceity-pmi-read/17";
+pub const READER: &str = "haecceity-pmi-read/19";
 
 /// Why a JSON document was refused: the JSON path and the reason.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2632,6 +2632,7 @@ pub fn write_report_json(
         .put("version", json!(VERSION))
         .put("mode", json!(mode))
         .put("presentation", json!(presentation))
+        .opt("saved_view_findings", (!report.saved_view_findings.is_empty()).then(|| json!(report.saved_view_findings.iter().map(finding_json).collect::<Vec<_>>())))
         .opt("presentation_warnings", (!report.presentation_warnings.is_empty()).then(|| json!(report.presentation_warnings)))
         .put(
             "parts",

@@ -86,6 +86,7 @@ fn read_impl(
     r.check_identifiers();
     let accounting = r.account(&provenance);
     let callouts = r.read_callouts();
+    let saved_views = r.read_saved_views();
     let mut findings = std::mem::take(&mut r.findings);
     findings.sort();
     findings.dedup();
@@ -97,6 +98,7 @@ fn read_impl(
         identifiers,
         accounting,
         callouts,
+        saved_views,
         #[cfg(feature = "json")]
         json_carriers: r.json_carriers,
     };
@@ -1037,7 +1039,7 @@ impl<'a> Reader<'a> {
             .referrers(pds)
             .iter()
             .copied()
-            .filter(|&r| self.is(r, "shape_aspect"))
+            .filter(|&r| self.is(r, "shape_aspect") && !self.is(r, "model_geometric_view"))
             .collect();
         aspects.sort_unstable();
 
@@ -5535,7 +5537,13 @@ impl<'a> Reader<'a> {
                                 .get_str(item, "representation_item", "name")
                                 .unwrap_or_default();
                             let name = self.text_of(item).filter(|s| !s.is_empty());
-                            found = Some((id, name));
+                            // Preserve absence of a separate name when the writer
+                            // supplies the ID as nonempty text for other consumers.
+                            let identifier_fallback =
+                                self.get_str(rep, "representation", "name").as_deref()
+                                    == Some(super::MATERIAL_ID_FALLBACK_REP)
+                                    && name.as_deref() == Some(id.as_str());
+                            found = Some((id, if identifier_fallback { None } else { name }));
                             prov.extend([pdr, rep, item]);
                         }
                     }
@@ -6231,6 +6239,69 @@ impl<'a> Reader<'a> {
             });
         }
         out
+    }
+
+    fn read_saved_views(&mut self) -> Vec<super::SavedView> {
+        let mut views = Vec::new();
+        let ids: Vec<_> = self.doc.ids().collect();
+        for id in ids {
+            if !self.is(id, "model_geometric_view") {
+                continue;
+            }
+            let Some(camera) = self.get_ref(id, "characterized_item_within_representation", "item")
+            else {
+                continue;
+            };
+            let Some(representation) =
+                self.get_ref(id, "characterized_item_within_representation", "rep")
+            else {
+                continue;
+            };
+            let name = self
+                .get_str(id, "characterized_object", "name")
+                .filter(|s| !s.is_empty())
+                .or_else(|| self.get_str(camera, "representation_item", "name"))
+                .unwrap_or_default();
+            views.push(super::SavedView {
+                id,
+                name,
+                camera,
+                representation,
+                contents: self.get_refs(representation, "representation", "items"),
+                is_default: self.is(id, "default_model_geometric_view"),
+            });
+        }
+        // Pre-edition-2 files can carry a camera without model_geometric_view.
+        for rep in self.doc.ids().collect::<Vec<_>>() {
+            if !self.is(rep, "draughting_model") {
+                continue;
+            }
+            let contents = self.get_refs(rep, "representation", "items");
+            for &camera in &contents {
+                if !self.is(camera, "camera_model")
+                    || views
+                        .iter()
+                        .any(|v| v.camera == camera && v.representation == rep)
+                {
+                    continue;
+                }
+                let name = self
+                    .get_str(camera, "representation_item", "name")
+                    .filter(|s| !s.is_empty())
+                    .or_else(|| self.get_str(rep, "representation", "name"))
+                    .unwrap_or_default();
+                views.push(super::SavedView {
+                    id: camera,
+                    name,
+                    camera,
+                    representation: rep,
+                    contents: contents.clone(),
+                    is_default: false,
+                });
+            }
+        }
+        views.sort_by_key(|v| v.id);
+        views
     }
 
     // --- accounting -----------------------------------------------------------------------

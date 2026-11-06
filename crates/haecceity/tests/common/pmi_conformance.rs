@@ -70,7 +70,7 @@ pub fn issues(doc: &Document) -> Vec<String> {
     let writer_occurrences: BTreeSet<_> = doc.ids().filter(|&id| {
         matches!(doc.get(id), Some(RawEntity::Simple { name, .. }) if name.eq_ignore_ascii_case("draughting_model"))
             && matches!(attr(doc, id, "representation", "name"),
-                Some(A::String(name)) if name == "PMI callouts" || name == "datum feature symbols")
+                Some(A::String(name)) if name == "PMI callouts" || name.starts_with("PMI callouts (") || name == "datum feature symbols" || name.starts_with("datum feature symbols ("))
     }).flat_map(|model| refs(attr(doc, model, "representation", "items")))
       .flat_map(|plane| refs(attr(doc, plane, "annotation_plane", "elements")))
       .flat_map(|callout| refs(attr(doc, callout, "draughting_callout", "contents")))
@@ -175,6 +175,82 @@ pub fn issues(doc: &Document) -> Vec<String> {
                     issues.push(format!(
                         "§7.2.2/8.3: #{child} occurrence name differs from callout #{id}"
                     ));
+                }
+            }
+        }
+    }
+    // §9.4.2: identifiers join one camera to displayed content; our Notes
+    // view shares the part context and references its global annotation plane.
+    for view in doc
+        .ids()
+        .filter(|&id| is_a(doc, id, "model_geometric_view"))
+    {
+        let camera = reference(
+            doc,
+            view,
+            "characterized_item_within_representation",
+            "item",
+        );
+        let rep = reference(doc, view, "characterized_item_within_representation", "rep");
+        if let (Some(camera), Some(rep)) = (camera, rep) {
+            let items = refs(attr(doc, rep, "representation", "items"));
+            if !items.contains(&camera) || !is_a(doc, camera, "camera_model") {
+                issues.push(format!(
+                    "§9.4.2: #{view} camera is outside its draughting model"
+                ));
+            }
+            if attr(doc, rep, "representation", "name") != Some(&A::String("Notes".into())) {
+                continue;
+            }
+            let mapped: Vec<_> = items
+                .iter()
+                .copied()
+                .filter(|&i| is_a(doc, i, "mapped_item"))
+                .collect();
+            if mapped.len() != 1 {
+                issues.push(format!("§9.4.2.1: #{rep} needs one mapped part"));
+            }
+            for item in mapped {
+                let source = reference(doc, item, "mapped_item", "mapping_source");
+                if let Some(source) = source {
+                    if reference(doc, source, "representation_map", "mapping_origin")
+                        != reference(doc, item, "mapped_item", "mapping_target")
+                    {
+                        issues.push(format!("§9.4.2.1: #{item} mapping is not identity"));
+                    }
+                    if let Some(shape) =
+                        reference(doc, source, "representation_map", "mapped_representation")
+                        && reference(doc, shape, "representation", "context_of_items")
+                            != reference(doc, rep, "representation", "context_of_items")
+                    {
+                        issues.push(format!("§9.4.2: #{rep} context differs from its part"));
+                    }
+                }
+                if !doc
+                    .referrers(item)
+                    .iter()
+                    .any(|&id| is_a(doc, id, "styled_item"))
+                {
+                    issues.push(format!("§9.4.2.1: #{item} has no style"));
+                }
+            }
+            if let Some(volume) = reference(doc, camera, "camera_model_d3", "perspective_of_volume")
+            {
+                for field in ["front_plane_clipping", "back_plane_clipping"] {
+                    if attr(doc, volume, "view_volume", field) != Some(&A::Enum("F".into())) {
+                        issues.push(format!("§9.4.2.6: #{volume} {field} is enabled"));
+                    }
+                }
+            }
+            for &relation in doc.referrers(rep) {
+                if is_a(
+                    doc,
+                    relation,
+                    "mechanical_design_and_draughting_relationship",
+                ) && reference(doc, relation, "representation_relationship", "rep_1")
+                    != Some(rep)
+                {
+                    issues.push(format!("§9.4.4: #{relation} saved/global roles reversed"));
                 }
             }
         }

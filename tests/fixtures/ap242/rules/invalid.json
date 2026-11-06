@@ -368,6 +368,38 @@
   {
    "id": 931,
    "rule": "geometric_tolerance_relationship.WR3"
+  },
+  {
+   "id": 950,
+   "rule": "draughting_model.UR1"
+  },
+  {
+   "id": 951,
+   "rule": "default_model_geometric_view.UR1"
+  },
+  {
+   "id": 951,
+   "rule": "default_model_geometric_view.WR1"
+  },
+  {
+   "id": 951,
+   "rule": "default_model_geometric_view.WR2"
+  },
+  {
+   "id": 951,
+   "rule": "default_model_geometric_view.WR3"
+  },
+  {
+   "id": 952,
+   "rule": "default_model_geometric_view.UR1"
+  },
+  {
+   "id": 964,
+   "rule": "draughting_model.WR2"
+  },
+  {
+   "id": 965,
+   "rule": "draughting_model.UR1"
   }
  ]
 }

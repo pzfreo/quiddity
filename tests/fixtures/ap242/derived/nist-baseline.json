@@ -170,7 +170,7 @@
   {
     "file": "nist_stc_06_asme1_ap242-e3.stp.gz",
     "source_sha256": "71777c28da76da0e8a667e4cbe792d5f72c09b5c56440c9744d3d50ca96ecc8d",
-    "semantic_sha256": "1dd31c785f98bca06c622f29ddb67f0ff7311e0cdc34fcf6794926cd8dff6a56",
+    "semantic_sha256": "9ecf950b162c2af54b78e1d59faf0d9f32db577e5c7ccaff2d40442c6580770a",
     "dimensions_stated": 17,
     "dimensions_read": 17,
     "tolerances_stated": 25,
@@ -194,7 +194,7 @@
   {
     "file": "nist_stc_10_asme1_ap242-e2.stp.gz",
     "source_sha256": "fba4f46cab1ce1402362038036884631b4a41afe1c9efc5681d358c39db7ed5f",
-    "semantic_sha256": "20837022874fd00528b381d0f234b514f61040ebef40ec05fb79aa264fd6d1f9",
+    "semantic_sha256": "b7a772c4b6453d7c1f55b18b55b94a1d7bd63d8a83eeb75eeb9382805782dd43",
     "dimensions_stated": 27,
     "dimensions_read": 27,
     "tolerances_stated": 37,

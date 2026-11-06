@@ -206,6 +206,53 @@ fn assert_original_entities_unchanged(before: &Document, after: &Document) {
     }
 }
 
+/// Pin the only original DATA edits permitted when Add reuses our Notes view.
+#[cfg(feature = "presentation")]
+fn assert_notes_add_preserves_other_bytes(before: &Document, view: &SavedView, after: &Written) {
+    use common::pmi_usage::reference;
+    let r = |id, entity, attribute| reference(before, id, entity, attribute).unwrap();
+    let vrs = r(view.camera, "camera_model_d3", "view_reference_system");
+    let volume = r(view.camera, "camera_model_d3", "perspective_of_volume");
+    let window = r(volume, "view_volume", "view_window");
+    let placement = r(window, "planar_box", "placement");
+    let removed = BTreeSet::from([
+        view.camera,
+        vrs,
+        volume,
+        window,
+        placement,
+        r(vrs, "placement", "location"),
+        r(vrs, "axis2_placement_3d", "axis"),
+        r(vrs, "axis2_placement_3d", "ref_direction"),
+        r(placement, "placement", "location"),
+        r(placement, "axis2_placement_3d", "axis"),
+        r(placement, "axis2_placement_3d", "ref_direction"),
+    ]);
+    assert_eq!(removed.len(), 11, "exact private camera support");
+    let rewritten = BTreeSet::from([view.id, view.representation]);
+    assert_eq!(
+        after.report.removed,
+        removed.iter().copied().collect::<Vec<_>>()
+    );
+    assert_eq!(
+        after.report.rewritten,
+        rewritten.iter().copied().collect::<Vec<_>>()
+    );
+    let excluded: BTreeSet<_> = removed.union(&rewritten).copied().collect();
+    assert_eq!(excluded.len(), 13);
+    for id in before.ids().filter(|id| !excluded.contains(id)) {
+        let span = after
+            .doc
+            .span(id)
+            .unwrap_or_else(|| panic!("original #{id} removed"));
+        assert_eq!(
+            &before.bytes()[before.span(id).unwrap()],
+            &after.doc.bytes()[span],
+            "original #{id} rewritten"
+        );
+    }
+}
+
 /// Writes `p` as part 0's PMI (replacing what it had) and checks it reads back as written,
 /// with no finding about what was written.
 fn written(f: &File, p: &PartPmi) -> Written {
@@ -867,14 +914,34 @@ fn datum_symbols(w: &Written) -> Vec<String> {
             .find(|&p| w.names(p) == ["annotation_plane"] && refs_of(&w.doc, p).contains(&callout))
             .expect("the callout's annotation plane is in the model");
         assert!(refs_of(&w.doc, plane).len() >= 3);
-        assert!(
-            !w.doc
-                .referrers(model)
-                .iter()
-                .any(|&r| w.names(r) == ["mechanical_design_and_draughting_relationship"]),
-            "the model is not related to the shape (maintainer decision 2026-10-09: \
-             OpenCascade 7.9 crashes on that relationship)"
-        );
+        for &relationship in w.doc.referrers(model) {
+            if w.names(relationship) != ["mechanical_design_and_draughting_relationship"] {
+                continue;
+            }
+            // The Notes -> global relationship is required by §9.4.4;
+            // the global model still has no relationship to the part shape.
+            assert_eq!(
+                common::pmi_usage::reference(
+                    &w.doc,
+                    relationship,
+                    "representation_relationship",
+                    "rep_2"
+                ),
+                Some(model)
+            );
+            let saved = common::pmi_usage::reference(
+                &w.doc,
+                relationship,
+                "representation_relationship",
+                "rep_1",
+            )
+            .unwrap();
+            assert_eq!(w.names(saved), ["draughting_model"]);
+            assert_eq!(
+                test_attribute(&w.doc, saved, "representation", "name"),
+                Some(&Attribute::String("Notes".into()))
+            );
+        }
         let datum = w
             .doc
             .referrers(feature)
@@ -1643,6 +1710,7 @@ fn ctc01_added_datums_attach_in_live_occt_without_changing_foreign_pmi() {
     let mut command = std::process::Command::new(python);
     command
         .env("PYTHONDONTWRITEBYTECODE", "1")
+        .env("PYTHONPATH", "/Users/paul/repos/specify-core/src")
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/common/ctc01_add_occt.py"))
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools"))
         .arg(&original);
@@ -4787,6 +4855,10 @@ fn written_files_are_the_writers_current_output() {
 /// (`references/pmi_write.json` "occt"); and every datum's symbol read as its presentation.
 #[test]
 fn opencascade_reads_the_written_files() {
+    #[cfg(feature = "presentation")]
+    if std::env::var_os("HAECCEITY_OCCT_PYTHON").is_some() {
+        check_notes_saved_view_in_live_occt();
+    }
     let pins = load_pins();
     let pinned = pins["occt"].as_array().unwrap();
     common::check_verdicts("references/pmi_write.json occt", pinned);
@@ -7927,13 +7999,7 @@ fn absent_settings_add_no_notes_and_append_does_not_restate_foreign_settings() {
     };
     let w = write(&carried, &[(PartId(0), new.clone())], Mode::Add).unwrap();
     assert_verified_as(&carried, &w, &new, Mode::Add);
-    for id in carried.doc.ids() {
-        assert_eq!(
-            &carried.doc.bytes()[carried.doc.span(id).unwrap()],
-            &w.doc.bytes()[w.doc.span(id).unwrap()],
-            "foreign entity #{id}"
-        );
-    }
+    assert_notes_add_preserves_other_bytes(&carried.doc, &original.read.saved_views[0], &w);
     assert_notes_clear(&w.doc);
     let new_notes: Vec<_> = w
         .added()
@@ -9621,6 +9687,9 @@ fn shared_carrier_isolation_tracks_add_sharing_and_datum_promotion() {
     };
     let retained = write(&input, &[(PartId(0), add.clone())], Mode::Add).unwrap();
     assert_verified_as(&input, &retained, &add, Mode::Add);
+    #[cfg(feature = "presentation")]
+    assert_notes_add_preserves_other_bytes(&input.doc, &initial.read.saved_views[0], &retained);
+    #[cfg(not(feature = "presentation"))]
     assert_original_entities_unchanged(&input.doc, &retained.doc);
     assert!(
         retained
@@ -9856,4 +9925,985 @@ fn pmi_header_replaces_older_reference_and_preserves_unicode_description() {
             .unwrap()
             .contains("\\X2\\03B1\\X0\\")
     );
+}
+
+#[cfg(feature = "presentation")]
+fn assert_notes_view_window_and_callout_membership(
+    doc: &Document,
+    view: &haecceity::pmi::SavedView,
+) {
+    use common::pmi_usage::{is_a, reference};
+    let volume = reference(doc, view.camera, "camera_model_d3", "perspective_of_volume").unwrap();
+    let window = reference(doc, volume, "view_volume", "view_window").unwrap();
+    let placement = reference(doc, window, "planar_box", "placement").unwrap();
+    assert!(is_a(doc, placement, "axis2_placement_3d"));
+    let location = reference(doc, placement, "placement", "location").unwrap();
+    let Some(Attribute::List(corner)) =
+        test_attribute(doc, location, "cartesian_point", "coordinates")
+    else {
+        panic!("window origin")
+    };
+    assert_eq!(corner.len(), 3);
+    assert_eq!(
+        Some(&corner[2]),
+        test_attribute(doc, volume, "view_volume", "view_plane_distance"),
+        "window origin lies on the view plane, with the identical REAL value"
+    );
+    let mut callouts = 0;
+    for plane in view
+        .contents
+        .iter()
+        .filter(|id| is_a(doc, **id, "annotation_plane"))
+    {
+        let Some(Attribute::List(elements)) =
+            test_attribute(doc, *plane, "annotation_plane", "elements")
+        else {
+            panic!("plane elements")
+        };
+        for element in elements {
+            let Attribute::EntityRef(callout) = element else {
+                panic!("plane element reference")
+            };
+            if is_a(doc, *callout, "draughting_callout") {
+                callouts += 1;
+                assert!(
+                    view.contents.contains(callout),
+                    "Notes items must contain plane #{plane}'s callout #{callout}"
+                );
+            }
+        }
+    }
+    assert!(callouts > 0, "exercise callouts in the Notes-view planes");
+}
+
+#[cfg(feature = "presentation")]
+#[test]
+fn notes_saved_view_frames_part_and_ink_and_roundtrips() {
+    use common::pmi_usage::is_a;
+    let f = gap_spool();
+    let p = settings_pmi();
+    let w = written(&f, &p);
+    assert!(haecceity::express_rules::check_all(&w.doc).is_empty());
+    common::pmi_conformance::assert_conforms(&w.doc);
+    let view = w
+        .read
+        .saved_views
+        .iter()
+        .find(|v| v.name == "Notes")
+        .unwrap();
+    assert!(view.is_default);
+    let doc = &w.doc;
+    let reference = |id, entity, name| match test_attribute(doc, id, entity, name).unwrap() {
+        Attribute::EntityRef(id) => *id,
+        _ => panic!("reference"),
+    };
+    let real = |id, entity, name| match test_attribute(doc, id, entity, name).unwrap() {
+        Attribute::Real(x) => *x,
+        _ => panic!("real"),
+    };
+    let xyz = |id, entity, name| {
+        let Attribute::List(a) = test_attribute(doc, id, entity, name).unwrap() else {
+            panic!("vector")
+        };
+        std::array::from_fn::<_, 3, _>(|i| match a[i] {
+            Attribute::Real(x) => x,
+            Attribute::Integer(x) => x as f64,
+            _ => panic!("number"),
+        })
+    };
+    let plane = *view
+        .contents
+        .iter()
+        .find(|&&id| is_a(doc, id, "annotation_plane"))
+        .unwrap();
+    assert_eq!(view.contents.len(), 4);
+    assert_notes_view_window_and_callout_membership(doc, view);
+    let callout = common::pmi_usage::reference(doc, plane, "annotation_plane", "elements");
+    assert!(callout.is_none(), "elements is an aggregate");
+    let Attribute::List(elements) =
+        test_attribute(doc, plane, "annotation_plane", "elements").unwrap()
+    else {
+        panic!("elements")
+    };
+    let Attribute::EntityRef(callout) = elements[0] else {
+        panic!("callout")
+    };
+    let (_, normal, along) = annotation_basis(doc, callout);
+    let vrs = reference(view.camera, "camera_model_d3", "view_reference_system");
+    let eye = xyz(
+        reference(vrs, "placement", "location"),
+        "cartesian_point",
+        "coordinates",
+    );
+    let z = xyz(
+        reference(vrs, "axis2_placement_3d", "axis"),
+        "direction",
+        "direction_ratios",
+    );
+    let x = xyz(
+        reference(vrs, "axis2_placement_3d", "ref_direction"),
+        "direction",
+        "direction_ratios",
+    );
+    assert_eq!(z, normal.map(|v| -v));
+    assert_eq!(x, along.map(|v| -v));
+    let y = [
+        z[1] * x[2] - z[2] * x[1],
+        z[2] * x[0] - z[0] * x[2],
+        z[0] * x[1] - z[1] * x[0],
+    ];
+    let text_up = [
+        normal[1] * along[2] - normal[2] * along[1],
+        normal[2] * along[0] - normal[0] * along[2],
+        normal[0] * along[1] - normal[1] * along[0],
+    ];
+    assert_eq!(y, text_up, "camera up must agree with the text");
+    let volume = reference(view.camera, "camera_model_d3", "perspective_of_volume");
+    let d = real(volume, "view_volume", "view_plane_distance");
+    assert!(d > 0.);
+    assert_eq!(
+        xyz(
+            reference(volume, "view_volume", "projection_point"),
+            "cartesian_point",
+            "coordinates"
+        ),
+        [0.; 3]
+    );
+    for field in ["front_plane_clipping", "back_plane_clipping"] {
+        assert_eq!(
+            test_attribute(doc, volume, "view_volume", field),
+            Some(&Attribute::Enum("F".into()))
+        );
+    }
+    let win = reference(volume, "view_volume", "view_window");
+    let width = real(win, "planar_extent", "size_in_x");
+    let height = real(win, "planar_extent", "size_in_y");
+    let placement = reference(win, "planar_box", "placement");
+    let Attribute::List(corner) = test_attribute(
+        doc,
+        reference(placement, "placement", "location"),
+        "cartesian_point",
+        "coordinates",
+    )
+    .unwrap() else {
+        panic!("corner")
+    };
+    assert_eq!(
+        corner,
+        &vec![
+            Attribute::Real(-width / 2.),
+            Attribute::Real(-height / 2.),
+            Attribute::Real(d)
+        ]
+    );
+    assert!(is_a(doc, placement, "axis2_placement_3d"));
+    assert_eq!(
+        xyz(
+            reference(placement, "axis2_placement_3d", "axis"),
+            "direction",
+            "direction_ratios"
+        ),
+        [0., 0., 1.]
+    );
+    assert_eq!(
+        xyz(
+            reference(placement, "axis2_placement_3d", "ref_direction"),
+            "direction",
+            "direction_ratios"
+        ),
+        [1., 0., 0.]
+    );
+    let b = haecceity::step::read_part(doc.bytes(), &f.parts[0])
+        .unwrap()
+        .bounds();
+    let mut points = Vec::new();
+    for mask in 0..8 {
+        points.push(std::array::from_fn(|i| {
+            if mask & (1 << i) == 0 {
+                b.min[i]
+            } else {
+                b.max[i]
+            }
+        }));
+    }
+    points.extend(graphic_lines(doc, callout).into_iter().flatten());
+    let dot = |a: [f64; 3], b: [f64; 3]| a.into_iter().zip(b).map(|(a, b)| a * b).sum::<f64>();
+    let mut lo = [f64::INFINITY; 3];
+    let mut hi = [f64::NEG_INFINITY; 3];
+    for p in points {
+        let q = std::array::from_fn(|i| p[i] - eye[i]);
+        for (i, axis) in [x, y, z].into_iter().enumerate() {
+            let v = dot(q, axis);
+            lo[i] = lo[i].min(v);
+            hi[i] = hi[i].max(v);
+        }
+        assert!(dot(q, x).abs() <= width / 2. + 1e-6);
+        assert!(dot(q, y).abs() <= height / 2. + 1e-6);
+        assert!(dot(q, z) > 0. && dot(q, z) < 2. * d);
+    }
+    assert!((width - 1.1 * (hi[0] - lo[0])).abs() < 1e-6);
+    assert!((height - 1.1 * (hi[1] - lo[1])).abs() < 1e-6);
+    let diagonal = (0..3).map(|i| (hi[i] - lo[i]).powi(2)).sum::<f64>().sqrt();
+    assert!((d - 2. * diagonal).abs() < 1e-6);
+    let mapped = *view
+        .contents
+        .iter()
+        .find(|&&id| is_a(doc, id, "mapped_item"))
+        .unwrap();
+    let styled = doc
+        .referrers(mapped)
+        .iter()
+        .copied()
+        .find(|&id| is_a(doc, id, "styled_item"))
+        .unwrap();
+    let styles = common::pmi_usage::attr(doc, styled, "styled_item", "styles");
+    let Some(Attribute::List(styles)) = styles else {
+        panic!("styles")
+    };
+    let Attribute::EntityRef(style) = styles[0] else {
+        panic!("style")
+    };
+    assert_eq!(
+        test_attribute(doc, style, "presentation_style_assignment", "styles"),
+        Some(&Attribute::List(vec![Attribute::Typed {
+            type_name: "NULL_STYLE".into(),
+            value: Box::new(Attribute::Enum("NULL".into()))
+        }]))
+    );
+    assert!(doc.referrers(styled).iter().any(|id| test_attribute(
+        doc,
+        *id,
+        "representation",
+        "name"
+    ) == Some(&Attribute::String(
+        "Notes part styling".into()
+    ))));
+    let source = reference(mapped, "mapped_item", "mapping_source");
+    assert_eq!(
+        reference(source, "representation_map", "mapping_origin"),
+        reference(mapped, "mapped_item", "mapping_target")
+    );
+    let relation = doc
+        .ids()
+        .find(|&id| {
+            is_a(doc, id, "mechanical_design_and_draughting_relationship")
+                && common::pmi_usage::reference(doc, id, "representation_relationship", "rep_1")
+                    == Some(view.representation)
+        })
+        .unwrap();
+    let global = reference(relation, "representation_relationship", "rep_2");
+    assert_eq!(
+        test_attribute(doc, global, "representation", "name"),
+        Some(&Attribute::String("PMI callouts".into()))
+    );
+    assert!(refs_of(doc, global).contains(&plane));
+    let reopened = open_bytes(w.doc.bytes().to_vec());
+    let again = written(&reopened, &w.read.parts[0]);
+    assert_eq!(again.read.saved_views.len(), 1);
+    assert!(again.read.saved_views[0].is_default);
+    let removed = write(&reopened, &[(PartId(0), PartPmi::default())], Mode::Remove).unwrap();
+    assert!(removed.read.saved_views.is_empty());
+    for id in [
+        view.id,
+        view.camera,
+        view.representation,
+        volume,
+        win,
+        mapped,
+        source,
+        relation,
+    ] {
+        assert!(removed.doc.get(id).is_none(), "owned #{id} remains");
+    }
+}
+
+#[cfg(feature = "presentation")]
+#[test]
+fn notes_add_keeps_existing_default_and_reports_an_ordinary_view() {
+    let w = written(&gap_spool(), &settings_pmi());
+    let model = w.read.saved_views[0].representation;
+    let RawEntity::Simple {
+        name, attributes, ..
+    } = w.doc.get(model).unwrap()
+    else {
+        panic!("model")
+    };
+    let mut values = attributes.clone();
+    values[0] = Attribute::String("Imported default".into());
+    let mut edit = haecceity::p21::Edit::new();
+    edit.replace(model, haecceity::p21::simple(name, values));
+    let before = open_bytes(w.doc.apply(&edit).unwrap().bytes);
+    let p = PartPmi {
+        attributes: part_notes(),
+        ..PartPmi::default()
+    };
+    let added = write(&before, &[(PartId(0), p)], Mode::Add).unwrap();
+    for id in before.doc.ids() {
+        assert_same_record(&before.doc, &added.doc, id);
+    }
+    assert_eq!(
+        added
+            .read
+            .saved_views
+            .iter()
+            .filter(|v| v.is_default)
+            .count(),
+        1
+    );
+    assert_eq!(added.read.saved_views.len(), 2);
+    assert!(!added.read.saved_views[1].is_default);
+    assert!(
+        added
+            .report
+            .saved_view_findings
+            .iter()
+            .any(|f| f.kind == FindingKind::Fact && f.detail.contains("ordinary saved view"))
+    );
+    assert!(haecceity::express_rules::check_all(&added.doc).is_empty());
+}
+
+#[cfg(feature = "presentation")]
+#[test]
+fn notes_on_several_planes_leave_add_views_unchanged_and_report_a_fact() {
+    let w = written(&gap_spool(), &settings_pmi());
+    let plane = w
+        .doc
+        .ids()
+        .find(|&id| {
+            common::pmi_usage::is_a(&w.doc, id, "annotation_plane")
+                && test_attribute(&w.doc, id, "representation_item", "name")
+                    == Some(&Attribute::String("General notes".into()))
+        })
+        .unwrap();
+    let surface = common::pmi_usage::reference(&w.doc, plane, "styled_item", "item").unwrap();
+    let pos =
+        common::pmi_usage::reference(&w.doc, surface, "elementary_surface", "position").unwrap();
+    let point = common::pmi_usage::reference(&w.doc, pos, "placement", "location").unwrap();
+    let mut edit = haecceity::p21::Edit::new();
+    // Parallel, distinct planes still count as several planes.
+    edit.replace(
+        point,
+        haecceity::p21::simple(
+            "CARTESIAN_POINT",
+            vec![
+                Attribute::String("".into()),
+                Attribute::List(vec![
+                    Attribute::Real(0.),
+                    Attribute::Real(17.),
+                    Attribute::Real(0.),
+                ]),
+            ],
+        ),
+    );
+    let before = open_bytes(w.doc.apply(&edit).unwrap().bytes);
+    let p = PartPmi {
+        attributes: part_notes(),
+        ..PartPmi::default()
+    };
+    let added = write(&before, &[(PartId(0), p)], Mode::Add).unwrap();
+    for id in before.doc.ids() {
+        assert_same_record(&before.doc, &added.doc, id);
+    }
+    assert_eq!(added.read.saved_views, w.read.saved_views);
+    assert!(
+        added
+            .report
+            .saved_view_findings
+            .iter()
+            .any(|f| f.kind == FindingKind::Fact
+                && f.detail
+                    == "general notes span several planes; no Notes saved view was written")
+    );
+}
+
+#[cfg(all(feature = "presentation", feature = "json-import"))]
+#[test]
+fn source_general_notes_on_several_planes_have_no_notes_view() {
+    let (doc, defs, semantic) = common::pmi_source::cube();
+    let source = common::pmi_source::input(&semantic);
+    let (bytes, report) = haecceity::json::write_with_presentation(
+        &doc,
+        &defs,
+        &[(PartId(0), semantic)],
+        PresentationPolicy::RemovePresentation,
+        &[(PartId(0), source)],
+    )
+    .unwrap();
+    let f = open_bytes(bytes);
+    let read = pmi::read(&f.doc, &f.parts).unwrap();
+    assert!(read.saved_views.is_empty());
+    assert!(
+        report
+            .saved_view_findings
+            .iter()
+            .any(|f| f.kind == FindingKind::Fact
+                && f.detail.contains("general notes span several planes"))
+    );
+    common::pmi_conformance::assert_conforms(&f.doc);
+}
+
+#[cfg(feature = "presentation")]
+#[test]
+#[ignore = "requires HAECCEITY_OCCT_PYTHON with OCP and specify_core installed"]
+fn notes_saved_view_loads_in_live_occt_and_specify_core() {
+    check_notes_saved_view_in_live_occt();
+}
+
+#[cfg(feature = "presentation")]
+fn check_notes_saved_view_in_live_occt() {
+    let python = std::env::var_os("HAECCEITY_OCCT_PYTHON").expect("set OCP Python");
+    let w = written(&gap_spool(), &settings_pmi());
+    let dir = std::env::temp_dir().join(format!("haecceity-notes-occt-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("notes.step");
+    std::fs::write(&path, w.doc.bytes()).unwrap();
+    for mode in ["read", "load", "notes-up"] {
+        let result = std::process::Command::new(&python)
+            .env("PYTHONDONTWRITEBYTECODE", "1")
+            .env("PYTHONPATH", "/Users/paul/repos/specify-core/src")
+            .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools/check_pmi_occt.py"))
+            .args(["--child", mode])
+            .arg(&path)
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{mode}: {:?}\n{}\n{}",
+            result.status,
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[cfg(feature = "presentation")]
+#[test]
+fn foreign_saved_view_camera_survives_without_duplicating_replaced_ink() {
+    let w = written(&gap_spool(), &settings_pmi());
+    let view = w.read.saved_views[0].clone();
+    let RawEntity::Simple {
+        name, attributes, ..
+    } = w.doc.get(view.representation).unwrap()
+    else {
+        panic!("model")
+    };
+    let mut values = attributes.clone();
+    values[0] = Attribute::String("Imported view".into());
+    let mut edit = haecceity::p21::Edit::new();
+    edit.replace(view.representation, haecceity::p21::simple(name, values));
+    let before = open_bytes(w.doc.apply(&edit).unwrap().bytes);
+    for (mode, p) in [
+        (Mode::Replace, settings_pmi()),
+        (Mode::Remove, PartPmi::default()),
+    ] {
+        let after = write(&before, &[(PartId(0), p)], mode).unwrap();
+        let kept = after
+            .read
+            .saved_views
+            .iter()
+            .find(|v| v.id == view.id)
+            .unwrap();
+        assert_eq!(kept.name, view.name);
+        assert_eq!(kept.camera, view.camera);
+        assert_eq!(kept.is_default, view.is_default);
+        assert_same_record(&before.doc, &after.doc, view.camera);
+        if mode == Mode::Remove {
+            assert!(kept.contents.iter().all(|id| !common::pmi_usage::is_a(
+                &after.doc,
+                *id,
+                "annotation_plane"
+            )));
+        }
+        assert_eq!(
+            after
+                .read
+                .saved_views
+                .iter()
+                .filter(|v| v.is_default)
+                .count(),
+            1
+        );
+    }
+}
+
+#[cfg(feature = "presentation")]
+fn assert_same_record(before: &Document, after: &Document, id: u64) {
+    match (before.get(id).unwrap(), after.get(id).unwrap()) {
+        (
+            RawEntity::Simple {
+                name: a,
+                attributes: x,
+                ..
+            },
+            RawEntity::Simple {
+                name: b,
+                attributes: y,
+                ..
+            },
+        ) => {
+            assert_eq!(a, b);
+            assert_eq!(x, y);
+        }
+        (RawEntity::Complex { parts: a, .. }, RawEntity::Complex { parts: b, .. }) => {
+            assert_eq!(a.len(), b.len());
+            for (a, b) in a.iter().zip(b) {
+                assert_eq!(a.name, b.name);
+                assert_eq!(a.attributes, b.attributes);
+            }
+        }
+        _ => panic!("record #{id} changed its mapping"),
+    }
+}
+
+#[cfg(all(feature = "presentation", feature = "json-import"))]
+#[test]
+fn coplanar_source_general_notes_share_one_saved_view_plane() {
+    let (doc, defs, semantic) = common::pmi_source::cube();
+    let mut source = common::pmi_source::input(&semantic);
+    let mut graphic = source.items[&semantic.ids["notes"][1]][0].clone();
+    graphic.text_placements[0].origin = [180., 110., 70.];
+    source
+        .items
+        .insert(semantic.ids["notes"][2].clone(), vec![graphic]);
+    let (bytes, report) = haecceity::json::write_with_presentation(
+        &doc,
+        &defs,
+        &[(PartId(0), semantic)],
+        PresentationPolicy::RemovePresentation,
+        &[(PartId(0), source)],
+    )
+    .unwrap();
+    assert!(report.saved_view_findings.is_empty());
+    let f = open_bytes(bytes);
+    let read = pmi::read(&f.doc, &f.parts).unwrap();
+    assert_eq!(read.saved_views.len(), 1);
+    let view = &read.saved_views[0];
+    assert_eq!(view.name, "Notes");
+    assert!(view.is_default);
+    assert_eq!(view.contents.len(), 5);
+    assert_notes_view_window_and_callout_membership(&f.doc, view);
+    let plane = view
+        .contents
+        .iter()
+        .copied()
+        .find(|&id| common::pmi_usage::is_a(&f.doc, id, "annotation_plane"))
+        .unwrap();
+    let Some(Attribute::List(elements)) =
+        test_attribute(&f.doc, plane, "annotation_plane", "elements")
+    else {
+        panic!("elements")
+    };
+    assert_eq!(
+        elements.len(),
+        2,
+        "both general notes share the referenced plane"
+    );
+    assert!(haecceity::express_rules::check_all(&f.doc).is_empty());
+    common::pmi_conformance::assert_conforms(&f.doc);
+}
+
+#[cfg(all(feature = "presentation", feature = "json-import"))]
+#[test]
+fn foreign_saved_views_do_not_orphan_semantic_placeholders() {
+    let f = open_bytes(common::pmi_source::written());
+    // The fixture has source placeholders in a global model. Give that model
+    // an imported camera-only saved view, exercising the pre-edition-2 route.
+    let model = f
+        .doc
+        .ids()
+        .find(|&id| common::pmi_usage::is_a(&f.doc, id, "draughting_model"))
+        .unwrap();
+    let context =
+        common::pmi_usage::reference(&f.doc, model, "representation", "context_of_items").unwrap();
+    let point = f.doc.ids().find(|&id|common::pmi_usage::is_a(&f.doc,id,"cartesian_point") && matches!(test_attribute(&f.doc,id,"cartesian_point","coordinates"),Some(Attribute::List(v)) if v.len()==3)).unwrap();
+    let n = f.doc.max_id() + 1;
+    let lines = format!(
+        "#{n}=AXIS2_PLACEMENT_3D('',#{point},$,$);\n#{}=CARTESIAN_POINT('',(-10.,-10.));\n#{}=AXIS2_PLACEMENT_2D('',#{},$);\n#{}=PLANAR_BOX('',20.,20.,#{});\n#{}=VIEW_VOLUME(.PARALLEL.,#{point},40.,0.,.F.,80.,.F.,.T.,#{});\n#{}=CAMERA_MODEL_D3('Imported',#{n},#{});\n#{}=DRAUGHTING_MODEL('Imported',(#{}),#{context});\n",
+        n + 1,
+        n + 2,
+        n + 1,
+        n + 3,
+        n + 2,
+        n + 4,
+        n + 3,
+        n + 5,
+        n + 4,
+        n + 6,
+        n + 5
+    );
+    let mut text = String::from_utf8(f.doc.bytes().to_vec()).unwrap();
+    let end = text.rfind("ENDSEC;").unwrap();
+    text.insert_str(end, &lines);
+    let before = open_bytes(text.into_bytes());
+    let mut edit = haecceity::p21::Edit::new();
+    let RawEntity::Simple {
+        name, attributes, ..
+    } = before.doc.get(n + 6).unwrap()
+    else {
+        panic!("model")
+    };
+    let mut values = attributes.clone();
+    let mut items = vec![Attribute::EntityRef(n + 5)];
+    let Some(Attribute::List(contents)) =
+        test_attribute(&before.doc, model, "representation", "items")
+    else {
+        panic!("items")
+    };
+    items.extend(contents.clone());
+    values[1] = Attribute::List(items);
+    edit.replace(n + 6, haecceity::p21::simple(name, values));
+    let before = open_bytes(before.doc.apply(&edit).unwrap().bytes);
+    let read = pmi::read(&before.doc, &before.parts).unwrap();
+    let after = write(
+        &before,
+        &[(PartId(0), read.parts[0].clone())],
+        Mode::Replace,
+    )
+    .unwrap();
+    common::pmi_conformance::assert_conforms(&after.doc);
+    assert!(
+        after
+            .read
+            .saved_views
+            .iter()
+            .any(|v| v.name == "Imported" && v.camera == n + 5)
+    );
+}
+
+#[cfg(feature = "presentation")]
+#[test]
+fn add_reuses_owned_notes_model_and_camera_up_is_upright() {
+    let w = written(&gap_spool(), &settings_pmi());
+    let old = w.read.saved_views[0].clone();
+    let before = open_bytes(w.doc.bytes().to_vec());
+    let added = write(
+        &before,
+        &[(
+            PartId(0),
+            PartPmi {
+                attributes: part_notes(),
+                ..Default::default()
+            },
+        )],
+        Mode::Add,
+    )
+    .unwrap();
+    assert_eq!(added.read.saved_views.len(), 1);
+    let view = &added.read.saved_views[0];
+    assert_eq!(view.id, old.id);
+    assert_eq!(view.representation, old.representation);
+    assert!(view.is_default);
+    assert_ne!(view.camera, old.camera);
+    assert_eq!(
+        added
+            .doc
+            .ids()
+            .filter(
+                |id| test_attribute(&added.doc, *id, "representation", "name")
+                    == Some(&Attribute::String("Notes".into()))
+            )
+            .count(),
+        1
+    );
+    assert_notes_add_preserves_other_bytes(&before.doc, &old, &added);
+    assert_notes_view_window_and_callout_membership(&added.doc, view);
+    let planes: Vec<_> = view
+        .contents
+        .iter()
+        .filter(|id| common::pmi_usage::is_a(&added.doc, **id, "annotation_plane"))
+        .collect();
+    assert_eq!(
+        planes.len(),
+        2,
+        "reuse retains the old and added notes planes"
+    );
+    assert!(haecceity::express_rules::check_all(&added.doc).is_empty());
+    let f = open_bytes(added.doc.bytes().to_vec());
+    let removed = write(&f, &[(PartId(0), PartPmi::default())], Mode::Remove).unwrap();
+    assert!(removed.read.saved_views.is_empty());
+}
+
+#[cfg(feature = "presentation")]
+#[test]
+fn edition_one_add_notes_succeeds_without_upgrading_or_repairing_source() {
+    let f = fixture("ap242/nist/nist_ctc_01_asme1_ap242-e1.stp.gz");
+    let added = write(
+        &f,
+        &[(
+            PartId(0),
+            PartPmi {
+                attributes: part_notes(),
+                ..Default::default()
+            },
+        )],
+        Mode::Add,
+    )
+    .unwrap();
+    assert_eq!(
+        added.doc.file_schema().unwrap(),
+        f.doc.file_schema().unwrap()
+    );
+    assert!(added.report.repairs.is_empty());
+    assert!(added.added().iter().all(|id| !common::pmi_usage::is_a(
+        &added.doc,
+        *id,
+        "model_geometric_view"
+    )));
+    assert!(
+        added
+            .report
+            .saved_view_findings
+            .iter()
+            .any(|f| f.kind == FindingKind::Fact && f.detail.contains("edition 1 retained"))
+    );
+    for id in f.doc.ids() {
+        assert_same_record(&f.doc, &added.doc, id);
+    }
+}
+
+#[cfg(feature = "presentation")]
+#[test]
+fn nist_replace_presentation_counts_match_main() {
+    use common::pmi_usage::is_a;
+    for (name, callouts, occurrences, removed) in [
+        ("nist_ctc_01_asme1_ap242-e1", 21, 21, 487),
+        ("nist_ctc_02_asme1_ap242-e2", 37, 37, 1473),
+        ("nist_ctc_03_asme1_ap242-e2", 29, 30, 939),
+        ("nist_ctc_05_asme1_ap242", 20, 40, 96),
+        ("nist_ftc_06_asme1_ap242-e2", 64, 65, 2066),
+        ("nist_stc_10_asme1_ap242-e2", 96, 96, 2459),
+    ] {
+        let input = fixture(&format!("ap242/nist/{name}.stp.gz"));
+        let mut p = pmi::read(&input.doc, &input.parts).unwrap().parts;
+        let w = loop {
+            let request: Vec<_> = p
+                .iter()
+                .enumerate()
+                .map(|(i, p)| (PartId(i), p.clone()))
+                .collect();
+            match write(&input, &request, Mode::Replace) {
+                Ok(w) => break w,
+                Err(WriteError::Refused(rs)) => {
+                    for (i, p) in p.iter_mut().enumerate() {
+                        *p = pmi::without(
+                            p,
+                            &rs.iter()
+                                .filter(|r| r.part == PartId(i))
+                                .map(|r| r.item)
+                                .collect::<Vec<_>>(),
+                        );
+                    }
+                }
+                Err(e) => panic!("{name}: {e}"),
+            }
+        };
+        assert_eq!(
+            w.doc
+                .ids()
+                .filter(|id| is_a(&w.doc, *id, "draughting_callout"))
+                .count(),
+            callouts,
+            "{name}"
+        );
+        assert_eq!(
+            w.doc
+                .ids()
+                .filter(|id| [
+                    "annotation_curve_occurrence",
+                    "tessellated_annotation_occurrence",
+                    "annotation_placeholder_occurrence"
+                ]
+                .iter()
+                .any(|ty| is_a(&w.doc, *id, ty)))
+                .count(),
+            occurrences,
+            "{name}"
+        );
+        assert_eq!(w.report.presentation_removed.len(), removed, "{name}");
+    }
+}
+
+#[cfg(feature = "presentation")]
+#[test]
+fn edition_one_replace_skips_optional_view_when_upgrade_cannot_validate() {
+    let f = fixture("ap242/nist/nist_ctc_01_asme1_ap242-e1.stp.gz");
+    // Preserve an existing nonintegral legacy literal: R3 cannot repair it for
+    // edition 4. Optional presentation must not turn that into a write refusal.
+    let id = f.doc.max_id() + 1;
+    let mut text = String::from_utf8(f.doc.bytes().to_vec()).unwrap();
+    let end = text.rfind("ENDSEC;").unwrap();
+    text.insert_str(
+        end,
+        &format!("#{id}=INTEGER_REPRESENTATION_ITEM('legacy',1.5);\n"),
+    );
+    let f = open_bytes(text.into_bytes());
+    let p = PartPmi {
+        attributes: part_notes(),
+        ..Default::default()
+    };
+    let w = write(&f, &[(PartId(0), p)], Mode::Replace).unwrap();
+    assert_eq!(w.doc.file_schema().unwrap(), f.doc.file_schema().unwrap());
+    assert_same_record(&f.doc, &w.doc, id);
+    assert!(w.report.repairs.is_empty());
+    assert!(
+        w.report
+            .saved_view_findings
+            .iter()
+            .any(|f| f.kind == FindingKind::Fact && f.detail.contains("edition 1 retained"))
+    );
+    assert!(!w.added().iter().any(|id| common::pmi_usage::is_a(
+        &w.doc,
+        *id,
+        "model_geometric_view"
+    )));
+}
+
+#[cfg(feature = "presentation")]
+#[test]
+fn edition_one_replace_without_a_notes_view_keeps_schema_and_literals() {
+    use common::pmi_usage::{is_a, reference};
+    for (model_name, plane_name, finding) in [
+        (
+            "Foreign notes",
+            "General notes",
+            "general notes span several planes",
+        ),
+        (
+            "Notes",
+            "Unrelated",
+            "existing Notes draughting model retained",
+        ),
+    ] {
+        let f = fixture("ap242/nist/nist_ctc_01_asme1_ap242-e1.stp.gz");
+        let context = f
+            .doc
+            .ids()
+            .find(|id| is_a(&f.doc, *id, "geometric_representation_context"))
+            .unwrap();
+        let style = f
+            .doc
+            .ids()
+            .find(|id| is_a(&f.doc, *id, "presentation_style_assignment"))
+            .unwrap();
+        let n = f.doc.max_id() + 1;
+        // Independent foreign note ink survives Replace; its Z-normal plane
+        // differs from the writer's Y-normal notes plane. The alternate case
+        // reserves the Notes model name without adding another notes plane.
+        let records = format!(
+            "#{n}=CARTESIAN_POINT('',(0.,0.,0.));\n#{}=CARTESIAN_POINT('',(1.,0.,0.));\n#{}=POLYLINE('',(#{n},#{}));\n#{}=ANNOTATION_CURVE_OCCURRENCE('',(#{style}),#{});\n#{}=DRAUGHTING_CALLOUT('',(#{}));\n#{}=AXIS2_PLACEMENT_3D('',#{n},$,$);\n#{}=PLANE('',#{});\n#{}=ANNOTATION_PLANE('{plane_name}',(#{style}),#{},(#{}));\n#{}=DRAUGHTING_MODEL('{model_name}',(#{}),#{context});\n",
+            n + 1,
+            n + 2,
+            n + 1,
+            n + 3,
+            n + 2,
+            n + 4,
+            n + 3,
+            n + 5,
+            n + 6,
+            n + 5,
+            n + 7,
+            n + 6,
+            n + 4,
+            n + 8,
+            n + 7
+        );
+        let mut text = String::from_utf8(f.doc.bytes().to_vec()).unwrap();
+        let end = text.rfind("ENDSEC;").unwrap();
+        text.insert_str(end, &records);
+        let input = open_bytes(text.into_bytes());
+        let w = write(
+            &input,
+            &[(
+                PartId(0),
+                PartPmi {
+                    attributes: part_notes(),
+                    ..Default::default()
+                },
+            )],
+            Mode::Replace,
+        )
+        .unwrap();
+        assert_eq!(
+            w.doc.file_schema().unwrap(),
+            input.doc.file_schema().unwrap()
+        );
+        assert!(matches!(w.report.schema, SchemaChange::Kept(_)));
+        assert!(
+            w.report.repairs.is_empty(),
+            "{model_name}: no R3 repairs without a view"
+        );
+        assert!(w.read.saved_views.iter().all(|v| v.name != "Notes"));
+        assert!(
+            w.report
+                .saved_view_findings
+                .iter()
+                .any(|f| f.kind == FindingKind::Fact && f.detail.contains(finding))
+        );
+        for id in n..=n + 8 {
+            assert_eq!(
+                &input.doc.bytes()[input.doc.span(id).unwrap()],
+                &w.doc.bytes()[w.doc.span(id).unwrap()]
+            );
+        }
+        // Pin one original integral REAL that would be repaired by R3.
+        let integer = input
+            .doc
+            .ids()
+            .find(|id| {
+                is_a(&input.doc, *id, "integer_representation_item")
+                    && matches!(
+                        test_attribute(&input.doc, *id, "literal_number", "the_value"),
+                        Some(Attribute::Real(_))
+                    )
+            })
+            .unwrap();
+        assert_eq!(
+            &input.doc.bytes()[input.doc.span(integer).unwrap()],
+            &w.doc.bytes()[w.doc.span(integer).unwrap()]
+        );
+        assert_eq!(
+            reference(&w.doc, n + 8, "representation", "context_of_items"),
+            Some(context)
+        );
+    }
+}
+
+#[test]
+fn material_identifier_fallback_is_nonempty_and_preserves_separate_name_presence() {
+    for name in [None, Some("Alu_G6061_T6"), Some("Aluminium 6061 T6")] {
+        let p = PartPmi {
+            material: Some(Material {
+                id: "Alu_G6061_T6".into(),
+                name: name.map(str::to_owned),
+                density: None,
+            }),
+            ..Default::default()
+        };
+        let w = written(&gap_spool(), &p);
+        assert_eq!(w.read.parts[0].material, p.material);
+        let item = w
+            .added()
+            .into_iter()
+            .find(|id| {
+                test_attribute(&w.doc, *id, "representation_item", "name")
+                    == Some(&Attribute::String("Alu_G6061_T6".into()))
+                    && common::pmi_usage::is_a(&w.doc, *id, "descriptive_representation_item")
+            })
+            .unwrap();
+        assert_eq!(
+            test_attribute(
+                &w.doc,
+                item,
+                "descriptive_representation_item",
+                "description"
+            ),
+            Some(&Attribute::String(name.unwrap_or("Alu_G6061_T6").into()))
+        );
+        assert!(haecceity::express_rules::check_all(&w.doc).is_empty());
+        let before = open_bytes(w.doc.bytes().to_vec());
+        let again = written(&before, &w.read.parts[0]);
+        assert_eq!(again.read.parts[0].material, p.material);
+        assert_verified(&before, &again, &p);
+    }
 }
