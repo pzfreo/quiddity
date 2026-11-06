@@ -98,6 +98,36 @@ The Correspondence holds:
 It is exposed in the library, in the CLI (`quiddity correspond old.json new.json`) and in the
 JSON-lines and MCP surface beside recognition.
 
+## Congruence: `congruent(a, b) → Option<(Motion, face pairs)>`
+
+`correspond` finds the likeliest motion between two revisions and tolerates differences.
+`correspondence::congruent(&Part, &Part)` answers a stricter question, for identifying identical
+parts (a pack's or a parts list's quantities): is there a proper rigid motion taking *a* exactly
+onto *b*? It returns the motion and each face of *a* paired with the face of *b* it lands on, or
+`None`. It reads geometry only, never product names or other metadata.
+`congruent_with(&a, &af, &b, &bf)` is the same with the parts' `Fingerprints` already made
+(`congruent` makes them with no features), so a caller comparing each product against several
+groups fingerprints each part once.
+
+- **Candidates**, in order: an exact B-rep match (`Part::same_brep` in haecceity: the same
+  faces, edges and solids in order, with bit-equal defining geometry and trims) or the identity;
+  the translation taking *a*'s area-weighted centroid onto *b*'s; then `align` on the two parts'
+  face fingerprints.
+- **Proof.** A candidate other than the exact match is accepted only when every face pairs one
+  to one with the same surface type, adjacency signature, parameters and area (within 1e-7
+  relative), centroid (within 1e-5 mm) and mean normal under the motion, and when samples of
+  each trimmed face (0.1 mm deflection) lie within 1e-5 mm of its partner, in both
+  directions.
+- **Why the translation comes before `align`.** On a rotationally symmetric part, `align` can
+  return a symmetry of the fingerprints that is not a symmetry of the B-rep: on a hex bolt, a
+  ±120° turn of the hexagon that moves the seams. The proof rejects it, so two translated
+  copies would be missed without the translation.
+- **Reflections are never considered.** A mirror image is congruent only if it is also a
+  rotated copy (the part is achiral). The face proof rejects a mirror image on its own; a
+  candidate that is not a proper rotation is refused before it as defence in depth.
+- **Only exact copies of some parts.** A part with a face whose area the kernel cannot
+  integrate, or with an unresolved face or edge, matches only through `same_brep`.
+
 ## Background
 
 - **History-based persistent naming needs the construction history.** Examples are Capoyleas,
@@ -130,7 +160,8 @@ JSON-lines and MCP surface beside recognition.
 before plus a top-level `fingerprints` (and, since then, the recognition `document`,
 `src/recognition.rs`); `quiddity correspond old new` takes two such results (or
 two STEP files) and writes the `Correspondence`. In the library: `correspondence::recognise`,
-`fingerprint`, `correspond` and `correspond_with` (explicit `Thresholds`).
+`fingerprint`, `correspond`, `correspond_with` (explicit `Thresholds`), `congruent` and
+`congruent_with` (`congruent.rs`).
 
 `correspondence::recognise(&Part) -> Recognition` is the supported recognition entry point.
 It infers the part's frame, transforms the loaded geometry in memory, recognises there and

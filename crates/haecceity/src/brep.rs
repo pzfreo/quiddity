@@ -788,6 +788,49 @@ impl Part {
         &self.unresolved_edges
     }
 
+    /// Whether *other* is exactly this B-rep: the same faces, edges and solids in the same
+    /// order, with bit-equal defining geometry (surfaces, curves, vertices, pcurves) and trim
+    /// topology. Entity IDs, names and cached samples are not compared. Stricter than geometric
+    /// equality, it also covers surfaces whose area the kernel cannot integrate. A part with an
+    /// unresolved face or edge, or no faces, is never the same as anything.
+    pub fn same_brep(&self, other: &Part) -> bool {
+        let (a, b) = (self, other);
+        a.faces.len() == b.faces.len()
+            && a.edges.len() == b.edges.len()
+            && a.solids.len() == b.solids.len()
+            && !a.faces.is_empty()
+            && a.unresolved_faces.is_empty()
+            && b.unresolved_faces.is_empty()
+            && a.unresolved_edges.is_empty()
+            && b.unresolved_edges.is_empty()
+            && a.solids
+                .iter()
+                .zip(&b.solids)
+                .all(|(a, b)| a.faces == b.faces)
+            && a.edges.iter().zip(&b.edges).all(|(a, b)| {
+                a.curve == b.curve
+                    && a.start == b.start
+                    && a.end == b.end
+                    && a.vertices == b.vertices
+                    && a.same_sense == b.same_sense
+            })
+            && a.faces.iter().zip(&b.faces).all(|(a, b)| {
+                a.reversed == b.reversed
+                    && a.solid == b.solid
+                    && same_surface(&a.surface, &b.surface)
+                    && a.loops.len() == b.loops.len()
+                    && a.loops
+                        .iter()
+                        .zip(&b.loops)
+                        .all(|(a, b)| a.edges == b.edges && a.vertex == b.vertex)
+                    && a.pcurves.len() == b.pcurves.len()
+                    && a.pcurves
+                        .iter()
+                        .zip(&b.pcurves)
+                        .all(|((ai, a), (bi, b))| ai == bi && same_pcurve(a, b))
+            })
+    }
+
     /// Repairs applied while constructing this part, naming the affected solid (zero-based).
     /// Empty when the input was retained without repair.
     pub fn input_repairs(&self) -> &[String] {
@@ -1261,5 +1304,86 @@ impl Part {
         let mut roots = multi.iter().flat_map(|u| u.iter()).map(|&(f, _)| f);
         let first = roots.next().map(|f| root(&mut set, f));
         roots.all(|f| Some(root(&mut set, f)) == first)
+    }
+}
+
+/// Bit-equal defining geometry, for [`Part::same_brep`].
+fn same_surface(a: &Surface, b: &Surface) -> bool {
+    use Surface::*;
+    match (a, b) {
+        (Plane { frame: a }, Plane { frame: b }) => a == b,
+        (
+            Cylinder {
+                frame: a,
+                radius: ar,
+            },
+            Cylinder {
+                frame: b,
+                radius: br,
+            },
+        )
+        | (
+            Sphere {
+                frame: a,
+                radius: ar,
+            },
+            Sphere {
+                frame: b,
+                radius: br,
+            },
+        ) => a == b && ar == br,
+        (
+            Cone {
+                frame: a,
+                radius: ar,
+                semi_angle: aa,
+            },
+            Cone {
+                frame: b,
+                radius: br,
+                semi_angle: ba,
+            },
+        ) => a == b && ar == br && aa == ba,
+        (
+            Torus {
+                frame: a,
+                major: am,
+                minor: an,
+            },
+            Torus {
+                frame: b,
+                major: bm,
+                minor: bn,
+            },
+        ) => a == b && am == bm && an == bn,
+        (
+            Freeform {
+                kind: ak,
+                surface: a,
+            },
+            Freeform {
+                kind: bk,
+                surface: b,
+            },
+        ) => {
+            ak == bk
+                && a.degree_u == b.degree_u
+                && a.degree_v == b.degree_v
+                && a.control_points == b.control_points
+                && a.weights == b.weights
+                && a.knots_u == b.knots_u
+                && a.knots_v == b.knots_v
+        }
+        _ => false,
+    }
+}
+
+fn same_pcurve(a: &Pcurve, b: &Pcurve) -> bool {
+    match (a, b) {
+        (Pcurve::Poles(a), Pcurve::Poles(b)) => a == b,
+        (Pcurve::Line { point: a, dir: ad }, Pcurve::Line { point: b, dir: bd }) => {
+            a == b && ad == bd
+        }
+        _ => false,
     }
 }
