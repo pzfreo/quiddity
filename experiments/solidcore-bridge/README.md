@@ -87,12 +87,9 @@ behave the same.
 
 ## Caveats and open issues
 
-1. **Silent wrong booleans.** On `every_kind`, a cut plane through the part's axis
-   (x = 0 or y = 0) returns an empty body without an error. Those planes contain the seams of
-   many revolved faces. A bridge must check results, for example volume against an expectation
-   or solidcore's own validity check, and refuse them. Before reporting it upstream, check
-   whether it still happens on solidcore's main branch, which is about 4,000 commits ahead of
-   1.0.1.
+1. **Silent wrong booleans, still present on solidcore main.** See
+   [the follow-up below](#follow-up-solidcore-main-2026-11-06). It is not limited to cuts
+   through the axis.
 2. **One boolean error.** thumbwheel z > −1.6 (`--keep 0.2`) fails with `InvalidInput` in
    `Line::create_line_segment` ("start and end points coincide"). That's a clean refusal, but
    it's still a kernel limitation.
@@ -103,3 +100,59 @@ behave the same.
 5. **The converter uses low-level APIs** (`topology::brep::p7`, `ArenaNotifyState`). These are
    public but read as internal. A friendlier construction API, or solidcore publishing its
    importer, would be the better long-term base.
+
+## Follow-up: solidcore main (2026-11-06)
+
+The prototype builds unchanged against solidcore's main branch (`513e6fc`, about 4,000 commits
+after 1.0.1). Main improves the rebuild: `every_kind` now comes out at 248052.029 against
+haecceity's 248052.032, and z > 70 matches OpenCascade exactly at 106778.807. **The silent
+failures remain.**
+
+To rule out our converter, [`upstream-repro/`](upstream-repro) uses only solidcore: its own
+unpublished STEP importer (`step_brep::import_with_report`) and `boolean_difference` with a
+2000-unit box. It depends on solidcore by git, pinned to `513e6fc`. The same failures occur, so
+**the converter is not the cause**. A plain cylinder cut through its axis is correct, so the
+problem needs real part geometry.
+
+`every_kind` (92 faces) imported by solidcore, minus the half-space beyond each cut, compared
+with OpenCascade 7.8 (`occt_reference.py`):
+
+| Cut | solidcore main | OpenCascade | |
+|---|---|---|---|
+| y > −60 | 1581.081 | 1581.081 | ok |
+| y > −45 | 11910.307 | 12470.023 | **wrong (−4.5%)** |
+| y > −30, −20, −10, −5, 5, 10, 20, 30, 45 | **0.000** (2–8 faces) | 52621.9 … 235582.0 | **wrong: empty** (9 cuts) |
+| y > 0, 0.001, 1 | **0.000** | 124026.0 (y > 0) | **wrong: empty** |
+| y > 60 | 246470.893 | 246470.951 | ok |
+| x > −45 | 11350.617 | 12844.667 | **wrong (−11.6%)** |
+| x > −26 | 65779.852 | 65779.859 | ok |
+| x > −20 | 248051.975 (*nothing removed*, 142 faces) | 81409.059 | **wrong** |
+| x > −10, 0, 10, 20, 45 | **0.000** | 104278.7 … 235207.4 | **wrong: empty** |
+| z > 10, 40, 70, 100 | matches | matches | ok |
+| z > 130 | **609976.135** (*more than the whole part*) | 217496.677 | **wrong** |
+
+**Every one of these returned `Ok`.** Of 26 cuts, 18 are wrong. Cuts across the part's axis
+(z) are mostly right; cuts parallel to it (x, y) are mostly wrong. Those cuts meet the part's
+cones, cylinders and tori along conics and quartics rather than circles. The 14-face thumbwheel
+cuts correctly in x, y and z.
+
+What this means for the plan:
+
+- **Identity tracking is not the problem; boolean correctness is.** Tags behaved correctly in
+  every cut that produced a body.
+- **A bridge must never trust a boolean result.** At minimum it should check the result for
+  validity, check that the volume lies between 0 and the original, and preferably compare the
+  volume against a cheap independent estimate (haecceity's own volume probes could provide one).
+  If a check fails, it refuses rather than reporting PMI as orphaned.
+- **This is worth reporting to solidcore**, with `upstream-repro/` as the reproduction. Their
+  difftest compares against SMLib, so a first question is whether SMLib's C++ gets these cuts
+  right too. The test file would need to be shared with them. It is one of our fixtures
+  (`tests/fixtures/ap242/write/every_kind.step.gz`); check its provenance before attaching it to
+  a public issue.
+
+Run the repro (needs network for the git dependency; the first build takes about 5 minutes):
+
+```sh
+cd upstream-repro
+cargo run --release -- ../../../tests/fixtures/ap242/write/every_kind.step.gz y:-30,0,10
+```
