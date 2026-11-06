@@ -35,6 +35,8 @@ pockets. This adds faces without changing recognition decisions or other familie
 claims. Section-recess claims are unchanged pending #206. Discovery and inventory
 evidence still describe the original walls and consulted floor; these final claims
 are completed in the same post-reconciliation pass as drill-point tips.
+Derived hole and pocket patterns retain their pre-floor member claims, including
+the already-completed drill points, so only the three recess families gain faces.
 
 Readers accept older documents: absent `face_accounting` deserializes to `None`,
 which means **unknown accounting**, never “no unexplained faces”. New empty parts

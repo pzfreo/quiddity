@@ -124,7 +124,8 @@ pub struct Record {
     pub family: String,
     /// Python's record class name ([`RECORD_TYPES`]).
     pub record_type: String,
-    /// The faces that define it, ascending (a pattern's are its members').
+    /// The faces that define it, ascending. Patterns retain their members' claims from
+    /// before additive flat-floor completion.
     pub faces: Vec<usize>,
     /// The record as the family serialises it.
     pub parameters: Map<String, Value>,

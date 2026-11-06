@@ -20,7 +20,18 @@ part -= Pos(41, 17, 8) * Box(14, 6, 8, align=minimum)
 part -= Pos(65, 12, 8) * Box(18, 16, 8, align=minimum)
 part -= Pos(100, 8, 8) * Box(18, 28, 8, align=minimum)
 part -= Pos(106, 0, 8) * Box(6, 14, 8, align=minimum)
-path = Path(__file__).resolve().parents[1] / 'tests/fixtures/flat_floor_controls.step'
-export_step(part, str(path))
-path.with_suffix('.step.gz').write_bytes(gzip.compress(path.read_bytes(), mtime=0))
-path.unlink()
+def write_fixture(shape, name):
+    path = Path(__file__).resolve().parents[1] / 'tests/fixtures' / (name + '.step')
+    export_step(shape, str(path))
+    path.with_suffix('.step.gz').write_bytes(gzip.compress(path.read_bytes(), mtime=0))
+    path.unlink()
+
+
+write_fixture(part, 'flat_floor_controls')
+# Parent claims gain floors; existing hole/pocket pattern claims must stay unchanged.
+part = Box(120, 50, 16, align=minimum)
+for y in (10, 25, 40):
+    part -= Pos(12, y, 8) * Cylinder(4, 8, align=cylinder)
+for x in (40, 65, 90):
+    part -= Pos(x, 15, 8) * Box(12, 20, 8, align=minimum)
+write_fixture(part, 'flat_floor_patterns')

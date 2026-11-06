@@ -235,9 +235,13 @@ pub struct Features {
     pub section_recess_refusal: Option<section_recess_family::SectionRecessFamilyError>,
     /// Each family's defining faces, record by record, under the family's field name. Derived
     /// families (hole, gusset rib, slot, pocket and oriented slot patterns) have none of their own: their
-    /// members' faces are theirs ([`crate::correspondence`]).
+    /// members' pre-floor claims are theirs ([`crate::correspondence`]).
     #[serde(skip)]
     pub defining: Defining,
+    /// Parent claims retained before floor completion, so derived pattern families keep
+    /// their existing claims (including earlier drill-point completion).
+    #[serde(skip)]
+    pub(crate) pattern_defining: Defining,
 }
 
 /// Defining faces by family field name, then record.
@@ -401,6 +405,16 @@ pub(crate) fn recognise_in(ctx: &Context<'_>, mut inventory: Inventory) -> Featu
                 direction,
                 &prismatic_pocket_constituents,
             ));
+        }
+        for (parent, has_patterns) in [
+            ("holes", !features.hole_patterns.is_empty()),
+            ("pockets", !features.pocket_patterns.is_empty()),
+        ] {
+            if has_patterns && floors.iter().any(|(family, ..)| *family == parent) {
+                features
+                    .pattern_defining
+                    .insert(parent, features.defining[parent].clone());
+            }
         }
         // Existing manufacturing claims win. Body-level evidence is retained alongside
         // the recess claim: it describes the body's levels, not ownership of a cavity.
@@ -1062,6 +1076,7 @@ fn inventory_in_with(
         ),
         failures,
         defining: defining.defining,
+        pattern_defining: Defining::new(),
         evidence_status: defining.evidence_status,
     };
     // The thin-wall rule reads the risers this inventory carries, in its order.

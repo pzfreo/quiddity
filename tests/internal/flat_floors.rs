@@ -8,6 +8,64 @@ fn controls() -> quiddity::Part {
     quiddity::read_step_file(&common::fixtures().join("flat_floor_controls.step.gz")).unwrap()
 }
 
+#[test]
+fn flat_floor_completion_keeps_existing_pattern_claims() {
+    use quiddity::correspondence::fingerprint::{fingerprint, published_fingerprint};
+    use quiddity::framed_records::{Rigid, map_features};
+
+    let part =
+        quiddity::read_step_file(&common::fixtures().join("flat_floor_patterns.step.gz")).unwrap();
+    let before = features::inventory(&part).unwrap().accepted();
+    let after = features::recognise(&part);
+    assert_eq!(before.holes.len(), 3);
+    assert_eq!(before.pockets.len(), 3);
+    assert_eq!(before.hole_patterns.len(), 1);
+    assert_eq!(before.pocket_patterns.len(), 1);
+    for family in ["holes", "pockets"] {
+        assert_eq!(before.defining[family].len(), after.defining[family].len());
+        for (walls, completed) in before.defining[family].iter().zip(&after.defining[family]) {
+            assert!(walls.iter().all(|f| completed.contains(f)));
+            assert_eq!(completed.len(), walls.len() + 1);
+        }
+    }
+    let old_fingerprints = fingerprint(&part, &before);
+    let new_fingerprints = fingerprint(&part, &after);
+    for family in ["hole_patterns", "pocket_patterns"] {
+        let old: Vec<_> = old_fingerprints
+            .features
+            .iter()
+            .filter(|f| f.family == family)
+            .collect();
+        let new: Vec<_> = new_fingerprints
+            .features
+            .iter()
+            .filter(|f| f.family == family)
+            .collect();
+        assert_eq!(
+            old, new,
+            "{family} claims and fingerprints must stay unchanged"
+        );
+    }
+    // Exercise the publication mapping's transfer of retained parent claims too.
+    let mut old_claims = after.clone();
+    for family in ["holes", "pockets"] {
+        old_claims
+            .defining
+            .insert(family, before.defining[family].clone());
+    }
+    old_claims.pattern_defining.clear();
+    let motion = Rigid::from_placement(&IDENTITY);
+    let old = map_features(old_claims, &motion).features;
+    let new = map_features(after, &motion).features;
+    let old = published_fingerprint(&part, &old);
+    let new = published_fingerprint(&part, &new);
+    for family in ["hole_patterns", "pocket_patterns"] {
+        let old: Vec<_> = old.features.iter().filter(|f| f.family == family).collect();
+        let new: Vec<_> = new.features.iter().filter(|f| f.family == family).collect();
+        assert_eq!(old, new, "published {family}");
+    }
+}
+
 fn floor_at(part: &quiddity::Part, x: f64) -> usize {
     let floors: Vec<_> = part
         .faces
