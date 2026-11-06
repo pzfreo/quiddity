@@ -164,7 +164,21 @@ fn existing_owner_and_rigid_motion_preserve_floor_ownership() {
         let mut competing = hole.defining.clone();
         competing.push(
             (0..part.faces.len())
-                .find(|f| *f != floor && !faces.contains(f))
+                .find(|&f| {
+                    !faces.contains(&f)
+                        && matches!(part.faces[f].surface, Surface::Plane { .. })
+                        && quiddity::features::graph::normal(&part, f)
+                            .is_some_and(|n| geom::dot(n, hole.record.axis).abs() < 1e-9)
+                        && part.face_edges(f).into_iter().all(|e| {
+                            [part.edges[e].start, part.edges[e].end].iter().all(|&p| {
+                                let depth = geom::dot(
+                                    geom::sub(p, *hole.record.location.raw()),
+                                    hole.record.axis,
+                                );
+                                (-1e-7..=hole.record.depth + 1e-7).contains(&depth)
+                            })
+                        })
+                })
                 .unwrap(),
         );
         let original = competing.clone();
@@ -177,7 +191,7 @@ fn existing_owner_and_rigid_motion_preserve_floor_ownership() {
             &mut floor_owners,
         );
         assert!(!competing.contains(&floor));
-        assert_eq!(competing.len(), original.len());
+        assert_eq!(competing, original);
         let n = quiddity::features::graph::normal(&part, floor).unwrap();
         assert!(geom::norm(geom::cross(n, hole.record.axis)) < 1e-9);
     }
