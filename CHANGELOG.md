@@ -6,8 +6,15 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+## 0.4.8 (2026-11-06)
+
+Upgrading from 0.4.7: recognition schema `/6`, fingerprints `/3` and the `haecceity.pmi/1` schema are unchanged. The PMI reader string moves from `haecceity-pmi-read/17` to `/19`.
+
 ### Added
 
+- `StepFile::placed(&self, keep: &[usize])` reads selected placed body instances in file
+  coordinates, keeping their original STEP entity and instance identities for PMI
+  attachment (#194, for #111; thanks to @xu9299).
 - General notes now have a default AP242 Notes saved view, facing their annotation plane
   and framing the part and notes together upright. Add preserves foreign views/defaults
   and reuses its own Notes view. Edition-1 Add writes skip the optional view; Replace
@@ -25,11 +32,9 @@ in [docs/alpha1.md](docs/alpha1.md).
 - Notes view windows use explicit 3D placements compatible with SFA 5.41; camera axes
   remain unchanged. Materials without a separate name repeat their ID as description,
   avoiding empty semantic text while preserving the reader round trip.
-
 - PMI writes give new draughting models unique names to satisfy UR1, including on
   assemblies without notes. Appended models use names such as `PMI callouts (2)` or
   `datum feature symbols (2)`; preserved presentation linking models also use suffixes.
-
 - Contributions are taken under Apache-2.0 with a Developer Certificate of Origin sign-off
   (`git commit -s`) instead of the Contributor License Agreement; `CLA.md` and its workflow are
   removed, and a DCO check runs on pull requests from forks.
