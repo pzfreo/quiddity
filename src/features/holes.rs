@@ -954,9 +954,8 @@ pub(crate) fn claim_flat_floor(
                 && floor_owners.get(f).is_none_or(|owner| owner == &walls)
         })
         .filter(|&f| {
-            if !super::graph::is_planar(part, f)
-                || !super::graph::normal(part, f)
-                    .is_some_and(|n| geom::norm(geom::cross(n, direction)) <= 1e-7)
+            if !super::planes::effective_plane(part, f)
+                .is_some_and(|(n, _)| geom::norm(geom::cross(n, direction)) <= 1e-7)
             {
                 return false;
             }
