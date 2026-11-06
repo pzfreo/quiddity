@@ -144,15 +144,20 @@ What this means for the plan:
   validity, check that the volume lies between 0 and the original, and preferably compare the
   volume against a cheap independent estimate (haecceity's own volume probes could provide one).
   If a check fails, it refuses rather than reporting PMI as orphaned.
-- **This is worth reporting to solidcore**, with `upstream-repro/` as the reproduction. Their
-  difftest compares against SMLib, so a first question is whether SMLib's C++ gets these cuts
-  right too. The test file would need to be shared with them. It is one of our fixtures
-  (`tests/fixtures/ap242/write/every_kind.step.gz`); check its provenance before attaching it to
-  a public issue.
+- **This is worth reporting to solidcore**, with `upstream-repro/` as the reproduction and
+  `upstream-repro/ISSUE-DRAFT.md` as the issue text (not yet posted). Their difftest compares
+  against SMLib, so a first question is whether SMLib's C++ gets these cuts right too.
+- **The shareable test file** is `upstream-repro/flanged_spool.step`: `every_kind`'s geometry
+  only, re-exported as AP214 by OpenCascade 7.8 (`to_ap214.py`), with no PMI, no Specify data
+  and no corpus names. It gives the same solidcore and OpenCascade results as the original.
+  `src/bin/strip.rs` (haecceity's `Mode::Remove`) was tried first, but it leaves the header's
+  PMI-practice line, the AP242 schema and Specify's `pmi-assist answers` property in the file.
+  The base geometry comes from the cadgenbench corpus (`flanged_spool_132`): check that
+  dataset's terms before posting.
 
 Run the repro (needs network for the git dependency; the first build takes about 5 minutes):
 
 ```sh
 cd upstream-repro
-cargo run --release -- ../../../tests/fixtures/ap242/write/every_kind.step.gz y:-30,0,10
+cargo run --release -- flanged_spool.step y:-30,0,30
 ```

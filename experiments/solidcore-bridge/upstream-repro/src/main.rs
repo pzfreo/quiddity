@@ -53,8 +53,13 @@ fn main() {
     // 2. solidcore's own STEP importer on the test file.
     let path = std::env::args().nth(1).expect("STEP file");
     let raw = std::fs::read(&path).unwrap();
-    let mut bytes = Vec::new();
-    flate2::read::GzDecoder::new(raw.as_slice()).read_to_end(&mut bytes).unwrap();
+    let bytes = if path.ends_with(".gz") {
+        let mut out = Vec::new();
+        flate2::read::GzDecoder::new(raw.as_slice()).read_to_end(&mut out).unwrap();
+        out
+    } else {
+        raw
+    };
     let report = step_brep::import_with_report(&bytes, &step_import::Limits::default()).unwrap();
     println!("step-brep import: {} bodies, {} skipped", report.bodies.len(), report.skipped.len());
     let body = &report.bodies[0];
