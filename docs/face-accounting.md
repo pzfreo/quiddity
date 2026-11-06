@@ -27,9 +27,10 @@ also claim an already-consulted planar floor perpendicular to their inward depth
 direction, at the deepest end of their walls. Every floor boundary edge must have
 exactly one other incident face belonging to that feature's walls. Floors continuing
 into a slot, step or another cavity remain context. Existing manufacturing claims take
-precedence; body-level `step_levels` and `risers` evidence is retained alongside the
-new recess claim.
-identical wall sets in multiple recess descriptions share the new floor. Otherwise,
+precedence; body-level `step_levels`, `risers`, `thin_wall_bodies`,
+`sheet_metal_bodies`, `plates`, `polygonal_stock` and `turned_bodies` evidence is
+retained alongside the new recess claim, consistent with residual-feature claims.
+Identical wall sets in multiple recess descriptions share the new floor. Otherwise,
 competing new candidates are assigned in order to holes, pockets, then prismatic
 pockets. This adds faces without changing recognition decisions or other families'
 claims. Section-recess claims are unchanged pending #206. Discovery and inventory

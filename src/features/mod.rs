@@ -417,14 +417,25 @@ pub(crate) fn recognise_in(ctx: &Context<'_>, mut inventory: Inventory) -> Featu
             }
         }
         // Existing manufacturing claims win. Body-level evidence is retained alongside
-        // the recess claim: it describes the body's levels, not ownership of a cavity.
+        // the recess claim, as in the residual-feature passes: it describes the body,
+        // not exclusive ownership of a cavity.
         // The stable priority is holes, pockets, then prismatic pockets. Identical wall
         // sets describe the same cavity and share additions; section recesses stay intact.
         let occupied = features
             .defining
             .iter()
             .filter_map(|(&family, claims)| {
-                (!matches!(family, "step_levels" | "risers")).then_some(claims)
+                (!matches!(
+                    family,
+                    "step_levels"
+                        | "risers"
+                        | "thin_wall_bodies"
+                        | "sheet_metal_bodies"
+                        | "plates"
+                        | "polygonal_stock"
+                        | "turned_bodies"
+                ))
+                .then_some(claims)
             })
             .flatten()
             .flatten()

@@ -284,6 +284,13 @@ fn mfinstseg_flat_floor_spots() {
         assert_eq!(owners.len(), 1, "{id}: floor {floor}");
         assert_eq!(owners[0].0.bottom, holes::Bottom::Flat);
     }
+    // A whole-body plate description is nonexclusive, like level evidence.
+    let part = quiddity::read_step_file(&root.join("20221121_154648_10415.step")).unwrap();
+    let before = features::inventory(&part).unwrap().accepted();
+    assert!(before.defining["plates"].iter().any(|f| f.contains(&28)));
+    let found = features::recognise(&part);
+    assert_eq!(found.defining["plates"], before.defining["plates"]);
+    assert!(found.defining["holes"].iter().any(|f| f.contains(&28)));
     // Accepted wall sets in the stride-five coverage sample, one per pocket class.
     for (id, family, faces) in [
         (
