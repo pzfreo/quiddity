@@ -173,3 +173,45 @@ fn evidence_view_handles_present_and_absent_optional_local_steps() {
         }
     }
 }
+
+#[test]
+fn local_step_fingerprints_do_not_swap_sizes_when_principal_axes_are_permuted() {
+    let part = control("local");
+    let base = features::recognise(&part);
+    let old = quiddity::correspondence::fingerprint::fingerprint(&part, &base);
+    let old = old
+        .features
+        .iter()
+        .find(|f| f.family == "local_steps")
+        .unwrap();
+    // All three physical dimensions remain in the fingerprint; invariance must
+    // not be obtained by discarding either transverse size.
+    let mut dimensions: Vec<_> = old.sizes.values().copied().collect();
+    dimensions.sort_by(f64::total_cmp);
+    assert_eq!(dimensions, [2., 4., 5.]);
+    assert_eq!(old.sizes["length"], 4.);
+    let cycle = [[0., 0., 1., 0.], [1., 0., 0., 0.], [0., 1., 0., 0.]];
+    let moved = part.transformed(&cycle).unwrap();
+    let found = features::recognise(&moved);
+    assert_eq!(found.local_steps.len(), 1);
+    assert_eq!(
+        (base.local_steps[0].height, base.local_steps[0].depth),
+        (2., 5.)
+    );
+    assert_eq!(
+        (found.local_steps[0].height, found.local_steps[0].depth),
+        (5., 2.)
+    );
+    let new = quiddity::correspondence::fingerprint::fingerprint(&moved, &found);
+    let new = new
+        .features
+        .iter()
+        .find(|f| f.family == "local_steps")
+        .unwrap();
+    assert_eq!(
+        old.sizes, new.sizes,
+        "leg names follow the section's presentation gauge"
+    );
+    assert_eq!(old.faces, new.faces);
+    assert_eq!(old.traits, new.traits);
+}

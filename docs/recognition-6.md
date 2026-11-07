@@ -886,8 +886,10 @@ Parameters are millimetres and file-coordinate vectors/points:
 Only the two wall regions define the feature. End faces and the remainder of the
 solid consulted by the volume proof are context, so an unrelated cut's end wall
 is not claimed as part of the original step. All consulted geometry must have
-strict valid-solid evidence. Fingerprints retain the three sizes, direction axes
-and endpoint scopes; positions and evidence face indices are not shape traits.
+strict valid-solid evidence. Fingerprints retain run length, the unordered pair
+of transverse leg lengths, direction axes and endpoint scopes; positions and evidence face indices are not
+shape traits. The canonical height/depth names may exchange under a principal-axis
+permutation, so this presentation gauge cannot manufacture a resize.
 
 For MFInstSeg, class 8 (`rectangular_through_step`) explicitly maps to both
 `through_steps` and `local_steps`: a secondary cut may shorten a labelled step
