@@ -6,11 +6,36 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+### Fixed
+
+- Circular blind steps remain recognised when a secondary cut adds a convex planar
+  neighbour along an intact cylindrical wall. Geometric corner supports and a complete
+  wall boundary proof prevent admitting interrupted walls (#208).
+
 ### Added
 
 - `quiddity completions SHELL` prints a shell completion script (bash, zsh, fish,
   powershell or elvish) to stdout; the README gives the install one-liners. `quiddity
   --version` prints the version.
+- **Evidence (#202):** `quiddity-rust/evidence/1` gains `edge_sources`, parallel to
+  `face_sources`: per edge, the STEP `EDGE_CURVE` `{entity, instance}` it was read from, or
+  null. The key is additive, so the schema version stays `/1` (as for `failures`); existing
+  keys and values are unchanged. **Rust API:** `EvidenceDocument` (not `#[non_exhaustive]`)
+  gains `edge_sources`, so struct literals need it; new alias `EvidenceEdgeSource`.
+- **Python (#202):** `pmi.read(step, findings=True)` returns `(document, findings)`, keeping the
+  reader's findings on the selected part (or no part) from a successful read; without the
+  argument the result is the same dict as before. `quiddity.parts(step)` returns exactly
+  `quiddity parts`' JSON. `quiddity.step_entities(step)` lists the file's DATA instances in
+  file order: `#N`, entity type (each leaf of a complex instance) and referenced instances.
+  **Rust API:** new `file_api::parts` and `file_api::step_entities`; `quiddity parts` now goes
+  through `file_api::parts`, with unchanged output.
+- `correspondence::congruent(a, b)` proves two parts geometrically identical: it returns a
+  proper rigid motion taking `a` onto `b` with the face pairs, or `None`. It tries an exact
+  B-rep match, the centroid translation, then `align`, and accepts a motion only when every
+  face matches and samples of the trimmed faces agree both ways within 1e-5 mm. Names are never
+  read, and mirror images do not match. `congruent_with(a, af, b, bf)` takes fingerprints
+  already made, for comparing one part against many. It moves draftwright's pack check into
+  quiddity for Specify to share. haecceity gains `Part::same_brep`, the exact B-rep comparison.
 
 ### Changed
 

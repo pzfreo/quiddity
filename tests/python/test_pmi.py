@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tempfile
 
 import pytest
@@ -43,6 +44,28 @@ def test_nist_roundtrip_onto_stripped_geometry():
     faces = re.findall(rb"#\d+\s*=\s*ADVANCED_FACE\b.*?;", geometry, re.DOTALL)
     assert faces and all(face in output for face in faces)
     assert pmi.validate(document) is None
+
+
+@pytest.mark.parametrize("source, part", [
+    ("ap242/nist/nist_ctc_02_asme1_ap242-e2.stp.gz", None),
+    ("ap242/specify/assembly_plate_pin.step.gz", 0),
+    ("ap242/specify/assembly_plate_pin.step.gz", 1),
+])
+def test_read_findings_match_cli(source, part):
+    path = FIXTURES / source
+    document, findings = pmi.read(path, part=part, findings=True)
+    assert document == pmi.read(path, part=part)
+    assert pmi.read(path, part=part, findings=False) == document
+    run = subprocess.run([sys.executable, "-m", "quiddity", "pmi", "read", str(path),
+                          *(["--part", str(part)] if part is not None else [])], capture_output=True)
+    assert run.returncode == 0, run.stderr
+    assert findings == [{"part": None, **finding} for finding in json.loads(run.stdout).get("findings", [])]
+    for finding in findings:
+        assert {"kind", "part", "ids", "entity", "detail"} == finding.keys()
+        assert finding["part"] in (None, part or 0)
+    if part is None:
+        assert any(finding["entity"] == "datum_feature" and finding["ids"] == [79, 661]
+                   for finding in findings)
 
 
 def test_nist_write_report():

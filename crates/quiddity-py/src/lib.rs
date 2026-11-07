@@ -34,6 +34,18 @@ impl Input {
         }
     }
 
+    /// The STEP text: a path's bytes, gunzipped when the name ends in `.gz`.
+    fn bytes(self) -> Result<Vec<u8>, String> {
+        match self {
+            Self::Path(path) => {
+                let raw = std::fs::read(&path).map_err(|e| format!("{path}: {e}"))?;
+                step::decode_step_file_bytes(std::path::Path::new(&path), raw)
+                    .map_err(|e| format!("{path}: {e}"))
+            }
+            Self::Bytes(bytes) => Ok(bytes),
+        }
+    }
+
     fn recognise(self) -> Result<String, String> {
         match self {
             Self::Path(path) => file_api::recognise_file(&path),
@@ -96,6 +108,24 @@ fn correspond(
     .map_err(PyValueError::new_err)
 }
 
+/// `quiddity parts`, with the CLI's trailing newline.
+#[pyfunction]
+fn parts(py: Python<'_>, step: &Bound<'_, PyAny>) -> PyResult<String> {
+    let input = Input::extract(step)?;
+    py.detach(|| {
+        let bytes = input.bytes()?;
+        file_api::parts(&bytes, &bytes).map(|json| format!("{json}\n"))
+    })
+    .map_err(PyValueError::new_err)
+}
+
+#[pyfunction]
+fn step_entities(py: Python<'_>, step: &Bound<'_, PyAny>) -> PyResult<String> {
+    let input = Input::extract(step)?;
+    py.detach(|| file_api::step_entities(input.bytes()?))
+        .map_err(PyValueError::new_err)
+}
+
 #[pyfunction]
 fn capabilities() -> String {
     format!("{}\n", file_api::capabilities())
@@ -117,6 +147,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(anchor, m)?)?;
     m.add_function(wrap_pyfunction!(fingerprints, m)?)?;
     m.add_function(wrap_pyfunction!(correspond, m)?)?;
+    m.add_function(wrap_pyfunction!(parts, m)?)?;
+    m.add_function(wrap_pyfunction!(step_entities, m)?)?;
     m.add_function(wrap_pyfunction!(capabilities, m)?)?;
     m.add_function(wrap_pyfunction!(cli, m)?)?;
     pmi::register(m)?;

@@ -14,6 +14,7 @@ The top-level fields are:
 | `frame` | null by default; inferred origin, x/y/z axes and gauge in file coordinates when framed |
 | `face_count` | Number of input faces; all face indices are zero based |
 | `face_sources` | Array indexed by face: `{entity, instance}` identifies the original STEP `#entity` and its placed instance, or null for geometry without source identity |
+| `edge_sources` | Array indexed by edge (haecceity's edge numbering, as PMI edge anchors and `quiddity parts` count them): `{entity, instance}` identifies the original STEP `EDGE_CURVE` `#entity` and its placed instance, or null |
 | `features` | Accepted evidence features and section-recess refusal records |
 | `candidates` | Rejected candidates and the transitive closure of their reconciliation links |
 | `rejected_candidates` | Positions in `candidates` |
@@ -47,7 +48,7 @@ be inferred. This differs from recognition/6, whose records always use file
 coordinates and whose frame is provenance only.
 
 For edit operations, retain the exact exported bytes and a verified mapping
-from `face_sources` to the live shape's faces. Check every index and invalidate
+from `face_sources` (and `edge_sources`) to the live shape's faces (and edges). Check every index and invalidate
 all handles when the source changes. STEP entity IDs are scoped to one export;
 `instance` disambiguates repeated geometry. An entity ID alone is not a durable
 revision identity. Use fingerprints and correspondence between revisions.

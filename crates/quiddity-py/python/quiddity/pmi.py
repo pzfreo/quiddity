@@ -66,18 +66,23 @@ def write(geometry: str | os.PathLike | bytes, document: str | dict, *, part: in
     return output, details
 
 
-def read(step: str | os.PathLike | bytes, *, part: int | None = None, anchors: str = "index") -> dict:
-    """Read haecceity.pmi/1. Name mode refuses missing or ambiguous referenced face names."""
+def read(step: str | os.PathLike | bytes, *, part: int | None = None, anchors: str = "index", findings: bool = False) -> dict | tuple[dict, list[dict]]:
+    """Read haecceity.pmi/1. Name mode refuses missing or ambiguous referenced face names.
+
+    With findings=True, return (document, findings): the reader's findings on this part or on
+    no part (repairs, lenient reads, items not read), as ``quiddity pmi read --part`` lists them."""
     if anchors not in ("index", "name"):
         failure = PmiError("anchors must be 'index' or 'name'")
         failure.findings = []
         raise failure
-    return json.loads(pmi_read(_step(step), _part(part), names=anchors == "name"))
+    document, found = pmi_read(_step(step), _part(part), names=anchors == "name", findings=bool(findings))
+    document = json.loads(document)
+    return (document, json.loads(found)) if findings else document
 
 
 def presentation(step: str | os.PathLike | bytes, *, part: int | None = None) -> dict:
     """Read the file's haecceity.presentation/1 document, including generated callouts."""
-    return json.loads(pmi_read(_step(step), _part(part), presentation=True))
+    return json.loads(pmi_read(_step(step), _part(part), presentation=True)[0])
 
 
 def validate(document: str | dict) -> None:
