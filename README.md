@@ -9,10 +9,10 @@ It works from the B-rep geometry alone, with no CAD system, feature tree or Open
 It is pure Rust, and the same input always gives the same output. It is available as a
 command line, a Rust library and a Python package.
 
-![NIST CTC-01 in two views, each face coloured by the feature quiddity recognises it as: holes, slots, notches, V-channels, the hexagonal boss, chamfers and fillets](docs/images/ctc01-features.png)
+![Automatically recognised features of NIST CTC-01: two views, each face coloured by the feature quiddity recognises it as: holes, slots, notches, V-channels, the hexagonal boss, chamfers and fillets](docs/images/ctc01-features.png)
 
-*NIST CTC-01 (AP242), each face coloured by the feature it belongs to. Grey faces belong to
-no feature shown here.*
+*Each face of NIST CTC-01 (AP242) coloured by the feature it belongs to; grey faces belong
+to no feature shown here.*
 
 Status: **0.4.9** (2026-11-07). See [CHANGELOG.md](CHANGELOG.md).
 
