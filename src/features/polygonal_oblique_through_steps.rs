@@ -241,6 +241,16 @@ fn one_pair(
             }
         }
     }
+    let wall_outline: Vec<_> = wall
+        .iter()
+        .map(|&p| {
+            let offset = sub(p, start);
+            [dot(offset, run), dot(offset, normal)]
+        })
+        .collect();
+    if !simple_outline(&wall_outline) {
+        return None;
+    }
     let principal_supports = boundary_supports(part, principal, oblique, solid)?;
     let wall_supports = boundary_supports(part, oblique, principal, solid)?;
     // The full opposite edge has exactly one parallel, same-facing convex lip.
