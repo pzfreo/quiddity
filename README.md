@@ -9,22 +9,32 @@ It works from the B-rep geometry alone, with no CAD system, feature tree or Open
 It is pure Rust, and the same input always gives the same output. It is available as a
 command line, a Rust library and a Python package.
 
+![Automatically recognised features of NIST CTC-01: two views, each face coloured by the feature quiddity recognises it as: holes, slots, notches, V-channels, the hexagonal boss, chamfers and fillets](docs/images/ctc01-features.png)
+
+*Each face of NIST CTC-01 (AP242) coloured by the feature it belongs to; grey faces belong
+to no feature shown here.*
+
 Status: **0.4.9** (2026-11-07). See [CHANGELOG.md](CHANGELOG.md).
 
 ## Install
 
 | | |
 |---|---|
-| Command line | `cargo install quiddity` |
+| Command line | `uv tool install quiddity` (or `pipx install quiddity`): the Python package's `quiddity` command, with no Rust toolchain needed; upgrade with `uv tool upgrade quiddity`. Or `cargo install quiddity`. |
 | Rust library | `quiddity = "0.4"` in `[dependencies]` (the geometry kernel is the `haecceity` crate) |
 | Python 3.11+ | `pip install quiddity` (an abi3 wheel with no Python dependencies; see [Python](docs/python.md)) |
 
-Optional Cargo features (all off by default):
+Every [release](https://github.com/pzfreo/quiddity/releases) is published to PyPI, so `uv tool`,
+`pipx` and `pip` get the latest one. crates.io is updated less often and can be behind (it
+has 0.4.7): for this release from Cargo, use
+`cargo install --git https://github.com/pzfreo/quiddity --tag v0.4.9 quiddity`, or
+`quiddity = { git = "https://github.com/pzfreo/quiddity", tag = "v0.4.9" }`.
+
+Cargo features: `cli` (the command line) and `presentation` (drawing PMI callouts) are on by
+default. A library build that does not want clap (WASM, say) can use
+`default-features = false, features = ["presentation"]`. Off by default:
 - `json-import`: the versioned PMI JSON interchange (`pmi json …` commands).
 - `f3d`: Autodesk Fusion `.f3d` input (visible solid geometry only, no PMI; see [Fusion input](docs/f3d.md)).
-
-The command line is the default `cli` feature; a library build that does not want clap (WASM,
-say) can use `default-features = false, features = ["presentation"]`.
 
 ## Quick start
 
@@ -157,6 +167,9 @@ same in process (`pmi.validate`, `pmi.write`); see [Python](docs/python.md).
 ```text
 quiddity <file.step>                                  recognise the part's features
 quiddity correspond <old.json|old.step> <new.json|new.step>   match features across revisions
+quiddity evidence <file.step> [--framed]              the recognition evidence for each feature
+quiddity fingerprints <file.step>                     the features' fingerprints
+quiddity capabilities                                 this build's versioned capabilities
 quiddity parts <file.step>                            list an assembly's parts
 quiddity pmi read <file.step> [--part N]              the file's PMI as JSON
 quiddity pmi check <file.step> <pmi.json>             validate a PMI document against the part

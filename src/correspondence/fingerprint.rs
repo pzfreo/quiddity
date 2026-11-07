@@ -176,6 +176,7 @@ pub const FAMILIES: &[FamilyFingerprint] = &[
         members: None,
         variants: false,
         fields: &[
+            ("superseded_by", Ignored),
             ("axis", Axis),
             ("diameter", Size),
             ("height", Size),
@@ -289,6 +290,7 @@ pub const FAMILIES: &[FamilyFingerprint] = &[
         members: None,
         variants: false,
         fields: &[
+            ("superseded_by", Ignored),
             ("axis", Axis),
             ("diameter", Size),
             ("depth", Size),
@@ -1030,6 +1032,7 @@ pub const FAMILIES: &[FamilyFingerprint] = &[
         members: None,
         variants: false,
         fields: &[
+            ("source", Ignored),
             // The record's place in the family, its body's and the faces' indices, its tag.
             ("index", Ignored),
             ("body", Ignored),
@@ -1332,6 +1335,23 @@ fn plate_position(ctx: &crate::features::Context<'_>, own: &[usize]) -> Option<V
     (m.area > 0.).then(|| geom::scale(m.sum, 1. / m.area))
 }
 
+/// Additive duplicate references do not change an embedded pattern member's identity.
+/// Patterns keep the original records captured before the final annotation pass.
+pub(crate) fn same_member(family: &str, a: &Value, b: &Value) -> bool {
+    let marker = match family {
+        "holes" | "bosses" => "superseded_by",
+        "section_recesses" => "source",
+        _ => return a == b,
+    };
+    match (a.as_object(), b.as_object()) {
+        (Some(a), Some(b)) => a
+            .iter()
+            .filter(|(k, _)| k.as_str() != marker)
+            .eq(b.iter().filter(|(k, _)| k.as_str() != marker)),
+        _ => a == b,
+    }
+}
+
 /// A derived record's faces: its members' defining faces, each member found among the base
 /// family's records (the first not yet taken that is equal to it).
 fn derived_faces(
@@ -1351,7 +1371,7 @@ fn derived_faces(
     let mut taken = vec![false; pool.len()];
     let mut out = Vec::new();
     for m in members.into_iter().flatten() {
-        if let Some(k) = (0..pool.len()).find(|&k| !taken[k] && pool[k] == *m) {
+        if let Some(k) = (0..pool.len()).find(|&k| !taken[k] && same_member(base, &pool[k], m)) {
             taken[k] = true;
             out.extend(defining.get(k).into_iter().flatten().copied());
         }

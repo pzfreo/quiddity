@@ -528,7 +528,10 @@ fn record_status(
         let mut taken = vec![false; pool.len()];
         return if !members.is_empty()
             && members.iter().all(|member| {
-                let Some(k) = (0..pool.len()).find(|&k| !taken[k] && pool[k] == *member) else {
+                let Some(k) = (0..pool.len()).find(|&k| {
+                    !taken[k]
+                        && crate::correspondence::fingerprint::same_member(base, &pool[k], member)
+                }) else {
                     return false;
                 };
                 taken[k] = true;
