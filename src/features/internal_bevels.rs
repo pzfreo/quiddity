@@ -111,13 +111,16 @@ fn pair(ctx: &Context<'_>, face: usize, supports: [usize; 2]) -> Option<Internal
     let at = geom::scale(geom::add(spring[0], spring[1]), 0.5);
     let support = super::bevel::transverse_corner(part, face, at, run)?;
     let corner = support.point;
-    let mut legs = [geom::sub(spring[0], corner), geom::sub(spring[1], corner)]
-        .map(|v| Some((geom::norm(v), geom::unit(v)?)))
-        .into_iter()
-        .collect::<Option<Vec<_>>>()?;
+    let vectors = [geom::sub(spring[0], corner), geom::sub(spring[1], corner)];
+    let mut legs = [
+        (geom::norm(vectors[0]), geom::unit(vectors[0])?),
+        (geom::norm(vectors[1]), geom::unit(vectors[1])?),
+    ];
     let leg_lo = legs[0].0.min(legs[1].0);
     let leg_hi = legs[0].0.max(legs[1].0);
-    legs.sort_by(leg_order);
+    if leg_order(&legs[0], &legs[1]).is_gt() {
+        legs.swap(0, 1);
+    }
     let solid = part.faces[face].solid?;
     if leg_lo <= 2. * tolerance
         || leg_hi > 0.45 * part.solid_bounds(solid).max_extent()
