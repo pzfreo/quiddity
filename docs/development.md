@@ -169,7 +169,7 @@ publishes to crates.io or PyPI itself. A published release is the approval for b
 - **PyPI:** `python.yml` builds, tests and publishes the wheels and sdist (see
   [Python](python.md)).
 - **crates.io:** `crates.yml` checks out the tag, refuses unless the tag, `quiddity`'s version
-  and `haecceity`'s version agree, then publishes `haecceity` and `quiddity` in that order
+  and `haecceity`'s version agree, then publishes `haecceity` and `quiddity` in that order (a pre-release is not published; a manual run can)
   (Cargo waits until `haecceity` is in the index). A crate whose version is already on
   crates.io is skipped, so a rerun publishes only what is missing. The token is the repository
   secret `CARGO_REGISTRY_TOKEN`, a crates.io token scoped to publish-update for `quiddity` and
@@ -177,7 +177,7 @@ publishes to crates.io or PyPI itself. A published release is the approval for b
 - **Backfill:** a manual run of `crates.yml` with `tag` (e.g. `v0.4.8`) publishes an earlier
   release's crates from its tag. It needs the maintainer's word each time.
 
-Pull requests that touch either crate run `cargo publish --dry-run -p haecceity -p quiddity`,
+Pull requests that touch either crate run `cargo publish --dry-run --locked -p haecceity -p quiddity`,
 so a packaging break shows before a release.
 
 ## Layout

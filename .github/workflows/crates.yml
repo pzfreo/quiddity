@@ -5,16 +5,17 @@ on:
     paths:
       - 'src/**'
       - 'crates/haecceity/**'
-      - 'schema/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'rust-toolchain.toml'
       - 'README.md'
       - 'CHANGELOG.md'
       - 'LICENSE'
       - 'NOTICE'
       - '.github/workflows/crates.yml'
   # A published GitHub release publishes haecceity and quiddity to crates.io, as it publishes
-  # the wheel to PyPI (python.yml): the maintainer's release is the approval.
+  # the wheel to PyPI (python.yml): the maintainer's release is the approval. A pre-release is
+  # not published (a crates.io version can be yanked but never removed); a manual run can.
   release:
     types: [published]
   # Backfills an earlier release's crates from its tag. Each run needs the maintainer's word.
@@ -28,8 +29,9 @@ on:
 permissions:
   contents: read
 
+# One publish per tag at a time, whichever event started it; pull requests per branch.
 concurrency:
-  group: crates-${{ github.event_name }}-${{ github.event.release.tag_name || inputs.tag || github.ref }}
+  group: crates-${{ github.event.release.tag_name || inputs.tag || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -46,7 +48,9 @@ jobs:
       - run: cargo publish --dry-run --locked -p haecceity -p quiddity
 
   publish:
-    if: github.event_name != 'pull_request'
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'release' && !github.event.release.prerelease)
     runs-on: ubuntu-latest
     env:
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
@@ -74,7 +78,7 @@ jobs:
         run: |
           packages=()
           for crate in haecceity quiddity; do
-            status=$(curl -s -o /dev/null -w '%{http_code}' \
+            status=$(curl -s --retry 3 -o /dev/null -w '%{http_code}' \
               -H 'User-Agent: pzfreo/quiddity release workflow' \
               "https://crates.io/api/v1/crates/$crate/$VERSION")
             if [ "$status" = 200 ]; then
