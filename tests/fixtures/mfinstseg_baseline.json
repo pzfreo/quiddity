@@ -123,12 +123,12 @@
           "stock_box_split": 2,
           "stock_wall": 2
         },
-        "feature": 9,
+        "feature": 11,
         "feature_as_body": 0,
         "refused": 0,
         "stock_body": 6,
         "stock_unexplained": 2,
-        "unexplained": 12
+        "unexplained": 10
       }
     },
     {
@@ -302,12 +302,12 @@
         "body_reasons": {
           "stock_box_notched": 4
         },
-        "feature": 17,
+        "feature": 18,
         "feature_as_body": 0,
         "refused": 0,
         "stock_body": 4,
         "stock_unexplained": 3,
-        "unexplained": 6
+        "unexplained": 5
       }
     },
     {
@@ -658,12 +658,12 @@
           "stock_box_side": 1,
           "stock_wall": 1
         },
-        "feature": 8,
+        "feature": 9,
         "feature_as_body": 0,
         "refused": 0,
         "stock_body": 5,
         "stock_unexplained": 0,
-        "unexplained": 6
+        "unexplained": 5
       }
     },
     {
@@ -695,12 +695,12 @@
           "stock_box_side": 1,
           "stock_box_split": 7
         },
-        "feature": 12,
+        "feature": 14,
         "feature_as_body": 0,
         "refused": 0,
         "stock_body": 9,
         "stock_unexplained": 1,
-        "unexplained": 14
+        "unexplained": 12
       }
     },
     {
@@ -749,12 +749,12 @@
           "stock_box_notched": 3,
           "stock_wall": 3
         },
-        "feature": 16,
+        "feature": 17,
         "feature_as_body": 0,
         "refused": 0,
         "stock_body": 6,
         "stock_unexplained": 0,
-        "unexplained": 6
+        "unexplained": 5
       }
     },
     {
@@ -910,12 +910,12 @@
           "stock_box_notched": 4,
           "stock_box_side": 1
         },
-        "feature": 4,
+        "feature": 6,
         "feature_as_body": 0,
         "refused": 0,
         "stock_body": 5,
         "stock_unexplained": 1,
-        "unexplained": 6
+        "unexplained": 4
       }
     },
     {
@@ -1004,12 +1004,12 @@
           "stock_box_notched": 1,
           "stock_box_split": 1
         },
-        "feature": 32,
+        "feature": 33,
         "feature_as_body": 0,
         "refused": 0,
         "stock_body": 2,
         "stock_unexplained": 3,
-        "unexplained": 12
+        "unexplained": 11
       }
     },
     {
@@ -1272,12 +1272,12 @@
         "body_reasons": {
           "stock_box_notched": 1
         },
-        "feature": 10,
+        "feature": 11,
         "feature_as_body": 0,
         "refused": 3,
         "stock_body": 1,
         "stock_unexplained": 2,
-        "unexplained": 5
+        "unexplained": 4
       }
     },
     {
@@ -1306,12 +1306,12 @@
       "accounting": {
         "body": 0,
         "body_reasons": {},
-        "feature": 13,
+        "feature": 14,
         "feature_as_body": 0,
         "refused": 0,
         "stock_body": 0,
         "stock_unexplained": 6,
-        "unexplained": 10
+        "unexplained": 9
       }
     },
     {
@@ -2106,12 +2106,12 @@
         "body_reasons": {
           "stock_box_notched": 3
         },
-        "feature": 29,
+        "feature": 30,
         "feature_as_body": 0,
         "refused": 0,
         "stock_body": 3,
         "stock_unexplained": 3,
-        "unexplained": 7
+        "unexplained": 6
       }
     },
     {
@@ -2157,12 +2157,12 @@
       "accounting": {
         "body": 0,
         "body_reasons": {},
-        "feature": 38,
+        "feature": 39,
         "feature_as_body": 0,
         "refused": 0,
         "stock_body": 0,
-        "stock_unexplained": 6,
-        "unexplained": 9
+        "stock_unexplained": 5,
+        "unexplained": 8
       }
     },
     {
@@ -2283,12 +2283,12 @@
           "stock_box_notched": 2,
           "stock_wall": 2
         },
-        "feature": 20,
+        "feature": 22,
         "feature_as_body": 0,
         "refused": 0,
         "stock_body": 5,
         "stock_unexplained": 1,
-        "unexplained": 3
+        "unexplained": 1
       }
     },
     {
@@ -2480,12 +2480,12 @@
           "stock_box_notched": 2,
           "stock_wall": 3
         },
-        "feature": 10,
+        "feature": 18,
         "feature_as_body": 0,
         "refused": 0,
         "stock_body": 5,
         "stock_unexplained": 1,
-        "unexplained": 9
+        "unexplained": 1
       }
     },
     {
@@ -2672,12 +2672,12 @@
         "body_reasons": {
           "stock_box_notched": 2
         },
-        "feature": 12,
+        "feature": 13,
         "feature_as_body": 0,
         "refused": 0,
         "stock_body": 2,
         "stock_unexplained": 4,
-        "unexplained": 6
+        "unexplained": 5
       }
     },
     {
@@ -2833,12 +2833,12 @@
         "body_reasons": {
           "stock_box_notched": 1
         },
-        "feature": 18,
+        "feature": 19,
         "feature_as_body": 0,
         "refused": 0,
         "stock_body": 1,
         "stock_unexplained": 5,
-        "unexplained": 9
+        "unexplained": 8
       }
     },
     {
@@ -2943,12 +2943,12 @@
           "stock_box_split": 3,
           "stock_wall": 1
         },
-        "feature": 29,
+        "feature": 32,
         "feature_as_body": 0,
         "refused": 0,
         "stock_body": 6,
         "stock_unexplained": 3,
-        "unexplained": 17
+        "unexplained": 14
       }
     },
     {
@@ -3085,12 +3085,12 @@
         "body_reasons": {
           "stock_box_notched": 3
         },
-        "feature": 22,
+        "feature": 23,
         "feature_as_body": 0,
         "refused": 0,
         "stock_body": 3,
         "stock_unexplained": 6,
-        "unexplained": 18
+        "unexplained": 17
       }
     },
     {
@@ -3379,12 +3379,12 @@
         "body_reasons": {
           "stock_box_notched": 2
         },
-        "feature": 12,
+        "feature": 13,
         "feature_as_body": 0,
         "refused": 0,
         "stock_body": 2,
         "stock_unexplained": 4,
-        "unexplained": 14
+        "unexplained": 13
       }
     },
     {
@@ -3824,13 +3824,13 @@
     {
       "faces": {
         "labelled": 130,
-        "predicted": 92,
-        "true_positive": 92
+        "predicted": 94,
+        "true_positive": 94
       },
       "instances": {
         "labelled": 62,
-        "predicted": 46,
-        "true_positive": 46
+        "predicted": 47,
+        "true_positive": 47
       }
     },
     {
@@ -3880,11 +3880,11 @@
       "stock_box_split": 70,
       "stock_wall": 73
     },
-    "feature": 3328,
+    "feature": 3359,
     "feature_as_body": 0,
     "refused": 3,
     "stock_body": 789,
-    "stock_unexplained": 441,
-    "unexplained": 1209
+    "stock_unexplained": 440,
+    "unexplained": 1178
   }
 }
