@@ -95,6 +95,91 @@ fn shared_arc_endpoints(
     Some((a, b))
 }
 
+/// Prove a complete quarter-wall boundary before selecting supports among extra neighbours.
+/// Two circular rims and two complete generators allow subdivided straight edges, but no
+/// holes, intermediate trims or interrupted walls. The quarter angle is checked by `candidate`.
+fn complete_quarter_wall(
+    part: &Part,
+    cylinder: usize,
+    evidence: &CylinderEvidence,
+    low: f64,
+    high: f64,
+) -> bool {
+    if part.faces[cylinder].loops.len() != 1 {
+        return false;
+    }
+    let Surface::Cylinder {
+        radius: wall_radius,
+        ..
+    } = part.faces[cylinder].surface
+    else {
+        return false;
+    };
+    let axis = evidence.axis;
+    let mut rims = [0; 2];
+    type Generator = (Point3, Vec<(f64, f64)>);
+    let mut generators: Vec<Generator> = Vec::new();
+    for edge in part.face_edges(cylinder) {
+        let e = &part.edges[edge];
+        match e.curve {
+            geom::Curve::Line { dir, .. } => {
+                let Some(unit) = py::unit(dir) else {
+                    return false;
+                };
+                if (0..3).any(|i| i != axis && unit[i].abs() > SMOOTH_ARC_GAP) {
+                    return false;
+                }
+                let mut transverse = e.start;
+                transverse[axis] = 0.;
+                let interval = (
+                    e.start[axis].min(e.end[axis]),
+                    e.start[axis].max(e.end[axis]),
+                );
+                if let Some((_, spans)) = generators
+                    .iter_mut()
+                    .find(|(p, _)| py::dist(p, &transverse) <= COORD_FLOOR)
+                {
+                    spans.push(interval);
+                } else {
+                    generators.push((transverse, vec![interval]));
+                }
+            }
+            geom::Curve::Circle { frame, radius } => {
+                if (1.0 - frame.z[axis].abs()) > SMOOTH_ARC_GAP
+                    || (radius - wall_radius).abs() > COORD_FLOOR
+                    || (0..3).any(|i| {
+                        i != axis && (frame.origin[i] - evidence.axis_point[i]).abs() > COORD_FLOOR
+                    })
+                {
+                    return false;
+                }
+                let end = if close(frame.origin[axis], low) {
+                    0
+                } else if close(frame.origin[axis], high) {
+                    1
+                } else {
+                    return false;
+                };
+                rims[end] += 1;
+            }
+            _ => return false,
+        }
+    }
+    rims == [1, 1]
+        && generators.len() == 2
+        && generators.iter_mut().all(|(_, spans)| {
+            spans.sort_by(|a, b| a.0.total_cmp(&b.0));
+            let mut at = low;
+            for &(start, end) in spans.iter() {
+                if (start - at).abs() > COORD_FLOOR {
+                    return false;
+                }
+                at = end;
+            }
+            close(at, high)
+        })
+}
+
 /// The record for a quarter-cylinder wall closed by *terminal*, or `None` (`_candidate`).
 fn candidate(
     ctx: &Context<'_>,
@@ -138,6 +223,7 @@ fn candidate(
 
     let (mut axial, mut sides) = (Vec::new(), Vec::new());
     let mut side_axes = Vec::new();
+    let mut corner_supports: Vec<(geom::V3, Option<usize>)> = Vec::new();
     for neighbour in part.neighbours(cylinder) {
         if neighbour == terminal {
             continue;
@@ -166,6 +252,15 @@ fn candidate(
             {
                 return None;
             }
+            if geom::dot(normal, evidence.direction).abs() <= SMOOTH_ARC_GAP
+                && geom::dot(geom::sub(evidence.axis_point, frame.origin), normal).abs()
+                    <= COORD_FLOOR
+                && !corner_supports
+                    .iter()
+                    .any(|(n, _)| geom::norm(geom::sub(*n, normal)) <= SMOOTH_ARC_GAP)
+            {
+                corner_supports.push((normal, aligned.map(|p| p.0)));
+            }
             sides.push(normal);
             side_axes.push(aligned.map(|p| p.0));
         }
@@ -175,6 +270,17 @@ fn candidate(
         1 => [0, 2],
         _ => [0, 1],
     };
+    // A secondary cut can add a convex plane along a subdivided generator without
+    // changing the quarter wall. Count geometric corner supports only after proving
+    // the entire wall; all neighbours have still passed the checks above.
+    if sides.len() > 2
+        && on_envelope
+        && corner_supports.len() == 2
+        && complete_quarter_wall(part, cylinder, evidence, low, high)
+    {
+        sides = corner_supports.iter().map(|(normal, _)| *normal).collect();
+        side_axes = corner_supports.iter().map(|(_, axis)| *axis).collect();
+    }
     if axial.len() != 1 || sides.len() != 2 {
         return None;
     }
@@ -256,6 +362,208 @@ pub fn discover(ctx: &Context<'_>) -> Vec<Occurrence<CircularBlindStep>> {
 mod tests {
     use super::*;
     use crate::features::support_patches::ruled_prism;
+
+    /// Add a shallow notch to the golden stock, alongside the cylinder's upper lip.
+    /// The deeper variant cuts into the cylinder itself, leaving an intermediate arc.
+    fn notched_corner(interrupted: bool) -> (Part, Part) {
+        use crate::features::support_patches::polygon_part;
+        use crate::kernel::geom::{Curve, V3};
+        let original = crate::read_step_file(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/golden_circular_blind_step.step"),
+        )
+        .unwrap();
+        let lip = if interrupted {
+            15. - 12_f64.sqrt()
+        } else {
+            11.
+        };
+        let mut points: Vec<V3> = Vec::new();
+        let mut polygons = Vec::new();
+        let mut face = |corners: Vec<V3>, normal: V3| {
+            let mut corners = corners;
+            let a = geom::sub(corners[1], corners[0]);
+            let b = geom::sub(corners[2], corners[1]);
+            if geom::dot(geom::cross(a, b), normal) < 0. {
+                corners.reverse();
+            }
+            polygons.push(
+                corners
+                    .into_iter()
+                    .map(|p| {
+                        if let Some(i) = points.iter().position(|q| geom::dist(*q, p) < 1e-9) {
+                            i
+                        } else {
+                            points.push(p);
+                            points.len() - 1
+                        }
+                    })
+                    .collect(),
+            );
+        };
+        face(
+            vec![
+                [-20., -15., -10.],
+                [-20., 15., -10.],
+                [-20., 15., 10.],
+                [-20., -15., 10.],
+            ],
+            [-1., 0., 0.],
+        );
+        face(
+            vec![
+                [-20., -15., -10.],
+                [20., -15., -10.],
+                [20., -15., 8.],
+                [0., -15., 8.],
+                [0., -15., 10.],
+                [-20., -15., 10.],
+            ],
+            [0., -1., 0.],
+        );
+        face(
+            vec![
+                [-20., -15., 10.],
+                [0., -15., 10.],
+                [0., 11., 10.],
+                [-5., 11., 10.],
+                [-5., 15., 10.],
+                [-20., 15., 10.],
+            ],
+            [0., 0., 1.],
+        );
+        face(
+            vec![
+                [20., 15., -10.],
+                [-20., 15., -10.],
+                [-20., 15., 10.],
+                [-5., 15., 10.],
+                [-5., 15., 6.],
+                [20., 15., 6.],
+            ],
+            [0., 1., 0.],
+        );
+        face(
+            vec![
+                [-20., -15., -10.],
+                [20., -15., -10.],
+                [20., 15., -10.],
+                [-20., 15., -10.],
+            ],
+            [0., 0., -1.],
+        );
+        let mut end = vec![[20., -15., -10.], [20., 15., -10.], [20., 15., 6.]];
+        if !interrupted {
+            end.push([20., 11., 10.]);
+        }
+        end.extend([[20., lip, 8.], [20., -15., 8.]]);
+        face(end, [1., 0., 0.]);
+        face(
+            vec![[-5., 11., 10.], [-5., 15., 6.], [-5., 15., 10.]],
+            [1., 0., 0.],
+        );
+        let mut wall = vec![[-5., 11., 10.], [0., 11., 10.]];
+        if interrupted {
+            wall.push([0., lip, 8.]);
+            wall.push([20., lip, 8.]);
+        } else {
+            wall.push([20., 11., 10.]);
+        }
+        wall.extend([[20., 15., 6.], [-5., 15., 6.]]);
+        face(wall, [0., 1., 1.]);
+        face(
+            vec![
+                [0., -15., 8.],
+                [20., -15., 8.],
+                [20., lip, 8.],
+                [0., lip, 8.],
+            ],
+            [0., 0., 1.],
+        );
+        let mut shoulder = vec![[0., -15., 8.], [0., lip, 8.]];
+        shoulder.push([0., 11., 10.]);
+        shoulder.push([0., -15., 10.]);
+        face(shoulder, [1., 0., 0.]);
+        if !interrupted {
+            face(
+                vec![
+                    [0., 11., 8.],
+                    [20., 11., 8.],
+                    [20., 11., 10.],
+                    [0., 11., 10.],
+                ],
+                [0., -1., 0.],
+            );
+        }
+        let shell = polygon_part(&points, &polygons, true).unwrap();
+        let mut faces = shell.faces.clone();
+        let mut edges = shell.edges.clone();
+        faces[7].surface = original.faces[7].surface.clone();
+        faces[7].reversed = true;
+        // Replace the three section chords (two for an intact wall) with exact arcs
+        // on the fixture's cylinder. The remaining straight edges are its generators.
+        let Surface::Cylinder { radius, .. } = faces[7].surface else {
+            unreachable!()
+        };
+        let Curve::Circle { frame: rim, .. } = original.edges[17].curve else {
+            unreachable!()
+        };
+        for &(index, _) in &faces[7].loops[0].edges {
+            let edge = &mut edges[index];
+            if (edge.start[0] - edge.end[0]).abs() > COORD_FLOOR {
+                continue;
+            }
+            let mut frame = rim;
+            frame.origin[0] = edge.start[0];
+            edge.curve = Curve::Circle { frame, radius };
+            let start = edge.curve.parameter(edge.start);
+            let delta = (edge.curve.parameter(edge.end) - start + std::f64::consts::PI)
+                .rem_euclid(std::f64::consts::TAU)
+                - std::f64::consts::PI;
+            edge.same_sense = delta > 0.;
+            edge.samples = (0..=128)
+                .map(|i| edge.curve.value(start + delta * i as f64 / 128.))
+                .collect();
+        }
+        let part = Part::new(faces, edges, shell.solids.clone());
+        assert!(
+            part.solid_is_geometrically_valid(0),
+            "bad faces {:?}",
+            part.bad_faces(0)
+        );
+        (original, part)
+    }
+
+    #[test]
+    fn a_third_convex_side_preserves_the_complete_corner_step() {
+        let (original, part) = notched_corner(false);
+        let ctx = Context::new(&part);
+        let evidence = ctx.cylinders().iter().find(|c| c.face == 7).unwrap();
+        assert_eq!(part.neighbours(7).len(), 5);
+        assert_eq!(part.arc(7, 10), Some(Arc::Convex));
+        assert!(complete_quarter_wall(&part, 7, evidence, -5., 20.));
+        let expected = discover(&Context::new(&original));
+        let found = discover_verified(&ctx).unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].defining, vec![7, 6]);
+        assert_eq!(found[0].record, expected[0].record);
+    }
+
+    #[test]
+    fn a_notch_into_the_quarter_wall_is_not_a_complete_step() {
+        let (_, part) = notched_corner(true);
+        let ctx = Context::new(&part);
+        let evidence = ctx.cylinders().iter().find(|c| c.face == 7).unwrap();
+        assert_eq!(part.neighbours(7).len(), 6);
+        assert!(
+            part.neighbours(7)
+                .into_iter()
+                .filter(|&f| f != 6)
+                .all(|f| part.arc(7, f) == Some(Arc::Convex))
+        );
+        assert!(!complete_quarter_wall(&part, 7, evidence, -5., 20.));
+        assert!(discover_verified(&ctx).unwrap().is_empty());
+    }
 
     #[test]
     fn a_remote_stock_extension_keeps_a_local_corner_opening() {

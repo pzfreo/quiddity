@@ -54,6 +54,9 @@ jobs:
       # second matrix, archive or shard build. Reuse this runner's release dependencies.
       - run: cargo test -p haecceity --release --no-default-features --test pmi_write
         if: runner.os == 'Linux'
+      # The library without the command line (and clap), as specify-core's WASM build uses it.
+      - run: cargo check -p quiddity --release --no-default-features --features presentation
+        if: runner.os == 'Linux'
       # Strict STEP -> PartPmi -> JSON -> PartPmi -> STEP, with no corpus scan.
       # The workspace archive unifies json-import through quiddity-py (including
       # the source-presentation binary); keep this strict NIST gate explicit.

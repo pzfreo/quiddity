@@ -727,17 +727,23 @@ pub struct EvidenceDocument {
     pub face_count: usize,
     /// Face index → original STEP entity and placed instance, when loaded from STEP.
     pub face_sources: Vec<Option<EvidenceFaceSource>>,
+    /// Edge index → original STEP entity (its `EDGE_CURVE`) and placed instance, as for faces.
+    pub edge_sources: Vec<Option<EvidenceEdgeSource>>,
     pub features: Vec<EvidenceRecord>,
     pub candidates: Vec<EvidenceCandidate>,
     pub rejected_candidates: Vec<usize>,
 }
 
-/// STEP identity of one face. Names on these entities can bind an export to live CAD faces.
+/// STEP identity of one face or edge. Names on these entities can bind an export to live CAD
+/// faces and edges.
 #[derive(Clone, Debug, Serialize)]
 pub struct EvidenceFaceSource {
     pub entity: u64,
     pub instance: usize,
 }
+
+/// STEP identity of one edge, the same shape as a face's.
+pub type EvidenceEdgeSource = EvidenceFaceSource;
 
 /// One feature with its record and physical evidence. `index` is family-local;
 /// `members` contains positions in the document's features array.
@@ -796,6 +802,14 @@ pub fn document(part: &Part, framed: bool) -> Result<EvidenceDocument, EvidenceV
         face_sources: (0..part.faces.len())
             .map(|face| {
                 part.face_source(face).map(|source| EvidenceFaceSource {
+                    entity: source.entity,
+                    instance: source.instance,
+                })
+            })
+            .collect(),
+        edge_sources: (0..part.edges.len())
+            .map(|edge| {
+                part.edge_source(edge).map(|source| EvidenceEdgeSource {
                     entity: source.entity,
                     instance: source.instance,
                 })

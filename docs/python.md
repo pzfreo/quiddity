@@ -26,8 +26,10 @@ with open("part.step", "rb") as stream:
 | `anchor(step, face: int)` | `{face, point: [x,y,z], uv: [u,v]}` from haecceity's proved trimmed-face anchor, in file coordinates |
 | `fingerprints(step)` | The existing fingerprints/3 document |
 | `correspond(old_step, new_step)` | The existing Rust revision correspondence document |
+| `parts(step)` | Exactly `quiddity parts`: each distinct part's index, name, face and edge counts and placements, and the binding, including stdout's trailing newline |
+| `step_entities(step)` | Every DATA instance in file order, as compact JSON `[{id, types, refs}]`: `id` is the `#N`, `types` the upper-case entity name (each leaf of a complex instance, in written order) and `refs` the referenced `#N`s in attribute order, repeats kept |
 | `capabilities()` | Versioned supported formats, inputs, operations and PMI import availability |
-| `__version__` | the package version, e.g. `"0.4.8"` (a Python string) |
+| `__version__` | the package version, e.g. `"0.4.9"` (a Python string) |
 
 Every geometry argument accepts a string path or STEP bytes. A string is always a
 path, never inline STEP text. Path inputs also accept the existing `.step.gz` /
@@ -68,6 +70,7 @@ drawing = pmi.presentation(ap242_step)  # haecceity.presentation/1 dict
 | `pmi.write(geometry, document, *, part=None, report=True)` | `(bytes, report_dict)` with verification and warnings |
 | `pmi.read(step, *, part=None, anchors="index")` | PMI **dict**, with face indices by default |
 | `pmi.read(step, *, part=None, anchors="name")` | PMI dict with STEP face names; missing or ambiguous referenced names are refused |
+| `pmi.read(step, *, part=None, findings=True)` | `(dict, findings)`: the same dict, and the reader's findings on that part or on no part |
 | `pmi.presentation(step, *, part=None)` | File-owned/generated presentation dict |
 | `pmi.validate(document)` | None on success; schema, references and the same geometry-independent authoring checks as import |
 | `pmi.SCHEMA`, `pmi.PRESENTATION_SCHEMA` | Packaged JSON Schema dicts |
@@ -79,6 +82,18 @@ ap242_step, report = pmi.write(geometry_step, semantic, report=True)
 assert report["differences"] == []
 print(report["added"], report["read_findings"], report["writer_findings"])
 ```
+
+To keep the reader's findings from a successful read (repairs, lenient reads, items not
+read), pass `findings=True`; the document itself is unchanged, so it still compares equal to
+other reads:
+
+```python
+document, findings = pmi.read("part.step", findings=True)
+```
+
+They are the findings `quiddity pmi read --part N` lists for the selected part (those on
+another part of the file are left out), each with `kind`, `part` (null for the file), `ids`,
+`entity` and `detail`.
 
 The default return remains bytes. The report retains the JSON-import CLI's
 `schema`, `part`, `added`, `differences` and `presentation_removed` fields; there
@@ -179,7 +194,8 @@ The face-order trial and reproducible procedure are in
 [the trial report](python-face-order.md). Do not assume an exporter version's
 observed ordering is a durable contract. The trial verified a complete geometric bijection using unique anchor membership,
 area and centroid agreement. Apply those checks to each export before issuing
-edit handles. Names can also be joined through `face_sources[face].entity` when
+edit handles. Names can also be joined through `face_sources[face].entity` (and edges through
+`edge_sources[edge].entity`) when
 the writer supplies a complete name map, but the fillet-heavy trial retained
 only 23 of 27 names. Never fill missing names by assumption or resolve an
 ambiguous geometric match by nearest centroid.

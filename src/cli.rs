@@ -358,9 +358,8 @@ fn part_definitions(path: &str) -> Result<(Input, Vec<PartDefinition>), String> 
 }
 
 fn parts(path: &str) -> Result<String, String> {
-    let (bytes, defs) = part_definitions(path)?;
-    let json = pmi_json::parts_json(&defs, &Binding::of(bytes.binding_bytes()));
-    Ok(serde_json::to_string_pretty(&json).expect("JSON serialises"))
+    let bytes = step_bytes(path)?;
+    crate::file_api::parts(&bytes.step, bytes.binding_bytes()).map_err(|e| format!("{path}: {e}"))
 }
 
 fn pmi_read(path: &str, part: Option<usize>) -> Result<String, String> {

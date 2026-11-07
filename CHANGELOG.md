@@ -14,9 +14,35 @@ in [docs/alpha1.md](docs/alpha1.md).
   scorer honours `superseded_by` while retaining `source`-marked recesses for each
   class's existing mapping; schema 6 and existing consumers remain compatible.
 
-- `quiddity completions SHELL` prints a shell completion script (bash, zsh, fish,
+## 0.4.9 (2026-11-07)
+
+Upgrading from 0.4.8: recognition schema `/6`, fingerprints `/3`, `quiddity-rust/evidence/1` (one additive key), the `haecceity.pmi/1` schema and the PMI reader string `/19` are unchanged. **Rust API:** `EvidenceDocument` is not `#[non_exhaustive]` and gains `edge_sources`, so code that builds it with a struct literal must add the field (#202). `quiddity::cli` and the `quiddity` binary now need the default `cli` feature: a build with `default-features = false` (for example, to leave out `presentation`) must add `features = ["cli"]` to keep them, or leave it out to keep clap out (#201). The command line is now parsed by clap (#199); see Changed for the usage cases that now exit differently. Recognition output changes where a circular blind step cut by a second feature is now recognised in place of a `cylindrical_profiles` record (#215).
+
+### Added
+
+- `quiddity completions SHELL` (#199) prints a shell completion script (bash, zsh, fish,
   powershell or elvish) to stdout; the README gives the install one-liners. `quiddity
   --version` prints the version.
+- **Evidence (#202):** `quiddity-rust/evidence/1` gains `edge_sources`, parallel to
+  `face_sources`: per edge, the STEP `EDGE_CURVE` `{entity, instance}` it was read from, or
+  null. The key is additive, so the schema version stays `/1` (as for `failures`); existing
+  keys and values are unchanged. **Rust API:** `EvidenceDocument` (not `#[non_exhaustive]`)
+  gains `edge_sources`, so struct literals need it; new alias `EvidenceEdgeSource`.
+- **Python (#202):** `pmi.read(step, findings=True)` returns `(document, findings)`, keeping the
+  reader's findings on the selected part (or no part) from a successful read; without the
+  argument the result is the same dict as before. `quiddity.parts(step)` returns exactly
+  `quiddity parts`' JSON. `quiddity.step_entities(step)` lists the file's DATA instances in
+  file order: `#N`, entity type (each leaf of a complex instance) and referenced instances.
+  **Rust API:** new `file_api::parts` and `file_api::step_entities`; `quiddity parts` now goes
+  through `file_api::parts`, with unchanged output.
+- `correspondence::congruent(a, b)` proves two parts geometrically identical: it returns a
+  proper rigid motion taking `a` onto `b` with the face pairs, or `None`. It tries an exact
+  B-rep match, the centroid translation, then `align`, and accepts a motion only when every
+  face matches and samples of the trimmed faces agree both ways within 1e-5 mm. Names are never
+  read, and mirror images do not match. `congruent_with(a, af, b, bf)` takes fingerprints
+  already made, for comparing one part against many. It moves draftwright's pack check into
+  quiddity for Specify to share (#209, for specify-core#150). haecceity gains `Part::same_brep`,
+  the exact B-rep comparison.
 
 ### Changed
 
@@ -38,7 +64,13 @@ in [docs/alpha1.md](docs/alpha1.md).
   to recognise named `completions` must be given as `./completions`. Newly accepted: a positional after
   the flags (`evidence --framed part.step`, `pmi read --part 1 part.step`), `-- FILE`, and `--option=VALUE`
   (`--output=out.step`). The command line is the root crate's default `cli` feature, so a
-  library build can leave clap out (`default-features = false`).
+  library build can leave clap out (`default-features = false`) (#199, #201).
+
+### Fixed
+
+- Circular blind steps remain recognised when a secondary cut adds a convex planar
+  neighbour along an intact cylindrical wall. Geometric corner supports and a complete
+  wall boundary proof prevent admitting interrupted walls (#208, #215).
 
 ## 0.4.8 (2026-11-06)
 

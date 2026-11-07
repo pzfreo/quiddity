@@ -5,6 +5,7 @@ import importlib.metadata
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 from collections import Counter
@@ -68,6 +69,68 @@ def test_evidence(framed):
     assert json.loads(run.stdout) == data
 
 
+def test_evidence_sources_name_step_entities():
+    data = json.loads(quiddity.evidence(str(PLATE)))
+    types = {row["id"]: row["types"] for row in json.loads(quiddity.step_entities(str(PLATE)))}
+    (part,) = json.loads(quiddity.parts(str(PLATE)))["parts"]
+    assert len(data["edge_sources"]) == part["edges"] and part["edges"] > 0
+    assert len(data["face_sources"]) == part["faces"]
+    assert all(types[source["entity"]] == ["ADVANCED_FACE"] for source in data["face_sources"])
+    assert all(types[source["entity"]] == ["EDGE_CURVE"] for source in data["edge_sources"])
+    assert len({source["entity"] for source in data["edge_sources"]}) == part["edges"]
+    assert all(source["instance"] == 0 for source in data["edge_sources"])
+
+
+@pytest.mark.parametrize("fixture", [PLATE, FIXTURES / "ap242/specify/assembly_plate_pin.step.gz"])
+def test_parts_matches_cli(fixture):
+    text = quiddity.parts(str(fixture))
+    run = cli("parts", fixture)
+    assert run.returncode == 0, run.stderr
+    assert text.encode() == run.stdout
+    data = json.loads(text)
+    assert data["format"] == "quiddity-parts"
+    assert [p["part"] for p in data["parts"]] == list(range(len(data["parts"])))
+    raw = fixture.read_bytes()
+    assert quiddity.parts(gzip.decompress(raw) if fixture.suffix == ".gz" else raw) == text
+
+
+def test_step_entities_in_file_order():
+    text = PLATE.read_bytes()
+    rows = json.loads(quiddity.step_entities(str(PLATE)))
+    assert rows == json.loads(quiddity.step_entities(text))
+    # An independent scan, with strings emptied (this fixture has no comments).
+    data = re.sub(rb"'(?:[^']|'')*'", b"''", text[text.index(b"\nDATA;") + 6:text.rindex(b"ENDSEC;")])
+    scanned = re.findall(rb"#(\d+)\s*=\s*([^;]*);", data)
+    assert [row["id"] for row in rows] == [int(number) for number, _ in scanned]
+    assert [row["refs"] for row in rows] == [[int(r) for r in re.findall(rb"#(\d+)", body)] for _, body in scanned]
+    for row, (_, body) in zip(rows, scanned):
+        if not body.lstrip().startswith(b"("):
+            assert row["types"] == [re.match(rb"\s*(\w+)", body).group(1).decode()]
+    assert ["GEOMETRIC_REPRESENTATION_CONTEXT", "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT",
+            "GLOBAL_UNIT_ASSIGNED_CONTEXT", "REPRESENTATION_CONTEXT"] in [row["types"] for row in rows]
+    # File order, not id order; complex leaves as written; a '#' in a string is no reference.
+    small = b"""ISO-10303-21;
+HEADER;
+FILE_DESCRIPTION((''),'2;1');
+FILE_NAME('','',(''),(''),'','','');
+FILE_SCHEMA(('AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF'));
+ENDSEC;
+DATA;
+#5=CARTESIAN_POINT('#9;',(0.,0.,0.));
+#2=( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );
+#3=vertex_point('',#5);
+#1=SHAPE_ASPECT('',(#5,#3),#3);
+ENDSEC;
+END-ISO-10303-21;
+"""
+    assert json.loads(quiddity.step_entities(small)) == [
+        {"id": 5, "types": ["CARTESIAN_POINT"], "refs": []},
+        {"id": 2, "types": ["LENGTH_UNIT", "NAMED_UNIT", "SI_UNIT"], "refs": []},
+        {"id": 3, "types": ["VERTEX_POINT"], "refs": [5]},
+        {"id": 1, "types": ["SHAPE_ASPECT"], "refs": [5, 3, 3]},
+    ]
+
+
 def test_framed_evidence_refusal():
     sphere = FIXTURES / "captured/frames/sphere.step"
     with pytest.raises(ValueError, match="no part frame"):
@@ -99,7 +162,7 @@ def test_correspond():
 
 
 def test_capabilities_version_and_console_script():
-    assert quiddity.__version__ == "0.4.8"
+    assert quiddity.__version__ == "0.4.9"
     assert not importlib.metadata.requires("quiddity")
     assert importlib.metadata.metadata("quiddity")["Requires-Python"] == ">=3.11"
     caps = json.loads(quiddity.capabilities())
