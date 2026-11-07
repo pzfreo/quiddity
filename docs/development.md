@@ -169,11 +169,13 @@ publishes to crates.io or PyPI itself. A published release is the approval for b
 - **PyPI:** `python.yml` builds, tests and publishes the wheels and sdist (see
   [Python](python.md)).
 - **crates.io:** `crates.yml` checks out the tag, refuses unless the tag, `quiddity`'s version
-  and `haecceity`'s version agree, then publishes `haecceity` and `quiddity` in that order (a pre-release is not published; a manual run can)
-  (Cargo waits until `haecceity` is in the index). A crate whose version is already on
-  crates.io is skipped, so a rerun publishes only what is missing. The token is the repository
-  secret `CARGO_REGISTRY_TOKEN`, a crates.io token scoped to publish-update for `quiddity` and
-  `haecceity`.
+  and `haecceity`'s version agree, then publishes `haecceity` and `quiddity` in that order
+  (Cargo waits until `haecceity` is in the index). A pre-release is not published (a manual run
+  can). A crate whose version is already on crates.io is skipped, so a rerun publishes only
+  what is missing. It uses crates.io [trusted publishing](https://crates.io/docs/trusted-publishing):
+  no token is stored, and the job, in the GitHub environment `crates-io`, mints a short-lived
+  one. Each crate's crates.io settings (Settings → Trusted Publishing → GitHub) name owner
+  `pzfreo`, repository `quiddity`, workflow `crates.yml` and environment `crates-io`.
 - **Backfill:** a manual run of `crates.yml` with `tag` (e.g. `v0.4.8`) publishes an earlier
   release's crates from its tag. It needs the maintainer's word each time.
 

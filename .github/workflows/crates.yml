@@ -52,6 +52,13 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'release' && !github.event.release.prerelease)
     runs-on: ubuntu-latest
+    # crates.io trusted publishing: the crates trust this repository, this workflow and this
+    # environment, and the job mints a short-lived token; no token is stored. The environment
+    # is where the maintainer can require an approval.
+    environment: crates-io
+    permissions:
+      contents: read
+      id-token: write
     env:
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
     steps:
@@ -72,11 +79,10 @@ jobs:
           echo "VERSION=$version" >> "$GITHUB_ENV"
       # A crate whose version is already on crates.io is skipped, so a rerun or a backfill of a
       # release that was published by hand publishes only what is missing.
-      - name: Publish what crates.io lacks
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - name: What crates.io lacks
+        id: missing
         run: |
-          packages=()
+          packages=""
           for crate in haecceity quiddity; do
             status=$(curl -s --retry 3 -o /dev/null -w '%{http_code}' \
               -H 'User-Agent: pzfreo/quiddity release workflow' \
@@ -84,16 +90,22 @@ jobs:
             if [ "$status" = 200 ]; then
               echo "$crate $VERSION is already on crates.io: skipped"
             elif [ "$status" = 404 ]; then
-              packages+=(-p "$crate")
+              packages="$packages -p $crate"
             else
               echo "::error::crates.io answered $status for $crate $VERSION"
               exit 1
             fi
           done
-          if [ ${#packages[@]} -eq 0 ]; then
-            echo "Nothing to publish"
-            exit 0
-          fi
-          # Cargo publishes haecceity first and waits until it is in the index before
-          # publishing quiddity, which depends on it.
-          cargo publish --locked "${packages[@]}"
+          echo "packages=$packages" >> "$GITHUB_OUTPUT"
+      - name: Mint a crates.io token
+        if: steps.missing.outputs.packages != ''
+        id: auth
+        uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
+      # Cargo publishes haecceity first and waits until it is in the index before publishing
+      # quiddity, which depends on it.
+      - name: Publish
+        if: steps.missing.outputs.packages != ''
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+          PACKAGES: ${{ steps.missing.outputs.packages }}
+        run: cargo publish --locked $PACKAGES
