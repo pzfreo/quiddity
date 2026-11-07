@@ -424,6 +424,22 @@ pub const FAMILIES: &[FamilyFingerprint] = &[
         ],
     },
     FamilyFingerprint {
+        family: "internal_bevels",
+        members: None,
+        variants: false,
+        fields: &[
+            ("run", Axis),
+            ("length", Size),
+            ("at", Placement),
+            ("corner", Placement),
+            ("leg1", Size),
+            ("leg2", Size),
+            ("leg1_direction", Placement),
+            ("leg2_direction", Placement),
+            ("angle", Size),
+        ],
+    },
+    FamilyFingerprint {
         family: "local_steps",
         members: None,
         variants: false,

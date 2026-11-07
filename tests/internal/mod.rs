@@ -97,3 +97,6 @@ mod flat_floors;
 
 #[path = "polygonal_oblique_through_steps.rs"]
 mod polygonal_oblique_through_steps;
+
+#[path = "internal_bevels.rs"]
+mod internal_bevels;

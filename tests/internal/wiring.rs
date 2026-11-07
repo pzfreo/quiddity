@@ -165,6 +165,17 @@ fn families_are_wired_and_their_records_fingerprinted_field_by_field() {
     for (key, paths) in new_leaves {
         found.entry(key).or_default().extend(paths);
     }
+    let internal = super::internal_bevels::pocket(3., 2., 0.);
+    let features = features::recognise(&internal);
+    let (p, new_leaves) = check(
+        "internal bevel",
+        &records_json(&features),
+        &features.defining,
+    );
+    problems.extend(p);
+    for (key, paths) in new_leaves {
+        found.entry(key).or_default().extend(paths);
+    }
     // For #123, exercise the new family even without the optional corpus or local repro.
     let disc = super::face_grooves::two_ends();
     let grooves = features::recognise(&disc).face_grooves;

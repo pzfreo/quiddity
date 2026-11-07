@@ -14,9 +14,10 @@
       "name": "chamfer",
       "families": [
         "chamfers",
-        "oriented_chamfers"
+        "oriented_chamfers",
+        "internal_bevels"
       ],
-      "rationale": "The internal scorer keeps principal chamfers and oriented_chamfers separately, while recognition schema 6 publishes both as chamfers. oriented_chamfers proves a complete planar replacement bevel between two supports, including material-side and virtual-corner evidence; the same defining-face set is deduplicated across families."
+      "rationale": "The internal scorer keeps principal chamfers and oriented_chamfers separately, while recognition schema 6 publishes both as chamfers. oriented_chamfers proves a complete planar replacement bevel between two supports, including material-side and virtual-corner evidence; the same defining-face set is deduplicated across families. internal_bevels adds bounded planar internal corner treatments: two perpendicular planar supports, complete concave spring and terminal joins, unique support pair and a completely material-filled virtual wedge. Only the bevel strip is defining; support and end walls are context."
     },
     {
       "id": 1,
