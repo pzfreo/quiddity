@@ -161,6 +161,25 @@ without a corpus may skip corpus work. The full release suite must include it. A
 NIST AP242 files can be checked by exporting `HAECCEITY_NIST_PMI` and
 `HAECCEITY_NIST_PMI_REQUIRED=1`; committed NIST fixtures always run.
 
+## Releases
+
+The maintainer tags a release and publishes it on GitHub; nobody else does, and no session
+publishes to crates.io or PyPI itself. A published release is the approval for both registries:
+
+- **PyPI:** `python.yml` builds, tests and publishes the wheels and sdist (see
+  [Python](python.md)).
+- **crates.io:** `crates.yml` checks out the tag, refuses unless the tag, `quiddity`'s version
+  and `haecceity`'s version agree, then publishes `haecceity` and `quiddity` in that order
+  (Cargo waits until `haecceity` is in the index). A crate whose version is already on
+  crates.io is skipped, so a rerun publishes only what is missing. The token is the repository
+  secret `CARGO_REGISTRY_TOKEN`, a crates.io token scoped to publish-update for `quiddity` and
+  `haecceity`.
+- **Backfill:** a manual run of `crates.yml` with `tag` (e.g. `v0.4.8`) publishes an earlier
+  release's crates from its tag. It needs the maintainer's word each time.
+
+Pull requests that touch either crate run `cargo publish --dry-run -p haecceity -p quiddity`,
+so a packaging break shows before a release.
+
 ## Layout
 
 - `src/`: recognition, frames, feature records, fingerprints, correspondence and CLI.

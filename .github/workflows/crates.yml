@@ -1,0 +1,95 @@
+name: crates.io
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'crates/haecceity/**'
+      - 'schema/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'LICENSE'
+      - 'NOTICE'
+      - '.github/workflows/crates.yml'
+  # A published GitHub release publishes haecceity and quiddity to crates.io, as it publishes
+  # the wheel to PyPI (python.yml): the maintainer's release is the approval.
+  release:
+    types: [published]
+  # Backfills an earlier release's crates from its tag. Each run needs the maintainer's word.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The release tag to publish, e.g. v0.4.8
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crates-${{ github.event_name }}-${{ github.event.release.tag_name || inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Packages both crates as crates.io would build them, with quiddity resolving the haecceity
+  # being packaged beside it, so a packaging break shows before a release.
+  package:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      # The toolchain comes from rust-toolchain.toml.
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: cargo publish --dry-run --locked -p haecceity -p quiddity
+
+  publish:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: refs/tags/${{ env.TAG }}
+      - run: rustup toolchain install
+      - name: The tag is the workspace version
+        run: |
+          version=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "quiddity") | .version')
+          kernel=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "haecceity") | .version')
+          if [ "$TAG" != "v$version" ] || [ "$kernel" != "$version" ]; then
+            echo "::error::tag $TAG, quiddity $version, haecceity $kernel: they must agree"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      # A crate whose version is already on crates.io is skipped, so a rerun or a backfill of a
+      # release that was published by hand publishes only what is missing.
+      - name: Publish what crates.io lacks
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          packages=()
+          for crate in haecceity quiddity; do
+            status=$(curl -s -o /dev/null -w '%{http_code}' \
+              -H 'User-Agent: pzfreo/quiddity release workflow' \
+              "https://crates.io/api/v1/crates/$crate/$VERSION")
+            if [ "$status" = 200 ]; then
+              echo "$crate $VERSION is already on crates.io: skipped"
+            elif [ "$status" = 404 ]; then
+              packages+=(-p "$crate")
+            else
+              echo "::error::crates.io answered $status for $crate $VERSION"
+              exit 1
+            fi
+          done
+          if [ ${#packages[@]} -eq 0 ]; then
+            echo "Nothing to publish"
+            exit 0
+          fi
+          # Cargo publishes haecceity first and waits until it is in the index before
+          # publishing quiddity, which depends on it.
+          cargo publish --locked "${packages[@]}"
