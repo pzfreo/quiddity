@@ -929,12 +929,14 @@ fn chamfer(out: &mut Out, r: Chamfer) -> Chamfer {
 
 fn boss(out: &mut Out, r: BossRecord) -> BossRecord {
     let BossRecord {
+        superseded_by,
         axis,
         location,
         diameter,
         height,
     } = r;
     BossRecord {
+        superseded_by,
         axis: out.direction(axis),
         location: out.point(location),
         diameter,
@@ -1145,6 +1147,7 @@ fn circular_blind_step(out: &mut Out, r: CircularBlindStep) -> CircularBlindStep
 
 fn hole(out: &mut Out, r: HoleRecord) -> HoleRecord {
     let HoleRecord {
+        superseded_by,
         axis,
         location,
         diameter,
@@ -1157,6 +1160,7 @@ fn hole(out: &mut Out, r: HoleRecord) -> HoleRecord {
         exit_obstructions,
     } = r;
     HoleRecord {
+        superseded_by,
         axis: out.direction(axis),
         location: out.placed_point(location),
         diameter,
@@ -2359,7 +2363,10 @@ fn section_passage(out: &mut Out, r: SectionPassage) -> SectionPassage {
 /// and carries its complete measuring frame without a second rounding.
 fn section_recess(out: &mut Out, r: SectionRecess) -> SectionRecess {
     match moved_section_recess(out, &r) {
-        Some(moved) => moved,
+        Some(mut moved) => {
+            moved.source = r.source;
+            moved
+        }
         None => {
             let frame = r.geometry().frame();
             let mapped = PassageFrame {
