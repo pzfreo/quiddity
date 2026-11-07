@@ -29,7 +29,7 @@ with open("part.step", "rb") as stream:
 | `parts(step)` | Exactly `quiddity parts`: each distinct part's index, name, face and edge counts and placements, and the binding, including stdout's trailing newline |
 | `step_entities(step)` | Every DATA instance in file order, as compact JSON `[{id, types, refs}]`: `id` is the `#N`, `types` the upper-case entity name (each leaf of a complex instance, in written order) and `refs` the referenced `#N`s in attribute order, repeats kept |
 | `capabilities()` | Versioned supported formats, inputs, operations and PMI import availability |
-| `__version__` | the package version, e.g. `"0.4.8"` (a Python string) |
+| `__version__` | the package version, e.g. `"0.4.9"` (a Python string) |
 
 Every geometry argument accepts a string path or STEP bytes. A string is always a
 path, never inline STEP text. Path inputs also accept the existing `.step.gz` /

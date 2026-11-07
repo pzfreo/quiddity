@@ -6,9 +6,13 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+## 0.4.9 (2026-11-07)
+
+Upgrading from 0.4.8: recognition schema `/6`, fingerprints `/3`, `quiddity-rust/evidence/1` (one additive key), the `haecceity.pmi/1` schema and the PMI reader string `/19` are unchanged. **Rust API:** `EvidenceDocument` is not `#[non_exhaustive]` and gains `edge_sources`, so code that builds it with a struct literal must add the field (#202). The command line is now parsed by clap (#199); see Changed for the usage cases that now exit differently.
+
 ### Added
 
-- `quiddity completions SHELL` prints a shell completion script (bash, zsh, fish,
+- `quiddity completions SHELL` (#199) prints a shell completion script (bash, zsh, fish,
   powershell or elvish) to stdout; the README gives the install one-liners. `quiddity
   --version` prints the version.
 - **Evidence (#202):** `quiddity-rust/evidence/1` gains `edge_sources`, parallel to
@@ -29,7 +33,8 @@ in [docs/alpha1.md](docs/alpha1.md).
   face matches and samples of the trimmed faces agree both ways within 1e-5 mm. Names are never
   read, and mirror images do not match. `congruent_with(a, af, b, bf)` takes fingerprints
   already made, for comparing one part against many. It moves draftwright's pack check into
-  quiddity for Specify to share. haecceity gains `Part::same_brep`, the exact B-rep comparison.
+  quiddity for Specify to share (#209, for specify-core#150). haecceity gains `Part::same_brep`,
+  the exact B-rep comparison.
 
 ### Changed
 
@@ -47,7 +52,7 @@ in [docs/alpha1.md](docs/alpha1.md).
   to recognise named `completions` must be given as `./completions`. Newly accepted: a positional after
   the flags (`evidence --framed part.step`, `pmi read --part 1 part.step`), `-- FILE`, and `--option=VALUE`
   (`--output=out.step`). The command line is the root crate's default `cli` feature, so a
-  library build can leave clap out (`default-features = false`).
+  library build can leave clap out (`default-features = false`) (#199, #201).
 
 ## 0.4.8 (2026-11-06)
 
