@@ -18,6 +18,7 @@ pub mod chamfers;
 pub mod channels;
 pub mod circular_blind_steps;
 pub mod circular_face_patterns;
+mod duplicate_references;
 mod edge_treatments;
 mod isolation;
 pub use isolation::FamilyFailure;
@@ -433,6 +434,7 @@ pub(crate) fn recognise_in(ctx: &Context<'_>, mut inventory: Inventory) -> Featu
     }
     failures.sort_by(|a, b| (&a.family, &a.stage).cmp(&(&b.family, &b.stage)));
     features.failures = failures;
+    duplicate_references::mark(ctx.part, &mut features);
     features
 }
 

@@ -6,6 +6,14 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+### Added
+
+- Optional additive `superseded_by` references on groove-derived holes and bosses,
+  and `source` references on section recesses with identical source-family defining
+  faces (#204, #206). All records, claims, order and IDs are retained. The MFInstSeg
+  scorer honours `superseded_by` while retaining `source`-marked recesses for each
+  class's existing mapping; schema 6 and existing consumers remain compatible.
+
 ## 0.4.9 (2026-11-07)
 
 Upgrading from 0.4.8: recognition schema `/6`, fingerprints `/3`, `quiddity-rust/evidence/1` (one additive key), the `haecceity.pmi/1` schema and the PMI reader string `/19` are unchanged. **Rust API:** `EvidenceDocument` is not `#[non_exhaustive]` and gains `edge_sources`, so code that builds it with a struct literal must add the field (#202). `quiddity::cli` and the `quiddity` binary now need the default `cli` feature: a build with `default-features = false` (for example, to leave out `presentation`) must add `features = ["cli"]` to keep them, or leave it out to keep clap out (#201). The command line is now parsed by clap (#199); see Changed for the usage cases that now exit differently. Recognition output changes where a circular blind step cut by a second feature is now recognised in place of a `cylindrical_profiles` record (#215).

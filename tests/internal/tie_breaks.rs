@@ -128,6 +128,7 @@ fn crossing_equal_patterns_refuse_under_motion_and_member_permutation() {
             [0., 20., 0.],
         ]
         .map(|point| HoleRecord {
+            superseded_by: None,
             axis: [at[0][2], at[1][2], at[2][2]],
             location: [0, 1, 2]
                 .map(|i| at[i][3] + (0..3).map(|j| at[i][j] * point[j]).sum::<f64>())
@@ -207,6 +208,7 @@ fn equal_pitch_grid_uses_population_to_assign_rows_under_motion() {
         let mut holes: Vec<_> = (0..3)
             .flat_map(|x| (0..4).map(move |y| [10. * x as f64, 10. * y as f64, 0.]))
             .map(|p| HoleRecord {
+                superseded_by: None,
                 axis: [at[0][2], at[1][2], at[2][2]],
                 location: [0, 1, 2]
                     .map(|i| at[i][3] + (0..3).map(|j| at[i][j] * p[j]).sum::<f64>())
@@ -828,6 +830,7 @@ fn a_five_hundred_hole_perforated_plate_has_one_grid() {
     let mut holes: Vec<_> = (0..20)
         .flat_map(|x| {
             (0..25).map(move |y| HoleRecord {
+                superseded_by: None,
                 axis: [0., 0., -1.],
                 location: ([x as f64 * 10., y as f64 * 10., 5.]).into(),
                 diameter: 2.,

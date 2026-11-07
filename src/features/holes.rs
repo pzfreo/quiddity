@@ -82,6 +82,9 @@ pub struct ExitObstruction {
 /// the gauge is on the bore itself. No material drilling-entry end is asserted.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct HoleRecord {
+    /// Optional additive reference to the identical/superseding published feature.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub superseded_by: Option<String>,
     pub axis: V3,
     pub location: Placed<V3>,
     pub diameter: f64,
@@ -829,6 +832,7 @@ pub fn discover(
         ;
         let location = Placed::new(location, Grid::Figures(11));
         let mut record = HoleRecord {
+            superseded_by: None,
             axis,
             location,
             diameter: bore.diameter,

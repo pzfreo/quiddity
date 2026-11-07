@@ -193,9 +193,10 @@ features, as in draftwright: they may co-own a floor with the feature that close
 No other family is a co-owner exception. Existing manufacturing claims take
 precedence; competing new individual records use first-owner priority: holes,
 pockets, then prismatic pockets, even when their walls are identical.
-Section-recess claims are unchanged pending
-#206. See [face accounting](face-accounting.md) for ownership precedence and the
-distinction between discovery evidence and completed claims.
+Section-recess claims are retained; exact duplicates carry the optional `source`
+reference described below (#206). See [face accounting](face-accounting.md) for
+ownership precedence and the distinction between discovery evidence and
+completed claims.
 
 ## Slot precision correction (for #92)
 
@@ -223,10 +224,12 @@ inventory, schema 6, fingerprint version 3 and the crate version are unchanged.
 
 ## Annular face grooves
 
-The optional `annular_grooves` family contains `AnnularGroove` records and is omitted when
-empty. This additive family keeps `quiddity-rust/recognition/6`; existing families retain
-all their records. It describes a blind annular face recess of rectangular radial section,
-such as a face-seal housing. It makes no nominal O-ring size or intended-function claim.
+The optional `annular_grooves` family contains `AnnularGroove` records and is
+omitted when empty. This additive family keeps `quiddity-rust/recognition/6`;
+existing hole and boss records are kept and marked with `superseded_by` when
+built from an accepted groove's walls. It describes a blind annular face recess
+of rectangular radial section, such as a face-seal housing. It makes no nominal
+O-ring size or intended-function claim.
 
 Each record publishes `axis` (a unit vector from the floor towards the mouth),
 `floor_center` (a point in file coordinates), `inner_radius`, `outer_radius`, and `depth`
@@ -244,6 +247,39 @@ A rim may contain several circular edges, but their centres/radii must agree and
 actual angular intervals must cover a complete turn. Counting overlapping arc lengths
 as a full rim is refused. The cylindrical walls must still each be complete; every floor
 piece is retained in the defining claim and strict ownership proof.
+
+## Additive duplicate references (#204, #206)
+
+Optional `superseded_by` on `holes` and `bosses` names the accepted annular groove
+whose cylindrical walls define that legacy record, for example `"annular_grooves/0"`.
+Only records defined entirely by that groove's walls are marked. A refused groove
+adds no marker. Measurements, defining claims, evidence, fingerprints, record order
+and IDs are retained, including the legacy hole's `bottom` interpretation.
+
+Optional `source` on `section_recesses` names a specific accepted source record
+with exactly the same final defining-face set, for example `"pockets/2"`. The source
+families are `channels`, `edge_open_circular_pockets`, `edge_open_prismatic_recesses`,
+`pockets`, `prismatic_pockets`, `rectangular_blind_slots`, `round_bottom_blind_slots`
+and `section_passages`. Face order is irrelevant; partial overlaps and union coverage
+are insufficient. Recess-only records have no marker. Multiple accepted source
+records can describe the same face set: `source` remains a single reference, chosen
+by lexicographic family name then lowest record index. It names an identical record,
+not exclusive provenance or a claim that the recess projector used that record.
+
+Both fields are additive, omitted when absent, and use schema 6's `family/index`
+run-local reference form. No records are removed, reordered or renumbered, and
+`section_recess_patterns` and their member indices are unchanged. Consumers may
+follow the references to show one feature or exclude marked duplicates from feature
+counts and face attribution; existing consumers can continue reading every record.
+Drawings that obtain recess geometry from `section_recesses` can continue doing so.
+Saved rank-based references remain valid, and face-based answers retain their claims.
+The MFInstSeg scorer honours only `superseded_by`. It retains `source`-marked
+section recesses: predicted faces are already a set per class, so duplicates in the
+same class add nothing, while a class may map the recess without mapping its source
+family (notably rectangular blind slots, class 17). The `source` marker is for
+consumers, who may drop duplicates; it is not a scorer filter. Class mappings and
+selectors are unchanged. This is an additive schema-6 change and requires no
+breaking release.
 
 ## Face grooves (for #123)
 
@@ -484,7 +520,8 @@ Whole-body classifications may retain the same faces as individual features. In
 particular, a round becoming a fillet retains its `thin_wall_bodies` or
 `sheet_metal_bodies` classification, just as existing fillets, holes and blends already
 do. This co-ownership does not replace the round's geometric proof or permit a second
-claim by another individual feature family.
+claim by another individual feature family, except for the explicitly marked legacy
+duplicates described above.
 
 Sheet-metal bend skins must satisfy the same edge-round proof to be fillets. The old
 axis-aligned path skipped tangency and could label a skin cut short of its tangent wall
