@@ -8,7 +8,7 @@ use super::evidence::{self, EvidenceError, Occurrence};
 use super::placed::{Grid, Placed};
 use super::planes::{coordinates, linear_quad, unit_plane_normal};
 use crate::kernel::brep::Arc;
-use crate::kernel::classify::material_at;
+use crate::kernel::classify::State;
 use crate::kernel::geom::{self, COORD_FLOOR, SMOOTH_ARC_GAP, V3};
 use crate::kernel::py;
 use crate::kernel::rays::RayCaster;
@@ -124,8 +124,8 @@ fn pair(ctx: &Context<'_>, face: usize, supports: [usize; 2]) -> Option<Internal
     let classifier = ctx.solid_classifier(solid);
     // Check the face's two material sides as well as the filled virtual corner.
     let offset = legs[1].0 * super::policy::INTERIOR_PROBE_FRAC;
-    if !material_at(classifier, geom::sub(at, geom::scale(normal, offset)))
-        || material_at(classifier, geom::add(at, geom::scale(normal, offset)))
+    if classifier.classify(geom::sub(at, geom::scale(normal, offset))) != State::In
+        || classifier.classify(geom::add(at, geom::scale(normal, offset))) != State::Out
     {
         return None;
     }

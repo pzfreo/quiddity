@@ -1026,7 +1026,8 @@ The open triangular wedge from corner to the spring edges, swept over the comple
 must be wholly material by volume integration on the owning solid. Its boundaries are
 inset by the input's modelling precision (at least the kernel coordinate floor); no missing
 volume fraction is permitted and unresolved integration rejects the candidate. The bevel's
-inward side must contain material and its outward side must be air.
+inward side must classify cleanly as material and its outward side cleanly as air;
+ON and unresolved classifications are refused.
 
 A sloped pocket floor normally has parallel opposing side supports, not a unique
 perpendicular pair. A broad sloped wall fails support dominance or treatment size; draft
