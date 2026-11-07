@@ -1018,7 +1018,8 @@ longer first; `leg1_direction` and `leg2_direction` are their outward unit direc
 `angle = atan2(leg2, leg1)` is the acute section angle in degrees, not an included wall
 angle. `run` is a unit vector, `length` its complete span, and `at` the strip midpoint at
 the same station as corner. Positions and lengths publish millimetres to three decimals,
-unit directions to six and angle to two. Positions are carried unrounded through rigid
+unit directions to six and angle to two. Sub-micrometre leg ties use rounded direction
+order only when neither the published lengths nor the angle can change. Positions are carried unrounded through rigid
 publication before rounding once. Only the strip is defining; both supports and both ends
 are context.
 

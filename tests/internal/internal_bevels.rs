@@ -241,3 +241,33 @@ fn an_air_void_inside_the_virtual_wedge_invalidates_the_whole_treatment() {
             .is_empty()
     );
 }
+
+#[test]
+fn equal_leg_repro_is_a_concave_treatment_of_a_bounded_pocket_corner() {
+    // Same four-concave-join geometry as #213, constructed with independent dimensions.
+    let part = pocket(2., 2., 0.);
+    assert!(part.solid_is_geometrically_valid(0));
+    assert!((part.solid_mass(0).unwrap().0 - 34020.).abs() < 1e-6);
+    let ctx = Context::new(&part);
+    let found = internal_bevels::discover_verified(&ctx).unwrap();
+    assert_eq!(found.len(), 1);
+    let bevel = &found[0];
+    assert_eq!(bevel.defining, [11]);
+    assert_eq!(
+        (bevel.record.leg1, bevel.record.leg2, bevel.record.angle),
+        (2., 2., 45.)
+    );
+    assert_eq!(bevel.record.length, 10.);
+    assert_eq!(*bevel.record.corner, [0., 5., 0.]);
+    assert!(
+        bevel
+            .context
+            .iter()
+            .all(|&f| part.arc(11, f) == Some(quiddity::kernel::brep::Arc::Concave))
+    );
+    assert!(
+        features::chamfers::discover_verified(&ctx, &Default::default())
+            .unwrap()
+            .is_empty()
+    );
+}

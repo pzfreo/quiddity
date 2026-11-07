@@ -30,6 +30,20 @@ pub struct InternalBevel {
     pub angle: f64,
 }
 
+/// Ignore sub-grid noise only when both length and angle publication stay identical.
+/// This keeps equal legs stable under numerical motion without swapping unequal sizes.
+fn leg_order(a: &(f64, V3), b: &(f64, V3)) -> std::cmp::Ordering {
+    let order = py::order(-py::round_to(a.0, 6), -py::round_to(b.0, 6));
+    if order.is_ne() {
+        return order;
+    }
+    let angle = |x: f64, y: f64| py::round_to(y.atan2(x).to_degrees(), 2);
+    if py::round_to3(a.0) != py::round_to3(b.0) || angle(a.0, b.0) != angle(b.0, a.0) {
+        return py::order(b.0, a.0);
+    }
+    py::tuple_order(&coordinates(a.1, 6), &coordinates(b.1, 6))
+}
+
 fn pair(ctx: &Context<'_>, face: usize, supports: [usize; 2]) -> Option<InternalBevel> {
     let part = ctx.part;
     let [a, b] = [
@@ -101,13 +115,12 @@ fn pair(ctx: &Context<'_>, face: usize, supports: [usize; 2]) -> Option<Internal
         .map(|v| Some((geom::norm(v), geom::unit(v)?)))
         .into_iter()
         .collect::<Option<Vec<_>>>()?;
-    legs.sort_by(|a, b| {
-        b.0.total_cmp(&a.0)
-            .then_with(|| py::tuple_order(&a.1, &b.1))
-    });
+    let leg_lo = legs[0].0.min(legs[1].0);
+    let leg_hi = legs[0].0.max(legs[1].0);
+    legs.sort_by(leg_order);
     let solid = part.faces[face].solid?;
-    if legs[1].0 <= 2. * tolerance
-        || legs[0].0 > 0.45 * part.solid_bounds(solid).max_extent()
+    if leg_lo <= 2. * tolerance
+        || leg_hi > 0.45 * part.solid_bounds(solid).max_extent()
         || geom::dot(legs[0].1, legs[1].1).abs() > SMOOTH_ARC_GAP
         || geom::dot(geom::sub(at, corner), normal) <= tolerance
     {
@@ -123,7 +136,7 @@ fn pair(ctx: &Context<'_>, face: usize, supports: [usize; 2]) -> Option<Internal
     }
     let classifier = ctx.solid_classifier(solid);
     // Check the face's two material sides as well as the filled virtual corner.
-    let offset = legs[1].0 * super::policy::INTERIOR_PROBE_FRAC;
+    let offset = leg_lo * super::policy::INTERIOR_PROBE_FRAC;
     if classifier.classify(geom::sub(at, geom::scale(normal, offset))) != State::In
         || classifier.classify(geom::add(at, geom::scale(normal, offset))) != State::Out
     {
@@ -202,4 +215,25 @@ internal_entry! {
 pub fn discover_verified(ctx: &Context<'_>) -> Result<Vec<Occurrence<InternalBevel>>, EvidenceError> {
     evidence::verified(ctx.part, discover(ctx))
 }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn tied_published_legs_do_not_exchange_unequal_lengths() {
+        for degrees in [0_f64, 30., 90., 180.] {
+            let (s, c) = degrees.to_radians().sin_cos();
+            let mut legs = [(0.7474998, [c, s, 0.]), (0.7475002, [-s, c, 0.])];
+            assert_eq!(py::round_to(legs[0].0, 6), py::round_to(legs[1].0, 6));
+            legs.sort_by(leg_order);
+            assert_eq!(
+                (py::round_to3(legs[0].0), py::round_to3(legs[1].0)),
+                (0.748, 0.747)
+            );
+            legs.reverse();
+            legs.sort_by(leg_order);
+            assert_eq!(legs[0].0, 0.7475002);
+        }
+    }
 }
