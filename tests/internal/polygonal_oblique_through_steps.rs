@@ -5,7 +5,8 @@ use quiddity::kernel::geom::{norm, sub};
 
 /// A slanted corner cut in a block, with a secondary cut taking the lower half of
 /// its exterior lip. The principal wall has six corners; its oblique neighbour is
-/// intact. No external dataset coordinates or files are used.
+/// intact, ending at a local convex lip (y=30) inside the stock envelope (y=50).
+/// No external dataset coordinates or files are used.
 pub(crate) fn polygonal_corner(skew_lip: bool) -> Part {
     corner(skew_lip, false)
 }
@@ -17,14 +18,18 @@ fn corner(skew_lip: bool, tapered: bool) -> Part {
             [2., 10., 0.],
             [5., 10., 0.],
             [5., 30., 0.],
-            [20., 30., 0.],
+            [15., 30., 0.],
+            [15., 50., 0.],
+            [20., 50., 0.],
             [20., 0., 0.],
             [2., 0., 0.],
         ],
         vec![
             [0., 0., 40.],
             [20., 0., 40.],
-            [20., 30., 40.],
+            [20., 50., 40.],
+            [15., 50., 40.],
+            [15., 30., 40.],
             [7., 30., 40.],
             [7., 10., 40.],
             [0., 10., 40.],
@@ -39,15 +44,15 @@ fn corner(skew_lip: bool, tapered: bool) -> Part {
         ],
         vec![
             [20., 0., 0.],
-            [20., 30., 0.],
-            [20., 30., 40.],
+            [20., 50., 0.],
+            [20., 50., 40.],
             [20., 0., 40.],
         ],
         vec![
-            [20., 30., 0.],
+            [15., 30., 0.],
             [5., 30., 0.],
             [7., 30., 40.],
-            [20., 30., 40.],
+            [15., 30., 40.],
         ],
         vec![[5., 30., 0.], [5., 10., 0.], [7., 10., 40.], [7., 30., 40.]],
         vec![
@@ -61,12 +66,24 @@ fn corner(skew_lip: bool, tapered: bool) -> Part {
         vec![[2., 0., 0.], [2., 0., 20.], [2., 10., 20.], [k, 10., 0.]],
         vec![[0., 0., 20.], [0., 0., 40.], [0., 10., 40.], [0., 10., 20.]],
         vec![[0., 0., 20.], [0., 10., 20.], [2., 10., 20.], [2., 0., 20.]],
+        vec![
+            [20., 50., 0.],
+            [15., 50., 0.],
+            [15., 50., 40.],
+            [20., 50., 40.],
+        ],
+        vec![
+            [15., 50., 0.],
+            [15., 30., 0.],
+            [15., 30., 40.],
+            [15., 50., 40.],
+        ],
     ];
     // The negative uses a sloped outside edge; maintain a closed planar solid.
     let mut polygons = polygons;
     if skew_lip {
         polygons[0][0] = [k, 10., 0.];
-        polygons[0][5] = [k, 0., 0.];
+        polygons[0][7] = [k, 0., 0.];
         polygons[2][0] = [k, 0., 0.];
         polygons[7][0] = [k, 0., 0.];
     }
@@ -102,7 +119,8 @@ fn corner(skew_lip: bool, tapered: bool) -> Part {
 fn six_corner_step_preserves_outline_and_measures_the_complete_walls() {
     let part = polygonal_corner(false);
     assert!(part.solid_is_geometrically_valid(0));
-    assert!((part.solid_mass(0).unwrap().0 - 18800.0).abs() < 1e-6);
+    assert!((part.solid_mass(0).unwrap().0 - 22800.0).abs() < 1e-6);
+    assert_eq!(part.solid_bounds(0).max[1], 50.0);
     let found = polygonal_oblique_through_steps::discover_verified(&Context::new(&part)).unwrap();
     assert_eq!(found.len(), 1);
     let step = &found[0];
