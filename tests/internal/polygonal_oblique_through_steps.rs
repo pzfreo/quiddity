@@ -179,6 +179,13 @@ fn four_corner_step_stays_exclusively_in_the_existing_family() {
         &super::common::fixtures().join("golden_oblique_through_step.step"),
     )
     .unwrap();
+    let evidence = quiddity::evidence_view::build_recognition_evidence(&part).unwrap();
+    assert!(
+        !evidence
+            .features
+            .iter()
+            .any(|f| f.family == "polygonal_oblique_through_steps")
+    );
     let old = oblique_through_steps::discover_verified(&Context::new(&part)).unwrap();
     assert_eq!(old.len(), 1);
     assert!(polygonal_oblique_through_steps::discover(&Context::new(&part)).is_empty());
