@@ -11,7 +11,8 @@ in [docs/alpha1.md](docs/alpha1.md).
 - Optional additive `superseded_by` references on groove-derived holes and bosses,
   and `source` references on section recesses with identical source-family defining
   faces (#204, #206). All records, claims, order and IDs are retained. The MFInstSeg
-  scorer skips marked duplicates; schema 6 and existing consumers remain compatible.
+  scorer honours `superseded_by` while retaining `source`-marked recesses for each
+  class's existing mapping; schema 6 and existing consumers remain compatible.
 
 - `quiddity completions SHELL` prints a shell completion script (bash, zsh, fish,
   powershell or elvish) to stdout; the README gives the install one-liners. `quiddity

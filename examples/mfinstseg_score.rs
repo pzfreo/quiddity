@@ -3,8 +3,8 @@
 //! MFInstSeg DATASET has steps/ and labels/. For MFCAD++, DATASET is the STEP directory;
 //! numeric face names supply semantic labels, and instance metrics are absent.
 //! Use sorted STEP stems[::5] for the coverage_sweep selection (12,499 / 62,495 models).
-//! Additive `superseded_by` and recess `source` references exclude duplicate records
-//! from predictions; the shared scorer retains original family indices and selectors.
+//! `superseded_by` excludes redundant groove records. Recess `source` references
+//! remain predictions: each class unions faces and may not map the source family.
 //! Ground-truth or configuration errors fail the run. Read/panic failures with available
 //! labels are explicitly reported and count as misses; zero denominators score zero.
 //! With `MFINSTSEG_PER_MODEL=PATH`, also writes each model's nonzero per-class counts to PATH,

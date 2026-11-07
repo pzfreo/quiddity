@@ -270,8 +270,13 @@ follow the references to show one feature or exclude marked duplicates from feat
 counts and face attribution; existing consumers can continue reading every record.
 Drawings that obtain recess geometry from `section_recesses` can continue doing so.
 Saved rank-based references remain valid, and face-based answers retain their claims.
-The MFInstSeg scorer excludes marked records without changing class mappings or
-selectors. This is an additive schema-6 change and requires no breaking release.
+The MFInstSeg scorer honours only `superseded_by`. It retains `source`-marked
+section recesses: predicted faces are already a set per class, so duplicates in the
+same class add nothing, while a class may map the recess without mapping its source
+family (notably rectangular blind slots, class 17). The `source` marker is for
+consumers, who may drop duplicates; it is not a scorer filter. Class mappings and
+selectors are unchanged. This is an additive schema-6 change and requires no
+breaking release.
 
 ## Face grooves (for #123)
 

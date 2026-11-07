@@ -641,13 +641,13 @@ pub fn matched(predicted: &[Faces], labelled: &[Faces]) -> u64 {
         .count() as u64
 }
 
-/// Only explicit additive duplicate markers suppress predictions. Other `source` fields
-/// (for example a slot's detailed passage geometry) are not duplicate references.
+/// Honour only `superseded_by`. Keep `source`-marked recesses: each class already
+/// unions predicted faces, and its mapping may credit the recess but not its source
+/// family (notably class 17). `source` is a consumer reference, not a scoring filter.
 fn duplicate(features: &quiddity::features::Features, family: &str, index: usize) -> bool {
     match family {
         "holes" => features.holes[index].superseded_by.is_some(),
         "bosses" => features.bosses[index].superseded_by.is_some(),
-        "section_recesses" => features.section_recesses[index].source.is_some(),
         _ => false,
     }
 }
@@ -1168,17 +1168,40 @@ mod tests {
         let part = quiddity::read_step_file(&path).unwrap();
         let mut features = quiddity::features::recognise(&part);
         assert!(!features.section_recesses.is_empty());
+        let indices = (0..features.section_recesses.len()).collect::<Vec<_>>();
         for record in &mut features.section_recesses {
             record.source = Some("channels/0".into());
         }
-        assert_eq!(attributed_faces(&features, "section_recesses").count(), 0);
-        features.section_recesses[0].source = None;
         assert_eq!(
             attributed_faces(&features, "section_recesses")
                 .map(|(i, _)| i)
                 .collect::<Vec<_>>(),
-            [0]
+            indices
         );
+    }
+
+    #[test]
+    fn source_references_preserve_class_17_predictions() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/golden_rectangular_blind_slot.step");
+        let part = quiddity::read_step_file(&path).unwrap();
+        let mut features = quiddity::features::recognise(&part);
+        assert!(!features.section_recesses.is_empty());
+        for record in &mut features.section_recesses {
+            record.source = None;
+        }
+        let truth = Truth {
+            seg: vec![17; part.faces.len()],
+            instances: None,
+            warnings: Vec::new(),
+        };
+        let classes = mapping();
+        let before = score(&truth, &features, &classes);
+        assert!(before[17].faces.true_positive > 0);
+        for record in &mut features.section_recesses {
+            record.source = Some("rectangular_blind_slots/0".into());
+        }
+        assert_eq!(score(&truth, &features, &classes), before);
     }
 
     #[test]
