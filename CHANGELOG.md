@@ -8,6 +8,12 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Added
 
+- `local_steps` recognises rectangular step remnants ending inside a solid, with
+  explicit run endpoints, height/depth directions and dimensions, and unique
+  perpendicular end-face evidence (#211). The separate optional family preserves
+  existing `through_steps` ranks and saved draftwright Spec references. MFInstSeg
+  class 8 now maps to both families; blind or ambiguous ends remain excluded.
+
 - Optional additive `superseded_by` references on groove-derived holes and bosses,
   and `source` references on section recesses with identical source-family defining
   faces (#204, #206). All records, claims, order and IDs are retained. The MFInstSeg

@@ -407,6 +407,23 @@ pub const FAMILIES: &[FamilyFingerprint] = &[
         ],
     },
     FamilyFingerprint {
+        family: "local_steps",
+        members: None,
+        variants: false,
+        fields: &[
+            ("run_direction", Axis),
+            ("run_start", Placement),
+            ("run_end", Placement),
+            ("length", Size),
+            ("height_direction", Axis),
+            ("height", Derived),
+            ("depth_direction", Axis),
+            ("depth", Derived),
+            ("ends[].scope", Trait),
+            ("ends[].faces", Ignored),
+        ],
+    },
+    FamilyFingerprint {
         family: "through_steps",
         members: None,
         variants: false,
@@ -1591,6 +1608,18 @@ fn derived_sizes(family: &str, r: &Value, sizes: &mut BTreeMap<String, f64>) {
                     .collect();
                 insert_sorted(sizes, "support.corners", lengths);
             }
+        }
+        "local_steps" => {
+            // Canonical section ordering is a presentation gauge: rotating principal
+            // axes can exchange the names height/depth without changing either leg.
+            insert_sorted(
+                sizes,
+                "section.legs",
+                [number("height"), number("depth")]
+                    .into_iter()
+                    .flatten()
+                    .collect(),
+            );
         }
         "through_steps" => {
             let legs = at(r, "section").first().map(|s| chain_lengths(s));

@@ -139,8 +139,10 @@
       "id": 8,
       "name": "rectangular_through_step",
       "families": [
-        "through_steps"
-      ]
+        "through_steps",
+        "local_steps"
+      ],
+      "rationale": "Rectangular step remnants may end at a secondary cut inside the stock envelope. local_steps proves two complete perpendicular walls, a continuous concave seam, convex lips, unique perpendicular exterior end faces and an empty removed quadrant. Only the two defining wall regions count; end-face context is not claimed. Full-length through_steps retains its original contract."
     },
     {
       "id": 9,

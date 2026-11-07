@@ -562,6 +562,7 @@ fn carry(
         interior_voids,
         interior_void_refusals,
         through_steps,
+        local_steps,
         turned_steps,
         grooves,
         annular_grooves,
@@ -678,6 +679,7 @@ fn carry(
             })
             .collect(),
         through_steps: each!("through_steps", through_steps, through_step),
+        local_steps: each!("local_steps", local_steps, local_step),
         turned_steps: each!("turned_steps", turned_steps, turned_step),
         grooves: each!("grooves", grooves, groove),
         annular_grooves: each!(
@@ -1446,6 +1448,34 @@ fn through_step(out: &mut Out, r: ThroughStep) -> ThroughStep {
         section,
         body_key: out.body_key(body_key, "body_key"),
         endpoint_scopes,
+    }
+}
+
+fn local_step(
+    out: &mut Out,
+    r: crate::features::local_steps::LocalStep,
+) -> crate::features::local_steps::LocalStep {
+    let crate::features::local_steps::LocalStep {
+        run_direction,
+        run_start,
+        run_end,
+        length,
+        height_direction,
+        height,
+        depth_direction,
+        depth,
+        ends,
+    } = r;
+    crate::features::local_steps::LocalStep {
+        run_direction: out.direction(run_direction),
+        run_start: out.placed_point(run_start),
+        run_end: out.placed_point(run_end),
+        length,
+        height_direction: out.direction(height_direction),
+        height,
+        depth_direction: out.direction(depth_direction),
+        depth,
+        ends,
     }
 }
 

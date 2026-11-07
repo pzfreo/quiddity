@@ -875,3 +875,64 @@ Consumers should re-recognise affected files, use `through` for their callout, a
 warn about the reported obstruction rather than infer an unobstructed exit from
 `through`. The Python binding returns this same Rust JSON; there is no separate
 Python hole-record schema.
+
+## Local-run rectangular steps (#211)
+
+The optional `local_steps` family publishes `LocalStep` records. It is a separate
+family because draftwright addresses a feature by its rank within a family:
+adding short-run records to `through_steps` would renumber saved
+`f:through_step:N` Spec references. Full-length discovery, ordering, parameters
+and defining faces in `through_steps` are unchanged. Recognition schema 6 and
+fingerprint format 3 remain unchanged; the family is omitted when empty.
+
+A local step is two complete perpendicular principal-plane wall regions meeting
+along one continuous straight concave seam. Their run intervals must agree and
+at least one end must lie inside the owning valid solid's run envelope. Both
+transverse lips must be straight convex boundaries across the complete run;
+at least one must reach the solid's transverse envelope, as for through steps.
+Every wall region's external edges must cover exactly its rectangular perimeter,
+allowing smooth coplanar subdivisions. Holes, oblique trims, interrupted seams,
+curved or tapered walls and internally enclosed staircases are refused.
+
+At each run station, the *entire* end edge of each wall must join convexly to
+one connected coplanar region perpendicular to the run, within the same solid.
+The two walls must identify the same region. A gap, different support per leg,
+nonplanar end or competing support refuses recognition. These may be exterior
+end faces or walls left by a secondary cut: an interior station does not imply
+a concave closing wall. Concave caps belong to existing blind-recess families
+and are excluded here. An exact inset volume probe must also prove the removed
+quadrant empty; neither matching bounding boxes nor a short seam suffices.
+
+Parameters are millimetres and file-coordinate vectors/points:
+
+- `run_direction`: unit direction from `run_start` to `run_end`.
+- `run_start`, `run_end`: the two 3D seam endpoints, published on the 0.001 mm grid.
+  Their order follows the positive run axis in the recognition frame; it stays
+  attached to the record under motion, including a reversal in file coordinates.
+- `length`: run extent, measured before positional rounding, rounded to 0.001 mm.
+- `height_direction`, `height`, `depth_direction`, `depth`: the unit directions
+  from the concave corner to the two convex lips, and those distances rounded to
+  0.001 mm. Height is the first leg of the canonical through-step section and
+  depth the second (lexicographically lesser endpoint first in the recognition
+  frame); these names do not imply world gravity. Directions make their meaning
+  explicit after arbitrary rigid motion.
+- `ends`: two `{scope, faces}` values in start/end order. `scope` is `solid` at
+  the envelope and `local` at an interior station. `faces` lists ascending
+  zero-based file face indices of the unique coplanar boundary region.
+
+Only the two wall regions define the feature. End faces and the remainder of the
+solid consulted by the volume proof are context, so an unrelated cut's end wall
+is not claimed as part of the original step. All consulted geometry must have
+strict valid-solid evidence. Fingerprints retain run length, the unordered pair
+of transverse leg lengths, direction axes and endpoint scopes; positions and evidence face indices are not
+shape traits. The canonical height/depth names may exchange under a principal-axis
+permutation, so this presentation gauge cannot manufacture a resize.
+
+For MFInstSeg, class 8 (`rectangular_through_step`) explicitly maps to both
+`through_steps` and `local_steps`: a secondary cut may shorten a labelled step
+without changing the two surviving defining walls. This is a mapping change,
+not a selector inferred from labels. No other class correspondence changes.
+The original box-minus-two-cuts controls, oblique-end and blind-end negatives,
+full-length control, motion/publication tests and optional external repro are in
+`tests/internal/local_steps.rs` and `tests/internal/mfinstseg.rs`; regenerate the
+original controls with `tools/make_local_steps_fixture.py`.

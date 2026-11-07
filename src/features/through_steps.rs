@@ -70,18 +70,18 @@ pub fn discover_verified(ctx: &Context<'_>) -> Result<Vec<Occurrence<ThroughStep
 }
 
 /// A connected set of coplanar principal-plane faces.
-struct Region {
-    nodes: Vec<usize>,
-    normal_axis: usize,
-    coordinate: f64,
-    bounds: [(f64, f64); 3],
+pub(super) struct Region {
+    pub(super) nodes: Vec<usize>,
+    pub(super) normal_axis: usize,
+    pub(super) coordinate: f64,
+    pub(super) bounds: [(f64, f64); 3],
 }
 
-type Planes = Vec<Option<(usize, f64)>>;
+pub(super) type Planes = Vec<Option<(usize, f64)>>;
 
 /// The connected, smoothly joined same-principal-plane faces containing *seed*
 /// (`_coplanar_region`).
-fn coplanar_region(part: &Part, seed: usize, planes: &Planes) -> BTreeSet<usize> {
+pub(super) fn coplanar_region(part: &Part, seed: usize, planes: &Planes) -> BTreeSet<usize> {
     let Some(plane) = planes[seed] else {
         return BTreeSet::new();
     };
@@ -105,7 +105,7 @@ fn coplanar_region(part: &Part, seed: usize, planes: &Planes) -> BTreeSet<usize>
 }
 
 /// The solid's principal-plane regions, seeded in face order (`_regions`).
-fn regions(part: &Part, solid_nodes: &BTreeSet<usize>, planes: &Planes) -> Vec<Region> {
+pub(super) fn regions(part: &Part, solid_nodes: &BTreeSet<usize>, planes: &Planes) -> Vec<Region> {
     let mut out = Vec::new();
     let mut seen = BTreeSet::new();
     for &seed in solid_nodes {
@@ -142,7 +142,7 @@ fn regions(part: &Part, solid_nodes: &BTreeSet<usize>, planes: &Planes) -> Vec<R
 }
 
 /// The one arc kind every meeting of the two regions has, if there is exactly one (`_relation`).
-fn relation(part: &Part, left: &Region, right: &Region) -> Option<Arc> {
+pub(super) fn relation(part: &Part, left: &Region, right: &Region) -> Option<Arc> {
     let mut kinds = Vec::new();
     for &a in &left.nodes {
         for &b in &right.nodes {
@@ -157,7 +157,7 @@ fn relation(part: &Part, left: &Region, right: &Region) -> Option<Arc> {
 }
 
 /// A line edge's box per axis and its direction; `None` for any other curve.
-fn line(part: &Part, edge: usize) -> Option<(Spans, [f64; 3])> {
+pub(super) fn line(part: &Part, edge: usize) -> Option<(Spans, [f64; 3])> {
     let e = &part.edges[edge];
     let Curve::Line { dir, .. } = e.curve else {
         return None;
@@ -167,7 +167,7 @@ fn line(part: &Part, edge: usize) -> Option<(Spans, [f64; 3])> {
 }
 
 /// Whether *intervals* merge into one interval from *low* to *high*.
-fn covers_run(mut intervals: Vec<(f64, f64)>, low: f64, high: f64) -> bool {
+pub(super) fn covers_run(mut intervals: Vec<(f64, f64)>, low: f64, high: f64) -> bool {
     intervals.sort_by(|a, b| py::tuple_order(&[a.0, a.1], &[b.0, b.1]));
     let mut merged: Vec<(f64, f64)> = Vec::new();
     for (start, end) in intervals {
@@ -183,7 +183,7 @@ fn covers_run(mut intervals: Vec<(f64, f64)>, low: f64, high: f64) -> bool {
 
 /// The seam: straight edges along the run, together spanning it unbroken
 /// (`_shared_run_is_complete`).
-fn shared_run_is_complete(
+pub(super) fn shared_run_is_complete(
     part: &Part,
     left: &Region,
     right: &Region,
@@ -274,7 +274,7 @@ fn common_terminal(
 /// Whether a leg that stops short of the solid's envelope ends at a convex straight edge of the
 /// same solid along the whole run (`_convex_local_boundary`).
 #[allow(clippy::too_many_arguments)]
-fn convex_local_boundary(
+pub(super) fn convex_local_boundary(
     part: &Part,
     region: &Region,
     varying: usize,
@@ -314,7 +314,7 @@ type Section = [[f64; 2]; 3];
 
 /// The open section, the removed prism's spans and each endpoint's scope
 /// (`_section_and_spans`).
-fn section_and_spans(
+pub(super) fn section_and_spans(
     part: &Part,
     left: &Region,
     right: &Region,

@@ -76,6 +76,7 @@ fn every_family_has_a_record_type() {
                 "v_channels",
                 "semicircular_blind_slots",
                 "rectangular_through_notches",
+                "local_steps",
             ]
             .contains(f)
         })

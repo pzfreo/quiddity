@@ -2,8 +2,12 @@
 
 QUIDDITY_MFINSTSEG=/path/to/MFInstSeg python3 tools/update_mfinstseg_baseline.py
 The fixed sample, input hashes, mapping and class supports must stay unchanged.
-Mapping/dataset changes require a separate evidence-backed baseline review.
+For an explicitly reviewed additive family mapping, pass --previous-mapping OLD.json
+and --mapping-reason TEXT. The old mapping must match the baseline hash; only family
+additions and their rationale may differ. Every original score/accounting guard still
+applies, including precision. Dataset changes are never accepted by this tool.
 """
+import argparse
 import hashlib
 import json
 import os
@@ -22,11 +26,33 @@ def ratio(counts, denominator):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--previous-mapping', type=Path)
+    parser.add_argument('--mapping-reason')
+    args = parser.parse_args()
+    assert bool(args.previous_mapping) == bool(args.mapping_reason), 'mapping review needs old mapping and reason'
     repo = Path(__file__).resolve().parents[1]
     path = repo / 'tests/fixtures/mfinstseg_baseline.json'
     baseline = json.loads(path.read_text())
     root = Path(os.environ['QUIDDITY_MFINSTSEG'])
-    assert digest(repo / 'tests/fixtures/mfinstseg_mapping.json') == baseline['mapping_sha256'], 'mapping changed'
+    mapping_path = repo / 'tests/fixtures/mfinstseg_mapping.json'
+    mapping_hash = digest(mapping_path)
+    if args.previous_mapping:
+        assert digest(args.previous_mapping) == baseline['mapping_sha256'], 'previous mapping does not match baseline'
+        old_mapping = json.loads(args.previous_mapping.read_text())
+        new_mapping = json.loads(mapping_path.read_text())
+        old_classes, new_classes = old_mapping.pop('classes'), new_mapping.pop('classes')
+        assert old_mapping == new_mapping, 'mapping metadata changed'
+        assert len(old_classes) == len(new_classes), 'classes changed'
+        for old, new in zip(old_classes, new_classes):
+            old_families, new_families = old.pop('families'), new.pop('families')
+            assert len(set(new_families)) == len(new_families), 'duplicate family'
+            assert set(old_families) <= set(new_families), 'family removed'
+            old.pop('rationale', None)
+            new.pop('rationale', None)
+            assert old == new, 'only additive families and rationale may change'
+    else:
+        assert mapping_hash == baseline['mapping_sha256'], 'mapping changed'
     for model in baseline['models']:
         assert digest(root / 'steps' / (model['id'] + '.step')) == model['step_sha256'], model['id']
         assert digest(root / 'labels' / (model['id'] + '.json')) == model['labels_sha256'], model['id']
@@ -54,6 +80,14 @@ def main():
             assert got['stock_unexplained'] <= model['accounting']['stock_unexplained'], (model['id'], 'stock unexplained regressed')
         model['accounting'] = got
     assert report['accounting']['feature_as_body'] == 0
+    # Print every class, including unchanged ones, before recording this reviewed run.
+    for row, old, got in zip(report['classes'], baseline['scores'], scores):
+        print(f"{row['id']:2} {row['name']}: {old} -> {got}")
+    if args.previous_mapping:
+        changed = [f"{row['name']}: {old} -> {got}"
+                   for row, old, got in zip(report['classes'], baseline['scores'], scores) if old != got]
+        baseline['reason'] += '\n\n' + args.mapping_reason + ' Measured class changes: ' + '; '.join(changed) + '. Every other class unchanged; all precision, recall, support, input and accounting guards passed.'
+        baseline['mapping_sha256'] = mapping_hash
     baseline['schema'] = 2
     baseline['accounting'] = report['accounting']
     baseline['scores'] = scores
