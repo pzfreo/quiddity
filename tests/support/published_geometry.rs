@@ -314,6 +314,15 @@ pub fn canonical(v: &Value, family: &str) -> Value {
         family,
         "oblique_through_steps" | "polygonal_oblique_through_steps"
     ) {
+        let field = if family == "polygonal_oblique_through_steps" {
+            r.insert(
+                "through_axis".into(),
+                json!(positive(vector(&raw["through_axis"]).unwrap()).0),
+            );
+            "floor_outline"
+        } else {
+            "wall_outline"
+        };
         let run = vector(&raw["run"]).unwrap();
         let across = vector(&raw["across_direction"]).unwrap();
         let start = add(
@@ -321,7 +330,7 @@ pub fn canonical(v: &Value, family: &str) -> Value {
             run,
             -0.5 * raw["length"].as_f64().unwrap(),
         );
-        let corners: Vec<_> = raw["wall_outline"]
+        let corners: Vec<_> = raw[field]
             .as_array()
             .unwrap()
             .iter()
@@ -333,7 +342,7 @@ pub fn canonical(v: &Value, family: &str) -> Value {
                 ))
             })
             .collect();
-        r.insert("wall_outline".into(), json!(corners));
+        r.insert(field.into(), json!(corners));
         r.insert("run".into(), json!(positive(run).0));
     }
     if family == "circular_blind_steps"

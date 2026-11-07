@@ -1140,6 +1140,7 @@ fn polygonal_oblique_through_step(
     mut r: crate::features::polygonal_oblique_through_steps::PolygonalObliqueThroughStep,
 ) -> crate::features::polygonal_oblique_through_steps::PolygonalObliqueThroughStep {
     r.run = out.direction(r.run);
+    r.through_axis = out.direction(r.through_axis);
     r.at = out.placed_point(r.at);
     r.depth_direction = out.direction(r.depth_direction);
     r.across_direction = out.direction(r.across_direction);

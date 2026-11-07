@@ -405,7 +405,8 @@ fn agree(a: &Value, b: &Value, grid: &mut usize) -> bool {
 fn agree_record(family: &str, a: &Value, b: &Value, grid: &mut usize) -> bool {
     let field = match family {
         "circular_blind_steps" => "section",
-        "oblique_through_steps" | "polygonal_oblique_through_steps" => "wall_outline",
+        "oblique_through_steps" => "wall_outline",
+        "polygonal_oblique_through_steps" => "floor_outline",
         _ => return agree(a, b, grid),
     };
     let Some(points) = b.get(field).and_then(Value::as_array) else {

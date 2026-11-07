@@ -332,10 +332,11 @@ fn polygonal_slanted_step_1002_keeps_its_six_corners_and_defining_faces() {
     let step = &found[0];
     assert_eq!(step.defining, vec![20, 21]);
     assert_eq!(step.context, vec![6, 11, 14, 18, 19, 22]);
-    assert_eq!(step.record.wall_outline.len(), 6);
+    assert_eq!(step.record.floor_outline.len(), 6);
     assert_eq!(step.record.length, 88.169);
     assert_eq!(step.record.depth, 30.02);
     assert_eq!(step.record.slant_degrees, 3.100929);
+    assert_eq!(step.record.through_axis, [0., 0., 1.]);
     assert_eq!(step.record.run, [0.054095, 0., -0.998536]);
     let all = quiddity::features::recognise(&part);
     assert_eq!(

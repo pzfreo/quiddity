@@ -12,6 +12,10 @@ pub(crate) fn polygonal_corner(skew_lip: bool) -> Part {
 }
 
 fn corner(skew_lip: bool, tapered: bool) -> Part {
+    corner_with_shift(skew_lip, tapered, 2.0)
+}
+
+fn corner_with_shift(skew_lip: bool, tapered: bool, seam_shift: f64) -> Part {
     let k = if skew_lip { 3.0 } else { 2.0 };
     let polygons = vec![
         vec![
@@ -81,6 +85,18 @@ fn corner(skew_lip: bool, tapered: bool) -> Part {
     ];
     // The negative uses a sloped outside edge; maintain a closed planar solid.
     let mut polygons = polygons;
+    let wall_end = 5.0 + seam_shift;
+    let right = 20.0_f64.max(wall_end + 10.0);
+    for ring in &mut polygons {
+        for point in ring {
+            point[0] = match point[0] {
+                7.0 => wall_end,
+                15.0 => right - 5.0,
+                20.0 => right,
+                x => x,
+            };
+        }
+    }
     if skew_lip {
         polygons[0][0] = [k, 10., 0.];
         polygons[0][7] = [k, 0., 0.];
@@ -126,9 +142,10 @@ fn six_corner_step_preserves_outline_and_measures_the_complete_walls() {
     let step = &found[0];
     assert_eq!(step.defining, vec![6, 5]);
     assert_eq!(step.context, vec![0, 1, 4, 7, 8, 9]);
-    assert_eq!(step.record.wall_outline.len(), 6);
+    assert_eq!(step.record.floor_outline.len(), 6);
     assert_eq!(step.record.length, 40.05);
     assert_eq!(step.record.depth, 20.);
+    assert_eq!(step.record.through_axis, [0., 0., 1.]);
     assert_eq!(*step.record.at, [6., 10., 20.]);
     assert!((step.record.slant_degrees - 0.05_f64.atan().to_degrees()).abs() < 1e-6);
     assert!(norm(sub(step.record.run, [0.049938, 0., 0.998752])) < 1e-6);
@@ -154,7 +171,7 @@ fn six_corner_step_preserves_outline_and_measures_the_complete_walls() {
         [0., 10., 40.],
         [7., 10., 40.],
     ];
-    for corner in &r.wall_outline {
+    for corner in &r.floor_outline {
         let point = quiddity::kernel::geom::add(
             start,
             quiddity::kernel::geom::add(
@@ -208,6 +225,7 @@ fn polygonal_record_and_evidence_follow_rigid_motion() {
     assert!(norm(sub(*step.at, motion.point(*source.at))) < 0.001);
     for (a, b) in [
         (step.run, motion.direction(source.run)),
+        (step.through_axis, motion.direction(source.through_axis)),
         (
             step.depth_direction,
             motion.direction(source.depth_direction),
@@ -219,7 +237,7 @@ fn polygonal_record_and_evidence_follow_rigid_motion() {
     ] {
         assert!(norm(sub(a, b)) < 1e-6);
     }
-    assert_eq!(step.wall_outline, source.wall_outline);
+    assert_eq!(step.floor_outline, source.floor_outline);
     assert_eq!(
         (step.length, step.depth, step.slant_degrees),
         (source.length, source.depth, source.slant_degrees)
@@ -260,6 +278,9 @@ fn polygonal_record_and_evidence_follow_rigid_motion() {
         assert_eq!(records[0].faces, vec![5, 6]);
         assert_eq!(records[0].parameters["length"], 40.05);
         assert_eq!(records[0].parameters["depth"], 20.);
+        assert!(records[0].parameters.get("floor_outline").is_some());
+        assert!(records[0].parameters.get("wall_outline").is_none());
+        assert!(records[0].parameters.get("through_axis").is_some());
     }
 }
 
@@ -268,4 +289,28 @@ fn tapered_oblique_wall_does_not_supply_one_step_height() {
     let part = corner(false, true);
     assert!(part.solid_is_geometrically_valid(0));
     assert!(polygonal_oblique_through_steps::discover(&Context::new(&part)).is_empty());
+}
+
+#[test]
+fn sixty_degree_seam_is_measured_against_the_x_through_axis() {
+    // Expand the stock to keep both seam endpoints inside its transverse bounds.
+    // Then rotate the original z-through control into an x-through step.
+    let part = corner_with_shift(false, false, 40.0 * 3.0_f64.sqrt())
+        .transformed(&[[0., 0., 1., 0.], [0., 1., 0., 0.], [-1., 0., 0., 0.]])
+        .unwrap();
+    assert!(part.solid_is_geometrically_valid(0));
+    let found = polygonal_oblique_through_steps::discover_verified(&Context::new(&part)).unwrap();
+    assert_eq!(found.len(), 1);
+    let step = &found[0];
+    assert_eq!(step.defining, vec![6, 5]);
+    assert_eq!(step.record.through_axis, [1., 0., 0.]);
+    assert_eq!(step.record.slant_degrees, 60.0);
+    assert_eq!(step.record.length, 80.0);
+    assert_eq!(step.record.depth, 20.0);
+    assert_eq!(step.record.floor_outline.len(), 6);
+    assert!(norm(sub(step.record.run, [0.5, 0., -3.0_f64.sqrt() / 2.0])) < 1e-6);
+    let payload = serde_json::to_value(&step.record).unwrap();
+    assert!(payload.get("wall_outline").is_none());
+    assert_eq!(payload["floor_outline"].as_array().unwrap().len(), 6);
+    assert_eq!(payload["through_axis"], serde_json::json!([1., 0., 0.]));
 }

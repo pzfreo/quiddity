@@ -971,18 +971,24 @@ it does not claim all polygon-trimmed slanted steps.
 `length` is its full Euclidean length in mm. `at` is the seam midpoint.
 `depth_direction` is the outward principal-wall normal and `depth` is the step
 height in mm, measured to the opposite convex lip. `across_direction` points from
-the seam into the principal wall. `wall_outline` retains every polygon corner as
-`[along_run, across]` from `at - run * length / 2`, canonicalised only by cyclic
+the seam into the principal wall. `floor_outline` retains every principal-floor polygon
+corner as `[along_run, across]` from `at - run * length / 2`, canonicalised only by cyclic
 start and walk reversal. It is never replaced by a quad or convex hull. Lengths
 and outline coordinates publish three decimals; directions and `slant_degrees`
-publish six. The slant is the acute angle between the seam and its nearest
-principal-frame axis, retained under rigid motion. `body_key` follows the existing
-oblique family. The two walls alone are defining faces; all boundary supports,
+publish six. Unlike the legacy family's four-corner `wall_outline`, this field is
+a variable-length principal-floor polygon, never the oblique rectangle. `through_axis` is an unoriented unit vector normal to
+the two opposite stock-envelope run terminals, expressed in the record's
+coordinate space. `slant_degrees` is `acos(abs(dot(run, through_axis)))` in degrees,
+using unrounded directions. It is measured against that through axis, even when
+another axis is closer to the seam: a seam 60 degrees off the through axis reports
+60 degrees, not 30. Rigid mapping carries `through_axis` with the other directions
+and retains the slant. The sign of `through_axis` has no geometric meaning.
+`body_key` follows the existing oblique family. The two walls alone are defining faces; all boundary supports,
 terminals and the far lip are consulted evidence. Rigid mapping carries the frame
 and leaves the intrinsic polygon coordinates unchanged.
 
 MFInstSeg class 10 (`slanted_through_step`) maps additively to this family and the
 unchanged `oblique_through_steps`. Only defining walls count in scoring, never the
 context supports. The mapping uses no labels to select records. Original generated
-polyhedron controls cover a six-corner floor, a skew-boundary refusal and an
-unchanged four-corner fixture; the external test checks `_1002` faces 20–21.
+polyhedron controls cover a six-corner floor, a 60-degree x-through seam,
+skew/taper refusals and an unchanged four-corner fixture; the external test checks `_1002` faces 20–21.

@@ -27,10 +27,12 @@ pub struct PolygonalObliqueThroughStep {
     /// Height above the principal wall, measured to the complete convex lip.
     pub depth: f64,
     pub across_direction: V3,
-    /// Acute angle between the seam and its nearest principal-frame axis, in degrees.
+    /// Unoriented unit axis normal to the two stock-envelope run terminals.
+    pub through_axis: V3,
+    /// Acute angle between the seam and through_axis, in degrees.
     pub slant_degrees: f64,
-    /// Exact polygon's corners in (run, across) coordinates from the seam start.
-    pub wall_outline: Vec<[f64; 2]>,
+    /// Principal floor's corners in (run, across) coordinates from the seam start.
+    pub floor_outline: Vec<[f64; 2]>,
     pub body_key: Option<BodyKey>,
 }
 
@@ -359,16 +361,9 @@ fn one_pair(
             depth_direction: coordinates(normal, 6),
             depth: py::round_to3(depth),
             across_direction: coordinates(across, 6),
-            slant_degrees: py::round_to(
-                run.iter()
-                    .map(|x| x.abs())
-                    .fold(0.0, f64::max)
-                    .clamp(0.0, 1.0)
-                    .acos()
-                    .to_degrees(),
-                6,
-            ),
-            wall_outline: canonical_outline(&outline),
+            through_axis: std::array::from_fn(|a| if a == end_axis { 1.0 } else { 0.0 }),
+            slant_degrees: py::round_to(run[end_axis].abs().clamp(0.0, 1.0).acos().to_degrees(), 6),
+            floor_outline: canonical_outline(&outline),
             body_key: None,
         },
         defining: vec![principal, oblique],
@@ -400,7 +395,7 @@ pub fn discover(ctx: &Context<'_>) -> Vec<Occurrence<PolygonalObliqueThroughStep
     let keys = if found.is_empty() { vec![] } else { ctx.body_keys(true) };
     let mut found: Vec<_> = found.into_iter().map(|(s,mut occurrence)| { occurrence.record.body_key = keys[s].clone(); occurrence }).collect();
     found.sort_by(|a,b| {
-        let key = |r: &PolygonalObliqueThroughStep| { let mut k = r.run.to_vec(); k.push(r.length); k.extend(*r.at); k.extend(r.depth_direction); k.push(r.depth); k.extend(r.across_direction); k.extend(r.wall_outline.iter().flatten()); k.extend(r.body_key.iter().flatten()); k };
+        let key = |r: &PolygonalObliqueThroughStep| { let mut k = r.run.to_vec(); k.push(r.length); k.extend(*r.at); k.extend(r.depth_direction); k.push(r.depth); k.extend(r.across_direction); k.extend(r.floor_outline.iter().flatten()); k.extend(r.body_key.iter().flatten()); k };
         py::tuple_order(&key(&a.record),&key(&b.record))
     });
     found
