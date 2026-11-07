@@ -2992,6 +2992,8 @@
     "tests/fixtures/filleted_box_one_edge.step": "aa5813e8bb2d6966eb137b9afc636625069179a5d8baa8468a5034dadc7be8f1",
     "tests/fixtures/filleted_plate_with_holes.step": "d5ad2cc3c627a8ccd5171c2ab4fa1f7f948858f6f866080d268897e2bbf89a08",
     "tests/fixtures/filleted_stepped_shaft.step": "f076385408f7f77a51d84764896b79879e3447709666f6d8825d8a0c810e58fc",
+    "tests/fixtures/flat_floor_controls.step.gz": "0dc05229fb8af5d792538c51396139911010a067605b55b09778e39df8347ca4",
+    "tests/fixtures/flat_floor_patterns.step.gz": "97889759623a22cea1dd86378f9bcd4acfcb8ff2a11343c4fabfa2ac586257f2",
     "tests/fixtures/full_torus.step": "a8951abcef33aec6f0410a5feda41db23784dcb01fa8244959d367606b4e5206",
     "tests/fixtures/golden_angled_blind_step.step": "30828e6f64ef488306aaa9aca164c2bfe52b1916bd8d81d25d94e01e30dfca8b",
     "tests/fixtures/golden_blind_pockets_and_pocket_patterns.step": "01822f0663a5ddf689f2215b91c4ba24b79558ce857ad32642894565b43fe1d8",
@@ -3049,8 +3051,8 @@
     "tests/fixtures/late_turn.step": "eb9978a30c4992104d802b0bba5c8ba46a48f53e088b845306a58a4c21818bb6",
     "tests/fixtures/manifest.json": "799fdc976a30ecf142a6ae7c159d6135e82a9ef24962bed7348fe66d6d2518ae",
     "tests/fixtures/memo_part.step": "79c16d80205e285529b86c5cc2d5ed3088c127ebb776330d470ce48a3aa2f303",
-    "tests/fixtures/mfinstseg_baseline.json": "8ace0ec46d1e05127049969ad0167fcc563e41a47f5f7d17ea5c74f65b51d9c3",
-    "tests/fixtures/mfinstseg_mapping.json": "ad8f957b4c2f814de398cb0391cec08c7c6e0d3c2c2f83d0c1709433e7d7d347",
+    "tests/fixtures/mfinstseg_baseline.json": "b39203cab386de27f1f3855e9ee55974738febc0a8bc9c654fdb8f41fdcb9e96",
+    "tests/fixtures/mfinstseg_mapping.json": "574c778fa943d522ad251ce2c56d2fb59fe9f43287518f031188bdfb63f1f768",
     "tests/fixtures/mixed.step": "d565c1b5feeec36d996fcd8f3915e5cdae55c3d70651dc9d77cb1ecaa09cf536",
     "tests/fixtures/mixed_sealed_voids.step.gz": "d8b5e0c88b18a17d083483970204eccdfc585aedf7c58850b4ea1810a80aba41",
     "tests/fixtures/modelled_threads/diamond_knurl.step.gz": "7099e102266bcf2927a788c5f2f3ca9cd610059327e271114cff56f68466c6c7",
@@ -3239,7 +3241,7 @@
     "calls/recognise_through_steps.json.gz": "ab6a0b5b06756fa3435099be76e5ab432b867be4d4a1b42c49047ff83b086cca",
     "calls/recognise_turned_steps.json.gz": "37d10e8c5e2ce5dcf6c5bd2fdc7444e86494bb44768e9d32d9a1abfd3f2fbd90",
     "channel_geometry.json.gz": "bd25ff87def7f73b4f119d26614600b141ee4350f45c77cef55aae7ea787e85f",
-    "corpus.json.gz": "12e3603afa55f2f28c2d3f5e411a29e863f8d05aff4517a20b2eb521901b93b5",
+    "corpus.json.gz": "f3ee859dc877176863838104105168e582faca046a3676318fad519f47e65bfe",
     "coverage.json.gz": "c835b80d39757ae5ef556953e11a2d7e8bbde3148a233f2af51ae92e1d23a971",
     "cylindrical_proofs/corpus/cadgenbench/flanged_spool_132.step.json.gz": "b93acca566253df99ab62bb5ac97424226850b3ee3963c8d1025939a7339d823",
     "cylindrical_proofs/corpus/cadgenbench/threaded_connector_109.step.json.gz": "eea12e52bf91a9c762e7cadc1b12994398bf8f3836ab11ab8b58a2bf4c5d9a4e",
@@ -5349,7 +5351,7 @@
     "reconcile.json.gz": "f05c23871a841562a6febaf676fdb532278a3f63d0eaddcde2df9ea05440f34e",
     "reconcile_scenarios.json.gz": "f3d2867544d794d5e6b57d6ddc991fe4d3d41ac36ed436abebef44bfb402d51d",
     "retry.json.gz": "a59e4d32892a173cf2611832db0b38ce1e292c815dcc7e802e18e330236666e7",
-    "retry_publication.json.gz": "baea16cf4fca42b4804a33f0af7ebeff4be016f3c6b3953151310311ebd1cd36",
+    "retry_publication.json.gz": "c66d8ee67090f30f022f3e0bd31299931ec9a10ec69c3f31c0975692011e1f8a",
     "section_helpers/corpus/cadgenbench/flanged_spool_132.step.json.gz": "601f9876e0623dd177f84c3c12a7035e176c57eacfbb84b17aad229ca67f563c",
     "section_helpers/corpus/cadgenbench/threaded_connector_109.step.json.gz": "58439d8af9d951b4f36831475442d0b5c87b17963ee7b529b2d7fec219409226",
     "section_helpers/corpus/cadgenbench_inputs/cgb202.step.gz.json.gz": "3d47ebda673705645b91d76c44294946179adbc24a4a754c5e8b2e4f6609810f",
@@ -5895,5 +5897,5 @@
     "sections/test/parts/fc9cb0ef3d518aa4.step.gz.json.gz": "ad246bd3ca231dda3e7fe1fc54cd798984e7dcd9da376dcb609c3c42001086f8",
     "step_levels.json.gz": "b1d837579387b475bfb90cc5670098890fdfe83fddcbf0e2236a24207c2de1ff"
   },
-  "source_commit": "8e98d70d23d53c8972edbacc75fde171313c5fd4"
+  "source_commit": "ad92ade7a02ea16ed6492695b4d79a517471f7a4"
 }

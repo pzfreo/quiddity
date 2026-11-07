@@ -12,7 +12,9 @@
 //! reported is not reported again.
 //!
 //! Each pocket is defined by its walls; the floor (and, for a mouth-recovered pocket, the rest
-//! of its cavity region) is consulted. Python's `local_degradation` filter (dropping a pocket
+//! of its cavity region) is consulted during discovery. After reconciliation the shared rule
+//! in `holes` adds a uniquely closed planar floor to the accepted claim.
+//! Python's `local_degradation` filter (dropping a pocket
 //! whose faces share no valid solid on a degraded graph) is not ported, and the evidence path
 //! refuses such a pocket instead: the default inventory retries degraded on three corpus parts,
 //! and the filter runs on each but drops nothing (`tests/local_degradation.rs`).

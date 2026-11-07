@@ -228,6 +228,47 @@ mod tests {
     }
 
     #[test]
+    fn flat_floor_completion_keeps_independent_family_failure_boundaries() {
+        let part = crate::read_step_file(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/flat_floor_controls.step.gz"),
+        )
+        .unwrap();
+        let floor = |x| {
+            (0..part.faces.len())
+                .find(|&f| {
+                    let b = part.face_bounds(f);
+                    (b.min[2] - 8.).abs() < 1e-7
+                        && (b.max[2] - 8.).abs() < 1e-7
+                        && b.min[0] < x
+                        && b.max[0] > x
+                })
+                .unwrap()
+        };
+        let pocket_floor = floor(74.);
+        let hole_floor = floor(12.);
+        for family in ["holes", "countersinks"] {
+            let found = injected(family, "discover", || features::recognise(&part));
+            assert_eq!(failed(&found.failures, family).stage, "discover");
+            assert!(found.holes.is_empty());
+            assert!(
+                found.defining["pockets"]
+                    .iter()
+                    .any(|faces| faces.contains(&pocket_floor))
+            );
+        }
+        let found = injected("pockets", "claim_flat_floor", || features::recognise(&part));
+        assert_eq!(failed(&found.failures, "pockets").stage, "claim_flat_floor");
+        assert!(found.pockets.is_empty());
+        assert!(found.defining["pockets"].is_empty());
+        assert!(
+            found.defining["holes"]
+                .iter()
+                .any(|faces| faces.contains(&hole_floor))
+        );
+    }
+
+    #[test]
     fn pocket_panic_preserves_independent_families_on_annular_island() {
         // The #805 construction: box stock, a box recess and a box island (16 faces).
         let part = island_pocket();

@@ -176,6 +176,27 @@ Affected fingerprints change within v3 through these sizes and the existing
 spotface/counterbore traits. Rust callers constructing `HoleRecord` literals must
 supply `outer_steps` (normally `Vec::new()`).
 
+## Closed blind-recess floor claims (#205, #207)
+
+Accepted flat-bottomed blind holes and blind `pockets`/`prismatic_pockets` also
+claim an already-consulted planar floor perpendicular to the inward depth
+direction, when every boundary edge meets their own deepest walls. A larger
+plane, or a floor continuing into a slot or step, remains context. One shared
+rule completes these claims after reconciliation and the existing completion
+stages; record parameters are retained. Derived patterns follow their members and
+therefore include the members' completed floor claims.
+
+Whole-body classifications `thin_wall_bodies`, `sheet_metal_bodies`, `plates`,
+`polygonal_stock` and `turned_bodies` can coexist with the new recess claim.
+Evidence families `step_levels` and `risers` are not individual manufacturing
+features, as in draftwright: they may co-own a floor with the feature that closes it.
+No other family is a co-owner exception. Existing manufacturing claims take
+precedence; competing new individual records use first-owner priority: holes,
+pockets, then prismatic pockets, even when their walls are identical.
+Section-recess claims are unchanged pending
+#206. See [face accounting](face-accounting.md) for ownership precedence and the
+distinction between discovery evidence and completed claims.
+
 ## Slot precision correction (for #92)
 
 The plain recess recogniser retains its legacy two-decimal positions, for stable

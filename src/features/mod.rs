@@ -288,6 +288,8 @@ pub(crate) fn recognise_in(ctx: &Context<'_>, mut inventory: Inventory) -> Featu
             .collect()
     };
     let hole_constituents = constituents("holes");
+    let pocket_constituents = constituents("pockets");
+    let prismatic_pocket_constituents = constituents("prismatic_pockets");
     let boss_constituents = constituents("polygonal_bosses");
     let mut features = inventory.accepted();
     let (section_recesses, refusals, patterns, refusal) = match projection {
@@ -320,7 +322,7 @@ pub(crate) fn recognise_in(ctx: &Context<'_>, mut inventory: Inventory) -> Featu
     let mut failures = std::mem::take(&mut features.failures);
     let before = failures.len();
     macro_rules! post {
-        ($family:literal, $stage:literal, $work:expr $(,)?) => {
+        ($family:expr, $stage:literal, $work:expr $(,)?) => {
             // Never let a later pass inspect state mutated by a panicking pass.
             if failures.len() == before {
                 isolation::guarded(&mut failures, $family, $stage, $work);
@@ -369,6 +371,58 @@ pub(crate) fn recognise_in(ctx: &Context<'_>, mut inventory: Inventory) -> Featu
     post!("face_grooves", "append", || {
         face_grooves::append(ctx, &mut features)
     });
+    // Complete recess floors in this same post-reconciliation completion pass, after
+    // append/suppression has finished: added claims must not feed recognition decisions.
+    if failures.len() == before {
+        // Adapt accepted records once; every family then uses the same rule and the
+        // owner's failure boundary. A failed hole family must not disable pocket floors.
+        let mut floors = Vec::new();
+        for (index, record) in features.holes.iter().enumerate() {
+            if record.bottom == holes::Bottom::Flat {
+                floors.push(("holes", index, record.axis, &hole_constituents));
+            }
+        }
+        for (index, record) in features.pockets.iter().enumerate() {
+            let axis = recess_records::third_axis(
+                recess_records::axis_index(record.width_axis),
+                recess_records::axis_index(record.long_axis),
+            );
+            let mut direction = [0.; 3];
+            direction[axis] = -f64::from(record.open_sign);
+            floors.push(("pockets", index, direction, &pocket_constituents));
+        }
+        for (index, record) in features.prismatic_pockets.iter().enumerate() {
+            let axis = recess_records::axis_index(record.axis.chars().next().unwrap());
+            let mut direction = [0.; 3];
+            direction[axis] = -f64::from(record.open_sign);
+            floors.push((
+                "prismatic_pockets",
+                index,
+                direction,
+                &prismatic_pocket_constituents,
+            ));
+        }
+        // Individual manufacturing claims are exclusive. The first new owner wins,
+        // in order: holes, pockets, then prismatic pockets, even for identical walls.
+        // Evidence and body classifications may coexist; section recesses stay intact.
+        let occupied = floor_claims_occupied(&features.defining);
+        let mut floor_owners = BTreeSet::new();
+        for (family, index, direction, constituents) in floors {
+            post!(family, "claim_flat_floor", || {
+                let faces = &mut features.defining.get_mut(family).unwrap()[index];
+                if let Some(constituent) = constituents.get(faces) {
+                    holes::claim_flat_floor(
+                        ctx.part,
+                        direction,
+                        faces,
+                        constituent,
+                        &occupied,
+                        &mut floor_owners,
+                    );
+                }
+            });
+        }
+    }
     if failures.len() != before {
         // A post-pass may already have mutated records or claims. Discard everything,
         // then rediscover and reconcile with the failed/blocked families revoked.
@@ -380,6 +434,31 @@ pub(crate) fn recognise_in(ctx: &Context<'_>, mut inventory: Inventory) -> Featu
     failures.sort_by(|a, b| (&a.family, &a.stage).cmp(&(&b.family, &b.stage)));
     features.failures = failures;
     features
+}
+
+/// Reserve individual manufacturing claims before floor completion. Levels and risers
+/// are evidence families, not individual manufacturing features (also in draftwright).
+/// They and the existing whole-body classifications are the only co-owner exceptions.
+pub(crate) fn floor_claims_occupied(defining: &Defining) -> BTreeSet<usize> {
+    defining
+        .iter()
+        .filter_map(|(&family, claims)| {
+            (!matches!(
+                family,
+                "step_levels"
+                    | "risers"
+                    | "thin_wall_bodies"
+                    | "sheet_metal_bodies"
+                    | "plates"
+                    | "polygonal_stock"
+                    | "turned_bodies"
+            ))
+            .then_some(claims)
+        })
+        .flatten()
+        .flatten()
+        .copied()
+        .collect()
 }
 
 /// Both consumers of the recess projection share the same boundary and failure ledger.

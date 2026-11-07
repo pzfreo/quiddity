@@ -21,6 +21,25 @@ faces. Their void-shell cylinders are excluded during hole recognition, so neith
 remove the interior-void claim or reclassify its faces as body geometry.
 The shared closed-shell proof also supplies void records below the air grid's
 resolution, so suppressing a sealed bore cannot leave its skin unclaimed.
+
+After reconciliation, flat-bottomed blind `holes`, `pockets` and `prismatic_pockets`
+also claim an already-consulted planar floor perpendicular to their inward depth
+direction, at the deepest end of their walls. Every floor boundary edge must have
+exactly one other incident face belonging to that feature's walls. Floors continuing
+into a slot, step or another cavity remain context. Existing manufacturing claims take
+precedence. Evidence families `step_levels` and `risers` are not individual
+manufacturing features, as in draftwright: they may co-own a floor with the feature
+that closes it. Whole-body classifications `thin_wall_bodies`, `sheet_metal_bodies`,
+`plates`, `polygonal_stock` and `turned_bodies` may also retain co-ownership,
+consistent with residual-feature claims. No other family is a co-owner exception.
+Competing individual records are assigned in order to holes, pockets, then prismatic
+pockets; the first record wins even when their walls are identical. Recognition
+decisions are unchanged. Section-recess claims are unchanged pending #206. Discovery and inventory
+evidence still describe the original walls and consulted floor; these final claims
+are completed in the same post-reconciliation pass as drill-point tips.
+Patterns are derived: their faces are the union of their members' completed faces,
+including floors and drill points. They do not compete as individual floor owners.
+
 Readers accept older documents: absent `face_accounting` deserializes to `None`,
 which means **unknown accounting**, never “no unexplained faces”. New empty parts
 have `Some([])`. `SCHEMA_VERSION` and `schema_version(features)` now always select 6;

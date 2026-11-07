@@ -23,7 +23,17 @@
       "name": "through_hole",
       "families": [
         "holes"
-      ]
+      ],
+      "selectors": {
+        "holes": [
+          {
+            "field": "/bottom",
+            "op": "equals",
+            "value": "through",
+            "evidence": "A proved through bore has two open ends. Flat and drill-point bottoms close blind bores; unknown ends do not prove a through bore. Select the published termination independently of labels."
+          }
+        ]
+      }
     },
     {
       "id": 2,

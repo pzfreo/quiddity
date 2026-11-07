@@ -333,7 +333,7 @@ impl Counts {
     pub fn recall(&self) -> f64 {
         ratio(self.true_positive, self.labelled)
     }
-    fn add(&mut self, other: &Self) {
+    pub fn add(&mut self, other: &Self) {
         self.true_positive += other.true_positive;
         self.predicted += other.predicted;
         self.labelled += other.labelled;
@@ -362,6 +362,10 @@ impl Score {
 pub struct ModelScore {
     pub id: String,
     pub scores: Vec<Score>,
+    /// All hole claims against the union of through- and blind-hole labels.
+    pub holes: Counts,
+    /// Any defining claim, excluding body-level step_levels/risers evidence.
+    pub any_feature: Counts,
     /// Read failures/panics remain in denominators as missed labelled faces and instances.
     pub error: Option<String>,
     pub section_recess_refusal: Option<String>,
@@ -380,6 +384,9 @@ pub struct Accounting {
     #[serde(default)]
     pub body_reasons: BTreeMap<quiddity::recognition::BodyReason, u64>,
     pub feature: u64,
+    /// Non-stock labelled faces claimed by any record in the supported document.
+    #[serde(default)]
+    pub labelled_feature_claimed: u64,
     pub body: u64,
     pub refused: u64,
     pub unexplained: u64,
@@ -393,6 +400,7 @@ impl Accounting {
             *self.body_reasons.entry(reason).or_default() += count;
         }
         self.feature += other.feature;
+        self.labelled_feature_claimed += other.labelled_feature_claimed;
         self.body += other.body;
         self.refused += other.refused;
         self.unexplained += other.unexplained;
@@ -403,7 +411,10 @@ impl Accounting {
         let mut out = Self::default();
         for (group, &label) in groups.iter().zip(seg) {
             match group {
-                FaceAccounting::Feature { .. } => out.feature += 1,
+                FaceAccounting::Feature { .. } => {
+                    out.feature += 1;
+                    out.labelled_feature_claimed += u64::from(label != 24);
+                }
                 FaceAccounting::Body { reason } => {
                     out.body += 1;
                     out.stock_body += u64::from(label == 24);
@@ -755,8 +766,43 @@ pub fn evaluate(
     let truth =
         truth.ok_or_else(|| format!("{id}: {}", error.as_deref().unwrap_or("missing labels")))?;
     let empty = quiddity::features::Features::default();
+    let hole_faces: Faces = features
+        .as_ref()
+        .unwrap_or(&empty)
+        .defining
+        .get("holes")
+        .into_iter()
+        .flatten()
+        .flatten()
+        .copied()
+        .collect();
+    let any_faces: Faces = features
+        .as_ref()
+        .unwrap_or(&empty)
+        .defining
+        .iter()
+        .filter_map(|(&family, claims)| {
+            (!matches!(family, "step_levels" | "risers")).then_some(claims)
+        })
+        .flatten()
+        .flatten()
+        .copied()
+        .collect();
     Ok(ModelScore {
         id: id.into(),
+        any_feature: Counts {
+            true_positive: any_faces.iter().filter(|&&f| truth.seg[f] != 24).count() as u64,
+            predicted: any_faces.len() as u64,
+            labelled: truth.seg.iter().filter(|&&c| c != 24).count() as u64,
+        },
+        holes: Counts {
+            true_positive: hole_faces
+                .iter()
+                .filter(|&&f| matches!(truth.seg[f], 1 | 12))
+                .count() as u64,
+            predicted: hole_faces.len() as u64,
+            labelled: truth.seg.iter().filter(|&&c| matches!(c, 1 | 12)).count() as u64,
+        },
         // Failed recognition is fully unexplained, never silently absent from totals.
         accounting: accounting.unwrap_or_else(|| Accounting {
             unexplained: truth.seg.len() as u64,
@@ -992,8 +1038,16 @@ mod tests {
             },
             FaceAccounting::Unexplained,
             FaceAccounting::Unexplained,
+            FaceAccounting::Feature {
+                record_ids: vec!["holes/0".into()],
+            },
+            FaceAccounting::Feature {
+                record_ids: vec!["plates/0".into()],
+            },
         ];
-        let counts = Accounting::measure(&groups, &[23, 24, 24, 0]);
+        let counts = Accounting::measure(&groups, &[23, 24, 24, 0, 12, 24]);
+        assert_eq!(counts.feature, 2);
+        assert_eq!(counts.labelled_feature_claimed, 1);
         assert_eq!(counts.feature_as_body, 1);
         assert_eq!(counts.stock_unexplained, 1);
         assert_eq!(counts.stock_body, 1);
