@@ -141,7 +141,18 @@ pub fn section_recess_projection(
     part: &Part,
 ) -> Result<SectionRecessProjection, SectionRecessFamilyError> {
     take_inventory(part, |ctx, inventory| {
-        section_recess_projection_in(ctx, &inventory)
+        // Use the same completed claims and additive references as aggregate recognition.
+        // The in-run projector below remains the non-recursive input to recognise_in.
+        let features = super::recognise_in(ctx, inventory);
+        if let Some(error) = features.section_recess_refusal {
+            Err(error)
+        } else {
+            Ok(SectionRecessProjection {
+                section_recesses: features.section_recesses,
+                refusals: features.section_recess_refusals,
+                patterns: features.section_recess_patterns,
+            })
+        }
     })?
 }
 }
@@ -170,6 +181,10 @@ fn reindexed(record: &SectionRecess, index: usize) -> Result<SectionRecess, Sect
         record.classification().clone(),
         record.evidence().clone(),
     )
+    .map(|mut reindexed| {
+        reindexed.source = record.source.clone();
+        reindexed
+    })
 }
 
 // --- the run's accepted records -----------------------------------------------------------
