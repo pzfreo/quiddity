@@ -124,7 +124,9 @@ fn polygon(part: &Part, face: usize) -> Option<Vec<V3>> {
     }
     let vertices = outer_vertices(part, face);
     let n = vertices.len();
-    if n < 5 {
+    // The legacy vertex walk deduplicates IDs. A repeated corner here is an
+    // ambiguous/self-touching boundary, rather than a vertex to silently discard.
+    if n < 5 || n != part.faces[face].loops[part.outer_loop(face)?].edges.len() {
         return None;
     }
     let corners: Vec<_> = (0..n)
@@ -194,6 +196,13 @@ fn one_pair(
     let (axis, _) = principal_plane(part, principal)?;
     let vertices = polygon(part, principal)?;
     if part.faces[oblique].loops.len() != 1 {
+        return None;
+    }
+    if outer_vertices(part, oblique).len()
+        != part.faces[oblique].loops[part.outer_loop(oblique)?]
+            .edges
+            .len()
+    {
         return None;
     }
     let wall = linear_outer_quad(part, oblique)?;
