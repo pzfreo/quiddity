@@ -9,7 +9,7 @@ It works from the B-rep geometry alone, with no CAD system, feature tree or Open
 It is pure Rust, and the same input always gives the same output. It is available as a
 command line, a Rust library and a Python package.
 
-Status: **0.4.8** (2026-11-06). See [CHANGELOG.md](CHANGELOG.md).
+Status: **0.4.9** (2026-11-07). See [CHANGELOG.md](CHANGELOG.md).
 
 ## Install
 
