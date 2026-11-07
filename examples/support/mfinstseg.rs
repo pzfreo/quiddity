@@ -646,8 +646,14 @@ pub fn matched(predicted: &[Faces], labelled: &[Faces]) -> u64 {
 /// family (notably class 17). `source` is a consumer reference, not a scoring filter.
 fn duplicate(features: &quiddity::features::Features, family: &str, index: usize) -> bool {
     match family {
-        "holes" => features.holes[index].superseded_by.is_some(),
-        "bosses" => features.bosses[index].superseded_by.is_some(),
+        "holes" => features
+            .holes
+            .get(index)
+            .is_some_and(|record| record.superseded_by.is_some()),
+        "bosses" => features
+            .bosses
+            .get(index)
+            .is_some_and(|record| record.superseded_by.is_some()),
         _ => false,
     }
 }
@@ -1221,7 +1227,6 @@ mod tests {
         let s = score(
             &truth,
             &quiddity::features::Features {
-                holes: vec![test_hole(None)],
                 defining,
                 ..Default::default()
             },
@@ -1253,7 +1258,6 @@ mod tests {
         let s = score(
             &truth,
             &quiddity::features::Features {
-                holes: vec![test_hole(None)],
                 defining,
                 ..Default::default()
             },

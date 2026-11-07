@@ -194,8 +194,9 @@ No other family is a co-owner exception. Existing manufacturing claims take
 precedence; competing new individual records use first-owner priority: holes,
 pockets, then prismatic pockets, even when their walls are identical.
 Section-recess claims are retained; exact duplicates carry the optional `source`
-reference described below (#206). See [face accounting](face-accounting.md) for ownership precedence and the
-distinction between discovery evidence and completed claims.
+reference described below (#206). See [face accounting](face-accounting.md) for
+ownership precedence and the distinction between discovery evidence and
+completed claims.
 
 ## Slot precision correction (for #92)
 
@@ -223,10 +224,12 @@ inventory, schema 6, fingerprint version 3 and the crate version are unchanged.
 
 ## Annular face grooves
 
-The optional `annular_grooves` family contains `AnnularGroove` records and is omitted when
-empty. This additive family keeps `quiddity-rust/recognition/6`; existing hole and boss
-records are kept and marked with `superseded_by` when built from an accepted groove's walls. It describes a blind annular face recess of rectangular radial section,
-such as a face-seal housing. It makes no nominal O-ring size or intended-function claim.
+The optional `annular_grooves` family contains `AnnularGroove` records and is
+omitted when empty. This additive family keeps `quiddity-rust/recognition/6`;
+existing hole and boss records are kept and marked with `superseded_by` when
+built from an accepted groove's walls. It describes a blind annular face recess
+of rectangular radial section, such as a face-seal housing. It makes no nominal
+O-ring size or intended-function claim.
 
 Each record publishes `axis` (a unit vector from the floor towards the mouth),
 `floor_center` (a point in file coordinates), `inner_radius`, `outer_radius`, and `depth`
@@ -518,7 +521,7 @@ particular, a round becoming a fillet retains its `thin_wall_bodies` or
 `sheet_metal_bodies` classification, just as existing fillets, holes and blends already
 do. This co-ownership does not replace the round's geometric proof or permit a second
 claim by another individual feature family, except for the explicitly marked legacy
-duplicates described below.
+duplicates described above.
 
 Sheet-metal bend skins must satisfy the same edge-round proof to be fillets. The old
 axis-aligned path skipped tangency and could label a skin cut short of its tangent wall

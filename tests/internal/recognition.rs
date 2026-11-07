@@ -12,7 +12,7 @@ use super::slices;
 #[path = "../support/published_geometry.rs"]
 mod published_geometry;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use quiddity::correspondence::{self, Recognition};
@@ -1031,7 +1031,39 @@ fn recognition_carries_section_recesses() {
         let features = &recognition.features;
         let mut out = Vec::new();
         match recognise_section_recesses(&part) {
-            Ok(records) => {
+            Ok(mut records) => {
+                // Internal projections have no global family roster. Require absent
+                // references there, then independently derive schema-6 references for
+                // the full comparison below; all existing record fields still compare.
+                let source_families = [
+                    "channels",
+                    "edge_open_circular_pockets",
+                    "edge_open_prismatic_recesses",
+                    "pockets",
+                    "prismatic_pockets",
+                    "rectangular_blind_slots",
+                    "round_bottom_blind_slots",
+                    "section_passages",
+                ];
+                for record in &mut records {
+                    assert!(
+                        record.source.is_none(),
+                        "{file}: internal recess has a source"
+                    );
+                    let faces: BTreeSet<_> =
+                        record.evidence().defining_faces().iter().copied().collect();
+                    record.source = source_families.iter().find_map(|&family| {
+                        features
+                            .defining
+                            .get(family)?
+                            .iter()
+                            .position(|source| {
+                                !source.is_empty()
+                                    && source.iter().copied().collect::<BTreeSet<_>>() == faces
+                            })
+                            .map(|index| format!("{family}/{index}"))
+                    });
+                }
                 if features.section_recesses != records || features.section_recess_refusal.is_some()
                 {
                     out.push(format!("{file}: recognise's section recesses differ"));
