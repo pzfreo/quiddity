@@ -154,3 +154,22 @@ fn local_step_publication_and_fingerprints_follow_rigid_motion() {
     assert_eq!(first.faces, next.faces);
     assert_eq!(first.traits, next.traits);
 }
+
+#[test]
+fn evidence_view_handles_present_and_absent_optional_local_steps() {
+    for (name, expected) in [("local", 1), ("full", 0)] {
+        let part = control(name);
+        let view = quiddity::evidence_view::build_recognition_evidence(&part).unwrap();
+        let steps: Vec<_> = view
+            .features
+            .iter()
+            .enumerate()
+            .filter(|(_, f)| f.family == "local_steps")
+            .collect();
+        assert_eq!(steps.len(), expected);
+        for (index, feature) in steps {
+            assert_eq!(feature.defining.len(), 2);
+            assert_eq!(view.record(index)["length"], 4.);
+        }
+    }
+}

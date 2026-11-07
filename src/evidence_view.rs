@@ -271,12 +271,14 @@ fn faces(part: &Part, inventory: &Inventory) -> Result<Faces, EvidenceViewError>
         let found: Vec<Vec<usize>> = match family {
             // Not a candidate family: the projection's records carry their own evidence.
             "section_recesses" => Vec::new(),
-            family @ ("modelled_threads" | "turned_bodies" | "helical_springs") => inventory
-                .physical
-                .defining
-                .get(family)
-                .cloned()
-                .unwrap_or_default(),
+            family @ ("modelled_threads" | "turned_bodies" | "helical_springs" | "local_steps") => {
+                inventory
+                    .physical
+                    .defining
+                    .get(family)
+                    .cloned()
+                    .unwrap_or_default()
+            }
             other => inventory
                 .physical
                 .defining
