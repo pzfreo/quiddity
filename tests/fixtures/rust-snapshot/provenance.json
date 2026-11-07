@@ -3051,8 +3051,8 @@
     "tests/fixtures/late_turn.step": "eb9978a30c4992104d802b0bba5c8ba46a48f53e088b845306a58a4c21818bb6",
     "tests/fixtures/manifest.json": "799fdc976a30ecf142a6ae7c159d6135e82a9ef24962bed7348fe66d6d2518ae",
     "tests/fixtures/memo_part.step": "79c16d80205e285529b86c5cc2d5ed3088c127ebb776330d470ce48a3aa2f303",
-    "tests/fixtures/mfinstseg_baseline.json": "be483fa6ea07dd961d5d4cfb225f7bbcf2175480f5ad344d2c51d6f2720996b9",
-    "tests/fixtures/mfinstseg_mapping.json": "ad8f957b4c2f814de398cb0391cec08c7c6e0d3c2c2f83d0c1709433e7d7d347",
+    "tests/fixtures/mfinstseg_baseline.json": "d015fb17547bd898cbc9d2733a0ddbf07aa06920cdcdde7b86621fe7964c403c",
+    "tests/fixtures/mfinstseg_mapping.json": "574c778fa943d522ad251ce2c56d2fb59fe9f43287518f031188bdfb63f1f768",
     "tests/fixtures/mixed.step": "d565c1b5feeec36d996fcd8f3915e5cdae55c3d70651dc9d77cb1ecaa09cf536",
     "tests/fixtures/mixed_sealed_voids.step.gz": "d8b5e0c88b18a17d083483970204eccdfc585aedf7c58850b4ea1810a80aba41",
     "tests/fixtures/modelled_threads/diamond_knurl.step.gz": "7099e102266bcf2927a788c5f2f3ca9cd610059327e271114cff56f68466c6c7",
@@ -5897,5 +5897,5 @@
     "sections/test/parts/fc9cb0ef3d518aa4.step.gz.json.gz": "ad246bd3ca231dda3e7fe1fc54cd798984e7dcd9da376dcb609c3c42001086f8",
     "step_levels.json.gz": "b1d837579387b475bfb90cc5670098890fdfe83fddcbf0e2236a24207c2de1ff"
   },
-  "source_commit": "295da3eef4ef0911812f2e10144703181bfa4806"
+  "source_commit": "3b69d834092995047fceee1f18e7c1f58d93af41"
 }
