@@ -156,8 +156,10 @@
       "id": 10,
       "name": "slanted_through_step",
       "families": [
-        "oblique_through_steps"
+        "oblique_through_steps",
+        "polygonal_oblique_through_steps"
       ],
+      "rationale": "Polygonal principal walls with a complete rectangular oblique wall, a unique parallel convex lip, convex exterior run ends and an empty polygon sweep are slanted through steps. Only the two walls are defining; the exact polygon is retained. Legacy oblique_through_steps stays unchanged.",
       "geometry_source": "https://github.com/whjdark/AAGNet/blob/e0e36b7a12a7f01a29d7be36efc22730d293a1bd/dataset/Features/slanted_through_step.py"
     },
     {

@@ -73,6 +73,7 @@ pub mod plates;
 pub mod pockets;
 pub mod policy;
 pub mod polygonal_bosses;
+pub mod polygonal_oblique_through_steps;
 pub mod prismatic_pockets;
 pub mod probes;
 pub mod profiled_bores;
@@ -151,6 +152,10 @@ pub struct Features {
     pub oriented_chamfers: Vec<oriented_chamfers::OrientedChamfer>,
     pub circular_face_patterns: Vec<circular_face_patterns::CircularFacePattern>,
     pub oblique_through_steps: Vec<oblique_through_steps::ObliqueThroughStep>,
+    /// Polygonal oblique steps have their own ranks; absent on legacy parts.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub polygonal_oblique_through_steps:
+        Vec<polygonal_oblique_through_steps::PolygonalObliqueThroughStep>,
     pub circular_blind_steps: Vec<circular_blind_steps::CircularBlindStep>,
     pub holes: Vec<holes::HoleRecord>,
     pub countersinks: Vec<countersinks::CounterSink>,
@@ -913,6 +918,17 @@ fn inventory_in_with(
                 oblique_through_steps::discover(ctx)
             ),
         ),
+        polygonal_oblique_through_steps: {
+            let found = discover!(
+                "polygonal_oblique_through_steps",
+                polygonal_oblique_through_steps::discover(ctx)
+            );
+            if found.is_empty() {
+                Vec::new()
+            } else {
+                kept(&mut defining, "polygonal_oblique_through_steps", found)
+            }
+        },
         circular_blind_steps: kept(
             &mut defining,
             "circular_blind_steps",

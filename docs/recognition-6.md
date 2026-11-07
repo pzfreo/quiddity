@@ -936,3 +936,59 @@ The original box-minus-two-cuts controls, oblique-end and blind-end negatives,
 full-length control, motion/publication tests and optional external repro are in
 `tests/internal/local_steps.rs` and `tests/internal/mfinstseg.rs`; regenerate the
 original controls with `tools/make_local_steps_fixture.py`.
+
+
+## Polygonal oblique through steps (#212)
+
+The optional `polygonal_oblique_through_steps` family publishes
+`PolygonalObliqueThroughStep`. It is separate from `oblique_through_steps`
+because draftwright numbers features by rank within each family (`f:<family>:N`).
+Adding polygonal occurrences to the old array could renumber saved Spec references.
+The old four-corner recogniser, parameters and ordering remain unchanged. The new
+family is omitted when empty; recognition schema 6 and fingerprint format 3 remain.
+
+The principal wall is a planar, simple, straight-edged polygon with **more than
+four noncollinear corners**, without inner wires. Its boundary consists of one
+complete straight concave seam and a chain of principal-axis edges, all convexly
+joined to unique exterior supports. A curved support may trim a straight edge;
+its normal does not measure the step. The perpendicular oblique wall is a
+complete rectangle with that seam as one side. Both run ends must lie on opposite
+sides of the same stock-envelope axis and have a unique common convex planar
+terminal supporting the complete wall end. A seam between adjacent stock sides
+is a triangular blind-step wedge and is refused, even after polygonal trimming.
+
+The entire opposite oblique-wall edge must join one unique parallel, same-facing
+convex lip. This lip may be inside the stock envelope after another cut, as in
+MFInstSeg `_1002`; its position, rather than the stock box, measures the height.
+Every principal-wall corner must lie on the oblique wall's outward side. The exact
+principal polygon swept through the wall height must contain zero solid volume,
+with only the existing tolerance inset along the sweep. Curved boundaries, holes,
+tapered or interrupted oblique walls, ambiguous or concave bounding supports,
+nonplanar far lips, unproved sweeps and local run ends are refused. This is deliberately conservative;
+it does not claim all polygon-trimmed slanted steps.
+
+`run` is the unit seam direction from the lexicographically smaller endpoint;
+`length` is its full Euclidean length in mm. `at` is the seam midpoint.
+`depth_direction` is the outward principal-wall normal and `depth` is the step
+height in mm, measured to the opposite convex lip. `across_direction` points from
+the seam into the principal wall. `floor_outline` retains every principal-floor polygon
+corner as `[along_run, across]` from `at - run * length / 2`, canonicalised only by cyclic
+start and walk reversal. It is never replaced by a quad or convex hull. Lengths
+and outline coordinates publish three decimals; directions and `slant_degrees`
+publish six. Unlike the legacy family's four-corner `wall_outline`, this field is
+a variable-length principal-floor polygon, never the oblique rectangle. `through_axis` is an unoriented unit vector normal to
+the two opposite stock-envelope run terminals, expressed in the record's
+coordinate space. `slant_degrees` is `acos(abs(dot(run, through_axis)))` in degrees,
+using unrounded directions. It is measured against that through axis, even when
+another axis is closer to the seam: a seam 60 degrees off the through axis reports
+60 degrees, not 30. Rigid mapping carries `through_axis` with the other directions
+and retains the slant. The sign of `through_axis` has no geometric meaning.
+`body_key` follows the existing oblique family. The two walls alone are defining faces; all boundary supports,
+terminals and the far lip are consulted evidence. Rigid mapping carries the frame
+and leaves the intrinsic polygon coordinates unchanged.
+
+MFInstSeg class 10 (`slanted_through_step`) maps additively to this family and the
+unchanged `oblique_through_steps`. Only defining walls count in scoring, never the
+context supports. The mapping uses no labels to select records. Original generated
+polyhedron controls cover a six-corner floor, a 60-degree x-through seam,
+skew/taper refusals and an unchanged four-corner fixture; the external test checks `_1002` faces 20–21.

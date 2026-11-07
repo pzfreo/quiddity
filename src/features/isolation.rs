@@ -110,6 +110,7 @@ const CLAIM_INPUTS: &[&str] = &[
     "oriented_chamfers",
     "circular_face_patterns",
     "oblique_through_steps",
+    "polygonal_oblique_through_steps",
     "circular_blind_steps",
     "through_steps",
     "local_steps",

@@ -64,7 +64,7 @@ pub fn discover_verified(
 }
 
 /// The outer loop's vertices in boundary order (`outer_wire().vertices()`).
-fn outer_vertices(part: &Part, face: usize) -> Vec<V3> {
+pub(super) fn outer_vertices(part: &Part, face: usize) -> Vec<V3> {
     let Some(outer) = part.outer_loop(face) else {
         return Vec::new();
     };
@@ -153,7 +153,7 @@ fn terminal(part: &Part, principal: usize, oblique: usize, endpoint: V3, solid: 
 
 /// A principal support must have no transverse normal component. The shared coarse plane
 /// classifier also admits shallow ramps, which must remain oblique walls here.
-fn principal_plane(part: &Part, face: usize) -> Option<(usize, f64)> {
+pub(super) fn principal_plane(part: &Part, face: usize) -> Option<(usize, f64)> {
     let plane = axis_aligned_axis(part, face)?;
     let normal = unit_plane_normal(part, face)?;
     (0..3)
@@ -164,7 +164,7 @@ fn principal_plane(part: &Part, face: usize) -> Option<(usize, f64)> {
 
 /// The rectangular outer wall boundary is independent of holes drilled through the wall.
 /// Inner wires are still checked by the convex-neighbour and exact swept-volume proofs.
-fn linear_outer_quad(part: &Part, face: usize) -> Option<Vec<V3>> {
+pub(super) fn linear_outer_quad(part: &Part, face: usize) -> Option<Vec<V3>> {
     if !matches!(part.faces[face].surface, Surface::Plane { .. })
         || !part
             .outer_edges(face)
@@ -198,7 +198,7 @@ fn linear_outer_quad(part: &Part, face: usize) -> Option<Vec<V3>> {
 }
 
 /// One complete straight seam may be subdivided into several B-rep edges.
-fn seam_endpoints(part: &Part, a: usize, b: usize) -> Option<(V3, V3)> {
+pub(super) fn seam_endpoints(part: &Part, a: usize, b: usize) -> Option<(V3, V3)> {
     let edges = part.shared_edges(a, b);
     if edges.is_empty()
         || edges

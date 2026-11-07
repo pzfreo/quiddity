@@ -8,6 +8,13 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Added
 
+- `polygonal_oblique_through_steps` recognises slanted through steps with more
+  than four principal-wall corners, preserving the full outline, seam run, height,
+  slant angle relative to an explicit `through_axis`, and defining walls (#212).
+  The principal polygon is published as `floor_outline`. A separate optional family preserves
+  legacy oblique-step ranks and saved Spec references. MFInstSeg class 10 maps
+  additively to the new family; ambiguous boundaries and blind wedges are refused.
+
 - `local_steps` recognises rectangular step remnants ending inside a solid, with
   explicit run endpoints, height/depth directions and dimensions, and unique
   perpendicular end-face evidence (#211). The separate optional family preserves

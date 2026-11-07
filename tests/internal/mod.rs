@@ -94,3 +94,6 @@ mod edge_trimming;
 
 #[path = "flat_floors.rs"]
 mod flat_floors;
+
+#[path = "polygonal_oblique_through_steps.rs"]
+mod polygonal_oblique_through_steps;
