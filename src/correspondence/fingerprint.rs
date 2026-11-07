@@ -273,6 +273,22 @@ pub const FAMILIES: &[FamilyFingerprint] = &[
         ],
     },
     FamilyFingerprint {
+        family: "polygonal_oblique_through_steps",
+        members: None,
+        variants: false,
+        fields: &[
+            ("run", Axis),
+            ("length", Size),
+            ("slant_degrees", Size),
+            ("depth", Size),
+            ("at", Placement),
+            ("depth_direction", Placement),
+            ("across_direction", Placement),
+            ("wall_outline", Placement),
+            ("body_key", Placement),
+        ],
+    },
+    FamilyFingerprint {
         family: "circular_blind_steps",
         members: None,
         variants: false,

@@ -77,6 +77,7 @@ fn every_family_has_a_record_type() {
                 "semicircular_blind_slots",
                 "rectangular_through_notches",
                 "local_steps",
+                "polygonal_oblique_through_steps",
             ]
             .contains(f)
         })
@@ -404,7 +405,7 @@ fn agree(a: &Value, b: &Value, grid: &mut usize) -> bool {
 fn agree_record(family: &str, a: &Value, b: &Value, grid: &mut usize) -> bool {
     let field = match family {
         "circular_blind_steps" => "section",
-        "oblique_through_steps" => "wall_outline",
+        "oblique_through_steps" | "polygonal_oblique_through_steps" => "wall_outline",
         _ => return agree(a, b, grid),
     };
     let Some(points) = b.get(field).and_then(Value::as_array) else {
@@ -418,15 +419,21 @@ fn agree_record(family: &str, a: &Value, b: &Value, grid: &mut usize) -> bool {
             points[1].clone(),
             points[0].clone(),
         ]);
-    } else if family == "oblique_through_steps" && points.len() == 4 {
+    } else if (family == "oblique_through_steps" && points.len() == 4)
+        || (family == "polygonal_oblique_through_steps" && points.len() > 4)
+    {
         for reversed in [false, true] {
             let path: Vec<_> = if reversed {
                 points.iter().rev().cloned().collect()
             } else {
                 points.clone()
             };
-            for start in 0..4 {
-                candidates.push((0..4).map(|i| path[(start + i) % 4].clone()).collect());
+            for start in 0..points.len() {
+                candidates.push(
+                    (0..points.len())
+                        .map(|i| path[(start + i) % points.len()].clone())
+                        .collect(),
+                );
             }
         }
     } else {
@@ -437,7 +444,10 @@ fn agree_record(family: &str, a: &Value, b: &Value, grid: &mut usize) -> bool {
         candidate[field] = Value::Array(points);
         for reversed_run in [false, true] {
             if reversed_run {
-                if family != "oblique_through_steps" {
+                if !matches!(
+                    family,
+                    "oblique_through_steps" | "polygonal_oblique_through_steps"
+                ) {
                     break;
                 }
                 if let Some(run) = candidate.get_mut("run").and_then(Value::as_array_mut) {

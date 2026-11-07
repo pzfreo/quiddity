@@ -166,6 +166,10 @@ pub const RECORD_TYPES: &[(&str, &[&str])] = &[
     ("paired_ramp_steps", &["PairedRampStep"]),
     ("circular_face_patterns", &["CircularFacePattern"]),
     ("oblique_through_steps", &["ObliqueThroughStep"]),
+    (
+        "polygonal_oblique_through_steps",
+        &["PolygonalObliqueThroughStep"],
+    ),
     ("circular_blind_steps", &["CircularBlindStep"]),
     ("holes", &["HoleRecord"]),
     ("countersinks", &["CounterSink"]),

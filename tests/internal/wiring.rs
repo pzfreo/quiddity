@@ -154,6 +154,17 @@ fn families_are_wired_and_their_records_fingerprinted_field_by_field() {
             found.entry(key).or_default().extend(paths);
         }
     }
+    let polygonal = super::polygonal_oblique_through_steps::polygonal_corner(false);
+    let features = features::recognise(&polygonal);
+    let (p, new_leaves) = check(
+        "polygonal corner",
+        &records_json(&features),
+        &features.defining,
+    );
+    problems.extend(p);
+    for (key, paths) in new_leaves {
+        found.entry(key).or_default().extend(paths);
+    }
     // For #123, exercise the new family even without the optional corpus or local repro.
     let disc = super::face_grooves::two_ends();
     let grooves = features::recognise(&disc).face_grooves;

@@ -82,6 +82,7 @@ pub use features::pockets::Pocket;
 pub use features::polygonal_bosses::{
     PolygonalBoss, PolygonalOptions, PolygonalPrism, PolygonalStock,
 };
+pub use features::polygonal_oblique_through_steps::PolygonalObliqueThroughStep;
 pub use features::prismatic_pockets::PrismaticPocket;
 pub use features::profiled_bores::{DoubleDBore, DoubleDBoreOptions};
 pub use features::recess_patterns::{PocketPattern, SlotPattern};

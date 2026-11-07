@@ -552,6 +552,7 @@ fn carry(
         oriented_chamfers,
         circular_face_patterns,
         oblique_through_steps,
+        polygonal_oblique_through_steps,
         circular_blind_steps,
         holes,
         countersinks,
@@ -651,6 +652,11 @@ fn carry(
             "oblique_through_steps",
             oblique_through_steps,
             oblique_through_step
+        ),
+        polygonal_oblique_through_steps: each!(
+            "polygonal_oblique_through_steps",
+            polygonal_oblique_through_steps,
+            polygonal_oblique_through_step
         ),
         circular_blind_steps: each!(
             "circular_blind_steps",
@@ -1127,6 +1133,18 @@ fn oblique_through_step(out: &mut Out, r: ObliqueThroughStep) -> ObliqueThroughS
         wall_outline,
         body_key: out.body_key(body_key, "body_key"),
     }
+}
+
+fn polygonal_oblique_through_step(
+    out: &mut Out,
+    mut r: crate::features::polygonal_oblique_through_steps::PolygonalObliqueThroughStep,
+) -> crate::features::polygonal_oblique_through_steps::PolygonalObliqueThroughStep {
+    r.run = out.direction(r.run);
+    r.at = out.placed_point(r.at);
+    r.depth_direction = out.direction(r.depth_direction);
+    r.across_direction = out.direction(r.across_direction);
+    r.body_key = out.body_key(r.body_key, "body_key");
+    r
 }
 
 fn circular_blind_step(out: &mut Out, r: CircularBlindStep) -> CircularBlindStep {

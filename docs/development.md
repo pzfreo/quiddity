@@ -95,6 +95,7 @@ No new independent references are claimed for legacy value-only helpers.
 | `local_steps` | original OCCT boolean controls + analytic dimensions, end-face evidence, negatives and motion (`tests/internal/local_steps.rs`); L |
 | `modelled_threads` | F; analytic thread fixtures (`tests/internal/modelled_threads.rs`) |
 | `oblique_through_steps` | F; L |
+| `polygonal_oblique_through_steps` | F (generated polyhedron, skew negative, legacy quad); L (`_1002`) |
 | `oriented_chamfers` | F |
 | `oriented_slot_patterns` | F |
 | `oriented_slots` | F; L |

@@ -311,3 +311,39 @@ fn local_step_repro_keeps_the_labelled_defining_faces() {
             .any(|r| r.family == "local_steps" && r.faces == [7, 8])
     );
 }
+
+/// Polygonal floor with a local convex opening lip; neither is approximated by stock bounds.
+#[test]
+fn polygonal_slanted_step_1002_keeps_its_six_corners_and_defining_faces() {
+    let Some(root) = std::env::var_os("QUIDDITY_MFINSTSEG") else {
+        return;
+    };
+    let path = Path::new(&root).join("steps/20221121_154647_1002.step");
+    let part = quiddity::read_step_file(&path).unwrap();
+    let found = quiddity::features::polygonal_oblique_through_steps::discover_verified(
+        &quiddity::features::Context::new(&part),
+    )
+    .unwrap();
+    assert_eq!(
+        found.len(),
+        1,
+        "the other polygonal pair [3,4] is a triangular blind step"
+    );
+    let step = &found[0];
+    assert_eq!(step.defining, vec![20, 21]);
+    assert_eq!(step.context, vec![6, 11, 14, 18, 19, 22]);
+    assert_eq!(step.record.wall_outline.len(), 6);
+    assert_eq!(step.record.length, 88.169);
+    assert_eq!(step.record.depth, 30.02);
+    assert_eq!(step.record.slant_degrees, 3.100929);
+    assert_eq!(step.record.run, [0.054095, 0., -0.998536]);
+    let all = quiddity::features::recognise(&part);
+    assert_eq!(
+        all.polygonal_oblique_through_steps,
+        vec![step.record.clone()]
+    );
+    assert_eq!(
+        all.defining["polygonal_oblique_through_steps"],
+        vec![vec![20, 21]]
+    );
+}

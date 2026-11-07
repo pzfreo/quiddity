@@ -310,7 +310,10 @@ pub fn canonical(v: &Value, family: &str) -> Value {
             pair.reverse();
         }
     }
-    if family == "oblique_through_steps" {
+    if matches!(
+        family,
+        "oblique_through_steps" | "polygonal_oblique_through_steps"
+    ) {
         let run = vector(&raw["run"]).unwrap();
         let across = vector(&raw["across_direction"]).unwrap();
         let start = add(
