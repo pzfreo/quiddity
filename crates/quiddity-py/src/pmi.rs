@@ -84,12 +84,15 @@ fn text(value: &Value) -> Result<String> {
     serde_json::to_string(value).map_err(Failure::new)
 }
 
+/// The document (or presentation) as JSON text, and with *with_findings* the reader's findings
+/// on the selected part or on no part (as `quiddity pmi read --part N` lists them).
 fn read(
     input: super::Input,
     selected: Option<usize>,
     names: bool,
     presentation: bool,
-) -> Result<String> {
+    with_findings: bool,
+) -> Result<(String, Option<String>)> {
     let (doc, parts, part) = source(input, selected)?;
     let read = pmi::read(&doc, &parts).map_err(Failure::new)?;
     let result = (|| {
@@ -112,23 +115,36 @@ fn read(
             json::to_value(&semantic)
         }
     })();
-    text(&result.map_err(|error| Failure {
+    let document = text(&result.map_err(|error| Failure {
         message: error.to_string(),
         findings: findings(&read),
-    })?)
+    })?)?;
+    let found = with_findings
+        .then(|| {
+            let mine: Vec<Value> = findings(&read)
+                .into_iter()
+                .zip(&read.findings)
+                .filter(|(_, f)| f.part.is_none_or(|p| p.0 == part))
+                .map(|(v, _)| v)
+                .collect();
+            text(&Value::Array(mine))
+        })
+        .transpose()?;
+    Ok((document, found))
 }
 
 #[pyfunction]
-#[pyo3(signature = (step, part=None, names=false, presentation=false))]
+#[pyo3(signature = (step, part=None, names=false, presentation=false, findings=false))]
 fn pmi_read(
     py: Python<'_>,
     step: &Bound<'_, PyAny>,
     part: Option<usize>,
     names: bool,
     presentation: bool,
-) -> PyResult<String> {
+    findings: bool,
+) -> PyResult<(String, Option<String>)> {
     let input = super::Input::extract(step)?;
-    py.detach(|| read(input, part, names, presentation))
+    py.detach(|| read(input, part, names, presentation, findings))
         .map_err(|e| e.raised(py))
 }
 
