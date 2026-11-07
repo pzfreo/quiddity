@@ -950,7 +950,8 @@ family is omitted when empty; recognition schema 6 and fingerprint format 3 rema
 The principal wall is a planar, simple, straight-edged polygon with **more than
 four noncollinear corners**, without inner wires. Its boundary consists of one
 complete straight concave seam and a chain of principal-axis edges, all convexly
-joined to unique planar exterior supports. The perpendicular oblique wall is a
+joined to unique exterior supports. A curved support may trim a straight edge;
+its normal does not measure the step. The perpendicular oblique wall is a
 complete rectangle with that seam as one side. Both run ends must lie on opposite
 sides of the same stock-envelope axis and have a unique common convex planar
 terminal supporting the complete wall end. A seam between adjacent stock sides
@@ -963,7 +964,7 @@ Every principal-wall corner must lie on the oblique wall's outward side. The exa
 principal polygon swept through the wall height must contain zero solid volume,
 with only the existing tolerance inset along the sweep. Curved boundaries, holes,
 tapered or interrupted oblique walls, ambiguous or concave bounding supports,
-unproved sweeps and local run ends are refused. This is deliberately conservative;
+nonplanar far lips, unproved sweeps and local run ends are refused. This is deliberately conservative;
 it does not claim all polygon-trimmed slanted steps.
 
 `run` is the unit seam direction from the lexicographically smaller endpoint;

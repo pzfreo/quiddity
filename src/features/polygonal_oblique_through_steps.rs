@@ -14,7 +14,7 @@ use super::planes::{coordinates, normalized, unit_plane_normal};
 use super::policy::length_tol;
 use crate::kernel::brep::{Arc, Part};
 use crate::kernel::geom::{
-    Bounds, COORD_FLOOR, Curve, SMOOTH_ARC_GAP, V3, add, cross, dot, norm, scale, sub,
+    Bounds, COORD_FLOOR, Curve, SMOOTH_ARC_GAP, Surface, V3, add, cross, dot, norm, scale, sub,
 };
 use crate::kernel::py;
 
@@ -145,8 +145,10 @@ fn polygon(part: &Part, face: usize) -> Option<Vec<V3>> {
     (corners.len() > 4).then_some(corners)
 }
 
-/// Exactly one planar exterior support owns each entire non-seam edge. Curved,
-/// nonmanifold, concave, or competing boundary supports do not establish an open lip.
+/// Exactly one exterior support owns each entire non-seam edge. Nonmanifold,
+/// concave, or competing boundary supports do not establish an open boundary.
+/// A curved support may trim a straight polygon edge; its normal is not a datum.
+/// The measured far lip and both run terminals are separately proved planar.
 fn boundary_supports(
     part: &Part,
     face: usize,
@@ -166,10 +168,7 @@ fn boundary_supports(
         if f == other {
             continue;
         }
-        if !solid.contains(&f)
-            || part.arc(face, f) != Some(Arc::Convex)
-            || unit_plane_normal(part, f).is_none()
-        {
+        if !solid.contains(&f) || part.arc(face, f) != Some(Arc::Convex) {
             return None;
         }
         supports.push(f);
@@ -268,7 +267,9 @@ fn one_pair(
         .iter()
         .copied()
         .filter(|&f| {
-            unit_plane_normal(part, f).is_some_and(|n| norm(sub(n, normal)) <= SMOOTH_ARC_GAP)
+            matches!(part.faces[f].surface, Surface::Plane { .. })
+                && unit_plane_normal(part, f)
+                    .is_some_and(|n| norm(sub(n, normal)) <= SMOOTH_ARC_GAP)
                 && seam_endpoints(part, oblique, f).is_some_and(|(a, b)| {
                     norm(sub(a, add(start, scale(normal, depth)))) <= COORD_FLOOR
                         && norm(sub(b, add(end, scale(normal, depth)))) <= COORD_FLOOR
