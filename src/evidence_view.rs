@@ -276,6 +276,7 @@ fn faces(part: &Part, inventory: &Inventory) -> Result<Faces, EvidenceViewError>
             family @ ("modelled_threads"
             | "turned_bodies"
             | "helical_springs"
+            | "internal_bevels"
             | "local_steps"
             | "polygonal_oblique_through_steps") => inventory
                 .physical

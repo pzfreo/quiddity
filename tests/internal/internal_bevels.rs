@@ -78,6 +78,12 @@ fn filled_corner_has_true_legs_angle_and_only_the_strip_is_defining() {
     assert_eq!(r.leg2_direction, [0., 0., 1.]);
     let all = features::recognise(&part);
     assert_eq!(all.internal_bevels, vec![r.clone()]);
+    let view = quiddity::build_recognition_evidence(&part).unwrap();
+    assert!(
+        view.features
+            .iter()
+            .any(|f| f.family == "internal_bevels" && f.defining == [11])
+    );
 }
 
 #[test]
