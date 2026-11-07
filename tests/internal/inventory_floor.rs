@@ -166,3 +166,85 @@ fn inventories_do_not_silently_shrink() {
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
+
+#[test]
+fn circular_step_363_replaces_only_its_subordinate_profile() {
+    use quiddity::features::{Context, circular_blind_steps};
+    use quiddity::kernel::{
+        brep::Arc,
+        geom::{self, Surface},
+    };
+
+    let Some(dir) = common::corpus_dir() else {
+        assert!(std::env::var_os("QUIDDITY_CORPUS_REQUIRED").is_none());
+        return;
+    };
+    let part = read_step_file(&dir.join("mfcadpp_holdout/363.step")).unwrap();
+    assert!(part.solid_is_geometrically_valid(0));
+    let Surface::Cylinder { frame, radius } = part.faces[20].surface else {
+        panic!("face 20 must remain the native corner cylinder");
+    };
+    assert!((radius - 4.550383998164).abs() < 1e-12);
+    assert!(frame.z[0].abs() < 1e-12 && frame.z[1].abs() < 1e-12);
+    assert!((frame.z[2].abs() - 1.).abs() < 1e-12);
+    assert!((frame.origin[0] - 33.316330673049).abs() < 1e-12);
+    assert!(frame.origin[1].abs() < 1e-12);
+    let bounds = part.face_bounds(20);
+    assert!((bounds.min[2] - 17.138600034740).abs() < 1e-12);
+    assert!((bounds.max[2] - 20.497241548961).abs() < 1e-12);
+    let (u0, u1, _, _) = part.uv_bounds(20).unwrap();
+    assert!((u1 - u0 - std::f64::consts::FRAC_PI_2).abs() < 1e-12);
+    for (support, outward) in [(5, [0., -1., 0.]), (15, [1., 0., 0.])] {
+        let Surface::Plane { frame: plane } = part.faces[support].surface else {
+            panic!("corner support must remain planar");
+        };
+        let normal = part.face_normal(support, 0., 0.).unwrap();
+        assert!(geom::dist(normal, outward) < 1e-12);
+        assert!(geom::dot(geom::sub(frame.origin, plane.origin), normal).abs() < 1e-12);
+        assert_eq!(part.arc(20, support), Some(Arc::Convex));
+    }
+    assert_eq!(part.arc(20, 18), Some(Arc::Convex));
+    let Surface::Plane { frame: extra } = part.faces[18].surface else {
+        panic!("secondary cut must remain planar");
+    };
+    assert!((extra.origin[1] - radius).abs() < 1e-12);
+    let extra_normal = part.face_normal(18, 0., 0.).unwrap();
+    assert!(geom::dist(extra_normal, [0., 1., 0.]) < 1e-12);
+    assert!(
+        (geom::dot(geom::sub(frame.origin, extra.origin), extra_normal).abs() - radius).abs()
+            < 1e-12
+    );
+    assert_eq!(part.arc(20, 24), Some(Arc::Concave));
+    let ctx = Context::new(&part);
+    let cut = circular_blind_steps::discover_verified(&ctx)
+        .unwrap()
+        .into_iter()
+        .find(|step| step.defining == [20, 24])
+        .unwrap();
+    assert_eq!(cut.record.axis, 'z');
+    assert_eq!(cut.record.radius, 4.55039);
+    assert_eq!(cut.record.length, 3.35864);
+    assert_eq!(
+        ctx.swept_face_volume(0, 24, [0.; 3], [0., 0., bounds.max[2] - bounds.min[2]]),
+        Some(0.)
+    );
+
+    let recognised = correspondence::recognise(&part);
+    let steps: std::collections::BTreeSet<_> = recognised.features.defining["circular_blind_steps"]
+        .iter()
+        .cloned()
+        .collect();
+    assert_eq!(
+        steps,
+        [vec![20, 24], vec![25, 26], vec![10, 27]]
+            .into_iter()
+            .collect()
+    );
+    assert_eq!(recognised.features.circular_blind_steps.len(), 3);
+    assert_eq!(recognised.features.cylindrical_profiles.len(), 1);
+    assert_eq!(recognised.features.cylindrical_profiles[0].faces, [14]);
+    assert_eq!(
+        recognised.features.defining["cylindrical_profiles"],
+        [vec![14]]
+    );
+}
