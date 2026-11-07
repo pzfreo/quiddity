@@ -1,0 +1,15 @@
+[package]
+name = "solidcore-bridge-prototype"
+version = "0.0.0"
+edition = "2024"
+publish = false
+license = "Apache-2.0"
+description = "Phase 0 throwaway prototype: STEP faces tagged in solidcore, carried through a boolean."
+
+# Its own workspace: not a member of quiddity's, never built by quiddity's CI.
+[workspace]
+
+[dependencies]
+haecceity = { path = "../../crates/haecceity" }
+solidcore = "=1.0.1"
+flate2 = "1.1.10"

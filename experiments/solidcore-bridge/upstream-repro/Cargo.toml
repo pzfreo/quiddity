@@ -1,0 +1,17 @@
+[package]
+name = "solidcore-cut-repro"
+version = "0.0.0"
+edition = "2021"
+publish = false
+license = "Apache-2.0"
+description = "Repro: solidcore booleans on an imported revolved part return wrong volumes without an error."
+
+[workspace]
+
+# solidcore's main branch as of 2026-11-06. step-brep and step-import are unpublished, so they
+# come from the repository.
+[dependencies]
+solidcore = { git = "https://github.com/tangency-labs/solidcore", rev = "513e6fcfcd049d41e9487599880479de4add63f2" }
+step-brep = { git = "https://github.com/tangency-labs/solidcore", rev = "513e6fcfcd049d41e9487599880479de4add63f2" }
+step-import = { git = "https://github.com/tangency-labs/solidcore", rev = "513e6fcfcd049d41e9487599880479de4add63f2" }
+flate2 = "1"
