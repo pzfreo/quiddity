@@ -1,0 +1,148 @@
+{
+  "scored_models": 9373,
+  "status": {
+    "qr:ok": 9373,
+    "as:ok": 9375,
+    "qr:unreadable": 2
+  },
+  "comparisons": {
+    "holes": {
+      "qr": {
+        "labelled": 9749,
+        "claimed": 9807,
+        "hit": 6541,
+        "stock_claimed": 0,
+        "instances": 6085,
+        "instances_hit": 6022,
+        "face_recall": 0.6709,
+        "face_precision": 0.667,
+        "instance_recall": 0.9896,
+        "per_class_face_recall": {
+          "Through hole": 0.9799,
+          "Blind hole": 0.5025
+        }
+      },
+      "as": {
+        "labelled": 9749,
+        "claimed": 9144,
+        "hit": 8749,
+        "stock_claimed": 0,
+        "instances": 6085,
+        "instances_hit": 5722,
+        "face_recall": 0.8974,
+        "face_precision": 0.9568,
+        "instance_recall": 0.9403,
+        "per_class_face_recall": {
+          "Through hole": 0.9142,
+          "Blind hole": 0.8883
+        }
+      }
+    },
+    "rounds": {
+      "qr": {
+        "labelled": 3414,
+        "claimed": 3437,
+        "hit": 2714,
+        "stock_claimed": 0,
+        "instances": 2924,
+        "instances_hit": 2646,
+        "face_recall": 0.795,
+        "face_precision": 0.7896,
+        "instance_recall": 0.9049,
+        "per_class_face_recall": {
+          "Round": 0.795
+        }
+      },
+      "as": {
+        "labelled": 3414,
+        "claimed": 11816,
+        "hit": 3410,
+        "stock_claimed": 0,
+        "instances": 2924,
+        "instances_hit": 2922,
+        "face_recall": 0.9988,
+        "face_precision": 0.2886,
+        "instance_recall": 0.9993,
+        "per_class_face_recall": {
+          "Round": 0.9988
+        }
+      }
+    },
+    "any-feature (cavities)": {
+      "qr": {
+        "labelled": 193710,
+        "claimed": 132834,
+        "hit": 132196,
+        "stock_claimed": 638,
+        "instances": 59278,
+        "instances_hit": 47834,
+        "face_recall": 0.6824,
+        "face_precision": 0.9952,
+        "instance_recall": 0.8069,
+        "per_class_face_recall": {
+          "Chamfer": 0.6493,
+          "Through hole": 0.9846,
+          "Triangular passage": 0.8304,
+          "Rectangular passage": 0.7682,
+          "6-sided passage": 0.788,
+          "Triangular through slot": 0.028,
+          "Rectangular through slot": 0.5387,
+          "Circular through slot": 0.6443,
+          "Rectangular through step": 0.5988,
+          "2-sided through step": 0.5018,
+          "Slanted through step": 0.2181,
+          "O-ring": 0.6554,
+          "Blind hole": 0.5028,
+          "Triangular pocket": 0.7029,
+          "Rectangular pocket": 0.7002,
+          "6-sided pocket": 0.7844,
+          "Circular end pocket": 0.7241,
+          "Rectangular blind slot": 0.6239,
+          "Vertical circular end blind slot": 0.3125,
+          "Horizontal circular end blind slot": 0.7231,
+          "Triangular blind step": 0.3667,
+          "Circular blind step": 0.7918,
+          "Rectangular blind step": 0.7844,
+          "Round": 0.795
+        }
+      },
+      "as": {
+        "labelled": 193710,
+        "claimed": 126379,
+        "hit": 123584,
+        "stock_claimed": 2795,
+        "instances": 59278,
+        "instances_hit": 31459,
+        "face_recall": 0.638,
+        "face_precision": 0.9779,
+        "instance_recall": 0.5307,
+        "per_class_face_recall": {
+          "Chamfer": 0.4885,
+          "Through hole": 0.8776,
+          "Triangular passage": 0.8856,
+          "Rectangular passage": 0.8131,
+          "6-sided passage": 0.8777,
+          "Triangular through slot": 0.0042,
+          "Rectangular through slot": 0.0065,
+          "Circular through slot": 0.0114,
+          "Rectangular through step": 0.0112,
+          "2-sided through step": 0.0027,
+          "Slanted through step": 0.0024,
+          "O-ring": 0.9831,
+          "Blind hole": 0.9837,
+          "Triangular pocket": 0.9835,
+          "Rectangular pocket": 0.9644,
+          "6-sided pocket": 0.9853,
+          "Circular end pocket": 0.9835,
+          "Rectangular blind slot": 0.002,
+          "Vertical circular end blind slot": 0.0,
+          "Horizontal circular end blind slot": 0.0031,
+          "Triangular blind step": 0.0006,
+          "Circular blind step": 0.0019,
+          "Rectangular blind step": 0.0094,
+          "Round": 0.4066
+        }
+      }
+    }
+  }
+}

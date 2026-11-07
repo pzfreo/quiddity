@@ -1,0 +1,441 @@
+{
+  "models": 9375,
+  "health": {
+    "qr": {
+      "ok": 9375
+    },
+    "as": {
+      "ok": 9375
+    }
+  },
+  "comparisons": {
+    "Holes": {
+      "qr": {
+        "labelled_faces": 9751,
+        "claimed_faces": 9775,
+        "true_faces": 6521,
+        "false_faces": 3254,
+        "false_faces_oring_neutral": 9,
+        "claimed_faces_oring_neutral": 6530,
+        "false_stock_faces": 0,
+        "instances": 6086,
+        "recognised": 5994,
+        "missed": 84,
+        "models_with_claims": 5789,
+        "recognition_pct": 98.49,
+        "claimed_face_pct": 66.88,
+        "false_positive_pct": 33.29,
+        "false_positive_pct_oring_neutral": 0.14,
+        "false_negative_pct": 1.38
+      },
+      "as": {
+        "labelled_faces": 9751,
+        "claimed_faces": 9146,
+        "true_faces": 8751,
+        "false_faces": 395,
+        "false_faces_oring_neutral": 332,
+        "claimed_faces_oring_neutral": 9083,
+        "false_stock_faces": 0,
+        "instances": 6086,
+        "recognised": 5719,
+        "missed": 363,
+        "models_with_claims": 4320,
+        "recognition_pct": 93.97,
+        "claimed_face_pct": 89.74,
+        "false_positive_pct": 4.32,
+        "false_positive_pct_oring_neutral": 3.66,
+        "false_negative_pct": 5.96
+      }
+    },
+    "Rounds": {
+      "qr": {
+        "labelled_faces": 3415,
+        "claimed_faces": 2771,
+        "true_faces": 2765,
+        "false_faces": 6,
+        "false_faces_oring_neutral": 6,
+        "claimed_faces_oring_neutral": 2771,
+        "false_stock_faces": 0,
+        "instances": 2925,
+        "recognised": 2663,
+        "missed": 249,
+        "models_with_claims": 2365,
+        "recognition_pct": 91.04,
+        "claimed_face_pct": 80.97,
+        "false_positive_pct": 0.22,
+        "false_positive_pct_oring_neutral": 0.22,
+        "false_negative_pct": 8.51
+      },
+      "as": {
+        "labelled_faces": 3415,
+        "claimed_faces": 11827,
+        "true_faces": 3411,
+        "false_faces": 8416,
+        "false_faces_oring_neutral": 8415,
+        "claimed_faces_oring_neutral": 11826,
+        "false_stock_faces": 0,
+        "instances": 2925,
+        "recognised": 2922,
+        "missed": 2,
+        "models_with_claims": 5042,
+        "recognition_pct": 99.9,
+        "claimed_face_pct": 99.88,
+        "false_positive_pct": 71.16,
+        "false_positive_pct_oring_neutral": 71.16,
+        "false_negative_pct": 0.07
+      }
+    },
+    "Any feature": {
+      "qr": {
+        "labelled_faces": 193762,
+        "claimed_faces": 143688,
+        "true_faces": 143050,
+        "false_faces": 638,
+        "false_faces_oring_neutral": 638,
+        "claimed_faces_oring_neutral": 143688,
+        "false_stock_faces": 638,
+        "instances": 59296,
+        "recognised": 48583,
+        "missed": 9996,
+        "models_with_claims": 9363,
+        "recognition_pct": 81.93,
+        "claimed_face_pct": 73.83,
+        "false_positive_pct": 0.44,
+        "false_positive_pct_oring_neutral": 0.44,
+        "false_negative_pct": 16.86
+      },
+      "as": {
+        "labelled_faces": 193762,
+        "claimed_faces": 126411,
+        "true_faces": 123613,
+        "false_faces": 2798,
+        "false_faces_oring_neutral": 2798,
+        "claimed_faces_oring_neutral": 126411,
+        "false_stock_faces": 2798,
+        "instances": 59296,
+        "recognised": 31208,
+        "missed": 27827,
+        "models_with_claims": 8974,
+        "recognition_pct": 52.63,
+        "claimed_face_pct": 63.8,
+        "false_positive_pct": 2.21,
+        "false_positive_pct_oring_neutral": 2.21,
+        "false_negative_pct": 46.93
+      }
+    },
+    "Stock (convex hull)": {
+      "qr": {
+        "labelled_faces": 61088,
+        "claimed_faces": 111162,
+        "true_faces": 60450,
+        "false_faces": 50712,
+        "false_faces_oring_neutral": 49984,
+        "claimed_faces_oring_neutral": 110434,
+        "false_stock_faces": 60450,
+        "instances": 9375,
+        "recognised": 9369,
+        "missed": 0,
+        "models_with_claims": 9375,
+        "recognition_pct": 99.94,
+        "claimed_face_pct": 98.96,
+        "false_positive_pct": 45.62,
+        "false_positive_pct_oring_neutral": 45.26,
+        "false_negative_pct": 0.0
+      },
+      "as": {
+        "labelled_faces": 61088,
+        "claimed_faces": 62632,
+        "true_faces": 61072,
+        "false_faces": 1560,
+        "false_faces_oring_neutral": 1560,
+        "claimed_faces_oring_neutral": 62632,
+        "false_stock_faces": 61072,
+        "instances": 9375,
+        "recognised": 9375,
+        "missed": 0,
+        "models_with_claims": 9375,
+        "recognition_pct": 100.0,
+        "claimed_face_pct": 99.97,
+        "false_positive_pct": 2.49,
+        "false_positive_pct_oring_neutral": 2.49,
+        "false_negative_pct": 0.0
+      }
+    },
+    "Shafts": {
+      "qr": {
+        "labelled_faces": 0,
+        "claimed_faces": 143688,
+        "true_faces": 0,
+        "false_faces": 143688,
+        "false_faces_oring_neutral": 134693,
+        "claimed_faces_oring_neutral": 134693,
+        "false_stock_faces": 638,
+        "instances": 0,
+        "recognised": 0,
+        "missed": 0,
+        "models_with_claims": 9363,
+        "recognition_pct": null,
+        "claimed_face_pct": null,
+        "false_positive_pct": 100.0,
+        "false_positive_pct_oring_neutral": 100.0,
+        "false_negative_pct": null
+      },
+      "as": {
+        "labelled_faces": 0,
+        "claimed_faces": 2898,
+        "true_faces": 0,
+        "false_faces": 2898,
+        "false_faces_oring_neutral": 0,
+        "claimed_faces_oring_neutral": 0,
+        "false_stock_faces": 0,
+        "instances": 0,
+        "recognised": 0,
+        "missed": 0,
+        "models_with_claims": 2517,
+        "recognition_pct": null,
+        "claimed_face_pct": null,
+        "false_positive_pct": 100.0,
+        "false_positive_pct_oring_neutral": null,
+        "false_negative_pct": null
+      }
+    },
+    "Overall: holes+blends+cavities": {
+      "qr": {
+        "labelled_faces": 193762,
+        "claimed_faces": 143688,
+        "true_faces": 143050,
+        "false_faces": 638,
+        "false_faces_oring_neutral": 638,
+        "claimed_faces_oring_neutral": 143688,
+        "false_stock_faces": 638,
+        "instances": 59296,
+        "recognised": 48583,
+        "missed": 9996,
+        "models_with_claims": 9363,
+        "recognition_pct": 81.93,
+        "claimed_face_pct": 73.83,
+        "false_positive_pct": 0.44,
+        "false_positive_pct_oring_neutral": 0.44,
+        "false_negative_pct": 16.86
+      },
+      "as": {
+        "labelled_faces": 193762,
+        "claimed_faces": 130883,
+        "true_faces": 128085,
+        "false_faces": 2798,
+        "false_faces_oring_neutral": 2798,
+        "claimed_faces_oring_neutral": 130883,
+        "false_stock_faces": 2798,
+        "instances": 59296,
+        "recognised": 34014,
+        "missed": 24295,
+        "models_with_claims": 9139,
+        "recognition_pct": 57.36,
+        "claimed_face_pct": 66.1,
+        "false_positive_pct": 2.14,
+        "false_positive_pct_oring_neutral": 2.14,
+        "false_negative_pct": 40.97
+      }
+    },
+    "Overall: + off-hull faces": {
+      "qr": {
+        "labelled_faces": 193762,
+        "claimed_faces": 143688,
+        "true_faces": 143050,
+        "false_faces": 638,
+        "false_faces_oring_neutral": 638,
+        "claimed_faces_oring_neutral": 143688,
+        "false_stock_faces": 638,
+        "instances": 59296,
+        "recognised": 48583,
+        "missed": 9996,
+        "models_with_claims": 9363,
+        "recognition_pct": 81.93,
+        "claimed_face_pct": 73.83,
+        "false_positive_pct": 0.44,
+        "false_positive_pct_oring_neutral": 0.44,
+        "false_negative_pct": 16.86
+      },
+      "as": {
+        "labelled_faces": 193762,
+        "claimed_faces": 195846,
+        "true_faces": 193033,
+        "false_faces": 2813,
+        "false_faces_oring_neutral": 2813,
+        "claimed_faces_oring_neutral": 195846,
+        "false_stock_faces": 2813,
+        "instances": 59296,
+        "recognised": 58600,
+        "missed": 687,
+        "models_with_claims": 9375,
+        "recognition_pct": 98.83,
+        "claimed_face_pct": 99.62,
+        "false_positive_pct": 1.44,
+        "false_positive_pct_oring_neutral": 1.44,
+        "false_negative_pct": 1.16
+      }
+    }
+  },
+  "per_class_claimed_face_pct": {
+    "Chamfer": {
+      "qr": 62.99,
+      "as": 48.81
+    },
+    "Through hole": {
+      "qr": 98.26,
+      "as": 87.76
+    },
+    "Triangular passage": {
+      "qr": 83.72,
+      "as": 88.56
+    },
+    "Rectangular passage": {
+      "qr": 76.89,
+      "as": 81.29
+    },
+    "6-sided passage": {
+      "qr": 79.12,
+      "as": 87.77
+    },
+    "Triangular through slot": {
+      "qr": 45.1,
+      "as": 0.42
+    },
+    "Rectangular through slot": {
+      "qr": 54.8,
+      "as": 0.65
+    },
+    "Circular through slot": {
+      "qr": 58.0,
+      "as": 1.14
+    },
+    "Rectangular through step": {
+      "qr": 59.94,
+      "as": 1.12
+    },
+    "2-sided through step": {
+      "qr": 74.51,
+      "as": 0.27
+    },
+    "Slanted through step": {
+      "qr": 42.16,
+      "as": 0.24
+    },
+    "O-ring": {
+      "qr": 92.51,
+      "as": 98.31
+    },
+    "Blind hole": {
+      "qr": 50.1,
+      "as": 98.37
+    },
+    "Triangular pocket": {
+      "qr": 70.35,
+      "as": 98.35
+    },
+    "Rectangular pocket": {
+      "qr": 71.05,
+      "as": 96.42
+    },
+    "6-sided pocket": {
+      "qr": 78.44,
+      "as": 98.53
+    },
+    "Circular end pocket": {
+      "qr": 74.17,
+      "as": 98.35
+    },
+    "Rectangular blind slot": {
+      "qr": 63.81,
+      "as": 0.2
+    },
+    "Vertical circular end blind slot": {
+      "qr": 82.51,
+      "as": 0.0
+    },
+    "Horizontal circular end blind slot": {
+      "qr": 72.71,
+      "as": 0.31
+    },
+    "Triangular blind step": {
+      "qr": 71.11,
+      "as": 0.06
+    },
+    "Circular blind step": {
+      "qr": 74.1,
+      "as": 0.18
+    },
+    "Rectangular blind step": {
+      "qr": 78.37,
+      "as": 0.94
+    },
+    "Round": {
+      "qr": 80.97,
+      "as": 40.67
+    }
+  },
+  "per_class_faces": {
+    "Chamfer": 3567,
+    "Through hole": 3440,
+    "Triangular passage": 10406,
+    "Rectangular passage": 13615,
+    "6-sided passage": 20172,
+    "Triangular through slot": 1428,
+    "Rectangular through slot": 2168,
+    "Circular through slot": 700,
+    "Rectangular through step": 6859,
+    "2-sided through step": 10051,
+    "Slanted through step": 6613,
+    "O-ring": 9723,
+    "Blind hole": 6311,
+    "Triangular pocket": 12108,
+    "Rectangular pocket": 16099,
+    "6-sided pocket": 21050,
+    "Circular end pocket": 15526,
+    "Rectangular blind slot": 2454,
+    "Vertical circular end blind slot": 2464,
+    "Horizontal circular end blind slot": 2561,
+    "Triangular blind step": 6670,
+    "Circular blind step": 6487,
+    "Rectangular blind step": 9875,
+    "Round": 3415
+  },
+  "cpu": {
+    "qr": {
+      "read": {
+        "n": 9375,
+        "total_s": 102.4,
+        "mean_ms": 10.92,
+        "median_ms": 10.18,
+        "p99_ms": 23.6,
+        "max_s": 0.11
+      },
+      "recognise": {
+        "n": 9375,
+        "total_s": 950.6,
+        "mean_ms": 101.4,
+        "median_ms": 61.47,
+        "p99_ms": 643.4,
+        "max_s": 19.41
+      }
+    },
+    "as": {
+      "read": {
+        "n": 9375,
+        "total_s": 458.6,
+        "mean_ms": 48.92,
+        "median_ms": 46.22,
+        "p99_ms": 101.7,
+        "max_s": 0.16
+      },
+      "recognise": {
+        "n": 9375,
+        "total_s": 287.4,
+        "mean_ms": 30.65,
+        "median_ms": 29.22,
+        "p99_ms": 62.1,
+        "max_s": 0.2
+      }
+    }
+  }
+}
