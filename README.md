@@ -24,11 +24,9 @@ Status: **0.4.9** (2026-11-07). See [CHANGELOG.md](CHANGELOG.md).
 | Rust library | `quiddity = "0.4"` in `[dependencies]` (the geometry kernel is the `haecceity` crate) |
 | Python 3.11+ | `pip install quiddity` (an abi3 wheel with no Python dependencies; see [Python](docs/python.md)) |
 
-Every [release](https://github.com/pzfreo/quiddity/releases) is published to PyPI, so `uv tool`,
-`pipx` and `pip` get the latest one. crates.io is updated less often and can be behind (it
-has 0.4.7): for this release from Cargo, use
-`cargo install --git https://github.com/pzfreo/quiddity --tag v0.4.9 quiddity`, or
-`quiddity = { git = "https://github.com/pzfreo/quiddity", tag = "v0.4.9" }`.
+Every [release](https://github.com/pzfreo/quiddity/releases) is published to PyPI and
+crates.io, so `uv tool`, `pipx`, `pip`, `cargo install` and `quiddity = "0.4"` all get the
+latest one.
 
 Cargo features: `cli` (the command line) and `presentation` (drawing PMI callouts) are on by
 default. A library build that does not want clap (WASM, say) can use
