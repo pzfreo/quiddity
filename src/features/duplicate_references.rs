@@ -82,6 +82,45 @@ mod tests {
     use super::*;
 
     #[test]
+    fn duplicate_metadata_preserves_pattern_faces_fingerprints_and_evidence() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/flat_floor_patterns.step.gz");
+        let part = crate::read_step_file(&path).unwrap();
+        let mut rec = crate::correspondence::caller_space_recognise(&part);
+        assert!(!rec.features.hole_patterns.is_empty());
+        let before = crate::recognition::document(&rec, part.faces.len());
+        let unmarked = serde_json::to_value(&before).unwrap();
+        let fingerprints = crate::correspondence::fingerprint::fingerprint(&part, &rec.features);
+        for hole in &mut rec.features.holes {
+            hole.superseded_by = Some("annular_grooves/0".into());
+        }
+        let after = crate::recognition::document(&rec, part.faces.len());
+        assert_eq!(
+            serde_json::to_value(fingerprints).unwrap(),
+            serde_json::to_value(crate::correspondence::fingerprint::fingerprint(
+                &part,
+                &rec.features
+            ))
+            .unwrap()
+        );
+        let mut marked = serde_json::to_value(&after).unwrap();
+        for record in marked["records"].as_array_mut().unwrap() {
+            if record["family"] == "holes" {
+                assert!(
+                    record["parameters"]
+                        .as_object_mut()
+                        .unwrap()
+                        .remove("superseded_by")
+                        .is_some()
+                );
+            }
+        }
+        // The only permitted document change is the annotation itself. In particular,
+        // embedded members still resolve to the original faces and evidence status.
+        assert_eq!(unmarked, marked);
+    }
+
+    #[test]
     fn exact_source_ties_choose_family_then_numeric_index_and_ignore_face_order() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/golden_open_channels.step");

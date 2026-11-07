@@ -3916,12 +3916,12 @@
     {
       "faces": {
         "labelled": 142,
-        "predicted": 219,
+        "predicted": 148,
         "true_positive": 135
       },
       "instances": {
         "labelled": 68,
-        "predicted": 147,
+        "predicted": 76,
         "true_positive": 68
       }
     },
