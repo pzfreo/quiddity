@@ -278,3 +278,36 @@ fn independent_label_accuracy_ratchet() {
         }
     }
 }
+
+/// The reported #211 remnant's two walls; the perpendicular secondary-cut end is context.
+#[test]
+fn local_step_repro_keeps_the_labelled_defining_faces() {
+    let Some(root) = std::env::var_os("QUIDDITY_MFINSTSEG") else {
+        return;
+    };
+    let part =
+        quiddity::read_step_file(&Path::new(&root).join("steps/20221121_154647_1.step")).unwrap();
+    let found = quiddity::features::local_steps::discover_verified(
+        &quiddity::features::Context::new(&part),
+    )
+    .unwrap();
+    let step = found
+        .iter()
+        .find(|s| s.defining == [7, 8])
+        .expect("#211 walls 7–8");
+    assert_eq!(step.record.length, 4.061);
+    assert_eq!((step.record.height, step.record.depth), (2., 5.423));
+    assert_eq!(step.record.ends[1].scope, "local");
+    assert_eq!(step.record.ends[1].faces, [23]);
+    assert!(step.context.contains(&23));
+    let accepted = quiddity::features::recognise(&part);
+    assert!(accepted.defining["local_steps"].contains(&vec![7, 8]));
+    let published = quiddity::correspondence::recognise(&part);
+    let document = quiddity::recognition::document(&published, part.faces.len());
+    assert!(
+        document
+            .records
+            .iter()
+            .any(|r| r.family == "local_steps" && r.faces == [7, 8])
+    );
+}

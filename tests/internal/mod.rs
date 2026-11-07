@@ -30,6 +30,8 @@ mod invariance;
 mod inventory_floor;
 #[path = "local_degradation.rs"]
 mod local_degradation;
+#[path = "local_steps.rs"]
+mod local_steps;
 #[path = "mfinstseg.rs"]
 mod mfinstseg;
 #[path = "modelled_threads.rs"]

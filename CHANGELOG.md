@@ -6,6 +6,14 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+### Added
+
+- `local_steps` recognises rectangular step remnants ending inside a solid, with
+  explicit run endpoints, height/depth directions and dimensions, and unique
+  perpendicular end-face evidence (#211). The separate optional family preserves
+  existing `through_steps` ranks and saved draftwright Spec references. MFInstSeg
+  class 8 now maps to both families; blind or ambiguous ends remain excluded.
+
 ## 0.4.9 (2026-11-07)
 
 Upgrading from 0.4.8: recognition schema `/6`, fingerprints `/3`, `quiddity-rust/evidence/1` (one additive key), the `haecceity.pmi/1` schema and the PMI reader string `/19` are unchanged. **Rust API:** `EvidenceDocument` is not `#[non_exhaustive]` and gains `edge_sources`, so code that builds it with a struct literal must add the field (#202). `quiddity::cli` and the `quiddity` binary now need the default `cli` feature: a build with `default-features = false` (for example, to leave out `presentation`) must add `features = ["cli"]` to keep them, or leave it out to keep clap out (#201). The command line is now parsed by clap (#199); see Changed for the usage cases that now exit differently. Recognition output changes where a circular blind step cut by a second feature is now recognised in place of a `cylindrical_profiles` record (#215).

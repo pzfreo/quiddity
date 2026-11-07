@@ -54,6 +54,7 @@ pub mod hole_patterns;
 pub mod holes;
 pub mod interior_voids;
 pub mod levels;
+pub mod local_steps;
 pub mod modelled_threads;
 pub mod oblique_through_steps;
 pub mod oriented_chamfers;
@@ -161,6 +162,9 @@ pub struct Features {
     #[serde(skip)]
     pub interior_void_refusals: Vec<interior_voids::InteriorVoidRefusal>,
     pub through_steps: Vec<through_steps::ThroughStep>,
+    /// Partial-run rectangular step remnants, omitted when absent.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub local_steps: Vec<local_steps::LocalStep>,
     pub turned_steps: Vec<turned_steps::TurnedStep>,
     pub grooves: Vec<grooves::Groove>,
     /// Annular face recesses, omitted when absent for existing readers.
@@ -925,6 +929,14 @@ fn inventory_in_with(
             "through_steps",
             discover!("through_steps", through_steps::discover(ctx)),
         ),
+        local_steps: {
+            let found = discover!("local_steps", local_steps::discover(ctx));
+            if found.is_empty() {
+                Vec::new()
+            } else {
+                kept(&mut defining, "local_steps", found)
+            }
+        },
         turned_steps: kept(
             &mut defining,
             "turned_steps",

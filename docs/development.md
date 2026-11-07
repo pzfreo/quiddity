@@ -92,6 +92,7 @@ No new independent references are claimed for legacy value-only helpers.
 | `hole_patterns` | F |
 | `holes` | F; L; analytic counterbores + motion (`tests/internal/tie_breaks.rs`) |
 | `interior_voids` | F; analytic bounded-air fixtures (`src/features/interior_voids.rs`) |
+| `local_steps` | original OCCT boolean controls + analytic dimensions, end-face evidence, negatives and motion (`tests/internal/local_steps.rs`); L |
 | `modelled_threads` | F; analytic thread fixtures (`tests/internal/modelled_threads.rs`) |
 | `oblique_through_steps` | F; L |
 | `oriented_chamfers` | F |

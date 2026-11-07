@@ -405,6 +405,23 @@ pub const FAMILIES: &[FamilyFingerprint] = &[
         ],
     },
     FamilyFingerprint {
+        family: "local_steps",
+        members: None,
+        variants: false,
+        fields: &[
+            ("run_direction", Axis),
+            ("run_start", Placement),
+            ("run_end", Placement),
+            ("length", Size),
+            ("height_direction", Axis),
+            ("height", Size),
+            ("depth_direction", Axis),
+            ("depth", Size),
+            ("ends[].scope", Trait),
+            ("ends[].faces", Ignored),
+        ],
+    },
+    FamilyFingerprint {
         family: "through_steps",
         members: None,
         variants: false,

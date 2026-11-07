@@ -186,6 +186,7 @@ pub const RECORD_TYPES: &[(&str, &[&str])] = &[
     ("thin_wall_bodies", &["ThinWallBody"]),
     ("interior_voids", &["InteriorVoid", "InteriorVoidRefusal"]),
     ("through_steps", &["ThroughStep"]),
+    ("local_steps", &["LocalStep"]),
     ("turned_steps", &["TurnedStep"]),
     ("grooves", &["Groove"]),
     ("annular_grooves", &["AnnularGroove"]),

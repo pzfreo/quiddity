@@ -66,6 +66,7 @@ pub use features::hole_patterns::HolePattern;
 pub use features::holes::{HoleOptions, HoleRecord};
 pub use features::interior_voids::InteriorVoid;
 pub use features::levels::{FaceLevel, FaceLevelOptions, RiserEvidence, RiserOptions};
+pub use features::local_steps::{LocalStep, LocalStepEnd};
 pub use features::oblique_through_steps::ObliqueThroughStep;
 pub use features::oriented_chamfers::{OrientedChamfer, OrientedChamferOptions};
 pub use features::oriented_slots::{OrientedSlot, OrientedSlotPattern};

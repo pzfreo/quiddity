@@ -112,6 +112,7 @@ const CLAIM_INPUTS: &[&str] = &[
     "oblique_through_steps",
     "circular_blind_steps",
     "through_steps",
+    "local_steps",
     "turned_steps",
     "grooves",
     "annular_grooves",

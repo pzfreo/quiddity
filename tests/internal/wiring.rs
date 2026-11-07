@@ -104,6 +104,7 @@ fn parts() -> (Vec<PathBuf>, bool) {
         .collect();
     // Exercise the optional obstruction diagnostics, absent from the older STEP inputs.
     out.push(common::fixtures().join("partial_hole_exits.step.gz"));
+    out.push(common::fixtures().join("local_steps/local.step.gz"));
     out.sort();
     // Nested compressed positives must participate in the field-by-field family audit.
     // No corpus part contains a spring, so the registry otherwise appears unused.
