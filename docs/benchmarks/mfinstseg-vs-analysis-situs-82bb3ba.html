@@ -70,20 +70,7 @@ clock scopes, not a controlled speed comparison.</p>
   &quot;limitations&quot;: &quot;Predates #216 and #217. Raw sweeps unavailable; not reproducible from committed inputs. Union face-coverage metric, not one-to-one IoU; not comparable with mfinstseg_baseline.json.&quot;,
   &quot;timing&quot;: &quot;quiddity thread CPU, including JSON serialization; Analysis Situs process CPU; recognition includes AAG construction.&quot;,
   &quot;scorer&quot;: &quot;Earlier three-comparison score.py; exact version not recorded.&quot;,
-  &quot;any_feature_excludes&quot;: [
-    &quot;flats&quot;,
-    &quot;freeform_surfaces&quot;,
-    &quot;plates&quot;,
-    &quot;risers&quot;,
-    &quot;step_levels&quot;,
-    &quot;thin_wall_bodies&quot;,
-    &quot;sheet_metal_bodies&quot;,
-    &quot;polygonal_stock&quot;,
-    &quot;circular_face_patterns&quot;,
-    &quot;repeating_radial_profiles&quot;,
-    &quot;cylindrical_profiles&quot;,
-    &quot;turned_steps&quot;
-  ]
+  &quot;family_exclusion_provenance&quot;: &quot;Exact earlier scorer version and exclusions are not retained.&quot;
 }</pre></details>
     <div class="scroll"><table><tr><th>Comparison</th><th>Tool</th><th>Recognition %</th>
     <th>Claimed faces %</th><th>False positives %</th><th>No-face instances %</th><th>Claimed faces</th></tr>
@@ -101,7 +88,7 @@ clock scopes, not a controlled speed comparison.</p>
   &quot;sweep_sha256&quot;: {
     &quot;qr&quot;: &quot;fbffd651dcb19105faa6b5c84f2c80a308f8a841af95ba63f9d1cc40f504c247&quot;
   },
-  &quot;scorer_sha256&quot;: &quot;0d400d421b68ddf3ddd26b734b09b8af7084a4e17bfce2d018394112e624c53f&quot;,
+  &quot;scorer_sha256&quot;: &quot;251643d0c5d125eeb72c892666cfd956c799a9dcc89d5d9c930e82db350a7fc9&quot;,
   &quot;status&quot;: &quot;current rerun&quot;,
   &quot;scorer&quot;: &quot;tools/as_compare/score.py; superseded records skipped; class-1/12 bottom selectors&quot;,
   &quot;metric&quot;: &quot;Union face coverage: recognition &gt;= half of instance faces; no one-to-one IoU matching. Not comparable with mfinstseg_baseline.json.&quot;,

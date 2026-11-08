@@ -61,7 +61,7 @@ python3 -I tools/as_compare/score.py /path/to/MFInstSeg/labels /tmp/qr.jsonl /tm
   --quiddity-revision REVISION
 ```
 
-Failed or face-count-misaligned models count as claiming nothing. Equal face counts alone do not prove identical face ordering between STEP readers. Missing metadata fails rather than silently scoring an old quiddity sweep as current.
+Failed or face-count-misaligned models count as claiming nothing. A refused recognizer contributes no claims; in particular, a refused hull does not contribute off-hull faces. Equal face counts alone do not prove identical face ordering between STEP readers. Missing metadata fails rather than silently scoring an old quiddity sweep as current.
 
 ## Reproducibility
 

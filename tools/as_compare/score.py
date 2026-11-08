@@ -96,7 +96,9 @@ def as_claim(r, key):
     if key == "UNION3":
         return as_claim(r, "holes") | as_claim(r, "blends") | as_claim(r, "cavities")
     if key == "UNION_ALL":
-        return as_claim(r, "UNION3") | (set(range(r["faces"])) - as_claim(r, "hull"))
+        off_hull = (set(range(r["faces"])) - as_claim(r, "hull")
+                    if isinstance(r.get("hull"), list) else set())
+        return as_claim(r, "UNION3") | off_hull
     v = r.get(key)
     return set(v) if isinstance(v, list) else set()
 

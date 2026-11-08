@@ -42,6 +42,18 @@ class Scoring(unittest.TestCase):
         self.assertEqual(result['health'], {'qr': {'ok': 1}})
         self.assertTrue(all(set(row) == {'qr'} for row in result['comparisons'].values()))
 
+    def test_refused_hull_does_not_claim_every_face(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            row = json.loads((FIXTURES / 'as.jsonl').read_text())
+            row['hull'] = None
+            path = Path(tmp) / 'as.jsonl'
+            path.write_text(json.dumps(row) + '\n')
+            result = self.score(path)
+        self.assertEqual(result['health']['as']['recogniser_refused_or_threw'], 1)
+        comparisons = result['comparisons']
+        self.assertEqual(comparisons['Overall: + off-hull faces']['as']['claimed_faces'],
+                         comparisons['Overall: holes+blends+cavities']['as']['claimed_faces'])
+
     def test_misaligned_model_claims_nothing(self):
         with tempfile.TemporaryDirectory() as tmp:
             row = json.loads((FIXTURES / 'qr.jsonl').read_text())
