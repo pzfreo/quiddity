@@ -30,6 +30,8 @@ mod invariance;
 mod inventory_floor;
 #[path = "local_degradation.rs"]
 mod local_degradation;
+#[path = "local_steps.rs"]
+mod local_steps;
 #[path = "mfinstseg.rs"]
 mod mfinstseg;
 #[path = "modelled_threads.rs"]
@@ -92,3 +94,9 @@ mod edge_trimming;
 
 #[path = "flat_floors.rs"]
 mod flat_floors;
+
+#[path = "polygonal_oblique_through_steps.rs"]
+mod polygonal_oblique_through_steps;
+
+#[path = "internal_bevels.rs"]
+mod internal_bevels;

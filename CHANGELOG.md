@@ -6,6 +6,43 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+### Documentation
+
+- haecceity states its scope: it reads, queries and writes B-reps and does not model them
+  (README "Scope", crate docs and the crates.io description). From #203.
+
+### Fixed
+
+- Internal bevel leg ties use intrinsic support area; symmetric ties remain unordered in
+  fingerprints. Feature-policy angular tolerances retain slightly noisy STEP supports,
+  with the slope angle measured on the actual supports rather than an ideal right angle.
+
+### Added
+
+- `internal_bevels` recognises bounded concave planar corner treatments with measured
+  support legs, angle and run, backed by a complete material-filled wedge proof (#213).
+  The optional sibling family preserves existing chamfer ranks and saved Spec references;
+  ambiguous ramps, draft, slanted steps and conical countersinks remain excluded.
+
+- `polygonal_oblique_through_steps` recognises slanted through steps with more
+  than four principal-wall corners, preserving the full outline, seam run, height,
+  slant angle relative to an explicit `through_axis`, and defining walls (#212).
+  The principal polygon is published as `floor_outline`. A separate optional family preserves
+  legacy oblique-step ranks and saved Spec references. MFInstSeg class 10 maps
+  additively to the new family; ambiguous boundaries and blind wedges are refused.
+
+- `local_steps` recognises rectangular step remnants ending inside a solid, with
+  explicit run endpoints, height/depth directions and dimensions, and unique
+  perpendicular end-face evidence (#211). The separate optional family preserves
+  existing `through_steps` ranks and saved draftwright Spec references. MFInstSeg
+  class 8 now maps to both families; blind or ambiguous ends remain excluded.
+
+- Optional additive `superseded_by` references on groove-derived holes and bosses,
+  and `source` references on section recesses with identical source-family defining
+  faces (#204, #206). All records, claims, order and IDs are retained. The MFInstSeg
+  scorer honours `superseded_by` while retaining `source`-marked recesses for each
+  class's existing mapping; schema 6 and existing consumers remain compatible.
+
 ## 0.4.9 (2026-11-07)
 
 Upgrading from 0.4.8: recognition schema `/6`, fingerprints `/3`, `quiddity-rust/evidence/1` (one additive key), the `haecceity.pmi/1` schema and the PMI reader string `/19` are unchanged. **Rust API:** `EvidenceDocument` is not `#[non_exhaustive]` and gains `edge_sources`, so code that builds it with a struct literal must add the field (#202). `quiddity::cli` and the `quiddity` binary now need the default `cli` feature: a build with `default-features = false` (for example, to leave out `presentation`) must add `features = ["cli"]` to keep them, or leave it out to keep clap out (#201). The command line is now parsed by clap (#199); see Changed for the usage cases that now exit differently. Recognition output changes where a circular blind step cut by a second feature is now recognised in place of a `cylindrical_profiles` record (#215).

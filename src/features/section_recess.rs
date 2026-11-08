@@ -793,6 +793,9 @@ pub struct SectionRecessFaceRef {
 /// One published constant-section recess (`SectionRecess`).
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct SectionRecess {
+    /// Optional additive reference to the identical/superseding published feature.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
     index: usize,
     body: usize,
     geometry: SectionRecessGeometry,
@@ -824,6 +827,7 @@ impl SectionRecess {
             return refuse("classification, profile closure and end topology are inconsistent");
         }
         Ok(SectionRecess {
+            source: None,
             index,
             body,
             geometry,

@@ -65,7 +65,9 @@ pub use features::helical_springs::{HelicalSpring, SpringTolerances};
 pub use features::hole_patterns::HolePattern;
 pub use features::holes::{HoleOptions, HoleRecord};
 pub use features::interior_voids::InteriorVoid;
+pub use features::internal_bevels::InternalBevel;
 pub use features::levels::{FaceLevel, FaceLevelOptions, RiserEvidence, RiserOptions};
+pub use features::local_steps::{LocalStep, LocalStepEnd};
 pub use features::oblique_through_steps::ObliqueThroughStep;
 pub use features::oriented_chamfers::{OrientedChamfer, OrientedChamferOptions};
 pub use features::oriented_slots::{OrientedSlot, OrientedSlotPattern};
@@ -81,6 +83,7 @@ pub use features::pockets::Pocket;
 pub use features::polygonal_bosses::{
     PolygonalBoss, PolygonalOptions, PolygonalPrism, PolygonalStock,
 };
+pub use features::polygonal_oblique_through_steps::PolygonalObliqueThroughStep;
 pub use features::prismatic_pockets::PrismaticPocket;
 pub use features::profiled_bores::{DoubleDBore, DoubleDBoreOptions};
 pub use features::recess_patterns::{PocketPattern, SlotPattern};

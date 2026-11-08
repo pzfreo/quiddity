@@ -1,8 +1,9 @@
 # haecceity
 
-An exact B-rep geometry kernel in pure Rust, with no OpenCascade or other native dependency.
-It is the kernel under [quiddity](https://crates.io/crates/quiddity), which recognises
-manufacturing features. Use haecceity directly when you need the geometry itself.
+An exact B-rep reader and geometry query library in pure Rust, with no OpenCascade or other
+native dependency. It reads, queries and writes B-reps, and does not model them (see
+[Scope](#scope)). It is the geometry under [quiddity](https://crates.io/crates/quiddity), which
+recognises manufacturing features. Use haecceity directly when you need the geometry itself.
 
 - **STEP:** reads AP203, AP214 and AP242 files (plain or gzipped) into a B-rep `Part`:
   solids, faces, edges and their exact surfaces and curves. A malformed or unsupported file is
@@ -16,8 +17,47 @@ manufacturing features. Use haecceity directly when you need the geometry itself
 
 ```toml
 [dependencies]
-haecceity = "0.2"
+haecceity = "0.4"
 ```
+
+## Scope
+
+haecceity **reads, queries and writes** B-reps. **It does not model them.** This is a standing
+decision, not a gap waiting to be filled.
+
+**In scope:**
+
+- **Reading** STEP (AP203, AP214, AP242) and Fusion `.f3d` into a `Part`, with each face and
+  edge traceable to the file entity it came from.
+- **Querying** the exact geometry: rays, point classification, volumes and areas, moments,
+  coverage, overlap, anchors, analytic surfaces recovered from freeform ones, meshing and
+  hidden-line views.
+- **Semantic AP242 PMI**: reading, writing, verifying and editing a file's PMI while leaving the
+  rest of it as it was.
+- **Writing** a `Part` and its PMI as AP242.
+
+**Out of scope, permanently:**
+
+- **Modelling operations**: booleans, fillets and chamfers, offsets and shells, sweeps and lofts,
+  healing or stitching that changes the topology it was given.
+- **General surface-surface intersection**, the machinery those operations rest on.
+- **Construction history, sketches, constraints and parametric editing.**
+
+**What a request for an out-of-scope operation gets:** a product that needs to change geometry
+takes it from a modelling kernel and gives the result back to haecceity to read. It is not added
+here. The one construction haecceity makes, `sweep::extrude_face`, builds a probe solid for a
+volume query. It refuses any edge it cannot sweep exactly, and it is not a modelling API: don't
+extend it into one.
+
+**`Part` is the interface.** quiddity, Specify and other users depend on `Part` and the queries
+on it, not on how a file became a `Part`. If another reader ever matches haecceity's results on
+the test files (faces, volumes, recognition output), it can be put underneath `Part` without
+changing what is built on top. Face and edge identity by STEP entity is what makes that
+possible: keep every face and edge traceable to its source.
+
+**Why:** most of a kernel's cost and risk is in modelling, and the products built on haecceity
+(feature recognition, and PMI from design intent) need none of it. The parts worth owning are
+reading real files faithfully, answering geometric questions about them exactly, and AP242 PMI.
 
 ## Selected assembly bodies
 

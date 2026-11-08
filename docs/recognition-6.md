@@ -193,9 +193,10 @@ features, as in draftwright: they may co-own a floor with the feature that close
 No other family is a co-owner exception. Existing manufacturing claims take
 precedence; competing new individual records use first-owner priority: holes,
 pockets, then prismatic pockets, even when their walls are identical.
-Section-recess claims are unchanged pending
-#206. See [face accounting](face-accounting.md) for ownership precedence and the
-distinction between discovery evidence and completed claims.
+Section-recess claims are retained; exact duplicates carry the optional `source`
+reference described below (#206). See [face accounting](face-accounting.md) for
+ownership precedence and the distinction between discovery evidence and
+completed claims.
 
 ## Slot precision correction (for #92)
 
@@ -223,10 +224,12 @@ inventory, schema 6, fingerprint version 3 and the crate version are unchanged.
 
 ## Annular face grooves
 
-The optional `annular_grooves` family contains `AnnularGroove` records and is omitted when
-empty. This additive family keeps `quiddity-rust/recognition/6`; existing families retain
-all their records. It describes a blind annular face recess of rectangular radial section,
-such as a face-seal housing. It makes no nominal O-ring size or intended-function claim.
+The optional `annular_grooves` family contains `AnnularGroove` records and is
+omitted when empty. This additive family keeps `quiddity-rust/recognition/6`;
+existing hole and boss records are kept and marked with `superseded_by` when
+built from an accepted groove's walls. It describes a blind annular face recess
+of rectangular radial section, such as a face-seal housing. It makes no nominal
+O-ring size or intended-function claim.
 
 Each record publishes `axis` (a unit vector from the floor towards the mouth),
 `floor_center` (a point in file coordinates), `inner_radius`, `outer_radius`, and `depth`
@@ -244,6 +247,39 @@ A rim may contain several circular edges, but their centres/radii must agree and
 actual angular intervals must cover a complete turn. Counting overlapping arc lengths
 as a full rim is refused. The cylindrical walls must still each be complete; every floor
 piece is retained in the defining claim and strict ownership proof.
+
+## Additive duplicate references (#204, #206)
+
+Optional `superseded_by` on `holes` and `bosses` names the accepted annular groove
+whose cylindrical walls define that legacy record, for example `"annular_grooves/0"`.
+Only records defined entirely by that groove's walls are marked. A refused groove
+adds no marker. Measurements, defining claims, evidence, fingerprints, record order
+and IDs are retained, including the legacy hole's `bottom` interpretation.
+
+Optional `source` on `section_recesses` names a specific accepted source record
+with exactly the same final defining-face set, for example `"pockets/2"`. The source
+families are `channels`, `edge_open_circular_pockets`, `edge_open_prismatic_recesses`,
+`pockets`, `prismatic_pockets`, `rectangular_blind_slots`, `round_bottom_blind_slots`
+and `section_passages`. Face order is irrelevant; partial overlaps and union coverage
+are insufficient. Recess-only records have no marker. Multiple accepted source
+records can describe the same face set: `source` remains a single reference, chosen
+by lexicographic family name then lowest record index. It names an identical record,
+not exclusive provenance or a claim that the recess projector used that record.
+
+Both fields are additive, omitted when absent, and use schema 6's `family/index`
+run-local reference form. No records are removed, reordered or renumbered, and
+`section_recess_patterns` and their member indices are unchanged. Consumers may
+follow the references to show one feature or exclude marked duplicates from feature
+counts and face attribution; existing consumers can continue reading every record.
+Drawings that obtain recess geometry from `section_recesses` can continue doing so.
+Saved rank-based references remain valid, and face-based answers retain their claims.
+The MFInstSeg scorer honours only `superseded_by`. It retains `source`-marked
+section recesses: predicted faces are already a set per class, so duplicates in the
+same class add nothing, while a class may map the recess without mapping its source
+family (notably rectangular blind slots, class 17). The `source` marker is for
+consumers, who may drop duplicates; it is not a scorer filter. Class mappings and
+selectors are unchanged. This is an additive schema-6 change and requires no
+breaking release.
 
 ## Face grooves (for #123)
 
@@ -484,7 +520,8 @@ Whole-body classifications may retain the same faces as individual features. In
 particular, a round becoming a fillet retains its `thin_wall_bodies` or
 `sheet_metal_bodies` classification, just as existing fillets, holes and blends already
 do. This co-ownership does not replace the round's geometric proof or permit a second
-claim by another individual feature family.
+claim by another individual feature family, except for the explicitly marked legacy
+duplicates described above.
 
 Sheet-metal bend skins must satisfy the same edge-round proof to be fillets. The old
 axis-aligned path skipped tangency and could label a skin cut short of its tangent wall
@@ -838,3 +875,178 @@ Consumers should re-recognise affected files, use `through` for their callout, a
 warn about the reported obstruction rather than infer an unobstructed exit from
 `through`. The Python binding returns this same Rust JSON; there is no separate
 Python hole-record schema.
+
+## Local-run rectangular steps (#211)
+
+The optional `local_steps` family publishes `LocalStep` records. It is a separate
+family because draftwright addresses a feature by its rank within a family:
+adding short-run records to `through_steps` would renumber saved
+`f:through_step:N` Spec references. Full-length discovery, ordering, parameters
+and defining faces in `through_steps` are unchanged. Recognition schema 6 and
+fingerprint format 3 remain unchanged; the family is omitted when empty.
+
+A local step is two complete perpendicular principal-plane wall regions meeting
+along one continuous straight concave seam. Their run intervals must agree and
+at least one end must lie inside the owning valid solid's run envelope. Both
+transverse lips must be straight convex boundaries across the complete run;
+at least one must reach the solid's transverse envelope, as for through steps.
+Every wall region's external edges must cover exactly its rectangular perimeter,
+allowing smooth coplanar subdivisions. Holes, oblique trims, interrupted seams,
+curved or tapered walls and internally enclosed staircases are refused.
+
+At each run station, the *entire* end edge of each wall must join convexly to
+one connected coplanar region perpendicular to the run, within the same solid.
+The two walls must identify the same region. A gap, different support per leg,
+nonplanar end or competing support refuses recognition. These may be exterior
+end faces or walls left by a secondary cut: an interior station does not imply
+a concave closing wall. Concave caps belong to existing blind-recess families
+and are excluded here. An exact inset volume probe must also prove the removed
+quadrant empty; neither matching bounding boxes nor a short seam suffices.
+
+Parameters are millimetres and file-coordinate vectors/points:
+
+- `run_direction`: unit direction from `run_start` to `run_end`.
+- `run_start`, `run_end`: the two 3D seam endpoints, published on the 0.001 mm grid.
+  Their order follows the positive run axis in the recognition frame; it stays
+  attached to the record under motion, including a reversal in file coordinates.
+- `length`: run extent, measured before positional rounding, rounded to 0.001 mm.
+- `height_direction`, `height`, `depth_direction`, `depth`: the unit directions
+  from the concave corner to the two convex lips, and those distances rounded to
+  0.001 mm. Height is the first leg of the canonical through-step section and
+  depth the second (lexicographically lesser endpoint first in the recognition
+  frame); these names do not imply world gravity. Directions make their meaning
+  explicit after arbitrary rigid motion.
+- `ends`: two `{scope, faces}` values in start/end order. `scope` is `solid` at
+  the envelope and `local` at an interior station. `faces` lists ascending
+  zero-based file face indices of the unique coplanar boundary region.
+
+Only the two wall regions define the feature. End faces and the remainder of the
+solid consulted by the volume proof are context, so an unrelated cut's end wall
+is not claimed as part of the original step. All consulted geometry must have
+strict valid-solid evidence. Fingerprints retain run length, the unordered pair
+of transverse leg lengths, direction axes and endpoint scopes; positions and evidence face indices are not
+shape traits. The canonical height/depth names may exchange under a principal-axis
+permutation, so this presentation gauge cannot manufacture a resize.
+
+For MFInstSeg, class 8 (`rectangular_through_step`) explicitly maps to both
+`through_steps` and `local_steps`: a secondary cut may shorten a labelled step
+without changing the two surviving defining walls. This is a mapping change,
+not a selector inferred from labels. No other class correspondence changes.
+The original box-minus-two-cuts controls, oblique-end and blind-end negatives,
+full-length control, motion/publication tests and optional external repro are in
+`tests/internal/local_steps.rs` and `tests/internal/mfinstseg.rs`; regenerate the
+original controls with `tools/make_local_steps_fixture.py`.
+
+
+## Polygonal oblique through steps (#212)
+
+The optional `polygonal_oblique_through_steps` family publishes
+`PolygonalObliqueThroughStep`. It is separate from `oblique_through_steps`
+because draftwright numbers features by rank within each family (`f:<family>:N`).
+Adding polygonal occurrences to the old array could renumber saved Spec references.
+The old four-corner recogniser, parameters and ordering remain unchanged. The new
+family is omitted when empty; recognition schema 6 and fingerprint format 3 remain.
+
+The principal wall is a planar, simple, straight-edged polygon with **more than
+four noncollinear corners**, without inner wires. Its boundary consists of one
+complete straight concave seam and a chain of principal-axis edges, all convexly
+joined to unique exterior supports. A curved support may trim a straight edge;
+its normal does not measure the step. The perpendicular oblique wall is a
+complete rectangle with that seam as one side. Both run ends must lie on opposite
+sides of the same stock-envelope axis and have a unique common convex planar
+terminal supporting the complete wall end. A seam between adjacent stock sides
+is a triangular blind-step wedge and is refused, even after polygonal trimming.
+
+The entire opposite oblique-wall edge must join one unique parallel, same-facing
+convex lip. This lip may be inside the stock envelope after another cut, as in
+MFInstSeg `_1002`; its position, rather than the stock box, measures the height.
+Every principal-wall corner must lie on the oblique wall's outward side. The exact
+principal polygon swept through the wall height must contain zero solid volume,
+with only the existing tolerance inset along the sweep. Curved boundaries, holes,
+tapered or interrupted oblique walls, ambiguous or concave bounding supports,
+nonplanar far lips, unproved sweeps and local run ends are refused. This is deliberately conservative;
+it does not claim all polygon-trimmed slanted steps.
+
+`run` is the unit seam direction from the lexicographically smaller endpoint;
+`length` is its full Euclidean length in mm. `at` is the seam midpoint.
+`depth_direction` is the outward principal-wall normal and `depth` is the step
+height in mm, measured to the opposite convex lip. `across_direction` points from
+the seam into the principal wall. `floor_outline` retains every principal-floor polygon
+corner as `[along_run, across]` from `at - run * length / 2`, canonicalised only by cyclic
+start and walk reversal. It is never replaced by a quad or convex hull. Lengths
+and outline coordinates publish three decimals; directions and `slant_degrees`
+publish six. Unlike the legacy family's four-corner `wall_outline`, this field is
+a variable-length principal-floor polygon, never the oblique rectangle. `through_axis` is an unoriented unit vector normal to
+the two opposite stock-envelope run terminals, expressed in the record's
+coordinate space. `slant_degrees` is `acos(abs(dot(run, through_axis)))` in degrees,
+using unrounded directions. It is measured against that through axis, even when
+another axis is closer to the seam: a seam 60 degrees off the through axis reports
+60 degrees, not 30. Rigid mapping carries `through_axis` with the other directions
+and retains the slant. The sign of `through_axis` has no geometric meaning.
+`body_key` follows the existing oblique family. The two walls alone are defining faces; all boundary supports,
+terminals and the far lip are consulted evidence. Rigid mapping carries the frame
+and leaves the intrinsic polygon coordinates unchanged.
+
+MFInstSeg class 10 (`slanted_through_step`) maps additively to this family and the
+unchanged `oblique_through_steps`. Only defining walls count in scoring, never the
+context supports. The mapping uses no labels to select records. Original generated
+polyhedron controls cover a six-corner floor, a 60-degree x-through seam,
+skew/taper refusals and an unchanged four-corner fixture; the external test checks `_1002` faces 20–21.
+
+## Internal bevels (#213)
+
+`internal_bevels` is a sibling family, with record type `InternalBevel`. It is deliberately
+not merged into `chamfers`: draftwright persists `f:<family>:N` ranks, so appending a newly
+recognised internal bevel to the chamfer sort could renumber saved Spec references. Existing
+convex chamfer discovery, records, ordering and fingerprints are unchanged. The sibling is
+omitted when empty and contributes no frame votes.
+
+The initial contract is a **bounded rectangular planar strip** with one four-line loop,
+two complete parallel spring edges of equal run span, and four planar neighbours joined
+concavely. Exactly one pair must prove perpendicular transverse support planes within the feature
+angular policy below. Both support
+normals point into the cavity between the bevel normal's rays; neither may be within the
+shallow-draft limit (normal dot product <= 0.05). Supporting wall areas must each strictly
+exceed the strip area, and its larger leg cannot exceed 45% of the owning solid's maximum
+extent. These are conservative treatment/role limits, not evidence of a machining history.
+The other edges terminate the strip at both ends; taper, holes, curved terminals, split
+boundaries and competing support pairs are refused. Every defining and context face must
+belong to one strictly valid solid.
+
+The internal family's perpendicularity and transverse-alignment tests use the shared
+feature policy `AXIS_ZERO_COS` (0.01), not the kernel's 1e-9 smooth-arc threshold.
+Contact, span equality and wedge insetting retain the bevel helpers' input modelling
+precision with the kernel coordinate floor. Legacy chamfer/blend helper defaults are unchanged.
+
+Intersect the actual supports at the strip midpoint to reconstruct the virtual `corner`.
+`leg1` and `leg2` are Euclidean distances on those supports from corner to spring edge,
+longer first; `leg1_direction` and `leg2_direction` are their outward unit directions.
+`angle` is the acute angle between the bevel and leg1 on its actual support, not an
+included wall angle. It equals atan2(leg2, leg1) on exactly perpendicular supports;
+accepted STEP angular noise is measured in the real triangle rather than idealised away.
+`run` is a unit vector, `length` its complete span, and `at` the strip midpoint at
+the same station as corner. Positions and lengths publish millimetres to three decimals,
+unit directions to six and angle to two. Sub-micrometre leg ties use descending support-wall
+area only when neither the
+published lengths nor the measured angle can change. This is intrinsic under rigid motion.
+If support areas are indistinguishable, the two directions have no slot identity in the
+fingerprint: Placement fields are represented by the run, defining-face centroid and graph,
+not by named direction slots. Equal legs therefore remain an unordered pair for matching. Positions are carried
+unrounded through rigid
+publication before rounding once. Only the strip is defining; both supports and both ends
+are context.
+
+The open triangular wedge from corner to the spring edges, swept over the complete run,
+must be wholly material by volume integration on the owning solid. Its boundaries are
+inset by the input's modelling precision (at least the kernel coordinate floor); no missing
+volume fraction is permitted and unresolved integration rejects the candidate. The bevel's
+inward side must classify cleanly as material and its outward side cleanly as air;
+ON and unresolved classifications are refused.
+
+A sloped pocket floor normally has parallel opposing side supports, not a unique
+perpendicular pair. A broad sloped wall fails support dominance or treatment size; draft
+fails the support-angle/normal test. A slanted step has convex boundary joins and often a
+triangular end, rather than four concave joins. A countersink is conical with circular rims,
+not a four-line plane. An arbitrary ramp or web that cannot be distinguished geometrically
+from an internal edge treatment is refused when these role proofs are ambiguous. Open-ended,
+interrupted or nonrectangular internal treatments remain outside this initial contract.

@@ -260,3 +260,69 @@ fn k3_degraded_records_keep_their_geometry_in_the_published_document() {
         }
     }
 }
+
+#[test]
+fn exact_recess_sources_survive_publication_and_motion() {
+    let Some(corpus) = common::corpus_dir() else {
+        return;
+    };
+    let base = quiddity::read_step_file(&corpus.join("mfcadpp/1000.step")).unwrap();
+    let (s, c) = 0.37_f64.sin_cos();
+    for placement in [
+        IDENTITY,
+        [[c, 0., s, 123.456], [0., 1., 0., -78.9], [-s, 0., c, 41.3]],
+    ] {
+        let part = base.transformed(&placement).unwrap();
+        let rec = correspondence::caller_space_recognise(&part);
+        let doc = recognition::document(&rec, part.faces.len());
+        let duplicate = doc
+            .records
+            .iter()
+            .find(|r| r.id == "section_recesses/5")
+            .unwrap();
+        assert_eq!(duplicate.parameters["source"], "section_passages/0");
+        let source = doc
+            .records
+            .iter()
+            .find(|r| r.id == "section_passages/0")
+            .unwrap();
+        assert_eq!(duplicate.faces, source.faces);
+        // A partial overlap is retained, without pretending to be an identical source.
+        let partial = doc
+            .records
+            .iter()
+            .find(|r| r.id == "section_recesses/0")
+            .unwrap();
+        assert!(!partial.parameters.contains_key("source"));
+        assert!(
+            doc.records
+                .iter()
+                .filter(|r| r.family != "section_recesses")
+                .all(|r| r.faces != partial.faces)
+        );
+    }
+}
+
+#[test]
+fn recess_only_record_has_no_source_reference() {
+    let Some(corpus) = common::corpus_dir() else {
+        return;
+    };
+    let part = quiddity::read_step_file(&corpus.join("inventory_refusal/14052.step.gz")).unwrap();
+    let rec = correspondence::caller_space_recognise(&part);
+    assert_eq!(rec.features.section_recesses.len(), 1);
+    assert!(rec.features.section_recesses[0].source.is_none());
+    let doc = recognition::document(&rec, part.faces.len());
+    let recess = doc
+        .records
+        .iter()
+        .find(|r| r.id == "section_recesses/0")
+        .unwrap();
+    assert!(!recess.parameters.contains_key("source"));
+    assert!(
+        doc.records
+            .iter()
+            .filter(|r| r.family != "section_recesses")
+            .all(|r| r.faces != recess.faces)
+    );
+}

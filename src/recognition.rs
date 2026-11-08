@@ -160,12 +160,17 @@ pub const RECORD_TYPES: &[(&str, &[&str])] = &[
     ("fillets", &["Fillet"]),
     ("cylindrical_profiles", &["CylindricalProfile"]),
     ("chamfers", &["Chamfer"]),
+    ("internal_bevels", &["InternalBevel"]),
     ("bosses", &["BossRecord"]),
     ("angled_steps", &["AngledStep"]),
     ("flats", &["Flat"]),
     ("paired_ramp_steps", &["PairedRampStep"]),
     ("circular_face_patterns", &["CircularFacePattern"]),
     ("oblique_through_steps", &["ObliqueThroughStep"]),
+    (
+        "polygonal_oblique_through_steps",
+        &["PolygonalObliqueThroughStep"],
+    ),
     ("circular_blind_steps", &["CircularBlindStep"]),
     ("holes", &["HoleRecord"]),
     ("countersinks", &["CounterSink"]),
@@ -186,6 +191,7 @@ pub const RECORD_TYPES: &[(&str, &[&str])] = &[
     ("thin_wall_bodies", &["ThinWallBody"]),
     ("interior_voids", &["InteriorVoid", "InteriorVoidRefusal"]),
     ("through_steps", &["ThroughStep"]),
+    ("local_steps", &["LocalStep"]),
     ("turned_steps", &["TurnedStep"]),
     ("grooves", &["Groove"]),
     ("annular_grooves", &["AnnularGroove"]),
@@ -527,7 +533,10 @@ fn record_status(
         let mut taken = vec![false; pool.len()];
         return if !members.is_empty()
             && members.iter().all(|member| {
-                let Some(k) = (0..pool.len()).find(|&k| !taken[k] && pool[k] == *member) else {
+                let Some(k) = (0..pool.len()).find(|&k| {
+                    !taken[k]
+                        && crate::correspondence::fingerprint::same_member(base, &pool[k], member)
+                }) else {
                     return false;
                 };
                 taken[k] = true;

@@ -104,6 +104,7 @@ fn parts() -> (Vec<PathBuf>, bool) {
         .collect();
     // Exercise the optional obstruction diagnostics, absent from the older STEP inputs.
     out.push(common::fixtures().join("partial_hole_exits.step.gz"));
+    out.push(common::fixtures().join("local_steps/local.step.gz"));
     out.sort();
     // Nested compressed positives must participate in the field-by-field family audit.
     // No corpus part contains a spring, so the registry otherwise appears unused.
@@ -152,6 +153,28 @@ fn families_are_wired_and_their_records_fingerprinted_field_by_field() {
         for (key, paths) in leaves {
             found.entry(key).or_default().extend(paths);
         }
+    }
+    let polygonal = super::polygonal_oblique_through_steps::polygonal_corner(false);
+    let features = features::recognise(&polygonal);
+    let (p, new_leaves) = check(
+        "polygonal corner",
+        &records_json(&features),
+        &features.defining,
+    );
+    problems.extend(p);
+    for (key, paths) in new_leaves {
+        found.entry(key).or_default().extend(paths);
+    }
+    let internal = super::internal_bevels::pocket(3., 2., 0.);
+    let features = features::recognise(&internal);
+    let (p, new_leaves) = check(
+        "internal bevel",
+        &records_json(&features),
+        &features.defining,
+    );
+    problems.extend(p);
+    for (key, paths) in new_leaves {
+        found.entry(key).or_default().extend(paths);
     }
     // For #123, exercise the new family even without the optional corpus or local repro.
     let disc = super::face_grooves::two_ends();

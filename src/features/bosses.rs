@@ -20,6 +20,9 @@ use crate::kernel::py;
 /// axis/location represent an end gauge, not an asserted material base/free direction.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BossRecord {
+    /// Optional additive reference to the identical/superseding published feature.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub superseded_by: Option<String>,
     pub axis: V3,
     pub location: V3,
     pub diameter: f64,
@@ -303,6 +306,7 @@ pub(super) fn analyse(ctx: &Context<'_>) -> Analysis {
         treatment_faces.dedup();
         out.push(Occurrence {
             record: BossRecord {
+                superseded_by: None,
                 axis: if from_hi { d } else { geom::scale(d, -1.0) }.map(py::without_negative_zero),
                 location: axis_point_at(seg, if from_hi { hi } else { lo }),
                 diameter: seg.diameter,

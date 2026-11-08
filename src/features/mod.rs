@@ -18,6 +18,7 @@ pub mod chamfers;
 pub mod channels;
 pub mod circular_blind_steps;
 pub mod circular_face_patterns;
+mod duplicate_references;
 mod edge_treatments;
 mod isolation;
 pub use isolation::FamilyFailure;
@@ -53,7 +54,9 @@ pub mod helical_springs;
 pub mod hole_patterns;
 pub mod holes;
 pub mod interior_voids;
+pub mod internal_bevels;
 pub mod levels;
+pub mod local_steps;
 pub mod modelled_threads;
 pub mod oblique_through_steps;
 pub mod oriented_chamfers;
@@ -71,6 +74,7 @@ pub mod plates;
 pub mod pockets;
 pub mod policy;
 pub mod polygonal_bosses;
+pub mod polygonal_oblique_through_steps;
 pub mod prismatic_pockets;
 pub mod probes;
 pub mod profiled_bores;
@@ -142,6 +146,8 @@ pub struct Features {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub cylindrical_profiles: Vec<cylindrical_profiles::CylindricalProfile>,
     pub chamfers: Vec<chamfers::Chamfer>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub internal_bevels: Vec<internal_bevels::InternalBevel>,
     pub bosses: Vec<bosses::BossRecord>,
     pub angled_steps: Vec<angled_steps::AngledStep>,
     pub flats: Vec<flats::Flat>,
@@ -149,6 +155,10 @@ pub struct Features {
     pub oriented_chamfers: Vec<oriented_chamfers::OrientedChamfer>,
     pub circular_face_patterns: Vec<circular_face_patterns::CircularFacePattern>,
     pub oblique_through_steps: Vec<oblique_through_steps::ObliqueThroughStep>,
+    /// Polygonal oblique steps have their own ranks; absent on legacy parts.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub polygonal_oblique_through_steps:
+        Vec<polygonal_oblique_through_steps::PolygonalObliqueThroughStep>,
     pub circular_blind_steps: Vec<circular_blind_steps::CircularBlindStep>,
     pub holes: Vec<holes::HoleRecord>,
     pub countersinks: Vec<countersinks::CounterSink>,
@@ -161,6 +171,9 @@ pub struct Features {
     #[serde(skip)]
     pub interior_void_refusals: Vec<interior_voids::InteriorVoidRefusal>,
     pub through_steps: Vec<through_steps::ThroughStep>,
+    /// Partial-run rectangular step remnants, omitted when absent.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub local_steps: Vec<local_steps::LocalStep>,
     pub turned_steps: Vec<turned_steps::TurnedStep>,
     pub grooves: Vec<grooves::Groove>,
     /// Annular face recesses, omitted when absent for existing readers.
@@ -433,6 +446,7 @@ pub(crate) fn recognise_in(ctx: &Context<'_>, mut inventory: Inventory) -> Featu
     }
     failures.sort_by(|a, b| (&a.family, &a.stage).cmp(&(&b.family, &b.stage)));
     features.failures = failures;
+    duplicate_references::mark(ctx.part, &mut features);
     features
 }
 
@@ -907,6 +921,17 @@ fn inventory_in_with(
                 oblique_through_steps::discover(ctx)
             ),
         ),
+        polygonal_oblique_through_steps: {
+            let found = discover!(
+                "polygonal_oblique_through_steps",
+                polygonal_oblique_through_steps::discover(ctx)
+            );
+            if found.is_empty() {
+                Vec::new()
+            } else {
+                kept(&mut defining, "polygonal_oblique_through_steps", found)
+            }
+        },
         circular_blind_steps: kept(
             &mut defining,
             "circular_blind_steps",
@@ -925,6 +950,22 @@ fn inventory_in_with(
             "through_steps",
             discover!("through_steps", through_steps::discover(ctx)),
         ),
+        internal_bevels: {
+            let found = discover!("internal_bevels", internal_bevels::discover(ctx));
+            if found.is_empty() {
+                Vec::new()
+            } else {
+                kept(&mut defining, "internal_bevels", found)
+            }
+        },
+        local_steps: {
+            let found = discover!("local_steps", local_steps::discover(ctx));
+            if found.is_empty() {
+                Vec::new()
+            } else {
+                kept(&mut defining, "local_steps", found)
+            }
+        },
         turned_steps: kept(
             &mut defining,
             "turned_steps",

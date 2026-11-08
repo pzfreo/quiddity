@@ -92,8 +92,10 @@ No new independent references are claimed for legacy value-only helpers.
 | `hole_patterns` | F |
 | `holes` | F; L; analytic counterbores + motion (`tests/internal/tie_breaks.rs`) |
 | `interior_voids` | F; analytic bounded-air fixtures (`src/features/interior_voids.rs`) |
+| `local_steps` | original OCCT boolean controls + analytic dimensions, end-face evidence, negatives and motion (`tests/internal/local_steps.rs`); L |
 | `modelled_threads` | F; analytic thread fixtures (`tests/internal/modelled_threads.rs`) |
 | `oblique_through_steps` | F; L |
+| `polygonal_oblique_through_steps` | F (generated polyhedron, skew negative, legacy quad); L (`_1002`) |
 | `oriented_chamfers` | F |
 | `oriented_slot_patterns` | F |
 | `oriented_slots` | F; L |
@@ -160,6 +162,27 @@ recognition or capture steps. Export `QUIDDITY_CORPUS` locally. CI requires it; 
 without a corpus may skip corpus work. The full release suite must include it. Additional
 NIST AP242 files can be checked by exporting `HAECCEITY_NIST_PMI` and
 `HAECCEITY_NIST_PMI_REQUIRED=1`; committed NIST fixtures always run.
+
+## Releases
+
+The maintainer tags a release and publishes it on GitHub; nobody else does, and no session
+publishes to crates.io or PyPI itself. A published release is the approval for both registries:
+
+- **PyPI:** `python.yml` builds, tests and publishes the wheels and sdist (see
+  [Python](python.md)).
+- **crates.io:** `crates.yml` checks out the tag, refuses unless the tag, `quiddity`'s version
+  and `haecceity`'s version agree, then publishes `haecceity` and `quiddity` in that order
+  (Cargo waits until `haecceity` is in the index). A pre-release is not published (a manual run
+  can). A crate whose version is already on crates.io is skipped, so a rerun publishes only
+  what is missing. It uses crates.io [trusted publishing](https://crates.io/docs/trusted-publishing):
+  no token is stored, and the job, in the GitHub environment `crates-io`, mints a short-lived
+  one. Each crate's crates.io settings (Settings → Trusted Publishing → GitHub) name owner
+  `pzfreo`, repository `quiddity`, workflow `crates.yml` and environment `crates-io`.
+- **Backfill:** a manual run of `crates.yml` with `tag` (e.g. `v0.4.8`) publishes an earlier
+  release's crates from its tag. It needs the maintainer's word each time.
+
+Pull requests that touch either crate run `cargo publish --dry-run --locked -p haecceity -p quiddity`,
+so a packaging break shows before a release.
 
 ## Layout
 

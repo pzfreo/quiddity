@@ -12,7 +12,7 @@ use super::slices;
 #[path = "../support/published_geometry.rs"]
 mod published_geometry;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use quiddity::correspondence::{self, Recognition};
@@ -45,7 +45,18 @@ fn document(path: &Path) -> RecognitionDocument {
 #[test]
 fn every_family_has_a_record_type() {
     let part = quiddity::read_step_file(&fixture("filleted_plate_with_holes.step")).unwrap();
-    let keys: Vec<String> = PublishedFeatures::from(features::recognise(&part))
+    let mut found = features::recognise(&part);
+    // This registry test needs an actual positive for the optional sibling. Keep the
+    // legacy fixture's families, and exercise the new typed field with independently
+    // generated geometry instead of filtering it out of the exact order assertion.
+    let internal = features::recognise(&super::internal_bevels::pocket(2., 2., 0.));
+    assert_eq!(internal.internal_bevels.len(), 1);
+    found.internal_bevels = internal.internal_bevels;
+    assert_eq!(
+        record_types("internal_bevels"),
+        Some(&["InternalBevel"][..])
+    );
+    let keys: Vec<String> = PublishedFeatures::from(found)
         .families()
         .into_iter()
         .map(|(key, _)| key)
@@ -76,6 +87,8 @@ fn every_family_has_a_record_type() {
                 "v_channels",
                 "semicircular_blind_slots",
                 "rectangular_through_notches",
+                "local_steps",
+                "polygonal_oblique_through_steps",
             ]
             .contains(f)
         })
@@ -404,6 +417,7 @@ fn agree_record(family: &str, a: &Value, b: &Value, grid: &mut usize) -> bool {
     let field = match family {
         "circular_blind_steps" => "section",
         "oblique_through_steps" => "wall_outline",
+        "polygonal_oblique_through_steps" => "floor_outline",
         _ => return agree(a, b, grid),
     };
     let Some(points) = b.get(field).and_then(Value::as_array) else {
@@ -417,15 +431,21 @@ fn agree_record(family: &str, a: &Value, b: &Value, grid: &mut usize) -> bool {
             points[1].clone(),
             points[0].clone(),
         ]);
-    } else if family == "oblique_through_steps" && points.len() == 4 {
+    } else if (family == "oblique_through_steps" && points.len() == 4)
+        || (family == "polygonal_oblique_through_steps" && points.len() > 4)
+    {
         for reversed in [false, true] {
             let path: Vec<_> = if reversed {
                 points.iter().rev().cloned().collect()
             } else {
                 points.clone()
             };
-            for start in 0..4 {
-                candidates.push((0..4).map(|i| path[(start + i) % 4].clone()).collect());
+            for start in 0..points.len() {
+                candidates.push(
+                    (0..points.len())
+                        .map(|i| path[(start + i) % points.len()].clone())
+                        .collect(),
+                );
             }
         }
     } else {
@@ -436,7 +456,10 @@ fn agree_record(family: &str, a: &Value, b: &Value, grid: &mut usize) -> bool {
         candidate[field] = Value::Array(points);
         for reversed_run in [false, true] {
             if reversed_run {
-                if family != "oblique_through_steps" {
+                if !matches!(
+                    family,
+                    "oblique_through_steps" | "polygonal_oblique_through_steps"
+                ) {
                     break;
                 }
                 if let Some(run) = candidate.get_mut("run").and_then(Value::as_array_mut) {
@@ -1031,7 +1054,39 @@ fn recognition_carries_section_recesses() {
         let features = &recognition.features;
         let mut out = Vec::new();
         match recognise_section_recesses(&part) {
-            Ok(records) => {
+            Ok(mut records) => {
+                // Internal projections have no global family roster. Require absent
+                // references there, then independently derive schema-6 references for
+                // the full comparison below; all existing record fields still compare.
+                let source_families = [
+                    "channels",
+                    "edge_open_circular_pockets",
+                    "edge_open_prismatic_recesses",
+                    "pockets",
+                    "prismatic_pockets",
+                    "rectangular_blind_slots",
+                    "round_bottom_blind_slots",
+                    "section_passages",
+                ];
+                for record in &mut records {
+                    assert!(
+                        record.source.is_none(),
+                        "{file}: internal recess has a source"
+                    );
+                    let faces: BTreeSet<_> =
+                        record.evidence().defining_faces().iter().copied().collect();
+                    record.source = source_families.iter().find_map(|&family| {
+                        features
+                            .defining
+                            .get(family)?
+                            .iter()
+                            .position(|source| {
+                                !source.is_empty()
+                                    && source.iter().copied().collect::<BTreeSet<_>>() == faces
+                            })
+                            .map(|index| format!("{family}/{index}"))
+                    });
+                }
                 if features.section_recesses != records || features.section_recess_refusal.is_some()
                 {
                     out.push(format!("{file}: recognise's section recesses differ"));

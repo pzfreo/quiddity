@@ -552,6 +552,7 @@ fn carry(
         oriented_chamfers,
         circular_face_patterns,
         oblique_through_steps,
+        polygonal_oblique_through_steps,
         circular_blind_steps,
         holes,
         countersinks,
@@ -562,6 +563,8 @@ fn carry(
         interior_voids,
         interior_void_refusals,
         through_steps,
+        internal_bevels,
+        local_steps,
         turned_steps,
         grooves,
         annular_grooves,
@@ -651,6 +654,11 @@ fn carry(
             oblique_through_steps,
             oblique_through_step
         ),
+        polygonal_oblique_through_steps: each!(
+            "polygonal_oblique_through_steps",
+            polygonal_oblique_through_steps,
+            polygonal_oblique_through_step
+        ),
         circular_blind_steps: each!(
             "circular_blind_steps",
             circular_blind_steps,
@@ -678,6 +686,19 @@ fn carry(
             })
             .collect(),
         through_steps: each!("through_steps", through_steps, through_step),
+        internal_bevels: each!(
+            "internal_bevels",
+            internal_bevels,
+            |out: &mut Out, mut r: crate::features::internal_bevels::InternalBevel| {
+                r.run = out.direction(r.run);
+                r.at = out.placed_point(r.at);
+                r.corner = out.placed_point(r.corner);
+                r.leg1_direction = out.direction(r.leg1_direction);
+                r.leg2_direction = out.direction(r.leg2_direction);
+                r
+            }
+        ),
+        local_steps: each!("local_steps", local_steps, local_step),
         turned_steps: each!("turned_steps", turned_steps, turned_step),
         grooves: each!("grooves", grooves, groove),
         annular_grooves: each!(
@@ -929,12 +950,14 @@ fn chamfer(out: &mut Out, r: Chamfer) -> Chamfer {
 
 fn boss(out: &mut Out, r: BossRecord) -> BossRecord {
     let BossRecord {
+        superseded_by,
         axis,
         location,
         diameter,
         height,
     } = r;
     BossRecord {
+        superseded_by,
         axis: out.direction(axis),
         location: out.point(location),
         diameter,
@@ -1125,6 +1148,19 @@ fn oblique_through_step(out: &mut Out, r: ObliqueThroughStep) -> ObliqueThroughS
     }
 }
 
+fn polygonal_oblique_through_step(
+    out: &mut Out,
+    mut r: crate::features::polygonal_oblique_through_steps::PolygonalObliqueThroughStep,
+) -> crate::features::polygonal_oblique_through_steps::PolygonalObliqueThroughStep {
+    r.run = out.direction(r.run);
+    r.through_axis = out.direction(r.through_axis);
+    r.at = out.placed_point(r.at);
+    r.depth_direction = out.direction(r.depth_direction);
+    r.across_direction = out.direction(r.across_direction);
+    r.body_key = out.body_key(r.body_key, "body_key");
+    r
+}
+
 fn circular_blind_step(out: &mut Out, r: CircularBlindStep) -> CircularBlindStep {
     let CircularBlindStep {
         axis,
@@ -1145,6 +1181,7 @@ fn circular_blind_step(out: &mut Out, r: CircularBlindStep) -> CircularBlindStep
 
 fn hole(out: &mut Out, r: HoleRecord) -> HoleRecord {
     let HoleRecord {
+        superseded_by,
         axis,
         location,
         diameter,
@@ -1157,6 +1194,7 @@ fn hole(out: &mut Out, r: HoleRecord) -> HoleRecord {
         exit_obstructions,
     } = r;
     HoleRecord {
+        superseded_by,
         axis: out.direction(axis),
         location: out.placed_point(location),
         diameter,
@@ -1442,6 +1480,34 @@ fn through_step(out: &mut Out, r: ThroughStep) -> ThroughStep {
         section,
         body_key: out.body_key(body_key, "body_key"),
         endpoint_scopes,
+    }
+}
+
+fn local_step(
+    out: &mut Out,
+    r: crate::features::local_steps::LocalStep,
+) -> crate::features::local_steps::LocalStep {
+    let crate::features::local_steps::LocalStep {
+        run_direction,
+        run_start,
+        run_end,
+        length,
+        height_direction,
+        height,
+        depth_direction,
+        depth,
+        ends,
+    } = r;
+    crate::features::local_steps::LocalStep {
+        run_direction: out.direction(run_direction),
+        run_start: out.placed_point(run_start),
+        run_end: out.placed_point(run_end),
+        length,
+        height_direction: out.direction(height_direction),
+        height,
+        depth_direction: out.direction(depth_direction),
+        depth,
+        ends,
     }
 }
 
@@ -2359,7 +2425,10 @@ fn section_passage(out: &mut Out, r: SectionPassage) -> SectionPassage {
 /// and carries its complete measuring frame without a second rounding.
 fn section_recess(out: &mut Out, r: SectionRecess) -> SectionRecess {
     match moved_section_recess(out, &r) {
-        Some(moved) => moved,
+        Some(mut moved) => {
+            moved.source = r.source;
+            moved
+        }
         None => {
             let frame = r.geometry().frame();
             let mapped = PassageFrame {

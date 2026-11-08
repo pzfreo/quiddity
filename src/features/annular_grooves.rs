@@ -372,6 +372,10 @@ mod tests {
     /// A turned cylinder with an independently constructed 5..8 mm radial, 4 mm deep
     /// face groove. The core and outer land share the same mouth plane.
     fn seal_housing() -> Part {
+        seal_housing_with_core_height(10.)
+    }
+
+    fn seal_housing_with_core_height(core_height: f64) -> Part {
         let frame = |z| Frame {
             origin: [0., 0., z],
             x: [1., 0., 0.],
@@ -383,7 +387,7 @@ mod tests {
             (12., 10.),
             (8., 10.),
             (8., 6.),
-            (5., 10.),
+            (5., core_height),
             (5., 6.),
         ];
         let mut edges: Vec<_> = rings
@@ -456,7 +460,7 @@ mod tests {
                 false,
                 vec![vec![(5, true), (8, true), (4, false), (8, false)]],
             ),
-            face(plane(10.), false, vec![vec![(4, true)]]),
+            face(plane(core_height), false, vec![vec![(4, true)]]),
             face(plane(0.), true, vec![vec![(0, false)]]),
         ];
         Part::new(
@@ -502,11 +506,50 @@ mod tests {
             assert_eq!(records[0].faces, [2, 3, 4]);
             assert_eq!(records[0].evidence_status, EvidenceStatus::Verified);
             assert_eq!(doc.schema_version, "quiddity-rust/recognition/6");
+            for (family, wall) in [("holes", 2), ("bosses", 4)] {
+                let legacy: Vec<_> = doc
+                    .records
+                    .iter()
+                    .filter(|r| r.family == family && r.faces.contains(&wall))
+                    .collect();
+                assert_eq!(legacy.len(), 1);
+                assert_eq!(legacy[0].parameters["superseded_by"], "annular_grooves/0");
+                assert_eq!(legacy[0].faces, [wall]);
+            }
+
             let axis: V3 = serde_json::from_value(records[0].parameters["axis"].clone()).unwrap();
             let center: V3 =
                 serde_json::from_value(records[0].parameters["floor_center"].clone()).unwrap();
             assert!(geom::dist(axis, o.record.axis) < 1e-9);
             assert!(geom::dist(center, o.record.floor_center) < 1e-9);
+        }
+    }
+
+    #[test]
+    fn unequal_wall_depths_keep_unmarked_hole_and_boss() {
+        let part = seal_housing_with_core_height(9.);
+        assert!(part.solid_is_geometrically_valid(0));
+        let found = crate::features::recognise(&part);
+        assert!(found.annular_grooves.is_empty());
+        assert!(found.holes.iter().any(|h| h.diameter == 16.));
+        assert!(found.bosses.iter().any(|b| b.diameter == 10.));
+        for record in found.holes {
+            assert!(record.superseded_by.is_none());
+            assert!(
+                serde_json::to_value(record)
+                    .unwrap()
+                    .get("superseded_by")
+                    .is_none()
+            );
+        }
+        for record in found.bosses {
+            assert!(record.superseded_by.is_none());
+            assert!(
+                serde_json::to_value(record)
+                    .unwrap()
+                    .get("superseded_by")
+                    .is_none()
+            );
         }
     }
 

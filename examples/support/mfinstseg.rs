@@ -641,6 +641,38 @@ pub fn matched(predicted: &[Faces], labelled: &[Faces]) -> u64 {
         .count() as u64
 }
 
+/// Honour only `superseded_by`. Keep `source`-marked recesses: each class already
+/// unions predicted faces, and its mapping may credit the recess but not its source
+/// family (notably class 17). `source` is a consumer reference, not a scoring filter.
+fn duplicate(features: &quiddity::features::Features, family: &str, index: usize) -> bool {
+    match family {
+        "holes" => features
+            .holes
+            .get(index)
+            .is_some_and(|record| record.superseded_by.is_some()),
+        "bosses" => features
+            .bosses
+            .get(index)
+            .is_some_and(|record| record.superseded_by.is_some()),
+        _ => false,
+    }
+}
+
+/// Defining faces of unmarked records; indices always refer to the original family.
+fn attributed_faces<'a>(
+    features: &'a quiddity::features::Features,
+    family: &str,
+) -> impl Iterator<Item = (usize, &'a Vec<usize>)> {
+    let family = family.to_owned();
+    features
+        .defining
+        .get(family.as_str())
+        .into_iter()
+        .flatten()
+        .enumerate()
+        .filter(move |(index, _)| !duplicate(features, &family, *index))
+}
+
 pub fn score(
     truth: &Truth,
     features: &quiddity::features::Features,
@@ -670,19 +702,15 @@ pub fn score(
                             "records and defining faces must have the same indices"
                         );
                     }
-                    defining
-                        .into_iter()
-                        .flatten()
-                        .enumerate()
-                        .filter_map(move |(i, faces)| {
-                            selectors
-                                .is_none_or(|selectors| {
-                                    selectors.iter().all(|selector| {
-                                        selector.matches(&records.as_ref().unwrap()[i])
-                                    })
-                                })
-                                .then_some(faces)
-                        })
+                    attributed_faces(features, family).filter_map(move |(i, faces)| {
+                        selectors
+                            .is_none_or(|selectors| {
+                                selectors
+                                    .iter()
+                                    .all(|selector| selector.matches(&records.as_ref().unwrap()[i]))
+                            })
+                            .then_some(faces)
+                    })
                 })
                 .map(|fs| fs.iter().copied().collect())
                 .collect();
@@ -766,26 +794,17 @@ pub fn evaluate(
     let truth =
         truth.ok_or_else(|| format!("{id}: {}", error.as_deref().unwrap_or("missing labels")))?;
     let empty = quiddity::features::Features::default();
-    let hole_faces: Faces = features
-        .as_ref()
-        .unwrap_or(&empty)
-        .defining
-        .get("holes")
-        .into_iter()
-        .flatten()
-        .flatten()
-        .copied()
+    let hole_faces: Faces = attributed_faces(features.as_ref().unwrap_or(&empty), "holes")
+        .flat_map(|(_, faces)| faces.iter().copied())
         .collect();
     let any_faces: Faces = features
         .as_ref()
         .unwrap_or(&empty)
         .defining
         .iter()
-        .filter_map(|(&family, claims)| {
-            (!matches!(family, "step_levels" | "risers")).then_some(claims)
-        })
-        .flatten()
-        .flatten()
+        .filter(|(family, _)| !matches!(**family, "step_levels" | "risers"))
+        .flat_map(|(&family, _)| attributed_faces(features.as_ref().unwrap(), family))
+        .flat_map(|(_, faces)| faces)
         .copied()
         .collect();
     Ok(ModelScore {
@@ -989,6 +1008,7 @@ mod tests {
         features.holes = [Bottom::Flat, Bottom::Through]
             .into_iter()
             .map(|bottom| HoleRecord {
+                superseded_by: None,
                 axis: [0., 0., 1.],
                 location: [0., 0., 0.].into(),
                 diameter: 2.,
@@ -1084,6 +1104,112 @@ mod tests {
         assert_eq!(matched(&[Faces::new()], &[Faces::new()]), 0);
         assert_eq!(matched(&[faces(&[0]), faces(&[0])], &[faces(&[0])]), 1);
     }
+    fn test_hole(superseded_by: Option<&str>) -> quiddity::features::holes::HoleRecord {
+        quiddity::features::holes::HoleRecord {
+            superseded_by: superseded_by.map(str::to_owned),
+            axis: [0., 0., 1.],
+            location: [0.; 3].into(),
+            diameter: 2.,
+            depth: 3.,
+            bottom: quiddity::features::holes::Bottom::Through,
+            cbore: None,
+            spotface: None,
+            outer_steps: Vec::new(),
+            csink: None,
+            exit_obstructions: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn marked_duplicates_are_excluded_without_changing_selectors_or_indices() {
+        let class = Class {
+            id: 0,
+            name: "test".into(),
+            families: vec!["holes".into()],
+            selectors: BTreeMap::from([(
+                "holes".into(),
+                vec![
+                    serde_json::from_value(serde_json::json!({"field":"/bottom", "op":"equals",
+                    "value":"through", "evidence":"Two open ends."}))
+                    .unwrap(),
+                ],
+            )]),
+        };
+        let features = quiddity::features::Features {
+            holes: vec![test_hole(Some("annular_grooves/0")), test_hole(None)],
+            defining: BTreeMap::from([("holes", vec![vec![0], vec![1]])]),
+            ..Default::default()
+        };
+        assert_eq!(
+            attributed_faces(&features, "holes")
+                .map(|(i, _)| i)
+                .collect::<Vec<_>>(),
+            [1]
+        );
+        let truth = Truth {
+            seg: vec![1, 0],
+            instances: Some(vec![vec![faces(&[1])]]),
+            warnings: Vec::new(),
+        };
+        let scores = score(&truth, &features, &[class]);
+        assert_eq!(
+            scores[0].faces,
+            Counts {
+                true_positive: 1,
+                predicted: 1,
+                labelled: 1
+            }
+        );
+        assert_eq!(
+            scores[0].instances,
+            Some(Counts {
+                true_positive: 1,
+                predicted: 1,
+                labelled: 1
+            })
+        );
+
+        let path =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/golden_open_channels.step");
+        let part = quiddity::read_step_file(&path).unwrap();
+        let mut features = quiddity::features::recognise(&part);
+        assert!(!features.section_recesses.is_empty());
+        let indices = (0..features.section_recesses.len()).collect::<Vec<_>>();
+        for record in &mut features.section_recesses {
+            record.source = Some("channels/0".into());
+        }
+        assert_eq!(
+            attributed_faces(&features, "section_recesses")
+                .map(|(i, _)| i)
+                .collect::<Vec<_>>(),
+            indices
+        );
+    }
+
+    #[test]
+    fn source_references_preserve_class_17_predictions() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/golden_rectangular_blind_slot.step");
+        let part = quiddity::read_step_file(&path).unwrap();
+        let mut features = quiddity::features::recognise(&part);
+        assert!(!features.section_recesses.is_empty());
+        for record in &mut features.section_recesses {
+            record.source = None;
+        }
+        let truth = Truth {
+            seg: vec![17; part.faces.len()],
+            instances: None,
+            warnings: Vec::new(),
+        };
+        let classes = mapping();
+        let before = score(&truth, &features, &classes);
+        assert!(before[17].faces.true_positive > 0);
+        for record in &mut features.section_recesses {
+            record.source = Some("rectangular_blind_slots/0".into());
+        }
+        assert_eq!(score(&truth, &features, &classes), before);
+    }
+
     #[test]
     fn empty_face_claim_is_a_false_positive_instance() {
         let classes = vec![Class {

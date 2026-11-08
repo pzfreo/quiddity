@@ -278,3 +278,157 @@ fn independent_label_accuracy_ratchet() {
         }
     }
 }
+
+/// The reported #211 remnant's two walls; the perpendicular secondary-cut end is context.
+#[test]
+fn local_step_repro_keeps_the_labelled_defining_faces() {
+    let Some(root) = std::env::var_os("QUIDDITY_MFINSTSEG") else {
+        return;
+    };
+    let part =
+        quiddity::read_step_file(&Path::new(&root).join("steps/20221121_154647_1.step")).unwrap();
+    let found = quiddity::features::local_steps::discover_verified(
+        &quiddity::features::Context::new(&part),
+    )
+    .unwrap();
+    let step = found
+        .iter()
+        .find(|s| s.defining == [7, 8])
+        .expect("#211 walls 7–8");
+    assert_eq!(step.record.length, 4.061);
+    assert_eq!((step.record.height, step.record.depth), (2., 5.423));
+    assert_eq!(step.record.ends[1].scope, "local");
+    assert_eq!(step.record.ends[1].faces, [23]);
+    assert!(step.context.contains(&23));
+    let accepted = quiddity::features::recognise(&part);
+    assert!(accepted.defining["local_steps"].contains(&vec![7, 8]));
+    let published = quiddity::correspondence::recognise(&part);
+    let document = quiddity::recognition::document(&published, part.faces.len());
+    assert!(
+        document
+            .records
+            .iter()
+            .any(|r| r.family == "local_steps" && r.faces == [7, 8])
+    );
+}
+
+/// Polygonal floor with a local convex opening lip; neither is approximated by stock bounds.
+#[test]
+fn polygonal_slanted_step_1002_keeps_its_six_corners_and_defining_faces() {
+    let Some(root) = std::env::var_os("QUIDDITY_MFINSTSEG") else {
+        return;
+    };
+    let path = Path::new(&root).join("steps/20221121_154647_1002.step");
+    let part = quiddity::read_step_file(&path).unwrap();
+    let found = quiddity::features::polygonal_oblique_through_steps::discover_verified(
+        &quiddity::features::Context::new(&part),
+    )
+    .unwrap();
+    assert_eq!(
+        found.len(),
+        1,
+        "the other polygonal pair [3,4] is a triangular blind step"
+    );
+    let step = &found[0];
+    assert_eq!(step.defining, vec![20, 21]);
+    assert_eq!(step.context, vec![6, 11, 14, 18, 19, 22]);
+    assert_eq!(step.record.floor_outline.len(), 6);
+    assert_eq!(step.record.length, 88.169);
+    assert_eq!(step.record.depth, 30.02);
+    assert_eq!(step.record.slant_degrees, 3.100929);
+    assert_eq!(step.record.through_axis, [0., 0., 1.]);
+    assert_eq!(step.record.run, [0.054095, 0., -0.998536]);
+    let all = quiddity::features::recognise(&part);
+    assert_eq!(
+        all.polygonal_oblique_through_steps,
+        vec![step.record.clone()]
+    );
+    assert_eq!(
+        all.defining["polygonal_oblique_through_steps"],
+        vec![vec![20, 21]]
+    );
+}
+
+#[test]
+fn internal_bevel_1005_has_the_labelled_strip_and_measured_support_legs() {
+    let Some(root) = std::env::var_os("QUIDDITY_MFINSTSEG") else {
+        return;
+    };
+    let part = quiddity::read_step_file(&Path::new(&root).join("steps/20221121_154647_1005.step"))
+        .unwrap();
+    let found = quiddity::features::internal_bevels::discover_verified(
+        &quiddity::features::Context::new(&part),
+    )
+    .unwrap();
+    let bevel = found
+        .iter()
+        .find(|b| b.defining == [2])
+        .expect("#213 internal bevel face 2");
+    assert_eq!(bevel.context, vec![0, 1, 4, 6]);
+    assert_eq!(
+        (bevel.record.leg1, bevel.record.leg2, bevel.record.angle),
+        (0.574, 0.574, 45.)
+    );
+    assert_eq!(bevel.record.length, 5.639);
+    assert_eq!(*bevel.record.corner, [35.732, 62.383, 9.641]);
+    let all = quiddity::features::recognise(&part);
+    assert!(all.defining["internal_bevels"].contains(&vec![2]));
+    let published = quiddity::correspondence::recognise(&part);
+    let document = quiddity::recognition::document(&published, part.faces.len());
+    assert!(
+        document
+            .records
+            .iter()
+            .any(|r| r.family == "internal_bevels" && r.faces == [2])
+    );
+}
+
+/// Audit a lexical label sample covering #208 plus the fixed ratchet.
+/// Dataset labels remain external; a class-0 prediction must really be a chamfer face.
+#[test]
+fn internal_bevel_additions_have_independent_chamfer_labels() {
+    let Some(root) = std::env::var_os("QUIDDITY_MFINSTSEG") else {
+        return;
+    };
+    let root = Path::new(&root);
+    let mut ids: std::collections::BTreeSet<String> =
+        serde_json::from_str::<Baseline>(include_str!("../fixtures/mfinstseg_baseline.json"))
+            .unwrap()
+            .models
+            .into_iter()
+            .map(|m| m.id)
+            .collect();
+    // Cover the investigation IDs (through lexical model 1117), with a small
+    // independent extension; do not choose candidates by their bevel labels.
+    let mut labels = std::fs::read_dir(root.join("labels"))
+        .unwrap()
+        .map(|p| p.unwrap().path())
+        .collect::<Vec<_>>();
+    labels.sort();
+    for path in labels.into_iter().take(1200) {
+        ids.insert(path.file_stem().unwrap().to_str().unwrap().to_owned());
+    }
+    let mut additions = 0;
+    for id in ids {
+        let part =
+            quiddity::read_step_file(&root.join("steps").join(format!("{id}.step"))).unwrap();
+        let found = quiddity::features::internal_bevels::discover_verified(
+            &quiddity::features::Context::new(&part),
+        )
+        .unwrap();
+        if found.is_empty() {
+            continue;
+        }
+        let labels: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(root.join("labels").join(format!("{id}.json"))).unwrap(),
+        )
+        .unwrap();
+        for bevel in found {
+            for face in &bevel.defining {
+                assert_eq!(labels[0][1]["seg"][face.to_string()], 0, "{id}, {bevel:?}");
+            }
+            additions += 1;
+        }
+    }
+    assert!(additions > 0);
+}
