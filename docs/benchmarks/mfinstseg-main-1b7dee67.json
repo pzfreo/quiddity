@@ -6,7 +6,7 @@
     "sweep_sha256": {
       "qr": "fbffd651dcb19105faa6b5c84f2c80a308f8a841af95ba63f9d1cc40f504c247"
     },
-    "scorer_sha256": "251643d0c5d125eeb72c892666cfd956c799a9dcc89d5d9c930e82db350a7fc9",
+    "scorer_sha256": "66f44b01ad08cff7851aba1b1ae3a7d8d84d62f15763190726b2384c0ef14a13",
     "status": "current rerun",
     "scorer": "tools/as_compare/score.py; superseded records skipped; class-1/12 bottom selectors",
     "metric": "Union face coverage: recognition >= half of instance faces; no one-to-one IoU matching. Not comparable with mfinstseg_baseline.json.",
@@ -24,7 +24,7 @@
       "thin_wall_bodies",
       "turned_steps"
     ],
-    "timing": "quiddity: calling-thread CPU, read and recognition separately; JSON serialization excluded. Analysis Situs: process CPU; recognition includes AAG construction.",
+    "timing": "quiddity: calling-thread CPU time from one run, read and recognition separately; JSON serialization excluded. Thread CPU time is weaker than instructions retired and is not a speed comparison.",
     "shafts": "quiddity proxy is turned_steps only, never the union of feature families; no target shaft class in MFInstSeg."
   },
   "models": 9375,

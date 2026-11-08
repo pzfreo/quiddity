@@ -172,7 +172,7 @@ report = {"provenance": {
     "scorer": "tools/as_compare/score.py; superseded records skipped; class-1/12 bottom selectors",
     "metric": "Union face coverage: recognition >= half of instance faces; no one-to-one IoU matching. Not comparable with mfinstseg_baseline.json.",
     "any_feature_excludes": sorted(BODY),
-    "timing": "quiddity: calling-thread CPU, read and recognition separately; JSON serialization excluded. Analysis Situs: process CPU; recognition includes AAG construction.",
+    "timing": "quiddity: calling-thread CPU time from one run, read and recognition separately; JSON serialization excluded. Thread CPU time is weaker than instructions retired and is not a speed comparison." + ("" if "as" not in TOOLS else " Analysis Situs: process CPU; recognition includes AAG construction; not comparable with quiddity thread CPU."),
     "shafts": "quiddity proxy is turned_steps only, never the union of feature families; no target shaft class in MFInstSeg.",
 }, "models": len(ids), "health": {t: dict(h) for t, h in health.items()}, "comparisons": {}}
 for c in COMPARISONS:
