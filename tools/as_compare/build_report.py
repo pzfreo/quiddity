@@ -62,7 +62,7 @@ td:first-child,th:first-child{{text-align:left}}.scroll{{overflow:auto}}pre{{whi
 </head><body><h1>MFInstSeg: quiddity and Analysis Situs measurements</h1>
 <p>The committed 0.4.8 results predate PRs #216 (flat floors and through-hole selector) and
 #217 (superseded groove records). They are historical, not measurements of current main.
-Analysis Situs was not rerun locally.</p>
+Analysis Situs was not rerun locally. Only the quiddity test split was rerun; the full-corpus results remain historical.</p>
 <p>Recognition here means a labelled instance has at least half its faces in a tool's union
 of claimed faces, regardless of predicted instance identity. No-face instances have no face claimed.
 Claimed faces measures target-face recall; false positives are claims outside the target classes
@@ -91,6 +91,9 @@ Historical raw sweeps are not committed, so the old scores cannot be reproduced 
 The full-corpus historical JSON used an earlier scorer. The October alpha.1 JSON is retained
 as an archival result with a different schema; no cross-run output-identity claim is made.</p>
 <p>Fresh scores require the external MFInstSeg STEP and label files and raw tool sweeps.
-The README documents commands and the current run's provenance. Large sweeps stay outside git;
-small synthetic scoring inputs and semantic tests are committed.</p>
+The README documents commands and the current run's provenance. The current test-split sweep is
+committed as <code>tools/as_compare/runs/main-1b7dee67-test-qr.jsonl.gz</code> (about 1 MB),
+with sweep, scorer and external-label digests in its aggregate JSON. Its records include 2,637
+superseded holes and 2,637 superseded bosses; current scoring skips these records. Small synthetic
+scoring inputs and semantic tests are also committed.</p>
 </body></html>''')
