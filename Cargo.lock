@@ -750,6 +750,7 @@ dependencies = [
  "clap_complete",
  "flate2",
  "haecceity",
+ "libc",
  "serde",
  "serde_json",
  "sha2",

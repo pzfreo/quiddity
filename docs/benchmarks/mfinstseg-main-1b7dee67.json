@@ -1,0 +1,311 @@
+{
+  "provenance": {
+    "quiddity_revision": "1b7dee670475531b7bd7d6d0bedefd096328815d",
+    "exporter_revision": "1ebfcef7",
+    "labels_sha256": "cd1ff9695c2597ff0afaeae5a4a60b6cada810d24ff01adbf09417fbf130ccb6",
+    "sweep_sha256": {
+      "qr": "fbffd651dcb19105faa6b5c84f2c80a308f8a841af95ba63f9d1cc40f504c247"
+    },
+    "scorer_sha256": "66f44b01ad08cff7851aba1b1ae3a7d8d84d62f15763190726b2384c0ef14a13",
+    "status": "current rerun",
+    "scorer": "tools/as_compare/score.py; superseded records skipped; class-1/12 bottom selectors",
+    "metric": "Union face coverage: recognition >= half of instance faces; no one-to-one IoU matching. Not comparable with mfinstseg_baseline.json.",
+    "any_feature_excludes": [
+      "circular_face_patterns",
+      "cylindrical_profiles",
+      "flats",
+      "freeform_surfaces",
+      "plates",
+      "polygonal_stock",
+      "repeating_radial_profiles",
+      "risers",
+      "sheet_metal_bodies",
+      "step_levels",
+      "thin_wall_bodies",
+      "turned_steps"
+    ],
+    "timing": "quiddity: calling-thread CPU time from one run, read and recognition separately; JSON serialization excluded. Thread CPU time is weaker than instructions retired and is not a speed comparison.",
+    "shafts": "quiddity proxy is turned_steps only, never the union of feature families; no target shaft class in MFInstSeg."
+  },
+  "models": 9375,
+  "health": {
+    "qr": {
+      "ok": 9375
+    }
+  },
+  "comparisons": {
+    "Holes": {
+      "qr": {
+        "labelled_faces": 9751,
+        "claimed_faces": 9883,
+        "true_faces": 9266,
+        "false_faces": 617,
+        "false_stock_faces": 0,
+        "instances": 6086,
+        "recognised": 5994,
+        "missed": 84,
+        "models_with_claims": 4598,
+        "recognition_pct": 98.49,
+        "claimed_face_pct": 95.03,
+        "false_positive_pct": 6.24,
+        "false_negative_pct": 1.38
+      }
+    },
+    "Through holes (class 1)": {
+      "qr": {
+        "labelled_faces": 3440,
+        "claimed_faces": 3143,
+        "true_faces": 3135,
+        "false_faces": 8,
+        "false_stock_faces": 0,
+        "instances": 3062,
+        "recognised": 2879,
+        "missed": 177,
+        "models_with_claims": 2489,
+        "recognition_pct": 94.02,
+        "claimed_face_pct": 91.13,
+        "false_positive_pct": 0.25,
+        "false_negative_pct": 5.78
+      }
+    },
+    "Blind holes (class 12)": {
+      "qr": {
+        "labelled_faces": 6311,
+        "claimed_faces": 6740,
+        "true_faces": 5889,
+        "false_faces": 851,
+        "false_stock_faces": 0,
+        "instances": 3024,
+        "recognised": 2968,
+        "missed": 51,
+        "models_with_claims": 2902,
+        "recognition_pct": 98.15,
+        "claimed_face_pct": 93.31,
+        "false_positive_pct": 12.63,
+        "false_negative_pct": 1.69
+      }
+    },
+    "Rounds": {
+      "qr": {
+        "labelled_faces": 3415,
+        "claimed_faces": 2771,
+        "true_faces": 2765,
+        "false_faces": 6,
+        "false_stock_faces": 0,
+        "instances": 2925,
+        "recognised": 2663,
+        "missed": 249,
+        "models_with_claims": 2365,
+        "recognition_pct": 91.04,
+        "claimed_face_pct": 80.97,
+        "false_positive_pct": 0.22,
+        "false_negative_pct": 8.51
+      }
+    },
+    "Any feature": {
+      "qr": {
+        "labelled_faces": 193762,
+        "claimed_faces": 157581,
+        "true_faces": 156943,
+        "false_faces": 638,
+        "false_stock_faces": 638,
+        "instances": 59296,
+        "recognised": 49119,
+        "missed": 9457,
+        "models_with_claims": 9365,
+        "recognition_pct": 82.84,
+        "claimed_face_pct": 81.0,
+        "false_positive_pct": 0.4,
+        "false_negative_pct": 15.95
+      }
+    },
+    "Stock (convex hull)": {
+      "qr": {
+        "labelled_faces": 61088,
+        "claimed_faces": 97269,
+        "true_faces": 60450,
+        "false_faces": 36819,
+        "false_stock_faces": 60450,
+        "instances": 9375,
+        "recognised": 9369,
+        "missed": 0,
+        "models_with_claims": 9375,
+        "recognition_pct": 99.94,
+        "claimed_face_pct": 98.96,
+        "false_positive_pct": 37.85,
+        "false_negative_pct": 0.0
+      }
+    },
+    "Shafts": {
+      "qr": {
+        "labelled_faces": 0,
+        "claimed_faces": 0,
+        "true_faces": 0,
+        "false_faces": 0,
+        "false_stock_faces": 0,
+        "instances": 0,
+        "recognised": 0,
+        "missed": 0,
+        "models_with_claims": 0,
+        "recognition_pct": null,
+        "claimed_face_pct": null,
+        "false_positive_pct": null,
+        "false_negative_pct": null
+      }
+    },
+    "Overall: holes+blends+cavities": {
+      "qr": {
+        "labelled_faces": 193762,
+        "claimed_faces": 157581,
+        "true_faces": 156943,
+        "false_faces": 638,
+        "false_stock_faces": 638,
+        "instances": 59296,
+        "recognised": 49119,
+        "missed": 9457,
+        "models_with_claims": 9365,
+        "recognition_pct": 82.84,
+        "claimed_face_pct": 81.0,
+        "false_positive_pct": 0.4,
+        "false_negative_pct": 15.95
+      }
+    },
+    "Overall: + off-hull faces": {
+      "qr": {
+        "labelled_faces": 193762,
+        "claimed_faces": 157581,
+        "true_faces": 156943,
+        "false_faces": 638,
+        "false_stock_faces": 638,
+        "instances": 59296,
+        "recognised": 49119,
+        "missed": 9457,
+        "models_with_claims": 9365,
+        "recognition_pct": 82.84,
+        "claimed_face_pct": 81.0,
+        "false_positive_pct": 0.4,
+        "false_negative_pct": 15.95
+      }
+    }
+  },
+  "per_class_claimed_face_pct": {
+    "Chamfer": {
+      "qr": 64.0
+    },
+    "Through hole": {
+      "qr": 98.58
+    },
+    "Triangular passage": {
+      "qr": 83.72
+    },
+    "Rectangular passage": {
+      "qr": 76.89
+    },
+    "6-sided passage": {
+      "qr": 79.12
+    },
+    "Triangular through slot": {
+      "qr": 45.1
+    },
+    "Rectangular through slot": {
+      "qr": 55.17
+    },
+    "Circular through slot": {
+      "qr": 58.0
+    },
+    "Rectangular through step": {
+      "qr": 67.82
+    },
+    "2-sided through step": {
+      "qr": 74.51
+    },
+    "Slanted through step": {
+      "qr": 46.7
+    },
+    "O-ring": {
+      "qr": 92.51
+    },
+    "Blind hole": {
+      "qr": 93.42
+    },
+    "Triangular pocket": {
+      "qr": 92.37
+    },
+    "Rectangular pocket": {
+      "qr": 86.44
+    },
+    "6-sided pocket": {
+      "qr": 90.47
+    },
+    "Circular end pocket": {
+      "qr": 89.55
+    },
+    "Rectangular blind slot": {
+      "qr": 64.38
+    },
+    "Vertical circular end blind slot": {
+      "qr": 82.51
+    },
+    "Horizontal circular end blind slot": {
+      "qr": 72.71
+    },
+    "Triangular blind step": {
+      "qr": 71.12
+    },
+    "Circular blind step": {
+      "qr": 76.85
+    },
+    "Rectangular blind step": {
+      "qr": 78.44
+    },
+    "Round": {
+      "qr": 80.97
+    }
+  },
+  "per_class_faces": {
+    "Chamfer": 3567,
+    "Through hole": 3440,
+    "Triangular passage": 10406,
+    "Rectangular passage": 13615,
+    "6-sided passage": 20172,
+    "Triangular through slot": 1428,
+    "Rectangular through slot": 2168,
+    "Circular through slot": 700,
+    "Rectangular through step": 6859,
+    "2-sided through step": 10051,
+    "Slanted through step": 6613,
+    "O-ring": 9723,
+    "Blind hole": 6311,
+    "Triangular pocket": 12108,
+    "Rectangular pocket": 16099,
+    "6-sided pocket": 21050,
+    "Circular end pocket": 15526,
+    "Rectangular blind slot": 2454,
+    "Vertical circular end blind slot": 2464,
+    "Horizontal circular end blind slot": 2561,
+    "Triangular blind step": 6670,
+    "Circular blind step": 6487,
+    "Rectangular blind step": 9875,
+    "Round": 3415
+  },
+  "cpu": {
+    "qr": {
+      "read": {
+        "n": 9375,
+        "total_s": 29.2,
+        "mean_ms": 3.11,
+        "median_ms": 2.95,
+        "p99_ms": 6.3,
+        "max_s": 0.04
+      },
+      "recognise": {
+        "n": 9375,
+        "total_s": 291.1,
+        "mean_ms": 31.05,
+        "median_ms": 18.15,
+        "p99_ms": 197.0,
+        "max_s": 8.11
+      }
+    }
+  }
+}
