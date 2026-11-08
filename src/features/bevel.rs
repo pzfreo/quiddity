@@ -342,6 +342,29 @@ pub(crate) fn transverse_corner(
         .then_some(corner)
 }
 
+/// The same complete support discovery with an explicit feature angular/contact policy.
+/// Legacy bevel and blend callers retain their existing defaults above/below.
+pub(crate) fn transverse_corner_with_tolerance(
+    part: &Part,
+    face: usize,
+    centre: V3,
+    run: V3,
+    angular_tolerance: f64,
+    contact_tolerance: f64,
+) -> Option<TransverseCorner> {
+    let corner = transverse_wall_corner_where(
+        part,
+        face,
+        centre,
+        run,
+        angular_tolerance,
+        contact_tolerance,
+        |_, _| true,
+    )?;
+    (crate::kernel::geom::dot(corner.normals[0], corner.normals[1]).abs() <= angular_tolerance)
+        .then_some(corner)
+}
+
 /// Two nonparallel transverse walls, at any angle. Callers prove the treatment's own
 /// angle contract; chamfers retain their perpendicular-wall requirement above.
 pub(crate) fn transverse_wall_corner(
@@ -350,7 +373,15 @@ pub(crate) fn transverse_wall_corner(
     centre: V3,
     run: V3,
 ) -> Option<TransverseCorner> {
-    transverse_wall_corner_where(part, face, centre, run, |_, _| true)
+    transverse_wall_corner_where(
+        part,
+        face,
+        centre,
+        run,
+        crate::kernel::geom::SMOOTH_ARC_GAP,
+        crate::kernel::geom::COORD_FLOOR,
+        |_, _| true,
+    )
 }
 
 /// Contact cannot require more precision than the STEP input or kernel coordinates.
@@ -372,11 +403,20 @@ pub(crate) fn tangent_cylinder_corner(
     origin: V3,
     radius: f64,
 ) -> Option<TransverseCorner> {
-    transverse_wall_corner_where(part, face, centre, run, |point, normal| {
-        (crate::kernel::geom::dot(crate::kernel::geom::sub(origin, point), normal).abs() - radius)
-            .abs()
-            <= cylinder_support_tolerance(part)
-    })
+    transverse_wall_corner_where(
+        part,
+        face,
+        centre,
+        run,
+        crate::kernel::geom::SMOOTH_ARC_GAP,
+        crate::kernel::geom::COORD_FLOOR,
+        |point, normal| {
+            (crate::kernel::geom::dot(crate::kernel::geom::sub(origin, point), normal).abs()
+                - radius)
+                .abs()
+                <= cylinder_support_tolerance(part)
+        },
+    )
 }
 
 fn transverse_wall_corner_where(
@@ -384,25 +424,27 @@ fn transverse_wall_corner_where(
     face: usize,
     centre: V3,
     run: V3,
+    angular_tolerance: f64,
+    contact_tolerance: f64,
     include: impl Fn(V3, V3) -> bool,
 ) -> Option<TransverseCorner> {
     use super::planes::unit_plane_normal;
-    use crate::kernel::geom::{self, COORD_FLOOR, SMOOTH_ARC_GAP};
+    use crate::kernel::geom;
     let mut supports: Vec<(V3, V3, f64)> = Vec::with_capacity(2);
     for f in part.neighbours(face) {
         let Surface::Plane { frame } = part.faces[f].surface else {
             continue;
         };
         let normal = unit_plane_normal(part, f)?;
-        if geom::dot(normal, run).abs() > SMOOTH_ARC_GAP || !include(frame.origin, normal) {
+        if geom::dot(normal, run).abs() > angular_tolerance || !include(frame.origin, normal) {
             continue;
         }
         let area = part.face_mass(f)?[0];
         if let Some((_, origin, total)) = supports
             .iter_mut()
-            .find(|(n, _, _)| geom::dot(*n, normal).abs() >= 1. - SMOOTH_ARC_GAP)
+            .find(|(n, _, _)| geom::dot(*n, normal).abs() >= 1. - angular_tolerance)
         {
-            if geom::dot(geom::sub(frame.origin, *origin), normal).abs() > COORD_FLOOR {
+            if geom::dot(geom::sub(frame.origin, *origin), normal).abs() > contact_tolerance {
                 return None;
             }
             *total += area;

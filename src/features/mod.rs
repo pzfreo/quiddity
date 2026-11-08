@@ -54,6 +54,7 @@ pub mod helical_springs;
 pub mod hole_patterns;
 pub mod holes;
 pub mod interior_voids;
+pub mod internal_bevels;
 pub mod levels;
 pub mod local_steps;
 pub mod modelled_threads;
@@ -145,6 +146,8 @@ pub struct Features {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub cylindrical_profiles: Vec<cylindrical_profiles::CylindricalProfile>,
     pub chamfers: Vec<chamfers::Chamfer>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub internal_bevels: Vec<internal_bevels::InternalBevel>,
     pub bosses: Vec<bosses::BossRecord>,
     pub angled_steps: Vec<angled_steps::AngledStep>,
     pub flats: Vec<flats::Flat>,
@@ -947,6 +950,14 @@ fn inventory_in_with(
             "through_steps",
             discover!("through_steps", through_steps::discover(ctx)),
         ),
+        internal_bevels: {
+            let found = discover!("internal_bevels", internal_bevels::discover(ctx));
+            if found.is_empty() {
+                Vec::new()
+            } else {
+                kept(&mut defining, "internal_bevels", found)
+            }
+        },
         local_steps: {
             let found = discover!("local_steps", local_steps::discover(ctx));
             if found.is_empty() {

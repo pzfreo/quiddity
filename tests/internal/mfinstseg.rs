@@ -348,3 +348,87 @@ fn polygonal_slanted_step_1002_keeps_its_six_corners_and_defining_faces() {
         vec![vec![20, 21]]
     );
 }
+
+#[test]
+fn internal_bevel_1005_has_the_labelled_strip_and_measured_support_legs() {
+    let Some(root) = std::env::var_os("QUIDDITY_MFINSTSEG") else {
+        return;
+    };
+    let part = quiddity::read_step_file(&Path::new(&root).join("steps/20221121_154647_1005.step"))
+        .unwrap();
+    let found = quiddity::features::internal_bevels::discover_verified(
+        &quiddity::features::Context::new(&part),
+    )
+    .unwrap();
+    let bevel = found
+        .iter()
+        .find(|b| b.defining == [2])
+        .expect("#213 internal bevel face 2");
+    assert_eq!(bevel.context, vec![0, 1, 4, 6]);
+    assert_eq!(
+        (bevel.record.leg1, bevel.record.leg2, bevel.record.angle),
+        (0.574, 0.574, 45.)
+    );
+    assert_eq!(bevel.record.length, 5.639);
+    assert_eq!(*bevel.record.corner, [35.732, 62.383, 9.641]);
+    let all = quiddity::features::recognise(&part);
+    assert!(all.defining["internal_bevels"].contains(&vec![2]));
+    let published = quiddity::correspondence::recognise(&part);
+    let document = quiddity::recognition::document(&published, part.faces.len());
+    assert!(
+        document
+            .records
+            .iter()
+            .any(|r| r.family == "internal_bevels" && r.faces == [2])
+    );
+}
+
+/// Audit a lexical label sample covering #208 plus the fixed ratchet.
+/// Dataset labels remain external; a class-0 prediction must really be a chamfer face.
+#[test]
+fn internal_bevel_additions_have_independent_chamfer_labels() {
+    let Some(root) = std::env::var_os("QUIDDITY_MFINSTSEG") else {
+        return;
+    };
+    let root = Path::new(&root);
+    let mut ids: std::collections::BTreeSet<String> =
+        serde_json::from_str::<Baseline>(include_str!("../fixtures/mfinstseg_baseline.json"))
+            .unwrap()
+            .models
+            .into_iter()
+            .map(|m| m.id)
+            .collect();
+    // Cover the investigation IDs (through lexical model 1117), with a small
+    // independent extension; do not choose candidates by their bevel labels.
+    let mut labels = std::fs::read_dir(root.join("labels"))
+        .unwrap()
+        .map(|p| p.unwrap().path())
+        .collect::<Vec<_>>();
+    labels.sort();
+    for path in labels.into_iter().take(1200) {
+        ids.insert(path.file_stem().unwrap().to_str().unwrap().to_owned());
+    }
+    let mut additions = 0;
+    for id in ids {
+        let part =
+            quiddity::read_step_file(&root.join("steps").join(format!("{id}.step"))).unwrap();
+        let found = quiddity::features::internal_bevels::discover_verified(
+            &quiddity::features::Context::new(&part),
+        )
+        .unwrap();
+        if found.is_empty() {
+            continue;
+        }
+        let labels: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(root.join("labels").join(format!("{id}.json"))).unwrap(),
+        )
+        .unwrap();
+        for bevel in found {
+            for face in &bevel.defining {
+                assert_eq!(labels[0][1]["seg"][face.to_string()], 0, "{id}, {bevel:?}");
+            }
+            additions += 1;
+        }
+    }
+    assert!(additions > 0);
+}

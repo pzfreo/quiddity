@@ -45,7 +45,18 @@ fn document(path: &Path) -> RecognitionDocument {
 #[test]
 fn every_family_has_a_record_type() {
     let part = quiddity::read_step_file(&fixture("filleted_plate_with_holes.step")).unwrap();
-    let keys: Vec<String> = PublishedFeatures::from(features::recognise(&part))
+    let mut found = features::recognise(&part);
+    // This registry test needs an actual positive for the optional sibling. Keep the
+    // legacy fixture's families, and exercise the new typed field with independently
+    // generated geometry instead of filtering it out of the exact order assertion.
+    let internal = features::recognise(&super::internal_bevels::pocket(2., 2., 0.));
+    assert_eq!(internal.internal_bevels.len(), 1);
+    found.internal_bevels = internal.internal_bevels;
+    assert_eq!(
+        record_types("internal_bevels"),
+        Some(&["InternalBevel"][..])
+    );
+    let keys: Vec<String> = PublishedFeatures::from(found)
         .families()
         .into_iter()
         .map(|(key, _)| key)

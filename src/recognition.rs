@@ -160,6 +160,7 @@ pub const RECORD_TYPES: &[(&str, &[&str])] = &[
     ("fillets", &["Fillet"]),
     ("cylindrical_profiles", &["CylindricalProfile"]),
     ("chamfers", &["Chamfer"]),
+    ("internal_bevels", &["InternalBevel"]),
     ("bosses", &["BossRecord"]),
     ("angled_steps", &["AngledStep"]),
     ("flats", &["Flat"]),

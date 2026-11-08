@@ -424,6 +424,25 @@ pub const FAMILIES: &[FamilyFingerprint] = &[
         ],
     },
     FamilyFingerprint {
+        family: "internal_bevels",
+        members: None,
+        variants: false,
+        fields: &[
+            ("run", Axis),
+            ("length", Size),
+            ("at", Placement),
+            ("corner", Placement),
+            ("leg1", Size),
+            ("leg2", Size),
+            // Placements contribute through the run and defining-face centroid/graph, not
+            // named direction slots. Equal legs are therefore an unordered pair, including
+            // geometrically symmetric supports for which no intrinsic ordering is proved.
+            ("leg1_direction", Placement),
+            ("leg2_direction", Placement),
+            ("angle", Size),
+        ],
+    },
+    FamilyFingerprint {
         family: "local_steps",
         members: None,
         variants: false,

@@ -6,7 +6,18 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+### Fixed
+
+- Internal bevel leg ties use intrinsic support area; symmetric ties remain unordered in
+  fingerprints. Feature-policy angular tolerances retain slightly noisy STEP supports,
+  with the slope angle measured on the actual supports rather than an ideal right angle.
+
 ### Added
+
+- `internal_bevels` recognises bounded concave planar corner treatments with measured
+  support legs, angle and run, backed by a complete material-filled wedge proof (#213).
+  The optional sibling family preserves existing chamfer ranks and saved Spec references;
+  ambiguous ramps, draft, slanted steps and conical countersinks remain excluded.
 
 - `polygonal_oblique_through_steps` recognises slanted through steps with more
   than four principal-wall corners, preserving the full outline, seam run, height,

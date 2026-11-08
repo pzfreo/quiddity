@@ -86,7 +86,15 @@ def main():
     if args.previous_mapping:
         changed = [f"{row['name']}: {old} -> {got}"
                    for row, old, got in zip(report['classes'], baseline['scores'], scores) if old != got]
-        baseline['reason'] += '\n\n' + args.mapping_reason + ' Measured class changes: ' + '; '.join(changed) + '. Every other class unchanged; all precision, recall, support, input and accounting guards passed.'
+        prefix = args.mapping_reason + ' Measured class changes: '
+        already_reviewed = any(p.startswith(prefix) for p in baseline['reason'].split('\n\n'))
+        # A reviewed replay at final HEAD still measures everything and passes every guard.
+        # Keep its metadata byte-stable when neither mapping nor scores changed; another
+        # improvement under the same rationale must still record its measured changes.
+        unchanged_replay = (already_reviewed and mapping_hash == baseline['mapping_sha256']
+                            and scores == baseline['scores'])
+        if not unchanged_replay:
+            baseline['reason'] += '\n\n' + prefix + '; '.join(changed) + '. Every other class unchanged; all precision, recall, support, input and accounting guards passed.'
         baseline['mapping_sha256'] = mapping_hash
     baseline['schema'] = 2
     baseline['accounting'] = report['accounting']

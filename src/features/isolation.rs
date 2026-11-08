@@ -113,6 +113,7 @@ const CLAIM_INPUTS: &[&str] = &[
     "polygonal_oblique_through_steps",
     "circular_blind_steps",
     "through_steps",
+    "internal_bevels",
     "local_steps",
     "turned_steps",
     "grooves",

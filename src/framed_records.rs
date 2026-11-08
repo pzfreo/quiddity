@@ -563,6 +563,7 @@ fn carry(
         interior_voids,
         interior_void_refusals,
         through_steps,
+        internal_bevels,
         local_steps,
         turned_steps,
         grooves,
@@ -685,6 +686,18 @@ fn carry(
             })
             .collect(),
         through_steps: each!("through_steps", through_steps, through_step),
+        internal_bevels: each!(
+            "internal_bevels",
+            internal_bevels,
+            |out: &mut Out, mut r: crate::features::internal_bevels::InternalBevel| {
+                r.run = out.direction(r.run);
+                r.at = out.placed_point(r.at);
+                r.corner = out.placed_point(r.corner);
+                r.leg1_direction = out.direction(r.leg1_direction);
+                r.leg2_direction = out.direction(r.leg2_direction);
+                r
+            }
+        ),
         local_steps: each!("local_steps", local_steps, local_step),
         turned_steps: each!("turned_steps", turned_steps, turned_step),
         grooves: each!("grooves", grooves, groove),

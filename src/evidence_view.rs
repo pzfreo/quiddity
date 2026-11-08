@@ -50,7 +50,7 @@ use crate::{PlanarOuterProfileEvidence, RefusedPlanarOuterProfile};
 
 /// Physical families in Python's registry order (`PHYSICAL_DEFINITIONS`), followed by the
 /// native measured-thread extension.
-pub const PHYSICAL_FAMILIES: [&str; 45] = [
+pub const PHYSICAL_FAMILIES: [&str; 46] = [
     "countersinks",
     "holes",
     "double_d_bores",
@@ -80,6 +80,7 @@ pub const PHYSICAL_FAMILIES: [&str; 45] = [
     "paired_ramp_steps",
     "gusset_ribs",
     "through_steps",
+    "internal_bevels",
     "local_steps",
     "oblique_through_steps",
     "polygonal_oblique_through_steps",
@@ -275,6 +276,7 @@ fn faces(part: &Part, inventory: &Inventory) -> Result<Faces, EvidenceViewError>
             family @ ("modelled_threads"
             | "turned_bodies"
             | "helical_springs"
+            | "internal_bevels"
             | "local_steps"
             | "polygonal_oblique_through_steps") => inventory
                 .physical
