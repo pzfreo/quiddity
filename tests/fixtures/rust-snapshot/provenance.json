@@ -3056,7 +3056,7 @@
     "tests/fixtures/local_steps/oblique_end.step.gz": "f1efc9fd1cda9d1f08e94d6b67d0540683986ffbd9c91a8c96c349e36524ce7e",
     "tests/fixtures/manifest.json": "799fdc976a30ecf142a6ae7c159d6135e82a9ef24962bed7348fe66d6d2518ae",
     "tests/fixtures/memo_part.step": "79c16d80205e285529b86c5cc2d5ed3088c127ebb776330d470ce48a3aa2f303",
-    "tests/fixtures/mfinstseg_baseline.json": "f7520ccbeca16b0cc70adfbd6c69ecafcb1380230d9afb6d12bbe2347bf87e7e",
+    "tests/fixtures/mfinstseg_baseline.json": "cbbcb9371b6e8983b79c33682f6b0e66f1b7763c41aa92e02dcb1d90f37bd84a",
     "tests/fixtures/mfinstseg_mapping.json": "d3a095f667fba5e06ad4019c400bf329a9bb81c60ce2d0a09452762642928b11",
     "tests/fixtures/mixed.step": "d565c1b5feeec36d996fcd8f3915e5cdae55c3d70651dc9d77cb1ecaa09cf536",
     "tests/fixtures/mixed_sealed_voids.step.gz": "d8b5e0c88b18a17d083483970204eccdfc585aedf7c58850b4ea1810a80aba41",
@@ -3246,7 +3246,7 @@
     "calls/recognise_through_steps.json.gz": "ab6a0b5b06756fa3435099be76e5ab432b867be4d4a1b42c49047ff83b086cca",
     "calls/recognise_turned_steps.json.gz": "37d10e8c5e2ce5dcf6c5bd2fdc7444e86494bb44768e9d32d9a1abfd3f2fbd90",
     "channel_geometry.json.gz": "bd25ff87def7f73b4f119d26614600b141ee4350f45c77cef55aae7ea787e85f",
-    "corpus.json.gz": "3df0a1f40a1111a089aa527ca964301c639e886ed2c61abbe942245813bb1c9e",
+    "corpus.json.gz": "52c96cee84eba26229025e1ee5d7e0e0b03e7b0f8c7f5995433fbcbaa71e9da6",
     "coverage.json.gz": "c835b80d39757ae5ef556953e11a2d7e8bbde3148a233f2af51ae92e1d23a971",
     "cylindrical_proofs/corpus/cadgenbench/flanged_spool_132.step.json.gz": "b93acca566253df99ab62bb5ac97424226850b3ee3963c8d1025939a7339d823",
     "cylindrical_proofs/corpus/cadgenbench/threaded_connector_109.step.json.gz": "eea12e52bf91a9c762e7cadc1b12994398bf8f3836ab11ab8b58a2bf4c5d9a4e",
@@ -5902,5 +5902,5 @@
     "sections/test/parts/fc9cb0ef3d518aa4.step.gz.json.gz": "ad246bd3ca231dda3e7fe1fc54cd798984e7dcd9da376dcb609c3c42001086f8",
     "step_levels.json.gz": "b1d837579387b475bfb90cc5670098890fdfe83fddcbf0e2236a24207c2de1ff"
   },
-  "source_commit": "9b9f2789c8b8c23ccbef1726804ca395adc06743"
+  "source_commit": "49f0547ad2f34512d529e5d7f5b748c53548871e"
 }
