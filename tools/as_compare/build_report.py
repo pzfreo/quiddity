@@ -76,6 +76,12 @@ polygonal_stock, circular_face_patterns, repeating_radial_profiles, cylindrical_
 and selects class-1 holes with <code>bottom == through</code>; class 12 selects flat, drill_point
 or unknown bottoms. Pooled Holes takes their union. Analysis Situs's hole output is untyped and
 is used unchanged in both class rows. No O-ring faces are neutralized.</p>
+<p>Mappings: Holes compares quiddity holes with Analysis Situs drill-hole faces; Rounds compares
+quiddity blends and fillets with Analysis Situs blends; Any feature compares the selected
+quiddity union with Analysis Situs cavities. Stock uses quiddity's unclaimed faces (the complement
+of the selected union) as a proxy, versus Analysis Situs convex-hull faces. Both Overall rows
+reuse quiddity's Any feature union. Analysis Situs's Overall rows union holes, blends and
+cavities, then add off-hull faces in the second row. A refused hull adds no off-hull claims.</p>
 <p>The historical quiddity Shafts row was invalid: it scored the union of all feature claims
 against an empty target. That row is removed because the raw sweep is unavailable. The current
 Shafts row uses only <code>turned_steps</code> as a proxy. MFInstSeg has no shaft target class,
