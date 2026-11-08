@@ -1,14 +1,13 @@
-# quiddity vs Analysis Situs on MFInstSeg
+# MFInstSeg face coverage (quiddity, optionally Analysis Situs)
 
-This comparison scores defining-face unions against MFInstSeg labels. The historical results use **quiddity 0.4.8, revision `82bb3ba`, before #216 and #217**, and Analysis Situs `246e2ab` / OCCT 7.6.3. They are not current-main results. The separately labelled current rerun uses main `1b7dee670475531b7bd7d6d0bedefd096328815d` plus the fixed `face_claims` exporter at `1ebfcef7` on this branch (macOS, six workers, 8 November 2026). All 9,375 test models returned `ok`. The full corpus was not rerun; its scores remain historical.
+This comparison scores defining-face unions against MFInstSeg labels. The committed result is a quiddity rerun on the 9,375-model test split: main `1b7dee670475531b7bd7d6d0bedefd096328815d` plus the `face_claims` exporter at `1ebfcef7` on this branch (macOS, six workers, 8 November 2026). All 9,375 models returned `ok`. Its raw sweep, scorer and label fingerprints are recorded, so the scores can be recomputed from the repository plus the external labels.
+
+No Analysis Situs numbers are reported. The tooling to run Analysis Situs and score it alongside quiddity is kept below, but no Analysis Situs sweep can be reproduced from this repository.
 
 | File in `docs/benchmarks/` | Contents |
 |---|---|
-| `mfinstseg-vs-analysis-situs-82bb3ba.html` | Report generated from committed aggregate scores |
-| `mfinstseg-vs-analysis-situs-82bb3ba.json` | Historical 9,375-model test split, both tools |
-| `mfinstseg-vs-analysis-situs-82bb3ba-full-corpus.json` | Historical 62,495-model quiddity run, earlier three-comparison scorer |
-| `mfinstseg-vs-analysis-situs-alpha1.json` | Archival October alpha.1 result; different schema |
-| `mfinstseg-vs-analysis-situs-main-1b7dee67.json` | Current quiddity test-split rerun; no fresh Analysis Situs run |
+| `mfinstseg-main-1b7dee67.json` | Aggregate scores for the current quiddity test-split rerun |
+| `mfinstseg-main-1b7dee67.html` | Report generated from that JSON |
 
 ## Metrics and limits
 
@@ -23,13 +22,13 @@ This comparison scores defining-face unions against MFInstSeg labels. The histor
 
 The repo's `any_feature` excludes only `step_levels` and `risers`. This comparison's “Any feature” excludes twelve families: `flats`, `freeform_surfaces`, `plates`, `risers`, `step_levels`, `thin_wall_bodies`, `sheet_metal_bodies`, `polygonal_stock`, `circular_face_patterns`, `repeating_radial_profiles`, `cylindrical_profiles`, `turned_steps`.
 
-Current scoring skips records carrying `superseded_by`, but keeps `source` records, as #217 does. Original record indices are preserved. Class 1 selects hole `/bottom == through` (#216); class 12 selects `flat`, `drill_point` or `unknown`, matching the repo mapping. Pooled Holes unions these selectors. The class rows reuse Analysis Situs's untyped hole set. Historical results did not apply these rules. O-ring-labelled faces receive no special neutral treatment.
+Current scoring skips records carrying `superseded_by`, but keeps `source` records, as #217 does. Original record indices are preserved. Class 1 selects hole `/bottom == through` (#216); class 12 selects `flat`, `drill_point` or `unknown`, matching the repo mapping. Pooled Holes unions these selectors. When Analysis Situs is scored, its untyped hole set is reused in both class rows. O-ring-labelled faces receive no special neutral treatment.
 
 Comparison mappings: Holes uses quiddity `holes` versus Analysis Situs drill-hole faces; Rounds uses `blends` plus `fillets` versus Analysis Situs blends; Any feature uses the selected quiddity union versus Analysis Situs cavities. In Stock, quiddity is the complement of that selected union (an unclaimed-face proxy), while Analysis Situs uses convex-hull faces. Both Overall rows reuse quiddity's Any feature union. Analysis Situs's first Overall row unions holes, blends and cavities; the second adds faces off its successfully recognized hull. These unions do not assign predicted instance identities.
 
-The old explanations about floors remaining context and O-ring duplicate holes being “by design” have been removed. #216 adds eligible flat floors; #217 marks duplicate groove holes and bosses. The historical quiddity Shafts entry erroneously used every feature family against an empty target. It has been removed: the missing raw sweep prevents a replacement historical count. Current scoring uses `turned_steps` only as a shaft proxy. There is no shaft class in MFInstSeg, so claims outside this taxonomy do not establish geometric errors.
+Shafts uses only `turned_steps` as a proxy. There is no shaft class in MFInstSeg, so claims outside this taxonomy do not establish geometric errors.
 
-Timing scopes differ: quiddity uses **calling-thread CPU**, while Analysis Situs uses **process CPU**, including any reader worker threads. Analysis Situs recognition includes AAG construction. Current quiddity recognition excludes JSON serialization; the old exporter included it. The workloads and clock scopes do not constitute a controlled speed comparison.
+Timing is **calling-thread CPU time**, with read and recognition measured separately and JSON serialization excluded. Thread CPU time is a weaker measure than instructions retired: it varies with the machine, its load and the run. The figures describe one run and are not a speed comparison. Analysis Situs, when run, reports process CPU including any reader worker threads and AAG construction, so the two are not comparable either.
 
 ## Running it
 
@@ -40,9 +39,9 @@ cargo build --example face_claims --release
 target/release/examples/face_claims /path/to/MFInstSeg/steps tools/as_compare/test_ids.txt /tmp/qr.jsonl 4
 ```
 
-Each line includes defining faces, aligned per-record `superseded_by`, hole `bottom`, status and CPU times. Unsupported thread clocks fail with a visible diagnostic. The exporter uses the platform's `libc::CLOCK_THREAD_CPUTIME_ID`.
+Each line includes defining faces, aligned per-record `superseded_by`, hole `bottom`, status and CPU times. Unsupported thread clocks fail with a visible diagnostic. The exporter uses the platform's `libc::CLOCK_THREAD_CPUTIME_ID`, so it runs on Linux and macOS; on Windows it compiles but exits with a diagnostic.
 
-Analysis Situs is not installed locally and was not rebuilt or rerun for this correction. To run it elsewhere, build `as_recognise.cpp` against an existing Analysis Situs `246e2ab`, Mobius and OCCT 7.6.3 installation. With `P` the OCCT prefix, `MOBIUS` its prefix, and `L` Analysis Situs's `build/lin64/gxx/lib`, run from its checkout:
+To score Analysis Situs as well, build `as_recognise.cpp` against an existing Analysis Situs `246e2ab`, Mobius and OCCT 7.6.3 installation. With `P` the OCCT prefix, `MOBIUS` its prefix, and `L` Analysis Situs's `build/lin64/gxx/lib`, run from its checkout:
 
 ```sh
 INC=$(find src/src/asiAlgo src/src/asiActiveData -type d | sed 's/^/-I/' | tr '\n' ' ')
@@ -67,8 +66,6 @@ Failed or face-count-misaligned models count as claiming nothing. A refused reco
 
 ## Reproducibility
 
-Historical raw sweeps are not committed. The historical aggregates cannot be reproduced from this branch, and the full-corpus JSON came from an earlier scorer whose exact revision is not recorded. Recreating those measurements requires the old raw sweeps, external dataset, original tool revisions and original scorer. No claim of exact score reproduction or October output identity is made.
-
 The current test-split raw sweep is committed as `runs/main-1b7dee67-test-qr.jsonl.gz` (about 1 MB). It contains 2,637 superseded hole records and 2,637 superseded boss records; the scorer skips them. The current `turned_steps` shaft proxy claims zero faces. These observations can be checked in the compressed JSONL.
 
 Rescore the current run using that committed input and external labels:
@@ -79,16 +76,12 @@ python3 -I tools/as_compare/score.py /path/to/MFInstSeg/labels \
   --quiddity-revision 1b7dee670475531b7bd7d6d0bedefd096328815d --exporter-revision 1ebfcef7
 ```
 
-The aggregate records the compressed sweep and scorer SHA-256 digests. `labels_sha256` is SHA-256 of the concatenation, in sorted ID order, of `ID:SHA256(label_file_bytes)\n` in UTF-8. The external labels must match that fingerprint to recreate these scores. Fresh recognition also requires the STEP corpus and recorded recognizer/exporter revisions; CPU timings vary with the machine and run. No Analysis Situs raw sweep is available here.
-
-The HTML can be regenerated from committed aggregates:
+The aggregate records the compressed sweep and scorer SHA-256 digests. `labels_sha256` is SHA-256 of the concatenation, in sorted ID order, of `ID:SHA256(label_file_bytes)\n` in UTF-8. The external labels must match that fingerprint to recreate these scores. Fresh recognition also requires the STEP corpus and recorded recognizer/exporter revisions; CPU timings vary with the machine and run.
+The HTML can be regenerated from the committed aggregate:
 
 ```sh
 python3 -I tools/as_compare/build_report.py \
-  docs/benchmarks/mfinstseg-vs-analysis-situs-82bb3ba.json \
-  docs/benchmarks/mfinstseg-vs-analysis-situs-82bb3ba-full-corpus.json \
-  docs/benchmarks/mfinstseg-vs-analysis-situs-main-1b7dee67.json \
-  docs/benchmarks/mfinstseg-vs-analysis-situs-82bb3ba.html
+  docs/benchmarks/mfinstseg-main-1b7dee67.json docs/benchmarks/mfinstseg-main-1b7dee67.html
 ```
 
 Small **synthetic** inputs exercise the current scorer without redistributing dataset files:
@@ -99,3 +92,5 @@ python3 -I tools/as_compare/score.py tools/as_compare/fixtures/labels \
   --quiddity-revision synthetic
 python3 -I tools/as_compare/test_score.py
 ```
+
+CI runs `test_score.py` in the lint job.

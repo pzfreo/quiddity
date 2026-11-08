@@ -13,6 +13,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 /// CPU seconds consumed by the calling thread, independent of the other workers.
+#[cfg(unix)]
 fn thread_cpu() -> f64 {
     let mut ts = libc::timespec {
         tv_sec: 0,
@@ -27,6 +28,13 @@ fn thread_cpu() -> f64 {
         std::process::exit(1);
     }
     ts.tv_sec as f64 + ts.tv_nsec as f64 * 1e-9
+}
+
+/// Windows has no `CLOCK_THREAD_CPUTIME_ID`; the example still compiles there but cannot time.
+#[cfg(not(unix))]
+fn thread_cpu() -> f64 {
+    eprintln!("face_claims: no thread CPU clock on this platform; run it on Linux or macOS");
+    std::process::exit(1);
 }
 
 fn sweep(path: &std::path::Path) -> serde_json::Value {
