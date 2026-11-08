@@ -3,10 +3,6 @@
   "health": {
     "qr": {
       "ok": 62495
-    },
-    "as": {
-      "ok": 9375,
-      "missing": 53120
     }
   },
   "comparisons": {
@@ -16,8 +12,6 @@
         "claimed_faces": 65063,
         "true_faces": 43728,
         "false_faces": 21335,
-        "false_faces_oring_neutral": 54,
-        "claimed_faces_oring_neutral": 43782,
         "false_stock_faces": 0,
         "instances": 40881,
         "recognised": 40195,
@@ -25,25 +19,7 @@
         "recognition_pct": 98.32,
         "claimed_face_pct": 66.7,
         "false_positive_pct": 32.79,
-        "false_positive_pct_oring_neutral": 0.12,
         "false_negative_pct": 1.58
-      },
-      "as": {
-        "labelled_faces": 65562,
-        "claimed_faces": 9146,
-        "true_faces": 8751,
-        "false_faces": 395,
-        "false_faces_oring_neutral": 332,
-        "claimed_faces_oring_neutral": 9083,
-        "false_stock_faces": 0,
-        "instances": 40881,
-        "recognised": 5719,
-        "missed": 35158,
-        "recognition_pct": 13.99,
-        "claimed_face_pct": 13.35,
-        "false_positive_pct": 4.32,
-        "false_positive_pct_oring_neutral": 3.66,
-        "false_negative_pct": 86.0
       }
     },
     "Rounds": {
@@ -52,8 +28,6 @@
         "claimed_faces": 18353,
         "true_faces": 18299,
         "false_faces": 54,
-        "false_faces_oring_neutral": 54,
-        "claimed_faces_oring_neutral": 18353,
         "false_stock_faces": 0,
         "instances": 19377,
         "recognised": 17651,
@@ -61,25 +35,7 @@
         "recognition_pct": 91.09,
         "claimed_face_pct": 80.54,
         "false_positive_pct": 0.29,
-        "false_positive_pct_oring_neutral": 0.29,
         "false_negative_pct": 8.51
-      },
-      "as": {
-        "labelled_faces": 22720,
-        "claimed_faces": 11827,
-        "true_faces": 3411,
-        "false_faces": 8416,
-        "false_faces_oring_neutral": 8415,
-        "claimed_faces_oring_neutral": 11826,
-        "false_stock_faces": 0,
-        "instances": 19377,
-        "recognised": 2922,
-        "missed": 16454,
-        "recognition_pct": 15.08,
-        "claimed_face_pct": 15.01,
-        "false_positive_pct": 71.16,
-        "false_positive_pct_oring_neutral": 71.16,
-        "false_negative_pct": 84.92
       }
     },
     "Any feature": {
@@ -88,8 +44,6 @@
         "claimed_faces": 957580,
         "true_faces": 953591,
         "false_faces": 3989,
-        "false_faces_oring_neutral": 3989,
-        "claimed_faces_oring_neutral": 957580,
         "false_stock_faces": 3989,
         "instances": 394572,
         "recognised": 323851,
@@ -97,124 +51,82 @@
         "recognition_pct": 82.08,
         "claimed_face_pct": 73.88,
         "false_positive_pct": 0.42,
-        "false_positive_pct_oring_neutral": 0.42,
         "false_negative_pct": 16.78
-      },
-      "as": {
-        "labelled_faces": 1290792,
-        "claimed_faces": 126411,
-        "true_faces": 123613,
-        "false_faces": 2798,
-        "false_faces_oring_neutral": 2798,
-        "claimed_faces_oring_neutral": 126411,
-        "false_stock_faces": 2798,
-        "instances": 394572,
-        "recognised": 31208,
-        "missed": 363103,
-        "recognition_pct": 7.91,
-        "claimed_face_pct": 9.58,
-        "false_positive_pct": 2.21,
-        "false_positive_pct_oring_neutral": 2.21,
-        "false_negative_pct": 92.02
       }
     }
   },
   "per_class_claimed_face_pct": {
     "Chamfer": {
-      "qr": 63.94,
-      "as": 7.26
+      "qr": 63.94
     },
     "Through hole": {
-      "qr": 98.08,
-      "as": 13.03
+      "qr": 98.08
     },
     "Triangular passage": {
-      "qr": 83.68,
-      "as": 13.41
+      "qr": 83.68
     },
     "Rectangular passage": {
-      "qr": 77.14,
-      "as": 12.09
+      "qr": 77.14
     },
     "6-sided passage": {
-      "qr": 78.17,
-      "as": 12.92
+      "qr": 78.17
     },
     "Triangular through slot": {
-      "qr": 44.34,
-      "as": 0.06
+      "qr": 44.34
     },
     "Rectangular through slot": {
-      "qr": 52.81,
-      "as": 0.1
+      "qr": 52.81
     },
     "Circular through slot": {
-      "qr": 56.61,
-      "as": 0.17
+      "qr": 56.61
     },
     "Rectangular through step": {
-      "qr": 59.13,
-      "as": 0.17
+      "qr": 59.13
     },
     "2-sided through step": {
-      "qr": 75.92,
-      "as": 0.04
+      "qr": 75.92
     },
     "Slanted through step": {
-      "qr": 42.51,
-      "as": 0.04
+      "qr": 42.51
     },
     "O-ring": {
-      "qr": 92.77,
-      "as": 15.02
+      "qr": 92.77
     },
     "Blind hole": {
-      "qr": 49.93,
-      "as": 14.65
+      "qr": 49.93
     },
     "Triangular pocket": {
-      "qr": 69.91,
-      "as": 14.7
+      "qr": 69.91
     },
     "Rectangular pocket": {
-      "qr": 72.15,
-      "as": 14.86
+      "qr": 72.15
     },
     "6-sided pocket": {
-      "qr": 78.92,
-      "as": 14.59
+      "qr": 78.92
     },
     "Circular end pocket": {
-      "qr": 73.96,
-      "as": 14.87
+      "qr": 73.96
     },
     "Rectangular blind slot": {
-      "qr": 60.01,
-      "as": 0.03
+      "qr": 60.01
     },
     "Vertical circular end blind slot": {
-      "qr": 83.88,
-      "as": 0.0
+      "qr": 83.88
     },
     "Horizontal circular end blind slot": {
-      "qr": 75.1,
-      "as": 0.05
+      "qr": 75.1
     },
     "Triangular blind step": {
-      "qr": 71.13,
-      "as": 0.01
+      "qr": 71.13
     },
     "Circular blind step": {
-      "qr": 74.46,
-      "as": 0.03
+      "qr": 74.46
     },
     "Rectangular blind step": {
-      "qr": 78.36,
-      "as": 0.14
+      "qr": 78.36
     },
     "Round": {
-      "qr": 80.67,
-      "as": 6.11
+      "qr": 80.67
     }
   },
   "per_class_faces": {
@@ -261,7 +173,28 @@
         "p99_ms": 655.7,
         "max_s": 122.1
       }
-    },
-    "as": {}
+    }
+  },
+  "provenance": {
+    "status": "historical",
+    "quiddity_version": "0.4.8",
+    "quiddity_revision": "82bb3ba",
+    "limitations": "Predates #216 and #217. Raw sweeps unavailable; not reproducible from committed inputs. Union face-coverage metric, not one-to-one IoU; not comparable with mfinstseg_baseline.json.",
+    "timing": "quiddity thread CPU, including JSON serialization; Analysis Situs process CPU; recognition includes AAG construction.",
+    "scorer": "Earlier three-comparison score.py; exact version not recorded.",
+    "any_feature_excludes": [
+      "flats",
+      "freeform_surfaces",
+      "plates",
+      "risers",
+      "step_levels",
+      "thin_wall_bodies",
+      "sheet_metal_bodies",
+      "polygonal_stock",
+      "circular_face_patterns",
+      "repeating_radial_profiles",
+      "cylindrical_profiles",
+      "turned_steps"
+    ]
   }
 }

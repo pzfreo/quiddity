@@ -15,8 +15,6 @@
         "claimed_faces": 9775,
         "true_faces": 6521,
         "false_faces": 3254,
-        "false_faces_oring_neutral": 9,
-        "claimed_faces_oring_neutral": 6530,
         "false_stock_faces": 0,
         "instances": 6086,
         "recognised": 5994,
@@ -25,7 +23,6 @@
         "recognition_pct": 98.49,
         "claimed_face_pct": 66.88,
         "false_positive_pct": 33.29,
-        "false_positive_pct_oring_neutral": 0.14,
         "false_negative_pct": 1.38
       },
       "as": {
@@ -33,8 +30,6 @@
         "claimed_faces": 9146,
         "true_faces": 8751,
         "false_faces": 395,
-        "false_faces_oring_neutral": 332,
-        "claimed_faces_oring_neutral": 9083,
         "false_stock_faces": 0,
         "instances": 6086,
         "recognised": 5719,
@@ -43,7 +38,6 @@
         "recognition_pct": 93.97,
         "claimed_face_pct": 89.74,
         "false_positive_pct": 4.32,
-        "false_positive_pct_oring_neutral": 3.66,
         "false_negative_pct": 5.96
       }
     },
@@ -53,8 +47,6 @@
         "claimed_faces": 2771,
         "true_faces": 2765,
         "false_faces": 6,
-        "false_faces_oring_neutral": 6,
-        "claimed_faces_oring_neutral": 2771,
         "false_stock_faces": 0,
         "instances": 2925,
         "recognised": 2663,
@@ -63,7 +55,6 @@
         "recognition_pct": 91.04,
         "claimed_face_pct": 80.97,
         "false_positive_pct": 0.22,
-        "false_positive_pct_oring_neutral": 0.22,
         "false_negative_pct": 8.51
       },
       "as": {
@@ -71,8 +62,6 @@
         "claimed_faces": 11827,
         "true_faces": 3411,
         "false_faces": 8416,
-        "false_faces_oring_neutral": 8415,
-        "claimed_faces_oring_neutral": 11826,
         "false_stock_faces": 0,
         "instances": 2925,
         "recognised": 2922,
@@ -81,7 +70,6 @@
         "recognition_pct": 99.9,
         "claimed_face_pct": 99.88,
         "false_positive_pct": 71.16,
-        "false_positive_pct_oring_neutral": 71.16,
         "false_negative_pct": 0.07
       }
     },
@@ -91,8 +79,6 @@
         "claimed_faces": 143688,
         "true_faces": 143050,
         "false_faces": 638,
-        "false_faces_oring_neutral": 638,
-        "claimed_faces_oring_neutral": 143688,
         "false_stock_faces": 638,
         "instances": 59296,
         "recognised": 48583,
@@ -101,7 +87,6 @@
         "recognition_pct": 81.93,
         "claimed_face_pct": 73.83,
         "false_positive_pct": 0.44,
-        "false_positive_pct_oring_neutral": 0.44,
         "false_negative_pct": 16.86
       },
       "as": {
@@ -109,8 +94,6 @@
         "claimed_faces": 126411,
         "true_faces": 123613,
         "false_faces": 2798,
-        "false_faces_oring_neutral": 2798,
-        "claimed_faces_oring_neutral": 126411,
         "false_stock_faces": 2798,
         "instances": 59296,
         "recognised": 31208,
@@ -119,7 +102,6 @@
         "recognition_pct": 52.63,
         "claimed_face_pct": 63.8,
         "false_positive_pct": 2.21,
-        "false_positive_pct_oring_neutral": 2.21,
         "false_negative_pct": 46.93
       }
     },
@@ -129,8 +111,6 @@
         "claimed_faces": 111162,
         "true_faces": 60450,
         "false_faces": 50712,
-        "false_faces_oring_neutral": 49984,
-        "claimed_faces_oring_neutral": 110434,
         "false_stock_faces": 60450,
         "instances": 9375,
         "recognised": 9369,
@@ -139,7 +119,6 @@
         "recognition_pct": 99.94,
         "claimed_face_pct": 98.96,
         "false_positive_pct": 45.62,
-        "false_positive_pct_oring_neutral": 45.26,
         "false_negative_pct": 0.0
       },
       "as": {
@@ -147,8 +126,6 @@
         "claimed_faces": 62632,
         "true_faces": 61072,
         "false_faces": 1560,
-        "false_faces_oring_neutral": 1560,
-        "claimed_faces_oring_neutral": 62632,
         "false_stock_faces": 61072,
         "instances": 9375,
         "recognised": 9375,
@@ -157,36 +134,15 @@
         "recognition_pct": 100.0,
         "claimed_face_pct": 99.97,
         "false_positive_pct": 2.49,
-        "false_positive_pct_oring_neutral": 2.49,
         "false_negative_pct": 0.0
       }
     },
     "Shafts": {
-      "qr": {
-        "labelled_faces": 0,
-        "claimed_faces": 143688,
-        "true_faces": 0,
-        "false_faces": 143688,
-        "false_faces_oring_neutral": 134693,
-        "claimed_faces_oring_neutral": 134693,
-        "false_stock_faces": 638,
-        "instances": 0,
-        "recognised": 0,
-        "missed": 0,
-        "models_with_claims": 9363,
-        "recognition_pct": null,
-        "claimed_face_pct": null,
-        "false_positive_pct": 100.0,
-        "false_positive_pct_oring_neutral": 100.0,
-        "false_negative_pct": null
-      },
       "as": {
         "labelled_faces": 0,
         "claimed_faces": 2898,
         "true_faces": 0,
         "false_faces": 2898,
-        "false_faces_oring_neutral": 0,
-        "claimed_faces_oring_neutral": 0,
         "false_stock_faces": 0,
         "instances": 0,
         "recognised": 0,
@@ -195,7 +151,6 @@
         "recognition_pct": null,
         "claimed_face_pct": null,
         "false_positive_pct": 100.0,
-        "false_positive_pct_oring_neutral": null,
         "false_negative_pct": null
       }
     },
@@ -205,8 +160,6 @@
         "claimed_faces": 143688,
         "true_faces": 143050,
         "false_faces": 638,
-        "false_faces_oring_neutral": 638,
-        "claimed_faces_oring_neutral": 143688,
         "false_stock_faces": 638,
         "instances": 59296,
         "recognised": 48583,
@@ -215,7 +168,6 @@
         "recognition_pct": 81.93,
         "claimed_face_pct": 73.83,
         "false_positive_pct": 0.44,
-        "false_positive_pct_oring_neutral": 0.44,
         "false_negative_pct": 16.86
       },
       "as": {
@@ -223,8 +175,6 @@
         "claimed_faces": 130883,
         "true_faces": 128085,
         "false_faces": 2798,
-        "false_faces_oring_neutral": 2798,
-        "claimed_faces_oring_neutral": 130883,
         "false_stock_faces": 2798,
         "instances": 59296,
         "recognised": 34014,
@@ -233,7 +183,6 @@
         "recognition_pct": 57.36,
         "claimed_face_pct": 66.1,
         "false_positive_pct": 2.14,
-        "false_positive_pct_oring_neutral": 2.14,
         "false_negative_pct": 40.97
       }
     },
@@ -243,8 +192,6 @@
         "claimed_faces": 143688,
         "true_faces": 143050,
         "false_faces": 638,
-        "false_faces_oring_neutral": 638,
-        "claimed_faces_oring_neutral": 143688,
         "false_stock_faces": 638,
         "instances": 59296,
         "recognised": 48583,
@@ -253,7 +200,6 @@
         "recognition_pct": 81.93,
         "claimed_face_pct": 73.83,
         "false_positive_pct": 0.44,
-        "false_positive_pct_oring_neutral": 0.44,
         "false_negative_pct": 16.86
       },
       "as": {
@@ -261,8 +207,6 @@
         "claimed_faces": 195846,
         "true_faces": 193033,
         "false_faces": 2813,
-        "false_faces_oring_neutral": 2813,
-        "claimed_faces_oring_neutral": 195846,
         "false_stock_faces": 2813,
         "instances": 59296,
         "recognised": 58600,
@@ -271,7 +215,6 @@
         "recognition_pct": 98.83,
         "claimed_face_pct": 99.62,
         "false_positive_pct": 1.44,
-        "false_positive_pct_oring_neutral": 1.44,
         "false_negative_pct": 1.16
       }
     }
@@ -437,5 +380,27 @@
         "max_s": 0.2
       }
     }
+  },
+  "provenance": {
+    "status": "historical",
+    "quiddity_version": "0.4.8",
+    "quiddity_revision": "82bb3ba",
+    "limitations": "Predates #216 and #217. Raw sweeps unavailable; not reproducible from committed inputs. Union face-coverage metric, not one-to-one IoU; not comparable with mfinstseg_baseline.json.",
+    "timing": "quiddity thread CPU, including JSON serialization; Analysis Situs process CPU; recognition includes AAG construction.",
+    "shafts_correction": "Removed invalid quiddity row: original scorer used all feature claims instead of a shaft family. Raw sweep unavailable; no replacement historical count asserted.",
+    "any_feature_excludes": [
+      "flats",
+      "freeform_surfaces",
+      "plates",
+      "risers",
+      "step_levels",
+      "thin_wall_bodies",
+      "sheet_metal_bodies",
+      "polygonal_stock",
+      "circular_face_patterns",
+      "repeating_radial_profiles",
+      "cylindrical_profiles",
+      "turned_steps"
+    ]
   }
 }

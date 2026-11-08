@@ -20,6 +20,7 @@ parser.add_argument("qr_path", help="JSONL, or - for unavailable")
 parser.add_argument("as_path", help="JSONL, or - for unavailable")
 parser.add_argument("out_path")
 parser.add_argument("--quiddity-revision", required=True)
+parser.add_argument("--exporter-revision", default="not recorded")
 args = parser.parse_args()
 labels_dir, qr_path, as_path, out_path = args.labels_dir, args.qr_path, args.as_path, args.out_path
 TOOLS = [t for t, p in (("qr", qr_path), ("as", as_path)) if p != "-"]
@@ -100,8 +101,13 @@ def as_claim(r, key):
     return set(v) if isinstance(v, list) else set()
 
 
+label_inputs = hashlib.sha256()
+
+
 def truth(i):
-    lab = json.load(open(f"{labels_dir}/{i}.json"))[0][1]
+    raw = Path(labels_dir, f"{i}.json").read_bytes()
+    label_inputs.update(f"{i}:{hashlib.sha256(raw).hexdigest()}\n".encode())
+    lab = json.loads(raw)[0][1]
     seg = [lab["seg"][str(k)] for k in range(len(lab["inst"]))]
     insts = {tuple(j for j, x in enumerate(row) if x) for row in lab["inst"]}
     return seg, [set(t) for t in insts if t]
@@ -155,6 +161,8 @@ for i in ids:
 pct = lambda n, d: round(100 * n / d, 2) if d else None
 report = {"provenance": {
     "quiddity_revision": args.quiddity_revision,
+    "exporter_revision": args.exporter_revision,
+    "labels_sha256": label_inputs.hexdigest(),
     "sweep_sha256": {t: hashlib.sha256(Path(p).read_bytes()).hexdigest()
                      for t, p in (("qr", qr_path), ("as", as_path)) if p != "-"},
     "scorer_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),

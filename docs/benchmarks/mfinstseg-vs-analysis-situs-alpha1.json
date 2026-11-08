@@ -144,5 +144,26 @@
         }
       }
     }
+  },
+  "provenance": {
+    "status": "historical",
+    "quiddity_version": "alpha.1 (October)",
+    "quiddity_revision": "not recorded",
+    "limitations": "Predates #216 and #217. Raw sweeps unavailable; not reproducible from committed inputs. Union face-coverage metric, not one-to-one IoU; not comparable with mfinstseg_baseline.json.",
+    "timing": "quiddity thread CPU, including JSON serialization; Analysis Situs process CPU; recognition includes AAG construction.",
+    "any_feature_excludes": [
+      "flats",
+      "freeform_surfaces",
+      "plates",
+      "risers",
+      "step_levels",
+      "thin_wall_bodies",
+      "sheet_metal_bodies",
+      "polygonal_stock",
+      "circular_face_patterns",
+      "repeating_radial_profiles",
+      "cylindrical_profiles",
+      "turned_steps"
+    ]
   }
 }
