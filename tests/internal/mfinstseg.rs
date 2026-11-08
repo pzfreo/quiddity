@@ -360,7 +360,6 @@ fn internal_bevel_1005_has_the_labelled_strip_and_measured_support_legs() {
         &quiddity::features::Context::new(&part),
     )
     .unwrap();
-    eprintln!("internal repro: {found:?}");
     let bevel = found
         .iter()
         .find(|b| b.defining == [2])
@@ -429,10 +428,6 @@ fn internal_bevel_additions_have_independent_chamfer_labels() {
                 assert_eq!(labels[0][1]["seg"][face.to_string()], 0, "{id}, {bevel:?}");
             }
             additions += 1;
-            eprintln!(
-                "internal bevel addition: {id} {:?} {:?}",
-                bevel.defining, bevel.record
-            );
         }
     }
     assert!(additions > 0);

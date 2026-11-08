@@ -1003,7 +1003,8 @@ omitted when empty and contributes no frame votes.
 
 The initial contract is a **bounded rectangular planar strip** with one four-line loop,
 two complete parallel spring edges of equal run span, and four planar neighbours joined
-concavely. Exactly one pair must prove perpendicular transverse support planes. Both support
+concavely. Exactly one pair must prove perpendicular transverse support planes within the feature
+angular policy below. Both support
 normals point into the cavity between the bevel normal's rays; neither may be within the
 shallow-draft limit (normal dot product <= 0.05). Supporting wall areas must each strictly
 exceed the strip area, and its larger leg cannot exceed 45% of the owning solid's maximum
@@ -1012,14 +1013,26 @@ The other edges terminate the strip at both ends; taper, holes, curved terminals
 boundaries and competing support pairs are refused. Every defining and context face must
 belong to one strictly valid solid.
 
+The internal family's perpendicularity and transverse-alignment tests use the shared
+feature policy `AXIS_ZERO_COS` (0.01), not the kernel's 1e-9 smooth-arc threshold.
+Contact, span equality and wedge insetting retain the bevel helpers' input modelling
+precision with the kernel coordinate floor. Legacy chamfer/blend helper defaults are unchanged.
+
 Intersect the actual supports at the strip midpoint to reconstruct the virtual `corner`.
 `leg1` and `leg2` are Euclidean distances on those supports from corner to spring edge,
 longer first; `leg1_direction` and `leg2_direction` are their outward unit directions.
-`angle = atan2(leg2, leg1)` is the acute section angle in degrees, not an included wall
-angle. `run` is a unit vector, `length` its complete span, and `at` the strip midpoint at
+`angle` is the acute angle between the bevel and leg1 on its actual support, not an
+included wall angle. It equals atan2(leg2, leg1) on exactly perpendicular supports;
+accepted STEP angular noise is measured in the real triangle rather than idealised away.
+`run` is a unit vector, `length` its complete span, and `at` the strip midpoint at
 the same station as corner. Positions and lengths publish millimetres to three decimals,
-unit directions to six and angle to two. Sub-micrometre leg ties use rounded direction
-order only when neither the published lengths nor the angle can change. Positions are carried unrounded through rigid
+unit directions to six and angle to two. Sub-micrometre leg ties use descending support-wall
+area only when neither the
+published lengths nor the measured angle can change. This is intrinsic under rigid motion.
+If support areas are indistinguishable, the two directions have no slot identity in the
+fingerprint: Placement fields are represented by the run, defining-face centroid and graph,
+not by named direction slots. Equal legs therefore remain an unordered pair for matching. Positions are carried
+unrounded through rigid
 publication before rounding once. Only the strip is defining; both supports and both ends
 are context.
 

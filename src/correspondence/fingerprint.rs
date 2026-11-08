@@ -434,6 +434,9 @@ pub const FAMILIES: &[FamilyFingerprint] = &[
             ("corner", Placement),
             ("leg1", Size),
             ("leg2", Size),
+            // Placements contribute through the run and defining-face centroid/graph, not
+            // named direction slots. Equal legs are therefore an unordered pair, including
+            // geometrically symmetric supports for which no intrinsic ordering is proved.
             ("leg1_direction", Placement),
             ("leg2_direction", Placement),
             ("angle", Size),

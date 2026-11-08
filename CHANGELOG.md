@@ -6,6 +6,12 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+### Fixed
+
+- Internal bevel leg ties use intrinsic support area; symmetric ties remain unordered in
+  fingerprints. Feature-policy angular tolerances retain slightly noisy STEP supports,
+  with the slope angle measured on the actual supports rather than an ideal right angle.
+
 ### Added
 
 - `internal_bevels` recognises bounded concave planar corner treatments with measured

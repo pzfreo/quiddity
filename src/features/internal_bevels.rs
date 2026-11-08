@@ -7,9 +7,10 @@ use super::Context;
 use super::evidence::{self, EvidenceError, Occurrence};
 use super::placed::{Grid, Placed};
 use super::planes::{coordinates, linear_quad, unit_plane_normal};
+use super::policy::{AXIS_ZERO_COS, clears_threshold};
 use crate::kernel::brep::Arc;
 use crate::kernel::classify::State;
-use crate::kernel::geom::{self, COORD_FLOOR, SMOOTH_ARC_GAP, V3};
+use crate::kernel::geom::{self, COORD_FLOOR, V3};
 use crate::kernel::py;
 use crate::kernel::rays::RayCaster;
 use crate::kernel::volume::{Probe, common_volume, probe_volume};
@@ -26,22 +27,31 @@ pub struct InternalBevel {
     pub leg2: f64,
     pub leg1_direction: V3,
     pub leg2_direction: V3,
-    /// Acute section angle, atan2(leg2, leg1), in degrees.
+    /// Acute angle between the bevel and leg1 on its actual support, in degrees.
     pub angle: f64,
 }
 
 /// Ignore sub-grid noise only when both length and angle publication stay identical.
-/// This keeps equal legs stable under numerical motion without swapping unequal sizes.
-fn leg_order(a: &(f64, V3), b: &(f64, V3)) -> std::cmp::Ordering {
+/// Equal published legs use the area of their own support wall, an intrinsic measurement.
+/// Indistinguishable areas leave an unordered pair; no coordinate or face-index tie-break.
+fn leg_order(a: &(f64, V3, f64), b: &(f64, V3, f64)) -> std::cmp::Ordering {
     let order = py::order(-py::round_to(a.0, 6), -py::round_to(b.0, 6));
     if order.is_ne() {
         return order;
     }
-    let angle = |x: f64, y: f64| py::round_to(y.atan2(x).to_degrees(), 2);
+    let cosine = geom::dot(a.1, b.1);
+    let sine = geom::norm(geom::cross(a.1, b.1));
+    let angle = |x: f64, y: f64| py::round_to((y * sine).atan2(x - y * cosine).to_degrees(), 2);
     if py::round_to3(a.0) != py::round_to3(b.0) || angle(a.0, b.0) != angle(b.0, a.0) {
         return py::order(b.0, a.0);
     }
-    py::tuple_order(&coordinates(a.1, 6), &coordinates(b.1, 6))
+    if clears_threshold(a.2, b.2) {
+        std::cmp::Ordering::Less
+    } else if clears_threshold(b.2, a.2) {
+        std::cmp::Ordering::Greater
+    } else {
+        std::cmp::Ordering::Equal
+    }
 }
 
 fn pair(ctx: &Context<'_>, face: usize, supports: [usize; 2]) -> Option<InternalBevel> {
@@ -50,7 +60,7 @@ fn pair(ctx: &Context<'_>, face: usize, supports: [usize; 2]) -> Option<Internal
         unit_plane_normal(part, supports[0])?,
         unit_plane_normal(part, supports[1])?,
     ];
-    if geom::dot(a, b).abs() > SMOOTH_ARC_GAP {
+    if geom::dot(a, b).abs() > AXIS_ZERO_COS {
         return None;
     }
     let normal = unit_plane_normal(part, face)?;
@@ -81,7 +91,7 @@ fn pair(ctx: &Context<'_>, face: usize, supports: [usize; 2]) -> Option<Internal
     let tolerance = super::bevel::cylinder_support_tolerance(part);
     if [a, b, normal]
         .iter()
-        .any(|&n| geom::dot(n, run).abs() > SMOOTH_ARC_GAP)
+        .any(|&n| geom::dot(n, run).abs() > AXIS_ZERO_COS)
     {
         return None;
     }
@@ -109,12 +119,27 @@ fn pair(ctx: &Context<'_>, face: usize, supports: [usize; 2]) -> Option<Internal
         })
         .collect::<Vec<_>>();
     let at = geom::scale(geom::add(spring[0], spring[1]), 0.5);
-    let support = super::bevel::transverse_corner(part, face, at, run)?;
+    let support = super::bevel::transverse_corner_with_tolerance(
+        part,
+        face,
+        at,
+        run,
+        AXIS_ZERO_COS,
+        tolerance,
+    )?;
     let corner = support.point;
     let vectors = [geom::sub(spring[0], corner), geom::sub(spring[1], corner)];
     let mut legs = [
-        (geom::norm(vectors[0]), geom::unit(vectors[0])?),
-        (geom::norm(vectors[1]), geom::unit(vectors[1])?),
+        (
+            geom::norm(vectors[0]),
+            geom::unit(vectors[0])?,
+            part.face_mass(supports[0])?[0],
+        ),
+        (
+            geom::norm(vectors[1]),
+            geom::unit(vectors[1])?,
+            part.face_mass(supports[1])?[0],
+        ),
     ];
     let leg_lo = legs[0].0.min(legs[1].0);
     let leg_hi = legs[0].0.max(legs[1].0);
@@ -124,7 +149,7 @@ fn pair(ctx: &Context<'_>, face: usize, supports: [usize; 2]) -> Option<Internal
     let solid = part.faces[face].solid?;
     if leg_lo <= 2. * tolerance
         || leg_hi > 0.45 * part.solid_bounds(solid).max_extent()
-        || geom::dot(legs[0].1, legs[1].1).abs() > SMOOTH_ARC_GAP
+        || geom::dot(legs[0].1, legs[1].1).abs() > AXIS_ZERO_COS
         || geom::dot(geom::sub(at, corner), normal) <= tolerance
     {
         return None;
@@ -179,6 +204,10 @@ fn pair(ctx: &Context<'_>, face: usize, supports: [usize; 2]) -> Option<Internal
     if whole <= 0. || common_volume(classifier, &probe)? < whole {
         return None;
     }
+    // Measure on the actual supports, including accepted STEP angular noise. atan2(b,a)
+    // would silently assume a mathematically exact right angle between the two legs.
+    let angle = (legs[1].0 * geom::norm(geom::cross(legs[0].1, legs[1].1)))
+        .atan2(legs[0].0 - legs[1].0 * geom::dot(legs[0].1, legs[1].1));
     Some(InternalBevel {
         run: coordinates(run, 6),
         length: py::round_to3(length),
@@ -188,7 +217,7 @@ fn pair(ctx: &Context<'_>, face: usize, supports: [usize; 2]) -> Option<Internal
         leg2: py::round_to3(legs[1].0),
         leg1_direction: coordinates(legs[0].1, 6),
         leg2_direction: coordinates(legs[1].1, 6),
-        angle: py::round_to(legs[1].0.atan2(legs[0].0).to_degrees(), 2),
+        angle: py::round_to(angle.to_degrees(), 2),
     })
 }
 
@@ -227,7 +256,10 @@ mod tests {
     fn tied_published_legs_do_not_exchange_unequal_lengths() {
         for degrees in [0_f64, 30., 90., 180.] {
             let (s, c) = degrees.to_radians().sin_cos();
-            let mut legs = [(0.7474998, [c, s, 0.]), (0.7475002, [-s, c, 0.])];
+            let mut legs = [
+                (0.7474998, [c, s, 0.], 200.),
+                (0.7475002, [-s, c, 0.], 100.),
+            ];
             assert_eq!(py::round_to(legs[0].0, 6), py::round_to(legs[1].0, 6));
             legs.sort_by(leg_order);
             assert_eq!(

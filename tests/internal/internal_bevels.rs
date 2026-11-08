@@ -10,7 +10,11 @@ pub(crate) fn pocket(leg1: f64, leg2: f64, draft: f64) -> Part {
 fn pocket_section(section: &[[f64; 2]]) -> Part {
     let draft = section.last().unwrap()[0];
     let outer = [[-10., -10.], [30., -10.], [30., 20.], [-10., 20.]];
-    let inner = [[draft, 0.], [10., 0.], [10., 10.], [draft, 10.]];
+    let far = section
+        .iter()
+        .map(|p| p[0])
+        .fold(f64::NEG_INFINITY, f64::max);
+    let inner = [[draft, 0.], [far, 0.], [far, 10.], [draft, 10.]];
     let mut polygons = Vec::new();
     polygons.push(
         outer
@@ -269,5 +273,125 @@ fn equal_leg_repro_is_a_concave_treatment_of_a_bounded_pocket_corner() {
         features::chamfers::discover_verified(&ctx, &Default::default())
             .unwrap()
             .is_empty()
+    );
+}
+
+#[test]
+fn equal_legs_follow_intrinsic_support_area_in_rotated_exports() {
+    let part = pocket(2., 2., 0.);
+    let source = internal_bevels::discover_verified(&Context::new(&part)).unwrap();
+    assert_eq!(source.len(), 1);
+    // The taller support is intrinsically larger (180 versus 80 mm²).
+    assert_eq!(source[0].record.leg1_direction, [0., 0., 1.]);
+    let original = features::recognise(&part);
+    let before = quiddity::correspondence::fingerprint::fingerprint(&part, &original);
+    for angle in [0.37_f64, std::f64::consts::FRAC_PI_2, 2.1] {
+        let (s, c) = angle.sin_cos();
+        let (t, d) = 0.61_f64.sin_cos();
+        let matrix = [
+            [c, -s, 0., 17.],
+            [d * s, d * c, -t, -29.],
+            [t * s, t * c, d, 43.],
+        ];
+        let motion = quiddity::framed_records::Rigid::from_placement(&matrix);
+        let moved = part.transformed(&matrix).unwrap();
+        let found = internal_bevels::discover_verified(&Context::new(&moved)).unwrap();
+        assert_eq!(found.len(), 1);
+        let a = &source[0].record;
+        let b = &found[0].record;
+        for (got, want) in [
+            (b.leg1_direction, motion.direction(a.leg1_direction)),
+            (b.leg2_direction, motion.direction(a.leg2_direction)),
+        ] {
+            assert!(
+                geom::norm(geom::sub(got, want)) < 2e-6,
+                "{angle}: {got:?} != {want:?}"
+            );
+        }
+        assert_eq!((b.leg1, b.leg2, b.angle), (2., 2., 45.));
+        let after = quiddity::correspondence::fingerprint::fingerprint(
+            &moved,
+            &features::recognise(&moved),
+        );
+        let matched = quiddity::correspondence::correspond(&before, &after).unwrap();
+        let entry = matched
+            .features
+            .iter()
+            .find(|f| f.old.starts_with("internal_bevels/"))
+            .unwrap();
+        assert_eq!(
+            entry.class,
+            quiddity::correspondence::Class::Carried,
+            "{angle}: {entry:?}"
+        );
+        assert!(entry.changes.is_empty());
+    }
+}
+
+#[test]
+fn symmetric_equal_support_legs_are_an_unordered_fingerprint_pair() {
+    let part = pocket_section(&[[0., 2.], [2., 0.], [20., 0.], [20., 20.], [0., 20.]]);
+    assert!(part.solid_is_geometrically_valid(0));
+    let mut found = features::recognise(&part);
+    assert_eq!(found.internal_bevels.len(), 1);
+    let before = quiddity::correspondence::fingerprint::fingerprint(&part, &found);
+    let r = &mut found.internal_bevels[0];
+    assert_eq!((r.leg1, r.leg2), (2., 2.));
+    std::mem::swap(&mut r.leg1_direction, &mut r.leg2_direction);
+    let after = quiddity::correspondence::fingerprint::fingerprint(&part, &found);
+    let record = |f: quiddity::correspondence::Fingerprints| {
+        f.features
+            .into_iter()
+            .find(|r| r.family == "internal_bevels")
+            .unwrap()
+    };
+    let first = record(before.clone());
+    let second = record(after);
+    assert_eq!(first, second);
+    assert_eq!(first.sizes["leg1"], 2.);
+    assert_eq!(first.sizes["leg2"], 2.);
+    assert_eq!(first.sizes["length"], 10.);
+    assert_eq!(first.sizes["angle"], 45.);
+    let support_areas: Vec<_> = part
+        .neighbours(11)
+        .into_iter()
+        .filter(|&f| part.face_normal(f, 0., 0.).unwrap()[1].abs() < 0.01)
+        .map(|f| part.face_mass(f).unwrap()[0])
+        .collect();
+    assert_eq!(support_areas.len(), 2);
+    assert!((support_areas[0] - support_areas[1]).abs() < 1e-6);
+    // A rotated re-export may also reverse the two indistinguishable support slots.
+    let matrix = [[0., 0., 1., 17.], [0., 1., 0., -29.], [-1., 0., 0., 43.]];
+    let moved = part.transformed(&matrix).unwrap();
+    let mut exported = features::recognise(&moved);
+    assert_eq!(exported.internal_bevels.len(), 1);
+    let r = &mut exported.internal_bevels[0];
+    std::mem::swap(&mut r.leg1_direction, &mut r.leg2_direction);
+    let rotated = quiddity::correspondence::fingerprint::fingerprint(&moved, &exported);
+    let matched = quiddity::correspondence::correspond(&before, &rotated).unwrap();
+    let entry = matched.features.iter().find(|f| f.old == first.id).unwrap();
+    assert_eq!(
+        entry.class,
+        quiddity::correspondence::Class::Carried,
+        "{entry:?}"
+    );
+    assert!(entry.changes.is_empty());
+}
+
+#[test]
+fn step_angular_noise_keeps_the_actual_support_legs_and_slope_angle() {
+    // A 0.159° wall departure is within AXIS_ZERO_COS, but far outside 1e-9.
+    // The bevel and floor themselves have not moved: their slope remains atan2(2,3).
+    let part = pocket(3., 2., 0.05);
+    assert!(part.solid_is_geometrically_valid(0));
+    let found = internal_bevels::discover_verified(&Context::new(&part)).unwrap();
+    assert_eq!(found.len(), 1, "{found:?}");
+    let r = &found[0].record;
+    assert_eq!((r.leg1, r.leg2, r.angle), (3.006, 2., 33.69));
+    assert_eq!(*r.corner, [-0.006, 5., 0.]);
+    // atan2 of the two lengths would misreport 33.64° on these real supports.
+    assert_eq!(
+        quiddity::kernel::py::round_to(r.leg2.atan2(r.leg1).to_degrees(), 2),
+        33.64
     );
 }
