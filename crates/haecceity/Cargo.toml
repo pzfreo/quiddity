@@ -8,7 +8,7 @@ keywords = ["cad", "step", "brep", "geometry", "ap242"]
 categories = ["science", "mathematics", "parser-implementations"]
 readme = "README.md"
 include = ["/examples", "/docs/pmi-json.md", "/schema", "/src", "/README.md", "/LICENSE", "/NOTICE", "/tests/fixtures/generated_unit_cube.f3d", "/tests/fixtures/README.md"]
-description = "An exact B-rep geometry kernel in pure Rust: STEP import, rays, classification, volumes and surface recovery."
+description = "An exact B-rep reader and geometry query library in pure Rust: STEP import, rays, classification, volumes, surface recovery and AP242 PMI."
 
 [features]
 default = ["presentation"]

@@ -6,6 +6,11 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+### Documentation
+
+- haecceity states its scope: it reads, queries and writes B-reps and does not model them
+  (README "Scope", crate docs and the crates.io description). From #203.
+
 ### Fixed
 
 - Internal bevel leg ties use intrinsic support area; symmetric ties remain unordered in
