@@ -1,0 +1,117 @@
+"""Independent OCCT GProps measurements. No tessellation, density=1, millimetres.
+
+Only cadquery-ocp-novtk and the Python standard library are needed. XCAF visits unique
+part definitions in assembly traversal order, as StepFile.parts does. Faces follow
+TopExp.MapShapes, the numbering contract of StepFile.part. Mismatched counts fail.
+"""
+import gzip
+import tempfile
+import OCP
+from OCP.STEPCAFControl import STEPCAFControl_Reader
+from OCP.TDocStd import TDocStd_Document
+from OCP.TCollection import TCollection_ExtendedString, TCollection_AsciiString
+from OCP.XCAFDoc import XCAFDoc_DocumentTool, XCAFDoc_ShapeTool
+from OCP.TDF import TDF_Label, TDF_Tool
+try:
+    from OCP.TDF import TDF_LabelSequence
+    from OCP.TopTools import TopTools_IndexedMapOfShape
+except ImportError:  # OCP 8 renamed the collection wrappers.
+    from OCP.collections import Sequence_TDF_Label as TDF_LabelSequence
+    from OCP.collections import IndexedMap_TopoDS_Shape_TopTools_ShapeMapHasher as TopTools_IndexedMapOfShape
+from OCP.TopExp import TopExp
+from OCP.TopAbs import TopAbs_FACE, TopAbs_SOLID
+from OCP.TopoDS import TopoDS_Compound
+from OCP.BRep import BRep_Builder
+from OCP.BRepGProp import BRepGProp
+from OCP.GProp import GProp_GProps
+
+EPS = 1e-9
+
+
+def indexed(shape, kind):
+    result = TopTools_IndexedMapOfShape()
+    TopExp.MapShapes_s(shape, kind, result)
+    return [result.FindKey(i) for i in range(1, result.Extent()+1)]
+
+
+def compound(shapes):
+    builder = BRep_Builder()
+    result = TopoDS_Compound()
+    builder.MakeCompound(result)
+    for shape in shapes:
+        builder.Add(result, shape)
+    return result
+
+
+def measure(shape, material=True):
+    area, volume = GProp_GProps(), GProp_GProps()
+    BRepGProp.SurfaceProperties_s(shape, area, EPS, False)
+    if material:
+        BRepGProp.VolumeProperties_s(shape, volume, EPS, False, False)
+    return dict(volume=volume.Mass() if material else None, area=area.Mass(),
+                centroid=list(volume.CentreOfMass().Coord()) if material and volume.Mass() else None)
+
+
+def load(path):
+    reader = STEPCAFControl_Reader()
+    raw = open(path, 'rb').read()
+    if raw[:2] == b'\x1f\x8b':
+        raw = gzip.decompress(raw)
+    with tempfile.NamedTemporaryFile(suffix='.stp') as temporary:
+        temporary.write(raw)
+        temporary.flush()
+        if int(reader.ReadFile(temporary.name)) != 1:
+            raise ValueError('OCCT ReadFile failed')
+    document = TDocStd_Document(TCollection_ExtendedString('BinXCAF'))
+    if not reader.Transfer(document):
+        raise ValueError('OCCT transfer failed')
+    shapes = XCAFDoc_DocumentTool.ShapeTool_s(document.Main())
+    roots = TDF_LabelSequence()
+    shapes.GetFreeShapes(roots)
+    parts, seen = [], set()
+
+    def visit(label):
+        if XCAFDoc_ShapeTool.IsReference_s(label):
+            referred = TDF_Label()
+            XCAFDoc_ShapeTool.GetReferredShape_s(label, referred)
+            label = referred
+        entry = TCollection_AsciiString()
+        TDF_Tool.Entry_s(label, entry)
+        key = entry.ToCString()
+        if key in seen:
+            return
+        seen.add(key)
+        if XCAFDoc_ShapeTool.IsAssembly_s(label):
+            children = TDF_LabelSequence()
+            XCAFDoc_ShapeTool.GetComponents_s(label, children)
+            for i in range(1, children.Length()+1):
+                visit(children.Value(i))
+        else:
+            shape = XCAFDoc_ShapeTool.GetShape_s(label)
+            if not shape.IsNull() and indexed(shape, TopAbs_FACE):
+                parts.append(shape)
+    for i in range(1, roots.Length()+1):
+        visit(roots.Value(i))
+    return parts
+
+
+def compare(row):
+    parts = load(row['file'])
+    if len(parts) != len(row['parts']):
+        raise ValueError(f'part count: OCCT {len(parts)}, ours {len(row["parts"])}')
+    for shape, part in zip(parts, row['parts'], strict=True):
+        faces = indexed(shape, TopAbs_FACE)
+        if len(faces) != len(part['faces']):
+            raise ValueError(f'{part["name"]}: face count OCCT {len(faces)}, ours {len(part["faces"])}')
+        solids = indexed(shape, TopAbs_SOLID)
+        part['occt'] = measure(compound(solids)) if solids else dict(volume=0.0, area=measure(shape, False)['area'], centroid=None)
+        cache = {}
+        for prop in part['gvp']:
+            if prop['faces']:
+                key = tuple(prop['faces'])
+                if key not in cache:
+                    cache[key] = measure(compound([faces[i] for i in key]))
+                prop['occt'] = cache[key]
+    row['occt_version'] = OCP.__version__
+    row['occt_tolerance'] = EPS
+    return row

@@ -1,0 +1,135 @@
+//! CAx-IF accuracy bands against independently authored STEP validation properties.
+#[path = "../examples/gvp_support/mod.rs"]
+mod support;
+use serde_json::Value;
+use std::path::Path;
+
+fn fixtures() -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures")
+}
+fn corpus_dir() -> Option<std::path::PathBuf> {
+    if std::env::var("QUIDDITY_CORPUS").is_ok_and(|v| v == "off") {
+        return None;
+    }
+    let dir = std::env::var_os("QUIDDITY_CORPUS")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../quiddity/tests/corpus")
+        });
+    dir.is_dir().then_some(dir)
+}
+
+fn check(path: &Path, failures: &mut Vec<String>, checks: &mut [usize; 3]) {
+    let raw = support::bytes(path).unwrap();
+    if !String::from_utf8_lossy(&raw)
+        .to_ascii_lowercase()
+        .contains("geometric validation property")
+    {
+        return;
+    }
+    let evidence: Value =
+        serde_json::from_str(include_str!("../../../tests/fixtures/gvp-occt.json")).unwrap();
+    let key = path
+        .strip_prefix(fixtures())
+        .ok()
+        .map(|p| p.to_string_lossy().replace('\\', "/"));
+    let known = key.as_deref().and_then(|k| evidence["files"].get(k));
+    let row = support::file(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    if let Some(known) = known {
+        assert!(
+            row["parts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .flat_map(|p| p["gvp"].as_array().unwrap())
+                .any(|p| p["property"] == known["property"]),
+            "known reference error disappeared: reconsider evidence"
+        );
+    }
+    for part in row["parts"].as_array().unwrap() {
+        for prop in part["gvp"].as_array().unwrap() {
+            for (i, quantity) in ["volume", "area", "centroid"].iter().enumerate() {
+                if prop["reference"][quantity].is_null() {
+                    continue;
+                }
+                checks[i] += 1;
+                let ours = &prop["ours"];
+                let diagonal = part["ours"]["diagonal"].as_f64().unwrap();
+                let error = support::error(ours, &prop["reference"], quantity, diagonal);
+                if let Some(known) = known.filter(|k| k["property"] == prop["property"]) {
+                    assert_eq!(known["target"], prop["target"]);
+                    assert_eq!(
+                        prop["reference"][quantity], known["stored"][quantity],
+                        "stored reference changed: reconsider exemption"
+                    );
+                    assert_eq!(
+                        prop["faces"].as_array().unwrap().len(),
+                        known["faces"].as_u64().unwrap() as usize
+                    );
+                    assert!(
+                        support::error(&prop["reference"], &known["occt"], quantity, diagonal)
+                            .is_some_and(|e| e > support::BAND),
+                        "known error no longer disagrees with OCCT"
+                    );
+                    assert!(
+                        error.is_some_and(|e| e > support::BAND),
+                        "known error no longer disagrees with ours"
+                    );
+                    let independent = support::error(ours, &known["occt"], quantity, diagonal);
+                    if !independent.is_some_and(|e| e <= support::BAND) {
+                        failures.push(format!("{} GVP #{} {quantity}: ours={} OCCT={} normalized error={independent:?}; wrong-reference exemption requires agreement with OCCT",path.display(),prop["property"],ours[quantity],known["occt"][quantity]));
+                    }
+                } else if !error.is_some_and(|e| e <= support::BAND) {
+                    failures.push(format!("{} part {} GVP #{} {quantity}: ours={} A={} normalized error={error:?}, faces={}",path.display(),part["name"],prop["property"],ours[quantity],prop["reference"][quantity],prop["faces"]));
+                }
+            }
+        }
+    }
+    for p in row["unattached_gvp"].as_array().unwrap() {
+        if ["volume", "area", "centroid"]
+            .iter()
+            .any(|q| p["reference"][q] != Value::Null)
+        {
+            failures.push(format!("{} unattached material GVP {p}", path.display()));
+        }
+    }
+}
+#[test]
+fn committed_geometric_validation_properties() {
+    let mut paths = Vec::new();
+    support::walk(&fixtures(), &mut paths).unwrap();
+    paths.sort();
+    let (mut failures, mut checks) = (Vec::new(), [0; 3]);
+    for path in paths {
+        check(&path, &mut failures, &mut checks);
+    }
+    assert!(
+        checks.iter().all(|&n| n > 0),
+        "no material GVP checks: {checks:?}"
+    );
+    eprintln!("GVP checks volume/area/centroid: {checks:?}");
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+#[test]
+fn corpus_geometric_validation_properties() {
+    let Some(dir) = corpus_dir() else {
+        assert!(
+            std::env::var_os("QUIDDITY_CORPUS_REQUIRED").is_none(),
+            "QUIDDITY_CORPUS_REQUIRED but no corpus"
+        );
+        return;
+    };
+    let mut paths = Vec::new();
+    support::walk(&dir, &mut paths).unwrap();
+    paths.sort();
+    let (mut failures, mut checks) = (Vec::new(), [0; 3]);
+    for path in paths {
+        check(&path, &mut failures, &mut checks);
+    }
+    assert!(
+        checks.iter().all(|&n| n > 0),
+        "no corpus GVP checks: {checks:?}"
+    );
+    eprintln!("GVP checks volume/area/centroid: {checks:?}");
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}

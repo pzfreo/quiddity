@@ -87,6 +87,10 @@ fn prefix(a: &A) -> Option<f64> {
 }
 /// Dimensional unit scale to mm^dimension. Recursion is bounded, including corrupt cycles.
 fn unit(doc: &Document, id: u64, depth: usize) -> Option<(f64, i32)> {
+    let (scale, dimension) = unit_inner(doc, id, depth)?;
+    (scale.is_finite() && scale > 0.0).then_some((scale, dimension))
+}
+fn unit_inner(doc: &Document, id: u64, depth: usize) -> Option<(f64, i32)> {
     if depth >= 32 {
         return None;
     }
@@ -129,29 +133,40 @@ fn unit(doc: &Document, id: u64, depth: usize) -> Option<(f64, i32)> {
     let a = attrs(doc, id, "SI_UNIT")?;
     let base = match text(a.last()?)?.to_ascii_uppercase().as_str() {
         "METRE" if dimension == 1 => 1000.0,
-        "SQUARE_METRE" if dimension == 2 => 1e6,
-        "CUBIC_METRE" if dimension == 3 => 1e9,
         _ => return None,
     };
-    // An SI prefix modifies the named SI unit; a derived mm³ instead uses exponent 3.
+    // Area and volume are derived from length units with explicit exponents.
     Some((prefix(a.first()?)? * base, dimension))
 }
-fn context_length(doc: &Document, context: u64) -> Option<f64> {
+fn context_scale(doc: &Document, context: u64, dimension: i32) -> Option<f64> {
     let a = attrs(doc, context, "GLOBAL_UNIT_ASSIGNED_CONTEXT")?;
-    refs(a.first()?)
-        .iter()
-        .find_map(|&id| unit(doc, id, 0).filter(|(_, d)| *d == 1).map(|(s, _)| s))
+    let mut units = Vec::new();
+    for id in refs(a.first()?) {
+        if let Some(u) = unit(doc, id, 0) {
+            units.push(u);
+        } else if ["LENGTH_UNIT", "AREA_UNIT", "VOLUME_UNIT", "DERIVED_UNIT"]
+            .iter()
+            .any(|kind| attrs(doc, id, kind).is_some())
+        {
+            return None;
+        }
+    }
+    let exact: Vec<_> = units.iter().filter(|(_, d)| *d == dimension).collect();
+    match exact.as_slice() {
+        [unit] => Some(unit.0),
+        [] if dimension != 1 => context_scale(doc, context, 1).map(|s| s.powi(dimension)),
+        _ => None,
+    }
 }
 fn owner(doc: &Document, target: u64) -> (Option<u64>, Option<u64>) {
     let mut id = target;
     for _ in 0..32 {
         if let Some(a) =
             attrs(doc, id, "SHAPE_ASPECT").or_else(|| attrs(doc, id, "PRODUCT_DEFINITION_SHAPE"))
+            && let Some(next) = a.get(2).and_then(reference)
         {
-            if let Some(next) = a.get(2).and_then(reference) {
-                id = next;
-                continue;
-            }
+            id = next;
+            continue;
         }
         if let Some(a) = attrs(doc, id, "NEXT_ASSEMBLY_USAGE_OCCURRENCE") {
             return (a.get(4).and_then(reference), Some(id));
@@ -207,21 +222,32 @@ pub fn read(doc: &Document) -> Result<Vec<ValidationProperty>, String> {
             };
             for id in refs(r.get(1)?) {
                 if let Some(m) = attrs(doc, id, "MEASURE_REPRESENTATION_ITEM") {
-                    let name = text(m.first()?)?.to_ascii_lowercase();
+                    let (name, value, unit_attribute) = if m.is_empty() {
+                        let representation = attrs(doc, id, "REPRESENTATION_ITEM")?;
+                        let measure = attrs(doc, id, "MEASURE_WITH_UNIT")?;
+                        (
+                            text(representation.first()?)?,
+                            measure.first()?,
+                            measure.get(1),
+                        )
+                    } else {
+                        (text(m.first()?)?, m.get(1)?, m.get(2))
+                    };
+                    let name = name.to_ascii_lowercase();
                     let dimension = match name.as_str() {
                         "volume measure" => 3,
                         "surface area measure" | "wetted area measure" => 2,
                         _ => continue,
                     };
-                    let value = number(m.get(1)?)?;
-                    let scale = if let Some(u) = m.get(2).and_then(reference) {
+                    let value = number(value)?;
+                    let scale = if let Some(u) = unit_attribute.and_then(reference) {
                         let (s, d) = unit(doc, u, 0)?;
                         if d != dimension {
                             return None;
                         }
                         s
                     } else {
-                        context_length(doc, context)?.powi(dimension)
+                        context_scale(doc, context, dimension)?
                     };
                     let value = value * scale;
                     if !value.is_finite() || value < 0.0 {
@@ -248,7 +274,7 @@ pub fn read(doc: &Document) -> Result<Vec<ValidationProperty>, String> {
                     if xyz.len() != 3 {
                         return None;
                     }
-                    let s = context_length(doc, context)?;
+                    let s = context_scale(doc, context, 1)?;
                     let point = [
                         number(&xyz[0])? * s,
                         number(&xyz[1])? * s,
@@ -348,12 +374,12 @@ mod tests {
             .replace("VOLUME_MEASURE(2.),#13", "VOLUME_MEASURE(2.),#18")
             .replace(
                 "#17=",
-                "#18=(NAMED_UNIT(*)SI_UNIT(.MILLI.,.CUBIC_METRE.)VOLUME_UNIT());#17=",
+                "#18=DERIVED_UNIT((#19));#19=DERIVED_UNIT_ELEMENT(#12,3.);#17=",
             );
-        // milli-cubic-metre is 10^6 mm³, unlike a cubic millimetre.
+        // Explicit m³ overrides the representation's mm length unit.
         assert_eq!(
             read(&Document::parse(text.into_bytes()).unwrap()).unwrap()[0].volume,
-            Some(2e6)
+            Some(2e9)
         );
         let text = String::from_utf8(doc.bytes().to_vec())
             .unwrap()
@@ -362,6 +388,30 @@ mod tests {
             read(&Document::parse(text.into_bytes()).unwrap()).unwrap()[0].volume,
             Some(2.)
         );
+    }
+    #[test]
+    fn complex_measure_representation_item() {
+        let doc = model("(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.))");
+        let raw=String::from_utf8(doc.bytes().to_vec()).unwrap().replace("MEASURE_REPRESENTATION_ITEM('volume measure',VOLUME_MEASURE(2.),#13)", "(MEASURE_REPRESENTATION_ITEM()MEASURE_WITH_UNIT(VOLUME_MEASURE(2.),#13)REPRESENTATION_ITEM('volume measure'))");
+        assert_eq!(
+            read(&Document::parse(raw.into_bytes()).unwrap()).unwrap()[0].volume,
+            Some(2.)
+        );
+    }
+    #[test]
+    fn representation_area_and_volume_units_override_length_powers() {
+        let doc = model("(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.))");
+        let raw=String::from_utf8(doc.bytes().to_vec()).unwrap()
+            .replace("VOLUME_MEASURE(2.),#13", "VOLUME_MEASURE(2.)")
+            .replace("AREA_MEASURE(3.),#14", "AREA_MEASURE(3.)")
+            .replace("GLOBAL_UNIT_ASSIGNED_CONTEXT((#11))", "GLOBAL_UNIT_ASSIGNED_CONTEXT((#11,#20,#21))")
+            .replace("#17=", "#20=DERIVED_UNIT((#22));#21=DERIVED_UNIT((#23));#22=DERIVED_UNIT_ELEMENT(#12,3.);#23=DERIVED_UNIT_ELEMENT(#12,2.);#17=");
+        let p = read(&Document::parse(raw.into_bytes()).unwrap())
+            .unwrap()
+            .remove(0);
+        assert_eq!(p.volume, Some(2e9));
+        assert_eq!(p.area, Some(3e6));
+        assert_eq!(p.centroid, Some([1., 2., 3.]));
     }
     #[test]
     fn assembly_and_two_instances_keep_distinct_owners() {

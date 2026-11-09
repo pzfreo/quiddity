@@ -16,6 +16,9 @@ to no feature shown here.*
 
 Status: **0.4.9** (2026-11-07). See [CHANGELOG.md](CHANGELOG.md).
 
+The [geometric validation accuracy tool](docs/geometric-validation.md) compares exact
+volume, area and centroid against STEP validation properties and independent OCCT measurements.
+
 ## Install
 
 | | |
