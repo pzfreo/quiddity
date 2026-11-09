@@ -111,6 +111,19 @@ pub fn scan<R: Read>(
             return Err(input.error("text after END-ISO-10303-21"));
         }
         let mut text = vec![first];
+        // An ANCHOR statement starts with '<'; include that delimiter in the resumable
+        // literal handling, just as for an anchor encountered later in a statement.
+        if first == b'<' && section == Section::Ed3 {
+            loop {
+                let c = input
+                    .next()?
+                    .ok_or_else(|| input.error("unterminated anchor"))?;
+                text.push(c);
+                if c == b'>' {
+                    break;
+                }
+            }
+        }
         loop {
             let b = input
                 .next()?

@@ -422,6 +422,13 @@ fn scanner_literals_and_retained_state_are_structure_only() {
     for chunk in [1, 7, 4096] {
         assert_eq!(statements(b, chunk).unwrap(), want);
     }
+    let edition3=b"ISO-10303-21;HEADER;ENDSEC;ANCHOR;<name;with'quote#99>=#7;ENDSEC;REFERENCE;#80=<file;name#2>;ENDSEC;DATA;#7=THING('ok');ENDSEC;END-ISO-10303-21;";
+    let want = statements(edition3, edition3.len()).unwrap();
+    assert_eq!(want.len(), 1);
+    assert_eq!(want[0].id, 7);
+    for chunk in [1, 7, 4096] {
+        assert_eq!(statements(edition3, chunk).unwrap(), want);
+    }
     for bad in [
         "ISO-10303-21;SIGNATURE;ENDSEC;END-ISO-10303-21;",
         "ISO-10303-21;DATA;#1=A('unterminated);ENDSEC;END-ISO-10303-21;",
