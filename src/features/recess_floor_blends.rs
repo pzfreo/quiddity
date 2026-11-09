@@ -66,13 +66,14 @@ fn prove(scan: &Scan<'_, '_>, opening: &Face, depth: usize, wire: &[usize]) -> O
     let seed = wire_seed(part, opening.node, wire);
     let sign = if opening.normal[depth] > 0. { 1 } else { -1 };
     let mouth = center(&opening.bb, depth);
+    let planar: BTreeSet<_> = seed.iter().copied().filter(|&f| g.is_planar(f)).collect();
+    if planar.len() != 4 || !matches!(seed.len(), 4 | 8) || wire.len() != seed.len() {
+        return None;
+    }
+    // Reject holes and nonrectangular mouths before walking their whole region.
     let region = bounded_inner_region(g, opening.node, &seed);
     let members: Vec<_> = region.iter().copied().chain([opening.node]).collect();
     if common_valid_solid(part, &members) != Some(scan.solid) {
-        return None;
-    }
-    let planar: BTreeSet<_> = seed.iter().copied().filter(|&f| g.is_planar(f)).collect();
-    if planar.len() != 4 || !matches!(seed.len(), 4 | 8) || wire.len() != seed.len() {
         return None;
     }
     let mut bounds = part.face_bounds(*seed.first()?);

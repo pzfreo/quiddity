@@ -12,6 +12,20 @@ use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap};
 use std::rc::Rc;
 
+/// Shared by slot, pocket and refusal discovery. Validity depends on run mode,
+/// so a context reused across strict/degraded queries keeps separate results.
+#[derive(Default)]
+pub(super) struct FloorBlendAnalysisCache([std::sync::OnceLock<floor_blends::Analysis>; 2]);
+
+impl FloorBlendAnalysisCache {
+    fn get_or_init(
+        &self,
+        analyse: impl FnOnce() -> floor_blends::Analysis,
+    ) -> &floor_blends::Analysis {
+        self.0[usize::from(super::evidence::local_degradation())].get_or_init(analyse)
+    }
+}
+
 use super::Context;
 use super::evidence::common_valid_solid;
 use super::graph;
@@ -521,7 +535,9 @@ pub fn slot_proposals(
     let extended = extend_obround_proposals(merged, &scan.cylinders, strict)?;
     // Supported pockets compete in reconciliation; an unsupported closed floor
     // is still positive evidence against a through-slot, independent of a winner.
-    let unsupported = floor_blends::analyse(&scan).unsupported;
+    let unsupported = &ctx.floor_blends[solid]
+        .get_or_init(|| floor_blends::analyse(&scan))
+        .unsupported;
     Ok(extended
         .into_iter()
         .filter(|p| !unsupported.iter().any(|r| p.defining().is_subset(r)))
@@ -577,20 +593,21 @@ pub fn pocket_proposals(
             p.replaced(record)
         })
         .collect();
-    let analysis = floor_blends::analyse(&scan);
-    let blended = analysis.proposals;
-    let mut proposals = attach_complete_pocket_regions(&scan, proposals);
-    // A complete cavity replaces every overlapping legacy seed, including seeds
-    // that selected the mouth as a floor within FLOOR_TOL. Unsupported lower
-    // transitions cannot leave a falsely shallow legacy pocket behind either.
-    proposals.retain(|p| {
-        !blended.iter().map(|b| &b.constituent).chain(&analysis.unsupported).any(|r| {
-            !p.constituent.is_disjoint(r) || !p.defining().is_disjoint(r)
-        })
-    });
-    if !blended.is_empty() {
-        proposals.extend(blended);
-        proposals.sort_by(|a, b| super::recess_reduce::width_then_centre(&a.record, &b.record));
+    let analysis = ctx.floor_blends[solid].get_or_init(|| floor_blends::analyse(&scan));
+    let mut proposals = proposals;
+    if !analysis.proposals.is_empty() || !analysis.unsupported.is_empty() {
+        // Complete legacy membership before overlap retirement only when a
+        // floor analysis can replace it. Sharp-only parts need one pass below.
+        proposals = attach_complete_pocket_regions(&scan, proposals);
+        proposals.retain(|p| {
+            !analysis.proposals.iter().map(|b| &b.constituent).chain(&analysis.unsupported).any(|r| {
+                !p.constituent.is_disjoint(r) || !p.defining().is_disjoint(r)
+            })
+        });
+        if !analysis.proposals.is_empty() {
+            proposals.extend(analysis.proposals.iter().cloned());
+            proposals.sort_by(|a, b| super::recess_reduce::width_then_centre(&a.record, &b.record));
+        }
     }
     let proposals = attach_complete_pocket_regions(&scan, proposals);
     Ok(attach_intact_floor_walls(&scan, proposals)
@@ -1243,9 +1260,11 @@ pub(crate) fn floor_blend_refusals(ctx: &Context<'_>) -> Vec<super::discovery::D
         .iter()
         .enumerate()
         .flat_map(|(solid, _)| {
-            floor_blends::analyse(&Scan::new(ctx, solid))
+            ctx.floor_blends[solid]
+                .get_or_init(|| floor_blends::analyse(&Scan::new(ctx, solid)))
                 .unsupported
-                .into_iter()
+                .iter()
+                .cloned()
                 .map(|faces| {
                     super::discovery::DiscoveryRefusal::new("unsupported_floor_transition", faces)
                 })

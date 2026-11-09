@@ -429,10 +429,13 @@ pub fn reconcile_faces(
     // Proved pocket floor treatments and circular blind steps own their fillets;
     // those fillets win no blend. Pocket wall corners are not floor treatments.
     let (fillets, circular) = (group(Family::Fillets)?, group(Family::CircularBlindSteps)?);
+    let floor_pockets: Vec<_> = evidence.pocket_floor_fillets.iter().enumerate()
+        .filter_map(|(i, faces)| (!faces.is_empty() && !decisions.decided(Family::Pockets, i)).then_some(i))
+        .collect();
     let mut rejected_fillets = BTreeSet::new();
     for (i, faces) in fillets.faces.iter().enumerate() {
-        let by: Vec<_> = (0..pockets.len()).filter(|&j| {
-            !decisions.decided(Family::Pockets, j) && !faces.is_empty() && faces.iter().all(|f| evidence.pocket_floor_fillets[j].contains(f))
+        let by: Vec<_> = floor_pockets.iter().copied().filter(|&j| {
+            !faces.is_empty() && faces.iter().all(|f| evidence.pocket_floor_fillets[j].contains(f))
         }).collect();
         if !by.is_empty() {
             rejected_fillets.insert(i);
@@ -455,8 +458,8 @@ pub fn reconcile_faces(
     // A blend chain every face of which is a surviving fillet's (`reconcile_blend_candidates`).
     let blends = group(Family::Blends)?;
     for (i, faces) in blends.faces.iter().enumerate() {
-        let by: Vec<_> = (0..pockets.len()).filter(|&j| {
-            !decisions.decided(Family::Pockets, j) && !faces.is_empty() && faces.iter().all(|f| evidence.pocket_floor_fillets[j].contains(f))
+        let by: Vec<_> = floor_pockets.iter().copied().filter(|&j| {
+            !faces.is_empty() && faces.iter().all(|f| evidence.pocket_floor_fillets[j].contains(f))
         }).collect();
         if !by.is_empty() {
             decisions.push(&blends, i, ReasonCode::BlendSupersededByPocket, &pockets, by);
@@ -680,32 +683,36 @@ fn recesses(
 
     // A complete floor-treated pocket defines more than its planar wall seed.
     // Its four-sided ring is subordinate only when that pocket actually survives.
-    accepted_prismatic.retain(|&i| {
-        let ring = &prismatic.faces[i];
-        let by: Vec<_> = accepted_pockets
-            .iter()
-            .copied()
-            .filter(|&j| {
-                let walls = &pockets.faces[j];
-                prismatic_sides[i] == 4
-                    && !ring.is_empty()
-                    && !evidence.pocket_floor_fillets[j].is_empty()
-                    && ring.is_subset(walls)
-            })
-            .collect();
-        if by.is_empty() {
-            true
-        } else {
-            decisions.push(
-                prismatic,
-                i,
-                ReasonCode::PrismaticSupersededByPocket,
-                pockets,
-                by,
-            );
-            false
-        }
-    });
+    let floor_pockets: Vec<_> = accepted_pockets
+        .iter()
+        .copied()
+        .filter(|&j| !evidence.pocket_floor_fillets[j].is_empty())
+        .collect();
+    if !floor_pockets.is_empty() {
+        accepted_prismatic.retain(|&i| {
+            let ring = &prismatic.faces[i];
+            let by: Vec<_> = floor_pockets
+                .iter()
+                .copied()
+                .filter(|&j| {
+                    let walls = &pockets.faces[j];
+                    prismatic_sides[i] == 4 && !ring.is_empty() && ring.is_subset(walls)
+                })
+                .collect();
+            if by.is_empty() {
+                true
+            } else {
+                decisions.push(
+                    prismatic,
+                    i,
+                    ReasonCode::PrismaticSupersededByPocket,
+                    pockets,
+                    by,
+                );
+                false
+            }
+        });
+    }
 
     // Non-rectangular passages' walls pooled by their exact (axis, section) grouping key, in
     // first-seen order; four-sided passages are tested on their own below.

@@ -33,6 +33,8 @@ in [docs/alpha1.md](docs/alpha1.md).
   its physical slot loss allowance is retired while accepted ranks stay unchanged.
   Across revisions, adding a floor fillet to an existing pocket matches as an
   orphaned feature plus a new feature, as a `None`→`Some` corner radius already does.
+  Shared per-solid floor analysis, early mouth checks and reuse of legacy cavity
+  completion avoid repeated graph walks on parts without floor-blended pockets.
 
 - Internal bevel leg ties use intrinsic support area; symmetric ties remain unordered in
   fingerprints. Feature-policy angular tolerances retain slightly noisy STEP supports,
