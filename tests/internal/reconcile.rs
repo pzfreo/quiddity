@@ -227,9 +227,20 @@ fn face_lists(v: Option<&Value>) -> Vec<Vec<usize>> {
 /// (`tools/capture_reconcile.py --scenarios`), rebuilt from the same inputs: every one agrees.
 fn snapshot_reconcile_scenarios(mut reasons: BTreeSet<String>, with_corpus: bool) {
     let captured = common::load("captured/reconcile/scenarios.json");
-    let scenarios = captured["scenarios"].as_array().unwrap();
+    let mut scenarios = captured["scenarios"].as_array().unwrap().clone();
+    // Geometry proofs populate this extra role evidence; these analytic face
+    // groups independently exercise exclusive ownership and the new reasons.
+    for family in ["fillets", "blends"] {
+        let mut families = serde_json::Map::new();
+        families.insert("pockets".into(), json!([[0, 1, 2]]));
+        families.insert(family.into(), json!([[2]]));
+        scenarios.push(json!({
+            "name": format!("pocket_floor_{family}"), "families": families,
+            "pocket_constituent": [[0, 1, 2, 3]], "pocket_floor_fillets": [[2]]
+        }));
+    }
     let mut actual = Vec::new();
-    for s in scenarios {
+    for s in &scenarios {
         let families = &s["families"];
         for name in families.as_object().unwrap().keys() {
             assert!(
@@ -269,6 +280,10 @@ fn snapshot_reconcile_scenarios(mut reasons: BTreeSet<String>, with_corpus: bool
             PassageCompatibilityView::new(Some(axis), Some(section), sides, None, None, None, false)
         };
         let evidence = Evidence {
+            pocket_floor_fillets: s.get("pocket_floor_fillets").map_or_else(
+                || vec![Vec::new(); defining["pockets"].len()],
+                |v| face_lists(Some(v)),
+            ),
             pocket_constituent: face_lists(s.get("pocket_constituent")),
             passage_compatibility: groupings.iter().map(|g| view(g).unwrap()).collect(),
             risers: face_lists(families.get("risers")),

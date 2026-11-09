@@ -5,9 +5,26 @@
 //! the same read with a floor found, which makes a pocket (bounded) or a channel (open at both
 //! ends of its solid).
 
+#[path = "recess_floor_blends.rs"]
+mod floor_blends;
+
 use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap};
 use std::rc::Rc;
+
+/// Shared by slot, pocket and refusal discovery. Validity depends on run mode,
+/// so a context reused across strict/degraded queries keeps separate results.
+#[derive(Default)]
+pub(super) struct FloorBlendAnalysisCache([std::sync::OnceLock<floor_blends::Analysis>; 2]);
+
+impl FloorBlendAnalysisCache {
+    fn get_or_init(
+        &self,
+        analyse: impl FnOnce() -> floor_blends::Analysis,
+    ) -> &floor_blends::Analysis {
+        self.0[usize::from(super::evidence::local_degradation())].get_or_init(analyse)
+    }
+}
 
 use super::Context;
 use super::evidence::common_valid_solid;
@@ -438,6 +455,8 @@ impl<'c, 'a> Scan<'c, 'a> {
                         open_sign,
                         edge_anchored: false,
                         rectangular_boundary: false,
+                        floor_radius: None,
+                        floor_fillets: Vec::new(),
                         body_key: Some(Vec::new().into()),
                         end_radius: None,
                         corner_radius: None,
@@ -514,8 +533,14 @@ pub fn slot_proposals(
         merge_proposals_in(candidates, Some(scan.part_ext)),
     );
     let extended = extend_obround_proposals(merged, &scan.cylinders, strict)?;
+    // Supported pockets compete in reconciliation; an unsupported closed floor
+    // is still positive evidence against a through-slot, independent of a winner.
+    let unsupported = &ctx.floor_blends[solid]
+        .get_or_init(|| floor_blends::analyse(&scan))
+        .unsupported;
     Ok(extended
         .into_iter()
+        .filter(|p| !unsupported.iter().any(|r| p.defining().is_subset(r)))
         .map(|p| {
             let record = with_proved_corner_radius(p.record.clone(), &scan.cylinders);
             p.replaced(record)
@@ -568,6 +593,22 @@ pub fn pocket_proposals(
             p.replaced(record)
         })
         .collect();
+    let analysis = ctx.floor_blends[solid].get_or_init(|| floor_blends::analyse(&scan));
+    let mut proposals = proposals;
+    if !analysis.proposals.is_empty() || !analysis.unsupported.is_empty() {
+        // Complete legacy membership before overlap retirement only when a
+        // floor analysis can replace it. Sharp-only parts need one pass below.
+        proposals = attach_complete_pocket_regions(&scan, proposals);
+        proposals.retain(|p| {
+            !analysis.proposals.iter().map(|b| &b.constituent).chain(&analysis.unsupported).any(|r| {
+                !p.constituent.is_disjoint(r) || !p.defining().is_disjoint(r)
+            })
+        });
+        if !analysis.proposals.is_empty() {
+            proposals.extend(analysis.proposals.iter().cloned());
+            proposals.sort_by(|a, b| super::recess_reduce::width_then_centre(&a.record, &b.record));
+        }
+    }
     let proposals = attach_complete_pocket_regions(&scan, proposals);
     Ok(attach_intact_floor_walls(&scan, proposals)
         .into_iter()
@@ -1045,6 +1086,8 @@ fn corner_notch_proposals(faces: &[Face], pbb: &Bounds) -> Vec<Proposal<Pocket>>
                 },
                 edge_anchored: true,
                 rectangular_boundary: false,
+                floor_radius: None,
+                floor_fillets: Vec::new(),
                 body_key: Some(Vec::new().into()),
                 end_radius: None,
                 corner_radius: None,
@@ -1208,4 +1251,23 @@ mod pocket_boundary_tests {
             }
         }
     }
+}
+
+/// Closed, floored cavities whose nonanalytic transitions cannot prove a radius.
+pub(crate) fn floor_blend_refusals(ctx: &Context<'_>) -> Vec<super::discovery::DiscoveryRefusal> {
+    ctx.part
+        .solids
+        .iter()
+        .enumerate()
+        .flat_map(|(solid, _)| {
+            ctx.floor_blends[solid]
+                .get_or_init(|| floor_blends::analyse(&Scan::new(ctx, solid)))
+                .unsupported
+                .iter()
+                .cloned()
+                .map(|faces| {
+                    super::discovery::DiscoveryRefusal::new("unsupported_floor_transition", faces)
+                })
+        })
+        .collect()
 }

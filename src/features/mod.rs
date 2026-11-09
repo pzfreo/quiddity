@@ -355,6 +355,33 @@ pub(crate) fn recognise_in(ctx: &Context<'_>, mut inventory: Inventory) -> Featu
             }
         }
     });
+    post!("pockets", "claim_floor_spheres", || {
+        // Spherical floor corners were also attached to the legacy vertical
+        // fillet's cylinder. Keep that wall fillet and assign its bottom cap to
+        // the accepted pocket, after every selection/reconciliation decision.
+        let spheres: BTreeSet<_> = features
+            .pockets
+            .iter()
+            .flat_map(|p| &p.floor_fillets)
+            .map(|f| f.face)
+            .filter(|&f| {
+                matches!(
+                    ctx.part.faces[f].surface,
+                    crate::kernel::geom::Surface::Sphere { .. }
+                )
+            })
+            .collect();
+        if spheres.is_empty() {
+            return;
+        }
+        for faces in features.defining.get_mut("fillets").unwrap() {
+            faces.retain(|f| !spheres.contains(f));
+            assert!(
+                !faces.is_empty(),
+                "floor-only fillets must yield during reconciliation"
+            );
+        }
+    });
     post!("slots", "claim_rectangular_end_walls", || {
         for (record, faces) in features
             .slots
@@ -862,6 +889,10 @@ fn inventory_in_with(
     }
     if !prismatic_analysis.refusals.is_empty() {
         discovery_refusals.insert("prismatic_pocket_refusals", prismatic_analysis.refusals);
+    }
+    let floor_refusals = discover!("pockets", recess_core::floor_blend_refusals(ctx));
+    if !floor_refusals.is_empty() {
+        discovery_refusals.insert("pocket_refusals", floor_refusals);
     }
     let mut physical = Features {
         helical_springs,

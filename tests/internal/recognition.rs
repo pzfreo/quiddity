@@ -786,7 +786,7 @@ sliced!(
 
 /// Corpus parts on which reconciliation rejects candidates, between them by every rule that
 /// rejects a carried family and that the corpus reaches (`captured/reconcile/capture.json.gz`).
-const RECONCILED: [&str; 8] = [
+const RECONCILED: [&str; 9] = [
     "cadgenbench/flanged_spool_132.step",
     "cadgenbench_inputs/cgb207.step",
     "mfcadpp/1000.step",
@@ -795,6 +795,7 @@ const RECONCILED: [&str; 8] = [
     "mfcadpp/10245.step",
     "mfcadpp_holdout/467.step",
     "nist/nist_ctc_03_asme1_rc.stp",
+    "nist/nist_ftc_08_asme1_rc.stp",
 ];
 
 /// Whether *needle* is *v* or inside it.
@@ -959,6 +960,9 @@ fn rejected_candidates_are_absent_from_recognition_and_the_document() {
         // #89 removes the concave false candidates that formerly reached this rule.
         // reconcile::rust_snapshot_reconcile_scenarios still exercises it explicitly.
         "blend.fillet_superseded_by_circular_blind_step",
+        // Floor blend chains are exercised by the analytic face-group scenarios;
+        // the corpus floor treatments currently enter as fillets, not blend chains.
+        "blend.chain_superseded_by_pocket",
         "bore.hole_superseded_by_double_d_bore",
         "recess.pocket_superseded_by_edge_open_circular_pocket",
         "recess.pocket_superseded_by_prismatic",

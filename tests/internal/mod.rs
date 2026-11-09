@@ -100,3 +100,6 @@ mod polygonal_oblique_through_steps;
 
 #[path = "internal_bevels.rs"]
 mod internal_bevels;
+
+#[path = "pocket_floor_fillets.rs"]
+mod pocket_floor_fillets;
