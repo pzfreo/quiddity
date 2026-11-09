@@ -25,6 +25,14 @@ in [docs/alpha1.md](docs/alpha1.md).
   slot/fillet baselines and tighten all three FTC-08 pocket floors to nine.
   The six existing section projections remain unchanged; one explicit refusal
   records the newly recognised pocket's unsupported toroidal floor geometry.
+  Ball-end corners with equal wall/floor radii use spherical patches; their floor
+  faces are owned once by the pocket. Floor-treated pockets supersede duplicate
+  prismatic readings, and raw slot fallbacks survive until a pocket is accepted.
+  Unsupported nonanalytic revolution floor transitions issue `PocketRefusal`
+  rather than a truncated-depth pocket. FTC-08 raw slot candidates return to four;
+  its physical slot loss allowance is retired while accepted ranks stay unchanged.
+  Across revisions, adding a floor fillet to an existing pocket matches as an
+  orphaned feature plus a new feature, as a `None`→`Some` corner radius already does.
 
 - Internal bevel leg ties use intrinsic support area; symmetric ties remain unordered in
   fingerprints. Feature-policy angular tolerances retain slightly noisy STEP supports,

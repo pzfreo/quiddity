@@ -9,7 +9,26 @@ fn close(a: f64, b: f64) -> bool {
     (a - b).abs() <= COORD_FLOOR
 }
 
-pub(super) fn proposals(scan: &Scan<'_, '_>) -> Vec<Proposal<Pocket>> {
+#[derive(Default)]
+pub(super) struct Analysis {
+    pub proposals: Vec<Proposal<Pocket>>,
+    pub unsupported: Vec<BTreeSet<usize>>,
+}
+
+enum Reading {
+    Supported(Box<Proposal<Pocket>>),
+    Unsupported(BTreeSet<usize>),
+}
+impl Reading {
+    fn region(&self) -> &BTreeSet<usize> {
+        match self {
+            Self::Supported(p) => &p.constituent,
+            Self::Unsupported(r) => r,
+        }
+    }
+}
+
+pub(super) fn analyse(scan: &Scan<'_, '_>) -> Analysis {
     let part = scan.ctx.part;
     let mut out = Vec::new();
     for opening in &scan.faces {
@@ -20,28 +39,28 @@ pub(super) fn proposals(scan: &Scan<'_, '_>) -> Vec<Proposal<Pocket>> {
             }
         }
     }
-    // Intersecting cavity proofs cannot independently own a floor or transition.
     let overlaps: Vec<_> = out
         .iter()
         .enumerate()
         .map(|(i, p)| {
             out.iter()
                 .enumerate()
-                .any(|(j, q)| i != j && !p.constituent.is_disjoint(&q.constituent))
+                .any(|(j, q)| i != j && !p.region().is_disjoint(q.region()))
         })
         .collect();
-    out.into_iter()
-        .zip(overlaps)
-        .filter_map(|(p, overlap)| (!overlap).then_some(p))
-        .collect()
+    let mut analysis = Analysis::default();
+    for (p, overlap) in out.into_iter().zip(overlaps) {
+        if !overlap {
+            match p {
+                Reading::Supported(p) => analysis.proposals.push(*p),
+                Reading::Unsupported(r) => analysis.unsupported.push(r),
+            }
+        }
+    }
+    analysis
 }
 
-fn prove(
-    scan: &Scan<'_, '_>,
-    opening: &Face,
-    depth: usize,
-    wire: &[usize],
-) -> Option<Proposal<Pocket>> {
+fn prove(scan: &Scan<'_, '_>, opening: &Face, depth: usize, wire: &[usize]) -> Option<Reading> {
     let part = scan.ctx.part;
     let g = &scan.graph;
     let seed = wire_seed(part, opening.node, wire);
@@ -123,8 +142,10 @@ fn prove(
     } // sharp floors retain the existing path
     let floor_neighbours = g.neighbours(floor);
     let mut fillets = Vec::new();
+    let mut unsupported = false;
     for &f in &transitions {
-        if !floor_neighbours.contains(&f) || g.arc(floor, f) != Some(Arc::Smooth) {
+        let sphere = matches!(part.faces[f].surface, Surface::Sphere { .. });
+        if !sphere && (!floor_neighbours.contains(&f) || g.arc(floor, f) != Some(Arc::Smooth)) {
             return None;
         }
         let walls: Vec<_> = g
@@ -137,7 +158,49 @@ fn prove(
         if g.arc(wall, f) != Some(Arc::Smooth) {
             return None;
         }
-        let radius = transition_radius(scan, f, wall, depth, floor_at, sign)?;
+        let radius = match transition_radius(scan, f, wall, depth, floor_at, sign) {
+            Some(r) => r,
+            None => {
+                // STEP may encode a deep rolling corner as a nonanalytic
+                // revolution. Its complete closed floor is still observed, but
+                // its height is not a certified radius and is never published.
+                if !matches!(
+                    part.faces[f].surface,
+                    Surface::Freeform {
+                        kind: "REVOLUTION",
+                        ..
+                    }
+                ) || !matches!(part.faces[wall].surface, Surface::Cylinder { .. })
+                {
+                    return None;
+                }
+                unsupported = true;
+                let span = g.span(f, depth);
+                span.1 - span.0
+            }
+        };
+        if sphere {
+            let Surface::Sphere { frame, .. } = part.faces[f].surface else {
+                unreachable!()
+            };
+            let mut contact = frame.origin;
+            contact[depth] = floor_at;
+            if !graph::face_vertices(part, floor)
+                .iter()
+                .any(|&p| crate::kernel::geom::dist(p, contact) <= COORD_FLOOR)
+            {
+                return None;
+            }
+            let springs: Vec<_> = g
+                .neighbours(f)
+                .iter()
+                .copied()
+                .filter(|n| floor_neighbours.contains(n))
+                .collect();
+            if springs.len() != 2 || springs.iter().any(|&n| {
+                g.arc(f, n) != Some(Arc::Smooth) || !matches!(part.faces[n].surface, Surface::Cylinder { radius: r, .. } if close(r, radius))
+            }) { return None; }
+        }
         if round_measurement(radius, 3) <= 0. {
             return None;
         }
@@ -263,9 +326,12 @@ fn prove(
     if !close(record.lo(), bounds.min[long]) || !close(record.hi(), bounds.max[long]) {
         return None;
     }
+    if unsupported {
+        return Some(Reading::Unsupported(region));
+    }
     record.d_lo = floor_at.min(mouth).into();
     record.d_hi = floor_at.max(mouth).into();
-    if transitions.len() == floor_neighbours.len()
+    if floor_neighbours.iter().all(|f| transitions.contains(f))
         && fillets.iter().all(|f| close(f.radius, fillets[0].radius))
     {
         record.floor_radius = Some(fillets[0].radius);
@@ -275,13 +341,13 @@ fn prove(
         f.radius = round_measurement(f.radius, 3);
     }
     record.floor_fillets = fillets;
-    Some(Proposal {
+    Some(Reading::Supported(Box::new(Proposal {
         record,
         planar,
         caps: vec![transitions],
         floors: BTreeSet::from([floor]),
         constituent: region,
-    })
+    })))
 }
 
 fn transition_radius(
@@ -332,6 +398,16 @@ fn transition_radius(
                 .filter(|&a| a != depth)
                 .all(|a| close(frame.origin[a], w.origin[a])))
         .then_some(minor),
+        (Surface::Sphere { frame, radius: r }, Surface::Cylinder { frame: w, radius }) => (r > 0.
+            && close(r, radius)
+            && aligned(w.z, depth)
+            && part.frame_points_outward(face) == Some(false)
+            && part.frame_points_outward(wall) == Some(false)
+            && close(frame.origin[depth], floor + f64::from(sign) * r)
+            && (0..3)
+                .filter(|&a| a != depth)
+                .all(|a| close(frame.origin[a], w.origin[a])))
+        .then_some(r),
         _ => None,
     }
 }

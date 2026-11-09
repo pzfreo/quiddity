@@ -385,8 +385,12 @@ fn ftc08_floor_fillet_pocket_replaces_only_its_slot_and_floor_rounds() {
             pocket_faces.sort_unstable();
         }
         assert_eq!(f.defining["pockets"][8], pocket_faces, "{mode}");
-        assert_eq!(f.slots.len(), 3, "{mode}");
-        assert_eq!(claims(&f.defining["slots"]), expected_slots, "{mode}");
+        let mut slots = expected_slots.clone();
+        if mode == "physical" {
+            slots.insert(vec![214, 216]);
+        }
+        assert_eq!(f.slots.len(), slots.len(), "{mode}");
+        assert_eq!(claims(&f.defining["slots"]), slots, "{mode}");
         let mut fillets = expected_fillets.clone();
         if mode == "physical" {
             fillets.extend([82, 84, 85, 135].map(|f| vec![f]));

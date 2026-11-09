@@ -51,6 +51,7 @@ pub(crate) mod tests {
         let part = island_pocket();
         let families = [
             "pad_refusals",
+            "pocket_refusals",
             "prismatic_pocket_refusals",
             "section_passage_refusals",
             "oriented_slot_refusals",

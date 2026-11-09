@@ -91,7 +91,7 @@ pub struct Pocket {
 }
 
 /// An analytic floor transition, identified by file face indices. The wall may be
-/// planar or a depth-axis corner cylinder; `face` is the transverse cylinder or torus.
+/// planar or a depth-axis corner cylinder; `face` is the transverse cylinder, torus or spherical floor corner.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FloorFillet {
     pub face: usize,

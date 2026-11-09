@@ -1142,3 +1142,56 @@ The document's seventh section-family row is a newly explicit refusal because
 stays six. `ftc08_floor_fillet_pocket_replaces_only_its_slot_and_floor_rounds`
 checks the native radii, changing footprint, torus curvature, complete pocket
 ownership, exact surviving slot/fillet groups, and the six sections plus refusal.
+
+
+### Floor-round review controls and refusal policy (#228)
+
+A ball-end pocket with equal vertical-corner and floor radii uses spherical
+corner patches in place of zero-major-radius tori. A sphere is admitted only
+when its radius equals its supporting depth-axis corner cylinder's radius,
+its centre lies on that axis at `floor + open_sign * radius`, and it joins the
+two same-radius cylindrical floor strips smoothly. Its floor contact is a
+proved floor vertex, rather than a shared floor edge. The per-face
+`floor_fillets` list includes these point-contact corner patches; a fully
+rounded r3/r3 floor reports uniform `floor_radius: 3`. Legacy vertical-wall
+fillets retain their cylinders, while spherical bottom caps owned by the pocket
+are removed from those fillets' defining claims.
+
+A four-sided prismatic wall reading yields to the complete floor-treated pocket
+only after pocket acceptance. The full pocket's additional floor-transition
+claims do not prevent that containment proof. This removes both the duplicate
+machining claim and its duplicate `SectionRecessRefusal`; the remaining single
+section refusal is still correct for this non-constant-section cavity. The
+same rule applies to the partial-floor fixture. Level/riser evidence can still
+co-own faces under the existing evidence policy.
+
+Legacy pocket seeds are retired on overlapping cavity membership, including
+seeds that selected a different floor. Supported closed-pocket proposals leave
+raw slot candidates available until reconciliation proves an accepted winner.
+Thus a subsequently rejected pocket cannot erase its slot fallback. FTC-08's
+physical slot count returns to its historical four; its accepted/framed counts
+remain three, and only the obsolete physical-slot loss allowance is retired.
+
+The r3.9-in-4-mm review part retains 0.1-mm straight walls but has four STEP
+`REVOLUTION` corner patches stored as nonanalytic B-splines. They are outside
+the native analytic radius proof. The complete closed floor is nevertheless
+observed through smooth boundaries. No slot or shallow legacy pocket is issued
+for that cavity. Optional additive family `pocket_refusals` publishes
+`PocketRefusal {reason: "unsupported_floor_transition", faces: [...]}` through
+the existing discovery-refusal contract. It claims no manufacturing faces and
+adds no fingerprint; other supported cavities on the same part remain eligible.
+Schema `/6` is unchanged, following the other additive discovery-refusal families.
+The bounded-transition height used to validate this refused cavity is never
+published as an inferred radius.
+
+`tools/make_pocket_floor_fillets.py --near-misses-only` reproduces the independent
+review constructions as small compressed STEP controls. The open blind slot,
+island boss, floor through-hole, mouth-rim fillet and sloped floor do not receive
+floor-fillet pocket records. Spherical, sharp-corner full-floor and deep-refusal
+controls pin the positive and unsupported cases. The independent review source
+files are read-only inputs; no fixture generator writes into that directory.
+
+Feature matching retains its existing size-spec contract: adding a floor fillet
+changes an existing pocket from an orphaned feature to a newly recognised feature
+across revisions, just as a `None`→`Some` corner-radius proof does. This change
+does not introduce a correspondence heuristic or alter other feature ranks.

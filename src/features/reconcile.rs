@@ -606,13 +606,16 @@ fn recesses(
     prismatic_sides: &[usize],
     evidence: &Evidence,
 ) {
-    // A four-sided ring yields to a rectangular pocket built from its walls.
+    // Keep the historical sharp-floor precedence. Floor-treated pockets have
+    // additional defining faces and retire their ring only after acceptance below.
     let mut accepted_prismatic = Vec::new();
     for (i, ring) in prismatic.faces.iter().enumerate() {
-        let four = prismatic_sides[i] == 4;
         let by = winners(pockets, |walls| {
-            four && !walls.is_empty() && walls.is_subset(ring)
-        });
+            prismatic_sides[i] == 4 && !walls.is_empty() && walls.is_subset(ring)
+        })
+        .into_iter()
+        .filter(|&j| evidence.pocket_floor_fillets[j].is_empty())
+        .collect::<Vec<_>>();
         if by.is_empty() {
             accepted_prismatic.push(i);
         } else {
@@ -674,6 +677,35 @@ fn recesses(
             None => accepted_pockets.push(i),
         }
     }
+
+    // A complete floor-treated pocket defines more than its planar wall seed.
+    // Its four-sided ring is subordinate only when that pocket actually survives.
+    accepted_prismatic.retain(|&i| {
+        let ring = &prismatic.faces[i];
+        let by: Vec<_> = accepted_pockets
+            .iter()
+            .copied()
+            .filter(|&j| {
+                let walls = &pockets.faces[j];
+                prismatic_sides[i] == 4
+                    && !ring.is_empty()
+                    && !evidence.pocket_floor_fillets[j].is_empty()
+                    && ring.is_subset(walls)
+            })
+            .collect();
+        if by.is_empty() {
+            true
+        } else {
+            decisions.push(
+                prismatic,
+                i,
+                ReasonCode::PrismaticSupersededByPocket,
+                pockets,
+                by,
+            );
+            false
+        }
+    });
 
     // Non-rectangular passages' walls pooled by their exact (axis, section) grouping key, in
     // first-seen order; four-sided passages are tested on their own below.

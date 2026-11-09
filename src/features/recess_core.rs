@@ -519,10 +519,12 @@ pub fn slot_proposals(
         merge_proposals_in(candidates, Some(scan.part_ext)),
     );
     let extended = extend_obround_proposals(merged, &scan.cylinders, strict)?;
-    let closed = floor_blends::proposals(&scan);
+    // Supported pockets compete in reconciliation; an unsupported closed floor
+    // is still positive evidence against a through-slot, independent of a winner.
+    let unsupported = floor_blends::analyse(&scan).unsupported;
     Ok(extended
         .into_iter()
-        .filter(|p| !closed.iter().any(|c| p.defining().is_subset(&c.constituent)))
+        .filter(|p| !unsupported.iter().any(|r| p.defining().is_subset(r)))
         .map(|p| {
             let record = with_proved_corner_radius(p.record.clone(), &scan.cylinders);
             p.replaced(record)
@@ -575,11 +577,17 @@ pub fn pocket_proposals(
             p.replaced(record)
         })
         .collect();
-    let blended = floor_blends::proposals(&scan);
-    let mut proposals = proposals;
-    // A complete closed-cavity proof replaces truncated planar-floor seeds on the
-    // same floor, without inserting records into other families or changing their order.
-    proposals.retain(|p| !blended.iter().any(|b| !p.floors.is_disjoint(&b.floors)));
+    let analysis = floor_blends::analyse(&scan);
+    let blended = analysis.proposals;
+    let mut proposals = attach_complete_pocket_regions(&scan, proposals);
+    // A complete cavity replaces every overlapping legacy seed, including seeds
+    // that selected the mouth as a floor within FLOOR_TOL. Unsupported lower
+    // transitions cannot leave a falsely shallow legacy pocket behind either.
+    proposals.retain(|p| {
+        !blended.iter().map(|b| &b.constituent).chain(&analysis.unsupported).any(|r| {
+            !p.constituent.is_disjoint(r) || !p.defining().is_disjoint(r)
+        })
+    });
     if !blended.is_empty() {
         proposals.extend(blended);
         proposals.sort_by(|a, b| super::recess_reduce::width_then_centre(&a.record, &b.record));
@@ -1226,4 +1234,21 @@ mod pocket_boundary_tests {
             }
         }
     }
+}
+
+/// Closed, floored cavities whose nonanalytic transitions cannot prove a radius.
+pub(crate) fn floor_blend_refusals(ctx: &Context<'_>) -> Vec<super::discovery::DiscoveryRefusal> {
+    ctx.part
+        .solids
+        .iter()
+        .enumerate()
+        .flat_map(|(solid, _)| {
+            floor_blends::analyse(&Scan::new(ctx, solid))
+                .unsupported
+                .into_iter()
+                .map(|faces| {
+                    super::discovery::DiscoveryRefusal::new("unsupported_floor_transition", faces)
+                })
+        })
+        .collect()
 }

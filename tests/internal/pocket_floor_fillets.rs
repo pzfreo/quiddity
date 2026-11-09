@@ -5,14 +5,22 @@ use quiddity::features::{self, Context, pockets, slots};
 use quiddity::kernel::geom::Surface;
 
 fn read(name: &str) -> quiddity::Part {
-    quiddity::read_step_file(&common::fixtures().join(format!("{name}.step"))).unwrap()
+    let path = common::fixtures().join(format!("{name}.step"));
+    quiddity::read_step_file(&if path.exists() {
+        path
+    } else {
+        path.with_extension("step.gz")
+    })
+    .unwrap()
 }
 
 #[test]
 fn closed_floor_rounds_belong_to_a_full_depth_pocket() {
-    for (name, corner, uniform, count) in [
-        ("pocket_floor_fillet", Some(5.), Some(1.5), 8),
-        ("pocket_partial_floor_fillet", None, None, 2),
+    for (name, corner, uniform, count, radius) in [
+        ("pocket_floor_fillet", Some(5.), Some(1.5), 8, 1.5),
+        ("pocket_partial_floor_fillet", None, None, 2, 1.5),
+        ("pocket_ball_floor", Some(3.), Some(3.), 8, 3.),
+        ("pocket_sharp_corner_floor", None, Some(1.5), 4, 1.5),
     ] {
         let part = read(name);
         assert!(part.solid_is_geometrically_valid(0));
@@ -20,7 +28,22 @@ fn closed_floor_rounds_belong_to_a_full_depth_pocket() {
         assert!(found.failures.is_empty(), "{:?}", found.failures);
         assert_eq!(found.pockets.len(), 1, "{name}: {found:?}");
         assert!(found.slots.is_empty());
-        assert!(slots::discover(&Context::new(&part)).is_empty());
+        assert!(
+            found.prismatic_pockets.is_empty(),
+            "one pocket owner: {name}"
+        );
+        let inventory = features::inventory(&part).unwrap();
+        let raw_slots = slots::discover(&Context::new(&part));
+        assert!(
+            !raw_slots.is_empty(),
+            "retain the raw fallback until acceptance"
+        );
+        assert!(
+            inventory
+                .dispositions
+                .iter()
+                .any(|d| d.reason == features::reconcile::ReasonCode::SlotSupersededByPocket)
+        );
         let p = &found.pockets[0];
         assert_eq!((p.width, p.length, p.depth), (20., 30., 4.));
         assert_eq!(p.corner_radius, corner);
@@ -28,7 +51,7 @@ fn closed_floor_rounds_belong_to_a_full_depth_pocket() {
         assert_eq!(p.floor_fillets.len(), count);
         let defining = &found.defining["pockets"][0];
         for f in &p.floor_fillets {
-            assert_eq!(f.radius, 1.5);
+            assert_eq!(f.radius, radius);
             assert!(defining.contains(&f.face));
             assert!(
                 !found.defining["fillets"]
@@ -43,8 +66,8 @@ fn closed_floor_rounds_belong_to_a_full_depth_pocket() {
                     .any(|&i| i == f.face)
             );
             match part.faces[f.face].surface {
-                Surface::Cylinder { frame, radius } => {
-                    assert_eq!(radius, 1.5);
+                Surface::Cylinder { frame, radius: r } => {
+                    assert_eq!(r, radius);
                     assert!(frame.z[2].abs() < 1e-9, "horizontal floor edge");
                     assert!(matches!(
                         part.faces[f.wall_face].surface,
@@ -60,12 +83,50 @@ fn closed_floor_rounds_belong_to_a_full_depth_pocket() {
                     assert_eq!(radius, 5.);
                     assert!(frame.z[2].abs() > 1. - 1e-9, "vertical r5 corner");
                 }
+                Surface::Sphere { radius: r, frame } => {
+                    assert_eq!(r, 3.);
+                    assert_eq!(frame.origin[2], 9.);
+                    let Surface::Cylinder { radius: wall, .. } = part.faces[f.wall_face].surface
+                    else {
+                        panic!("sphere corner wall")
+                    };
+                    assert_eq!(wall, r);
+                }
                 _ => panic!("nonanalytic floor transition"),
             }
         }
         let direct = pockets::discover_verified(&Context::new(&part)).unwrap();
         assert_eq!(direct.len(), 1);
         assert_eq!(direct[0].record, *p);
+        let published = quiddity::correspondence::recognise(&part);
+        let doc = quiddity::recognition::document(&published, part.faces.len());
+        assert_eq!(
+            doc.records.iter().filter(|r| r.family == "pockets").count(),
+            1
+        );
+        assert!(!doc.records.iter().any(|r| r.family == "prismatic_pockets"));
+        for face in &published.features.defining["pockets"][0] {
+            let quiddity::recognition::FaceAccounting::Feature { record_ids } =
+                &doc.face_accounting.as_ref().unwrap()[*face]
+            else {
+                panic!("pocket face")
+            };
+            // Levels/risers are evidence co-owners permitted by the existing
+            // floor-claim policy; there must be exactly one machining owner.
+            let machining: Vec<_> = record_ids
+                .iter()
+                .filter(|id| !id.starts_with("step_levels/") && !id.starts_with("risers/"))
+                .cloned()
+                .collect();
+            assert_eq!(machining, ["pockets/0"], "{name} face {face}");
+        }
+        // The remaining section refusal describes this one non-constant-section
+        // pocket. A prismatic duplicate must not emit a second refusal.
+        assert_eq!(
+            published.features.section_recess_refusals.len(),
+            1,
+            "{name}"
+        );
     }
 }
 
@@ -104,7 +165,12 @@ fn true_through_slots_do_not_acquire_a_floor() {
 #[test]
 fn floor_rounds_survive_motion_and_self_contained_publication() {
     let (s, c) = 0.37_f64.sin_cos();
-    for name in ["pocket_floor_fillet", "pocket_partial_floor_fillet"] {
+    for name in [
+        "pocket_floor_fillet",
+        "pocket_partial_floor_fillet",
+        "pocket_ball_floor",
+        "pocket_sharp_corner_floor",
+    ] {
         let part = read(name);
         for at in [
             quiddity::kernel::step::IDENTITY,
@@ -124,11 +190,20 @@ fn floor_rounds_survive_motion_and_self_contained_publication() {
             assert_eq!(p["depth"], 4.);
             assert_eq!(
                 p["floor_fillets"].as_array().unwrap().len(),
-                if name == "pocket_floor_fillet" { 8 } else { 2 }
+                match name {
+                    "pocket_partial_floor_fillet" => 2,
+                    "pocket_sharp_corner_floor" => 4,
+                    _ => 8,
+                }
             );
             assert!(!document.records.iter().any(|r| r.family == "slots"));
             if name == "pocket_floor_fillet" {
                 assert_eq!(p["corner_radius"], 5.);
+                assert_eq!(p["floor_radius"], 1.5);
+            } else if name == "pocket_ball_floor" {
+                assert_eq!(p["corner_radius"], 3.);
+                assert_eq!(p["floor_radius"], 3.);
+            } else if name == "pocket_sharp_corner_floor" {
                 assert_eq!(p["floor_radius"], 1.5);
             } else {
                 assert!(p.get("floor_radius").is_none());
@@ -144,6 +219,14 @@ fn rust_snapshot_pocket_floor_fillets() {
         "pocket_floor_fillet",
         "pocket_partial_floor_fillet",
         "golden_straight_and_obround_slots",
+        "pocket_ball_floor",
+        "pocket_sharp_corner_floor",
+        "pocket_deep_floor",
+        "pocket_floor_open_slot",
+        "pocket_floor_island",
+        "pocket_floor_hole",
+        "pocket_mouth_rim",
+        "pocket_sloped_floor",
     ]
     .into_iter()
     .map(|name| {
@@ -157,4 +240,99 @@ fn rust_snapshot_pocket_floor_fillets() {
     })
     .collect();
     common::snapshot::check(&common::fixtures(), "pocket_floor_fillets", &actual.into());
+}
+
+#[test]
+fn near_misses_do_not_claim_a_floor_fillet_pocket() {
+    for name in [
+        "pocket_floor_open_slot",
+        "pocket_floor_island",
+        "pocket_floor_hole",
+        "pocket_mouth_rim",
+        "pocket_sloped_floor",
+    ] {
+        let part = read(name);
+        assert!(part.solid_is_geometrically_valid(0), "{name}");
+        let direct = pockets::discover_verified(&Context::new(&part)).unwrap();
+        assert!(
+            direct.iter().all(|p| p.record.floor_fillets.is_empty()),
+            "{name}"
+        );
+        let r = quiddity::correspondence::recognise(&part);
+        assert!(
+            r.features
+                .pockets
+                .iter()
+                .all(|p| p.floor_fillets.is_empty()),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn deep_nonanalytic_floor_is_refused_without_a_truncated_pocket() {
+    let part = read("pocket_deep_floor");
+    // OCCT exported the four corner patches as nonanalytic revolutions, not
+    // native tori. Four 0.1-mm vertical walls are not a 0.1-mm-deep pocket.
+    assert_eq!(
+        part.faces
+            .iter()
+            .filter(|f| matches!(
+                f.surface,
+                Surface::Freeform {
+                    kind: "REVOLUTION",
+                    ..
+                }
+            ))
+            .count(),
+        4
+    );
+    let r = quiddity::correspondence::recognise(&part);
+    assert!(r.features.pockets.is_empty());
+    assert!(r.features.slots.is_empty());
+    let doc = quiddity::recognition::document(&r, part.faces.len());
+    let refusals: Vec<_> = doc
+        .records
+        .iter()
+        .filter(|f| f.record_type == "PocketRefusal")
+        .collect();
+    assert_eq!(refusals.len(), 1);
+    assert_eq!(
+        refusals[0].parameters["reason"],
+        "unsupported_floor_transition"
+    );
+    assert!(refusals[0].is_refusal());
+}
+
+#[test]
+fn a_rejected_closed_pocket_does_not_erase_the_slot_fallback() {
+    use features::reconcile::{self, Family, Outcome, ReasonCode};
+    let part = read("pocket_floor_fillet");
+    let inventory = features::inventory(&part).unwrap();
+    let mut defining = inventory.physical.defining.clone();
+    let evidence = reconcile::Evidence::discover(&Context::new(&part)).unwrap();
+    let walls = defining["pockets"][0].clone();
+    // An independently supplied higher-priority proof rejects the pocket. The
+    // slot is still a candidate and must not cite that rejected pocket as owner.
+    defining.insert("edge_open_circular_pockets", vec![walls]);
+    let sides = inventory
+        .physical
+        .prismatic_pockets
+        .iter()
+        .map(|p| p.sides)
+        .collect::<Vec<_>>();
+    let decisions = reconcile::reconcile_faces(&defining, &sides, &evidence).unwrap();
+    assert!(
+        decisions
+            .iter()
+            .any(|d| d.candidate.family == Family::Pockets
+                && d.outcome == Outcome::Rejected
+                && d.reason == ReasonCode::PocketSupersededByEdgeOpenCircularPocket)
+    );
+    assert!(!defining["slots"].is_empty());
+    assert!(
+        !decisions
+            .iter()
+            .any(|d| d.candidate.family == Family::Slots && d.outcome == Outcome::Rejected)
+    );
 }
