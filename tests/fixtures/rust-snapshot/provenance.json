@@ -3044,7 +3044,7 @@
     "tests/fixtures/interrupted_corner_rot.step": "e384424458d1510d4c5cc540427deea9308785b2db342256f7671ac6fe2ddfe9",
     "tests/fixtures/interrupted_fillet_hub.step": "d134da8c062c812633fcaa723fa5479ad14b6a9ef4a960b41cbcabf7b0a0820c",
     "tests/fixtures/interrupted_pocket_mouth.step": "079c85d758f9dbad90593f49e5af7d9a8b90912bfddd13df97f3c8a354161687",
-    "tests/fixtures/inventory_floor.json": "6d11e8a670abbeb96ae50913d4987df023eba87d1d1973a6678bb505f5fcdedb",
+    "tests/fixtures/inventory_floor.json": "483fe66586d5d560ebfd300fa29fbe3e091b623faaa858d7172452a4edd14c6f",
     "tests/fixtures/kissing_cylinders_knife.step": "2208a45500ffbd4b7fb8de3faf6548c7593eaf9b2613cfd5ae7597f90b61cfe6",
     "tests/fixtures/kissing_cylinders_notch.step": "c36b869747e41d40ccadadbd17934abeec3e661fcb6e87a69930ce3d30e7119a",
     "tests/fixtures/large_block_small_fillets.step": "bfcbd950368723969e8881d09386a579654546f1e36700afa8a773d0d4aece55",
@@ -5906,5 +5906,5 @@
     "sections/test/parts/fc9cb0ef3d518aa4.step.gz.json.gz": "ad246bd3ca231dda3e7fe1fc54cd798984e7dcd9da376dcb609c3c42001086f8",
     "step_levels.json.gz": "b1d837579387b475bfb90cc5670098890fdfe83fddcbf0e2236a24207c2de1ff"
   },
-  "source_commit": "e01b44acff2884d428a0441b38fc035263739c29"
+  "source_commit": "90123dfedbf48ceab6fc919c87757b63109c9d0a"
 }
