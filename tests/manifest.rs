@@ -441,3 +441,25 @@ fn scanner_literals_and_retained_state_are_structure_only() {
         }
     }
 }
+
+#[test]
+fn presentation_dependencies_stay_unowned_and_do_not_merge_with_geometry() {
+    let original = torus();
+    let base = manifest::scan(Cursor::new(&original), &ScanOptions::default()).unwrap();
+    let mut text = String::from_utf8(original).unwrap();
+    let at = text.rfind("ENDSEC;").unwrap();
+    let added = "\n#1000=SURFACE_SIDE_STYLE('annotation',());\n#1001=TEXT_LITERAL('annotation',#26,$,.RIGHT.);\n#1002=COMPOSITE_TEXT('annotation',(#1001));\n#1003=EXTERNALLY_DEFINED_TEXT_FONT('annotation');\n#1004=DEFINED_SYMBOL('annotation');\n#1005=ITEM_IDENTIFIED_REPRESENTATION_USAGE('annotation','',#4,#10,(#17));\n#1006=COMMON_DATUM('annotation');\n#1007=LIMITS_AND_FITS('annotation');\n#1008=FUTURE_METADATA('other');\n";
+    text.insert_str(at, added);
+    let m = manifest::scan(Cursor::new(text.as_bytes()), &ScanOptions::default()).unwrap();
+    assert_eq!(
+        m.unowned.presentation.entities,
+        base.unowned.presentation.entities + 8
+    );
+    assert_eq!(m.unowned.other.entities, base.unowned.other.entities + 1);
+    assert_eq!(m.products, base.products);
+    assert!(m.refusals.is_empty());
+    let changed = text.replace("annotation", "Annotation");
+    m.read_product(&temp_source(changed.as_bytes()), "p0")
+        .unwrap();
+    assert!(m.verify_source(Cursor::new(changed.as_bytes())).is_err());
+}

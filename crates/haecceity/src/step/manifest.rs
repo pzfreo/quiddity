@@ -225,6 +225,10 @@ fn is_presentation(n: &str) -> bool {
         "FILL_AREA_STYLE",
         "POINT_STYLE",
         "TEXT_STYLE",
+        "TEXT_LITERAL",
+        "COMPOSITE_TEXT",
+        "SURFACE_CONDITION",
+        "SURFACE_TEXTURE",
         "ANNOTATION",
         "DRAUGHTING",
         "CAMERA",
@@ -240,6 +244,9 @@ fn is_presentation(n: &str) -> bool {
     .any(|p| n.starts_with(p))
         || n.contains("TOLERANCE")
         || n.contains("SHAPE_ASPECT")
+        || n.contains("STYLE")
+        || n.contains("SYMBOL")
+        || n.ends_with("_FONT")
         || matches!(
             n,
             "MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION"
@@ -248,6 +255,9 @@ fn is_presentation(n: &str) -> bool {
                 | "PRE_DEFINED_COLOUR"
                 | "PRE_DEFINED_CURVE_FONT"
                 | "GEOMETRIC_ITEM_SPECIFIC_USAGE"
+                | "ITEM_IDENTIFIED_REPRESENTATION_USAGE"
+                | "COMMON_DATUM"
+                | "LIMITS_AND_FITS"
         )
 }
 fn topology(n: &str) -> bool {

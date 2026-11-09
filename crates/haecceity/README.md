@@ -255,11 +255,14 @@ Classification uses type names, including every leaf of complex entities, in thi
   `AXIS2_PLACEMENT_3D`, `AXIS2_PLACEMENT_2D`. Placement frames and their point/direction
   dependencies are copied without joining products through a shared standard frame.
 - Presentation/PMI: prefixes `STYLED_`, `COLOUR`, `COLOR`, `PRESENTATION_`, `SURFACE_STYLE`,
-  `CURVE_STYLE`, `FILL_AREA_STYLE`, `POINT_STYLE`, `TEXT_STYLE`, `ANNOTATION`, `DRAUGHTING`,
+  `CURVE_STYLE`, `FILL_AREA_STYLE`, `POINT_STYLE`, `TEXT_STYLE`, `TEXT_LITERAL`, `COMPOSITE_TEXT`,
+  `SURFACE_CONDITION`, `SURFACE_TEXTURE`, `ANNOTATION`, `DRAUGHTING`,
   `CAMERA`, `LIGHT_SOURCE`, `GEOMETRIC_TOLERANCE`, `DATUM`, `DIMENSIONAL_`, `DIMENSION_`,
-  `SHAPE_ASPECT`, `TESSELLATED_ANNOTATION`; names containing `TOLERANCE` or `SHAPE_ASPECT`;
+  `SHAPE_ASPECT`, `TESSELLATED_ANNOTATION`; names containing `TOLERANCE`, `SHAPE_ASPECT`,
+  `STYLE` or `SYMBOL`, or ending in `_FONT`;
   and `MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION`, `OVER_RIDING_STYLED_ITEM`,
-  `INVISIBILITY`, `PRE_DEFINED_COLOUR`, `PRE_DEFINED_CURVE_FONT`, `GEOMETRIC_ITEM_SPECIFIC_USAGE`.
+  `INVISIBILITY`, `PRE_DEFINED_COLOUR`, `PRE_DEFINED_CURVE_FONT`, `GEOMETRIC_ITEM_SPECIFIC_USAGE`,
+  `ITEM_IDENTIFIED_REPRESENTATION_USAGE`, `COMMON_DATUM`, `LIMITS_AND_FITS`.
 - A plain `SHAPE_REPRESENTATION_RELATIONSHIP` (including its complex inherited leaves) is
   geometry; a relationship with a transformation is assembly.
 - Geometry: everything else. Only references between geometry entities participate in
