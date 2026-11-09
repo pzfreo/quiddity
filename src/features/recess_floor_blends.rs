@@ -258,9 +258,7 @@ fn prove(
     if seed.len() == 8 {
         // Depth-axis r5 cylinders are vertical wall corners, not floor rounds.
         record = with_proved_corner_radius(record, &scan.cylinders);
-        if record.corner_radius.is_none() {
-            return None;
-        }
+        record.corner_radius?;
     }
     if !close(record.lo(), bounds.min[long]) || !close(record.hi(), bounds.max[long]) {
         return None;
