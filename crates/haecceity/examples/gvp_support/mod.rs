@@ -57,15 +57,16 @@ fn selected_faces(doc: &Document, items: &[u64], sources: &[u64]) -> Vec<usize> 
         .collect()
 }
 fn measure(part: &Part, faces: &[usize], whole: bool) -> Value {
-    let mass = if whole && part.solids.is_empty() {
-        part.shell_mass(faces).map(|(_, a)| (0.0, a))
-    } else if whole {
-        part.solids
+    let mass = if whole {
+        let volume = part
+            .solids
             .iter()
             .enumerate()
-            .try_fold((0.0, 0.0), |(v, a), (i, _)| {
-                part.solid_mass(i).map(|(w, b)| (v + w, a + b))
-            })
+            .try_fold(0.0, |v, (i, _)| part.solid_mass(i).map(|(w, _)| v + w));
+        let area = faces
+            .iter()
+            .try_fold(0.0, |a, &f| part.face_mass(f).map(|m| a + m[0]));
+        volume.zip(area)
     } else {
         part.shell_mass(faces)
     };
@@ -83,7 +84,16 @@ fn measure(part: &Part, faces: &[usize], whole: bool) -> Value {
         .volume_centroid()
     };
     let bounds = part.bounds();
-    json!({"volume":mass.map(|m|m.0),"area":mass.map(|m|m.1),"centroid":centroid.map(|m|m.1),"diagonal":geom::dist(bounds.min,bounds.max),"unresolved_faces":part.unresolved_faces(),"unresolved_edges":part.unresolved_edges()})
+    let unintegrated: Vec<_> = if mass.is_none() {
+        faces
+            .iter()
+            .filter(|&&f| part.face_mass(f).is_none())
+            .map(|&f| json!({"index":f,"entity":part.face_source(f).map(|s|s.entity)}))
+            .collect()
+    } else {
+        Vec::new()
+    };
+    json!({"unintegrated_faces":unintegrated,"volume":mass.map(|m|m.0),"area":mass.map(|m|m.1),"centroid":centroid.map(|m|m.1),"diagonal":geom::dist(bounds.min,bounds.max),"unresolved_faces":part.unresolved_faces(),"unresolved_edges":part.unresolved_edges()})
 }
 pub fn file(path: &Path) -> Result<Value, Box<dyn std::error::Error>> {
     let raw = bytes(path)?;
@@ -98,34 +108,51 @@ pub fn file(path: &Path) -> Result<Value, Box<dyn std::error::Error>> {
             .iter()
             .flat_map(|s| s.faces.iter().copied())
             .collect();
-        let solid_faces = if solid_faces.is_empty() {
-            (0..part.faces.len()).collect()
-        } else {
-            solid_faces
-        };
-        let whole_ours = measure(&part, &solid_faces, true);
+        let whole_faces: Vec<_> = (0..part.faces.len()).collect();
+        let whole_ours = measure(&part, &whole_faces, true);
         let mut cache = std::collections::HashMap::new();
         let mut validations = Vec::new();
         for p in properties.iter().filter(|p| {
             p.product_definition == Some(def.product_definition) && p.occurrence.is_none()
         }) {
             let whole = p.target == def.shape || p.target == def.product_definition;
-            let faces = if whole {
-                solid_faces.clone()
+            let mut faces = if whole {
+                whole_faces.clone()
             } else {
                 selected_faces(&doc, &p.items, &def.faces)
             };
+            // These legacy AP203 exports put the boundary curves of independent sheets in
+            // the aspect representation. Its explicit description scopes the property to
+            // all surface data of the product, not to its closed material solids.
+            let surface_data = matches!(doc.get(p.target),Some(p21::RawEntity::Simple {name,attributes,..}) if name=="SHAPE_ASPECT" && matches!(attributes.get(1),Some(p21::Attribute::String(description)) if description.to_ascii_lowercase().starts_with("surface data associated with ")));
+            if faces.is_empty() && surface_data {
+                faces = (0..part.faces.len())
+                    .filter(|&f| part.faces[f].solid.is_none())
+                    .collect();
+            }
             let ours = if faces.is_empty() {
                 Value::Null
-            } else if whole || faces == solid_faces {
+            } else if whole || faces == whole_faces {
                 whole_ours.clone()
+            } else if faces == solid_faces {
+                // The same material as the product, excluding its independent sheets.
+                // Reuse the original part's moments rather than constructing new caches.
+                let mut material = whole_ours.clone();
+                material["area"] = json!(
+                    faces
+                        .iter()
+                        .try_fold(0.0, |a, &f| part.face_mass(f).map(|m| a + m[0]))
+                );
+                material
+            } else if p.volume.is_none() && p.centroid.is_none() {
+                json!({"volume":null,"centroid":null,"area":faces.iter().try_fold(0.0,|a,&f|part.face_mass(f).map(|m|a+m[0])),"diagonal":whole_ours["diagonal"]})
             } else {
                 cache
                     .entry(faces.clone())
                     .or_insert_with(|| measure(&part, &faces, false))
                     .clone()
             };
-            validations.push(json!({"property":p.property,"target":p.target,"items":p.items,"faces":faces,"reference":{"volume":p.volume,"area":p.area,"centroid":p.centroid},"ours":ours,"scope":if whole {"product"} else {"aspect"}}));
+            validations.push(json!({"property":p.property,"target":p.target,"items":p.items,"faces":faces,"reference":{"volume":p.volume,"area":p.area,"centroid":p.centroid},"ours":ours,"association":if surface_data {"legacy surface-data aspect: independent sheets of owning product"} else {"explicit STEP owner/geometry"},"scope":if whole {"product"} else {"aspect"}}));
         }
         parts.push(json!({"part":i,"name":def.name,"product_definition":def.product_definition,"faces":def.faces,"placements":def.placements.iter().map(|p|p.placement).collect::<Vec<_>>(),"ours":whole_ours,"gvp":validations}));
     }

@@ -29,9 +29,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--rust', type=Path, required=True)
     parser.add_argument('--json', type=Path)
+    parser.add_argument('--jobs', type=int, choices=range(1,7), default=1)
     parser.add_argument('paths', nargs='+')
     args = parser.parse_args()
-    process = subprocess.Popen([str(args.rust.resolve()), *args.paths], stdout=subprocess.PIPE, text=True)
+    process = subprocess.Popen([str(args.rust.resolve()), '--jobs', str(args.jobs), *args.paths], stdout=subprocess.PIPE, text=True)
     rows, counts, worst = [], collections.Counter(), []
     print('Units mm^3, mm^2, mm. Relative centroid error = distance / part box diagonal.')
     print('Acceptance <=0.001 for all three normalized errors. Missing values are UNAVAILABLE, never PASS.')
@@ -63,22 +64,27 @@ def main():
     for line in process.stdout:
         row = json.loads(line)
         print(f'measuring {row["file"]}', file=sys.stderr, flush=True)
-        if 'error' not in row:
-            try:
-                compare(row)
-            except Exception as exc:
-                row['occt_error'] = str(exc)
+        try:
+            compare(row)
+        except Exception as exc:
+            row['occt_error'] = str(exc)
         rows.append(row)
         file = row['file']
         if 'error' in row:
             print(f'{file} | READ ERROR | {row["error"]}')
+            for i, reference in enumerate(row.get('occt_parts', [])):
+                emit(file,f'OCCT part {i} (ours unreadable)','B',{},reference['reference'],1.0)
             continue
         if 'occt_error' in row:
             print(f'{file} | OCCT ERROR | {row["occt_error"]}')
+            for i, reference in enumerate(row.get('occt_parts', [])):
+                print(f'{file} | OCCT part {i} | independent measurements | {reference}')
         for part in row['parts']:
             label = f'{part["part"]}:{part["name"]}'
             ours = part['ours']
             diagonal = ours['diagonal']
+            if ours.get('unintegrated_faces') or ours.get('unresolved_faces'):
+                print(f'{file} | {label} | integration diagnostics | {ours}')
             emit(file, label, 'B', ours, part.get('occt', {}), diagonal)
             for prop in part['gvp']:
                 label_a = label+f'/GVP#{prop["property"]}({prop["scope"]})'

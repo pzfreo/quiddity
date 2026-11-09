@@ -5,6 +5,7 @@ part definitions in assembly traversal order, as StepFile.parts does. Faces foll
 TopExp.MapShapes, the numbering contract of StepFile.part. Mismatched counts fail.
 """
 import gzip
+import re
 import tempfile
 import OCP
 from OCP.STEPCAFControl import STEPCAFControl_Reader
@@ -92,25 +93,44 @@ def load(path):
                 parts.append(shape)
     for i in range(1, roots.Length()+1):
         visit(roots.Value(i))
-    return parts
+    # OCCT can split the independent sheets of one product into additional free
+    # XCAF roots. Regroup only when the STEP itself declares exactly one product.
+    declarations = re.finditer(rb"'(?:[^']|'')*'|/\*.*?\*/|#\s*\d+\s*=\s*(PRODUCT_DEFINITION(?:_WITH_ASSOCIATED_DOCUMENTS)?)\s*\(", raw, re.S | re.I)
+    product_count=sum(m[1] is not None for m in declarations)
+    return [compound(parts)] if product_count == 1 and len(parts)>1 else parts
+
+
+def material_measure(shape):
+    solids=indexed(shape, TopAbs_SOLID)
+    result=measure(compound(solids)) if solids else dict(volume=0.0,centroid=None)
+    result['area']=measure(shape,False)['area']
+    return result
 
 
 def compare(row):
     parts = load(row['file'])
+    row['occt_parts']=[dict(faces=len(indexed(shape,TopAbs_FACE)),reference=material_measure(shape)) for shape in parts]
+    row['occt_version'] = OCP.__version__
+    row['occt_tolerance'] = EPS
+    if 'error' in row:
+        return row
     if len(parts) != len(row['parts']):
         raise ValueError(f'part count: OCCT {len(parts)}, ours {len(row["parts"])}')
     for shape, part in zip(parts, row['parts'], strict=True):
         faces = indexed(shape, TopAbs_FACE)
         if len(faces) != len(part['faces']):
             raise ValueError(f'{part["name"]}: face count OCCT {len(faces)}, ours {len(part["faces"])}')
-        solids = indexed(shape, TopAbs_SOLID)
-        part['occt'] = measure(compound(solids)) if solids else dict(volume=0.0, area=measure(shape, False)['area'], centroid=None)
+        part['occt'] = row['occt_parts'][part['part']]['reference']
         cache = {}
         for prop in part['gvp']:
             if prop['faces']:
-                key = tuple(prop['faces'])
+                key = (prop['scope'],tuple(prop['faces']))
                 if key not in cache:
-                    cache[key] = measure(compound([faces[i] for i in key]))
+                    if prop['scope']=='product':
+                        cache[key] = part['occt']
+                    else:
+                        material=prop['reference'].get('volume') is not None or prop['reference'].get('centroid') is not None
+                        cache[key] = measure(compound([faces[i] for i in key[1]]),material)
                 prop['occt'] = cache[key]
     row['occt_version'] = OCP.__version__
     row['occt_tolerance'] = EPS

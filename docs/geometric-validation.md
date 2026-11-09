@@ -14,7 +14,7 @@ Build and run the local comparison (no downloads):
 
 ```sh
 cargo build -p haecceity -j 6 --release --example gvp
-"$OCP_PY" tools/gvp.py --rust target/release/examples/gvp \
+"$OCP_PY" tools/gvp.py --jobs 6 --rust target/release/examples/gvp \
   --json "$SCRATCH_OUT/gvp-evidence.json" \
   "$QUIDDITY_CORPUS" "$DW_EXAMPLES/steps/nist" tests/fixtures \
   > "$SCRATCH_OUT/gvp-table.txt"
@@ -26,9 +26,13 @@ Gauss integration with requested relative tolerance 1e-9, exact surfaces, no
 triangulation. It records the OCP version. XCAF's unique part traversal and
 `TopExp.MapShapes` face order match `StepFile.parts` / `StepFile.part`'s documented
 numbering contract; part and face count mismatches are reported rather than zipped
-silently. Loose sheets are excluded from mixed solid/sheet material totals; a sheet-only
-part reports its surface area, zero volume and no material centroid. Explicitly
-selected surfaces are measured separately. Values for distinct definitions use their
+silently. OCCT sometimes gives independent sheets their own free XCAF roots; these
+are regrouped only when the STEP text itself declares exactly one product definition. Product area includes independent sheets; volume and material centroid use solids
+only. A sheet-only part reports area, zero volume and no material centroid. Legacy
+AP203 aspects explicitly described as "surface data associated with …" select the
+independent sheets of that product when their representation lists only boundary
+curves. This scope decision is recorded in the detailed JSON. Explicit geometry
+selections are otherwise followed without promoting an aspect to its product. Values for distinct definitions use their
 own coordinates, so repeated placements are not counted as additional definitions.
 Occurrence and assembly properties that cannot be attached are printed explicitly.
 
