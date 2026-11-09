@@ -46,6 +46,7 @@ fn classify_shell_groups(solid: usize, groups: Vec<(Vec<usize>, f64)>) -> Vec<Se
 
 pub struct Context<'a> {
     pub part: &'a Part,
+    pub(super) floor_blends: Vec<super::recess_core::FloorBlendAnalysisCache>,
     bounds: OnceLock<Bounds>,
     classifier: OnceLock<Classifier<'a>>,
     solid_classifiers: Vec<OnceLock<Classifier<'a>>>,
@@ -68,6 +69,7 @@ internal_entry! {
     pub fn new(part: &'a Part) -> Self {
         Context {
             part,
+            floor_blends: part.solids.iter().map(|_| Default::default()).collect(),
             bounds: OnceLock::new(),
             classifier: OnceLock::new(),
             solid_classifiers: part.solids.iter().map(|_| OnceLock::new()).collect(),

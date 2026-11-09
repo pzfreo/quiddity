@@ -13,6 +13,29 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
+- Closed rectangular pockets with analytic floor rounds retain their full depth and
+  vertical corner radius (#228), extending the blind-recess floor-claim work (#205,
+  #207). Optional `floor_radius` reports a proved uniform floor radius;
+  `floor_fillets` attaches each treated face, supporting wall and local radius to
+  the pocket, including mixed sharp/rounded floors. Open slots stay slots.
+  FTC-08 has the same defect: pockets 8→9, slots 4→3 and fillets 95→91.
+  Its surviving slot ranks 1–3 become 0–2; fillet ranks 66–73 become 64–71
+  and 76–94 become 72–90. Existing pocket ranks and the other 99 corpus
+  parts are unchanged. Face-specific inventory loss entries retain the historical
+  slot/fillet baselines and tighten all three FTC-08 pocket floors to nine.
+  The six existing section projections remain unchanged; one explicit refusal
+  records the newly recognised pocket's unsupported toroidal floor geometry.
+  Ball-end corners with equal wall/floor radii use spherical patches; their floor
+  faces are owned once by the pocket. Floor-treated pockets supersede duplicate
+  prismatic readings, and raw slot fallbacks survive until a pocket is accepted.
+  Unsupported nonanalytic revolution floor transitions issue `PocketRefusal`
+  rather than a truncated-depth pocket. FTC-08 raw slot candidates return to four;
+  its physical slot loss allowance is retired while accepted ranks stay unchanged.
+  Across revisions, adding a floor fillet to an existing pocket matches as an
+  orphaned feature plus a new feature, as a `None`→`Some` corner radius already does.
+  Shared per-solid floor analysis, early mouth checks and reuse of legacy cavity
+  completion avoid repeated graph walks on parts without floor-blended pockets.
+
 - Internal bevel leg ties use intrinsic support area; symmetric ties remain unordered in
   fingerprints. Feature-policy angular tolerances retain slightly noisy STEP supports,
   with the slope angle measured on the actual supports rather than an ideal right angle.

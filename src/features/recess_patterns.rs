@@ -100,6 +100,7 @@ impl SlotSpec {
 /// pockets over one depth range are on different faces) and whether it is a corner notch.
 #[derive(Debug, PartialEq)]
 struct PocketSpec {
+    floor_radius: Option<f64>,
     width_axis: char,
     long_axis: char,
     sizes: [f64; 5],
@@ -113,7 +114,13 @@ struct PocketSpec {
 impl PocketSpec {
     /// `None` when the pocket's body is ambiguous.
     fn of(p: &Pocket) -> Option<Self> {
+        // A mixed boundary needs an intrinsic edge-layout comparison before it
+        // can establish a shared machining spec. Do not group it by radius alone.
+        if !p.floor_fillets.is_empty() && p.floor_radius.is_none() {
+            return None;
+        }
         Some(PocketSpec {
+            floor_radius: p.floor_radius.map(snap),
             width_axis: p.width_axis,
             long_axis: p.long_axis,
             sizes: [p.width, p.length, p.depth, *p.d_lo, *p.d_hi].map(snap),
@@ -253,6 +260,8 @@ mod tests {
             open_sign,
             edge_anchored: false,
             rectangular_boundary: false,
+            floor_radius: None,
+            floor_fillets: Vec::new(),
             body_key: body,
             end_radius: None,
             corner_radius: None,

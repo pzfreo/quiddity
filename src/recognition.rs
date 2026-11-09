@@ -144,6 +144,7 @@ impl Record {
                 | "ModelledThreadRefusal"
                 | "InteriorVoidRefusal"
                 | "PadRefusal"
+                | "PocketRefusal"
                 | "PrismaticPocketRefusal"
                 | "SectionPassageRefusal"
                 | "OrientedSlotRefusal"
@@ -238,6 +239,7 @@ pub const RECORD_TYPES: &[(&str, &[&str])] = &[
 /// ordinary feature fields. They have record types but no feature fingerprint tables.
 const DISCOVERY_REFUSAL_TYPES: &[(&str, &[&str])] = &[
     ("pad_refusals", &["PadRefusal"]),
+    ("pocket_refusals", &["PocketRefusal"]),
     ("prismatic_pocket_refusals", &["PrismaticPocketRefusal"]),
     ("section_passage_refusals", &["SectionPassageRefusal"]),
     ("oriented_slot_refusals", &["OrientedSlotRefusal"]),
