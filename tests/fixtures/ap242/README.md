@@ -8,7 +8,7 @@ none of them interprets or corrects.
 
 | Directory | What | Made by |
 |---|---|---|
-| `nist/*.stp.gz` | 8 NIST MBE PMI test models (AP242 semantic PMI) | copied, gzipped (`mtime=0`) |
+| `nist/*.stp.gz` | NIST MBE PMI test models (AP242 semantic PMI) | copied, gzipped (`mtime=0`) |
 | `nist/<model>.expected.json` | NIST's expected PMI for each of them | `tools/nist_expected.py` |
 | `occt/<file>.json.gz` | OpenCascade XCAF's reading of every NIST AP242 file and every `specify/` file | `tools/capture_pmi_occt.py` |
 | `specify/<case>.*` | specify-core's output on corpus parts, with intent and answers | `tools/make_specify_inputs.py` |
@@ -30,7 +30,7 @@ February 2026 update. NIST says these are not error-free reference files.
 | `nist_stc_06_asme1_ap242-e3.stp` | e3 `{… 442 4 1 4}` | no drawing / geometry context mm, PMI measures inch | edition 3; mixed units |
 | `nist_stc_09_asme1_ap242-e4.stp` | e4 `{… 442 7 1 4}` | no drawing / inch | edition 4 |
 
-The original seven PMI models total 3.2 MB gzipped. The STC models (based on the FTC models with less complex PMI) have no
+The STC models (based on the FTC models with less complex PMI) have no
 drawing in the release.
 
 FTC-11 was copied unchanged from `dw-examples/steps/nist/`, whose README records the
@@ -38,8 +38,8 @@ source as `usnistgov/SFA` commit `0e8d700ebb73db281c33441d534fe85806d5b6e7`
 (2026-02-18), `NIST-PMI-STEP-Files.zip`. It is a U.S. federal government work, not
 subject to copyright in the United States. Its uncompressed SHA-256 is
 `2d05bd399463a9ced7b84a479872a759f170fe92f7a62f8194e83df77f86f117`;
-compression uses `gzip.compress(..., compresslevel=9, mtime=0)`. It supplies mass
-regressions only; no expected-PMI capture was added for this eighth model.
+compression uses `gzip.compress(..., compresslevel=9, mtime=0)`. The existing fixture is also used by the mass regressions; its bytes are unchanged,
+and no new expected-PMI capture accompanies those tests.
 
 ### Expected PMI (`nist/<model>.expected.json`)
 
