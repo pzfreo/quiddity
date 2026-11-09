@@ -1,6 +1,6 @@
 //! One owner of requirement notation and callout geometry in a local 2D frame.
 //!
-//! Ported from pzfreo/draftwright-rust at aaa7a73: `src/dims/tolerance.rs`,
+//! Ported from pzfreo/draftwright at aaa7a73: `src/dims/tolerance.rs`,
 //! `src/dims/gdt.rs`, `src/pmi.rs` (qualifiers/limits/scope), and `src/text.rs` (Paul Fremantle; port authorized by the copyright owner for #137, same project family).
 //! Sheet layout, leaders, lanes and drawn-precision rounding stay in
 //! Draftwright. Values here retain requirement precision. Text uses public-domain Hershey
