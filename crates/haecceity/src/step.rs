@@ -3,6 +3,7 @@
 //! Mirrors `quiddity.import_step_geometry`: geometry only, assemblies flattened, lengths in
 //! millimetres (OpenCascade's default import unit).
 
+#[cfg(feature = "manifest")]
 pub mod manifest;
 
 use std::collections::HashMap;
@@ -2421,7 +2422,8 @@ impl PartDefinition {
 
 /// A product definition that holds others: the relating side of one or more
 /// `next_assembly_usage_occurrence`s.
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "manifest", derive(serde::Serialize, serde::Deserialize))]
 pub struct Assembly {
     /// The `#N` of its `product_definition`.
     pub product_definition: u64,
@@ -2432,7 +2434,8 @@ pub struct Assembly {
 }
 
 /// One component of an [`Assembly`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "manifest", derive(serde::Serialize, serde::Deserialize))]
 pub struct Component {
     /// The `#N` of the `next_assembly_usage_occurrence` that places it.
     pub occurrence: u64,

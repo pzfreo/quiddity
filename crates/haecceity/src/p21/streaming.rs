@@ -1,43 +1,52 @@
-//! Bounded-chunk statement lexer shared by the lossless and manifest readers.
-//!
-//! Only the current statement is buffered. The callback borrows its text; the scanner retains
-//! no entity text or index. Chunk boundaries may occur anywhere, including doubled quotes,
-//! comment delimiters and instance numbers.
+//! Resumable Part 21 statement lexer. `scan` captures extents only; `scan_structure` also
+//! captures borrowed type keywords and references. One statement and reusable token scratch
+//! are buffered, with no allocation for each ordinary instance.
 use super::{P21Error, Section, Statement};
 use std::io::{BufRead, BufReader, Read};
+use std::ops::Range;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Instance {
+#[derive(Clone, Copy, Debug)]
+pub struct Types<'a> {
+    bytes: &'a [u8],
+    spans: &'a [Range<usize>],
+}
+impl Types<'_> {
+    pub fn iter(&self) -> impl Iterator<Item = &str> {
+        self.spans.iter().map(|r| {
+            // Keyword spans contain ASCII letters, digits and underscores only.
+            std::str::from_utf8(&self.bytes[r.clone()]).unwrap_or_default()
+        })
+    }
+}
+#[derive(Clone, Copy, Debug)]
+pub struct Instance<'a> {
     pub id: u64,
     pub offset: u64,
     pub length: u32,
-    /// End of the preceding statement; the intervening bytes are whitespace/comments only.
     pub gap_start: u64,
-    pub types: Vec<String>,
-    pub references: Vec<u64>,
+    pub types: Types<'a>,
+    pub references: &'a [u64],
 }
-
 pub enum Event<'a> {
-    Instance(Instance, &'a [u8]),
+    Instance(Instance<'a>, &'a [u8]),
     Header(&'a str, u64, &'a [u8]),
     HeaderEnd(u64),
     Data(u64, u64),
 }
-
+fn error(line: u64, message: &str) -> P21Error {
+    P21Error::Parse(format!("line {line}: {message}"))
+}
 struct Input<R> {
     reader: BufReader<R>,
     at: u64,
     line: u64,
 }
 impl<R: Read> Input<R> {
-    fn error(&self, message: &str) -> P21Error {
-        P21Error::Parse(format!("line {}: {message}", self.line))
-    }
     fn peek(&mut self) -> Result<Option<u8>, P21Error> {
         self.reader
             .fill_buf()
             .map(|b| b.first().copied())
-            .map_err(|e| self.error(&e.to_string()))
+            .map_err(|e| error(self.line, &e.to_string()))
     }
     fn next(&mut self) -> Result<Option<u8>, P21Error> {
         let b = self.peek()?;
@@ -48,14 +57,17 @@ impl<R: Read> Input<R> {
         }
         Ok(b)
     }
-    fn comment(&mut self, mut text: Option<&mut Vec<u8>>) -> Result<(), P21Error> {
+    fn comment(
+        &mut self,
+        mut text: Option<&mut Vec<u8>>,
+        line: u64,
+        message: &str,
+    ) -> Result<(), P21Error> {
         let mut star = false;
         loop {
-            let b = self
-                .next()?
-                .ok_or_else(|| self.error("unterminated comment"))?;
-            if let Some(t) = &mut text {
-                t.push(b);
+            let b = self.next()?.ok_or_else(|| error(line, message))?;
+            if let Some(text) = &mut text {
+                text.push(b);
             }
             if star && b == b'/' {
                 return Ok(());
@@ -64,16 +76,31 @@ impl<R: Read> Input<R> {
         }
     }
 }
-
-/// Scan `reader`, requesting at most `chunk_size` bytes per buffer refill. Zero is refused.
-/// Refusal rules for sections and statement termination are also those of `p21::Document`.
+/// Capture extents without parsing instance parameters (including without requiring `=`).
 pub fn scan<R: Read>(
     reader: R,
     chunk_size: usize,
+    visit: impl FnMut(Event<'_>) -> Result<(), P21Error>,
+) -> Result<(), P21Error> {
+    scan_inner(reader, chunk_size, false, visit)
+}
+/// Capture types and references outside strings, binaries and comments. Borrowed tokens are
+/// valid only during `visit`; the next statement reuses their buffers.
+pub fn scan_structure<R: Read>(
+    reader: R,
+    chunk_size: usize,
+    visit: impl FnMut(Event<'_>) -> Result<(), P21Error>,
+) -> Result<(), P21Error> {
+    scan_inner(reader, chunk_size, true, visit)
+}
+fn scan_inner<R: Read>(
+    reader: R,
+    chunk_size: usize,
+    capture: bool,
     mut visit: impl FnMut(Event<'_>) -> Result<(), P21Error>,
 ) -> Result<(), P21Error> {
     if chunk_size == 0 {
-        return Err(P21Error::Parse("zero scanner chunk size".into()));
+        return Err(error(1, "zero scanner chunk size"));
     }
     let mut input = Input {
         reader: BufReader::with_capacity(chunk_size, reader),
@@ -83,16 +110,19 @@ pub fn scan<R: Read>(
     let mut section = Section::Start;
     let mut data_start = 0;
     let mut previous_end = 0;
+    let mut text = Vec::with_capacity(1024);
+    let mut type_spans = Vec::new();
+    let mut refs = Vec::new();
     loop {
-        let start;
-        let first;
-        loop {
+        text.clear();
+        let blank_line = input.line;
+        let (start, first) = loop {
             let at = input.at;
             let Some(b) = input.next()? else {
                 return if section == Section::End {
                     Ok(())
                 } else {
-                    Err(input.error("missing END-ISO-10303-21;"))
+                    Err(error(input.line, "missing END-ISO-10303-21;"))
                 };
             };
             if b.is_ascii_whitespace() {
@@ -100,100 +130,96 @@ pub fn scan<R: Read>(
             }
             if b == b'/' && input.peek()? == Some(b'*') {
                 input.next()?;
-                input.comment(None)?;
+                input.comment(None, blank_line, "unterminated comment")?;
                 continue;
             }
-            start = at;
-            first = b;
-            break;
-        }
+            break (at, b);
+        };
+        let line = input.line;
         if section == Section::End {
-            return Err(input.error("text after END-ISO-10303-21"));
+            return Err(error(line, "text after END-ISO-10303-21"));
         }
-        let mut text = vec![first];
-        // An ANCHOR statement starts with '<'; include that delimiter in the resumable
-        // literal handling, just as for an anchor encountered later in a statement.
-        if first == b'<' && section == Section::Ed3 {
+        text.push(first);
+        let first = if first == b'#' {
+            while input.peek()?.is_some_and(|b| b.is_ascii_digit()) {
+                if let Some(b) = input.next()? {
+                    text.push(b);
+                }
+            }
+            let id = std::str::from_utf8(&text[1..])
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .ok_or_else(|| error(line, "malformed instance id"))?;
+            Statement::Instance(id)
+        } else if first == b'<' && section == Section::Ed3 {
+            Statement::Anchor
+        } else {
+            if !first.is_ascii_alphanumeric() && !b"_-".contains(&first) {
+                return Err(error(line, "expected a keyword or #N"));
+            }
+            while input
+                .peek()?
+                .is_some_and(|b| b.is_ascii_alphanumeric() || b"_-".contains(&b))
+            {
+                if let Some(b) = input.next()? {
+                    text.push(b);
+                }
+            }
+            Statement::Word(String::from_utf8_lossy(&text).to_ascii_uppercase())
+        };
+        let parameters = text.len();
+        let unfinished = "statement without its terminating ';'";
+        if matches!(first, Statement::Anchor) {
             loop {
-                let c = input
-                    .next()?
-                    .ok_or_else(|| input.error("unterminated anchor"))?;
-                text.push(c);
-                if c == b'>' {
+                let b = input.next()?.ok_or_else(|| error(line, unfinished))?;
+                text.push(b);
+                if b == b'>' {
                     break;
                 }
             }
         }
         loop {
-            let b = input
-                .next()?
-                .ok_or_else(|| input.error("statement without its terminating ';'"))?;
+            let b = input.next()?.ok_or_else(|| error(line, unfinished))?;
             text.push(b);
             match b {
                 b';' => break,
                 b'\'' | b'"' => loop {
-                    let c = input
-                        .next()?
-                        .ok_or_else(|| input.error("statement without its terminating ';'"))?;
+                    let c = input.next()?.ok_or_else(|| error(line, unfinished))?;
                     text.push(c);
                     if c == b {
                         if b == b'\'' && input.peek()? == Some(b'\'') {
-                            text.push(b'\'');
                             input.next()?;
+                            text.push(b'\'');
                         } else {
                             break;
                         }
                     }
                 },
                 b'<' if section == Section::Ed3 => loop {
-                    let c = input
-                        .next()?
-                        .ok_or_else(|| input.error("unterminated anchor"))?;
+                    let c = input.next()?.ok_or_else(|| error(line, unfinished))?;
                     text.push(c);
                     if c == b'>' {
                         break;
                     }
                 },
                 b'/' if input.peek()? == Some(b'*') => {
-                    text.push(b'*');
                     input.next()?;
-                    input.comment(Some(&mut text))?;
+                    text.push(b'*');
+                    input.comment(Some(&mut text), line, unfinished)?;
                 }
                 _ => {}
             }
             if text.len() > u32::MAX as usize {
-                return Err(input.error("statement exceeds u32 byte length"));
+                return Err(error(line, "statement exceeds u32 byte length"));
             }
         }
-        let mut pos = 0;
-        let first = if text[0] == b'#' {
-            pos = 1;
-            while text[pos].is_ascii_digit() {
-                pos += 1;
-            }
-            let id = std::str::from_utf8(&text[1..pos])
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .ok_or_else(|| input.error("malformed instance id"))?;
-            Statement::Instance(id)
-        } else if text[0] == b'<' && section == Section::Ed3 {
-            Statement::Anchor
-        } else {
-            while text[pos].is_ascii_alphanumeric() || b"_-".contains(&text[pos]) {
-                pos += 1;
-            }
-            if pos == 0 {
-                return Err(input.error("expected a keyword or #N"));
-            }
-            Statement::Word(String::from_utf8_lossy(&text[..pos]).to_ascii_uppercase())
-        };
         let word = match &first {
             Statement::Word(w) => w.as_str(),
             _ => "",
         };
         match (section, &first) {
             (Section::Start, _) if word == "ISO-10303-21" => section = Section::Top,
-            (Section::Start, _) => return Err(input.error("expected ISO-10303-21;")),
+            (Section::Start, _) => return Err(error(line, "expected ISO-10303-21;")),
             (Section::Top, _) => match word {
                 "HEADER" => section = Section::Header,
                 "DATA" => {
@@ -202,8 +228,8 @@ pub fn scan<R: Read>(
                 }
                 "ANCHOR" | "REFERENCE" => section = Section::Ed3,
                 "END-ISO-10303-21" => section = Section::End,
-                "SIGNATURE" => return Err(input.error("SIGNATURE sections are not supported")),
-                _ => return Err(input.error("expected a section")),
+                "SIGNATURE" => return Err(error(line, "SIGNATURE sections are not supported")),
+                _ => return Err(error(line, "expected a section")),
             },
             (Section::Header | Section::Data | Section::Ed3, _) if word == "ENDSEC" => {
                 if section == Section::Data {
@@ -216,35 +242,44 @@ pub fn scan<R: Read>(
             }
             (Section::Header, Statement::Word(w)) => visit(Event::Header(w, start, &text))?,
             (Section::Data, Statement::Instance(id)) => {
-                let (types, references) = structure(&text[pos..])?;
+                type_spans.clear();
+                refs.clear();
+                if capture {
+                    structure(&text, parameters, &mut type_spans, &mut refs)
+                        .map_err(|e| error(line, &e.to_string()))?;
+                }
                 visit(Event::Instance(
                     Instance {
                         id: *id,
                         offset: start,
                         length: text.len() as u32,
                         gap_start: previous_end,
-                        types,
-                        references,
+                        types: Types {
+                            bytes: &text,
+                            spans: &type_spans,
+                        },
+                        references: &refs,
                     },
                     &text,
                 ))?;
             }
             (Section::Ed3, _) => {}
-            _ => return Err(input.error("unexpected statement")),
+            _ => return Err(error(line, "unexpected statement")),
         }
         previous_end = input.at;
     }
 }
-
-/// Tokens outside literals/comments, with type names only at the external mapping's depth.
-fn structure(b: &[u8]) -> Result<(Vec<String>, Vec<u64>), P21Error> {
-    let mut types = Vec::new();
-    let mut references = Vec::new();
-    let mut pos = super::skip_blank(b, 0).ok_or_else(|| P21Error::Parse("comment".into()))?;
+fn structure(
+    b: &[u8],
+    from: usize,
+    types: &mut Vec<Range<usize>>,
+    refs: &mut Vec<u64>,
+) -> Result<(), P21Error> {
+    let mut pos = super::skip_blank(b, from).ok_or_else(|| error(1, "comment"))?;
     if b.get(pos) != Some(&b'=') {
         return Err(P21Error::Parse("instance without '='".into()));
     }
-    pos = super::skip_blank(b, pos + 1).ok_or_else(|| P21Error::Parse("comment".into()))?;
+    pos = super::skip_blank(b, pos + 1).ok_or_else(|| error(1, "comment"))?;
     let complex = b.get(pos) == Some(&b'(');
     let mut depth = 0usize;
     while pos < b.len() {
@@ -266,8 +301,7 @@ fn structure(b: &[u8]) -> Result<(Vec<String>, Vec<u64>), P21Error> {
                 }
             }
             b'/' if b.get(pos + 1) == Some(&b'*') => {
-                pos = super::comment_end(b, pos + 2)
-                    .ok_or_else(|| P21Error::Parse("comment".into()))?
+                pos = super::comment_end(b, pos + 2).ok_or_else(|| error(1, "comment"))?
             }
             b'(' => {
                 depth += 1;
@@ -283,11 +317,12 @@ fn structure(b: &[u8]) -> Result<(Vec<String>, Vec<u64>), P21Error> {
                 while b.get(pos).is_some_and(u8::is_ascii_digit) {
                     pos += 1;
                 }
-                let id = std::str::from_utf8(&b[start..pos])
-                    .ok()
-                    .and_then(|s| s.parse().ok())
-                    .ok_or_else(|| P21Error::Parse("malformed reference".into()))?;
-                references.push(id);
+                refs.push(
+                    std::str::from_utf8(&b[start..pos])
+                        .ok()
+                        .and_then(|s| s.parse().ok())
+                        .ok_or_else(|| P21Error::Parse("malformed reference".into()))?,
+                );
             }
             c if c.is_ascii_alphabetic() || c == b'_' => {
                 let start = pos;
@@ -299,11 +334,11 @@ fn structure(b: &[u8]) -> Result<(Vec<String>, Vec<u64>), P21Error> {
                     pos += 1;
                 }
                 if depth == usize::from(complex) {
-                    types.push(String::from_utf8_lossy(&b[start..pos]).to_ascii_uppercase());
+                    types.push(start..pos);
                 }
             }
             _ => pos += 1,
         }
     }
-    Ok((types, references))
+    Ok(())
 }

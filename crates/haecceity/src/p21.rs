@@ -866,27 +866,86 @@ enum Section {
 /// Splits the file into statements (each ending at a `;` outside strings, binaries and
 /// comments) and records the header entities, the DATA sections and each instance's extent.
 fn scan(b: &[u8]) -> Result<Scan, P21Error> {
+    let err = |at: usize, what: &str| {
+        let line = b[..at.min(b.len())].iter().filter(|&&c| c == b'\n').count() + 1;
+        P21Error::Parse(format!("line {line}: {what}"))
+    };
     let mut out = Scan {
         header: Vec::new(),
         instances: Vec::new(),
         data_sections: Vec::new(),
     };
-    streaming::scan(b, 8 * 1024 * 1024, |event| {
-        match event {
-            streaming::Event::Instance(i, _) => out.instances.push((
-                i.id,
-                i.offset as usize..i.offset as usize + i.length as usize,
-            )),
-            streaming::Event::Header(name, at, text) => out
-                .header
-                .push((name.into(), at as usize..at as usize + text.len())),
-            streaming::Event::Data(start, end) => {
-                out.data_sections.push((start as usize, end as usize))
-            }
-            streaming::Event::HeaderEnd(_) => {}
+    let mut section = Section::Start;
+    let mut data_start = 0;
+    let mut pos = 0;
+    loop {
+        pos = skip_blank(b, pos).ok_or_else(|| err(pos, "unterminated comment"))?;
+        if pos >= b.len() {
+            break;
         }
-        Ok(())
-    })?;
+        let start = pos;
+        if section == Section::End {
+            return Err(err(pos, "text after END-ISO-10303-21"));
+        }
+        let first = if b[pos] == b'#' {
+            pos += 1;
+            let digits = pos;
+            while pos < b.len() && b[pos].is_ascii_digit() {
+                pos += 1;
+            }
+            let id = std::str::from_utf8(&b[digits..pos])
+                .ok()
+                .and_then(|s| s.parse::<u64>().ok())
+                .ok_or_else(|| err(start, "malformed instance id"))?;
+            Statement::Instance(id)
+        } else if b[pos] == b'<' && section == Section::Ed3 {
+            // An ANCHOR entry, `<name> = #N;` (or another value): checked by step-io.
+            Statement::Anchor
+        } else {
+            while pos < b.len() && (b[pos].is_ascii_alphanumeric() || b"_-".contains(&b[pos])) {
+                pos += 1;
+            }
+            if pos == start {
+                return Err(err(start, "expected a keyword or #N"));
+            }
+            Statement::Word(String::from_utf8_lossy(&b[start..pos]).to_ascii_uppercase())
+        };
+        let end = statement_end(b, pos, section == Section::Ed3)
+            .ok_or_else(|| err(start, "statement without its terminating ';'"))?;
+        let word = match &first {
+            Statement::Word(w) => w.as_str(),
+            Statement::Instance(_) | Statement::Anchor => "",
+        };
+        match (section, &first) {
+            (Section::Start, _) if word == "ISO-10303-21" => section = Section::Top,
+            (Section::Start, _) => return Err(err(start, "expected ISO-10303-21;")),
+            (Section::Top, _) => match word {
+                "HEADER" => section = Section::Header,
+                "DATA" => {
+                    section = Section::Data;
+                    data_start = start;
+                }
+                "ANCHOR" | "REFERENCE" => section = Section::Ed3,
+                "END-ISO-10303-21" => section = Section::End,
+                "SIGNATURE" => return Err(err(start, "SIGNATURE sections are not supported")),
+                _ => return Err(err(start, "expected a section")),
+            },
+            (Section::Header | Section::Data | Section::Ed3, _) if word == "ENDSEC" => {
+                if section == Section::Data {
+                    out.data_sections.push((data_start, start));
+                }
+                section = Section::Top;
+            }
+            (Section::Header, Statement::Word(w)) => out.header.push((w.clone(), start..end)),
+            (Section::Data, Statement::Instance(id)) => out.instances.push((*id, start..end)),
+            (Section::Ed3, _) => {}
+            _ => return Err(err(start, "unexpected statement")),
+        }
+        pos = end;
+    }
+    if section != Section::End {
+        return Err(err(b.len(), "missing END-ISO-10303-21;"));
+    }
     Ok(out)
 }
 
@@ -915,6 +974,32 @@ fn comment_end(b: &[u8], from: usize) -> Option<usize> {
         .windows(2)
         .position(|w| w == b"*/")
         .map(|i| from + i + 2)
+}
+
+/// The position just past the `;` ending the statement that continues at `pos`.
+fn statement_end(b: &[u8], mut pos: usize, anchors: bool) -> Option<usize> {
+    while pos < b.len() {
+        match b[pos] {
+            b';' => return Some(pos + 1),
+            b'\'' => {
+                pos += 1;
+                loop {
+                    let q = pos + b[pos..].iter().position(|&c| c == b'\'')?;
+                    if b.get(q + 1) == Some(&b'\'') {
+                        pos = q + 2;
+                    } else {
+                        pos = q + 1;
+                        break;
+                    }
+                }
+            }
+            b'"' => pos += 1 + b[pos + 1..].iter().position(|&c| c == b'"')? + 1,
+            b'<' if anchors => pos += 1 + b[pos + 1..].iter().position(|&c| c == b'>')? + 1,
+            b'/' if b.get(pos + 1) == Some(&b'*') => pos = comment_end(b, pos + 2)?,
+            _ => pos += 1,
+        }
+    }
+    None
 }
 
 // The reference is advisory; absent or malformed headers never prevent a DATA
@@ -1393,5 +1478,40 @@ mod description_reference_tests {
             file_description_attributes(Some(&malformed), &requests),
             None
         );
+    }
+}
+
+#[cfg(test)]
+mod scan_compatibility_tests {
+    use super::*;
+    #[test]
+    fn extent_scanning_keeps_main_errors_and_does_not_require_equals() {
+        let no_equals = b"ISO-10303-21;DATA;#1 THING();ENDSEC;END-ISO-10303-21;";
+        assert!(scan(no_equals).is_ok());
+        for chunk in [1, 7, 4096] {
+            assert!(streaming::scan(no_equals.as_slice(), chunk, |_| Ok(())).is_ok());
+            assert!(streaming::scan_structure(no_equals.as_slice(), chunk, |_| Ok(())).is_err());
+        }
+        for bytes in [
+            b"\n/* unterminated".as_slice(),
+            b"ISO-10303-21;\nDATA;\n#x=THING();ENDSEC;END-ISO-10303-21;",
+            b"ISO-10303-21;\nDATA;\n#1=THING(\n'unterminated",
+            b"ISO-10303-21;\nHEADER;\n#1=THING();ENDSEC;END-ISO-10303-21;",
+            b"ISO-10303-21;\nSIGNATURE;",
+            b"ISO-10303-21;\nHEADER;\n/* unterminated",
+            b"/?bad",
+            b"",
+            b"\nISO-10303-21;\nEND-ISO-10303-21;X;",
+        ] {
+            let expected = scan(bytes).map(|_| ());
+            for chunk in [1, 7, 4096] {
+                assert_eq!(
+                    streaming::scan(bytes, chunk, |_| Ok(())),
+                    expected,
+                    "{} chunk {chunk}",
+                    String::from_utf8_lossy(bytes)
+                );
+            }
+        }
     }
 }

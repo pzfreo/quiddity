@@ -31,22 +31,91 @@ fn files(dir: &Path, out: &mut Vec<PathBuf>) {
         }
     }
 }
+// These are intentionally geometry-free EXPRESS/removal/wire examples or committed broken
+// inputs. Every refusal is asserted explicitly; check() never hides a whole-file failure.
+const REFUSAL_FIXTURES: &[(&str, &str)] = &[
+    (
+        "tests/fixtures/ap242/removal/handmade.stp",
+        "no solid or shell with faces",
+    ),
+    (
+        "tests/fixtures/ap242/rules/invalid.stp",
+        "no solid or shell with faces",
+    ),
+    (
+        "tests/fixtures/ap242/rules/valid.stp",
+        "no solid or shell with faces",
+    ),
+    (
+        "tests/fixtures/broken/deleted_face.step",
+        "#109 is referenced but not in the file",
+    ),
+    (
+        "tests/fixtures/broken/empty_data.step",
+        "no solid or shell with faces",
+    ),
+    (
+        "tests/fixtures/broken/header_only.step",
+        "unexpected end of file",
+    ),
+    (
+        "tests/fixtures/broken/truck_pub_shaft_hole.step.gz",
+        "duplicate entity #539",
+    ),
+    (
+        "tests/fixtures/broken/truncated.step",
+        "unexpected end of file",
+    ),
+    (
+        "tests/fixtures/broken/truncated_closed.step",
+        "#105 is referenced but not in the file",
+    ),
+    (
+        "tests/fixtures/broken/unresolved_closed_curve.step",
+        "closed edge's curve (Hyperbola) does not resolve",
+    ),
+    (
+        "tests/fixtures/occt_trimmed_parabola.step",
+        "no solid or shell with faces",
+    ),
+];
+fn expected_fixture_refusal(path: &Path) -> Option<&'static str> {
+    let relative = path
+        .strip_prefix(env!("CARGO_MANIFEST_DIR"))
+        .ok()?
+        .to_str()?;
+    REFUSAL_FIXTURES
+        .iter()
+        .find_map(|&(file, reason)| (file == relative).then_some(reason))
+}
+#[test]
+fn whole_file_refusals_are_explicit_negative_fixture_contracts() {
+    for &(file, reason) in REFUSAL_FIXTURES {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(file);
+        let b = bytes(&path);
+        let error = StepFile::read(&b)
+            .err()
+            .unwrap_or_else(|| panic!("expected whole-file refusal for {file}"));
+        assert!(error.to_string().contains(reason), "{file}: {error}");
+    }
+}
 fn inputs() -> Vec<PathBuf> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut out = Vec::new();
     files(&root.join("tests/fixtures"), &mut out);
     files(&root.join("crates/haecceity/tests/fixtures"), &mut out);
     let corpus = std::env::var_os("QUIDDITY_CORPUS")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/Users/paul/repos/quiddity/tests/corpus"));
+        .filter(|v| v != "off")
+        .map(PathBuf::from);
     if std::env::var_os("QUIDDITY_CORPUS_REQUIRED").is_some() {
         assert!(
-            corpus.is_dir(),
-            "required corpus missing: {}",
-            corpus.display()
+            corpus.as_ref().is_some_and(|p| p.is_dir()),
+            "required corpus missing; set QUIDDITY_CORPUS"
         );
     }
-    files(&corpus, &mut out);
+    if let Some(corpus) = corpus.filter(|p| p.is_dir()) {
+        files(&corpus, &mut out);
+    }
     out.sort();
     out.dedup();
     out
@@ -63,11 +132,27 @@ fn bytes(path: &Path) -> Vec<u8> {
         raw
     }
 }
-fn statements(b: &[u8], chunk: usize) -> Result<Vec<streaming::Instance>, String> {
+#[derive(Debug, PartialEq, Eq)]
+struct StatementSnapshot {
+    id: u64,
+    offset: u64,
+    length: u32,
+    gap_start: u64,
+    types: Vec<String>,
+    references: Vec<u64>,
+}
+fn statements(b: &[u8], chunk: usize) -> Result<Vec<StatementSnapshot>, String> {
     let mut out = Vec::new();
-    streaming::scan(b, chunk, |e| {
+    streaming::scan_structure(b, chunk, |e| {
         if let Event::Instance(i, _) = e {
-            out.push(i);
+            out.push(StatementSnapshot {
+                id: i.id,
+                offset: i.offset,
+                length: i.length,
+                gap_start: i.gap_start,
+                types: i.types.iter().map(str::to_owned).collect(),
+                references: i.references.to_vec(),
+            });
         }
         Ok(())
     })
@@ -96,47 +181,27 @@ fn statement_chunks_every_corpus_and_fixture() {
     );
 }
 fn check(path: &Path) -> usize {
-    let b = bytes(path);
-    let baseline = StepFile::read(&b);
+    check_bytes(&path.display().to_string(), &bytes(path))
+}
+fn check_bytes(label: &str, b: &[u8]) -> usize {
+    let baseline = StepFile::read(b);
     let scanned = manifest::scan(Cursor::new(&b), &ScanOptions::default());
-    let baseline = match baseline {
-        Ok(b) => b,
-        Err(_) => {
-            return 0;
-        }
-    };
-    let m = scanned.unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    assert_eq!(
-        m.assemblies,
-        baseline.assemblies,
-        "{} hierarchy",
-        path.display()
-    );
-    assert_eq!(
-        m.products.len(),
-        baseline.parts.len(),
-        "{} products",
-        path.display()
-    );
-    assert!(
-        m.refusals.is_empty(),
-        "{}: {:?}",
-        path.display(),
-        m.refusals
-    );
-    let mut temp = temp_source(&b);
+    let baseline = baseline.unwrap_or_else(|e| panic!("whole-file read failed for {}: {e}", label));
+    let m = scanned.unwrap_or_else(|e| panic!("{}: {e}", label));
+    assert_eq!(m.assemblies, baseline.assemblies, "{} hierarchy", label);
+    assert_eq!(m.products.len(), baseline.parts.len(), "{} products", label);
+    assert!(m.refusals.is_empty(), "{}: {:?}", label, m.refusals);
+    let mut temp = temp_source(b);
     for (p, d) in m.products.iter().zip(&baseline.parts) {
         assert_eq!(
-            p.product_definition,
-            d.product_definition,
+            p.product_definition, d.product_definition,
             "{} definition",
-            path.display()
+            label
         );
         assert_eq!(p.shape, d.shape);
         assert_eq!(p.name, d.name);
         assert_eq!(p.product_id, d.product_id);
-        assert_eq!(p.faces, d.faces, "{} {} faces", path.display(), p.id);
-        assert_eq!(p.edges, d.edges, "{} {} edges", path.display(), p.id);
+        assert_eq!(p.faces, d.faces, "{} {} faces", label, p.id);
         for instance in m.instances.iter().filter(|i| i.product == p.id) {
             let mut parent = None;
             for &occurrence in &instance.path {
@@ -166,11 +231,11 @@ fn check(path: &Path) -> usize {
             .iter()
             .flat_map(|p| p.instances.iter().map(|_| p.placement))
             .collect();
-        assert_eq!(got, want, "{} {} placements", path.display(), p.id);
+        assert_eq!(got, want, "{} {} placements", label, p.id);
         let cut = m
             .read_product(&temp, &p.id)
-            .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        let whole = haecceity::step::read_part(&b, d).unwrap();
+            .unwrap_or_else(|e| panic!("{}: {e}", label));
+        let whole = haecceity::step::read_part(b, d).unwrap();
         assert_eq!(
             (0..cut.faces.len())
                 .map(|i| cut.face_source(i).unwrap().entity)
@@ -185,9 +250,11 @@ fn check(path: &Path) -> usize {
                 .map(|i| whole.edge_source(i).unwrap().entity)
                 .collect::<Vec<_>>(),
             "{} {} edge storage order",
-            path.display(),
+            label,
             p.id
         );
+        // Normals-only inverted-shell repair can change PartDefinition's edge traversal.
+        // Edge indices belong to the product read; compare entity counts and sets here.
         let mut got = (0..cut.edges.len())
             .map(|i| cut.edge_source(i).unwrap().entity)
             .collect::<Vec<_>>();
@@ -200,7 +267,7 @@ fn check(path: &Path) -> usize {
             serde_json::to_value(quiddity::correspondence::recognise(&cut)).unwrap(),
             serde_json::to_value(quiddity::correspondence::recognise(&whole)).unwrap(),
             "{} {} recognition",
-            path.display(),
+            label,
             p.id
         );
     }
@@ -220,7 +287,13 @@ fn temp_source(b: &[u8]) -> File {
 #[test]
 fn every_product_corpus_and_fixtures() {
     let paths = inputs();
-    let count: usize = parallel::map(&paths, |path| check(path)).into_iter().sum();
+    let readable: Vec<_> = paths
+        .iter()
+        .filter(|p| expected_fixture_refusal(p).is_none())
+        .collect();
+    let count: usize = parallel::map(&readable, |path| check(path))
+        .into_iter()
+        .sum();
     eprintln!(
         "manifest equivalence: {} files, {count} readable distinct parts",
         paths.len()
@@ -299,7 +372,7 @@ fn staleness_versions_size_only_and_mapped_index() {
     value["reader"]["haecceity"] = "another-reader".into();
     assert!(serde_json::from_value::<Manifest>(value).is_err());
     let mut incompatible = m.clone();
-    incompatible.reader.quiddity = "another-reader".into();
+    incompatible.reader.haecceity = "another-reader".into();
     assert!(incompatible.read_product(&temp_source(&b), &p.id).is_err());
     let size_only = manifest::scan(
         Cursor::new(&b),
@@ -462,4 +535,313 @@ fn presentation_dependencies_stay_unowned_and_do_not_merge_with_geometry() {
     m.read_product(&temp_source(changed.as_bytes()), "p0")
         .unwrap();
     assert!(m.verify_source(Cursor::new(changed.as_bytes())).is_err());
+}
+
+#[test]
+fn truck_repair_edges_are_compared_as_sets() {
+    // The existing normals-only repair changes PartDefinition's edge traversal, but never
+    // the identity of its EDGE_CURVEs. Face entity order remains exact.
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/truck_master_shaft_only.step.gz");
+    assert_eq!(check(&path), 1);
+}
+
+fn layouts(b: &[u8]) -> Vec<Vec<u8>> {
+    let m = manifest::scan(Cursor::new(b), &ScanOptions::default()).unwrap();
+    let mut rows = Vec::new();
+    streaming::scan(b, 4096, |event| {
+        if let Event::Instance(i, _) = event {
+            rows.push((i.offset as usize, i.length as usize));
+        }
+        Ok(())
+    })
+    .unwrap();
+    let first = rows.first().unwrap().0;
+    let last = rows.last().unwrap();
+    let end = last.0 + last.1;
+    let mut buckets = vec![Vec::new(); m.products.len() + 1];
+    for (i, &(offset, _)) in rows.iter().enumerate() {
+        let owner = m
+            .products
+            .iter()
+            .position(|p| {
+                p.ranges
+                    .iter()
+                    .any(|r| r[0] <= offset as u64 && (offset as u64) < r[1])
+            })
+            .map_or(0, |p| p + 1);
+        buckets[owner].push(i);
+    }
+    let grouped: Vec<_> = buckets.iter().flatten().copied().collect();
+    let mut runs = Vec::new();
+    for run in 0..4 {
+        for bucket in &buckets {
+            let n = bucket.len().div_ceil(4);
+            let start = (run * n).min(bucket.len());
+            let end = ((run + 1) * n).min(bucket.len());
+            runs.extend_from_slice(&bucket[start..end]);
+        }
+    }
+    let mut shuffled = grouped.clone();
+    let mut state = 0x190_u64;
+    for i in (1..shuffled.len()).rev() {
+        state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+        shuffled.swap(i, (state as usize) % (i + 1));
+    }
+    [grouped, runs, shuffled]
+        .into_iter()
+        .map(|order| {
+            assert_eq!(order.len(), rows.len());
+            let mut out = b[..first].to_vec();
+            for i in order {
+                let (offset, len) = rows[i];
+                out.extend_from_slice(&b[offset..offset + len]);
+                out.push(b'\n');
+            }
+            out.extend_from_slice(&b[end..]);
+            out
+        })
+        .collect()
+}
+fn check_layouts(path: &Path) {
+    let b = bytes(path);
+    let original = StepFile::read(&b).unwrap();
+    for (layout, b) in layouts(&b).iter().enumerate() {
+        let rewritten = StepFile::read(b).unwrap();
+        assert_eq!(rewritten.assemblies, original.assemblies);
+        assert_eq!(rewritten.parts.len(), original.parts.len());
+        for (a, b) in rewritten.parts.iter().zip(&original.parts) {
+            assert_eq!(a.faces, b.faces);
+            assert_eq!(a.product_definition, b.product_definition);
+        }
+        assert_eq!(
+            check_bytes(&format!("{} layout {layout}", path.display()), b),
+            original.parts.len()
+        );
+    }
+}
+#[test]
+fn assembly_fixture_layouts() {
+    check_layouts(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ap242/assembly/assembly.step"),
+    );
+}
+#[test]
+fn gramil_assembly_layouts() {
+    let dir = std::env::var_os("QUIDDITY_GRAMIL")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/Users/paul/repos/gramil/dist/step"));
+    if !dir.is_dir() {
+        assert!(
+            std::env::var_os("QUIDDITY_GRAMIL_REQUIRED").is_none(),
+            "required gramil pack missing"
+        );
+        return;
+    }
+    check_layouts(&dir.join("gramil_assembly.step"));
+}
+#[test]
+fn a_few_thousand_products_use_indexed_definition_lookups() {
+    use haecceity::p21::{Attribute, RawEntity};
+    fn remap(a: &mut Attribute, offset: u64, shared: &[u64]) {
+        match a {
+            Attribute::EntityRef(id) if !shared.contains(id) => *id += offset,
+            Attribute::List(v) => {
+                for a in v {
+                    remap(a, offset, shared)
+                }
+            }
+            Attribute::Typed { value, .. } => remap(value, offset, shared),
+            _ => {}
+        }
+    }
+    let b = torus();
+    let doc = haecceity::p21::Document::parse(b.clone()).unwrap();
+    let stride = doc.graph().entities.keys().max().unwrap() + 1;
+    // Contexts and the standard frame are deliberately shared, exercising cheap forward
+    // references, boundary ownership and the absence of quadratic owner-prefix sets too.
+    let shared = [1, 2, 8, 9, 11, 12, 13, 14, 73, 74, 75, 76, 77];
+    let count = 3000;
+    let mut text = String::from_utf8(b).unwrap();
+    let end = text.rfind("ENDSEC;").unwrap();
+    let mut extra = String::new();
+    for product in 1..count {
+        for (&id, e) in &doc.graph().entities {
+            if shared.contains(&id) {
+                continue;
+            }
+            let offset = product as u64 * stride;
+            let mut e = e.clone();
+            match &mut e {
+                RawEntity::Simple { attributes, .. } => {
+                    for a in attributes {
+                        remap(a, offset, &shared)
+                    }
+                }
+                RawEntity::Complex { parts, .. } => {
+                    for a in parts.iter_mut().flat_map(|p| &mut p.attributes) {
+                        remap(a, offset, &shared)
+                    }
+                }
+            }
+            extra.push_str(&format!(
+                "#{}={};\n",
+                id + offset,
+                haecceity::p21::encode(&e).unwrap()
+            ));
+        }
+    }
+    text.insert_str(end, &extra);
+    let m = manifest::scan(Cursor::new(text.as_bytes()), &ScanOptions::default()).unwrap();
+    assert_eq!(m.products.len(), count);
+    assert_eq!(m.instances.len(), count);
+    assert!(m.refusals.is_empty());
+    assert!(m.products.iter().all(|p| p.faces.len() == 1));
+}
+
+#[test]
+fn header_hash_versions_bounds_and_two_forward_passes() {
+    use std::io::{Seek, SeekFrom};
+    struct Replay {
+        bytes: Cursor<Vec<u8>>,
+        seeks: Vec<u64>,
+        read_bytes: usize,
+    }
+    impl Read for Replay {
+        fn read(&mut self, b: &mut [u8]) -> std::io::Result<usize> {
+            let n = self.bytes.read(b)?;
+            self.read_bytes += n;
+            Ok(n)
+        }
+    }
+    impl Seek for Replay {
+        fn seek(&mut self, from: SeekFrom) -> std::io::Result<u64> {
+            let at = self.bytes.seek(from)?;
+            self.seeks.push(at);
+            Ok(at)
+        }
+    }
+    let b = torus();
+    let mut compressed = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    compressed.write_all(&b).unwrap();
+    let gz = compressed.finish().unwrap();
+    for bytes in [b.clone(), gz] {
+        let len = bytes.len();
+        let mut replay = Replay {
+            bytes: Cursor::new(bytes),
+            seeks: Vec::new(),
+            read_bytes: 0,
+        };
+        let m = manifest::scan(&mut replay, &ScanOptions::default()).unwrap();
+        assert_eq!(
+            replay.seeks,
+            [0, 0, 0],
+            "only the magic probe and one source rewind; post-scan work never seeks backwards"
+        );
+        assert!(replay.read_bytes <= 2 * len + 2);
+        assert_eq!(m.products.len(), 1);
+    }
+    let m = manifest::scan(Cursor::new(&b), &ScanOptions::default()).unwrap();
+    let mut changed = b.clone();
+    let at = changed
+        .windows(b"Open CASCADE Model".len())
+        .position(|w| w == b"Open CASCADE Model")
+        .unwrap();
+    changed[at] = b'o';
+    let e = m
+        .read_product(&temp_source(&changed), "p0")
+        .unwrap_err()
+        .to_string();
+    assert!(e.contains("p0") && e.contains("common sha256"), "{e}");
+    let mut stale = m.clone();
+    stale.reader.haecceity = "old-reader".into();
+    let e = stale
+        .read_product(&temp_source(&b), "p0")
+        .unwrap_err()
+        .to_string();
+    assert!(
+        e.contains("old-reader") && e.contains(env!("CARGO_PKG_VERSION")),
+        "{e}"
+    );
+    let mut huge = m;
+    let size = manifest::MAX_HEADER_BYTES + 1;
+    huge.source.size = size;
+    huge.source.header = [0, size];
+    let file = temp_source(&b);
+    file.set_len(size).unwrap();
+    let e = huge.read_product(&file, "p0").unwrap_err().to_string();
+    assert!(e.contains("header exceeds"), "{e}");
+}
+
+#[test]
+fn local_and_shared_geometry_contexts_are_product_ranges() {
+    use haecceity::p21::{Attribute, RawEntity};
+    fn remap(a: &mut Attribute, offset: u64, shared: u64) {
+        match a {
+            Attribute::EntityRef(id) if *id != shared => *id += offset,
+            Attribute::List(v) => {
+                for a in v {
+                    remap(a, offset, shared)
+                }
+            }
+            Attribute::Typed { value, .. } => remap(value, offset, shared),
+            _ => {}
+        }
+    }
+    let b = torus();
+    let doc = haecceity::p21::Document::parse(b.clone()).unwrap();
+    let offset = doc.graph().entities.keys().max().unwrap() + 1;
+    let shared = 41;
+    let mut text = String::from_utf8(b).unwrap();
+    let at = text.rfind("ENDSEC;").unwrap();
+    let mut extra = String::new();
+    for (&id, e) in &doc.graph().entities {
+        if id == shared {
+            continue;
+        }
+        let mut e = e.clone();
+        match &mut e {
+            RawEntity::Simple { attributes, .. } => {
+                for a in attributes {
+                    remap(a, offset, shared)
+                }
+            }
+            RawEntity::Complex { parts, .. } => {
+                for a in parts.iter_mut().flat_map(|p| &mut p.attributes) {
+                    remap(a, offset, shared)
+                }
+            }
+        }
+        extra.push_str(&format!(
+            "#{}={};\n",
+            id + offset,
+            haecceity::p21::encode(&e).unwrap()
+        ));
+    }
+    text.insert_str(at, &extra);
+    let m = manifest::scan(Cursor::new(text.as_bytes()), &ScanOptions::default()).unwrap();
+    assert_eq!(m.products.len(), 2);
+    assert!(m.refusals.is_empty());
+    let rows = statements(text.as_bytes(), 4096).unwrap();
+    let context = rows.iter().find(|r| r.id == shared).unwrap();
+    let contains = |ranges: &[manifest::ByteRange]| {
+        ranges
+            .iter()
+            .any(|r| r[0] <= context.offset && context.offset < r[1])
+    };
+    assert!(!contains(&m.common.ranges));
+    assert!(m.products.iter().all(|p| contains(&p.ranges)));
+    check_bytes("shared geometry-only context", text.as_bytes());
+    let original = m.common.entities;
+    let at = text.rfind("ENDSEC;").unwrap();
+    let mut unused = String::new();
+    for id in 1000..2000 {
+        unused.push_str(&format!("#{id}=(GEOMETRIC_REPRESENTATION_CONTEXT(2) PARAMETRIC_REPRESENTATION_CONTEXT() REPRESENTATION_CONTEXT('unused',''));\n"));
+    }
+    // An unrepresented shape representation must not promote its context into common.
+    unused.push_str("#2001=SHAPE_REPRESENTATION('',(),#1000);\n");
+    text.insert_str(at, &unused);
+    let m = manifest::scan(Cursor::new(text.as_bytes()), &ScanOptions::default()).unwrap();
+    assert_eq!(m.common.entities, original);
+    check_bytes("unowned contexts", text.as_bytes());
 }

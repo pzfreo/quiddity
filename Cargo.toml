@@ -39,5 +39,6 @@ serde_json = { version = "1.0.151", features = ["float_roundtrip"] }
 sha2 = "0.11.0"
 
 [dev-dependencies]
+haecceity = { path = "crates/haecceity", version = "=0.4.9", default-features = false, features = ["manifest"] }
 tempfile = "3"
 libc = "0.2"
