@@ -71,8 +71,8 @@ fn nist_ftc_11_torus_band_across_minor_seam() {
         assert!(!domain.contains(u, 1.0));
     }
     let (volume, area) = part.solid_mass(0).unwrap();
-    // Small trimmed lettering faces retain differences between the 3D-edge foot points
-    // integrated here and OCCT's pcurves. The repaired torus itself agrees to round-off.
+    // Other small trimmed lettering faces retain existing area differences from OCCT.
+    // The repaired torus itself agrees to round-off.
     relative(volume, 5135.058392239693, 1e-5);
     relative(area, 5473.599136993476, 2e-5);
     let (moment_volume, centre) = part.volume_centroid().unwrap();
