@@ -312,6 +312,47 @@ fn plans(
             representations: roots,
         });
     }
+    // CDSR relationships can use an occurrence representation which is not itself the
+    // SDR of a product. Its context still belongs to the assembly chain, and must be
+    // available to the unchanged placement reader. Ignore unrelated representations.
+    let mut assembly_reps = Vec::new();
+    for e in graph
+        .values()
+        .filter(|e| name(e) == "CONTEXT_DEPENDENT_SHAPE_REPRESENTATION")
+    {
+        let a = attributes(e);
+        let linked = reference(a.get(1))
+            .and_then(|pds| graph.get(&pds))
+            .and_then(|pds| reference(attributes(pds).get(2)))
+            .and_then(|occurrence| graph.get(&occurrence))
+            .is_some_and(|e| name(e) == "NEXT_ASSEMBLY_USAGE_OCCURRENCE");
+        if linked && let Some(relation) = reference(a.first()) {
+            assembly_reps.push(relation);
+        }
+    }
+    let mut seen = HashSet::new();
+    while let Some(id) = assembly_reps.pop() {
+        if !seen.insert(id) {
+            continue;
+        }
+        let Some(slot) = index.lookup(id) else {
+            continue;
+        };
+        if index.kind(slot) == Kind::Representation {
+            common_reps.insert(id);
+            if let Some(next) = bridges.get(&id) {
+                assembly_reps.extend(next.iter().map(|&(_, rep)| rep));
+            }
+        } else if index.kind(slot) == Kind::Assembly
+            && let Some(e) = graph.get(&id)
+        {
+            assembly_reps.extend(references(e).into_iter().filter(|id| {
+                index.lookup(*id).is_some_and(|slot| {
+                    matches!(index.kind(slot), Kind::Assembly | Kind::Representation)
+                })
+            }));
+        }
+    }
     Ok((result, common_reps))
 }
 fn face_list(graph: &BTreeMap<u64, RawEntity>, solids: &[u64]) -> Result<Vec<u64>, StepError> {

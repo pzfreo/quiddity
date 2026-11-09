@@ -845,3 +845,77 @@ fn local_and_shared_geometry_contexts_are_product_ranges() {
     assert_eq!(m.common.entities, original);
     check_bytes("unowned contexts", text.as_bytes());
 }
+
+#[test]
+fn occurrence_representation_contexts_are_reached_from_assembly_chains() {
+    use haecceity::p21::{Attribute, RawEntity};
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ap242/assembly/assembly.step");
+    let b = bytes(&path);
+    let doc = haecceity::p21::Document::parse(b.clone()).unwrap();
+    let (&relationship,raw)=doc.graph().entities.iter().find(|(_,e)|matches!(e,RawEntity::Complex{parts,..} if parts.iter().any(|p|p.name=="REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION"))).unwrap();
+    let mut relation = raw.clone();
+    let RawEntity::Complex { parts, .. } = &mut relation else {
+        unreachable!()
+    };
+    let part = parts
+        .iter_mut()
+        .find(|p| p.name == "REPRESENTATION_RELATIONSHIP")
+        .unwrap();
+    let Attribute::EntityRef(rep) = &part.attributes[2] else {
+        unreachable!()
+    };
+    let mut representation = doc.graph().entities[rep].clone();
+    let next = doc.graph().entities.keys().max().unwrap() + 1;
+    part.attributes[2] = Attribute::EntityRef(next);
+    let RawEntity::Simple { attributes, .. } = &mut representation else {
+        unreachable!()
+    };
+    let Attribute::EntityRef(context) = attributes[2] else {
+        unreachable!()
+    };
+    let context = doc.graph().entities[&context].clone();
+    attributes[2] = Attribute::EntityRef(next + 1);
+    let rows = statements(&b, 4096).unwrap();
+    let first = rows.first().unwrap().offset as usize;
+    let last = rows.last().unwrap();
+    let end = (last.offset + u64::from(last.length)) as usize;
+    let mut out = b[..first].to_vec();
+    for row in rows {
+        if row.id == relationship {
+            out.extend_from_slice(
+                format!(
+                    "#{}={};",
+                    row.id,
+                    haecceity::p21::encode(&relation).unwrap()
+                )
+                .as_bytes(),
+            );
+        } else {
+            out.extend_from_slice(
+                &b[row.offset as usize..row.offset as usize + row.length as usize],
+            );
+        }
+        out.push(b'\n');
+    }
+    out.extend_from_slice(
+        format!(
+            "#{next}={};\n#{}={};\n",
+            haecceity::p21::encode(&representation).unwrap(),
+            next + 1,
+            haecceity::p21::encode(&context).unwrap()
+        )
+        .as_bytes(),
+    );
+    out.extend_from_slice(&b[end..]);
+    let m = manifest::scan(Cursor::new(&out), &ScanOptions::default()).unwrap();
+    let rows = statements(&out, 4096).unwrap();
+    let context = rows.iter().find(|r| r.id == next + 1).unwrap();
+    assert!(
+        m.common
+            .ranges
+            .iter()
+            .any(|r| r[0] <= context.offset && context.offset < r[1])
+    );
+    check_bytes("occurrence-only representation context", &out);
+}
