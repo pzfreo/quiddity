@@ -214,3 +214,56 @@ and JSON → STEP writing with checked identity restoration. Both are independen
 of `presentation`. See [the reference](docs/pmi-json.md), packaged `schema/`,
 and the `json_wasm_size` example. Ordinary writer output is unchanged except
 for Annex C-conformant gram/milligram definitions.
+
+### Large STEP assemblies: the manifest reader
+
+`step::manifest::scan(reader, &ScanOptions::default())` returns a serde
+`quiddity-manifest/1` manifest. The source implements `Read + Seek`: scanning uses 8 MiB
+chunks, selected placement dependencies use indexed seeks, and range hashes use a second
+forward walk. The source size and SHA-256 are computed during the statement scan.
+`p21::streaming::scan` itself accepts any `Read`, including arbitrarily short reads.
+
+Ranges are half-open `[start, end)` offsets in the uncompressed source. Each product has
+coalesced ranges, an entity count, byte count, SHA-256, and ordered face/edge entity IDs.
+The manifest also carries common context/unit ranges, assemblies, occurrence paths and
+placements in millimetres, unowned presentation/other ranges, and shared-geometry refusals.
+`manifest.read_product(&file, "p0")` reads the header and common/product ranges in one forward
+pass, checks size and hashes, then calls the existing part readers and checks their topology
+against the manifest. `manifest.verify_source(reader)` explicitly checks the whole source.
+Deserialization and reads refuse incompatible format/reader versions. Gzip sources can be
+scanned, but range reads refuse them; offsets and the source digest refer to decoded bytes.
+
+`ScanOptions::no_product_hashes` is the explicit size-only fallback (including common ranges).
+`index_dir` places the 16-byte extent/union-find entries in a temporary memory-mapped file in
+that directory, cleaned up on success or refusal. Without it those entries stay in memory.
+Sparse ID lookup, pending forward references, class flags and retained topology/assembly
+structure use additional memory; neither index holds the original entity text. The lexer
+buffers only its current statement, beside its chunk buffer. There is no automatic threshold.
+The manifest's independent `instance_limit` defaults to 1,000,000 and counts visited product
+definitions and emitted solid/surface-model instances separately. Per-product reads retain
+the existing assembly, instance, face and loop limits.
+
+Classification uses type names, including every leaf of complex entities, in this order:
+
+- Common: names ending in `CONTEXT` or `UNIT`, plus `DIMENSIONAL_EXPONENTS`,
+  `MEASURE_WITH_UNIT`, `UNCERTAINTY_MEASURE_WITH_UNIT`, `APPLICATION_PROTOCOL_DEFINITION`.
+- Assembly: `PRODUCT`, `PRODUCT_DEFINITION` (also `_WITH_ASSOCIATED_DOCUMENTS`),
+  `PRODUCT_DEFINITION_FORMATION` (also `_WITH_SPECIFIED_SOURCE`), `PRODUCT_DEFINITION_SHAPE`,
+  `SHAPE_DEFINITION_REPRESENTATION`, `NEXT_ASSEMBLY_USAGE_OCCURRENCE`,
+  `CONTEXT_DEPENDENT_SHAPE_REPRESENTATION`, `ITEM_DEFINED_TRANSFORMATION`,
+  `REPRESENTATION_RELATIONSHIP`, `REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION`,
+  `AXIS2_PLACEMENT_3D`, `AXIS2_PLACEMENT_2D`. Placement frames and their point/direction
+  dependencies are copied without joining products through a shared standard frame.
+- Presentation/PMI: prefixes `STYLED_`, `COLOUR`, `COLOR`, `PRESENTATION_`, `SURFACE_STYLE`,
+  `CURVE_STYLE`, `FILL_AREA_STYLE`, `POINT_STYLE`, `TEXT_STYLE`, `ANNOTATION`, `DRAUGHTING`,
+  `CAMERA`, `LIGHT_SOURCE`, `GEOMETRIC_TOLERANCE`, `DATUM`, `DIMENSIONAL_`, `DIMENSION_`,
+  `SHAPE_ASPECT`, `TESSELLATED_ANNOTATION`; names containing `TOLERANCE` or `SHAPE_ASPECT`;
+  and `MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION`, `OVER_RIDING_STYLED_ITEM`,
+  `INVISIBILITY`, `PRE_DEFINED_COLOUR`, `PRE_DEFINED_CURVE_FONT`, `GEOMETRIC_ITEM_SPECIFIC_USAGE`.
+- A plain `SHAPE_REPRESENTATION_RELATIONSHIP` (including its complex inherited leaves) is
+  geometry; a relationship with a transformation is assembly.
+- Geometry: everything else. Only references between geometry entities participate in
+  union-find. A component claimed by multiple products records a refusal with a shared
+  entity ID; callers use their existing whole-file fallback for those products.
+
+The CLI and Python manifest interfaces are separate work.

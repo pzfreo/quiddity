@@ -19,6 +19,11 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Added
 
+- haecceity’s `step::manifest` scans large STEP assemblies into serde manifests and reads
+  individual products through checked byte ranges, with source/product hashes, hierarchy and
+  placements, topology IDs, shared-geometry refusals, and an optional mapped index (#190, PR 1).
+  The shared Part 21 statement lexer now reads bounded chunks across arbitrary boundaries.
+
 - `internal_bevels` recognises bounded concave planar corner treatments with measured
   support legs, angle and run, backed by a complete material-filled wedge proof (#213).
   The optional sibling family preserves existing chamfer ranks and saved Spec references;
