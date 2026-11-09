@@ -1,4 +1,4 @@
-//! Frame and characteristic geometry ported from pzfreo/draftwright-rust aaa7a73,
+//! Frame and characteristic geometry ported from pzfreo/draftwright aaa7a73,
 //! src/dims/gdt.rs (Paul Fremantle; port authorized by the copyright owner for #137), without sheet planning or routing.
 use super::{Callout as Laid, Text as GdtText};
 type P2 = [f64; 2];

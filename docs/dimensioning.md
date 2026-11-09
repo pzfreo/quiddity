@@ -108,7 +108,7 @@ sizes with Equal selection; the nominal remains in degrees.
 
 ## Rules and provenance
 
-Adapted from pzfreo/draftwright-rust `origin/main` **1c830977** (same copyright owner):
+Adapted from pzfreo/draftwright `origin/main` **1c830977** (same copyright owner):
 
 - `dims/holes.rs`: patterns before single holes; full evenly spaced principal-axis
   lattices use their centre and one pitch per varying axis. Lines use their first
