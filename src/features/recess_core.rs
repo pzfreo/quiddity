@@ -5,6 +5,9 @@
 //! the same read with a floor found, which makes a pocket (bounded) or a channel (open at both
 //! ends of its solid).
 
+#[path = "recess_floor_blends.rs"]
+mod floor_blends;
+
 use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap};
 use std::rc::Rc;
@@ -438,6 +441,8 @@ impl<'c, 'a> Scan<'c, 'a> {
                         open_sign,
                         edge_anchored: false,
                         rectangular_boundary: false,
+                        floor_radius: None,
+                        floor_fillets: Vec::new(),
                         body_key: Some(Vec::new().into()),
                         end_radius: None,
                         corner_radius: None,
@@ -514,8 +519,10 @@ pub fn slot_proposals(
         merge_proposals_in(candidates, Some(scan.part_ext)),
     );
     let extended = extend_obround_proposals(merged, &scan.cylinders, strict)?;
+    let closed = floor_blends::proposals(&scan);
     Ok(extended
         .into_iter()
+        .filter(|p| !closed.iter().any(|c| p.defining().is_subset(&c.constituent)))
         .map(|p| {
             let record = with_proved_corner_radius(p.record.clone(), &scan.cylinders);
             p.replaced(record)
@@ -568,6 +575,15 @@ pub fn pocket_proposals(
             p.replaced(record)
         })
         .collect();
+    let blended = floor_blends::proposals(&scan);
+    let mut proposals = proposals;
+    // A complete closed-cavity proof replaces truncated planar-floor seeds on the
+    // same floor, without inserting records into other families or changing their order.
+    proposals.retain(|p| !blended.iter().any(|b| !p.floors.is_disjoint(&b.floors)));
+    if !blended.is_empty() {
+        proposals.extend(blended);
+        proposals.sort_by(|a, b| super::recess_reduce::width_then_centre(&a.record, &b.record));
+    }
     let proposals = attach_complete_pocket_regions(&scan, proposals);
     Ok(attach_intact_floor_walls(&scan, proposals)
         .into_iter()
@@ -1045,6 +1061,8 @@ fn corner_notch_proposals(faces: &[Face], pbb: &Bounds) -> Vec<Proposal<Pocket>>
                 },
                 edge_anchored: true,
                 rectangular_boundary: false,
+                floor_radius: None,
+                floor_fillets: Vec::new(),
                 body_key: Some(Vec::new().into()),
                 end_radius: None,
                 corner_radius: None,

@@ -363,6 +363,8 @@ fn obround_from_ends(faces: &[Face], cylinders: &[Cylinder], blind: bool) -> Vec
                     open_sign: if floor_lo.is_empty() { -1 } else { 1 },
                     edge_anchored: false,
                     rectangular_boundary: false,
+                    floor_radius: None,
+                    floor_fillets: Vec::new(),
                     body_key: Some(Vec::new().into()),
                     end_radius: None,
                     corner_radius: None,

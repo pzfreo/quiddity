@@ -79,9 +79,24 @@ pub struct Pocket {
     /// absence of a proved end radius alone never establishes this property.
     #[serde(default)]
     pub rectangular_boundary: bool,
+    /// Uniform radius only when every floor boundary is filleted with this radius.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub floor_radius: Option<f64>,
+    /// Individual floor transitions; omitted on legacy sharp-floor records.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub floor_fillets: Vec<FloorFillet>,
     pub body_key: Option<BodyKey>,
     pub end_radius: Option<f64>,
     pub corner_radius: Option<f64>,
+}
+
+/// An analytic floor transition, identified by file face indices. The wall may be
+/// planar or a depth-axis corner cylinder; `face` is the transverse cylinder or torus.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FloorFillet {
+    pub face: usize,
+    pub wall_face: usize,
+    pub radius: f64,
 }
 
 /// A floored rectangular channel open at both longitudinal ends of its solid: its one defining

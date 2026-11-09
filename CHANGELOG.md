@@ -13,6 +13,12 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
+- Closed rectangular pockets with analytic floor rounds retain their full depth and
+  vertical corner radius (#228), extending the blind-recess floor-claim work (#205,
+  #207). Optional `floor_radius` reports a proved uniform floor radius;
+  `floor_fillets` attaches each treated face, supporting wall and local radius to
+  the pocket, including mixed sharp/rounded floors. Open slots stay slots.
+
 - Internal bevel leg ties use intrinsic support area; symmetric ties remain unordered in
   fingerprints. Feature-policy angular tolerances retain slightly noisy STEP supports,
   with the slope angle measured on the actual supports rather than an ideal right angle.

@@ -1050,3 +1050,59 @@ triangular end, rather than four concave joins. A countersink is conical with ci
 not a four-line plane. An arbitrary ramp or web that cannot be distinguished geometrically
 from an internal edge treatment is refused when these role proofs are ambiguous. Open-ended,
 interrupted or nonrectangular internal treatments remain outside this initial contract.
+
+
+## Pocket floor rounds (#228)
+
+A closed rectangular pocket with an intact planar floor and analytic wall-to-floor
+rounds is published as `pockets`, with `depth` measured from the mouth to the
+planar floor (including the rounded portion). `corner_radius` still describes
+vertical wall corners: concave cylinders whose axes follow the pocket depth.
+Floor rounds instead are transverse cylinders under planar walls, or tori under
+those vertical corner cylinders. Torus **minor** radius is the floor radius;
+its major radius plus its minor radius must equal the supporting wall radius.
+
+Two optional additive fields are omitted on existing sharp-floor records:
+
+- `floor_radius`: positive millimetres, to three decimals, **only** when every
+  floor boundary has a fillet and all raw analytic radii agree within the kernel
+  coordinate floor. Omission means no uniform radius was proved, never zero.
+- `floor_fillets`: entries `{face, wall_face, radius}` in ascending `face` order.
+  Both indices are zero-based file face indices. `face` is the treated cylinder
+  or torus, `wall_face` its tangent planar or cylindrical mouth wall, and `radius`
+  its local floor radius in millimetres to three decimals. The treated faces are
+  defining pocket faces and yield no unrelated `fillets` or `blends` records.
+  Vertical corner cylinders remain cavity context, independently of these entries.
+
+A partial floor has entries only for its treated boundaries; all other floor
+boundaries in this admitted geometry meet their walls sharply. For the committed
+`pocket_partial_floor_fillet.step`, the two long floor edges have radius 1.5,
+its two short edges are sharp, depth is 4, and `floor_radius` is omitted. Mixed
+radii likewise never produce a uniform radius merely because publication rounds
+them to the same value. Mixed boundaries do not form pocket patterns until an
+intrinsic edge-layout comparison is available; uniform floor radii join the
+existing pocket pattern spec. Fingerprints include a proved uniform radius as a
+size; face-index attachments are excluded from revision matching.
+
+Recognition requires an inner mouth wire, four opposed inward planar walls,
+optionally four proved equal vertical corner cylinders, and one entire closed
+cavity on one valid solid. Every floor edge must meet either its sharp wall or a
+single analytic tangent transition, every wall must reach the mouth and its
+proved bottom role, and no unaccounted lower faces or external boundaries are
+allowed. Shared/interrupted floors, islands, open run ends, square role ambiguity
+and nonanalytic rounds do not acquire this proof. This is independent of the
+legacy slot test, whose wall bottoms sit above the planar floor after filleting;
+closed proofs are excluded from slot proposals. True through-slots and open-ended
+recesses retain their existing geometry-based recognisers.
+
+The three original build123d STEP controls are `pocket_plain.step`,
+`pocket_floor_fillet.step` and `pocket_partial_floor_fillet.step`. Their generator
+text and issue reference are in `tools/make_pocket_floor_fillets.py`; the first
+two retain the issue-supplied bytes. Analytic tests check depth, both radius roles,
+partial boundaries, face ownership and existing through-slot negatives.
+
+Recognition schema stays `quiddity-rust/recognition/6`, following the existing
+optional additive field convention (as for `exit_obstructions` and duplicate
+references). Existing records omit both fields, deserialize with empty/unknown
+floor treatment, and keep their previous fields and ranks. No fingerprint format
+or crate version changes.
