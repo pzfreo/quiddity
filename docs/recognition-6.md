@@ -1106,3 +1106,39 @@ optional additive field convention (as for `exit_obstructions` and duplicate
 references). Existing records omit both fields, deserialize with empty/unknown
 floor treatment, and keep their previous fields and ranks. No fingerprint format
 or crate version changes.
+
+### FTC-08 inventory and section projection audit (#228)
+
+The NIST FTC-08 closed cavity formerly published as `slots/0` on walls
+`[213,214,215,216]` is now `pockets/8`: depth 1.27 mm, wall corner radius
+3.18 mm (native 3.175), uniform floor radius 0.762 mm. Its attached floor
+patches are cylinders `[82,84,85,135]` and tori `[61,62,63,64]`; floor 83
+is claimed during floor completion. The face-specific inventory losses retain
+historical slot/fillet baselines, and the physical, accepted and framed pocket
+floors rise from eight to nine. No unrelated loss allowance is added.
+
+`section_recesses` is a reconstructible **constant-section** contract, rather
+than a second inventory of every pocket. FTC-08's floor 83 lies at z=46.99
+and spans 11.176 × 157.226 mm; the mouth spans 12.7 × 158.75 mm at z=48.26.
+The footprint grows through the 0.762 mm floor blend up to z=47.752, then
+remains constant through the straight walls. Sweeping either the mouth or the
+floor profile over the full depth would therefore invent void or material.
+The four corner tori have major/minor radii 2.413/0.762 mm and nonzero Gaussian
+curvature inside each patch. They cannot be the lateral surfaces of a linear
+constant-section sweep, or any of the supported plane, cylinder or two-plane
+envelope run ends. A truthful complete section record needs a richer contract;
+`unsupported_support_geometry` is the correct current result. The detailed
+pocket and its floor treatment remain available independently of that refusal.
+
+There was **no former slot projection** to lose: `slots` is not among the legacy
+source families projected by `section_recess_family::project`. Main's six
+section records have defining faces `[156]`, `[222]`,
+`[236,238,239,240,241,242,243,244,245,246,247,248]`,
+`[249,250,251,253,254,255,256,257,258,259,260,261,262,263,264,265,266,267,268,269]`,
+`[256,266]`, and `[254,268]`. Their geometry and evidence are unchanged against
+origin/main, and none of their constituent faces belongs to this cavity.
+The document's seventh section-family row is a newly explicit refusal because
+`pockets` participates in projection; the number of actual section geometries
+stays six. `ftc08_floor_fillet_pocket_replaces_only_its_slot_and_floor_rounds`
+checks the native radii, changing footprint, torus curvature, complete pocket
+ownership, exact surviving slot/fillet groups, and the six sections plus refusal.

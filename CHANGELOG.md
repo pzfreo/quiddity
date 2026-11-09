@@ -18,6 +18,13 @@ in [docs/alpha1.md](docs/alpha1.md).
   #207). Optional `floor_radius` reports a proved uniform floor radius;
   `floor_fillets` attaches each treated face, supporting wall and local radius to
   the pocket, including mixed sharp/rounded floors. Open slots stay slots.
+  FTC-08 has the same defect: pockets 8→9, slots 4→3 and fillets 95→91.
+  Its surviving slot ranks 1–3 become 0–2; fillet ranks 66–73 become 64–71
+  and 76–94 become 72–90. Existing pocket ranks and the other 99 corpus
+  parts are unchanged. Face-specific inventory loss entries retain the historical
+  slot/fillet baselines and tighten all three FTC-08 pocket floors to nine.
+  The six existing section projections remain unchanged; one explicit refusal
+  records the newly recognised pocket's unsupported toroidal floor geometry.
 
 - Internal bevel leg ties use intrinsic support area; symmetric ties remain unordered in
   fingerprints. Feature-policy angular tolerances retain slightly noisy STEP supports,

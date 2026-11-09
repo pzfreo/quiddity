@@ -1,6 +1,6 @@
 {
   "revision": "5fb1706",
-  "description": "Per-file raw physical candidates (patterns derived over raw members) and reconciled public aggregate, including unified section-recess records and patterns, at 5fb1706. For #81, framed accepted-feature counts (excluding document Refusal classes) over the 100 corpus documents start at origin/main and only rise; explicit analytic direction/family evidence accompanies every allowed framed decrease. AP242 fixture floors pin the recovered counts. For #89, convex fillets require an outward-facing cylinder in both prismatic paths. Original fillet baselines remain; per-face material-side evidence bounds concave false-positive removals, and recovered blend counts tighten floors/allowances. For #91, the frame's roll about its leading line follows the tightest box around the material; the cgb241 and cgb217 framed fillet and step-level decreases are family changes of the same faces, each evidenced. For #120, exact blend-to-fillet promotions at arbitrary wall angles and directions have per-face evidence-backed loss allowances; the four CTC-05 false fillets have separate gross-tangency evidence. No historical baseline or comparison tolerance is lowered. For #127, new concave fillets tighten accepted/framed floors and physical lower bounds; audited blend-to-fillet promotions have face-specific loss allowances. Historical baselines and tolerances remain unchanged. For #127, historical false-fillet loss allowances are retired wherever a higher floor now pins the current proved fillets; those new floors admit no historical loss. For #127, residual cylindrical-profile framed floors are re-recorded after #128 against c41241f2: only unexplained or body-only faces are added, with every existing record and tightened fillet floor preserved. Raw and reconciled candidate inventories precede this residual projection. For #123, whole-solid turned-body counts tighten physical, accepted and framed floors wherever the new complete-boundary proof succeeds; historical feature baselines and tolerances remain unchanged. OD-boss suppressions are audited separately against 42649a2. Sealed-void reclassification (2026-11-03) retains every historical floor and tightens interior-void floors; face-specific allowances cover only sealed bore/pattern records and subordinate profiles superseded by complete closed-shell void claims.",
+  "description": "Per-file raw physical candidates (patterns derived over raw members) and reconciled public aggregate, including unified section-recess records and patterns, at 5fb1706. For #81, framed accepted-feature counts (excluding document Refusal classes) over the 100 corpus documents start at origin/main and only rise; explicit analytic direction/family evidence accompanies every allowed framed decrease. AP242 fixture floors pin the recovered counts. For #89, convex fillets require an outward-facing cylinder in both prismatic paths. Original fillet baselines remain; per-face material-side evidence bounds concave false-positive removals, and recovered blend counts tighten floors/allowances. For #91, the frame's roll about its leading line follows the tightest box around the material; the cgb241 and cgb217 framed fillet and step-level decreases are family changes of the same faces, each evidenced. For #120, exact blend-to-fillet promotions at arbitrary wall angles and directions have per-face evidence-backed loss allowances; the four CTC-05 false fillets have separate gross-tangency evidence. No historical baseline or comparison tolerance is lowered. For #127, new concave fillets tighten accepted/framed floors and physical lower bounds; audited blend-to-fillet promotions have face-specific loss allowances. Historical baselines and tolerances remain unchanged. For #127, historical false-fillet loss allowances are retired wherever a higher floor now pins the current proved fillets; those new floors admit no historical loss. For #127, residual cylindrical-profile framed floors are re-recorded after #128 against c41241f2: only unexplained or body-only faces are added, with every existing record and tightened fillet floor preserved. Raw and reconciled candidate inventories precede this residual projection. For #123, whole-solid turned-body counts tighten physical, accepted and framed floors wherever the new complete-boundary proof succeeds; historical feature baselines and tolerances remain unchanged. OD-boss suppressions are audited separately against 42649a2. Sealed-void reclassification (2026-11-03) retains every historical floor and tightens interior-void floors; face-specific allowances cover only sealed bore/pattern records and subordinate profiles superseded by complete closed-shell void claims. For #228, FTC-08 closed-pocket floor fillets are attached to pockets; face-specific slot/fillet reclassification losses preserve historical baselines while pocket floors tighten to nine in physical, accepted and framed modes.",
   "files": {
     "captured/0043cf4564250883.step.gz": {
       "accepted": {
@@ -17638,7 +17638,7 @@
         "hole_patterns": 3,
         "holes": 21,
         "plates": 5,
-        "pockets": 8,
+        "pockets": 9,
         "section_recesses": 6,
         "slots": 4,
         "step_levels": 3
@@ -17649,7 +17649,7 @@
         "hole_patterns": 3,
         "holes": 21,
         "plates": 5,
-        "pockets": 8,
+        "pockets": 9,
         "slots": 4,
         "step_levels": 3
       },
@@ -17660,7 +17660,7 @@
         "hole_patterns": 3,
         "holes": 21,
         "plates": 5,
-        "pockets": 8,
+        "pockets": 9,
         "section_recesses": 6,
         "slots": 4,
         "step_levels": 7
@@ -19632,6 +19632,46 @@
       "max_lost": 1,
       "reason": "The intact corner cut is now a circular blind step rather than a residual cylindrical profile (maintainer decision for #208). The historical profile floor of two remains; one subordinate profile is replaced by the more specific wall-and-terminal claim.",
       "evidence": "Native inward quarter-cylinder face 20 has radius 4.550383998164 mm and a Z-parallel axis through (33.316330673049, 0), spanning z=17.138600034740..20.497241548961. Convex supports 5 (y=0, outward -Y) and 15 (x=33.316330673049, outward +X) pass through its axis and are perpendicular. Additional convex plane 18 lies at y=4.550383998164 and does not pass through the axis; the wall still has two circular rims and two complete generators, one subdivided. Face 24 is the perpendicular concave blind terminal; the terminal sweep to the open end meets no material. circular_blind_steps now claims [20,24], including the former profile face [20]; the sole remaining profile is [14]. tests/internal/inventory_floor.rs::circular_step_363_replaces_only_its_subordinate_profile asserts the native geometry, three circular-step claims, and exact remaining profile ownership. The fixture-based a_third_convex_side_preserves_the_complete_corner_step and a_notch_into_the_quarter_wall_is_not_a_complete_step tests guard the complete-wall admission and interrupted-wall refusal."
+    },
+    {
+      "file": "corpus/nist/nist_ftc_08_asme1_rc.stp",
+      "mode": "physical",
+      "family": "slots",
+      "max_lost": 1,
+      "reason": "#228: a closed pocket with an analytic floor fillet is a pocket; its floor fillets belong to it.",
+      "evidence": "Former slots/0 defined [213,214,215,216], the four inward walls of the closed mouth at z=48.26. Former floor fillets are face 82 R0.762 mm, face 84 R0.762 mm, face 85 R0.762 mm, and face 135 R0.762 mm. pockets/8 now claims [61,62,63,64,82,84,85,135,213,214,215,216], with planar floor 83 also claimed after floor completion. Its depth is 1.27 mm (floor z=46.99), corner_radius 3.18 mm (native wall R3.175), and uniform floor_radius 0.762 mm. The other four attached floor patches [61,62,63,64] are tori with major/minor radii 2.413/0.762 mm. The remaining slots are exactly [152,154], [220,224], [117,121]; the remaining 91 fillet claims preserve every other former face group. tests/internal/inventory_floor.rs::ftc08_floor_fillet_pocket_replaces_only_its_slot_and_floor_rounds asserts native supports, complete replacement ownership, exact remaining slot/fillet groups and all three nine-pocket inventories."
+    },
+    {
+      "file": "corpus/nist/nist_ftc_08_asme1_rc.stp",
+      "mode": "accepted",
+      "family": "slots",
+      "max_lost": 1,
+      "reason": "#228: a closed pocket with an analytic floor fillet is a pocket; its floor fillets belong to it.",
+      "evidence": "Former slots/0 defined [213,214,215,216], the four inward walls of the closed mouth at z=48.26. Former floor fillets are face 82 R0.762 mm, face 84 R0.762 mm, face 85 R0.762 mm, and face 135 R0.762 mm. pockets/8 now claims [61,62,63,64,82,84,85,135,213,214,215,216], with planar floor 83 also claimed after floor completion. Its depth is 1.27 mm (floor z=46.99), corner_radius 3.18 mm (native wall R3.175), and uniform floor_radius 0.762 mm. The other four attached floor patches [61,62,63,64] are tori with major/minor radii 2.413/0.762 mm. The remaining slots are exactly [152,154], [220,224], [117,121]; the remaining 91 fillet claims preserve every other former face group. tests/internal/inventory_floor.rs::ftc08_floor_fillet_pocket_replaces_only_its_slot_and_floor_rounds asserts native supports, complete replacement ownership, exact remaining slot/fillet groups and all three nine-pocket inventories."
+    },
+    {
+      "file": "corpus/nist/nist_ftc_08_asme1_rc.stp",
+      "mode": "framed",
+      "family": "slots",
+      "max_lost": 1,
+      "reason": "#228: a closed pocket with an analytic floor fillet is a pocket; its floor fillets belong to it.",
+      "evidence": "Former slots/0 defined [213,214,215,216], the four inward walls of the closed mouth at z=48.26. Former floor fillets are face 82 R0.762 mm, face 84 R0.762 mm, face 85 R0.762 mm, and face 135 R0.762 mm. pockets/8 now claims [61,62,63,64,82,84,85,135,213,214,215,216], with planar floor 83 also claimed after floor completion. Its depth is 1.27 mm (floor z=46.99), corner_radius 3.18 mm (native wall R3.175), and uniform floor_radius 0.762 mm. The other four attached floor patches [61,62,63,64] are tori with major/minor radii 2.413/0.762 mm. The remaining slots are exactly [152,154], [220,224], [117,121]; the remaining 91 fillet claims preserve every other former face group. tests/internal/inventory_floor.rs::ftc08_floor_fillet_pocket_replaces_only_its_slot_and_floor_rounds asserts native supports, complete replacement ownership, exact remaining slot/fillet groups and all three nine-pocket inventories."
+    },
+    {
+      "file": "corpus/nist/nist_ftc_08_asme1_rc.stp",
+      "mode": "accepted",
+      "family": "fillets",
+      "max_lost": 4,
+      "reason": "#228: a closed pocket with an analytic floor fillet is a pocket; its floor fillets belong to it.",
+      "evidence": "Former slots/0 defined [213,214,215,216], the four inward walls of the closed mouth at z=48.26. Former floor fillets are face 82 R0.762 mm, face 84 R0.762 mm, face 85 R0.762 mm, and face 135 R0.762 mm. pockets/8 now claims [61,62,63,64,82,84,85,135,213,214,215,216], with planar floor 83 also claimed after floor completion. Its depth is 1.27 mm (floor z=46.99), corner_radius 3.18 mm (native wall R3.175), and uniform floor_radius 0.762 mm. The other four attached floor patches [61,62,63,64] are tori with major/minor radii 2.413/0.762 mm. The remaining slots are exactly [152,154], [220,224], [117,121]; the remaining 91 fillet claims preserve every other former face group. tests/internal/inventory_floor.rs::ftc08_floor_fillet_pocket_replaces_only_its_slot_and_floor_rounds asserts native supports, complete replacement ownership, exact remaining slot/fillet groups and all three nine-pocket inventories."
+    },
+    {
+      "file": "corpus/nist/nist_ftc_08_asme1_rc.stp",
+      "mode": "framed",
+      "family": "fillets",
+      "max_lost": 4,
+      "reason": "#228: a closed pocket with an analytic floor fillet is a pocket; its floor fillets belong to it.",
+      "evidence": "Former slots/0 defined [213,214,215,216], the four inward walls of the closed mouth at z=48.26. Former floor fillets are face 82 R0.762 mm, face 84 R0.762 mm, face 85 R0.762 mm, and face 135 R0.762 mm. pockets/8 now claims [61,62,63,64,82,84,85,135,213,214,215,216], with planar floor 83 also claimed after floor completion. Its depth is 1.27 mm (floor z=46.99), corner_radius 3.18 mm (native wall R3.175), and uniform floor_radius 0.762 mm. The other four attached floor patches [61,62,63,64] are tori with major/minor radii 2.413/0.762 mm. The remaining slots are exactly [152,154], [220,224], [117,121]; the remaining 91 fillet claims preserve every other former face group. tests/internal/inventory_floor.rs::ftc08_floor_fillet_pocket_replaces_only_its_slot_and_floor_rounds asserts native supports, complete replacement ownership, exact remaining slot/fillet groups and all three nine-pocket inventories."
     }
   ]
 }
