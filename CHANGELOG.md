@@ -13,6 +13,12 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
+- Mass integrals wrap closed spline tangents with their points and use consistent
+  containment and integration domains for seamless torus bands. This restores the
+  missing cylindrical areas in NIST STC-10 and the toroidal area in FTC-11, and
+  corrects four adjoining STC-10 faces. Volume centroids and face moments now
+  require valid mass integrals instead of accepting rejected face contributions.
+
 - Closed rectangular pockets with analytic floor rounds retain their full depth and
   vertical corner radius (#228), extending the blind-recess floor-claim work (#205,
   #207). Optional `floor_radius` reports a proved uniform floor radius;

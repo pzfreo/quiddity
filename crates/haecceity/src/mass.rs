@@ -1217,6 +1217,7 @@ impl Part {
     /// This integrates `n·direction` rather than surface area. Overlapping sheets of a
     /// folded projection cancel. Used to measure a skin's adjoining edge-treatment strips.
     pub fn face_projected_moments(&self, face: usize, direction: V3) -> Option<(f64, V3)> {
+        self.face_terms(face)?;
         let fc = &self.faces[face];
         let origin = fc.loops.iter().find_map(|lp| {
             lp.vertex
@@ -1242,6 +1243,7 @@ impl Part {
     /// by the same boundary quadrature as
     /// [`Part::face_mass`]; `None` where that cannot integrate the face.
     pub fn face_moments(&self, face: usize) -> Option<FaceMoments> {
+        self.face_terms(face)?;
         let fc = &self.faces[face];
         let surface = &fc.surface;
         if let Surface::Sphere { frame, radius } = surface
@@ -1363,6 +1365,9 @@ impl Part {
         let (mut s, mut m, mut a, mut b) = (0.0, [0.0; 3], [[0.0; 3]; 3], [0.0; 3]);
         for solid in &self.solids {
             for &face in &solid.faces {
+                // The mass integral validates positive area as well as convergence. A
+                // separate moment quadrature must not accept a face the volume rejected.
+                self.face_terms(face)?;
                 let fc = &self.faces[face];
                 let surface = &fc.surface;
                 let sense = if fc.reversed { -1.0 } else { 1.0 };
