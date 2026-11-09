@@ -20,6 +20,10 @@ cargo build -p haecceity -j 6 --release --example gvp
   > "$SCRATCH_OUT/gvp-table.txt"
 ```
 
+To render an already captured measurement JSON again, use `--measurements FILE`
+in place of `--rust` and paths. This retains the supplied Rust/A observations and
+recomputes OCCT; it does not claim to remeasure ours.
+
 `OCP_PY` is the Python executable in a venv with `cadquery-ocp-novtk`. The Python
 reference uses OCCT `BRepGProp.VolumeProperties` and `SurfaceProperties`, adaptive
 Gauss integration with requested relative tolerance 1e-9, exact surfaces, no
@@ -27,7 +31,9 @@ triangulation. It records the OCP version. XCAF's unique part traversal and
 `TopExp.MapShapes` face order match `StepFile.parts` / `StepFile.part`'s documented
 numbering contract; part and face count mismatches are reported rather than zipped
 silently. OCCT sometimes gives independent sheets their own free XCAF roots; these
-are regrouped only when the STEP text itself declares exactly one product definition. Product area includes independent sheets; volume and material centroid use solids
+are regrouped only when the STEP text itself declares exactly one product definition. `surface area measure` includes independent sheets; `wetted area measure` excludes
+them. The parser retains this distinction as `AreaKind`. Product surface area includes
+independent sheets; volume and material centroid use solids
 only. A sheet-only part reports area, zero volume and no material centroid. Legacy
 AP203 aspects explicitly described as "surface data associated with …" select the
 independent sheets of that product when their representation lists only boundary

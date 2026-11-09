@@ -27,12 +27,17 @@ def error(a, b, quantity, diagonal):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--rust', type=Path, required=True)
+    source=parser.add_mutually_exclusive_group(required=True)
+    source.add_argument('--rust', type=Path)
+    source.add_argument('--measurements', type=Path, help='render previously captured measurement JSON; OCCT is recomputed')
     parser.add_argument('--json', type=Path)
     parser.add_argument('--jobs', type=int, choices=range(1,7), default=1)
-    parser.add_argument('paths', nargs='+')
+    parser.add_argument('paths', nargs='*')
     args = parser.parse_args()
-    process = subprocess.Popen([str(args.rust.resolve()), '--jobs', str(args.jobs), *args.paths], stdout=subprocess.PIPE, text=True)
+    if args.rust and not args.paths:
+        parser.error('paths are required with --rust')
+    process = subprocess.Popen([str(args.rust.resolve()), '--jobs', str(args.jobs), *args.paths], stdout=subprocess.PIPE, text=True) if args.rust else None
+    lines=process.stdout if process else map(json.dumps,json.loads(args.measurements.read_text()))
     rows, counts, worst = [], collections.Counter(), []
     print('Units mm^3, mm^2, mm. Relative centroid error = distance / part box diagonal.')
     print('Acceptance <=0.001 for all three normalized errors. Missing values are UNAVAILABLE, never PASS.')
@@ -56,12 +61,12 @@ def main():
                 if ref == 'A' and ac is not None and ac <= BAND and bc is not None and bc > BAND:
                     classification = 'wrong reference (A disagrees with B and ours)'
                 else:
-                    classification = 'real haecceity error; investigate exact faces'
+                    classification = 'real haecceity error; investigate exact faces' if ref=='A' else 'B-only discrepancy; inspect geometry and reference'
             if e is not None:
                 worst.append((e, file, label, ref, quantity, a, b, classification))
             print(f'{file} | {label} | {ref} | {quantity} | {a} | {b} | {e} | {status} {classification}')
 
-    for line in process.stdout:
+    for line in lines:
         row = json.loads(line)
         print(f'measuring {row["file"]}', file=sys.stderr, flush=True)
         try:
@@ -103,7 +108,7 @@ def main():
                 print(f'{file} | {label} | A unavailable (no material GVP)')
         for prop in row['unattached_gvp']:
             print(f'{file} | UNATTACHED GVP | {prop}')
-    if process.wait():
+    if process is not None and process.wait():
         raise SystemExit('Rust measurement process failed')
     print('\nCOUNTS (each GVP representation is counted, including duplicate part/aspect checks):')
     for key, value in sorted(counts.items()):

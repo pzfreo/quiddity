@@ -130,7 +130,7 @@ pub fn file(path: &Path) -> Result<Value, Box<dyn std::error::Error>> {
                     .filter(|&f| part.faces[f].solid.is_none())
                     .collect();
             }
-            let ours = if faces.is_empty() {
+            let mut ours = if faces.is_empty() {
                 Value::Null
             } else if whole || faces == whole_faces {
                 whole_ours.clone()
@@ -152,7 +152,14 @@ pub fn file(path: &Path) -> Result<Value, Box<dyn std::error::Error>> {
                     .or_insert_with(|| measure(&part, &faces, false))
                     .clone()
             };
-            validations.push(json!({"property":p.property,"target":p.target,"items":p.items,"faces":faces,"reference":{"volume":p.volume,"area":p.area,"centroid":p.centroid},"ours":ours,"association":if surface_data {"legacy surface-data aspect: independent sheets of owning product"} else {"explicit STEP owner/geometry"},"scope":if whole {"product"} else {"aspect"}}));
+            if whole && p.area_kind == Some(gvp::AreaKind::Wetted) && !ours.is_null() {
+                ours["area"] = json!(
+                    solid_faces
+                        .iter()
+                        .try_fold(0.0, |a, &f| part.face_mass(f).map(|m| a + m[0]))
+                );
+            }
+            validations.push(json!({"area_kind":match p.area_kind {Some(gvp::AreaKind::Wetted)=>Some("wetted"),Some(gvp::AreaKind::Surface)=>Some("surface"),None=>None},"property":p.property,"target":p.target,"items":p.items,"faces":faces,"reference":{"volume":p.volume,"area":p.area,"centroid":p.centroid},"ours":ours,"association":if surface_data {"legacy surface-data aspect: independent sheets of owning product"} else {"explicit STEP owner/geometry"},"scope":if whole {"product"} else {"aspect"}}));
         }
         parts.push(json!({"part":i,"name":def.name,"product_definition":def.product_definition,"faces":def.faces,"placements":def.placements.iter().map(|p|p.placement).collect::<Vec<_>>(),"ours":whole_ours,"gvp":validations}));
     }
@@ -166,7 +173,7 @@ pub fn file(path: &Path) -> Result<Value, Box<dyn std::error::Error>> {
                 .filter_map(|p| p["property"].as_u64())
         })
         .collect();
-    let unattached:Vec<_>=properties.iter().filter(|p|!attached.contains(&p.property)).map(|p|json!({"property":p.property,"target":p.target,"product_definition":p.product_definition,"occurrence":p.occurrence,"reference":{"volume":p.volume,"area":p.area,"centroid":p.centroid}})).collect();
+    let unattached:Vec<_>=properties.iter().filter(|p|!attached.contains(&p.property)).map(|p|json!({"area_kind":match p.area_kind {Some(gvp::AreaKind::Wetted)=>Some("wetted"),Some(gvp::AreaKind::Surface)=>Some("surface"),None=>None},"property":p.property,"target":p.target,"product_definition":p.product_definition,"occurrence":p.occurrence,"reference":{"volume":p.volume,"area":p.area,"centroid":p.centroid}})).collect();
     Ok(
         json!({"file":path,"parts":parts,"unattached_gvp":unattached,"geometric_properties":properties.len()}),
     )

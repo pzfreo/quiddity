@@ -124,13 +124,15 @@ def compare(row):
         cache = {}
         for prop in part['gvp']:
             if prop['faces']:
-                key = (prop['scope'],tuple(prop['faces']))
+                material=prop['reference'].get('volume') is not None or prop['reference'].get('centroid') is not None
+                key = (prop['scope'],prop.get('area_kind'),material,tuple(prop['faces']))
                 if key not in cache:
                     if prop['scope']=='product':
-                        cache[key] = part['occt']
+                        cache[key] = dict(part['occt'])
+                        if prop.get('area_kind')=='wetted':
+                            cache[key]['area']=measure(compound(indexed(shape, TopAbs_SOLID)),False)['area']
                     else:
-                        material=prop['reference'].get('volume') is not None or prop['reference'].get('centroid') is not None
-                        cache[key] = measure(compound([faces[i] for i in key[1]]),material)
+                        cache[key] = measure(compound([faces[i] for i in key[3]]),material)
                 prop['occt'] = cache[key]
     row['occt_version'] = OCP.__version__
     row['occt_tolerance'] = EPS

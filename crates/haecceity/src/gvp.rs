@@ -5,6 +5,13 @@
 //! values use the occurrence's representation coordinates (do not transform them twice).
 use crate::p21::{Attribute as A, Document, RawEntity};
 
+/// Whether the exporter measures all surface data or only surfaces wetting material.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AreaKind {
+    Surface,
+    Wetted,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct ValidationProperty {
     pub property: u64,
@@ -18,6 +25,7 @@ pub struct ValidationProperty {
     pub items: Vec<u64>,
     pub volume: Option<f64>,
     pub area: Option<f64>,
+    pub area_kind: Option<AreaKind>,
     /// Material centroid only; curve/surface/independent-point centroids are excluded.
     pub centroid: Option<[f64; 3]>,
 }
@@ -218,6 +226,7 @@ pub fn read(doc: &Document) -> Result<Vec<ValidationProperty>, String> {
                 items: Vec::new(),
                 volume: None,
                 area: None,
+                area_kind: None,
                 centroid: None,
             };
             for id in refs(r.get(1)?) {
@@ -252,6 +261,13 @@ pub fn read(doc: &Document) -> Result<Vec<ValidationProperty>, String> {
                     let value = value * scale;
                     if !value.is_finite() || value < 0.0 {
                         return None;
+                    }
+                    if dimension == 2 {
+                        v.area_kind = Some(if name == "wetted area measure" {
+                            AreaKind::Wetted
+                        } else {
+                            AreaKind::Surface
+                        });
                     }
                     let slot = if dimension == 3 {
                         &mut v.volume
@@ -387,6 +403,18 @@ mod tests {
         assert_eq!(
             read(&Document::parse(text.into_bytes()).unwrap()).unwrap()[0].volume,
             Some(2.)
+        );
+    }
+    #[test]
+    fn wetted_and_total_surface_area_keep_distinct_scope() {
+        let doc = model("(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.))");
+        assert_eq!(read(&doc).unwrap()[0].area_kind, Some(AreaKind::Surface));
+        let raw = String::from_utf8(doc.bytes().to_vec())
+            .unwrap()
+            .replace("surface area measure", "wetted area measure");
+        assert_eq!(
+            read(&Document::parse(raw.into_bytes()).unwrap()).unwrap()[0].area_kind,
+            Some(AreaKind::Wetted)
         );
     }
     #[test]
