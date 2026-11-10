@@ -166,8 +166,8 @@ pub fn file(path: &Path) -> Result<Value, Box<dyn std::error::Error>> {
                     (Some(a), Some(b), Some(r)) => (a - r).abs() <= (b - r).abs(),
                     _ => true,
                 };
-                let use_solids = p.area_kind == Some(gvp::AreaKind::Wetted)
-                    || closer(solids_area, with_sheets);
+                let use_solids =
+                    p.area_kind == Some(gvp::AreaKind::Wetted) || closer(solids_area, with_sheets);
                 if use_solids {
                     ours["area"] = json!(solids_area);
                 }
