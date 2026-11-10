@@ -2,7 +2,7 @@
 
 This comparison scores defining-face unions against MFInstSeg labels. The committed result is a quiddity rerun on the 9,375-model test split: main `1b7dee670475531b7bd7d6d0bedefd096328815d` plus the `face_claims` exporter at `1ebfcef7` on this branch (macOS, six workers, 8 November 2026). All 9,375 models returned `ok`. Its raw sweep, scorer and label fingerprints are recorded, so the scores can be recomputed from the repository plus the external labels.
 
-No Analysis Situs numbers are reported. The tooling to run Analysis Situs and score it alongside quiddity is kept below, but no Analysis Situs sweep can be reproduced from this repository.
+No Analysis Situs numbers are reported. The Analysis Situs sweep on the same test split is committed, though, as `runs/as-246e2ab-test.jsonl.gz`. It came from Analysis Situs `246e2ab` with OCCT 7.6.3, run on Linux on 6 November 2026, and all 9,375 models returned `ok`. A later quiddity sweep can therefore be scored against it without rebuilding or rerunning Analysis Situs; see Reproducibility below. The tooling to rerun Analysis Situs is also kept below.
 
 | File in `docs/benchmarks/` | Contents |
 |---|---|
@@ -75,6 +75,16 @@ python3 -I tools/as_compare/score.py /path/to/MFInstSeg/labels \
   tools/as_compare/runs/main-1b7dee67-test-qr.jsonl.gz - /tmp/current-score.json \
   --quiddity-revision 1b7dee670475531b7bd7d6d0bedefd096328815d --exporter-revision 1ebfcef7
 ```
+
+To score quiddity against the committed Analysis Situs sweep, pass that sweep in place of `-`. The sweep is gzip-compressed JSONL, about 0.7 MB:
+
+```sh
+python3 -I tools/as_compare/score.py /path/to/MFInstSeg/labels \
+  /tmp/qr.jsonl tools/as_compare/runs/as-246e2ab-test.jsonl.gz /tmp/scores.json \
+  --quiddity-revision REVISION
+```
+
+The Analysis Situs output is deterministic: its holes, blends and cavities output matched an October 2026 run on all 9,375 models. Its CPU timings are from that one Linux run.
 
 The aggregate records the compressed sweep and scorer SHA-256 digests. `labels_sha256` is SHA-256 of the concatenation, in sorted ID order, of `ID:SHA256(label_file_bytes)\n` in UTF-8. The external labels must match that fingerprint to recreate these scores. Fresh recognition also requires the STEP corpus and recorded recognizer/exporter revisions; CPU timings vary with the machine and run.
 The HTML can be regenerated from the committed aggregate:
