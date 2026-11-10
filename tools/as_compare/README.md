@@ -104,3 +104,18 @@ python3 -I tools/as_compare/test_score.py
 ```
 
 CI runs `test_score.py` in the lint job.
+
+## MFCAD++ semantic scoring
+
+`face_claims` includes `face_sources`, the source STEP entity for each caller face.
+Run `python3 -I tools/as_compare/score_mfcadpp.py STEPS QR.jsonl OUT.json
+--quiddity-revision REV` to bind the numeric `ADVANCED_FACE` names through those
+IDs. A missing, duplicate or invalid binding is an error, never an assumed file order.
+The adapter calls `score.py` for every comparison and selector; it adds a missed-face
+ranking with unclaimed/body-only counts and overlapping body-family counts.
+MFCAD++ names have no instance IDs: instance metrics are unavailable except for
+stock's existing one-body comparison. No feature instances are inferred from labels.
+
+Development samples use every tenth nonempty ID (10th, 20th, ...) of `train.txt`;
+validation uses the same rule on `val.txt`. Keep validation holdouts sealed.
+Synthetic binding/metric tests: `python3 -I tools/as_compare/test_score_mfcadpp.py`.
