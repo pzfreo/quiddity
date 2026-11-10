@@ -3111,7 +3111,7 @@
     "tests/fixtures/references/cylindrical_proof_motion.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
     "tests/fixtures/references/cylindrical_volume_evidence.json": "7c66b1a8bc77cc058931258ece5502c96935d51dd5dd611fad14b8b1f43523fa",
     "tests/fixtures/references/drawings.json": "4823ca75c41b8aa204a972138460db40f0fb51fc3b89bfdbacfaa7d1b49b0b77",
-    "tests/fixtures/references/effective_surface_measurements.json": "040162fcdfc9fbf6f6140e25e6f3ff2a444771eaad7363b0242396bc921b20bb",
+    "tests/fixtures/references/effective_surface_measurements.json": "1859266fac9d5d91c50a470501035872eab66f363d992160d1e52ff879b8fac8",
     "tests/fixtures/references/effective_surface_motion.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
     "tests/fixtures/references/face_areas.json": "2f825fef11c6c80b1968cd3030530b680af3870e180d74da1f822261086927c0",
     "tests/fixtures/references/face_integrals.json": "4677da5c8fc5b39fae0c88ebcc5432f72b6957a8a1473555fbf91013a242bde6",
@@ -5917,5 +5917,5 @@
     "sections/test/parts/fc9cb0ef3d518aa4.step.gz.json.gz": "ad246bd3ca231dda3e7fe1fc54cd798984e7dcd9da376dcb609c3c42001086f8",
     "step_levels.json.gz": "6ff3ceadb33888e9d529a10b9a880babaf979f4f8d869962215d9d3193902f00"
   },
-  "source_commit": "e0f49decd8e6ca584c41f1cbc4720a8a6704466d"
+  "source_commit": "5ea75ef11c9d1cb64a3557ebe1c4c0b10a254eae"
 }
