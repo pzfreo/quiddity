@@ -27,6 +27,14 @@ EXACT = {
         area=2*math.pi*(11*6.5 + 4*7 + (11 + 10.75)*0.25*math.sqrt(2) + 10.75**2 - 16),
         centroid=[0.0, 0.0, 0.0],
         reason='OCCT disagrees with the exact value of the generated profile'),
+    # OCCT's BRepGProp integrates this sweep's open pcurve wires without closing their gaps
+    # (faces 4, 7, 8, 17, 20); OCCT's own BRepMesh of the part (deflection 0.001, angular
+    # 0.02) gives these values, which agree with ours.
+    'varying_pitch_sweep.step.gz': dict(
+        volume=2429.4690949231317,
+        area=1499.7980630855338,
+        centroid=[4.1161434519600444e-05, 1.4178552561967475e-06, 3.99914095553182],
+        reason="OCCT's integration disagrees with its own fine mesh of the part"),
 }
 
 

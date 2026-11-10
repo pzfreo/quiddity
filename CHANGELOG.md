@@ -35,7 +35,8 @@ in [docs/alpha1.md](docs/alpha1.md).
     The part's bore intersection curves lie up to 0.12 mm off their surfaces, so its
     volume is only defined to about 2e-4 (the design intent is 46139.11 mm³).
   - `varying_pitch_sweep` differs by 4.2% in volume because OCCT integrates its open pcurve
-    wires without closing the gaps. OCCT's own mesh agrees with ours.
+    wires without closing the gaps. OCCT's own mesh agrees with ours, and `tools/gvp.py`
+    counts it as `KNOWN-REFERENCE` while ours stays within the band of that mesh.
 - The snapshot tool uses `/` in manifest-relative paths so Windows input digests
   and nested snapshots can be checked against the same provenance manifest.
 
