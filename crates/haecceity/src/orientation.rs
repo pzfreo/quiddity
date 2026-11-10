@@ -79,7 +79,12 @@ impl Part {
                     if candidate.solids[solid]
                         .faces
                         .iter()
-                        .all(|&f| face_side(&candidate, &classifier, f) == Side::Outward)
+                        // Reversing only the witness normal reuses the full inward
+                        // proof: three witnesses at two offsets, not the single
+                        // outward witness sufficient to refuse a global inversion.
+                        .all(|&f| {
+                            face_side_with_normal(&candidate, &classifier, f, true) == Side::Inward
+                        })
                     {
                         self.record_mixed_normal_repair(solid, &flips);
                     }
@@ -241,6 +246,15 @@ enum Side {
 }
 
 fn face_side(part: &Part, classifier: &Classifier<'_>, face: usize) -> Side {
+    face_side_with_normal(part, classifier, face, false)
+}
+
+fn face_side_with_normal(
+    part: &Part,
+    classifier: &Classifier<'_>,
+    face: usize,
+    reverse_normal: bool,
+) -> Side {
     let Some(domain) = part.domain(face) else {
         return Side::Unproved;
     };
@@ -257,6 +271,11 @@ fn face_side(part: &Part, classifier: &Classifier<'_>, face: usize) -> Side {
             }
             let Some(n) = part.face_normal(face, u, v) else {
                 continue;
+            };
+            let n = if reverse_normal {
+                geom::scale(n, -1.0)
+            } else {
+                n
             };
             let p = part.faces[face].surface.value(u, v);
             let mut inward = false;
