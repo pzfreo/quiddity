@@ -60,7 +60,12 @@ area, and Euclidean centroid distance divided by the part's bounding-box diagona
 The centroid band is scale invariant and gives a length analogue of the 0.1% bands.
 For zero reference scalars, only exact zero passes. Counts distinguish unavailable
 values, absent references, and numerical failures. Each GVP representation is a
-separate check, including duplicate product/aspect representations. The A–B rows
+separate check, including duplicate product/aspect representations. Two kinds of B difference
+are known OCCT reference problems and counted as `KNOWN-REFERENCE`, not as failures of
+ours: a part OCCT reads without a SOLID (it gives no volume or material centroid), and
+`turned_body_disc.step`, where ours meets the exact value of the generated profile and
+OCCT does not. The second applies only while ours stays within the band of the exact
+value. The A–B rows
 identify disagreements between independent references; they do not decide correctness
 without comparing ours as well.
 

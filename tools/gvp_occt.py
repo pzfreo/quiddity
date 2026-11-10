@@ -102,7 +102,7 @@ def load(path):
 
 def material_measure(shape):
     solids=indexed(shape, TopAbs_SOLID)
-    result=measure(compound(solids)) if solids else dict(volume=0.0,centroid=None)
+    result=measure(compound(solids)) if solids else dict(volume=0.0,centroid=None,no_solid=True)
     result['area']=measure(shape,False)['area']
     return result
 
