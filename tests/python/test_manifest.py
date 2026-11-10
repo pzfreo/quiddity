@@ -37,12 +37,12 @@ def test_manifest_product_and_iterator_match_rust(path, tmp_path):
     native_manifest = tmp_path / "native.json"
     run = cli("manifest", path, "-o", native_manifest)
     assert run.returncode == 0, run.stderr
-    assert json.loads(native_manifest.read_text()) == m
+    assert json.loads(native_manifest.read_text(encoding="utf-8")) == m
     assert output.read_bytes() == native_manifest.read_bytes()
     results = tmp_path / "results"
     run = cli("recognise", path, "--manifest", native_manifest, "--out-dir", results)
     assert run.returncode == 0, run.stderr
-    expected = {p["id"]: json.loads((results / "products" / f'{p["id"]}.json').read_text()) for p in m["products"]}
+    expected = {p["id"]: json.loads((results / "products" / f'{p["id"]}.json').read_text(encoding="utf-8")) for p in m["products"]}
     for product_id, result in expected.items():
         assert quiddity.recognise_product(path, m, product_id) == result
         assert quiddity.recognise_product(str(path), str(output), product_id) == result
