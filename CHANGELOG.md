@@ -13,6 +13,9 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
+- The snapshot tool uses `/` in manifest-relative paths so Windows input digests
+  and nested snapshots can be checked against the same provenance manifest.
+
 - Mass integrals wrap closed spline tangents with their points and use consistent
   containment and integration domains for seamless torus bands. This restores the
   missing cylindrical areas in NIST STC-10 and the toroidal area in FTC-11, and
