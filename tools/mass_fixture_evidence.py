@@ -1,9 +1,10 @@
 """Reproduce OCCT mass-fixture reference defects without tessellating surfaces.
 
-Run with $OCP_PY tools/mass_fixture_evidence.py. Reads committed inputs only;
+Run with $OCP_PY tools/mass_fixture_evidence.py [--freeform]. Reads committed inputs only;
 prints OCCT's version, whole/per-face GProps and independently converged boundary
 integrals. No downloads or file writes. OCCT heals/reorders the shaft's faces.
 """
+import argparse
 import math
 from pathlib import Path
 
@@ -41,7 +42,95 @@ def segments(edges, close):
             yield edge[-1], edges[(i+1) % len(edges)][0]
 
 
+def spline_evidence(shape):
+    """Independent Green quadrature, including projection of exact 3D edges.
+
+    Deliberately different from mass.rs: polygonal boundary trapezoids, exact
+    OCP surface partials, a fixed Gauss primitive, and explicit UV gap segments.
+    The open primitive starts at the face's u_min, as OCCT's does.
+    """
+    from OCP.BRep import BRep_Tool
+    from OCP.BRepTools import BRepTools
+    from OCP.ShapeAnalysis import ShapeAnalysis_Surface
+    from OCP.gp import gp_Pnt, gp_Vec
+    nodes = []
+    for i in range(16):
+        x = math.cos(math.pi*(i+.75)/16.5)
+        for _ in range(30):
+            p0, p1 = 1., x
+            for k in range(2, 17):
+                p0, p1 = p1, ((2*k-1)*x*p1-(k-1)*p0)/k
+            derivative = 16*(x*p1-p0)/(x*x-1)
+            step = p1/derivative
+            x -= step
+            if abs(step) < 1e-16:
+                break
+        nodes.append((x, 2/((1-x*x)*derivative*derivative)))
+    faces = g.indexed(shape, g.TopAbs_FACE)
+    for index in [4, 17]:
+        face = face_cast(faces[index])
+        surface = BRepAdaptor_Surface(face)
+        projector = ShapeAnalysis_Surface(BRep_Tool.Surface_s(face))
+        spline = surface.BSpline()
+        knots = [spline.UKnot(k) for k in range(1, spline.NbUKnots()+1)]
+        reference = BRepTools.UVBounds_s(face)[0]
+        point, su, sv = gp_Pnt(), gp_Vec(), gp_Vec()
+
+        def primitive(u, v):
+            cuts = sorted([reference, u] + [k for k in knots
+                          if min(reference, u) < k < max(reference, u)])
+            total = 0.
+            for a, b in zip(cuts, cuts[1:]):
+                half, mid = (b-a)/2, (a+b)/2
+                for x, weight in nodes:
+                    surface.D1(mid+half*x, v, point, su, sv)
+                    total += half*weight*su.Crossed(sv).Magnitude()
+            return total if u >= reference else -total
+
+        for projected in [False, True]:
+            for n in [1000, 10000]:
+                explorer = TopExp_Explorer(face, TopAbs_EDGE)
+                edges = []
+                while explorer.More():
+                    edge = edge_cast(explorer.Current())
+                    curve = BRepAdaptor_Curve(edge)
+                    pcurve = BRepAdaptor_Curve2d(edge, face)
+                    a, b = curve.FirstParameter(), curve.LastParameter()
+                    if edge.Orientation() == TopAbs_REVERSED:
+                        a, b = b, a
+                    samples = []
+                    for k in range(n+1):
+                        t = a+(b-a)*k/n
+                        uv = pcurve.Value(t)
+                        if projected:
+                            uv = projector.NextValueOfUV(uv, curve.Value(t), 1e-12)
+                        samples.append(uv.Coord())
+                    edges.append(samples)
+                    explorer.Next()
+                # Explorer reverses edge senses but retains list order.
+                if face.Orientation() == TopAbs_REVERSED:
+                    edges.reverse()
+                terms, gaps = [], []
+                for j, edge in enumerate(edges):
+                    values = [primitive(*uv) for uv in edge]
+                    terms.extend((ga+gb)/2*(b[1]-a[1]) for a, b, ga, gb
+                                 in zip(edge, edge[1:], values, values[1:]))
+                    a, b = edge[-1], edges[(j+1) % len(edges)][0]
+                    for x, weight in nodes:
+                        t = (1+x)/2
+                        gaps.append(weight/2*primitive(a[0]+t*(b[0]-a[0]),
+                                    a[1]+t*(b[1]-a[1]))*(b[1]-a[1]))
+                sign = -1 if face.Orientation() == TopAbs_REVERSED else 1
+                print('spline face', index, n, 'projected3D', projected,
+                      'open udv', sign*math.fsum(terms),
+                      'closed udv', sign*(math.fsum(terms)+math.fsum(gaps)), flush=True)
+
+
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--freeform', action='store_true',
+                        help='also run the slower independent spline quadrature')
+    args = parser.parse_args()
     print('OCP', g.OCP.__version__, 'BRepGProp eps', g.EPS)
     for name in ['truck_master_shaft_hole.step.gz',
                  'modelled_threads/varying_pitch_sweep.step.gz',
@@ -52,6 +141,8 @@ def main():
         for i, face in enumerate(faces):
             print('OCCT face', i, g.measure(face))
         if name.startswith('modelled_threads'):
+            if args.freeform:
+                spline_evidence(shape)
             for i in [7, 8, 20]:
                 for n in [100, 1000, 10000, 100000]:
                     _, edges = boundaries(faces[i], n, lifted=True)

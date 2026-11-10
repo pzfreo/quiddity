@@ -14,7 +14,8 @@ in [docs/alpha1.md](docs/alpha1.md).
 ### Fixed
 
 - Mass quadrature tests tangent rank independently of UV parameter scales, restoring
-  the area of narrow-parameter spline sheets. Negative mixed solid boundaries can
+  the area of narrow-parameter spline sheets and the recovery lengths/tolerances
+  derived from it. Negative mixed solid boundaries can
   have their inward face normals repaired after every material side is proved,
   provided the unchanged wires form a coherent outward boundary; this restores
   the sign of `truck_master_shaft_hole`. Independent closed-boundary regressions

@@ -437,18 +437,25 @@ fn varying_pitch_sweep_closes_open_uv_wires() {
     // reproduces OCCT; closing them makes both Green paths agree with ours.
     // tools/mass_fixture_evidence.py independently reproduces the convergence.
     for (face, occt, closed) in [
+        (4, 98.16765734609923, 98.17068665143155),
         (7, 49.9435965949216, 34.08103140997729),
         (8, 30.227164859519196, 30.228167268731845),
+        (17, 152.8168886339292, 152.81565932170744),
         (20, 48.31801113428927, 32.47342792581202),
     ] {
         let mass = part.face_mass(face).unwrap();
         relative(mass[0], closed, 1e-9);
         relative(part.face_moments(face).unwrap().area, closed, 1e-9);
-        for n in [1024, 4096] {
-            let (h, g) = cylinder_green(&part, face, n);
-            relative(h, closed, 1e-6);
-            relative(g, closed, 1e-6);
+        if matches!(part.faces[face].surface, geom::Surface::Cylinder { .. }) {
+            for n in [1024, 4096] {
+                let (h, g) = cylinder_green(&part, face, n);
+                relative(h, closed, 1e-6);
+                relative(g, closed, 1e-6);
+            }
         }
+        // For spline faces4/17, --freeform projects the exact 3D curves and
+        // converges to 98.1706866503/152.8156593289 at 10,000 boundary panels.
+        // Their open pcurve integrals converge to the recorded OCCT references.
         // Pin the disagreement as well as the independently correct answer.
         relative(mass[0] - occt, closed - occt, 1e-6);
     }
