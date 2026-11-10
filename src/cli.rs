@@ -871,6 +871,8 @@ fn manifest_recognise(
     let bytes = std::fs::read(manifest_path).map_err(|e| format!("{manifest_path}: {e}"))?;
     let mut manifest: Manifest =
         serde_json::from_slice(&bytes).map_err(|e| format!("{manifest_path}: {e}"))?;
+    // The owned manifest no longer borrows this potentially large JSON buffer.
+    drop(bytes);
     let ids = crate::file_api::product_ids(&manifest, parts)?;
     let file = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
     let mut magic = [0; 2];
@@ -924,12 +926,14 @@ fn manifest_recognise(
             .map_err(|e| format!("{}: {e}", out.display()))?;
     }
     // Identical for every worker, including workers with a disjoint --parts selection.
-    let assembly =
-        serde_json::json!({ "source": manifest.source, "instances": manifest.instances });
-    atomic_json(
-        &out.join("assembly.json"),
-        &crate::file_api::json(&assembly)?,
-    )?;
+    {
+        let assembly =
+            serde_json::json!({ "source": manifest.source, "instances": manifest.instances });
+        atomic_json(
+            &out.join("assembly.json"),
+            &crate::file_api::json(&assembly)?,
+        )?;
+    } // Release the duplicate instance JSON before parsing/recognising geometry.
     let mut whole = None;
     let mut failed = false;
     for id in &ids {
