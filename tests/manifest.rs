@@ -925,3 +925,26 @@ fn occurrence_representation_contexts_are_reached_from_assembly_chains() {
     );
     check_bytes("occurrence-only representation context", &out);
 }
+
+#[test]
+fn edge_count_excludes_unused_edges_in_the_same_geometry_component() {
+    let b = torus();
+    let doc = haecceity::p21::Document::parse(b.clone()).unwrap();
+    let edge = doc
+        .graph()
+        .entities
+        .values()
+        .find(
+            |e| matches!(e, haecceity::p21::RawEntity::Simple { name, .. } if name == "EDGE_CURVE"),
+        )
+        .unwrap();
+    // This duplicate shares vertices and a curve with the product but no face loop uses it.
+    let id = doc.graph().entities.keys().max().unwrap() + 1;
+    let mut text = String::from_utf8(b).unwrap();
+    let at = text.rfind("ENDSEC;").unwrap();
+    text.insert_str(
+        at,
+        &format!("#{id}={};\n", haecceity::p21::encode(edge).unwrap()),
+    );
+    check_bytes("unused edge in owned geometry", text.as_bytes());
+}
