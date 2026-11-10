@@ -370,3 +370,18 @@ fn wide_u_winding_torus_band_with_hole_and_reversed_face() {
 fn wide_v_winding_torus_band_with_hole_and_reversed_face() {
     check_wide_torus_band(false);
 }
+
+/// S(u,v) = (1e8, 1e8*u, v), u in [0,1e-7], v in [0,1]. The
+/// 10-by-1 rectangle is regular despite its very different parameter scales.
+#[test]
+fn narrow_parameter_sheet_has_analytic_area() {
+    let part = read_step_file(
+        &common::fixtures().join("captured/effective_surfaces/parts/2fe0e2383b80a0b8.step.gz"),
+    )
+    .unwrap();
+    assert!(part.solids.is_empty());
+    // OCP 8.0.1.1, BRepGProp::SurfaceProperties, adaptive eps=1e-9; sole face.
+    relative(part.face_mass(0).unwrap()[0], 10.0, 1e-6);
+    relative(part.face_moments(0).unwrap().area, 10.0, 1e-6);
+    relative(part.face_mass(0).unwrap()[1], 1e9, 1e-6);
+}

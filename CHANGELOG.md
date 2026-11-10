@@ -13,6 +13,9 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
+- Mass quadrature tests tangent rank independently of UV parameter scales, restoring
+  the area of narrow-parameter spline sheets.
+
 - Mass integrals wrap closed spline tangents with their points and use consistent
   containment and integration domains for seamless torus bands. This restores the
   missing cylindrical areas in NIST STC-10 and the toroidal area in FTC-11, and
