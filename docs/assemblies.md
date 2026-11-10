@@ -221,5 +221,6 @@ cargo test --release -j 6 --test assembly_layout scale_200mb -- --exact --nocapt
 
 It checks both index backends, sidecar counts, selected reading past the aggregate
 whole-file face limit, a deliberately low manifest instance limit, and temporary
-index cleanup. For memory comparisons, record the manifest size too: CLI product
-reads deserialize its full product/face/instance metadata, even for `--parts p0`.
+index cleanup. The AP242 presentation regression checks complete reference
+closures and whole-file/product equivalence in all layouts. For memory comparisons,
+record both RSS and peak physical footprint: RSS includes clean mapped index pages.

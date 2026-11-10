@@ -133,7 +133,7 @@ fn every_assembly_fixture() {
         .collect();
     files.sort();
     assert_eq!(files.len(), 4);
-    let count: usize = files.iter().map(|p| check_layouts(p)).sum();
+    let count: usize = files.iter().map(|p| check(p) + check_layouts(p)).sum();
     eprintln!(
         "CLI assembly equivalence: {} files, {count} products",
         files.len()
