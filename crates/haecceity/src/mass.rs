@@ -417,10 +417,14 @@ fn kronrod_rule<S, const N: usize>(
 /// stretch of boundary) would grow the tree as 2^`MAX_KINKS`.
 /// The last argument to `eval` requests a kink location only when it can be used.
 /// Quadrature nodes and the walking state are evaluated in their original order.
+/// With `stop_on_excess`, a result whose excess exceeds the fixed floor may be only
+/// a prefix: callers must propagate that rejection before using its integral or state.
+/// Exhaustive mode is retained for tests of the quadrature and its work bound.
 fn adaptive<S: Copy, const N: usize>(
     cuts: &[f64],
     start: S,
     floor: Option<f64>,
+    stop_on_excess: bool,
     eval: &mut impl FnMut(S, f64, f64, bool) -> Option<(Panel<S, N>, Option<(f64, bool)>)>,
 ) -> Option<Panel<S, N>> {
     let mut state = start;
@@ -450,6 +454,9 @@ fn adaptive<S: Copy, const N: usize>(
                     excess = excess.max(error);
                 }
                 state = end;
+                if stop_on_excess && floor.is_some_and(|floor| excess > floor) {
+                    return Some((total, excess, magnitude, state));
+                }
             } else {
                 let (m, depth) = match kink {
                     Some((t, _)) => {
@@ -1244,10 +1251,15 @@ impl Part {
                 });
                 cuts.dedup();
             }
-            let (sum, excess, size, walk) = adaptive(&cuts, walk, floor, &mut eval)?;
+            let (sum, excess, size, walk) = adaptive(&cuts, walk, floor, true, &mut eval)?;
             mass_estimate.0 = mass_estimate.0.max(edge_mass.0);
             mass_estimate.1 += edge_mass.1;
             add((sum, excess, size, walk.swept));
+            // Excess is a maximum over accepted leaves. The caller already refuses
+            // this loop at the same fixed floor; no later edge can lower it.
+            if floor.is_some_and(|floor| excess > floor) {
+                return Some((total, mass_estimate));
+            }
             last = walk.last;
             // The edge's exact ends, inverted from the nodes beside them; next to a collapsed
             // B-spline side an inversion can jump across it, so one far from where the node's
@@ -1302,10 +1314,13 @@ impl Part {
             };
             let pieces = (gu.hypot(gv).ceil() as usize).max(1);
             let (sum, excess, size, ()) =
-                adaptive(&cuts(0.0, 1.0, pieces, &[])?, (), floor, &mut eval)?;
+                adaptive(&cuts(0.0, 1.0, pieces, &[])?, (), floor, true, &mut eval)?;
             mass_estimate.0 = mass_estimate.0.max(gap_mass.0);
             mass_estimate.1 += gap_mass.1;
             add((sum, excess, size, gv * (from.0 + 0.5 * gu - u_ref)));
+            if floor.is_some_and(|floor| excess > floor) {
+                return Some((total, mass_estimate));
+            }
         }
         Some((total, mass_estimate))
     }
@@ -1693,13 +1708,13 @@ mod tests {
             let panel = kronrod((), a, b, |(), x| Some([(x - 1.0 / 3.0).abs()]))?;
             Some((panel, None))
         };
-        let (sum, ..) = adaptive(&[0.0, 1.0], (), Some(0.0), &mut eval).unwrap();
+        let (sum, ..) = adaptive(&[0.0, 1.0], (), Some(0.0), false, &mut eval).unwrap();
         assert!((sum[0] - 5.0 / 18.0).abs() < 1e-9);
         let mut split = |(): (), a: f64, b: f64, _: bool| {
             let panel = kronrod((), a, b, |(), x| Some([(x - 1.0 / 3.0).abs()]))?;
             Some((panel, Some((1.0 / 3.0, false))))
         };
-        let (sum, ..) = adaptive(&[0.0, 1.0], (), Some(0.0), &mut split).unwrap();
+        let (sum, ..) = adaptive(&[0.0, 1.0], (), Some(0.0), false, &mut split).unwrap();
         assert!((sum[0] - 5.0 / 18.0).abs() < 1e-15);
     }
 
@@ -1716,7 +1731,8 @@ mod tests {
             error > 1e-3,
             "the constant area must not hide the moment error"
         );
-        let (sum, error, _, ()) = adaptive(&[-1.0, 1.0], (), Some(1e-12), &mut eval).unwrap();
+        let (sum, error, _, ()) =
+            adaptive(&[-1.0, 1.0], (), Some(1e-12), false, &mut eval).unwrap();
         assert!((sum[0] - 2.0).abs() < 1e-14);
         assert!((sum[1] - 2.0 * 100f64.sin() / 100.0).abs() < 1e-12);
         assert!(error < 1e-12);
@@ -1734,7 +1750,7 @@ mod tests {
             let w = (b - a).abs();
             Some((([b - a], w, w, ()), Some((a + 1e-3 * (b - a), false))))
         };
-        adaptive(&[0.0, 1.0], (), Some(0.0), &mut eval).unwrap();
+        adaptive(&[0.0, 1.0], (), Some(0.0), false, &mut eval).unwrap();
         assert!(
             evals <= (MAX_KINKS + 1) << (MAX_DEPTH + 1),
             "{evals} panels"
@@ -1753,7 +1769,7 @@ mod tests {
                 let width = (b - a).abs();
                 Some((([b - a], width, width, state + 1), kink))
             };
-            let answer = adaptive(&[0.0, 1.0], 0, floor, &mut eval).unwrap();
+            let answer = adaptive(&[0.0, 1.0], 0, floor, false, &mut eval).unwrap();
             (answer, located, panels)
         };
         for floor in [None, Some(0.0)] {
@@ -1812,9 +1828,7 @@ mod tests {
     fn unmeasurable_moments_are_cached_as_missing() {
         let part = Part::new(
             vec![crate::brep::Face {
-                surface: Surface::Other {
-                    kind: "unresolved".into(),
-                },
+                surface: Surface::Other { kind: "unresolved" },
                 reversed: false,
                 loops: Vec::new(),
                 solid: None,
@@ -1827,5 +1841,120 @@ mod tests {
         assert_eq!(part.face_moments(0), None);
         assert_eq!(part.cache[0].moments.get(), Some(&None));
         assert_eq!(part.face_moments(0), None);
+    }
+    #[test]
+    fn inevitable_refusal_stops_without_changing_accepted_integrals() {
+        let run = |floor, relative_error, reject_unresolved| {
+            let mut panels = 0usize;
+            let mut eval = |state: usize, a: f64, b: f64, _: bool| {
+                panels += 1;
+                let width = (b - a).abs();
+                Some((([b - a], relative_error * width, width, state + 1), None))
+            };
+            let answer = adaptive(&[0.0, 1.0], 0, floor, reject_unresolved, &mut eval);
+            (answer, panels)
+        };
+        for relative_error in [1.0, 1e-10] {
+            for floor in [
+                None,
+                Some(0.0),
+                Some(1e-4),
+                Some(1e-3),
+                Some(1.0),
+                Some(f64::INFINITY),
+                Some(f64::NAN),
+            ] {
+                let (exhaustive, all_panels) = run(floor, relative_error, false);
+                let expected = exhaustive.filter(|p| !floor.is_some_and(|floor| p.1 > floor));
+                let (early, early_panels) = run(floor, relative_error, true);
+                let early = early.filter(|p| !floor.is_some_and(|floor| p.1 > floor));
+                assert_eq!(early, expected, "floor={floor:?}, error={relative_error}");
+                if expected.is_none() {
+                    assert!(early_panels < all_panels);
+                    assert_eq!(early_panels, MAX_DEPTH + 1);
+                } else {
+                    assert_eq!(early_panels, all_panels);
+                    assert_eq!(
+                        early.unwrap().0.map(f64::to_bits),
+                        exhaustive.unwrap().0.map(f64::to_bits)
+                    );
+                }
+            }
+        }
+    }
+    #[test]
+    fn a_bad_parent_is_refined_and_relative_acceptance_is_preserved() {
+        for descending in [false, true] {
+            for relative in [false, true] {
+                let cuts = if descending {
+                    [1.0, 0.0, -1.0]
+                } else {
+                    [-1.0, 0.0, 1.0]
+                };
+                let run = |early| {
+                    let mut visited = Vec::new();
+                    let mut eval = |state: usize, a: f64, b: f64, _: bool| {
+                        visited.push((a.to_bits(), b.to_bits(), state));
+                        let width = (b - a).abs();
+                        // A large parent estimate disappears after a single split.
+                        // In the other case the error exceeds the face floor but
+                        // meets the relative criterion and must not be rejected.
+                        let (error, size) = if relative {
+                            (2.0, 3e9)
+                        } else {
+                            (if width > 0.75 { 2.0 } else { 0.0 }, width)
+                        };
+                        Some((
+                            ([b - a, (b * b - a * a) * 0.5], error, size, state + 1),
+                            None,
+                        ))
+                    };
+                    (
+                        adaptive(&cuts, 0, Some(1e-12), early, &mut eval).unwrap(),
+                        visited,
+                    )
+                };
+                let full = run(false);
+                let early = run(true);
+                assert_eq!(early, full);
+                assert_eq!(early.0.0[0], if descending { -2.0 } else { 2.0 });
+                assert_eq!(early.0.1, 0.0);
+                assert_eq!(early.1.len(), if relative { 2 } else { 6 });
+            }
+        }
+    }
+
+    #[test]
+    fn the_floor_comparison_is_strict_and_an_unresolved_prefix_cannot_be_published() {
+        let floor = 1.0f64;
+        for error in [
+            f64::from_bits(floor.to_bits() - 1),
+            floor,
+            f64::from_bits(floor.to_bits() + 1),
+        ] {
+            let run = |early| {
+                let mut panels = 0;
+                let mut eval = |state: usize, a: f64, b: f64, _: bool| {
+                    panels += 1;
+                    Some((([b - a], error, 1.0, state + 1), None))
+                };
+                (
+                    adaptive(&[0.0, 1.0, 2.0], 0, Some(floor), early, &mut eval).unwrap(),
+                    panels,
+                )
+            };
+            let (full, full_panels) = run(false);
+            let (prefix, prefix_panels) = run(true);
+            assert_eq!(prefix.1.to_bits(), full.1.to_bits());
+            assert_eq!(prefix.1 > floor, error > floor);
+            if error > floor {
+                assert_eq!(prefix_panels, MAX_DEPTH + 1);
+                assert!(prefix_panels < full_panels);
+                assert_ne!(prefix.0, full.0, "the partial sum must never be published");
+            } else {
+                assert_eq!(prefix, full);
+                assert_eq!(prefix_panels, full_panels);
+            }
+        }
     }
 }
