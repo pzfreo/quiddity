@@ -724,26 +724,29 @@ impl Part {
     /// independently if needed, and publish exactly the standalone mass result to the
     /// existing OnceLock. Later moment calls only read that cache. A failed moment pass
     /// never poisons it, and extra moment refinement cannot rescue a refused mass integral.
-    fn moment_integral<const N: usize>(
+    fn moment_integral<const N: usize, const M: usize>(
         &self,
         face: usize,
-        components: usize,
         mass: [usize; 5],
         f: impl Fn(f64, f64) -> [f64; N],
-    ) -> Option<[f64; N]> {
-        let observe_mass = match self.cache[face].mass.get() {
-            Some(None) => return None,
-            Some(Some(_)) => None,
-            None => Some(mass),
-        };
-        self.integrate_face(
-            face,
-            f,
-            IntegralRule {
-                components: Components::Prefix(components),
-                observe_mass,
-            },
-        )
+    ) -> Option<[f64; M]> {
+        match self.cache[face].mass.get() {
+            Some(None) => None,
+            Some(Some(_)) => self.face_integral(face, |u, v| {
+                let y = f(u, v);
+                std::array::from_fn(|k| y[k])
+            }),
+            None => self
+                .integrate_face(
+                    face,
+                    f,
+                    IntegralRule {
+                        components: Components::Prefix(M),
+                        observe_mass: Some(mass),
+                    },
+                )
+                .map(|y| std::array::from_fn(|k| y[k])),
+        }
     }
 
     fn integrate_face<const N: usize>(
@@ -1400,7 +1403,7 @@ impl Part {
             lp.vertex
                 .or_else(|| lp.edges.first().map(|&(e, _)| self.edges[e].start))
         })?;
-        let [area, x, y, z, ..] = self.moment_integral(face, 4, [4, 5, 6, 7, 8], |u, v| {
+        let [area, x, y, z] = self.moment_integral(face, [4, 5, 6, 7, 8], |u, v| {
             let (p, su, sv) = point_and_partials(&fc.surface, u, v);
             let n = geom::cross(su, sv);
             let w = geom::dot(n, direction);
@@ -1479,8 +1482,8 @@ impl Part {
         if !scale.is_finite() || scale <= 0.0 {
             return None;
         }
-        let [area, mx, my, mz, nx, ny, nz, xx, yy, zz, xy, xz, yz, _flux] =
-            self.moment_integral(face, 13, [0, 13, 4, 5, 6], |u, v| {
+        let [area, mx, my, mz, nx, ny, nz, xx, yy, zz, xy, xz, yz] =
+            self.moment_integral(face, [0, 13, 4, 5, 6], |u, v| {
                 let (p, su, sv) = point_and_partials(surface, u, v);
                 let n = geom::cross(su, sv);
                 let w = geom::norm(n);
@@ -1573,7 +1576,7 @@ impl Part {
                 // amplify projection round-off on tiny faces far from c0: cgb242 face 483
                 // was refused only after translation, although its area was resolved.
                 // Restore physical units after quadrature; the fixed point below uses mm.
-                let f = self.moment_integral(face, 17, [0, 17, 2, 3, 4], |u, v| {
+                let f = self.moment_integral::<18, 17>(face, [0, 17, 2, 3, 4], |u, v| {
                     let (p, su, sv) = point_and_partials(surface, u, v);
                     let n = geom::cross(su, sv);
                     let q = geom::scale(geom::sub(p, c0), 1.0 / length);
