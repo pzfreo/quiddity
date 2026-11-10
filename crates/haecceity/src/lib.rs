@@ -31,6 +31,7 @@ pub mod express;
 #[cfg(feature = "f3d")]
 pub mod f3d;
 pub mod geom;
+pub mod gvp;
 pub mod hlr;
 pub mod mass;
 pub mod mesh;
