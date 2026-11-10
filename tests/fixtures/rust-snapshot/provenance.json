@@ -3029,6 +3029,9 @@
     "tests/fixtures/golden_traversal_order.step": "17f6fd012b0e7d9df7d2c17c65f0ffaf62c6be649199d189747b28b260e6a0c2",
     "tests/fixtures/golden_triangular_and_hex_pockets.step": "f27aa6fddb2ff1cf1322b78f3f59aeed4225e42ef3643379d33c071cfa6ad586",
     "tests/fixtures/golden_turned_steps_and_grooves.step": "ef8b87840b03131c721a1d8f0a47fb9b03cf6f834b092101596b635ff7570a35",
+    "tests/fixtures/gvp-occt.json": "0cb1444b067c8473b9b99c0fe19c39ff471cf1a05d6d43d3b13ca692fa50b22a",
+    "tests/fixtures/gvp/README.md": "a0e080a1fc523195d275bd1020f569ee56e5de5c832e5757701695436bc552a7",
+    "tests/fixtures/gvp/nist/nist_stc_08_asme1_ap242-e3.stp.gz": "696530365041490bab0810b3ec4c7e5036f90debed120a2e1e8e69bd8ac0c302",
     "tests/fixtures/held_side_knot.step": "108af28d08e6974d599932131f73705f88c49a29f102da600990370976bf0c29",
     "tests/fixtures/helical_springs/bolt_circle.step.gz": "32b593515108f59b3db98f9ae4e02d9052543a227d663b55ecf74ad9bd8ac429",
     "tests/fixtures/helical_springs/pin_row.step.gz": "655735a4cef78b206c9f1eec5b53f9f9d01a61cdadd0fb53116aa1eb035dfc8e",
@@ -5914,5 +5917,5 @@
     "sections/test/parts/fc9cb0ef3d518aa4.step.gz.json.gz": "ad246bd3ca231dda3e7fe1fc54cd798984e7dcd9da376dcb609c3c42001086f8",
     "step_levels.json.gz": "6ff3ceadb33888e9d529a10b9a880babaf979f4f8d869962215d9d3193902f00"
   },
-  "source_commit": "e39d7f5171a76719da7db2c8cc3d0f5bb4066613"
+  "source_commit": "ec3b5a936ef10f7141ff0b13ab2bbe4a54ce36db"
 }
