@@ -110,7 +110,11 @@ CI runs `test_score.py` in the lint job.
 `face_claims` includes `face_sources`, the source STEP entity for each caller face.
 Run `python3 -I tools/as_compare/score_mfcadpp.py STEPS QR.jsonl OUT.json
 --quiddity-revision REV` to bind the numeric `ADVANCED_FACE` names through those
-IDs. A missing, duplicate or invalid binding is an error, never an assumed file order.
+IDs. For readable imports, a missing, duplicate or invalid binding is an error,
+never an assumed file order. An unreadable import claims nothing: its STEP label
+multiset still supplies class denominators without assigning caller-face indices.
+Missing or malformed label input is reported as unavailable/unreadable; no face
+count is invented. Provenance hashes the adapter and the shared metric separately.
 The adapter calls `score.py` for every comparison and selector; it adds a missed-face
 ranking with unclaimed/body-only counts and overlapping body-family counts.
 MFCAD++ names have no instance IDs: instance metrics are unavailable except for
