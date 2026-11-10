@@ -1215,3 +1215,27 @@ change seam incidence or round the newly admitted radius twice. No record fields
 or schema versions change. Analytic flared/inward-taper controls, independent volume
 and placement checks, and a fractional-radius regression live in
 `src/features/circular_blind_steps.rs`.
+
+## Interrupted polygonal through-cuts
+
+The optional `prismatic_through_cuts` family extends through-cut recognition to planar
+polygonal walls interrupted by other cuts. Its `PrismaticThroughCut` record contains
+`cut` (a `SectionPassage` section and nominal prism), `extent: "observed_walls"`, and
+`core_interval` (an axial interval with complete original-wall support). The nominal
+`cut.run_interval` bounds the observed walls; its end planes are not asserted to be
+physical mouths. The legacy `section_passages` end-plane contract is unchanged.
+
+Discovery derives the run from adjacent wall-plane normals and accepts a closed
+concave junction cycle, without assuming a principal axis or a wall count. A valid
+owning solid, whole-face containment on the inferred prism sides, exact complete
+side coverage throughout the core, and an empty prism through the owner's entire
+axial envelope are required. Thus a surviving wall ring around a blind pocket does
+not suffice. Only original supported wall faces are claimed; inferred mouth faces
+are never claimed. A component fully covered by an existing accepted passage,
+recess or oriented slot is left to that record. Open/branched wall chains and
+profiles needing missing walls or curved sides are not inferred.
+
+This is a post-recognition extension, represented in recognition/6, fingerprints,
+and face accounting; the evidence document's legacy physical-candidate registry
+does not acquire a new candidate family. `passage_survey` is a read-only diagnostic
+example for source-face junctions, validation and independently proved cuts.

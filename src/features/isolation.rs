@@ -91,6 +91,7 @@ const CLAIM_INPUTS: &[&str] = &[
     "slots",
     "pockets",
     "section_passages",
+    "prismatic_through_cuts",
     "oriented_slots",
     "modelled_threads",
     "helical_springs",

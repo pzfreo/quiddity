@@ -964,6 +964,26 @@ pub const FAMILIES: &[FamilyFingerprint] = &[
         ],
     },
     FamilyFingerprint {
+        family: "prismatic_through_cuts",
+        members: None,
+        variants: false,
+        fields: &[
+            ("cut.frame.run", Axis),
+            ("cut.frame.origin", Placement),
+            ("cut.frame.u", Placement),
+            ("cut.frame.v", Placement),
+            ("cut.run_interval", Derived),
+            ("cut.section.boundary[].point", Derived),
+            ("cut.section.boundary[].bulge", Size),
+            ("cut.ends.low_capped", Trait),
+            ("cut.ends.high_capped", Trait),
+            ("cut.ends.low_gradient", Placement),
+            ("cut.ends.high_gradient", Placement),
+            ("core_interval", Placement),
+            ("extent", Trait),
+        ],
+    },
+    FamilyFingerprint {
         family: "prismatic_pockets",
         members: None,
         variants: false,
@@ -1721,6 +1741,19 @@ fn derived_sizes(family: &str, r: &Value, sizes: &mut BTreeMap<String, f64>) {
             put("run_length", interval("run_interval"));
             // The closed boundary's chords (an arc's too), whatever vertex it starts at.
             let mut points: Vec<Vec<f64>> = at(r, "section.boundary[].point")
+                .iter()
+                .filter_map(|v| point(v))
+                .collect();
+            if let Some(first) = points.first().cloned() {
+                points.push(first);
+            }
+            let sides = points.windows(2).map(|w| distance(&w[0], &w[1])).collect();
+            insert_sorted(sizes, "section.sides", sides);
+        }
+        "prismatic_through_cuts" => {
+            put("run_length", interval("cut.run_interval"));
+            // The closed boundary's chords (an arc's too), whatever vertex it starts at.
+            let mut points: Vec<Vec<f64>> = at(r, "cut.section.boundary[].point")
                 .iter()
                 .filter_map(|v| point(v))
                 .collect();

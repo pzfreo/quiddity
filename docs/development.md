@@ -107,6 +107,7 @@ No new independent references are claimed for legacy value-only helpers.
 | `polygonal_bosses` | F |
 | `polygonal_stock` | F |
 | `prismatic_pockets` | F; L; analytic prism fixtures (`tests/internal/prismatic_pockets.rs`) |
+| `prismatic_through_cuts` | analytic box-minus-polygon controls: interrupted 3/4/6-wall mouths, blind negatives, volume and generic rigid motion (`tests/internal/prismatic_through_cuts.rs`) |
 | `rectangular_blind_slots` | F; L |
 | `repeating_radial_profiles` | F |
 | `risers` | F |
