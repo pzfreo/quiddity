@@ -517,8 +517,9 @@ impl Manifest {
             }
         }
         bytes.extend_from_slice(END);
-        let defs = read_part_definitions(&bytes).map_err(|e| refuse(e.to_string()))?;
-        let def = defs
+        let file = StepFile::read(&bytes).map_err(|e| refuse(e.to_string()))?;
+        let def = file
+            .parts
             .iter()
             .find(|d| d.product_definition == p.product_definition)
             .ok_or_else(|| refuse("definition missing from extracted document".into()))?;
@@ -528,7 +529,7 @@ impl Manifest {
         if def.edges.len() as u64 != p.edge_count {
             return Err(refuse("edge count differs from manifest".into()));
         }
-        let part = read_part(&bytes, def).map_err(|e| refuse(e.to_string()))?;
+        let part = own_part(&file.parsed, def).map_err(|e| refuse(e.to_string()))?;
         // Edge indices belong to the unchanged product reader. Normals-only shell repairs
         // can change traversal order; identity is checked by count and set, never by order.
         let got: HashSet<_> = (0..part.edges.len())
