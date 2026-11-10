@@ -125,12 +125,20 @@ def compare(row):
         for prop in part['gvp']:
             if prop['faces']:
                 material=prop['reference'].get('volume') is not None or prop['reference'].get('centroid') is not None
-                key = (prop['scope'],prop.get('area_kind'),material,tuple(prop['faces']))
+                key = (prop['scope'],prop.get('area_kind'),material,tuple(prop['faces']),prop['reference'].get('area'))
                 if key not in cache:
                     if prop['scope']=='product':
                         cache[key] = dict(part['occt'])
-                        if prop.get('area_kind')=='wetted':
-                            cache[key]['area']=measure(compound(indexed(shape, TopAbs_SOLID)),False)['area']
+                        solids = indexed(shape, TopAbs_SOLID)
+                        sheets = solids and len(indexed(compound(solids), TopAbs_FACE)) < len(faces)
+                        if sheets:
+                            # Same scope rule as ours, chosen independently from OCCT's values.
+                            solid_area = measure(compound(solids), False)['area']
+                            reference = prop['reference'].get('area')
+                            use_solids = prop.get('area_kind') == 'wetted' or reference is None or abs(solid_area-reference) <= abs(cache[key]['area']-reference)
+                            if use_solids:
+                                cache[key]['area'] = solid_area
+                            cache[key]['area_scope'] = 'solids' if use_solids else 'solids and sheets'
                     else:
                         cache[key] = measure(compound([faces[i] for i in key[3]]),material)
                 prop['occt'] = cache[key]

@@ -96,6 +96,10 @@ def main():
                 own = prop['ours'] or {}
                 reference = prop['reference']
                 occt = prop.get('occt', {})
+                if own.get('area_scope') or occt.get('area_scope'):
+                    scope_status = 'PASS' if own.get('area_scope') == occt.get('area_scope') else 'FAIL'
+                    counts['scope', 'area', scope_status] += 1
+                    print(f'{file} | {label_a} | area scope | ours {own.get("area_scope")} | OCCT {occt.get("area_scope")} | {scope_status}')
                 emit(file, label_a, 'A', own, reference, diagonal, occt)
                 for quantity in QUANTITIES:
                     a, b = reference.get(quantity), occt.get(quantity)

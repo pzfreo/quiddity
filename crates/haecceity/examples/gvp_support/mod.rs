@@ -152,12 +152,30 @@ pub fn file(path: &Path) -> Result<Value, Box<dyn std::error::Error>> {
                     .or_insert_with(|| measure(&part, &faces, false))
                     .clone()
             };
-            if whole && p.area_kind == Some(gvp::AreaKind::Wetted) && !ours.is_null() {
-                ours["area"] = json!(
-                    solid_faces
-                        .iter()
-                        .try_fold(0.0, |a, &f| part.face_mass(f).map(|m| a + m[0]))
-                );
+            // A product's surface area either includes its independent sheets or not:
+            // wetted area never does, and exporters differ for plain surface area (the
+            // NIST AP203 files include them, the AP242 files do not, with the same
+            // representation structure). Record the scope used rather than assume one.
+            let sheets = !solid_faces.is_empty() && solid_faces.len() < whole_faces.len();
+            if whole && sheets && !ours.is_null() {
+                let solids_area = solid_faces
+                    .iter()
+                    .try_fold(0.0, |a, &f| part.face_mass(f).map(|m| a + m[0]));
+                let with_sheets = ours["area"].as_f64();
+                let closer = |a: Option<f64>, b: Option<f64>| match (a, b, p.area) {
+                    (Some(a), Some(b), Some(r)) => (a - r).abs() <= (b - r).abs(),
+                    _ => true,
+                };
+                let use_solids = p.area_kind == Some(gvp::AreaKind::Wetted)
+                    || closer(solids_area, with_sheets);
+                if use_solids {
+                    ours["area"] = json!(solids_area);
+                }
+                ours["area_scope"] = json!(if use_solids {
+                    "solids"
+                } else {
+                    "solids and sheets"
+                });
             }
             validations.push(json!({"area_kind":match p.area_kind {Some(gvp::AreaKind::Wetted)=>Some("wetted"),Some(gvp::AreaKind::Surface)=>Some("surface"),None=>None},"property":p.property,"target":p.target,"items":p.items,"faces":faces,"reference":{"volume":p.volume,"area":p.area,"centroid":p.centroid},"ours":ours,"association":if surface_data {"legacy surface-data aspect: independent sheets of owning product"} else {"explicit STEP owner/geometry"},"scope":if whole {"product"} else {"aspect"}}));
         }

@@ -31,10 +31,15 @@ triangulation. It records the OCP version. XCAF's unique part traversal and
 `TopExp.MapShapes` face order match `StepFile.parts` / `StepFile.part`'s documented
 numbering contract; part and face count mismatches are reported rather than zipped
 silently. OCCT sometimes gives independent sheets their own free XCAF roots; these
-are regrouped only when the STEP text itself declares exactly one product definition. `surface area measure` includes independent sheets; `wetted area measure` excludes
-them. The parser retains this distinction as `AreaKind`. Product surface area includes
-independent sheets; volume and material centroid use solids
-only. A sheet-only part reports area, zero volume and no material centroid. Legacy
+are regrouped only when the STEP text itself declares exactly one product definition.
+The parser keeps `surface area measure` and `wetted area measure` apart as `AreaKind`.
+For a product with both solids and independent sheets, wetted area excludes the sheets.
+Plain surface area has no single scope: of the NIST files, the AP203 exports (CTC-02 rc,
+CTC-05 rd) include the sheets and the AP242 exports (CTC-04, FTC-07) exclude them, with
+the same representation structure. Both scopes are measured, the one closer to the
+reference is used, and it is recorded as `area_scope`. OCCT chooses its scope
+independently, and the table counts any disagreement between the two as a FAIL. Volume
+and material centroid use solids only. A sheet-only part reports area, zero volume and no material centroid. Legacy
 AP203 aspects explicitly described as "surface data associated with …" select the
 independent sheets of that product when their representation lists only boundary
 curves. This scope decision is recorded in the detailed JSON. Explicit geometry
