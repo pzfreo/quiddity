@@ -212,6 +212,7 @@ struct Template {
     rep: u64,
     faces: usize,
     entities: u64,
+    solid_instances: usize,
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExpectedProduct {
@@ -294,7 +295,18 @@ fn scale_contiguous(
                 }
             })
             .ok_or("product has no shape representation")?;
+        let first = m
+            .instances
+            .iter()
+            .find(|i| i.product == p.id)
+            .ok_or("product has no instance")?;
+        let solid_instances = m
+            .instances
+            .iter()
+            .filter(|i| i.product == p.id && i.path == first.path)
+            .count();
         templates.push(Template {
+            solid_instances,
             owned: rows.iter().map(|r| r.0).collect(),
             rows,
             pd: p.product_definition,
@@ -321,7 +333,7 @@ fn scale_contiguous(
     };
     let pc = context("PRODUCT_CONTEXT")?;
     let dc = context("PRODUCT_DEFINITION_CONTEXT")?;
-    let rc = doc
+    let mut rc = doc
         .graph()
         .entities
         .iter()
@@ -336,6 +348,37 @@ fn scale_contiguous(
             _ => None,
         })
         .ok_or("missing geometry context")?;
+    let mut root_context = Vec::new();
+    let mut occurrence_start = base + 11;
+    let shared: HashSet<_> = common.iter().map(|(id, _)| *id).collect();
+    if !shared.contains(&rc) {
+        // A standalone product can own its context/units. The synthetic root
+        // needs its own copy, rather than referring to an omitted source id or
+        // stealing context entities from the first product's expected closure.
+        let mut owned = HashSet::new();
+        let mut pending = vec![rc];
+        while let Some(id) = pending.pop() {
+            if shared.contains(&id) || !owned.insert(id) {
+                continue;
+            }
+            let e = doc.get(id).ok_or("missing context dependency")?;
+            p21::visit_attributes(e, &mut |a| {
+                if let Attribute::EntityRef(id) = a {
+                    pending.push(*id);
+                }
+            });
+        }
+        let offset = occurrence_start - *owned.iter().min().unwrap();
+        occurrence_start = owned.iter().max().unwrap() + offset + 1;
+        let mut ids: Vec<_> = owned.iter().copied().collect();
+        ids.sort_unstable();
+        for id in ids {
+            let mut e = doc.get(id).unwrap().clone();
+            remap(&mut e, offset, &owned, "");
+            root_context.push((id + offset, e));
+        }
+        rc += offset;
+    }
     let rootpd = base + 3;
     let rootrep = base + 6;
     let axis = base + 7;
@@ -362,9 +405,13 @@ fn scale_contiguous(
         writeln!(out, "#{id}={};", p21::encode(e)?)?;
     }
     out.write_all(root.as_bytes())?;
+    for (id, e) in &root_context {
+        writeln!(out, "#{id}={};", p21::encode(e)?)?;
+    }
     let mut products = 0usize;
     let mut instances = 0usize;
-    let mut entities = common.len() as u64 + 10;
+    let mut occurrences = 0usize;
+    let mut entities = (common.len() + root_context.len()) as u64 + 10;
     group(&mut groups, 0, entities)?;
     sidecar.write_all(b"{\"per_product\":[")?;
     // Each product is emitted before the next is constructed. Runs/shuffled scale
@@ -400,23 +447,24 @@ fn scale_contiguous(
         entities += t.rows.len() as u64;
         occurrence(
             &mut out,
-            base + 11 + instances as u64 * 7,
+            occurrence_start + occurrences as u64 * 7,
             rootpd,
             rootrep,
             axis,
             t.pd + offset,
             t.rep + offset,
-            instances,
+            occurrences,
         )?;
         entities += 7;
-        instances += 1;
+        instances += t.solid_instances;
+        occurrences += 1;
         products += 1;
     }
     while instances < scale.instances {
-        let copy = instances % products;
+        let copy = occurrences % products;
         let t = &templates[copy % templates.len()];
         let offset = (copy as u64 + 1) * stride;
-        let id = base + 11 + instances as u64 * 7;
+        let id = occurrence_start + occurrences as u64 * 7;
         occurrence(
             &mut out,
             id,
@@ -425,11 +473,12 @@ fn scale_contiguous(
             axis,
             t.pd + offset,
             t.rep + offset,
-            instances,
+            occurrences,
         )?;
         group(&mut groups, entities, 7)?;
         entities += 7;
-        instances += 1;
+        instances += t.solid_instances;
+        occurrences += 1;
     }
     out.write_all(b"ENDSEC;\nEND-ISO-10303-21;\n")?;
     out.flush()?;

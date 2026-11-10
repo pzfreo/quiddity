@@ -191,7 +191,8 @@ cargo run --release -j 6 --example assembly_layout -- assembly.step \
 permutes all entity statements. Scale mode copies products with disjoint id
 blocks, suffixes `PRODUCT.id`, and places occurrences under a synthetic root on
 a grid (1,000 source length units). `--distinct` and `--instances` are minimum
-counts; complete product copies, each with an occurrence, are added until
+counts; instances count placed solids, so a multi-solid product contributes several
+per occurrence. Complete product copies, each with an occurrence, are added until
 `--target-bytes` is reached. It never fills the target with padding or unused
 entities. Extra requested instances reuse the generated products.
 

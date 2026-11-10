@@ -350,3 +350,56 @@ fn contiguous_uses_source_definition_order() {
                 .start
     );
 }
+
+#[test]
+fn scale_counts_solid_instances_instead_of_occurrences() {
+    let bytes = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/two_solids.step"
+    ))
+    .unwrap();
+    let original = manifest::scan(Cursor::new(&bytes), &ScanOptions::default()).unwrap();
+    assert_eq!(original.products.len(), 1);
+    assert_eq!(original.instances.len(), 2);
+    for layout in [Layout::Contiguous, Layout::Runs, Layout::Shuffled] {
+        let mut out = Vec::new();
+        let mut sidecar = Vec::new();
+        engine::scale(
+            &bytes,
+            Options {
+                layout,
+                ..Options::default()
+            },
+            Scale {
+                distinct: 3,
+                instances: 7,
+                target_bytes: 0,
+            },
+            &mut out,
+            &mut sidecar,
+        )
+        .unwrap();
+        let e: Expected = serde_json::from_slice(&sidecar).unwrap();
+        let m = manifest::scan(Cursor::new(&out), &ScanOptions::default()).unwrap();
+        assert_eq!(e.products, 3);
+        assert_eq!(e.instances, 8);
+        assert_eq!(m.instances.len(), e.instances);
+        assert_eq!(m.products.len(), e.products);
+        assert_eq!(out.len() as u64, e.bytes);
+        for (p, e) in m.products.iter().zip(e.per_product) {
+            assert_eq!(p.faces.len(), e.faces);
+            assert_eq!(p.entities, e.entities);
+        }
+        let paths: std::collections::BTreeSet<_> =
+            m.instances.iter().map(|i| i.path.clone()).collect();
+        assert_eq!(paths.len(), 4);
+        let placement = |i: usize| {
+            let p = &m.instances[i].placement;
+            (p[0][3], p[1][3])
+        };
+        assert_eq!(placement(0), (0., 0.));
+        assert_eq!(placement(2), (1000., 0.));
+        assert_eq!(placement(4), (2000., 0.));
+        assert_eq!(placement(6), (3000., 0.));
+    }
+}
