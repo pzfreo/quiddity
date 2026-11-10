@@ -18,6 +18,10 @@ name = "quiddity"
 path = "src/bin/quiddity.rs"
 required-features = ["cli"]
 
+[[example]]
+name = "assembly_layout"
+required-features = ["cli"]
+
 [features]
 default = ["presentation", "cli"]
 # The `quiddity` command line (`quiddity::cli`, the binary and the Python console script) and
