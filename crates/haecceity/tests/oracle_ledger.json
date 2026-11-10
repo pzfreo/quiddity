@@ -77,7 +77,7 @@
       "test": "crates/haecceity/tests/drawings.rs"
     },
     {
-      "agreed": 10447,
+      "agreed": 10448,
       "cases": 12275,
       "deferred": [
         {
@@ -106,12 +106,6 @@
         },
         {
           "captured": true,
-          "case": "parts/2fe0e2383b80a0b8.step.gz face 0",
-          "verdict": "rust-wrong",
-          "waits_on": "A cylinder patch of radius 1e8 stored as a B-spline (Python's huge-radius ambiguity test): mass.rs gives its area as 0.0109 against 10.0 (round-off at coordinates of 1e8), so the port's nominal is wrong; both sides still refuse the surface."
-        },
-        {
-          "captured": true,
           "case": "parts/6abd0d86721a0fe9.step.gz face 0",
           "verdict": "rust-wrong",
           "waits_on": "mass.rs gives this face no area (a closed B-spline surface whose only edge is its seam; README's known limitation, unchanged on w3/q-kernel-boxes 0c6de9b), so the port has no nominal where Python has one."
@@ -120,7 +114,7 @@
       "differences": {
         "not-applicable": 16,
         "rust-correct": 1806,
-        "rust-wrong": 6
+        "rust-wrong": 5
       },
       "oracle": "OpenCascade face areas and perimeters behind recovered surfaces' nominal sizes (tests/fixtures/captured/effective_surfaces/faces.json.gz)",
       "query": "recovery",
