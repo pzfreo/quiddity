@@ -949,8 +949,8 @@ family is omitted when empty; recognition schema 6 and fingerprint format 3 rema
 
 The principal wall is a planar, simple, straight-edged polygon with **more than
 four noncollinear corners**, without inner wires. Its boundary consists of one
-complete straight concave seam and a chain of principal-axis edges, all convexly
-joined to unique exterior supports. A curved support may trim a straight edge;
+complete straight concave seam and a chain of principal-axis edges or edges
+owned by proved convex corner chamfers, all convexly joined to unique exterior supports. A curved support may trim a straight edge;
 its normal does not measure the step. The perpendicular oblique wall is a
 complete rectangle with that seam as one side. Both run ends must lie on opposite
 sides of the same stock-envelope axis and have a unique common convex planar
