@@ -106,13 +106,39 @@ def test_iterator_parses_one_native_manifest_and_keeps_it(tmp_path, monkeypatch)
     native = _native.ManifestHandle
     calls = []
 
-    def counted(text):
-        calls.append(text)
-        return native(text)
+    class Counted:
+        def __new__(cls, text):
+            calls.append(("json", text))
+            return native(text)
 
-    monkeypatch.setattr(_native, "ManifestHandle", counted)
+        @staticmethod
+        def from_path(path, parts=None):
+            calls.append(("path", parts))
+            return native.from_path(path, parts)
+
+    monkeypatch.setattr(_native, "ManifestHandle", Counted)
+    def no_python_file_read(*args, **kwargs):
+        raise AssertionError("manifest paths must stream in Rust")
+    monkeypatch.setattr(Path, "read_text", no_python_file_read)
     iterator = quiddity.recognise_products(path, manifest_path)
     first = next(iterator)
     manifest_path.unlink()
     assert [first, *iterator] == expected
-    assert len(calls) == 1
+    assert calls == [("path", None)]
+
+
+def test_selected_path_skips_other_bodies_and_validates_every_id(tmp_path):
+    path = ASSEMBLIES[0]
+    m = quiddity.manifest(path)
+    selected = m["products"][0]["id"]
+    expected = quiddity.recognise_product(path, m, selected)
+    other = m["products"][1]
+    m["products"][1] = {"id": other["id"], "faces": "not a product"}
+    manifest = tmp_path / "selected.json"
+    manifest.write_text(json.dumps(m), encoding="utf-8")
+    assert quiddity.recognise_product(path, manifest, selected) == expected
+    assert list(quiddity.recognise_products(path, manifest, parts=[selected])) == [(selected, expected)]
+    m["products"][1]["id"] = "../bad"
+    manifest.write_text(json.dumps(m), encoding="utf-8")
+    with pytest.raises(ValueError, match="invalid or duplicate"):
+        quiddity.recognise_product(path, manifest, selected)

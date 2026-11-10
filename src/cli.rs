@@ -857,6 +857,61 @@ fn remove_output(path: &Path) -> Result<(), String> {
     }
 }
 
+/// Pretty output identical to the full assembly JSON, retaining one instance only.
+struct AssemblyStream<W: std::io::Write> {
+    out: W,
+    first: bool,
+}
+impl<W: std::io::Write> AssemblyStream<W> {
+    fn new(mut out: W) -> Result<Self, String> {
+        out.write_all(b"{\n  \"instances\": [")
+            .map_err(|e| e.to_string())?;
+        Ok(Self { out, first: true })
+    }
+    fn instance(&mut self, i: &crate::kernel::step::manifest::Instance) -> Result<(), String> {
+        if !self.first {
+            self.out.write_all(b",").map_err(|e| e.to_string())?;
+        }
+        self.out.write_all(b"\n").map_err(|e| e.to_string())?;
+        self.first = false;
+        let value = serde_json::to_value(i).map_err(|e| e.to_string())?;
+        for (n, line) in serde_json::to_string_pretty(&value)
+            .map_err(|e| e.to_string())?
+            .lines()
+            .enumerate()
+        {
+            if n > 0 {
+                self.out.write_all(b"\n").map_err(|e| e.to_string())?;
+            }
+            write!(self.out, "    {line}").map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+    fn finish(mut self, source: &crate::kernel::step::manifest::Source) -> Result<(), String> {
+        if !self.first {
+            self.out.write_all(b"\n  ").map_err(|e| e.to_string())?;
+        }
+        self.out
+            .write_all(b"],\n  \"source\": ")
+            .map_err(|e| e.to_string())?;
+        let value = serde_json::to_value(source).map_err(|e| e.to_string())?;
+        for (n, line) in serde_json::to_string_pretty(&value)
+            .map_err(|e| e.to_string())?
+            .lines()
+            .enumerate()
+        {
+            if n > 0 {
+                self.out.write_all(b"\n  ").map_err(|e| e.to_string())?;
+            }
+            self.out
+                .write_all(line.as_bytes())
+                .map_err(|e| e.to_string())?;
+        }
+        self.out.write_all(b"\n}\n").map_err(|e| e.to_string())?;
+        self.out.flush().map_err(|e| e.to_string())
+    }
+}
+
 fn manifest_recognise(
     path: &str,
     manifest_path: &str,
@@ -868,11 +923,36 @@ fn manifest_recognise(
 ) -> Result<(), String> {
     use crate::kernel::step::{StepFile, manifest::Manifest};
     use std::collections::HashMap;
-    let bytes = std::fs::read(manifest_path).map_err(|e| format!("{manifest_path}: {e}"))?;
-    let mut manifest: Manifest =
-        serde_json::from_slice(&bytes).map_err(|e| format!("{manifest_path}: {e}"))?;
-    // The owned manifest no longer borrows this potentially large JSON buffer.
-    drop(bytes);
+    // Stage beside the nearest existing output ancestor, on the destination's
+    // filesystem, without creating an output directory for an invalid manifest.
+    let parent = out
+        .ancestors()
+        .find(|p| p.is_dir())
+        .unwrap_or_else(|| Path::new("."));
+    let mut assembly_temp = tempfile::Builder::new()
+        .prefix(".quiddity-assembly-")
+        .tempfile_in(parent)
+        .map_err(|e| e.to_string())?;
+    let mut assembly_stream = AssemblyStream::new(std::io::BufWriter::new(&mut assembly_temp))?;
+    let input = std::io::BufReader::new(
+        std::fs::File::open(manifest_path).map_err(|e| format!("{manifest_path}: {e}"))?,
+    );
+    let mut manifest: Manifest = if let Some(parts) = parts {
+        Manifest::read_selected(input, parts, |i| {
+            assembly_stream
+                .instance(&i)
+                .map_err(crate::kernel::step::StepError::Unsupported)
+        })
+        .map_err(|e| format!("{manifest_path}: {e}"))?
+    } else {
+        let m: Manifest =
+            serde_json::from_reader(input).map_err(|e| format!("{manifest_path}: {e}"))?;
+        for i in &m.instances {
+            assembly_stream.instance(i)?;
+        }
+        m
+    };
+    assembly_stream.finish(&manifest.source)?;
     let ids = crate::file_api::product_ids(&manifest, parts)?;
     let file = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
     let mut magic = [0; 2];
@@ -925,15 +1005,9 @@ fn manifest_recognise(
         std::fs::create_dir_all(out.join(directory))
             .map_err(|e| format!("{}: {e}", out.display()))?;
     }
-    // Identical for every worker, including workers with a disjoint --parts selection.
-    {
-        let assembly =
-            serde_json::json!({ "source": manifest.source, "instances": manifest.instances });
-        atomic_json(
-            &out.join("assembly.json"),
-            &crate::file_api::json(&assembly)?,
-        )?;
-    } // Release the duplicate instance JSON before parsing/recognising geometry.
+    assembly_temp
+        .persist(out.join("assembly.json"))
+        .map_err(|e| e.to_string())?;
     let mut whole = None;
     let mut failed = false;
     for id in &ids {

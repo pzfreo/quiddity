@@ -146,16 +146,21 @@ JSON file path, not inline JSON text. Recognition returns the same envelope as
 `json.loads(quiddity.recognise(...))` for that part; existing `recognise` continues
 to return JSON text. `recognise_products` is a lazy iterator of `(id, result_dict)`
 in manifest order: it validates the selection before reading the first product,
-then reads and recognises one at each iteration. The manifest is parsed once into
-an immutable Rust-side handle and reused for the whole iteration. Unknown ids and reader refusals
+then reads and recognises one at each iteration. Path manifests are read through a
+Rust buffered reader; selections retain only requested products. The immutable
+handle is loaded once and reused for the whole iteration. Unknown ids and reader refusals
 raise `ValueError`; a refusal stops iteration at that product. Use individual
 calls to collect successes around refusals. These Python functions do not perform
 whole-file fallback. Scan, read and recognition run with the GIL released.
 
 ## Limits and scope
 
-Recognition memory grows with the largest selected product and its parsed
-geometry, plus manifest metadata. The scan's extent/union index uses 16 bytes per
+With `--parts`, recognition streams the manifest, validates every product id,
+retains only selected product metadata, and streams the full instance list into
+atomic `assembly.json` output. Python path manifests with a selection use the same
+loader. Memory grows with selected geometry and metadata, plus a temporary set of
+product ids; unselected face arrays and instances are not retained. Whole runs and
+Python dict manifests retain the full manifest. The scan's extent/union index uses 16 bytes per
 entity, with additional ownership, references, retained structure and range
 metadata; `--index-dir` maps that index, not all scan allocations. Many short
 ranges increase seek and metadata costs. The manifest scan defaults to one million

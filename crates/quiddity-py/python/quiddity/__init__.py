@@ -12,12 +12,13 @@ def manifest(path, out=None):
     return json.loads(_manifest(os.fspath(path), None if out is None else os.fspath(out)))
 
 
-def _manifest_json(manifest):
+def _manifest_handle(manifest, parts=None):
     import json
-    from pathlib import Path
+    import os
+    from ._native import ManifestHandle
     if isinstance(manifest, dict):
-        return json.dumps(manifest)
-    return Path(manifest).read_text(encoding="utf-8")
+        return ManifestHandle(json.dumps(manifest))
+    return ManifestHandle.from_path(os.fspath(manifest), parts)
 
 
 def recognise_product(path, manifest, product_id):
@@ -27,8 +28,7 @@ def recognise_product(path, manifest, product_id):
     """
     import json
     import os
-    from ._native import ManifestHandle
-    handle = ManifestHandle(_manifest_json(manifest))
+    handle = _manifest_handle(manifest, [product_id])
     return json.loads(handle.recognise(os.fspath(path), product_id))
 
 
@@ -40,9 +40,9 @@ def recognise_products(path, manifest, parts=None):
     """
     import json
     import os
-    from ._native import ManifestHandle
-    handle = ManifestHandle(_manifest_json(manifest))
-    ids = handle.product_ids(None if parts is None else list(parts))
+    selected = None if parts is None else list(parts)
+    handle = _manifest_handle(manifest, selected)
+    ids = handle.product_ids(selected)
     source = os.fspath(path)
     for product_id in ids:
         yield product_id, json.loads(handle.recognise(source, product_id))

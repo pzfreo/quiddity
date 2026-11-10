@@ -159,6 +159,23 @@ impl ManifestHandle {
         .map_err(PyValueError::new_err)
     }
 
+    #[staticmethod]
+    #[pyo3(signature = (path, parts=None))]
+    fn from_path(py: Python<'_>, path: String, parts: Option<Vec<String>>) -> PyResult<Self> {
+        py.detach(|| -> Result<Self, String> {
+            let input =
+                std::io::BufReader::new(std::fs::File::open(&path).map_err(|e| e.to_string())?);
+            let manifest = if let Some(parts) = parts {
+                step::manifest::Manifest::read_selected(input, &parts, |_| Ok(()))
+                    .map_err(|e| e.to_string())?
+            } else {
+                serde_json::from_reader(input).map_err(|e| e.to_string())?
+            };
+            Ok(Self { manifest })
+        })
+        .map_err(PyValueError::new_err)
+    }
+
     #[pyo3(signature = (parts=None))]
     fn product_ids(&self, py: Python<'_>, parts: Option<Vec<String>>) -> PyResult<Vec<String>> {
         py.detach(|| file_api::product_ids(&self.manifest, parts.as_deref()))

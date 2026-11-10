@@ -530,3 +530,39 @@ fn product_warnings_match_legacy_stderr_with_id_prefix() {
         expected
     );
 }
+
+#[test]
+fn selective_loader_validates_unselected_ids_and_streams_exact_assembly() {
+    let dir = tempfile::tempdir().unwrap();
+    let m = scan(dir.path(), &fixture());
+    success(recognise(
+        dir.path(),
+        &fixture(),
+        &["--parts", &m.products[0].id],
+    ));
+    let expected =
+        quiddity::file_api::json(&serde_json::json!({"source":m.source,"instances":m.instances}))
+            .unwrap();
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("results/assembly.json")).unwrap(),
+        expected
+    );
+    for bad in ["../bad", &m.products[0].id] {
+        let isolated = tempfile::tempdir().unwrap();
+        let mut v = serde_json::to_value(&m).unwrap();
+        v["products"][1]["id"] = bad.into();
+        std::fs::write(
+            isolated.path().join("manifest.json"),
+            serde_json::to_vec(&v).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            recognise(isolated.path(), &fixture(), &["--parts", &m.products[0].id])
+                .status
+                .code(),
+            Some(1)
+        );
+        assert!(!isolated.path().join("results").exists());
+        assert_eq!(std::fs::read_dir(isolated.path()).unwrap().count(), 1);
+    }
+}
