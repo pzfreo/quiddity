@@ -52,12 +52,15 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 - `assembly_layout` example generates contiguous, interleaved and seeded shuffled
   assemblies, and streams scale fixtures with fresh product ids, grid placements
-  and expected-count sidecars. Fixture/gramil CLI tests compare all three layouts
+  and expected-count sidecars. Copied reference closures include AP242 presentation
+  dependencies, and synthetic ids stay ordered within copy strides. Fixture/gramil CLI tests compare all three layouts
   with whole-file recognition; a 200 MB acceptance checks memory/limits paths.
 
 - Product recognition over [assembly manifests](docs/assemblies.md): `manifest`
   scans STEP (including gzip); `recognise --manifest --out-dir` reads selected
   product ranges, checks hashes and writes product JSON, transforms and refusals.
+  Selected path manifests stream metadata and full assembly instances while retaining
+  only requested products; extracted geometry is parsed once.
   Shared geometry has explicit whole-file fallback. Python exposes `manifest`,
   `recognise_product` and a lazy `recognise_products` iterator.
 

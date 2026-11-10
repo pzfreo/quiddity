@@ -151,12 +151,14 @@ fn check_scale(layout: Layout, distinct: usize, instances: usize, target_bytes: 
     assert_eq!(m.instances.len(), expected.instances);
     let whole = StepFile::read(&bytes).unwrap();
     let max_id = p21::Document::parse(source()).unwrap().max_id();
+    assert!(expected.id_stride > max_id);
+    assert!(expected.id_stride <= 2 * max_id + 32);
     let original = manifest::scan(Cursor::new(source()), &ScanOptions::default()).unwrap();
     for (copy, e) in expected.per_product.into_iter().enumerate() {
         assert_eq!(
             e.product_definition,
             original.products[copy % original.products.len()].product_definition
-                + (copy as u64 + 1) * max_id
+                + (copy as u64 + 1) * expected.id_stride
         );
         let p = m
             .products
@@ -401,5 +403,85 @@ fn scale_counts_solid_instances_instead_of_occurrences() {
         assert_eq!(placement(2), (1000., 0.));
         assert_eq!(placement(4), (2000., 0.));
         assert_eq!(placement(6), (3000., 0.));
+    }
+}
+
+#[test]
+fn ap242_presentation_dependencies_scale_and_read_back() {
+    use std::io::Read;
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/ap242/write-presentation/nist_ctc_02_targets.step.gz");
+    let mut bytes = Vec::new();
+    flate2::read::GzDecoder::new(File::open(path).unwrap())
+        .read_to_end(&mut bytes)
+        .unwrap();
+    assert!(
+        bytes
+            .windows(b"MAPPED_ITEM".len())
+            .any(|s| s == b"MAPPED_ITEM")
+    );
+    let baseline = manifest::scan(Cursor::new(&bytes), &ScanOptions::default()).unwrap();
+    for layout in [Layout::Contiguous, Layout::Runs, Layout::Shuffled] {
+        let mut out = Vec::new();
+        let mut sidecar = Vec::new();
+        engine::scale(
+            &bytes,
+            Options {
+                layout,
+                ..Options::default()
+            },
+            Scale {
+                distinct: 2,
+                instances: 2,
+                target_bytes: 0,
+            },
+            &mut out,
+            &mut sidecar,
+        )
+        .unwrap();
+        let e: Expected = serde_json::from_slice(&sidecar).unwrap();
+        let m = manifest::scan(Cursor::new(&out), &ScanOptions::default()).unwrap();
+        assert!(m.refusals.is_empty());
+        assert_eq!(m.products.len(), e.products);
+        assert_eq!(m.instances.len(), e.instances);
+        let raw = p21::Document::parse(out.clone()).unwrap();
+        for entity in raw.graph().entities.values() {
+            p21::visit_attributes(entity, &mut |a| {
+                if let p21::Attribute::EntityRef(id) = a {
+                    assert!(raw.get(*id).is_some(), "dangling #{id}");
+                }
+            });
+        }
+        if matches!(layout, Layout::Contiguous) {
+            let mut last = 0;
+            streaming::scan(out.as_slice(), 8192, |e| {
+                if let Event::Instance(i, _) = e {
+                    assert!(i.id > last);
+                    last = i.id;
+                }
+                Ok(())
+            })
+            .unwrap();
+        }
+        let mut f = tempfile::tempfile().unwrap();
+        std::io::Write::write_all(&mut f, &out).unwrap();
+        let whole = StepFile::read(&out).unwrap();
+        for (i, (p, expected)) in m.products.iter().zip(&e.per_product).enumerate() {
+            assert_eq!(p.entities, expected.entities);
+            assert_eq!(p.faces.len(), expected.faces);
+            assert_eq!(
+                p.faces.len(),
+                baseline.products[i % baseline.products.len()].faces.len()
+            );
+            assert_eq!(
+                quiddity::file_api::recognise_part(
+                    &m.read_product(&f, &p.id).unwrap(),
+                    &m.source.sha256
+                )
+                .unwrap(),
+                quiddity::file_api::recognise_part(&whole.part(i).unwrap(), &m.source.sha256)
+                    .unwrap()
+            );
+        }
     }
 }

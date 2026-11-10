@@ -85,21 +85,27 @@ pub fn rewrite(bytes: &[u8], options: Options, mut out: impl Write) -> Result<()
     let mut products: Vec<_> = m.products.iter().collect();
     products.sort_by_key(|p| definitions[&p.product_definition]);
     let mut buckets = vec![Vec::new(); products.len() + 1];
+    let mut events = Vec::new();
+    for (owner, p) in products.iter().enumerate() {
+        for &[start, end] in &p.ranges {
+            events.push((start, true, owner + 1));
+            events.push((end, false, owner + 1));
+        }
+    }
+    events.sort_unstable();
+    let (mut event, mut active, mut owner_xor) = (0, 0usize, 0usize);
     for (i, &(at, _)) in rows.iter().enumerate() {
-        let mut owners = products.iter().enumerate().filter(|(_, p)| {
-            p.ranges
-                .iter()
-                .any(|r| r[0] <= at as u64 && (at as u64) < r[1])
-        });
-        let first = owners.next().map(|(i, _)| i + 1);
-        // Shared contexts/frames cannot appear in two groups without duplicating
-        // their ids. Keep them with the shared prefix instead of favouring a part.
-        let owner = if owners.next().is_some() {
-            0
-        } else {
-            first.unwrap_or(0)
-        };
-        buckets[owner].push(i);
+        while event < events.len() && events[event].0 <= at as u64 {
+            let (_, start, owner) = events[event];
+            if start {
+                active += 1;
+            } else {
+                active -= 1;
+            }
+            owner_xor ^= owner;
+            event += 1;
+        }
+        buckets[if active == 1 { owner_xor } else { 0 }].push(i);
     }
     let mut order = Vec::with_capacity(rows.len());
     match options.layout {
@@ -227,6 +233,7 @@ pub struct Expected {
     pub instances: usize,
     pub entities: u64,
     pub bytes: u64,
+    pub id_stride: u64,
     pub per_product: Vec<ExpectedProduct>,
 }
 #[derive(Clone, Copy)]
@@ -268,21 +275,69 @@ fn scale_contiguous(
         return Err("scale source has shared geometry refusals".into());
     }
     let doc = Document::parse(bytes.to_vec())?;
-    let stride = doc.max_id();
-    // Keep generated assembly metadata in a disjoint sparse region, leaving
-    // copied source ids offset by exactly k * source.max_id().
-    let base = 1u64 << 60;
-    if stride >= base {
-        return Err("source ids overlap the synthetic assembly id region".into());
+    let base = doc.max_id();
+    let mut common_ids: HashSet<_> = doc
+        .ids()
+        .filter(|id| {
+            let at = doc.span(*id).unwrap().start as u64;
+            m.common.ranges.iter().any(|r| r[0] <= at && at < r[1])
+        })
+        .collect();
+    // Only a dependency-closed common subgraph may retain original ids. Maps
+    // or contexts reaching product-owned records belong in each copy instead.
+    loop {
+        let unsafe_ids: Vec<_> = common_ids
+            .iter()
+            .copied()
+            .filter(|id| {
+                let mut unsafe_ref = false;
+                p21::visit_attributes(doc.get(*id).unwrap(), &mut |a| {
+                    if let Attribute::EntityRef(to) = a {
+                        unsafe_ref |= !common_ids.contains(to);
+                    }
+                });
+                unsafe_ref
+            })
+            .collect();
+        if unsafe_ids.is_empty() {
+            break;
+        }
+        for id in unsafe_ids {
+            common_ids.remove(&id);
+        }
     }
+    let copy_common: Vec<_> = doc
+        .ids()
+        .filter(|id| {
+            let at = doc.span(*id).unwrap().start as u64;
+            !common_ids.contains(id) && m.common.ranges.iter().any(|r| r[0] <= at && at < r[1])
+        })
+        .collect();
     let mut templates = Vec::new();
     for p in &m.products {
-        let rows: Vec<_> = doc
+        let mut owned: HashSet<_> = doc
             .ids()
             .filter(|id| {
                 let at = doc.span(*id).unwrap().start as u64;
                 p.ranges.iter().any(|r| r[0] <= at && at < r[1])
             })
+            .chain(copy_common.iter().copied())
+            .collect();
+        let mut pending: Vec<_> = owned.iter().copied().collect();
+        while let Some(id) = pending.pop() {
+            let entity = doc.get(id).ok_or("missing product dependency")?;
+            p21::visit_attributes(entity, &mut |a| {
+                if let Attribute::EntityRef(to) = a
+                    && !common_ids.contains(to)
+                    && owned.insert(*to)
+                {
+                    pending.push(*to);
+                }
+            });
+        }
+        let rows: Vec<_> = doc
+            .ids()
+            .filter(|id| owned.contains(id))
             .map(|id| (id, doc.get(id).unwrap().clone()))
             .collect();
         let rep = rows
@@ -307,7 +362,7 @@ fn scale_contiguous(
             .count();
         templates.push(Template {
             solid_instances,
-            owned: rows.iter().map(|r| r.0).collect(),
+            owned,
             rows,
             pd: p.product_definition,
             rep,
@@ -318,13 +373,11 @@ fn scale_contiguous(
     if templates.is_empty() {
         return Err("source has no products".into());
     }
-    let mut common = Vec::new();
-    for id in doc.ids() {
-        let at = doc.span(id).unwrap().start as u64;
-        if m.common.ranges.iter().any(|r| r[0] <= at && at < r[1]) {
-            common.push((id, doc.get(id).unwrap().clone()));
-        }
-    }
+    let common: Vec<_> = doc
+        .ids()
+        .filter(|id| common_ids.contains(id))
+        .map(|id| (id, doc.get(id).unwrap().clone()))
+        .collect();
     let context = |n| {
         common
             .iter()
@@ -379,6 +432,10 @@ fn scale_contiguous(
         }
         rc += offset;
     }
+    // Block zero contains common records and the synthetic root. Each copied
+    // product occupies the source-id prefix of the next block; its occurrence
+    // occupies the tail. Contiguous output therefore has strictly increasing ids.
+    let stride = occurrence_start.checked_add(7).ok_or("id overflow")?;
     let rootpd = base + 3;
     let rootrep = base + 6;
     let axis = base + 7;
@@ -423,7 +480,10 @@ fn scale_contiguous(
         let offset = (products as u64 + 1)
             .checked_mul(stride)
             .ok_or("id overflow")?;
-        if offset.checked_add(stride).is_none_or(|end| end >= base) {
+        if offset
+            .checked_add(stride)
+            .is_none_or(|end| end >= 1u64 << 63)
+        {
             return Err("id overflow".into());
         }
         for i in 0..t.rows.len() {
@@ -447,7 +507,7 @@ fn scale_contiguous(
         entities += t.rows.len() as u64;
         occurrence(
             &mut out,
-            occurrence_start + occurrences as u64 * 7,
+            offset + occurrence_start,
             rootpd,
             rootrep,
             axis,
@@ -464,7 +524,7 @@ fn scale_contiguous(
         let copy = occurrences % products;
         let t = &templates[copy % templates.len()];
         let offset = (copy as u64 + 1) * stride;
-        let id = occurrence_start + occurrences as u64 * 7;
+        let id = (products as u64 + 1) * stride + (occurrences - products) as u64 * 7;
         occurrence(
             &mut out,
             id,
@@ -484,7 +544,7 @@ fn scale_contiguous(
     out.flush()?;
     writeln!(
         sidecar,
-        "],\"products\":{products},\"instances\":{instances},\"entities\":{entities},\"bytes\":{}}}",
+        "],\"products\":{products},\"instances\":{instances},\"entities\":{entities},\"id_stride\":{stride},\"bytes\":{}}}",
         out.bytes
     )?;
     sidecar.flush()?;
@@ -561,12 +621,13 @@ pub fn scale(
     bytes: &[u8],
     options: Options,
     settings: Scale,
-    mut out: impl Write,
+    out: impl Write,
     sidecar: impl Write,
 ) -> Result<()> {
     if matches!(options.layout, Layout::Contiguous) {
         return scale_contiguous(bytes, options, settings, out, sidecar, std::io::sink());
     }
+    let mut out = std::io::BufWriter::with_capacity(1024 * 1024, out);
     let mut spool = tempfile::tempfile()?;
     let mut groups = tempfile::tempfile()?;
     scale_contiguous(
@@ -600,10 +661,13 @@ pub fn scale(
     }
     spool.rewind()?;
     std::io::copy(&mut (&mut spool).take(first), &mut out)?;
+    let mut statement = Vec::new();
     let mut copy = |i| -> Result<()> {
         let (at, len) = pair(&mut index, i)?;
         spool.seek(SeekFrom::Start(at))?;
-        std::io::copy(&mut (&mut spool).take(len), &mut out)?;
+        statement.resize(usize::try_from(len)?, 0);
+        spool.read_exact(&mut statement)?;
+        out.write_all(&statement)?;
         Ok(())
     };
     match options.layout {
