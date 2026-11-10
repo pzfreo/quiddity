@@ -105,3 +105,90 @@ fn moments_require_every_mass_integral() {
     assert!(part.face_moments(0).is_none());
     assert!(part.face_projected_moments(0, [1.0, 0.0, 0.0]).is_none());
 }
+
+/// Publishing mass from a moment pass preserves the standalone quadrature, including its
+/// independent refinement. Exercise periodic bands, held sides, knots and near-end corners.
+#[test]
+fn mass_cache_is_independent_of_moment_query_order() {
+    for name in [
+        "ap242/nist/nist_stc_10_asme1_ap242-e2.stp.gz",
+        "ap242/nist/nist_ftc_11_asme1_ap242-e3.stp.gz",
+        "held_side_knot.step",
+        "late_turn.step",
+        "rotated_seam_band.step",
+    ] {
+        let path = common::fixtures().join(name);
+        let standalone = read_step_file(&path).unwrap();
+        let expected: Vec<_> = (0..standalone.faces.len())
+            .map(|f| standalone.face_mass(f))
+            .collect();
+        for first in 0..3 {
+            let part = read_step_file(&path).unwrap();
+            if first == 0 {
+                let _ = part.volume_centroid();
+            } else {
+                let faces: Vec<usize> = if name.contains("stc_10") {
+                    vec![60, 61, 62, 63, 66, 69, 75, 93, 96, 99, 100]
+                } else if name.contains("ftc_11") {
+                    vec![3]
+                } else {
+                    (0..part.faces.len()).collect()
+                };
+                for face in faces {
+                    if first == 1 {
+                        let _ = part.face_moments(face);
+                    } else {
+                        let _ = part.face_projected_moments(face, [0.0, 0.0, 1.0]);
+                    }
+                }
+            }
+            for (face, want) in expected.iter().enumerate() {
+                assert_eq!(
+                    part.face_mass(face),
+                    *want,
+                    "{name} face {face}, first {first}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn cold_moments_refuse_missing_mass_before_any_mass_query() {
+    for first in 0..3 {
+        let mut part = read_step_file(&common::fixtures().join("rejected_cylinder.step")).unwrap();
+        let geom::Surface::Cylinder { radius, .. } = &mut part.faces[0].surface else {
+            panic!("cylinder side")
+        };
+        *radius = 0.0;
+        match first {
+            0 => assert!(part.volume_centroid().is_none()),
+            1 => assert!(part.face_moments(0).is_none()),
+            _ => assert!(part.face_projected_moments(0, [1.0, 0.0, 0.0]).is_none()),
+        }
+        assert!(part.face_mass(0).is_none());
+    }
+}
+
+#[test]
+fn concurrent_moment_and_mass_queries_publish_the_same_mass() {
+    let path = common::fixtures().join("held_side_knot.step");
+    let standalone = read_step_file(&path).unwrap();
+    let want = standalone.face_mass(0);
+    let part = read_step_file(&path).unwrap();
+    std::thread::scope(|scope| {
+        scope.spawn(|| {
+            let _ = part.volume_centroid();
+        });
+        scope.spawn(|| {
+            let _ = part.face_moments(0);
+        });
+        scope.spawn(|| {
+            let _ = part.face_projected_moments(0, [0.0, 0.0, 1.0]);
+        });
+        scope.spawn(|| {
+            assert_eq!(part.face_mass(0), want);
+        });
+    });
+    assert_eq!(part.face_mass(0), want);
+}

@@ -18,6 +18,8 @@ in [docs/alpha1.md](docs/alpha1.md).
   missing cylindrical areas in NIST STC-10 and the toroidal area in FTC-11, and
   corrects four adjoining STC-10 faces. Volume centroids and face moments now
   require valid mass integrals instead of accepting rejected face contributions.
+  Mass validity shares the moments' quadrature and the existing per-face cache,
+  avoiding a separate mass pass on faces first queried for their moments.
 
 - Closed rectangular pockets with analytic floor rounds retain their full depth and
   vertical corner radius (#228), extending the blind-recess floor-claim work (#205,
