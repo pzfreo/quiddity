@@ -137,7 +137,10 @@ fn mass_cache_is_independent_of_moment_query_order() {
             .map(|f| standalone.face_mass(f))
             .collect();
         for first in 0..3 {
-            let part = read_step_file(&path).unwrap();
+            let loaded = read_step_file(&path).unwrap();
+            // Import has already queried mass for solids. Rebuild the same geometry
+            // so moments really publish mass first, as this regression requires.
+            let part = haecceity::Part::new(loaded.faces, loaded.edges, loaded.solids);
             if first == 0 {
                 let cold = part.volume_centroid();
                 if !part.solids.is_empty() {
