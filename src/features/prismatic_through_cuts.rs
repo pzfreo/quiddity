@@ -45,7 +45,7 @@ fn prism(f: &LocalFrame, s: &PlanarSection, lo: f64, hi: f64) -> Option<Part> {
 fn projection_bounds(p: &Part, faces: &[usize], run: V3) -> (f64, f64) {
     // Measure curved trim extrema in a run-aligned frame. Projecting a world AABB
     // would make the published extent depend on the part's rigid placement.
-    let axis = (0..3).find(|&i| run[i].abs() > 1. - 1e-14);
+    let axis = (0..3).find(|&i| run[i].abs() == 1. && (0..3).all(|j| i == j || run[j] == 0.));
     let rotated;
     let (p, run) = if axis.is_none() {
         let f = LocalFrame::canonical(run, [0.; 3]).expect("unit run");

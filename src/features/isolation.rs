@@ -62,6 +62,9 @@ fn inputs(family: &str, stage: &str) -> &'static [&'static str] {
         ("pocket_patterns", _) => &["pockets"],
         ("oriented_slot_patterns", _) => &["oriented_slots"],
         ("oriented_slots" | "v_channels", _) => &["section_passages"],
+        ("prismatic_through_cuts", _) => {
+            &["section_passages", "section_recesses", "oriented_slots"]
+        }
         ("rectangular_through_notches", _) => &["plates", "channels"],
         ("freeform_surfaces", _) => &["thin_wall_bodies", "modelled_threads"],
         ("risers", _) => &["step_levels"],
@@ -426,6 +429,7 @@ mod tests {
         let part = island_pocket();
         for (family, stage) in [
             ("section_recesses", "section_recess_projection"),
+            ("prismatic_through_cuts", "append"),
             ("cylindrical_profiles", "append"),
             ("face_grooves", "append"),
             ("turned_bodies", "suppress_od_bosses"),
@@ -436,6 +440,23 @@ mod tests {
             assert_eq!(failed(&found.failures, family).stage, stage);
             assert_eq!(found.pads, features::recognise(&part).pads);
         }
+    }
+
+    #[test]
+    fn through_cut_deduplication_waits_for_its_accepted_inputs() {
+        let found = injected("section_passages", "discover", || {
+            features::recognise(&island_pocket())
+        });
+        let failure = failed(&found.failures, "prismatic_through_cuts");
+        assert!(failure.blocked_by.iter().any(|f| f == "section_passages"));
+        assert!(failure.message.is_none());
+        assert!(found.prismatic_through_cuts.is_empty());
+        assert!(
+            found
+                .defining
+                .get("prismatic_through_cuts")
+                .is_none_or(Vec::is_empty)
+        );
     }
 
     #[test]

@@ -34,6 +34,9 @@ fn area(p: &[[f64; 2]]) -> f64 {
 /// Stock -5..5 square, z=0..10; an n-sided through-hole; an edge step x>=0.5,z>=7.
 /// A blind variant retains one millimetre of stock below the hole. No dataset geometry.
 pub(crate) fn control(sides: usize, blind: bool) -> (Part, Vec<usize>, f64) {
+    control_scaled(sides, blind, 1.)
+}
+fn control_scaled(sides: usize, blind: bool, scale: f64) -> (Part, Vec<usize>, f64) {
     let poly: Vec<_> = (0..sides)
         .map(|i| {
             let t = std::f64::consts::TAU * i as f64 / sides as f64;
@@ -136,6 +139,7 @@ pub(crate) fn control(sides: usize, blind: bool) -> (Part, Vec<usize>, f64) {
                 .collect()
         })
         .collect();
+    let points: Vec<_> = points.into_iter().map(|p| geom::scale(p, scale)).collect();
     let shell = features::support_patches::polygon_part(&points, &faces, true).unwrap();
     let mut faces = shell.faces;
     if !blind {
@@ -150,7 +154,7 @@ pub(crate) fn control(sides: usize, blind: bool) -> (Part, Vec<usize>, f64) {
     };
     let part = Part::new(faces, shell.edges, vec![solid]);
     let expected = 865. - area(&left) * (10. - floor) - area(&right) * (7. - floor);
-    (part, walls, expected)
+    (part, walls, expected * scale.powi(3))
 }
 
 #[test]
@@ -233,4 +237,21 @@ fn cut_geometry_claims_and_fingerprint_follow_a_generic_rigid_motion() {
         .unwrap();
     assert_eq!(af.sizes, bf.sizes);
     assert_eq!(af.faces, bf.faces);
+}
+
+#[test]
+fn nearly_axis_aligned_walls_keep_their_axial_extent() {
+    let (p, walls, _) = control_scaled(6, false, 1000.);
+    let (s, c) = 1e-7_f64.sin_cos();
+    let moved = p
+        .transformed(&[[c, 0., s, 0.], [0., 1., 0., 0.], [-s, 0., c, 0.]])
+        .unwrap();
+    let cuts = prismatic_through_cuts::discover(&Context::new(&moved));
+    assert_eq!(cuts.len(), 1);
+    assert_eq!(cuts[0].defining, walls);
+    let interval = cuts[0].record.cut.run_interval;
+    assert!(
+        (interval.1 - interval.0 - 10000.).abs() < 1e-6,
+        "{interval:?}"
+    );
 }

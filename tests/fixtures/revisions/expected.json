@@ -601,6 +601,24 @@
             -5.863912725989426e-17,
             0.2156840353986964
           ]
+        },
+        {
+          "label": "Interrupted rectangular through-cut: translated 2 mm with the shortened shaft",
+          "family": "prismatic_through_cuts",
+          "class": "adapted",
+          "old_at": [
+            30.206821,
+            0.0,
+            0.088045
+          ],
+          "new_at": [
+            28.206821,
+            0.0,
+            0.088045
+          ],
+          "changes": [
+            "position"
+          ]
         }
       ]
     },
@@ -712,6 +730,26 @@
           "changes": [
             "neighbourhood",
             "position"
+          ]
+        },
+        {
+          "label": "Interrupted rectangular through-cut: raising the flat trims its observed axial span by 0.2 mm",
+          "family": "prismatic_through_cuts",
+          "class": "adapted",
+          "old_at": [
+            30.206821,
+            0.0,
+            0.088045
+          ],
+          "new_at": [
+            30.203994,
+            0.0,
+            0.13745
+          ],
+          "changes": [
+            "neighbourhood",
+            "position",
+            "sizes.run_length"
           ]
         }
       ]
