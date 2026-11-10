@@ -107,6 +107,36 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// scan STEP product ranges and write only the requested manifest
+    Manifest {
+        #[arg(value_name = "FILE.STEP")]
+        file: String,
+        #[arg(short = 'o', long = "output", value_name = "MANIFEST.JSON")]
+        out: String,
+        /// directory for a temporary mapped index (deleted after scanning)
+        #[arg(long, value_name = "DIR")]
+        index_dir: Option<PathBuf>,
+    },
+    /// recognise selected products in their own coordinates through a manifest
+    Recognise {
+        #[arg(value_name = "FILE.STEP")]
+        file: String,
+        #[arg(long, value_name = "MANIFEST.JSON")]
+        manifest: String,
+        #[arg(long, value_name = "DIR")]
+        out_dir: PathBuf,
+        #[arg(long, value_delimiter = ',', value_name = "p0,p7,…")]
+        parts: Option<Vec<String>>,
+        /// also read and hash the entire source
+        #[arg(long)]
+        verify_source: bool,
+        /// use size-only staleness checks (also skips common/header hashes)
+        #[arg(long)]
+        no_product_hashes: bool,
+        /// parse the whole source for shared geometry; memory grows with the entire file
+        #[arg(long)]
+        fallback_whole_file: bool,
+    },
     /// match two revisions' features and print the correspondence as JSON
     Correspond {
         /// the old revision: a recognition result written by `quiddity <file.step>`, or a STEP
@@ -216,6 +246,32 @@ pub fn main(args: &[String]) -> u8 {
         (None, None) => return usage_error(&[], "a STEP file or a command is needed"),
     };
     let result = match command {
+        Command::Manifest {
+            file,
+            out,
+            index_dir,
+        } => {
+            return finish(manifest_write(&file, &out, index_dir));
+        }
+        Command::Recognise {
+            file,
+            manifest,
+            out_dir,
+            parts,
+            verify_source,
+            no_product_hashes,
+            fallback_whole_file,
+        } => {
+            return finish(manifest_recognise(
+                &file,
+                &manifest,
+                &out_dir,
+                parts.as_deref(),
+                verify_source,
+                no_product_hashes,
+                fallback_whole_file,
+            ));
+        }
         Command::Serve => {
             return match serve::serve(std::io::stdin().lock(), std::io::stdout().lock()) {
                 Ok(()) => 0,
@@ -746,4 +802,166 @@ fn pmi_write(w: &WriteArgs, mode: Mode, policy: PresentationPolicy) -> Result<St
     let json =
         pmi_json::write_report_json(mode, policy, &parts, &input, &output, &report, &findings);
     Ok(serde_json::to_string_pretty(&json).expect("JSON serialises"))
+}
+
+/// File-producing commands have no stdout payload.
+fn finish(result: Result<(), String>) -> u8 {
+    match result {
+        Ok(()) => 0,
+        Err(error) => {
+            eprintln!("quiddity: {error}");
+            1
+        }
+    }
+}
+
+fn manifest_write(path: &str, out: &str, index_dir: Option<PathBuf>) -> Result<(), String> {
+    let options = crate::kernel::step::manifest::ScanOptions {
+        index_dir,
+        ..Default::default()
+    };
+    let manifest = crate::file_api::manifest(path, &options)?;
+    std::fs::write(out, crate::file_api::json(&manifest)?).map_err(|e| format!("{out}: {e}"))
+}
+
+#[derive(serde::Serialize)]
+struct ProductRefusal {
+    product: String,
+    reason: String,
+    /// True only when a shared-geometry range refusal was recovered by an explicit fallback.
+    recovered: bool,
+}
+
+fn manifest_recognise(
+    path: &str,
+    manifest_path: &str,
+    out: &Path,
+    parts: Option<&[String]>,
+    verify_source: bool,
+    no_product_hashes: bool,
+    fallback: bool,
+) -> Result<(), String> {
+    use crate::kernel::step::{StepFile, manifest::Manifest};
+    let bytes = std::fs::read(manifest_path).map_err(|e| format!("{manifest_path}: {e}"))?;
+    let mut manifest: Manifest =
+        serde_json::from_slice(&bytes).map_err(|e| format!("{manifest_path}: {e}"))?;
+    let ids = crate::file_api::product_ids(&manifest, parts)?;
+    let file = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
+    // Check compression even for an empty selection; never implicitly unpack the source.
+    let mut magic = [0; 2];
+    let mut input = &file;
+    let n = std::io::Read::read(&mut input, &mut magic).map_err(|e| e.to_string())?;
+    if manifest.source.compressed || (n == 2 && magic == [31, 139]) {
+        return Err(format!(
+            "{path}: compressed source cannot be read by ranges; supply an uncompressed source and rescan"
+        ));
+    }
+    if file.metadata().map_err(|e| e.to_string())?.len() != manifest.source.size {
+        return Err(format!("{path}: source size mismatch"));
+    }
+    if verify_source
+        || (fallback
+            && ids
+                .iter()
+                .any(|id| manifest.refusals.iter().any(|r| r.products.contains(id))))
+    {
+        // Fallback geometry cannot be verified from independent ranges. Always bind the full snapshot.
+        manifest
+            .verify_source(&file)
+            .map_err(|e| format!("{path}: {e}"))?;
+    }
+    if no_product_hashes {
+        manifest.common.sha256 = None;
+        for p in &mut manifest.products {
+            p.sha256 = None;
+        }
+    }
+    std::fs::create_dir_all(out.join("products")).map_err(|e| format!("{}: {e}", out.display()))?;
+    let mut whole = None;
+    let mut refusals = Vec::new();
+    for id in &ids {
+        let shared = manifest
+            .refusals
+            .iter()
+            .filter(|r| r.products.contains(id))
+            .map(|r| format!("{} (shared entity #{})", r.reason, r.entity))
+            .collect::<Vec<_>>();
+        let mut recovered = false;
+        let result = if shared.is_empty() {
+            crate::file_api::recognise_product(path, &manifest, id)
+        } else if fallback {
+            if whole.is_none() {
+                let bytes = std::fs::read(path).map_err(|e| format!("{path}: {e}"))?;
+                // Verify the exact snapshot passed to the whole-file parser as well.
+                manifest
+                    .verify_source(std::io::Cursor::new(&bytes))
+                    .map_err(|e| format!("{path}: {e}"))?;
+                whole = Some(StepFile::read(&bytes).map_err(|e| format!("{path}: {e}"))?);
+            }
+            let whole = whole.as_ref().expect("fallback loaded");
+            let product = manifest
+                .products
+                .iter()
+                .find(|p| &p.id == id)
+                .expect("selected id");
+            whole
+                .parts
+                .iter()
+                .position(|p| p.product_definition == product.product_definition)
+                .ok_or_else(|| format!("product {id}: definition missing from whole source"))
+                .and_then(|i| whole.part(i).map_err(|e| format!("product {id}: {e}")))
+                .and_then(|part| crate::file_api::recognise_part(&part, &manifest.source.sha256))
+                .inspect(|_| recovered = true)
+        } else {
+            Err(format!(
+                "product {id}: {}; retry with --fallback-whole-file (parses the entire source)",
+                shared.join("; ")
+            ))
+        };
+        let dest = out.join("products").join(format!("{id}.json"));
+        match result {
+            Ok(json) => {
+                std::fs::write(&dest, json).map_err(|e| format!("{}: {e}", dest.display()))?;
+                if recovered {
+                    refusals.push(ProductRefusal {
+                        product: id.clone(),
+                        reason: shared.join("; "),
+                        recovered: true,
+                    });
+                }
+            }
+            Err(reason) => {
+                // A rerun must never leave an old success for a product now refused.
+                match std::fs::remove_file(&dest) {
+                    Ok(()) => {}
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(e) => return Err(format!("{}: {e}", dest.display())),
+                }
+                eprintln!("quiddity: {reason}");
+                refusals.push(ProductRefusal {
+                    product: id.clone(),
+                    reason,
+                    recovered: false,
+                });
+            }
+        }
+    }
+    let assembly = serde_json::json!({
+        "source": manifest.source,
+        "instances": manifest.instances.iter().filter(|i| ids.contains(&i.product)).collect::<Vec<_>>(),
+    });
+    for (name, json) in [
+        ("assembly.json", crate::file_api::json(&assembly)?),
+        ("refusals.json", crate::file_api::json(&refusals)?),
+    ] {
+        let dest = out.join(name);
+        std::fs::write(&dest, json).map_err(|e| format!("{}: {e}", dest.display()))?;
+    }
+    if refusals.iter().any(|r| !r.recovered) {
+        return Err(format!(
+            "product recognition refused; see {}",
+            out.join("refusals.json").display()
+        ));
+    }
+    Ok(())
 }

@@ -33,9 +33,14 @@ latest one.
 
 Cargo features: `cli` (the command line) and `presentation` (drawing PMI callouts) are on by
 default. A library build that does not want clap (WASM, say) can use
-`default-features = false, features = ["presentation"]`. Off by default:
+`default-features = false, features = ["presentation"]`. `manifest` enables the range-based
+assembly APIs and is included by `cli`. Off by default:
 - `json-import`: the versioned PMI JSON interchange (`pmi json …` commands).
 - `f3d`: Autodesk Fusion `.f3d` input (visible solid geometry only, no PMI; see [Fusion input](docs/f3d.md)).
+
+Read large assemblies one product at a time with `quiddity manifest` and
+`quiddity recognise --manifest`; see [assembly manifests](docs/assemblies.md)
+for range checks, placements, fallback and Python APIs.
 
 ## Quick start
 

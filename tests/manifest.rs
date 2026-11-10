@@ -427,54 +427,13 @@ fn staleness_versions_size_only_and_mapped_index() {
         .to_string();
     assert!(e.contains("compressed"));
 }
+#[path = "common/shared_geometry.rs"]
+mod shared_geometry;
+
 #[test]
 fn shared_geometry_names_products_and_entity() {
-    use haecceity::p21::{Attribute, RawEntity};
-    fn remap(a: &mut Attribute, offset: u64, shared: u64) {
-        match a {
-            Attribute::EntityRef(id) if *id != shared => *id += offset,
-            Attribute::List(v) => {
-                for a in v {
-                    remap(a, offset, shared)
-                }
-            }
-            Attribute::Typed { value, .. } => remap(value, offset, shared),
-            _ => {}
-        }
-    }
-    let b = torus();
-    let mut text = String::from_utf8(b.clone()).unwrap();
-    let doc = haecceity::p21::Document::parse(b).unwrap();
-    let offset = doc.graph().entities.keys().max().unwrap() + 1;
-    // Duplicate an otherwise independent part. Only the vertex's CARTESIAN_POINT #23 is
-    // shared; every other geometry, placement, product and context gets a fresh number.
     let shared = 23;
-    let mut extra = String::new();
-    for (&id, e) in &doc.graph().entities {
-        if id == shared {
-            continue;
-        }
-        let mut e = e.clone();
-        match &mut e {
-            RawEntity::Simple { attributes, .. } => {
-                for a in attributes {
-                    remap(a, offset, shared)
-                }
-            }
-            RawEntity::Complex { parts, .. } => {
-                for a in parts.iter_mut().flat_map(|p| &mut p.attributes) {
-                    remap(a, offset, shared)
-                }
-            }
-        }
-        extra.push_str(&format!(
-            "#{}={};\n",
-            id + offset,
-            haecceity::p21::encode(&e).unwrap()
-        ));
-    }
-    let end = text.rfind("ENDSEC;").unwrap();
-    text.insert_str(end, &extra);
+    let text = shared_geometry::source(torus(), shared);
     let m = manifest::scan(Cursor::new(text.as_bytes()), &ScanOptions::default()).unwrap();
     assert_eq!(m.products.len(), 2);
     assert_eq!(m.refusals.len(), 1);
@@ -552,63 +511,10 @@ fn truck_repair_edges_are_compared_as_sets() {
     assert_eq!(check(&path), 1);
 }
 
-fn layouts(b: &[u8]) -> Vec<Vec<u8>> {
-    let m = manifest::scan(Cursor::new(b), &ScanOptions::default()).unwrap();
-    let mut rows = Vec::new();
-    streaming::scan(b, 4096, |event| {
-        if let Event::Instance(i, _) = event {
-            rows.push((i.offset as usize, i.length as usize));
-        }
-        Ok(())
-    })
-    .unwrap();
-    let first = rows.first().unwrap().0;
-    let last = rows.last().unwrap();
-    let end = last.0 + last.1;
-    let mut buckets = vec![Vec::new(); m.products.len() + 1];
-    for (i, &(offset, _)) in rows.iter().enumerate() {
-        let owner = m
-            .products
-            .iter()
-            .position(|p| {
-                p.ranges
-                    .iter()
-                    .any(|r| r[0] <= offset as u64 && (offset as u64) < r[1])
-            })
-            .map_or(0, |p| p + 1);
-        buckets[owner].push(i);
-    }
-    let grouped: Vec<_> = buckets.iter().flatten().copied().collect();
-    let mut runs = Vec::new();
-    for run in 0..4 {
-        for bucket in &buckets {
-            let n = bucket.len().div_ceil(4);
-            let start = (run * n).min(bucket.len());
-            let end = ((run + 1) * n).min(bucket.len());
-            runs.extend_from_slice(&bucket[start..end]);
-        }
-    }
-    let mut shuffled = grouped.clone();
-    let mut state = 0x190_u64;
-    for i in (1..shuffled.len()).rev() {
-        state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
-        shuffled.swap(i, (state as usize) % (i + 1));
-    }
-    [grouped, runs, shuffled]
-        .into_iter()
-        .map(|order| {
-            assert_eq!(order.len(), rows.len());
-            let mut out = b[..first].to_vec();
-            for i in order {
-                let (offset, len) = rows[i];
-                out.extend_from_slice(&b[offset..offset + len]);
-                out.push(b'\n');
-            }
-            out.extend_from_slice(&b[end..]);
-            out
-        })
-        .collect()
-}
+#[path = "common/manifest_layouts.rs"]
+mod manifest_layouts;
+use manifest_layouts::layouts;
+
 fn check_layouts(path: &Path) {
     let b = bytes(path);
     let original = StepFile::read(&b).unwrap();

@@ -111,3 +111,77 @@ pub fn capabilities() -> String {
         "pmi_json_import": cfg!(feature = "json-import"),
     })).expect("capabilities serialise")
 }
+
+/// Recognition of an already read part in its own coordinates, bound to the original source.
+/// Uses the same envelope and serialization as whole-file recognition.
+pub fn recognise_part(part: &Part, source_sha256: &str) -> Result<String, String> {
+    let mut recognition = crate::correspondence::recognise(part);
+    recognition.source_sha256 = Some(source_sha256.to_owned());
+    let document = crate::recognition::document(&recognition, part.faces.len());
+    json(&serve::RecognitionOutput {
+        recognition,
+        document,
+    })
+}
+
+/// Scan a replayable STEP file (including gzip) without writing any sidecars.
+#[cfg(feature = "manifest")]
+pub fn manifest(
+    path: &str,
+    options: &step::manifest::ScanOptions,
+) -> Result<step::manifest::Manifest, String> {
+    let file = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
+    step::manifest::scan(file, options).map_err(|e| format!("{path}: {e}"))
+}
+
+/// Read just one product's ranges and recognise it using the whole-file JSON contract.
+/// Shared-geometry refusals are returned; this never silently parses the whole source.
+#[cfg(feature = "manifest")]
+pub fn recognise_product(
+    path: &str,
+    manifest: &step::manifest::Manifest,
+    id: &str,
+) -> Result<String, String> {
+    let file = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
+    let part = manifest
+        .read_product(&file, id)
+        .map_err(|e| format!("{path}: {e}"))?;
+    recognise_part(&part, &manifest.source.sha256)
+}
+
+/// Validate a worker's selection before any output is written. Results follow manifest order.
+#[cfg(feature = "manifest")]
+pub fn product_ids(
+    manifest: &step::manifest::Manifest,
+    parts: Option<&[String]>,
+) -> Result<Vec<String>, String> {
+    if let Some(parts) = parts {
+        let unknown: Vec<_> = parts
+            .iter()
+            .filter(|id| !manifest.products.iter().any(|p| &p.id == *id))
+            .collect();
+        if !unknown.is_empty() {
+            return Err(format!("unknown manifest product ids: {unknown:?}"));
+        }
+    }
+    // Product ids become filenames. Refuse unsafe or duplicate ids in caller-supplied manifests.
+    let mut seen = std::collections::HashSet::new();
+    for p in &manifest.products {
+        if !p.id.starts_with('p')
+            || p.id.len() < 2
+            || !p.id[1..].bytes().all(|b| b.is_ascii_digit())
+            || !seen.insert(&p.id)
+        {
+            return Err(format!(
+                "invalid or duplicate manifest product id {:?}",
+                p.id
+            ));
+        }
+    }
+    Ok(manifest
+        .products
+        .iter()
+        .filter(|p| parts.is_none_or(|parts| parts.contains(&p.id)))
+        .map(|p| p.id.clone())
+        .collect())
+}

@@ -38,6 +38,20 @@ the same uncompressed input have identical source digests and JSON. Geometry
 work releases the GIL. Rust input/refusal messages become `ValueError`; wrong input
 types raise `TypeError`, and negative face indices raise `OverflowError`.
 
+## Assembly manifests
+
+`manifest(path, out=None)` returns a dict and writes only `out` when supplied.
+`recognise_product(path, manifest, product_id)` returns a recognition dict;
+`recognise_products(path, manifest, parts=None)` lazily yields `(id, dict)` in
+manifest order, reading one product at a time. Paths accept `str` or `PathLike`;
+the manifest argument accepts a dict or a JSON file path. These new functions
+return dicts; the existing `recognise` continues to return JSON text. Scanning,
+reading and recognition release the GIL. Unknown ids and refusals raise
+`ValueError`; compressed product reads and shared geometry are refused.
+
+See [assembly manifests](assemblies.md) for format, staleness checks, placements,
+limits and the CLI's opt-in whole-file fallback.
+
 ## XCAF/other producers → AP242 STEP
 
 `quiddity.pmi` calls haecceity's `json-import` API directly in process. Geometry
