@@ -65,6 +65,7 @@ impl<'a> Classifier<'a> {
 
     /// Classifies against *faces*, pruning by *face_boxes* (one per part face, each certainly
     /// containing its face) in place of the faces' own sampled boxes.
+    #[cfg(test)]
     pub(crate) fn with_face_boxes(
         part: &'a Part,
         faces: Vec<usize>,

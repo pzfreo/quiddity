@@ -1,13 +1,15 @@
 """Reproduce OCCT mass-fixture reference defects without tessellating surfaces.
 
-Run with $OCP_PY tools/mass_fixture_evidence.py [--freeform]. Reads committed inputs only;
+Run with "$OCP_PY" -I tools/mass_fixture_evidence.py [--freeform]. Reads committed inputs only;
 prints OCCT's version, whole/per-face GProps and independently converged boundary
 integrals. No downloads or file writes. OCCT heals/reorders the shaft's faces.
 """
 import argparse
 import math
+import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gvp_occt as g
 from OCP.BRepAdaptor import BRepAdaptor_Curve, BRepAdaptor_Curve2d, BRepAdaptor_Surface
 from OCP.TopAbs import TopAbs_EDGE, TopAbs_REVERSED

@@ -435,8 +435,10 @@ fn varying_pitch_sweep_closes_open_uv_wires() {
     // OCP 8.0.1.1, BRepGProp adaptive eps=1e-9, TopExp order. These
     // references integrate open pcurve wires: omitting gap closure in ∮u dv
     // reproduces OCCT; closing them makes both Green paths agree with ours.
-    // tools/mass_fixture_evidence.py independently reproduces the convergence.
-    for (face, occt, closed) in [
+    // Run: "$OCP_PY" -I tools/mass_fixture_evidence.py --freeform
+    // The sweep's known OCCT difference comes from open pcurve wires; closed
+    // projected-boundary integrals agree with ours instead of those references.
+    for (face, _occt, closed) in [
         (4, 98.16765734609923, 98.17068665143155),
         (7, 49.9435965949216, 34.08103140997729),
         (8, 30.227164859519196, 30.228167268731845),
@@ -456,8 +458,6 @@ fn varying_pitch_sweep_closes_open_uv_wires() {
         // For spline faces4/17, --freeform projects the exact 3D curves and
         // converges to 98.1706866503/152.8156593289 at 10,000 boundary panels.
         // Their open pcurve integrals converge to the recorded OCCT references.
-        // Pin the disagreement as well as the independently correct answer.
-        relative(mass[0] - occt, closed - occt, 1e-6);
     }
     let (volume, area) = part.solid_mass(0).unwrap();
     // Whole-shape OCCT values retain the open-wire fluxes, so numerical
@@ -513,7 +513,7 @@ fn truck_master_shaft_has_outward_mass_and_exact_caps() {
     // The exact circular 3D rims bound quarter disks. OCCT's approximate
     // pcurves give smaller caps; independent 3D-boundary integration converges
     // to these analytic values (tools/mass_fixture_evidence.py).
-    for (faces, exact, occt) in [
+    for (faces, exact, _occt) in [
         (
             &[4, 5, 6, 7][..],
             225.0 * std::f64::consts::PI / 4.0,
@@ -528,12 +528,13 @@ fn truck_master_shaft_has_outward_mass_and_exact_caps() {
         for &face in faces {
             relative(part.face_mass(face).unwrap()[0], exact, 1e-12);
             relative(part.face_moments(face).unwrap().area, exact, 1e-12);
-            relative(part.face_mass(face).unwrap()[0] - occt, exact - occt, 1e-6);
         }
     }
     // Whole OCCT volume=46135.47088917455, area=9333.051019799585.
-    // Its pcurve domains differ from the exact projected 3D boundaries, leaving
-    // a residual even after the mixed-sense repair. Pin it without widening a band.
+    // The remaining 1.12e-4 OCCT volume gap comes from its approximate cap pcurves.
+    // Off-surface bore intersection curves (up to 0.12 mm) make the shaft volume
+    // intrinsically ambiguous by about 2e-4; analytic design intent is 46139.110 mm³.
+    // These pins specify this quadrature's convention, not that geometric uncertainty.
     let (volume, area) = part.solid_mass(0).unwrap();
     relative(volume - 46135.47088917455, 5.187457999658829, 1e-6);
     relative(area - 9333.051019799585, 0.3052675857500873, 1e-6);

@@ -15,12 +15,23 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 - Mass quadrature tests tangent rank independently of UV parameter scales, restoring
   the area of narrow-parameter spline sheets and the recovery lengths/tolerances
-  derived from it. Negative mixed solid boundaries can
-  have their inward face normals repaired after every material side is proved,
-  provided the unchanged wires form a coherent outward boundary; this restores
-  the sign of `truck_master_shaft_hole`. Independent closed-boundary regressions
-  distinguish OCCT's open-wire mass errors on `varying_pitch_sweep` and approximate
-  shaft cap pcurves from errors in our quadrature. No comparison bands change.
+  derived from it. Negative mixed solid boundaries have their inward normals
+  repaired only after all material sides are proved, with coherent unchanged wires,
+  positive mass and every candidate face re-proved outward. The signed-mass gate
+  precedes material-side proofs, so repair is independent of face order; positive
+  solids reuse that cached quadrature in later queries.
+  `truck_master_shaft_hole` now recognises its Ø30×40 outer cylinder as a
+  `BossRecord` Ø30 h40 instead of the erroneous flat-bottomed `HoleRecord` 40 deep;
+  fingerprint normals and convex/concave adjacency follow the corrected normals,
+  the frame refusal changes from `no-material` to `no-analytic-direction`, and
+  `input_repairs` reports `solid 0: mixed face senses repaired (20 faces)`.
+  The shaft's remaining 1.12e-4 volume gap against OCCT is caused by OCCT's
+  approximate cap pcurves, while an independent integral agrees with 46140.6583 mm³.
+  Its off-surface bore intersection curves (up to 0.12 mm) make volume intrinsically
+  ambiguous by about 2e-4 (formulas give 46135.1–46144.4 mm³; design intent 46139.110 mm³).
+  The sweep retains its known OCCT difference because OCCT integrates open pcurve
+  wires without closing gaps, while independent closed integrals agree with ours.
+  No comparison bands or known-difference entries change.
 
 - Mass integrals wrap closed spline tangents with their points and use consistent
   containment and integration domains for seamless torus bands. This restores the

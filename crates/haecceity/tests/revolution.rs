@@ -233,7 +233,7 @@ fn truck_master_bore_repairs_only_proved_inward_normals() {
 }
 
 #[test]
-fn independent_inverted_shell_is_repaired_but_negative_mixed_shell_is_not() {
+fn independent_inverted_and_negative_mixed_shells_are_repaired() {
     use haecceity::classify::{Classifier, State};
     for name in ["revolution_shaft.step.gz", "revolution_line_shaft.step.gz"] {
         let original = fixture(name, &IDENTITY);
@@ -277,38 +277,40 @@ fn independent_inverted_shell_is_repaired_but_negative_mixed_shell_is_not() {
             let repaired = raw.repair_inverted_shells();
             assert_eq!(imported.input_repairs(), repaired.input_repairs());
             assert_eq!(imported.solid_mass(0), repaired.solid_mass(0));
-            if mixed {
-                assert!(repaired.input_repairs().is_empty());
-                assert_eq!(repaired.solid_mass(0).unwrap(), before);
+            // A first outward face rules out a global inversion, but not a negative
+            // mixed shell. Prove all material sides before repairing either case.
+            let message = if mixed {
+                format!(
+                    "solid 0: mixed face senses repaired ({} faces)",
+                    face_count - 1
+                )
             } else {
-                assert_eq!(
-                    repaired.input_repairs(),
-                    ["solid 0: inverted closed shell repaired"]
+                "solid 0: inverted closed shell repaired".to_owned()
+            };
+            assert_eq!(repaired.input_repairs(), [message]);
+            close(
+                &format!("{name} repaired volume"),
+                repaired.solid_mass(0).unwrap().0,
+                15000.0 * PI,
+            );
+            close(
+                &format!("{name} repaired centroid volume"),
+                repaired.volume_centroid().unwrap().0,
+                15000.0 * PI,
+            );
+            for f in 0..original.faces.len() {
+                assert_eq!(repaired.faces[f].reversed, original.faces[f].reversed);
+                assert!(
+                    geom::dist(
+                        repaired.face_moments(f).unwrap().area_vector,
+                        original.face_moments(f).unwrap().area_vector
+                    ) < 1e-8
                 );
-                close(
-                    &format!("{name} repaired volume"),
-                    repaired.solid_mass(0).unwrap().0,
-                    15000.0 * PI,
-                );
-                close(
-                    &format!("{name} repaired centroid volume"),
-                    repaired.volume_centroid().unwrap().0,
-                    15000.0 * PI,
-                );
-                for f in 0..original.faces.len() {
-                    assert_eq!(repaired.faces[f].reversed, original.faces[f].reversed);
-                    assert!(
-                        geom::dist(
-                            repaired.face_moments(f).unwrap().area_vector,
-                            original.face_moments(f).unwrap().area_vector
-                        ) < 1e-8
-                    );
-                }
-                let classifier = Classifier::for_solid(&repaired, 0);
-                assert_eq!(classifier.classify([20.0, 0.0, 0.0]), State::In);
-                assert_eq!(classifier.classify([20.0, 20.0, 0.0]), State::Out);
-                assert_eq!(repaired.repair_inverted_shells().input_repairs().len(), 1);
             }
+            let classifier = Classifier::for_solid(&repaired, 0);
+            assert_eq!(classifier.classify([20.0, 0.0, 0.0]), State::In);
+            assert_eq!(classifier.classify([20.0, 20.0, 0.0]), State::Out);
+            assert_eq!(repaired.repair_inverted_shells().input_repairs().len(), 1);
         }
     }
 }
@@ -581,5 +583,47 @@ fn mixed_normal_repair_refuses_unproved_faces_and_inward_wires() {
             part.faces.iter().map(|f| f.reversed).collect::<Vec<_>>(),
             senses
         );
+    }
+}
+
+/// The same geometry and negative mixed senses must be repaired when a bore
+/// face is first, last, or between any two outer faces. Rotate both storage order
+/// and the solid traversal order; the expected repaired senses follow the geometry.
+#[test]
+fn mixed_shaft_repair_is_independent_of_face_order() {
+    let original = fixture("truck_master_shaft_hole.step.gz", &IDENTITY);
+    let n = original.faces.len();
+    let expected = original.solid_mass(0).unwrap();
+    for rotation in 0..n {
+        let mut faces = original.faces.clone();
+        for (i, face) in faces.iter_mut().enumerate() {
+            if ![15, 16, 21, 22].contains(&i) {
+                face.reversed = !face.reversed;
+            }
+        }
+        faces.rotate_left(rotation);
+        let mut solids = original.solids.clone();
+        for f in &mut solids[0].faces {
+            *f = (*f + n - rotation) % n;
+        }
+        solids[0].faces.rotate_left(rotation);
+        let raw = haecceity::Part::new(faces, original.edges.clone(), solids);
+        assert!(raw.solid_mass(0).unwrap().0 < 0.0, "rotation {rotation}");
+        let part = raw.repair_inverted_shells();
+        assert_eq!(
+            part.input_repairs(),
+            ["solid 0: mixed face senses repaired (20 faces)"],
+            "rotation {rotation}"
+        );
+        for (i, face) in part.faces.iter().enumerate() {
+            let expected_face = &original.faces[(i + rotation) % n];
+            assert_eq!(face.reversed, expected_face.reversed);
+            for (a, b) in face.loops.iter().zip(&expected_face.loops) {
+                assert_eq!(a.edges, b.edges);
+            }
+        }
+        let mass = part.solid_mass(0).unwrap();
+        close("permuted volume", mass.0, expected.0);
+        close("permuted area", mass.1, expected.1);
     }
 }

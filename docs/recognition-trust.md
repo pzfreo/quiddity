@@ -17,8 +17,16 @@ fingerprints keep their previous meaning. Readers should ignore unknown fields.
   means a closed boundary with negative signed volume had inward material-side
   witnesses on every face; the kernel reversed its face senses and, where needed,
   coherently inward boundary wires before recognition.
-  Mixed orientations or insufficient evidence retain their original senses and
-  signed volume. Ray-parity classification remains independent of those senses.
+  `solid N: mixed face senses repaired (M faces)` means only the M proved inward
+  normals changed; already outward normals and all boundary wires were retained.
+  Every valid solid's signed mass is checked before a material-side witness can
+  skip repair, so a negative mixed shell is treated independently of face order.
+  Every face must have three regular material-side witnesses at two offsets;
+  the candidate must have coherent outward wires, valid closed topology and
+  positive mass, and every candidate face must be re-proved outward with three
+  witnesses at two offsets before any mutation. Insufficient evidence or mixed
+  wires retain the original senses and signed volume. Ray-parity classification
+  remains independent of those senses.
   Missing `input_repairs` means no repair was reported, including in older documents.
 - Every `records[]` entry carries `evidence_status`: `verified` or `unproved`.
   Verified means the kernel's existing strict evidence ownership check succeeded:
