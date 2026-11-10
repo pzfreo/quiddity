@@ -200,7 +200,7 @@ fn recognise_bytes_placed(
 }
 
 /// Diagnose the completed recognition, including a refusal of the whole recess projection.
-fn recognition_warnings(
+pub(crate) fn recognition_warnings(
     path: &str,
     part: &Part,
     recognition: &Recognition,

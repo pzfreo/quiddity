@@ -141,34 +141,34 @@ fn _manifest(py: Python<'_>, path: String, out: Option<String>) -> PyResult<Stri
     .map_err(PyValueError::new_err)
 }
 
-#[pyfunction]
-fn _recognise_product(
-    py: Python<'_>,
-    path: String,
-    manifest_json: String,
-    product_id: String,
-) -> PyResult<String> {
-    py.detach(|| {
-        let manifest: step::manifest::Manifest =
-            serde_json::from_str(&manifest_json).map_err(|e| e.to_string())?;
-        file_api::recognise_product(&path, &manifest, &product_id)
-    })
-    .map_err(PyValueError::new_err)
+/// One immutable parsed manifest, reused across a lazy Python iteration.
+#[pyclass(frozen)]
+struct ManifestHandle {
+    manifest: step::manifest::Manifest,
 }
 
-#[pyfunction]
-#[pyo3(signature = (manifest_json, parts=None))]
-fn _product_ids(
-    py: Python<'_>,
-    manifest_json: String,
-    parts: Option<Vec<String>>,
-) -> PyResult<Vec<String>> {
-    py.detach(|| {
-        let manifest: step::manifest::Manifest =
-            serde_json::from_str(&manifest_json).map_err(|e| e.to_string())?;
-        file_api::product_ids(&manifest, parts.as_deref())
-    })
-    .map_err(PyValueError::new_err)
+#[pymethods]
+impl ManifestHandle {
+    #[new]
+    fn new(py: Python<'_>, manifest_json: String) -> PyResult<Self> {
+        py.detach(|| {
+            serde_json::from_str(&manifest_json)
+                .map(|manifest| Self { manifest })
+                .map_err(|e| e.to_string())
+        })
+        .map_err(PyValueError::new_err)
+    }
+
+    #[pyo3(signature = (parts=None))]
+    fn product_ids(&self, py: Python<'_>, parts: Option<Vec<String>>) -> PyResult<Vec<String>> {
+        py.detach(|| file_api::product_ids(&self.manifest, parts.as_deref()))
+            .map_err(PyValueError::new_err)
+    }
+
+    fn recognise(&self, py: Python<'_>, path: String, product_id: String) -> PyResult<String> {
+        py.detach(|| file_api::recognise_product(&path, &self.manifest, &product_id))
+            .map_err(PyValueError::new_err)
+    }
 }
 
 #[pyfunction]
@@ -189,8 +189,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_function(wrap_pyfunction!(recognise, m)?)?;
     m.add_function(wrap_pyfunction!(_manifest, m)?)?;
-    m.add_function(wrap_pyfunction!(_recognise_product, m)?)?;
-    m.add_function(wrap_pyfunction!(_product_ids, m)?)?;
+    m.add_class::<ManifestHandle>()?;
     m.add_function(wrap_pyfunction!(evidence, m)?)?;
     m.add_function(wrap_pyfunction!(anchor, m)?)?;
     m.add_function(wrap_pyfunction!(fingerprints, m)?)?;

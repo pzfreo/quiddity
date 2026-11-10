@@ -832,6 +832,31 @@ struct ProductRefusal {
     recovered: bool,
 }
 
+/// Replace an output atomically; every temporary file stays inside the output directory.
+fn atomic_json(path: &Path, json: &str) -> Result<(), String> {
+    use std::io::Write;
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("{}: no parent directory", path.display()))?;
+    let mut temp = tempfile::Builder::new()
+        .prefix(".quiddity-")
+        .tempfile_in(parent)
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    temp.write_all(json.as_bytes())
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    temp.persist(path)
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    Ok(())
+}
+
+fn remove_output(path: &Path) -> Result<(), String> {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!("{}: {e}", path.display())),
+    }
+}
+
 fn manifest_recognise(
     path: &str,
     manifest_path: &str,
@@ -842,12 +867,12 @@ fn manifest_recognise(
     fallback: bool,
 ) -> Result<(), String> {
     use crate::kernel::step::{StepFile, manifest::Manifest};
+    use std::collections::HashMap;
     let bytes = std::fs::read(manifest_path).map_err(|e| format!("{manifest_path}: {e}"))?;
     let mut manifest: Manifest =
         serde_json::from_slice(&bytes).map_err(|e| format!("{manifest_path}: {e}"))?;
     let ids = crate::file_api::product_ids(&manifest, parts)?;
     let file = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
-    // Check compression even for an empty selection; never implicitly unpack the source.
     let mut magic = [0; 2];
     let mut input = &file;
     let n = std::io::Read::read(&mut input, &mut magic).map_err(|e| e.to_string())?;
@@ -859,64 +884,99 @@ fn manifest_recognise(
     if file.metadata().map_err(|e| e.to_string())?.len() != manifest.source.size {
         return Err(format!("{path}: source size mismatch"));
     }
-    if verify_source {
-        manifest
-            .verify_source(&file)
-            .map_err(|e| format!("{path}: {e}"))?;
-    }
     if no_product_hashes {
         manifest.common.sha256 = None;
         for p in &mut manifest.products {
             p.sha256 = None;
         }
     }
-    std::fs::create_dir_all(out.join("products")).map_err(|e| format!("{}: {e}", out.display()))?;
-    let mut whole = None;
-    let mut refusals = Vec::new();
-    for id in &ids {
-        let shared = manifest
-            .refusals
+    let mut shared_by_product: HashMap<&str, Vec<_>> = HashMap::new();
+    for refusal in &manifest.refusals {
+        for id in &refusal.products {
+            shared_by_product
+                .entry(id.as_str())
+                .or_default()
+                .push(refusal);
+        }
+    }
+    let needs_fallback = fallback
+        && ids
             .iter()
-            .filter(|r| r.products.contains(id))
+            .any(|id| shared_by_product.contains_key(id.as_str()));
+    // When fallback needs the entire snapshot, hash those exact bytes once and reuse them.
+    // Without fallback the explicit verification remains a streaming whole-source read.
+    let mut verified_snapshot = if verify_source && needs_fallback {
+        let bytes = std::fs::read(path).map_err(|e| format!("{path}: {e}"))?;
+        manifest
+            .verify_source(std::io::Cursor::new(&bytes))
+            .map_err(|e| format!("{path}: {e}"))?;
+        Some(bytes)
+    } else {
+        if verify_source {
+            manifest
+                .verify_source(&file)
+                .map_err(|e| format!("{path}: {e}"))?;
+        }
+        None
+    };
+    for directory in ["products", "refusals"] {
+        std::fs::create_dir_all(out.join(directory))
+            .map_err(|e| format!("{}: {e}", out.display()))?;
+    }
+    // Identical for every worker, including workers with a disjoint --parts selection.
+    let assembly =
+        serde_json::json!({ "source": manifest.source, "instances": manifest.instances });
+    atomic_json(
+        &out.join("assembly.json"),
+        &crate::file_api::json(&assembly)?,
+    )?;
+    let mut whole = None;
+    let mut failed = false;
+    for id in &ids {
+        let shared: Vec<_> = shared_by_product
+            .get(id.as_str())
+            .into_iter()
+            .flatten()
             .map(|r| format!("{} (shared entity #{})", r.reason, r.entity))
-            .collect::<Vec<_>>();
+            .collect();
         let mut recovered = false;
         let result = if shared.is_empty() {
-            crate::file_api::recognise_product(path, &manifest, id)
+            crate::file_api::recognise_product_with_warnings(path, &manifest, id)
         } else if fallback {
             if whole.is_none() {
-                whole = Some((|| -> Result<StepFile, String> {
-                    let bytes = std::fs::read(path).map_err(|e| format!("{path}: {e}"))?;
-                    // Apply the requested integrity policy to the exact parsed snapshot.
+                whole = Some((|| -> Result<_, String> {
+                    let bytes = match verified_snapshot.take() {
+                        Some(bytes) => bytes,
+                        None => std::fs::read(path).map_err(|e| format!("{path}: {e}"))?,
+                    };
                     if bytes.len() as u64 != manifest.source.size {
                         return Err(format!("{path}: source size mismatch"));
                     }
-                    if !no_product_hashes || verify_source {
+                    if !no_product_hashes && !verify_source {
                         manifest
                             .verify_source(std::io::Cursor::new(&bytes))
                             .map_err(|e| format!("{path}: {e}"))?;
                     }
-                    StepFile::read(&bytes).map_err(|e| format!("{path}: {e}"))
+                    let whole = StepFile::read(&bytes).map_err(|e| format!("{path}: {e}"))?;
+                    let indices: HashMap<_, _> = whole
+                        .parts
+                        .iter()
+                        .enumerate()
+                        .map(|(i, p)| (p.product_definition, i))
+                        .collect();
+                    Ok((whole, indices))
                 })());
             }
-            let product = manifest
-                .products
-                .iter()
-                .find(|p| &p.id == id)
-                .expect("selected id");
+            let product = manifest.product(id).map_err(|e| e.to_string())?;
             whole
                 .as_ref()
                 .expect("fallback attempted")
                 .as_ref()
                 .map_err(|e| format!("product {id}: whole-file fallback failed: {e}"))
-                .and_then(|whole| {
-                    let index = whole
-                        .parts
-                        .iter()
-                        .position(|p| p.product_definition == product.product_definition)
-                        .ok_or_else(|| {
-                            format!("product {id}: definition missing from whole source")
-                        })?;
+                .and_then(|(whole, indices)| {
+                    let index = *indices.get(&product.product_definition).ok_or_else(|| {
+                        format!("product {id}: definition missing from whole source")
+                    })?;
                     let definition = &whole.parts[index];
                     if definition.faces != product.faces
                         || definition.edges.len() as u64 != product.edge_count
@@ -927,7 +987,13 @@ fn manifest_recognise(
                     }
                     whole.part(index).map_err(|e| format!("product {id}: {e}"))
                 })
-                .and_then(|part| crate::file_api::recognise_part(&part, &manifest.source.sha256))
+                .and_then(|part| {
+                    crate::file_api::recognise_part_with_warnings(
+                        &part,
+                        &manifest.source.sha256,
+                        path,
+                    )
+                })
                 .inspect(|_| recovered = true)
         } else {
             Err(format!(
@@ -936,48 +1002,40 @@ fn manifest_recognise(
             ))
         };
         let dest = out.join("products").join(format!("{id}.json"));
-        match result {
-            Ok(json) => {
-                std::fs::write(&dest, json).map_err(|e| format!("{}: {e}", dest.display()))?;
-                if recovered {
-                    refusals.push(ProductRefusal {
-                        product: id.clone(),
-                        reason: shared.join("; "),
-                        recovered: true,
-                    });
+        let refusal = match result {
+            Ok((json, warnings)) => {
+                for warning in warnings {
+                    eprintln!("quiddity: product {id}: {warning}");
                 }
+                atomic_json(&dest, &json)?;
+                recovered.then(|| ProductRefusal {
+                    product: id.clone(),
+                    reason: shared.join("; "),
+                    recovered: true,
+                })
             }
             Err(reason) => {
-                // A rerun must never leave an old success for a product now refused.
-                match std::fs::remove_file(&dest) {
-                    Ok(()) => {}
-                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-                    Err(e) => return Err(format!("{}: {e}", dest.display())),
-                }
+                remove_output(&dest)?;
                 eprintln!("quiddity: {reason}");
-                refusals.push(ProductRefusal {
+                failed = true;
+                Some(ProductRefusal {
                     product: id.clone(),
                     reason,
                     recovered: false,
-                });
+                })
             }
+        };
+        let dest = out.join("refusals").join(format!("{id}.json"));
+        if let Some(refusal) = refusal {
+            atomic_json(&dest, &crate::file_api::json(&refusal)?)?;
+        } else {
+            remove_output(&dest)?;
         }
     }
-    let assembly = serde_json::json!({
-        "source": manifest.source,
-        "instances": manifest.instances.iter().filter(|i| ids.contains(&i.product)).collect::<Vec<_>>(),
-    });
-    for (name, json) in [
-        ("assembly.json", crate::file_api::json(&assembly)?),
-        ("refusals.json", crate::file_api::json(&refusals)?),
-    ] {
-        let dest = out.join(name);
-        std::fs::write(&dest, json).map_err(|e| format!("{}: {e}", dest.display()))?;
-    }
-    if refusals.iter().any(|r| !r.recovered) {
+    if failed {
         return Err(format!(
             "product recognition refused; see {}",
-            out.join("refusals.json").display()
+            out.join("refusals").display()
         ));
     }
     Ok(())

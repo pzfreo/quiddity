@@ -60,16 +60,21 @@ copy, and needs its bound source file.
 - `products/<id>.json`: the existing recognition JSON envelope for each successfully
   read product, in its own coordinates, with part face indices. Its source digest
   binds the original whole source. No placed copies are generated.
-- `assembly.json`: the manifest's `source` binding and `instances` for the selected
-  products, retaining `path` and `placement`.
-- `refusals.json`: an array of `{product, reason, recovered}`. Empty on complete
-  success without fallback. Every selected product that cannot be read is named.
+- `assembly.json`: the manifest's `source` binding and **full** `instances` list,
+  retaining `path` and `placement`. Every worker writes identical bytes atomically.
+- `refusals/<id>.json`: `{product, reason, recovered}` for each refused product,
+  including a shared-geometry refusal recovered by explicit fallback. No record is
+  written for an ordinary success; `refusals/` is empty when none are refused.
 
 `--parts p0,p7` selects manifest ids; all unknown ids are reported before writing.
-Results follow manifest order. Omit `--parts` for every product. Use separate
-output directories for independent workers or runs with different selections.
-A rerun removes an existing result for a selected product that is now refused.
-Other files from previous selections are not removed.
+Results follow manifest order. Omit `--parts` for every product. Workers with
+**disjoint selections from the same manifest** can share one output directory:
+product/refusal files are separate by id, and each worker atomically replaces the
+same full assembly metadata. Product and refusal records also use temporary files
+beside their destinations followed by rename. Temporary files are deleted on error.
+A selected product now refused loses its old result; an ordinary success clears
+its old refusal. Other products' files are left intact. Across different sources
+or manifests, use separate output directories.
 
 The default read checks file size, common/header hash, selected product hashes,
 face entity order and edge count. A changed byte in a selected product's ranges
@@ -84,8 +89,11 @@ Structural validation still applies. This flag does not avoid the selected range
 reads needed for geometry. The lower-level reader also accepts manifests scanned
 without hashes; missing hashes have the same size-only limitation.
 
+Recognition warnings are printed on stderr with the product id, using the same
+diagnostics as `quiddity <file>`.
+
 A source/manifest/IO error exits 1 with `quiddity: …` on stderr. Per-product
-refusals are written to `refusals.json`, also reported on stderr, and exit 1 after
+refusals are written to `refusals/<id>.json`, also reported on stderr, and exit 1 after
 other selected products have been attempted. Success exits 0 with no stdout;
 clap usage errors exit 2. Outputs may be partial after an IO failure.
 
@@ -103,9 +111,10 @@ quiddity recognise big.step --manifest big.manifest.json --out-dir results/ \
 The flag parses the whole file once for the selected shared-geometry products,
 then reads each part in its own coordinates. With hashes enabled, it verifies the
 full source binding for that parse. `--no-product-hashes` uses size-only checking;
-`--verify-source` still requires the full hash. Memory now grows with the entire
+`--verify-source` still requires the full hash. When combined with fallback, the
+verified snapshot is reused for parsing, so the full source is hashed once. Memory now grows with the entire
 source, so fallback is opt-in. Successfully recovered range refusals
-remain in `refusals.json` with `recovered: true`; they do not cause a failing exit.
+remain in `refusals/<id>.json` with `recovered: true`; they do not cause a failing exit.
 Hash mismatches and other read errors never trigger fallback.
 
 ## Mapping results back to STEP
@@ -137,7 +146,8 @@ JSON file path, not inline JSON text. Recognition returns the same envelope as
 `json.loads(quiddity.recognise(...))` for that part; existing `recognise` continues
 to return JSON text. `recognise_products` is a lazy iterator of `(id, result_dict)`
 in manifest order: it validates the selection before reading the first product,
-then reads and recognises one at each iteration. Unknown ids and reader refusals
+then reads and recognises one at each iteration. The manifest is parsed once into
+an immutable Rust-side handle and reused for the whole iteration. Unknown ids and reader refusals
 raise `ValueError`; a refusal stops iteration at that product. Use individual
 calls to collect successes around refusals. These Python functions do not perform
 whole-file fallback. Scan, read and recognition run with the GIL released.

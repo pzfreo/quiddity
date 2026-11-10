@@ -43,7 +43,7 @@ types raise `TypeError`, and negative face indices raise `OverflowError`.
 `manifest(path, out=None)` returns a dict and writes only `out` when supplied.
 `recognise_product(path, manifest, product_id)` returns a recognition dict;
 `recognise_products(path, manifest, parts=None)` lazily yields `(id, dict)` in
-manifest order, reading one product at a time. Paths accept `str` or `PathLike`;
+manifest order, reading one product at a time and reusing one parsed Rust manifest. Paths accept `str` or `PathLike`;
 the manifest argument accepts a dict or a JSON file path. These new functions
 return dicts; the existing `recognise` continues to return JSON text. Scanning,
 reading and recognition release the GIL. Unknown ids and refusals raise

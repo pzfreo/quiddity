@@ -95,3 +95,24 @@ def test_compressed_stale_and_versions(tmp_path):
     m["reader"]["haecceity"] = "another-version"
     with pytest.raises(ValueError, match="reader"):
         quiddity.recognise_product(path, m, p["id"])
+
+
+def test_iterator_parses_one_native_manifest_and_keeps_it(tmp_path, monkeypatch):
+    from quiddity import _native
+    path = ASSEMBLIES[0]
+    manifest_path = tmp_path / "manifest.json"
+    m = quiddity.manifest(path, out=manifest_path)
+    expected = list(quiddity.recognise_products(path, m))
+    native = _native.ManifestHandle
+    calls = []
+
+    def counted(text):
+        calls.append(text)
+        return native(text)
+
+    monkeypatch.setattr(_native, "ManifestHandle", counted)
+    iterator = quiddity.recognise_products(path, manifest_path)
+    first = next(iterator)
+    manifest_path.unlink()
+    assert [first, *iterator] == expected
+    assert len(calls) == 1

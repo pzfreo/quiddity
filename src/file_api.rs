@@ -115,13 +115,24 @@ pub fn capabilities() -> String {
 /// Recognition of an already read part in its own coordinates, bound to the original source.
 /// Uses the same envelope and serialization as whole-file recognition.
 pub fn recognise_part(part: &Part, source_sha256: &str) -> Result<String, String> {
+    recognise_part_with_warnings(part, source_sha256, "<part>").map(|(json, _)| json)
+}
+
+/// The standard part envelope and the same diagnostics as whole-file recognition.
+pub fn recognise_part_with_warnings(
+    part: &Part,
+    source_sha256: &str,
+    label: &str,
+) -> Result<(String, Vec<String>), String> {
     let mut recognition = crate::correspondence::recognise(part);
     recognition.source_sha256 = Some(source_sha256.to_owned());
     let document = crate::recognition::document(&recognition, part.faces.len());
-    json(&serve::RecognitionOutput {
+    let warnings = serve::recognition_warnings(label, part, &recognition, &document);
+    let output = serve::RecognitionOutput {
         recognition,
         document,
-    })
+    };
+    Ok((json(&output)?, warnings))
 }
 
 /// Scan a replayable STEP file (including gzip) without writing any sidecars.
@@ -142,11 +153,21 @@ pub fn recognise_product(
     manifest: &step::manifest::Manifest,
     id: &str,
 ) -> Result<String, String> {
+    recognise_product_with_warnings(path, manifest, id).map(|(json, _)| json)
+}
+
+/// Product recognition and diagnostics, shared by the CLI and the dict-returning Python API.
+#[cfg(feature = "manifest")]
+pub fn recognise_product_with_warnings(
+    path: &str,
+    manifest: &step::manifest::Manifest,
+    id: &str,
+) -> Result<(String, Vec<String>), String> {
     let file = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
     let part = manifest
         .read_product(&file, id)
         .map_err(|e| format!("{path}: {e}"))?;
-    recognise_part(&part, &manifest.source.sha256)
+    recognise_part_with_warnings(&part, &manifest.source.sha256, path)
 }
 
 /// Validate a worker's selection before any output is written. Results follow manifest order.
@@ -155,33 +176,43 @@ pub fn product_ids(
     manifest: &step::manifest::Manifest,
     parts: Option<&[String]>,
 ) -> Result<Vec<String>, String> {
-    if let Some(parts) = parts {
-        let unknown: Vec<_> = parts
-            .iter()
-            .filter(|id| !manifest.products.iter().any(|p| &p.id == *id))
-            .collect();
-        if !unknown.is_empty() {
-            return Err(format!("unknown manifest product ids: {unknown:?}"));
-        }
-    }
-    // Product ids become filenames. Refuse unsafe or duplicate ids in caller-supplied manifests.
-    let mut seen = std::collections::HashSet::new();
+    let mut known = std::collections::HashSet::with_capacity(manifest.products.len());
     for p in &manifest.products {
         if !p.id.starts_with('p')
             || p.id.len() < 2
             || !p.id[1..].bytes().all(|b| b.is_ascii_digit())
-            || !seen.insert(&p.id)
+            || !known.insert(p.id.as_str())
         {
+            return Err(format!("invalid or duplicate manifest product id {}", p.id));
+        }
+    }
+    if let Some(parts) = parts {
+        let unknown: Vec<_> = parts
+            .iter()
+            .filter(|id| !known.contains(id.as_str()))
+            .map(String::as_str)
+            .collect();
+        if !unknown.is_empty() {
             return Err(format!(
-                "invalid or duplicate manifest product id {:?}",
-                p.id
+                "unknown manifest product ids: {}",
+                unknown.join(", ")
             ));
         }
     }
+    let selected = parts.map(|parts| {
+        parts
+            .iter()
+            .map(String::as_str)
+            .collect::<std::collections::HashSet<_>>()
+    });
     Ok(manifest
         .products
         .iter()
-        .filter(|p| parts.is_none_or(|parts| parts.contains(&p.id)))
+        .filter(|p| {
+            selected
+                .as_ref()
+                .is_none_or(|selected| selected.contains(p.id.as_str()))
+        })
         .map(|p| p.id.clone())
         .collect())
 }
