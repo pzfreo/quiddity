@@ -1255,3 +1255,58 @@ profiles needing missing walls or curved sides are not inferred.
 This is a post-recognition extension, represented in recognition/6, fingerprints,
 and face accounting; the evidence document's legacy physical-candidate registry
 does not acquire a new candidate family.
+
+## Hole mouth edge breaks (#244)
+
+`HoleRecord` has an optional, default-empty `mouth_chamfers` array. Each entry has
+`axis` (into the hole), `location` (wide-rim centre in file coordinates), `diameter`
+(the cylindrical mouth diameter), radial `size`, axial `depth`, `angle` (degrees
+from the transverse top face, **not** included cone angle), and `faces` (cone face
+indices). Both exterior ends may carry entries; array order does not assert a
+machining entry end. Patterns and intrinsic fingerprints compare the sorted
+size specifications, excluding placement and face indices. Empty arrays are
+omitted, and old records deserialize with no treatments. Rust struct literals
+must supply the new field.
+
+This is a hole detail rather than an `internal_bevels` record: that family proves
+concave planar strips, whereas this treatment is an axisymmetric convex edge
+break. The existing turned `chamfers` path describes external-cylinder edges.
+Attaching the cone to its hole also identifies the counterbore diameter to which
+a chamfer note applies, without a second unrelated feature. The cone is claimed
+as defining hole evidence and goes through the same solid and reconciliation
+checks as its cylindrical wall; the exterior plane is only support evidence.
+
+Recognition requires a full circular cone, a coaxial internal cylinder sharing
+its minor end circle, and an outward-facing transverse plane sharing its major
+circle. Both joins must be convex. The cone must flare outward at an extreme of
+the **whole** cylinder stack, excluding the counterbore floor/step edge even if
+that edge has a small cone. A flare strictly below the countersink family's 1.5
+major/minor-radius boundary and an axial leg below half the mouth radius prove
+a small edge break. No boss, absolute size, file axis, or dataset identity is
+required. Large screw seats retain `csink` and `countersinks` recognition. Split
+or interrupted cones without a complete single-face circumference are not yet
+claimed by this rule.
+
+Depth semantics stay cylindrical, consistent with existing plain-hole/countersink
+handling: neither `HoleRecord.depth` nor `cbore.depth`, `spotface.depth`, or
+`outer_steps[*].depth` includes an entry cone. `location` remains the existing
+cylindrical opening/gauge; the treatment carries its own top-face location. In
+#244, `cbore` remains `{diameter:5, depth:2}`, and the mouth entry has
+`{diameter:5, size:0.25, depth:0.25, angle:45}`. A drawing using the boss top as its
+reference should read **⌴⌀5 ↧2.25**, plus **0.25 × 45° at counterbore mouth**:
+add the entry's axial depth to the cylinder's 2.0 mm span. Printing ↧2.0 from that
+top face would locate the floor incorrectly. This is callout guidance; the
+existing dimension-planning adapter is not changed to generate chamfer notes.
+
+### Saved face anchors
+
+Adding defining cone evidence can change a consumer's lowest-face anchor. On
+#244 the same `holes/0` grows from faces `[3,10]` to `[3,10,1]`, so its minimum
+changes **3 → 1**. This is an explicit compatibility cost of completing the hole
+claim, not a moved bore. Consumers can preserve an existing reference by matching
+the old cylinder faces through correspondence. To prevent this for newly stored
+IDs, use the minimum of the parent's faces **excluding**
+`mouth_chamfers[*].faces` as the hole's anchor, retaining the cone indices in the
+sub-record for selection/accounting. Applying that policy in draftwright (or
+introducing a separately versioned anchor-face field) is a follow-up; this change
+does not silently redefine the meaning of `faces` for existing consumers.

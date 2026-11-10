@@ -141,6 +141,7 @@ fn crossing_equal_patterns_refuse_under_motion_and_member_permutation() {
             outer_steps: Vec::new(),
             exit_obstructions: Vec::new(),
             csink: None,
+            mouth_chamfers: Vec::new(),
         })
         .into();
         for _ in 0..holes.len() {
@@ -221,6 +222,7 @@ fn equal_pitch_grid_uses_population_to_assign_rows_under_motion() {
                 outer_steps: Vec::new(),
                 exit_obstructions: Vec::new(),
                 csink: None,
+                mouth_chamfers: Vec::new(),
             })
             .collect();
         for _ in 0..holes.len() {
@@ -841,6 +843,7 @@ fn a_five_hundred_hole_perforated_plate_has_one_grid() {
                 outer_steps: Vec::new(),
                 exit_obstructions: Vec::new(),
                 csink: None,
+                mouth_chamfers: Vec::new(),
             })
         })
         .collect();

@@ -22,7 +22,7 @@ const COAXIAL_FRAC: f64 = 0.0167;
 /// A near-flat cone is a draft, relief or washer face, not a screw seat.
 const MAX_INCLUDED_ANGLE: f64 = 160.0;
 /// Too little flare is an edge break, not a seat.
-const MIN_MAJOR_RATIO: f64 = 1.5;
+pub(super) const MIN_MAJOR_RATIO: f64 = 1.5;
 /// How far, in degrees, the cone (all its faces on one conical surface together) must run round
 /// its axis. A seat surrounds its bore's mouth; a chamfer turning a corner sweeps no more than
 /// half a turn. Three quarters leaves room for a seat broken by a neighbouring cut.

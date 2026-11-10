@@ -1019,6 +1019,7 @@ mod tests {
                 outer_steps: Vec::new(),
                 exit_obstructions: Vec::new(),
                 csink: None,
+                mouth_chamfers: Vec::new(),
             })
             .collect();
         features.defining.insert("holes", vec![vec![0], vec![1]]);
@@ -1116,6 +1117,7 @@ mod tests {
             spotface: None,
             outer_steps: Vec::new(),
             csink: None,
+            mouth_chamfers: Vec::new(),
             exit_obstructions: Vec::new(),
         }
     }
