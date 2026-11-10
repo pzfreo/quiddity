@@ -8,7 +8,7 @@ none of them interprets or corrects.
 
 | Directory | What | Made by |
 |---|---|---|
-| `nist/*.stp.gz` | 7 NIST MBE PMI test models (AP242 semantic PMI) | copied, gzipped (`mtime=0`) |
+| `nist/*.stp.gz` | NIST MBE PMI test models (AP242 semantic PMI) | copied, gzipped (`mtime=0`) |
 | `nist/<model>.expected.json` | NIST's expected PMI for each of them | `tools/nist_expected.py` |
 | `occt/<file>.json.gz` | OpenCascade XCAF's reading of every NIST AP242 file and every `specify/` file | `tools/capture_pmi_occt.py` |
 | `specify/<case>.*` | specify-core's output on corpus parts, with intent and answers | `tools/make_specify_inputs.py` |
@@ -25,12 +25,22 @@ February 2026 update. NIST says these are not error-free reference files.
 | `nist_ctc_02_asme1_ap242-e2.stp` | e2 `{… 442 3 1 4}` | none stated / mm | many tolerances and datums, datum targets |
 | `nist_ftc_07_asme1_ap242-e2.stp` | e2 | `UNITS: INCHES` / inch | inch units |
 | `nist_ftc_10_asme1_ap242-e2.stp` | e2 | `UNITS: MILLIMETERS` / mm | `LIMITS_AND_FITS('G6','hole','','')` ×3: not conforming (form variance holds the grade) |
+| `nist_ftc_11_asme1_ap242-e3.stp` | e3 | no drawing used / mm | mass regression: toroidal face #1195 crosses the minor-angle seam |
 | `nist_stc_10_asme1_ap242-e2.stp` | e2 | no drawing / mm | `LIMITS_AND_FITS('G','','6','')` ×3: conforming |
 | `nist_stc_06_asme1_ap242-e3.stp` | e3 `{… 442 4 1 4}` | no drawing / geometry context mm, PMI measures inch | edition 3; mixed units |
 | `nist_stc_09_asme1_ap242-e4.stp` | e4 `{… 442 7 1 4}` | no drawing / inch | edition 4 |
 
-Total 3.2 MB gzipped. The STC models (based on the FTC models with less complex PMI) have no
+The STC models (based on the FTC models with less complex PMI) have no
 drawing in the release.
+
+FTC-11 was copied unchanged from `dw-examples/steps/nist/`, whose README records the
+source as `usnistgov/SFA` commit `0e8d700ebb73db281c33441d534fe85806d5b6e7`
+(2026-02-18), `NIST-PMI-STEP-Files.zip`. It is a U.S. federal government work, not
+subject to copyright in the United States. Its uncompressed SHA-256 is
+`2d05bd399463a9ced7b84a479872a759f170fe92f7a62f8194e83df77f86f117`;
+compression uses `gzip.compress(..., compresslevel=9, mtime=0)`. The existing fixture
+is also used by the mass regressions; its bytes are unchanged, and no new expected-PMI
+capture accompanies those tests.
 
 ### Expected PMI (`nist/<model>.expected.json`)
 
@@ -87,7 +97,7 @@ datum features still reach faces.
 The control's writer test uses the existing refusal harness and pins its four dimensions
 without nominal values as the only refusals; datums A, B and C must all survive and resolve.
 
-The same check covers all seven committed `nist/` models. CTC-02 is the sole exception:
+The same check covers the original seven PMI `nist/` models. CTC-02 is the sole exception:
 A, B, C and K are established only by placed datum targets (3 points, 4 points, 1 point,
 and 1 circle respectively), with no datum feature. Their target support and placements
 are retained; they are pinned as lacking datum-feature faces, rather than treating a
