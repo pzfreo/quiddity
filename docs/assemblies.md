@@ -101,9 +101,10 @@ quiddity recognise big.step --manifest big.manifest.json --out-dir results/ \
 ```
 
 The flag parses the whole file once for the selected shared-geometry products,
-then reads each part in its own coordinates. It always verifies the full source
-binding for that parse, even with `--no-product-hashes`. Memory now grows with
-the entire source, so fallback is opt-in. Successfully recovered range refusals
+then reads each part in its own coordinates. With hashes enabled, it verifies the
+full source binding for that parse. `--no-product-hashes` uses size-only checking;
+`--verify-source` still requires the full hash. Memory now grows with the entire
+source, so fallback is opt-in. Successfully recovered range refusals
 remain in `refusals.json` with `recovered: true`; they do not cause a failing exit.
 Hash mismatches and other read errors never trigger fallback.
 

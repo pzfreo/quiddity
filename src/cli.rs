@@ -887,11 +887,15 @@ fn manifest_recognise(
             if whole.is_none() {
                 whole = Some((|| -> Result<StepFile, String> {
                     let bytes = std::fs::read(path).map_err(|e| format!("{path}: {e}"))?;
-                    // Bind the exact snapshot passed to the whole-file parser. Hash failures
-                    // are refusals too, never an invitation to recognise stale geometry.
-                    manifest
-                        .verify_source(std::io::Cursor::new(&bytes))
-                        .map_err(|e| format!("{path}: {e}"))?;
+                    // Apply the requested integrity policy to the exact parsed snapshot.
+                    if bytes.len() as u64 != manifest.source.size {
+                        return Err(format!("{path}: source size mismatch"));
+                    }
+                    if !no_product_hashes || verify_source {
+                        manifest
+                            .verify_source(std::io::Cursor::new(&bytes))
+                            .map_err(|e| format!("{path}: {e}"))?;
+                    }
                     StepFile::read(&bytes).map_err(|e| format!("{path}: {e}"))
                 })());
             }

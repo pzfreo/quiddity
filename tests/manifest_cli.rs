@@ -378,16 +378,31 @@ fn shared_geometry_refuses_and_explicit_fallback_completes() {
             expected
         );
     }
-    // Shared range metadata cannot authorize stale whole-file geometry.
+    // Default fallback binds the whole source; an explicit size-only policy still applies.
     let mut changed = bytes;
     let last = changed.len() - 1;
     changed[last] = b' ';
     std::fs::write(&path, changed).unwrap();
     assert_eq!(
+        recognise(dir.path(), &path, &["--fallback-whole-file"])
+            .status
+            .code(),
+        Some(1)
+    );
+    success(recognise(
+        dir.path(),
+        &path,
+        &["--fallback-whole-file", "--no-product-hashes"],
+    ));
+    assert_eq!(
         recognise(
             dir.path(),
             &path,
-            &["--fallback-whole-file", "--no-product-hashes"]
+            &[
+                "--fallback-whole-file",
+                "--no-product-hashes",
+                "--verify-source"
+            ]
         )
         .status
         .code(),
