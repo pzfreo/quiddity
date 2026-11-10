@@ -6,14 +6,6 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
-### Added
-
-- Product recognition over [assembly manifests](docs/assemblies.md): `manifest`
-  scans STEP (including gzip); `recognise --manifest --out-dir` reads selected
-  product ranges, checks hashes and writes product JSON, transforms and refusals.
-  Shared geometry has explicit whole-file fallback. Python exposes `manifest`,
-  `recognise_product` and a lazy `recognise_products` iterator.
-
 ### Documentation
 
 - haecceity states its scope: it reads, queries and writes B-reps and does not model them
@@ -57,6 +49,12 @@ in [docs/alpha1.md](docs/alpha1.md).
   with the slope angle measured on the actual supports rather than an ideal right angle.
 
 ### Added
+
+- Product recognition over [assembly manifests](docs/assemblies.md): `manifest`
+  scans STEP (including gzip); `recognise --manifest --out-dir` reads selected
+  product ranges, checks hashes and writes product JSON, transforms and refusals.
+  Shared geometry has explicit whole-file fallback. Python exposes `manifest`,
+  `recognise_product` and a lazy `recognise_products` iterator.
 
 - CAx-IF geometric validation property parsing with dimensional unit conversion and
   product/occurrence associations, plus a local haecceity/GVP/OCCT accuracy tool
