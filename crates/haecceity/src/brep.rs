@@ -878,6 +878,23 @@ impl Part {
             .get_or_init(|| self.compute_face_bounds(face))
     }
 
+    /// Boundary and surface extrema projected onto a unit direction, without copying
+    /// or rotating the part. Uses the same conic/NURBS extrema as `face_bounds`.
+    pub fn face_projection_bounds(&self, face: usize, direction: V3) -> Option<(f64, f64)> {
+        let direction = geom::unit(direction)?;
+        let mut lo = f64::INFINITY;
+        let mut hi = f64::NEG_INFINITY;
+        for point in self.face_extreme_points(face, &[direction]) {
+            let t = geom::dot(point, direction);
+            if !t.is_finite() {
+                return None;
+            }
+            lo = lo.min(t);
+            hi = hi.max(t);
+        }
+        (lo <= hi).then_some((lo, hi))
+    }
+
     fn compute_face_bounds(&self, face: usize) -> Bounds {
         let mut b = Bounds::empty();
         for p in self.face_extreme_points(face, &AXES) {

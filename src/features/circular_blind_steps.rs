@@ -2,6 +2,8 @@
 //! cylinder cut from a stock corner along a principal axis, open at one end of the solid's
 //! envelope and closed at the other by a perpendicular planar terminal. Two convex side joins
 //! prove the corner opening, and the terminal swept to the opening must meet no material.
+//! A proved native conical entry may precede the straight wall. Its cone is consulted,
+//! the published length measures the cylinder, and the void proof reaches the exterior mouth.
 
 use std::f64::consts::FRAC_PI_2;
 
@@ -180,13 +182,130 @@ fn complete_quarter_wall(
         })
 }
 
+/// A native, coaxial quarter-cone flaring from the complete cylindrical rim to
+/// one perpendicular exterior plane. Both corner planes and all four boundary
+/// edges must be observed; a taper into material or an interrupted treatment is refused.
+fn conical_entry(
+    part: &Part,
+    cylinder: usize,
+    cone: usize,
+    evidence: &CylinderEvidence,
+    station: f64,
+    direction: f64,
+) -> Option<f64> {
+    let Surface::Cone {
+        frame,
+        radius,
+        semi_angle,
+    } = part.faces[cone].surface
+    else {
+        return None;
+    };
+    let axis = evidence.axis;
+    if !part.faces[cone].reversed
+        || part.faces[cone].loops.len() != 1
+        || frame.z[axis].abs() < PRINCIPAL_AXIS_COS
+        || (0..3)
+            .any(|i| i != axis && (frame.origin[i] - evidence.axis_point[i]).abs() > COORD_FLOOR)
+    {
+        return None;
+    }
+    let (u0, u1, _, _) = part.uv_bounds(cone)?;
+    if !py::isclose(u1 - u0, FRAC_PI_2, 0.0, QUARTER_TURN_RAD_TOL) {
+        return None;
+    }
+    let mut rims = Vec::new();
+    let mut generators = 0;
+    for edge in part.face_edges(cone) {
+        let e = &part.edges[edge];
+        match e.curve {
+            geom::Curve::Circle {
+                frame: rim,
+                radius: r,
+            } => {
+                if rim.z[axis].abs() < PRINCIPAL_AXIS_COS
+                    || (0..3).any(|i| {
+                        i != axis && (rim.origin[i] - evidence.axis_point[i]).abs() > COORD_FLOOR
+                    })
+                {
+                    return None;
+                }
+                let expected = radius
+                    + (rim.origin[axis] - frame.origin[axis]) / frame.z[axis] * semi_angle.tan();
+                if !close(r, expected) {
+                    return None;
+                }
+                rims.push((rim.origin[axis], r, edge));
+            }
+            geom::Curve::Line { .. } => generators += 1,
+            _ => return None,
+        }
+    }
+    if rims.len() != 2 || generators != 2 {
+        return None;
+    }
+    // CylinderEvidence's published diameter is rounded; seam incidence uses
+    // the original native radius, not that presentation value.
+    let Surface::Cylinder {
+        radius: wall_radius,
+        ..
+    } = part.faces[cylinder].surface
+    else {
+        return None;
+    };
+    let join = rims.iter().position(|&(at, r, edge)| {
+        close(at, station)
+            && close(r, wall_radius)
+            && part.shared_edges(cylinder, cone).contains(&edge)
+    })?;
+    let (outer, outer_radius, _) = rims[1 - join];
+    if direction * (outer - station) <= COORD_FLOOR || outer_radius <= rims[join].1 + COORD_FLOOR {
+        return None;
+    }
+    let neighbours: Vec<_> = part
+        .neighbours(cone)
+        .into_iter()
+        .filter(|&f| f != cylinder)
+        .collect();
+    if neighbours.len() != 3 {
+        return None;
+    }
+    let mut end = 0;
+    let mut sides = Vec::new();
+    for &face in &neighbours {
+        if part.arc(cone, face) != Some(Arc::Convex) {
+            return None;
+        }
+        let Surface::Plane { frame: plane } = part.faces[face].surface else {
+            return None;
+        };
+        let n = unit_plane_normal(part, face)?;
+        if n[axis] * direction >= PRINCIPAL_AXIS_COS && close(plane.origin[axis], outer) {
+            end += 1;
+        } else if n[axis].abs() <= SMOOTH_ARC_GAP
+            && geom::dot(geom::sub(evidence.axis_point, plane.origin), n).abs() <= COORD_FLOOR
+        {
+            sides.push(n);
+        } else {
+            return None;
+        }
+    }
+    if end != 1 || sides.len() != 2 || geom::dot(sides[0], sides[1]).abs() > SMOOTH_ARC_GAP {
+        return None;
+    }
+    let mut members = neighbours;
+    members.extend([cylinder, cone]);
+    common_valid_solid(part, &members)?;
+    Some(direction * (outer - station))
+}
+
 /// The record for a quarter-cylinder wall closed by *terminal*, or `None` (`_candidate`).
 fn candidate(
     ctx: &Context<'_>,
     cylinder: usize,
     terminal: usize,
     evidence: &CylinderEvidence,
-) -> Option<CircularBlindStep> {
+) -> Option<(CircularBlindStep, Vec<usize>)> {
     let part = ctx.part;
     let axis = evidence.axis;
     if evidence.direction[axis].abs() < PRINCIPAL_AXIS_COS {
@@ -223,6 +342,8 @@ fn candidate(
 
     let (mut axial, mut sides) = (Vec::new(), Vec::new());
     let mut side_axes = Vec::new();
+    let mut entry_depth = 0.;
+    let mut entry_face = None;
     let mut corner_supports: Vec<(geom::V3, Option<usize>)> = Vec::new();
     for neighbour in part.neighbours(cylinder) {
         if neighbour == terminal {
@@ -230,6 +351,17 @@ fn candidate(
         }
         if part.arc(cylinder, neighbour) != Some(Arc::Convex) {
             return None;
+        }
+        if let Some(depth) =
+            conical_entry(part, cylinder, neighbour, evidence, opening_at, direction)
+        {
+            if !complete_quarter_wall(part, cylinder, evidence, low, high) {
+                return None;
+            }
+            entry_depth = depth;
+            entry_face = Some(neighbour);
+            axial.push((neighbour, (axis, opening_at)));
+            continue;
         }
         if let Some(plane) = axis_aligned_axis(part, neighbour)
             && plane.0 == axis
@@ -298,7 +430,10 @@ fn candidate(
     // must face out along the run; the side-plane incidence checks above establish the
     // same corner as the cylinder, and the complete terminal sweep below proves air.
     if !on_envelope {
-        for face in [axial[0].0, terminal] {
+        for face in [axial[0].0, terminal]
+            .into_iter()
+            .filter(|f| Some(*f) != entry_face)
+        {
             let normal = unit_plane_normal(part, face)?;
             if normal[axis] * direction < PRINCIPAL_AXIS_COS
                 || (0..3).any(|i| i != axis && normal[i].abs() > SMOOTH_ARC_GAP)
@@ -308,7 +443,7 @@ fn candidate(
         }
     }
     let mut sweep = [0.0; 3];
-    sweep[axis] = direction * length;
+    sweep[axis] = direction * (length + entry_depth);
     if ctx.swept_face_volume(solid, terminal, [0.0; 3], sweep)? != 0.0 {
         return None;
     }
@@ -321,13 +456,29 @@ fn candidate(
     opening_point[axis] = opening_at;
     let point2 = |p: Point2| Placed::new(p, Grid::Figures(6));
     let point3 = |p: Point3| Placed::new(p, Grid::Figures(6));
-    Some(CircularBlindStep {
-        axis: ['x', 'y', 'z'][axis],
-        radius: py::quantise6(evidence.diameter / 2.0),
-        length: py::quantise6(length),
-        centreline: [point3(terminal_point), point3(opening_point)],
-        section: [point2(first), point2(centre), point2(second)],
-    })
+    let radius = if entry_face.is_some() {
+        // This newly admitted native pair has an exact shared rim radius. Quantise
+        // it once; rounding the cylinder inventory's diameter first loses a digit.
+        let Surface::Cylinder { radius, .. } = part.faces[cylinder].surface else {
+            return None;
+        };
+        radius
+    } else {
+        // Compatibility: native-radius publication changes existing planar-entry
+        // snapshot dimensions. Retain their inventory-diameter rounding; the
+        // conical-entry extension above already publishes native precision.
+        evidence.diameter / 2.
+    };
+    Some((
+        CircularBlindStep {
+            axis: ['x', 'y', 'z'][axis],
+            radius: py::quantise6(radius),
+            length: py::quantise6(length),
+            centreline: [point3(terminal_point), point3(opening_point)],
+            section: [point2(first), point2(centre), point2(second)],
+        },
+        entry_face.into_iter().collect(),
+    ))
 }
 
 internal_entry! {
@@ -339,11 +490,11 @@ pub fn discover(ctx: &Context<'_>) -> Vec<Occurrence<CircularBlindStep>> {
     for evidence in cylinders {
         let cylinder = evidence.face;
         for terminal in part.neighbours(cylinder) {
-            if let Some(record) = candidate(ctx, cylinder, terminal, evidence) {
+            if let Some((record, context)) = candidate(ctx, cylinder, terminal, evidence) {
                 out.push(Occurrence {
                     record,
                     defining: vec![cylinder, terminal],
-                    context: vec![],
+                    context,
                 });
             }
         }
@@ -634,5 +785,234 @@ mod tests {
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].defining, expected[0].defining);
         assert_eq!(found[0].record, expected[0].record);
+    }
+    /// A box minus a radius-4 quarter-cylinder (x=-5..18), with a native
+    /// 45-degree conical entry x=18..20. The opening radius is 6 (or 2 for
+    /// the inward-taper negative). Geometry is analytic, independent of datasets.
+    fn corner_with_conical_entry(flared: bool) -> Part {
+        corner_with_conical_entry_radius(flared, 4.)
+    }
+
+    fn corner_with_conical_entry_radius(flared: bool, wall_radius: f64) -> Part {
+        use crate::features::support_patches::polygon_part;
+        use crate::kernel::geom::{Curve, Frame, V3};
+        let r = if flared {
+            wall_radius + 2.
+        } else {
+            wall_radius - 2.
+        };
+        let mut points = Vec::<V3>::new();
+        let mut polygons = Vec::new();
+        let mut face = |mut corners: Vec<V3>, normal: V3| {
+            if geom::dot(
+                geom::cross(
+                    geom::sub(corners[1], corners[0]),
+                    geom::sub(corners[2], corners[1]),
+                ),
+                normal,
+            ) < 0.
+            {
+                corners.reverse();
+            }
+            polygons.push(
+                corners
+                    .into_iter()
+                    .map(|p| {
+                        if let Some(i) = points.iter().position(|q| geom::dist(*q, p) < 1e-9) {
+                            i
+                        } else {
+                            points.push(p);
+                            points.len() - 1
+                        }
+                    })
+                    .collect(),
+            );
+        };
+        face(
+            vec![
+                [-20., -15., -10.],
+                [-20., 15., -10.],
+                [-20., 15., 10.],
+                [-20., -15., 10.],
+            ],
+            [-1., 0., 0.],
+        );
+        face(
+            vec![
+                [-20., -15., -10.],
+                [20., -15., -10.],
+                [20., -15., 10.],
+                [-20., -15., 10.],
+            ],
+            [0., -1., 0.],
+        );
+        face(
+            vec![
+                [-20., -15., 10.],
+                [20., -15., 10.],
+                [20., 15. - r, 10.],
+                [18., 15. - wall_radius, 10.],
+                [-5., 15. - wall_radius, 10.],
+                [-5., 15., 10.],
+                [-20., 15., 10.],
+            ],
+            [0., 0., 1.],
+        );
+        face(
+            vec![
+                [-20., 15., -10.],
+                [20., 15., -10.],
+                [20., 15., 10. - r],
+                [18., 15., 10. - wall_radius],
+                [-5., 15., 10. - wall_radius],
+                [-5., 15., 10.],
+                [-20., 15., 10.],
+            ],
+            [0., 1., 0.],
+        );
+        face(
+            vec![
+                [-20., -15., -10.],
+                [20., -15., -10.],
+                [20., 15., -10.],
+                [-20., 15., -10.],
+            ],
+            [0., 0., -1.],
+        );
+        face(
+            vec![
+                [20., -15., -10.],
+                [20., 15., -10.],
+                [20., 15., 10. - r],
+                [20., 15. - r, 10.],
+                [20., -15., 10.],
+            ],
+            [1., 0., 0.],
+        );
+        face(
+            vec![
+                [-5., 15., 10.],
+                [-5., 15. - wall_radius, 10.],
+                [-5., 15., 10. - wall_radius],
+            ],
+            [1., 0., 0.],
+        );
+        face(
+            vec![
+                [-5., 15. - wall_radius, 10.],
+                [-5., 15., 10. - wall_radius],
+                [18., 15., 10. - wall_radius],
+                [18., 15. - wall_radius, 10.],
+            ],
+            [0., 1., 1.],
+        );
+        face(
+            vec![
+                [18., 15. - wall_radius, 10.],
+                [18., 15., 10. - wall_radius],
+                [20., 15., 10. - r],
+                [20., 15. - r, 10.],
+            ],
+            [if flared { 1. } else { -1. }, 1., 1.],
+        );
+        let shell = polygon_part(&points, &polygons, true).unwrap();
+        let mut faces = shell.faces.clone();
+        let mut edges = shell.edges.clone();
+        let frame = Frame {
+            origin: [18., 15., 10.],
+            x: [0., 0., -1.],
+            y: [0., 1., 0.],
+            z: [1., 0., 0.],
+        };
+        faces[7].surface = Surface::Cylinder {
+            frame,
+            radius: wall_radius,
+        };
+        faces[7].reversed = true;
+        faces[8].surface = Surface::Cone {
+            frame,
+            radius: wall_radius,
+            semi_angle: if flared { 1_f64.atan() } else { -1_f64.atan() },
+        };
+        faces[8].reversed = true;
+        for edge in &mut edges {
+            if !close(edge.start[0], edge.end[0]) {
+                continue;
+            }
+            let at = edge.start[0];
+            let radius = if close(at, -5.) || close(at, 18.) {
+                wall_radius
+            } else if close(at, 20.) {
+                r
+            } else {
+                continue;
+            };
+            let radial = |p: V3| (p[1] - 15.).hypot(p[2] - 10.);
+            if !close(radial(edge.start), radius) || !close(radial(edge.end), radius) {
+                continue;
+            }
+            let mut rim = frame;
+            rim.origin[0] = at;
+            edge.curve = Curve::Circle { frame: rim, radius };
+            let start = edge.curve.parameter(edge.start);
+            let delta = (edge.curve.parameter(edge.end) - start + std::f64::consts::PI)
+                .rem_euclid(std::f64::consts::TAU)
+                - std::f64::consts::PI;
+            edge.same_sense = delta > 0.;
+            edge.samples = (0..=128)
+                .map(|i| edge.curve.value(start + delta * i as f64 / 128.))
+                .collect();
+        }
+        Part::new(faces, edges, shell.solids)
+    }
+
+    #[test]
+    fn a_native_flared_entry_keeps_the_straight_blind_step_and_its_floor() {
+        let original = corner_with_conical_entry(true);
+        assert!(
+            original.solid_is_geometrically_valid(0),
+            "bad {:?}",
+            original.bad_faces(0)
+        );
+        let removed =
+            std::f64::consts::PI * (4_f64.powi(2) * 23. / 4. + 2. * (16. + 24. + 36.) / 12.);
+        assert!((original.solid_mass(0).unwrap().0 - (24000. - removed)).abs() < 1e-6);
+        for axes in [[0, 1, 2], [1, 2, 0], [2, 0, 1]] {
+            let mut placement = [[0.; 4]; 3];
+            for i in 0..3 {
+                placement[axes[i]][i] = 1.;
+                placement[i][3] = [123.456, -78.9, 41.3][i];
+            }
+            let part = original.transformed(&placement).unwrap();
+            let found = discover_verified(&Context::new(&part)).unwrap();
+            assert_eq!(found.len(), 1, "{found:?}");
+            assert_eq!(found[0].defining, vec![7, 6]);
+            assert_eq!(found[0].context, vec![8]);
+            assert_eq!(found[0].record.radius, 4.);
+            assert_eq!(found[0].record.length, 23.);
+            let published = crate::features::recognise(&part);
+            assert_eq!(published.defining["circular_blind_steps"], vec![vec![7, 6]]);
+        }
+    }
+
+    #[test]
+    fn an_entry_taper_into_material_does_not_prove_an_open_step() {
+        let part = corner_with_conical_entry(false);
+        assert!(
+            part.solid_is_geometrically_valid(0),
+            "bad {:?}",
+            part.bad_faces(0)
+        );
+        assert!(discover_verified(&Context::new(&part)).unwrap().is_empty());
+    }
+
+    #[test]
+    fn cone_incidence_uses_the_native_radius_before_presentation_rounding() {
+        let part = corner_with_conical_entry_radius(true, 4.123456789);
+        assert!(part.solid_is_geometrically_valid(0));
+        let found = discover_verified(&Context::new(&part)).unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].record.radius, 4.12346);
+        assert_eq!(found[0].record.length, 23.);
     }
 }

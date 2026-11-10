@@ -154,6 +154,18 @@ fn families_are_wired_and_their_records_fingerprinted_field_by_field() {
             found.entry(key).or_default().extend(paths);
         }
     }
+    let (cut, _, _) = super::prismatic_through_cuts::control(6, false);
+    let features = features::recognise(&cut);
+    assert_eq!(features.prismatic_through_cuts.len(), 1);
+    let (p, new_leaves) = check(
+        "interrupted polygonal cut",
+        &records_json(&features),
+        &features.defining,
+    );
+    problems.extend(p);
+    for (key, paths) in new_leaves {
+        found.entry(key).or_default().extend(paths);
+    }
     let polygonal = super::polygonal_oblique_through_steps::polygonal_corner(false);
     let features = features::recognise(&polygonal);
     let (p, new_leaves) = check(

@@ -595,6 +595,7 @@ fn carry(
         polygonal_stock,
         section_passages,
         prismatic_pockets,
+        prismatic_through_cuts,
         oriented_slots,
         oriented_slot_patterns,
         pads,
@@ -812,6 +813,11 @@ fn carry(
         polygonal_bosses: each!("polygonal_bosses", polygonal_bosses, polygonal_prism),
         polygonal_stock: each!("polygonal_stock", polygonal_stock, polygonal_prism),
         section_passages: each!("section_passages", section_passages, section_passage),
+        prismatic_through_cuts: each!(
+            "prismatic_through_cuts",
+            prismatic_through_cuts,
+            prismatic_through_cut
+        ),
         prismatic_pockets: each!("prismatic_pockets", prismatic_pockets, prismatic_pocket),
         oriented_slots: each!("oriented_slots", oriented_slots, oriented_slot),
         oriented_slot_patterns: each!(
@@ -834,6 +840,16 @@ fn carry(
         defining,
     };
     crate::published_records::PublishedFeatures::new(features, relative, *motion, source, reach)
+}
+
+fn prismatic_through_cut(
+    out: &mut Out,
+    mut r: crate::features::prismatic_through_cuts::PrismaticThroughCut,
+) -> crate::features::prismatic_through_cuts::PrismaticThroughCut {
+    r.cut = section_passage(out, r.cut);
+    let shift = py::dot(&out.motion.translation, &r.cut.frame.run);
+    r.core_interval = out.placed(r.core_interval, |_, (lo, hi)| (lo + shift, hi + shift));
+    r
 }
 
 fn fillet(out: &mut Out, r: Fillet) -> Fillet {
