@@ -550,9 +550,6 @@ pub fn scan<R: Read + Seek>(mut reader: R, options: &ScanOptions) -> Result<Mani
     let mut previous = vec![usize::MAX; products.len() + 3];
     for (ordinal, slot) in index.file_slots().enumerate() {
         let tag = owners.labels[slot as usize];
-        if index.kind(slot) == Kind::Edge {
-            owners.each(tag, |p| products[p].edge_count += 1);
-        }
         let range = index.range(slot);
         let adjacent = index.adjacent(slot);
         if tag == COMMON {
@@ -603,6 +600,18 @@ pub fn scan<R: Read + Seek>(mut reader: R, options: &ScanOptions) -> Result<Mani
     }
     for p in &mut products {
         p.bytes = p.ranges.iter().map(|r| r[1] - r[0]).sum();
+        let mut stack: Vec<_> = p.faces.iter().filter_map(|id| index.lookup(*id)).collect();
+        let mut seen = HashSet::new();
+        while let Some(slot) = stack.pop() {
+            if !seen.insert(slot) {
+                continue;
+            }
+            if index.kind(slot) == Kind::Edge {
+                p.edge_count += 1;
+            } else if index.kind(slot) == Kind::Topology {
+                stack.extend(outgoing(&index.boundary, slot).iter().map(|e| e.1));
+            }
+        }
     }
     // Only the skeleton's placement frames (not all geometric surface frames), and common
     // contexts/units, need bytes for the small placement document.

@@ -27,6 +27,7 @@ pub(super) enum Kind {
     Protocol,
     Relation,
     Edge,
+    Topology,
 }
 impl Kind {
     pub fn geometry(self) -> bool {
@@ -43,6 +44,7 @@ impl Kind {
                 | Self::OrientedShell
                 | Self::Relation
                 | Self::Edge
+                | Self::Topology
         )
     }
     pub fn retained(self) -> bool {
@@ -79,6 +81,8 @@ impl Kind {
                 "APPLICATION_PROTOCOL_DEFINITION" => Self::Protocol,
                 "AXIS2_PLACEMENT_3D" | "AXIS2_PLACEMENT_2D" => Self::Frame,
                 "EDGE_CURVE" => Self::Edge,
+                "ADVANCED_FACE" | "FACE_SURFACE" | "FACE_BOUND" | "FACE_OUTER_BOUND"
+                | "EDGE_LOOP" | "ORIENTED_EDGE" => Self::Topology,
                 "CARTESIAN_POINT" => Self::Point,
                 "DIRECTION" => Self::Direction,
                 "MANIFOLD_SOLID_BREP" | "FACETED_BREP" => Self::Solid,
@@ -152,6 +156,7 @@ impl Entry {
             14 => Kind::Protocol,
             15 => Kind::Relation,
             16 => Kind::Edge,
+            17 => Kind::Topology,
             _ => Kind::Unknown,
         }
     }
@@ -500,6 +505,11 @@ impl Index {
         if kind.geometry() {
             for &id in i.references {
                 let target = self.slot(id)?;
+                // Preserve only topology links for the face-reachable edge count. Ordinary
+                // geometry unions can include unused edges sharing a point or curve.
+                if kind == Kind::Topology {
+                    self.boundary.push((slot, target));
+                }
                 if self.present(target) {
                     self.connect(slot, target);
                 } else {
