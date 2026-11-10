@@ -20,8 +20,8 @@ impl Part {
     /// callers building in-memory geometry can apply it explicitly before any other queries.
     /// A negative mixed boundary may instead have only its proved inward normals reversed,
     /// provided its unchanged wires are coherent under the corrected senses and every face
-    /// of the candidate is proved outward. The negative-mass gate precedes all material-side
-    /// proofs, so an outward face encountered first cannot hide a mixed negative shell.
+    /// of the candidate is proved outward. A cheap outward witness first excludes repair;
+    /// this conservative shortcut can retain a negative mixed shell in another face order.
     /// Coherently inward boundary wires are reversed too, preserving face validity and
     /// convexity; already outward wires are retained. Each repaired solid is named in
     /// [`Self::input_repairs`]. Mixed wires or unproved boundaries
@@ -29,14 +29,15 @@ impl Part {
     /// solid whose faces have only seam or vertex loops (a full sphere or torus), whose wire
     /// sense cannot be established.
     ///
-    /// Every topologically valid solid gets one signed mass check. Positive or unavailable
-    /// mass skips the material-side proofs. Its face quadrature is cached for later mass,
-    /// moment and recognition queries; no per-face ray classification runs on ordinary
-    /// positive solids. Cold import alone therefore does more quadrature than the former
-    /// one-face outward shortcut; that shortcut could not exclude a mixed negative shell.
+    /// Ordinary outward solids avoid import-time mass quadrature. The first decisive witness
+    /// among the first eight faces skips repair if outward; an inward witness or no decision
+    /// proceeds to the negative-mass gate and full proofs. This is deliberately face-order
+    /// dependent for mixed shells: an outward face encountered first can leave their senses
+    /// and signed volume unchanged. Probing every face instead introduces substantial ray
+    /// and spline work, and unproved faces still force mass on otherwise ordinary solids.
     pub fn repair_inverted_shells(mut self) -> Self {
         for solid in 0..self.solids.len() {
-            if !self.solid_is_valid(solid) {
+            if !self.solid_is_valid(solid) || outward_proved(&self, solid) {
                 continue;
             }
             if !self
@@ -105,15 +106,14 @@ impl Part {
 
 /// How many of a solid's faces [`outward_proved`] tries before leaving the solid to the full
 /// test.
-#[cfg(test)]
 const PROOF_FACES: usize = 8;
 
 /// Whether one of the solid's first [`PROOF_FACES`] faces has an outward witness (a point a
 /// little in front of it outside the material, a little behind it inside, at two offsets) by
 /// ray parity against boxes that certainly contain each face ([`certain_box`]). A face whose
 /// normal leaves the material at one regular point does so everywhere, so the boundary is not
-/// entirely inward. This former import shortcut is retained only as a test witness:
-/// it cannot rule out a negative mixed boundary. A sampled
+/// entirely inward. It cannot rule out a negative mixed boundary: such inputs are
+/// conservatively retained when this first witness is outward. A sampled
 /// box prunes the full classifier's rays; the certain boxes here prune none of the crossings the
 /// kernel's own contact test admits, and need no face's interior sampled to be built. A face
 /// found inward, or no witness either way, leaves the solid to the full test.
@@ -123,7 +123,6 @@ const PROOF_FACES: usize = 8;
 /// box contains the face's sampled box ([`Part::face_bounds`]) padded by at least 0.1 mm, so a
 /// witness found outward here is found outward by the full classifier too, ruling out a
 /// global inversion. `outward_proved_excludes_global_inversion` checks this.
-#[cfg(test)]
 fn outward_proved(part: &Part, solid: usize) -> bool {
     let faces = &part.solids[solid].faces;
     let mut boxes = vec![crate::geom::Bounds::empty(); part.faces.len()];
@@ -153,7 +152,6 @@ fn outward_proved(part: &Part, solid: usize) -> bool {
 /// curve's control points. The pad covers edges straying from the surface (and the bands about
 /// them that contact admits) far beyond any tolerance a file states. `None` for a surface or
 /// curve whose box is not certain.
-#[cfg(test)]
 fn certain_box(part: &Part, f: usize) -> Option<crate::geom::Bounds> {
     use crate::geom::{Bounds, Curve, Surface};
     let around = |c: [f64; 3], r: f64| Bounds {

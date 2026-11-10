@@ -17,9 +17,14 @@ in [docs/alpha1.md](docs/alpha1.md).
   the area of narrow-parameter spline sheets and the recovery lengths/tolerances
   derived from it. Negative mixed solid boundaries have their inward normals
   repaired only after all material sides are proved, with coherent unchanged wires,
-  positive mass and every candidate face re-proved outward. The signed-mass gate
-  precedes material-side proofs, so repair is independent of face order; positive
-  solids reuse that cached quadrature in later queries.
+  positive mass and every candidate face re-proved outward. A bounded cheap
+  outward-witness shortcut avoids eager mass quadrature on ordinary imports,
+  including the temporary metadata part whose caches are discarded. Mixed repair
+  is deliberately face-order dependent: an outward first decisive witness among
+  the first eight faces skips repair, even for a negative mixed shell. An all-face
+  trigger adds substantial classification and spline work and still forces mass
+  for unproved faces; the earlier shortcut retains the original reader's cost.
+  The cold-cache refusal and moment-publication tests use their original forms.
   `truck_master_shaft_hole` now recognises its Ø30×40 outer cylinder as a
   `BossRecord` Ø30 h40 instead of the erroneous flat-bottomed `HoleRecord` 40 deep;
   fingerprint normals and convex/concave adjacency follow the corrected normals,

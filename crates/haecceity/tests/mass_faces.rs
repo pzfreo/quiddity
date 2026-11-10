@@ -105,14 +105,12 @@ fn nist_ftc_11_torus_band_across_minor_seam() {
 #[test]
 fn moments_require_every_mass_integral() {
     let mut part = read_step_file(&common::fixtures().join("rejected_cylinder.step")).unwrap();
-    // Import now warms mass for its sign check. Collapse the side, then rebuild the
-    // Part so this geometry is tested before any cached query. Its quadrature returns finite zero terms,
+    // Collapse the side before any cached query. Its quadrature returns finite zero terms,
     // which face_mass rejects; the other two faces still have nonzero flux and moments.
     let geom::Surface::Cylinder { radius, .. } = &mut part.faces[0].surface else {
         panic!("cylinder side")
     };
     *radius = 0.0;
-    let part = haecceity::Part::new(part.faces, part.edges, part.solids);
     assert!(part.face_mass(0).is_none());
     assert!(part.solid_mass(0).is_none());
     assert!(part.volume_centroid().is_none());
@@ -137,10 +135,7 @@ fn mass_cache_is_independent_of_moment_query_order() {
             .map(|f| standalone.face_mass(f))
             .collect();
         for first in 0..3 {
-            let loaded = read_step_file(&path).unwrap();
-            // Import has already queried mass for solids. Rebuild the same geometry
-            // so moments really publish mass first, as this regression requires.
-            let part = haecceity::Part::new(loaded.faces, loaded.edges, loaded.solids);
+            let part = read_step_file(&path).unwrap();
             if first == 0 {
                 let cold = part.volume_centroid();
                 if !part.solids.is_empty() {
@@ -181,9 +176,6 @@ fn cold_moments_refuse_missing_mass_before_any_mass_query() {
             panic!("cylinder side")
         };
         *radius = 0.0;
-        // Discard the original geometry's import-time mass cache; the moment query
-        // below must be the first query of the modified geometry.
-        let part = haecceity::Part::new(part.faces, part.edges, part.solids);
         match first {
             0 => assert!(part.volume_centroid().is_none()),
             1 => assert!(part.face_moments(0).is_none()),

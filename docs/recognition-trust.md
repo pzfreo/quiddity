@@ -19,9 +19,16 @@ fingerprints keep their previous meaning. Readers should ignore unknown fields.
   coherently inward boundary wires before recognition.
   `solid N: mixed face senses repaired (M faces)` means only the M proved inward
   normals changed; already outward normals and all boundary wires were retained.
-  Every valid solid's signed mass is checked before a material-side witness can
-  skip repair, so a negative mixed shell is treated independently of face order.
-  Every face must have three regular material-side witnesses at two offsets;
+  To avoid mass quadrature on ordinary imports, the kernel first tries the first
+  eight faces for a decisive material-side witness. An outward first decision
+  skips repair; an inward first decision, or no decision, proceeds to the signed
+  mass check. This shortcut excludes a global inversion but can retain a negative
+  mixed shell: repair of mixed orientations depends on face order. For example,
+  moving an already-outward bore face of `truck_master_shaft_hole` to face 0 leaves
+  that mixed shell unchanged. An all-face trigger added substantial ray/spline
+  work and still integrated masses for unproved ordinary faces; the bounded
+  shortcut is retained to keep import cost close to the original reader.
+  For a mixed repair, every face must have three regular material-side witnesses at two offsets;
   the candidate must have coherent outward wires, valid closed topology and
   positive mass, and every candidate face must be re-proved outward with three
   witnesses at two offsets before any mutation. Insufficient evidence or mixed
