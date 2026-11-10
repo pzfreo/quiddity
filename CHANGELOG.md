@@ -13,30 +13,31 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
-- Mass quadrature tests tangent rank independently of UV parameter scales, restoring
-  the area of narrow-parameter spline sheets and the recovery lengths/tolerances
-  derived from it. Negative mixed solid boundaries have their inward normals
-  repaired only after all material sides are proved, with coherent unchanged wires,
-  positive mass and every candidate face re-proved outward. A bounded cheap
-  outward-witness shortcut avoids eager mass quadrature on ordinary imports,
-  including the temporary metadata part whose caches are discarded. Mixed repair
-  is deliberately face-order dependent: an outward first decisive witness among
-  the first eight faces skips repair, even for a negative mixed shell. An all-face
-  trigger adds substantial classification and spline work and still forces mass
-  for unproved faces; the earlier shortcut retains the original reader's cost.
-  The cold-cache refusal and moment-publication tests use their original forms.
-  `truck_master_shaft_hole` now recognises its Ø30×40 outer cylinder as a
-  `BossRecord` Ø30 h40 instead of the erroneous flat-bottomed `HoleRecord` 40 deep;
-  fingerprint normals and convex/concave adjacency follow the corrected normals,
-  the frame refusal changes from `no-material` to `no-analytic-direction`, and
-  `input_repairs` reports `solid 0: mixed face senses repaired (20 faces)`.
-  The shaft's remaining 1.12e-4 volume gap against OCCT is caused by OCCT's
-  approximate cap pcurves, while an independent integral agrees with 46140.6583 mm³.
-  Its off-surface bore intersection curves (up to 0.12 mm) make volume intrinsically
-  ambiguous by about 2e-4 (formulas give 46135.1–46144.4 mm³; design intent 46139.110 mm³).
-  The sweep retains its known OCCT difference because OCCT integrates open pcurve
-  wires without closing gaps, while independent closed integrals agree with ours.
-  No comparison bands or known-difference entries change.
+- Mass quadrature judges tangent rank independently of the UV parameter scales. The narrow
+  spline sheet `captured/.../2fe0e2383b80a0b8` now has its true area (10 mm², was 0.011),
+  and the recovery length and tolerances derived from it follow.
+- A solid whose face normals are mixed (some inward, some outward) and whose volume is
+  negative has its inward faces repaired, but only when every face's material side is
+  proved, the wires stay coherent, the mass becomes positive and every repaired face is
+  re-proved outward. `input_repairs` reports `solid 0: mixed face senses repaired (N faces)`.
+  The check is cheap and looks at the first eight faces, so it is face-order dependent: a
+  shell whose first decisive face is outward is not repaired
+  ([recognition trust](docs/recognition-trust.md)). In the fixtures, MFCAD++ (test split)
+  and MFInstSeg it fires only on `truck_master_shaft_hole`:
+  - its volume is now +46140.66 mm³, where it was −47426.50;
+  - its Ø30×40 outer cylinder is a `BossRecord` Ø30 h40 instead of a flat-bottomed
+    `HoleRecord` 40 deep;
+  - its fingerprint normals, convex/concave adjacency and frame refusal
+    (`no-analytic-direction`, was `no-material`) follow.
+- Two known differences from OCCT are recorded. Both are checked by independent integrals
+  that agree with ours, and neither changes a comparison band:
+  - `truck_master_shaft_hole` is 1.12e-4 above OCCT, which builds approximate cap pcurves.
+    The part's bore intersection curves lie up to 0.12 mm off their surfaces, so its
+    volume is only defined to about 2e-4 (the design intent is 46139.11 mm³).
+  - `varying_pitch_sweep` differs by 4.2% in volume because OCCT integrates its open pcurve
+    wires without closing the gaps. OCCT's own mesh agrees with ours.
+- The snapshot tool uses `/` in manifest-relative paths so Windows input digests
+  and nested snapshots can be checked against the same provenance manifest.
 
 - Mass integrals wrap closed spline tangents with their points and use consistent
   containment and integration domains for seamless torus bands. This restores the
