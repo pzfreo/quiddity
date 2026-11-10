@@ -67,10 +67,11 @@
 //! **Validation before returning.** The edit is applied; every added or replaced instance must
 //! pass `express` validation against the table of the file's edition (the target edition for
 //! an AP242 edition without a table, and for an AP214/AP203 file that gains PMI, whose every
-//! instance must then pass, after only the closed R1 approval assignment and R2 conversion
-//! unit dimensions repairs in `upgrade.rs`, and the R3 integer-literal repair on
-//! AP242 edition upgrades for JSON owners or Notes views, each recorded in [`WriteReport::repairs`], plus
-//! the keyword table above); and `express_rules::check_all` of the result (the WHERE, UNIQUE
+//! instance must then pass, after only the closed R1 approval assignment, R2 conversion
+//! unit dimensions and R4 unset required label/text repairs in `upgrade.rs`, plus the keyword
+//! table above). AP242 edition upgrades for JSON owners or Notes views also allow R3
+//! integer-literal repairs, and R4. Each repair is recorded in [`WriteReport::repairs`].
+//! `express_rules::check_all` of the result (the WHERE, UNIQUE
 //! and global rules it evaluates, `restrict_representation_for_surface_condition` among them)
 //! must have no violation the original lacked except the exact registered conflicts above.
 //! Violations the original already had are
@@ -223,6 +224,7 @@ impl std::fmt::Display for WriteError {
                     UpgradeRepairKind::R1ApprovalAssignment,
                     UpgradeRepairKind::R2ConversionUnitDimensions,
                     UpgradeRepairKind::R3IntegerLiteral,
+                    UpgradeRepairKind::R4UnsetRequiredString,
                 ] {
                     let affected: Vec<_> = repairs
                         .iter()
@@ -310,6 +312,8 @@ pub enum UpgradeRepairKind {
     R2ConversionUnitDimensions,
     /// R3: an exactly representable integral REAL in an INTEGER representation item.
     R3IntegerLiteral,
+    /// R4: an unset required label/text string becomes the empty string.
+    R4UnsetRequiredString,
 }
 
 impl std::fmt::Display for UpgradeRepairKind {
@@ -318,6 +322,7 @@ impl std::fmt::Display for UpgradeRepairKind {
             Self::R1ApprovalAssignment => "R1 approval assignment",
             Self::R2ConversionUnitDimensions => "R2 conversion unit dimensions",
             Self::R3IntegerLiteral => "R3 integer literal",
+            Self::R4UnsetRequiredString => "R4 unset required string",
         })
     }
 }
@@ -398,7 +403,7 @@ pub struct WriteReport {
     pub presentation_warnings: Vec<String>,
     /// Factual saved-view decisions, including notes on several planes and a kept default.
     pub saved_view_findings: Vec<Finding>,
-    /// R1/R2 upgrade repairs, in instance id order; empty whenever no upgrade occurs.
+    /// R1–R4 upgrade repairs, in instance id order; empty whenever no upgrade occurs.
     pub repairs: Vec<UpgradeRepair>,
     /// Closed AP214 subtype-to-supertype keyword rewrites, ascending by instance id.
     pub edition_rewrites: Vec<EditionRewrite>,
@@ -1261,9 +1266,6 @@ fn write_attempt(
             .copied()
             .chain(report.rewritten.iter().copied())
             .collect();
-        if first.to_ascii_uppercase().starts_with("AUTOMOTIVE_DESIGN") {
-            report.edition_rewrites = upgrade::rewrite_entities(doc, &mut edit, &excluded);
-        }
         let (repairs, added_dimensions) = upgrade::repair(
             doc,
             &mut edit,
@@ -1271,6 +1273,10 @@ fn write_attempt(
             emitted_dimensions,
             edition_upgrade,
         )?;
+        if first.to_ascii_uppercase().starts_with("AUTOMOTIVE_DESIGN") {
+            report.edition_rewrites =
+                upgrade::rewrite_entities(doc, &mut edit, &excluded, &repairs);
+        }
         report.added += added_dimensions;
         repairs
     } else {

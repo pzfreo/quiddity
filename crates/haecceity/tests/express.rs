@@ -757,6 +757,7 @@ fn corpus_upgrades_are_pinned() {
                             pmi::write::UpgradeRepairKind::R1ApprovalAssignment => "R1",
                             pmi::write::UpgradeRepairKind::R2ConversionUnitDimensions => "R2",
                             pmi::write::UpgradeRepairKind::R3IntegerLiteral => "R3",
+                            pmi::write::UpgradeRepairKind::R4UnsetRequiredString => "R4",
                         }
                     })).collect())
                 }

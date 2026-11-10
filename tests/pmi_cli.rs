@@ -1661,3 +1661,36 @@ fn source_presentation_refuses_without_the_drawing_feature() {
         "{error}"
     );
 }
+
+#[test]
+fn r4_and_keyword_rewrite_report_one_replaced_record() {
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ties/cube.step");
+    let mut text = std::fs::read_to_string(source).unwrap();
+    let original = Document::parse(text.as_bytes().to_vec()).unwrap();
+    let id = original.max_id() + 1;
+    let before = format!("#{id}=PRODUCT_TYPE($,$,(#7));");
+    text.insert_str(text.rfind("ENDSEC;").unwrap(), &format!("{before}\n"));
+    let input = scratch().join("r4-keyword.step");
+    std::fs::write(&input, text).unwrap();
+    let step = input.to_str().unwrap();
+    let (mut doc, _) = ok(&["pmi", "read", step]);
+    doc["parts"] = json!([{"part": 0, "pmi": {"material": {"id": "synthetic material"}}}]);
+    let (out, output) = write_cli(step, &doc, "r4-keyword", &["--mode", "replace"]);
+    let (report, _) = write_ok(&output, "r4-keyword");
+    assert_eq!(
+        report["repairs"],
+        json!([{
+            "id": id, "repair": "R4", "original_record": before,
+            "new_record": format!("#{id}=PRODUCT_RELATED_PRODUCT_CATEGORY('',$,(#7));"),
+        }])
+    );
+    assert_eq!(
+        report["edition_rewrites"],
+        json!([{
+            "id": id, "from": "PRODUCT_TYPE", "to": "PRODUCT_RELATED_PRODUCT_CATEGORY",
+        }])
+    );
+    assert_eq!(report["instances"]["replaced"], 1);
+    let (back, _) = ok(&["pmi", "read", out.to_str().unwrap()]);
+    assert!(read_back_differences(&doc, &back, "replace").is_empty());
+}
