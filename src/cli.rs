@@ -859,13 +859,7 @@ fn manifest_recognise(
     if file.metadata().map_err(|e| e.to_string())?.len() != manifest.source.size {
         return Err(format!("{path}: source size mismatch"));
     }
-    if verify_source
-        || (fallback
-            && ids
-                .iter()
-                .any(|id| manifest.refusals.iter().any(|r| r.products.contains(id))))
-    {
-        // Fallback geometry cannot be verified from independent ranges. Always bind the full snapshot.
+    if verify_source {
         manifest
             .verify_source(&file)
             .map_err(|e| format!("{path}: {e}"))?;
@@ -891,25 +885,44 @@ fn manifest_recognise(
             crate::file_api::recognise_product(path, &manifest, id)
         } else if fallback {
             if whole.is_none() {
-                let bytes = std::fs::read(path).map_err(|e| format!("{path}: {e}"))?;
-                // Verify the exact snapshot passed to the whole-file parser as well.
-                manifest
-                    .verify_source(std::io::Cursor::new(&bytes))
-                    .map_err(|e| format!("{path}: {e}"))?;
-                whole = Some(StepFile::read(&bytes).map_err(|e| format!("{path}: {e}"))?);
+                whole = Some((|| -> Result<StepFile, String> {
+                    let bytes = std::fs::read(path).map_err(|e| format!("{path}: {e}"))?;
+                    // Bind the exact snapshot passed to the whole-file parser. Hash failures
+                    // are refusals too, never an invitation to recognise stale geometry.
+                    manifest
+                        .verify_source(std::io::Cursor::new(&bytes))
+                        .map_err(|e| format!("{path}: {e}"))?;
+                    StepFile::read(&bytes).map_err(|e| format!("{path}: {e}"))
+                })());
             }
-            let whole = whole.as_ref().expect("fallback loaded");
             let product = manifest
                 .products
                 .iter()
                 .find(|p| &p.id == id)
                 .expect("selected id");
             whole
-                .parts
-                .iter()
-                .position(|p| p.product_definition == product.product_definition)
-                .ok_or_else(|| format!("product {id}: definition missing from whole source"))
-                .and_then(|i| whole.part(i).map_err(|e| format!("product {id}: {e}")))
+                .as_ref()
+                .expect("fallback attempted")
+                .as_ref()
+                .map_err(|e| format!("product {id}: whole-file fallback failed: {e}"))
+                .and_then(|whole| {
+                    let index = whole
+                        .parts
+                        .iter()
+                        .position(|p| p.product_definition == product.product_definition)
+                        .ok_or_else(|| {
+                            format!("product {id}: definition missing from whole source")
+                        })?;
+                    let definition = &whole.parts[index];
+                    if definition.faces != product.faces
+                        || definition.edges.len() as u64 != product.edge_count
+                    {
+                        return Err(format!(
+                            "product {id}: face order or edge count differs from manifest"
+                        ));
+                    }
+                    whole.part(index).map_err(|e| format!("product {id}: {e}"))
+                })
                 .and_then(|part| crate::file_api::recognise_part(&part, &manifest.source.sha256))
                 .inspect(|_| recovered = true)
         } else {
