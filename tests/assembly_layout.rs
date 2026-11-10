@@ -324,6 +324,49 @@ fn scale_every_assembly_fixture() {
 }
 
 #[test]
+fn scale_preserves_each_source_products_entity_count() {
+    let bytes = source();
+    let original = manifest::scan(Cursor::new(&bytes), &ScanOptions::default()).unwrap();
+    assert!(original.products.len() > 1);
+    for layout in [Layout::Contiguous, Layout::Runs, Layout::Shuffled] {
+        let mut out = Vec::new();
+        let mut sidecar = Vec::new();
+        engine::scale(
+            &bytes,
+            Options {
+                layout,
+                ..Options::default()
+            },
+            Scale {
+                distinct: 2 * original.products.len(),
+                instances: 2 * original.instances.len(),
+                target_bytes: 0,
+            },
+            &mut out,
+            &mut sidecar,
+        )
+        .unwrap();
+        let expected: Expected = serde_json::from_slice(&sidecar).unwrap();
+        let m = manifest::scan(Cursor::new(&out), &ScanOptions::default()).unwrap();
+        assert!(m.refusals.is_empty());
+        assert_eq!(m.products.len(), 2 * original.products.len());
+        assert_eq!(m.products.len(), expected.products);
+        assert_eq!(m.instances.len(), expected.instances);
+        assert_eq!(out.len() as u64, expected.bytes);
+        assert_eq!(statements(&out).len() as u64, expected.entities);
+        assert_eq!(expected.per_product.len(), m.products.len());
+        for (copy, (p, e)) in m.products.iter().zip(expected.per_product).enumerate() {
+            let source = &original.products[copy % original.products.len()];
+            assert_eq!(p.entities, source.entities);
+            assert_eq!(p.faces.len(), source.faces.len());
+            assert_eq!(p.product_definition, e.product_definition);
+            assert_eq!(p.entities, e.entities);
+            assert_eq!(p.faces.len(), e.faces);
+        }
+    }
+}
+
+#[test]
 fn contiguous_uses_source_definition_order() {
     let bytes = source();
     let original = manifest::scan(Cursor::new(&bytes), &ScanOptions::default()).unwrap();

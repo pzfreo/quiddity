@@ -313,18 +313,38 @@ fn scale_contiguous(
             !common_ids.contains(id) && m.common.ranges.iter().any(|r| r[0] <= at && at < r[1])
         })
         .collect();
+    let mut owners: HashMap<_, Vec<_>> = HashMap::new();
+    for (owner, p) in m.products.iter().enumerate() {
+        for id in doc.ids() {
+            let at = doc.span(id).unwrap().start as u64;
+            if p.ranges.iter().any(|r| r[0] <= at && at < r[1]) {
+                owners.entry(id).or_default().push(owner);
+            }
+        }
+    }
     let mut templates = Vec::new();
-    for p in &m.products {
-        let mut owned: HashSet<_> = doc
-            .ids()
-            .filter(|id| {
-                let at = doc.span(*id).unwrap().start as u64;
-                p.ranges.iter().any(|r| r[0] <= at && at < r[1])
-            })
+    for (owner, p) in m.products.iter().enumerate() {
+        let mut owned: HashSet<_> = owners
+            .iter()
+            .filter_map(|(&id, owners)| owners.contains(&owner).then_some(id))
             .chain(copy_common.iter().copied())
             .collect();
         let mut pending: Vec<_> = owned.iter().copied().collect();
         while let Some(id) = pending.pop() {
+            // Shared placement records can legitimately lie in several products'
+            // source ranges. Reject records absent from this product's own ranges.
+            if let Some(others) = owners.get(&id)
+                && !others.contains(&owner)
+            {
+                return Err(format!(
+                    "template for product {} (#{}): record #{id} belongs to product {} (#{})",
+                    p.id,
+                    p.product_definition,
+                    m.products[others[0]].id,
+                    m.products[others[0]].product_definition
+                )
+                .into());
+            }
             let entity = doc.get(id).ok_or("missing product dependency")?;
             p21::visit_attributes(entity, &mut |a| {
                 if let Attribute::EntityRef(to) = a
