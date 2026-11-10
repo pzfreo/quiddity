@@ -307,6 +307,7 @@ fn plans(
                 bytes: 0,
                 sha256: None,
                 faces,
+                edge_count: 0,
             },
             sdrs,
             representations: roots,
@@ -549,6 +550,9 @@ pub fn scan<R: Read + Seek>(mut reader: R, options: &ScanOptions) -> Result<Mani
     let mut previous = vec![usize::MAX; products.len() + 3];
     for (ordinal, slot) in index.file_slots().enumerate() {
         let tag = owners.labels[slot as usize];
+        if index.kind(slot) == Kind::Edge {
+            owners.each(tag, |p| products[p].edge_count += 1);
+        }
         let range = index.range(slot);
         let adjacent = index.adjacent(slot);
         if tag == COMMON {

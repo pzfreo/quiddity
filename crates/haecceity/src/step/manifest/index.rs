@@ -26,6 +26,7 @@ pub(super) enum Kind {
     OrientedShell,
     Protocol,
     Relation,
+    Edge,
 }
 impl Kind {
     pub fn geometry(self) -> bool {
@@ -41,6 +42,7 @@ impl Kind {
                 | Self::Shell
                 | Self::OrientedShell
                 | Self::Relation
+                | Self::Edge
         )
     }
     pub fn retained(self) -> bool {
@@ -76,6 +78,7 @@ impl Kind {
             let kind = match n {
                 "APPLICATION_PROTOCOL_DEFINITION" => Self::Protocol,
                 "AXIS2_PLACEMENT_3D" | "AXIS2_PLACEMENT_2D" => Self::Frame,
+                "EDGE_CURVE" => Self::Edge,
                 "CARTESIAN_POINT" => Self::Point,
                 "DIRECTION" => Self::Direction,
                 "MANIFOLD_SOLID_BREP" | "FACETED_BREP" => Self::Solid,
@@ -148,6 +151,7 @@ impl Entry {
             13 => Kind::OrientedShell,
             14 => Kind::Protocol,
             15 => Kind::Relation,
+            16 => Kind::Edge,
             _ => Kind::Unknown,
         }
     }

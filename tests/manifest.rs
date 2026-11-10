@@ -202,6 +202,12 @@ fn check_bytes(label: &str, b: &[u8]) -> usize {
         assert_eq!(p.name, d.name);
         assert_eq!(p.product_id, d.product_id);
         assert_eq!(p.faces, d.faces, "{} {} faces", label, p.id);
+        assert_eq!(
+            p.edge_count as usize,
+            d.edges.len(),
+            "{label} {} edges",
+            p.id
+        );
         for instance in m.instances.iter().filter(|i| i.product == p.id) {
             let mut parent = None;
             for &occurrence in &instance.path {

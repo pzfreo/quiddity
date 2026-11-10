@@ -93,6 +93,8 @@ pub struct Product {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sha256: Option<String>,
     pub faces: Vec<u64>,
+    /// Number of distinct EDGE_CURVE entities; edge order is reader-owned.
+    pub edge_count: u64,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Instance {
@@ -488,6 +490,9 @@ impl Manifest {
             .ok_or_else(|| refuse("definition missing from extracted document".into()))?;
         if def.faces != p.faces {
             return Err(refuse("face entity order differs from manifest".into()));
+        }
+        if def.edges.len() as u64 != p.edge_count {
+            return Err(refuse("edge count differs from manifest".into()));
         }
         let part = read_part(&bytes, def).map_err(|e| refuse(e.to_string()))?;
         // Edge indices belong to the unchanged product reader. Normals-only shell repairs
