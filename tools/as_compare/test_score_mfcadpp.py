@@ -72,6 +72,16 @@ class ScoringMfcadpp(unittest.TestCase):
         self.assertEqual(report['comparisons']['Any feature']['qr']['labelled_faces'], 0)
         self.assertEqual(report['provenance']['unavailable_label_models'], ['synthetic'])
 
+    def test_malformed_unreadable_input_is_reported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'synthetic.step').write_bytes(STEP + STEP)
+            sweep = root / 'qr.jsonl'
+            sweep.write_text(json.dumps({'id': 'synthetic', 'status': 'unreadable'}) + '\n')
+            report = mfc.score(root, sweep, root / 'out.json', 'synthetic')
+        self.assertEqual(report['health']['qr'], {'unreadable': 1})
+        self.assertEqual(report['provenance']['unavailable_label_models'], ['synthetic'])
+
     def test_invalid_binding_refused(self):
         for sources in ([51, 7, 90], [51, 7, 90, 90], [51, 7, None, 8], [51, 7, 666, 8]):
             with self.assertRaises(ValueError):

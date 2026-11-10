@@ -118,5 +118,5 @@ stock's existing one-body comparison. No feature instances are inferred from lab
 
 Development samples use every tenth nonempty ID (10th, 20th, ...) of `train.txt`;
 validation uses the same rule on `val.txt`. Develop on MFCAD++; use MFInstSeg
-mainly to check generalisation, without a sealed holdout policy.
+mainly to check generalisation.
 Synthetic binding/metric tests: `python3 -I tools/as_compare/test_score_mfcadpp.py`.

@@ -65,7 +65,11 @@ def score(steps, sweep, out, revision):
         else:
             # Failed imports have no caller-face binding and claim nothing. Only the
             # label multiset matters here; never assign file order to caller faces.
-            names = face_names(raw)
+            try:
+                names = face_names(raw)
+            except ValueError:
+                unavailable_labels.append(model_id)
+                return None, None
             if not names or any(not n.isdigit() or not 0 <= int(n) <= comparison.STOCK
                                 for n in names.values()):
                 unavailable_labels.append(model_id)
