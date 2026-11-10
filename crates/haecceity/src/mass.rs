@@ -306,14 +306,82 @@ fn kronrod_nodes() -> &'static [(f64, f64, f64)] {
 /// first and second moments. Using terms' magnitudes also handles cancelling fluxes.
 type Panel<S, const N: usize> = ([f64; N], f64, f64, S);
 
+/// Which components drive refinement. Moments retain their own density and scaling;
+/// the five mass components use exactly the rule of a standalone `face_mass` call.
+#[derive(Clone, Copy)]
+enum Components {
+    Prefix(usize),
+    Mass([usize; 5]),
+}
+
+#[derive(Clone, Copy)]
+struct IntegralRule {
+    components: Components,
+    observe_mass: Option<[usize; 5]>,
+}
+
+type Estimate = (f64, f64); // error estimate, magnitude of the density's terms
+
+fn estimate<const N: usize>(
+    sum: &[f64; N],
+    gauss: &[f64; N],
+    size: &[f64; N],
+    components: Components,
+) -> Estimate {
+    fn over<const N: usize>(
+        sum: &[f64; N],
+        gauss: &[f64; N],
+        size: &[f64; N],
+        first: usize,
+        indices: impl Iterator<Item = usize>,
+    ) -> Estimate {
+        let error = indices
+            .map(|k| {
+                let scale = size[first].max(size[k]);
+                if scale > 0.0 {
+                    (sum[k] - gauss[k]).abs() * (size[first] / scale)
+                } else {
+                    0.0
+                }
+            })
+            .fold(0.0, f64::max);
+        (error, size[first])
+    }
+    match components {
+        Components::Prefix(n) => over(sum, gauss, size, 0, 0..n),
+        Components::Mass(indices) => over(sum, gauss, size, indices[0], indices.into_iter()),
+    }
+}
+
+#[cfg(test)]
+fn kronrod<S, const N: usize>(
+    state: S,
+    a: f64,
+    b: f64,
+    term: impl FnMut(&mut S, f64) -> Option<[f64; N]>,
+) -> Option<Panel<S, N>> {
+    kronrod_rule(
+        state,
+        a,
+        b,
+        term,
+        IntegralRule {
+            components: Components::Prefix(N),
+            observe_mass: None,
+        },
+    )
+    .map(|p| p.0)
+}
+
 /// The rule over (a, b) of `term`, visited in ascending order of the panel's parameter from
 /// `state`.
-fn kronrod<S, const N: usize>(
+fn kronrod_rule<S, const N: usize>(
     mut state: S,
     a: f64,
     b: f64,
     mut term: impl FnMut(&mut S, f64) -> Option<[f64; N]>,
-) -> Option<Panel<S, N>> {
+    rule: IntegralRule,
+) -> Option<(Panel<S, N>, Estimate)> {
     let (half, centre) = (0.5 * (b - a), 0.5 * (b + a));
     let (mut sum, mut gauss, mut size) = ([0.0; N], [0.0; N], [0.0; N]);
     for &(x, wk, wg) in kronrod_nodes() {
@@ -327,17 +395,12 @@ fn kronrod<S, const N: usize>(
             size[k] += (wk * half * y[k]).abs();
         }
     }
-    let error = (0..N)
-        .map(|k| {
-            let scale = size[0].max(size[k]);
-            if scale > 0.0 {
-                (sum[k] - gauss[k]).abs() * (size[0] / scale)
-            } else {
-                0.0
-            }
-        })
-        .fold(0.0, f64::max);
-    Some((sum, error, size[0], state))
+    let (error, magnitude) = estimate(&sum, &gauss, &size, rule.components);
+    let mass = rule.observe_mass.map_or((0.0, 0.0), |indices| {
+        let (error, size) = estimate(&sum, &gauss, &size, Components::Mass(indices));
+        (if error <= 1e-9 * size { 0.0 } else { error }, size)
+    });
+    Some(((sum, error, magnitude, state), mass))
 }
 
 /// ∫ over the interval running through `cuts`: the sum, the largest error estimate of a panel
@@ -647,6 +710,51 @@ impl Part {
         face: usize,
         f: impl Fn(f64, f64) -> [f64; N],
     ) -> Option<[f64; N]> {
+        self.integrate_face(
+            face,
+            f,
+            IntegralRule {
+                components: Components::Prefix(N),
+                observe_mass: None,
+            },
+        )
+    }
+
+    /// The moments' coarse pass also evaluates the five mass fields. Refine those fields
+    /// independently if needed, and publish exactly the standalone mass result to the
+    /// existing OnceLock. Later moment calls only read that cache. A failed moment pass
+    /// never poisons it, and extra moment refinement cannot rescue a refused mass integral.
+    fn moment_integral<const N: usize, const M: usize>(
+        &self,
+        face: usize,
+        mass: [usize; 5],
+        f: impl Fn(f64, f64) -> [f64; N],
+    ) -> Option<[f64; M]> {
+        match self.cache[face].mass.get() {
+            Some(None) => None,
+            Some(Some(_)) => self.face_integral(face, |u, v| {
+                let y = f(u, v);
+                std::array::from_fn(|k| y[k])
+            }),
+            None => self
+                .integrate_face(
+                    face,
+                    f,
+                    IntegralRule {
+                        components: Components::Prefix(M),
+                        observe_mass: Some(mass),
+                    },
+                )
+                .map(|y| std::array::from_fn(|k| y[k])),
+        }
+    }
+
+    fn integrate_face<const N: usize>(
+        &self,
+        face: usize,
+        f: impl Fn(f64, f64) -> [f64; N],
+        rule: IntegralRule,
+    ) -> Option<[f64; N]> {
         let fc = &self.faces[face];
         let surface = &fc.surface;
         let (pu, pv) = surface.periodic();
@@ -719,14 +827,65 @@ impl Part {
         // unresolved at the scale of the whole face's terms.
         let mut passes = Vec::with_capacity(loops.len());
         for &i in &loops {
-            passes.push(self.boundary_integral(face, i, shifts[i], &term, None, u_ref)?);
+            passes.push(self.boundary_integral(face, i, shifts[i], &term, (None, rule), u_ref)?);
         }
-        let floor = 1e-11 * passes.iter().map(|p| p.2).sum::<f64>();
+        // Canonical mass validity uses its own errors, floor, refinement and loop sense,
+        // irrespective of which additional components this caller needs.
+        if let Some(indices) = rule.observe_mass {
+            let mass_floor = 1e-11 * passes.iter().map(|p| p.1.1).sum::<f64>();
+            let mut mass = [0.0; 5];
+            for (&i, (panel, estimate)) in loops.iter().zip(&passes) {
+                let (sum, swept) = if estimate.0 > mass_floor {
+                    let (refined, _) = self.boundary_integral(
+                        face,
+                        i,
+                        shifts[i],
+                        &term,
+                        (
+                            Some(mass_floor),
+                            IntegralRule {
+                                components: Components::Mass(indices),
+                                observe_mass: None,
+                            },
+                        ),
+                        u_ref,
+                    )?;
+                    if refined.1 > mass_floor {
+                        let _ = self.cache[face].mass.set(None);
+                        return None;
+                    }
+                    (refined.0, refined.3)
+                } else {
+                    (panel.0, panel.3)
+                };
+                let winding = along_v || uv[i].winds_v;
+                let direction = self.loop_direction(face, i, (!winding).then_some(swept))?;
+                for k in 0..5 {
+                    mass[k] += direction * sum[indices[k]];
+                }
+            }
+            let mass = (mass[0] > 0.0 && mass.iter().all(|x| x.is_finite())).then_some(mass);
+            let _ = self.cache[face].mass.set(mass);
+            mass?;
+        }
+        let floor = 1e-11 * passes.iter().map(|p| p.0.2).sum::<f64>();
         let mut total = [0.0; N];
-        for (&i, (mut sum, excess, _, mut swept)) in loops.iter().zip(passes) {
+        for (&i, ((mut sum, excess, _, mut swept), _)) in loops.iter().zip(passes) {
             if excess > floor {
-                let refined =
-                    self.boundary_integral(face, i, shifts[i], &term, Some(floor), u_ref)?;
+                let (refined, _) = self.boundary_integral(
+                    face,
+                    i,
+                    shifts[i],
+                    &term,
+                    (
+                        Some(floor),
+                        IntegralRule {
+                            observe_mass: None,
+                            ..rule
+                        },
+                    ),
+                    u_ref,
+                )?;
                 // A panel still unresolved at the floor after the deepest halving leaves the
                 // area unknown to that scale: refused rather than reported as if exact.
                 if refined.1 > floor {
@@ -757,9 +916,11 @@ impl Part {
         i: usize,
         shift: (f64, f64),
         term: &dyn Fn(f64, f64, f64, f64) -> Option<[f64; N]>,
-        floor: Option<f64>,
+        (floor, rule): (Option<f64>, IntegralRule),
         u_ref: f64,
-    ) -> Option<Panel<f64, N>> {
+    ) -> Option<(Panel<f64, N>, Estimate)> {
+        debug_assert!(rule.observe_mass.is_none() || floor.is_none());
+        let mut mass_estimate: Estimate = (0.0, 0.0);
         let fc = &self.faces[face];
         let surface = &fc.surface;
         let (pu, pv) = surface.periodic();
@@ -974,15 +1135,24 @@ impl Part {
                 0.5 * (lo + hi)
             };
             // Nodes are visited in walking order, so periodic parameters unwrap node by node.
+            let mut edge_mass: Estimate = (0.0, 0.0);
             let mut eval = |walk: Walk, a: f64, b: f64| {
                 let mut met: Vec<(f64, (f64, f64))> = Vec::with_capacity(21);
                 let mut weights = kronrod_nodes().iter().map(|n| 0.5 * (b - a) * n.1);
-                let panel = kronrod(walk, a, b, |walk, t| {
-                    let ((u, v), (du, dv)) = node(walk, t)?;
-                    walk.swept += weights.next().unwrap_or(0.0) * (u - u_ref) * dv;
-                    met.push((t, (u, v)));
-                    term(u, v, du, dv)
-                })?;
+                let (panel, mass) = kronrod_rule(
+                    walk,
+                    a,
+                    b,
+                    |walk, t| {
+                        let ((u, v), (du, dv)) = node(walk, t)?;
+                        walk.swept += weights.next().unwrap_or(0.0) * (u - u_ref) * dv;
+                        met.push((t, (u, v)));
+                        term(u, v, du, dv)
+                    },
+                    rule,
+                )?;
+                edge_mass.0 = edge_mass.0.max(mass.0);
+                edge_mass.1 += mass.1;
                 let kink = met
                     .windows(2)
                     .find(|w| held(w[0].1) != held(w[1].1))
@@ -1064,6 +1234,8 @@ impl Part {
                 cuts.dedup();
             }
             let (sum, excess, size, walk) = adaptive(&cuts, walk, floor, &mut eval)?;
+            mass_estimate.0 = mass_estimate.0.max(edge_mass.0);
+            mass_estimate.1 += edge_mass.1;
             add((sum, excess, size, walk.swept));
             last = walk.last;
             // The edge's exact ends, inverted from the nodes beside them; next to a collapsed
@@ -1104,18 +1276,27 @@ impl Part {
             if gu.hypot(gv) < 1e-12 {
                 continue;
             }
+            let mut gap_mass: Estimate = (0.0, 0.0);
             let mut eval = |(): (), a: f64, b: f64| {
-                let panel = kronrod((), a, b, |(), s| {
-                    term(from.0 + gu * s, from.1 + gv * s, gu, gv)
-                })?;
+                let (panel, mass) = kronrod_rule(
+                    (),
+                    a,
+                    b,
+                    |(), s| term(from.0 + gu * s, from.1 + gv * s, gu, gv),
+                    rule,
+                )?;
+                gap_mass.0 = gap_mass.0.max(mass.0);
+                gap_mass.1 += mass.1;
                 Some((panel, None))
             };
             let pieces = (gu.hypot(gv).ceil() as usize).max(1);
             let (sum, excess, size, ()) =
                 adaptive(&cuts(0.0, 1.0, pieces, &[])?, (), floor, &mut eval)?;
+            mass_estimate.0 = mass_estimate.0.max(gap_mass.0);
+            mass_estimate.1 += gap_mass.1;
             add((sum, excess, size, gv * (from.0 + 0.5 * gu - u_ref)));
         }
-        Some(total)
+        Some((total, mass_estimate))
     }
 
     /// +1 when the face lies to the left of loop *i* walked in its listed direction (so the
@@ -1222,11 +1403,22 @@ impl Part {
             lp.vertex
                 .or_else(|| lp.edges.first().map(|&(e, _)| self.edges[e].start))
         })?;
-        let [area, x, y, z] = self.face_integral(face, |u, v| {
+        let [area, x, y, z] = self.moment_integral(face, [4, 5, 6, 7, 8], |u, v| {
             let (p, su, sv) = point_and_partials(&fc.surface, u, v);
-            let w = geom::dot(geom::cross(su, sv), direction);
+            let n = geom::cross(su, sv);
+            let w = geom::dot(n, direction);
             let q = geom::sub(p, origin);
-            [w, w * q[0], w * q[1], w * q[2]]
+            [
+                w,
+                w * q[0],
+                w * q[1],
+                w * q[2],
+                geom::norm(n),
+                geom::dot(p, n),
+                n[0],
+                n[1],
+                n[2],
+            ]
         })?;
         if !area.is_finite() || area.abs() <= f64::EPSILON {
             return None;
@@ -1291,7 +1483,7 @@ impl Part {
             return None;
         }
         let [area, mx, my, mz, nx, ny, nz, xx, yy, zz, xy, xz, yz] =
-            self.face_integral(face, |u, v| {
+            self.moment_integral(face, [0, 13, 4, 5, 6], |u, v| {
                 let (p, su, sv) = point_and_partials(surface, u, v);
                 let n = geom::cross(su, sv);
                 let w = geom::norm(n);
@@ -1310,6 +1502,7 @@ impl Part {
                     x * y * w,
                     x * z * w,
                     y * z * w,
+                    geom::dot(p, n),
                 ]
             })?;
         if area <= 0.0 || !area.is_finite() {
@@ -1383,14 +1576,15 @@ impl Part {
                 // amplify projection round-off on tiny faces far from c0: cgb242 face 483
                 // was refused only after translation, although its area was resolved.
                 // Restore physical units after quadrature; the fixed point below uses mm.
-                let f = self.face_integral(face, |u, v| {
+                let f = self.moment_integral::<18, 17>(face, [0, 17, 2, 3, 4], |u, v| {
                     let (p, su, sv) = point_and_partials(surface, u, v);
                     let n = geom::cross(su, sv);
                     let q = geom::scale(geom::sub(p, c0), 1.0 / length);
                     let qn = geom::dot(q, n);
-                    let mut out = [0.0; 17];
+                    let mut out = [0.0; 18];
                     out[0] = geom::norm(n);
                     out[1] = qn;
+                    out[17] = geom::dot(p, n);
                     for i in 0..3 {
                         out[2 + i] = n[i];
                         out[14 + i] = q[i] * qn;
@@ -1431,6 +1625,26 @@ impl Part {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mass_convergence_is_independent_of_moment_density() {
+        // The requested moments are constant, but a mass flux oscillates. Checking only
+        // the moments would accept this panel and lose the standalone mass refusal.
+        let (panel, mass) = kronrod_rule(
+            (),
+            0.0,
+            1.0,
+            |(), t| Some([1.0, 1.0, (100.0 * t).sin(), 0.0, 0.0, 0.0]),
+            IntegralRule {
+                components: Components::Prefix(2),
+                observe_mass: Some([0, 2, 3, 4, 5]),
+            },
+        )
+        .unwrap();
+        assert!(panel.1 < 1e-14);
+        assert!(mass.0 > 1e-6);
+        assert_eq!(mass.1, panel.2);
+    }
 
     #[test]
     fn gauss_rule_is_exact_for_polynomials() {

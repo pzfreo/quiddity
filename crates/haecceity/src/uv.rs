@@ -338,27 +338,36 @@ impl Part {
             }
         }
         let mut anchor = centre(&placed(outer));
-        // Loops running round v (a seamless torus elbow) bound a band whose side neither box
-        // decides: the face lies left of its loops (right on a reversed face), so each other
-        // such loop is placed within a turn of the outer one on that side.
-        let band: Vec<Option<f64>> = (0..loops.len())
-            .map(|i| {
-                if i == outer || !(pu && loops[outer].winds_v && loops[i].winds_v) {
-                    return None;
-                }
-                let lp = &loops[outer].points;
-                let rising = lp.last()?.1 > lp.first()?.1;
-                let side = if rising != self.faces[face].reversed {
-                    -1.0
-                } else {
-                    1.0
-                };
-                let (from, u) = (anchor.0, centre(&boxes[i]).0);
-                Some(from + side * ((u - from) * side).rem_euclid(TAU) - u)
-            })
-            .collect();
-        if let Some(i) = band.iter().position(Option::is_some) {
-            anchor.0 = 0.5 * (anchor.0 + centre(&boxes[i]).0 + band[i].unwrap_or(0.0));
+        // A seamless torus band can wind round either parameter. Its other coordinate
+        // lies on the face's side of the outer loop, which need not be the nearest turn
+        // (a band can cover more than half a period).
+        let band = |along_v: bool| -> Vec<Option<f64>> {
+            let winds = |lp: &UvLoop| if along_v { lp.winds_v } else { lp.winds_u };
+            let coord = |p: (f64, f64)| if along_v { p.0 } else { p.1 };
+            (0..loops.len())
+                .map(|i| {
+                    if i == outer || !(pu && pv && winds(&loops[outer]) && winds(&loops[i])) {
+                        return None;
+                    }
+                    let lp = &loops[outer].points;
+                    let rising = if along_v {
+                        lp.last()?.1 > lp.first()?.1
+                    } else {
+                        lp.last()?.0 > lp.first()?.0
+                    };
+                    let left = rising != self.faces[face].reversed;
+                    let side = if left == along_v { -1.0 } else { 1.0 };
+                    let (from, x) = (coord(anchor), coord(centre(&boxes[i])));
+                    Some(from + side * ((x - from) * side).rem_euclid(TAU) - x)
+                })
+                .collect()
+        };
+        let (band_u, band_v) = (band(true), band(false));
+        if let Some(i) = band_u.iter().position(Option::is_some) {
+            anchor.0 = 0.5 * (anchor.0 + centre(&boxes[i]).0 + band_u[i].unwrap_or(0.0));
+        }
+        if let Some(i) = band_v.iter().position(Option::is_some) {
+            anchor.1 = 0.5 * (anchor.1 + centre(&boxes[i]).1 + band_v[i].unwrap_or(0.0));
         }
         let shifts = (0..loops.len())
             .map(|i| {
@@ -366,14 +375,16 @@ impl Part {
                     return first[i];
                 }
                 let c = centre(&boxes[i]);
-                let su = if let Some(su) = band[i] {
+                let su = if let Some(su) = band_u[i] {
                     su
                 } else if pu {
                     geom::nearest_turn(c.0, anchor.0) - c.0
                 } else {
                     0.0
                 };
-                let sv = if pv {
+                let sv = if let Some(sv) = band_v[i] {
+                    sv
+                } else if pv {
                     geom::nearest_turn(c.1, anchor.1) - c.1
                 } else {
                     0.0
@@ -498,7 +509,26 @@ impl Part {
                 let loops = self.uv_loops(face)?;
                 let spans = crate::mass::closed_spans(&f.surface);
                 let Surface::Freeform { surface, .. } = &f.surface else {
-                    return Some(FaceDomain::new(loops, f.surface.periodic()));
+                    let (pu, pv) = f.surface.periodic();
+                    if pu && pv && loops.iter().any(|lp| lp.winds_u || lp.winds_v) {
+                        // Containment and Green's theorem must read the same side of a
+                        // seamless band, including one crossing the other parameter's seam.
+                        let (_, shifts) = self.loop_placement(face)?;
+                        let placed: Vec<UvLoop> = loops
+                            .iter()
+                            .zip(shifts)
+                            .map(|(lp, shift)| {
+                                let mut lp = lp.clone();
+                                for p in &mut lp.points {
+                                    p.0 += shift.0;
+                                    p.1 += shift.1;
+                                }
+                                lp
+                            })
+                            .collect();
+                        return Some(FaceDomain::new(&placed, (pu, pv)));
+                    }
+                    return Some(FaceDomain::new(loops, (pu, pv)));
                 };
                 // A closed B-spline surface (which the reader does not mark periodic) whose face
                 // boundary crosses the surface's seam (a face's own seam need not lie on it)

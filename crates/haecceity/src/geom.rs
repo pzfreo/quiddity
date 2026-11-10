@@ -702,7 +702,7 @@ impl Curve {
                 major,
                 minor,
             } => frame.dir_to_world([-major * t.sin(), minor * t.cos(), 0.0]),
-            Curve::Nurbs(c) => c.derivative(t),
+            Curve::Nurbs(c) => c.derivative(Self::nurbs_parameter(c, t)),
         }
     }
 
@@ -717,16 +717,18 @@ impl Curve {
                 major,
                 minor,
             } => frame.to_world([major * t.cos(), minor * t.sin(), 0.0]),
-            Curve::Nurbs(n) => {
-                // A closed curve is run round periodically, so an edge may wrap past its end.
-                let (lo, hi) = n.domain();
-                let t = if n.is_closed() && (t < lo || t > hi) {
-                    lo + (t - lo).rem_euclid(hi - lo)
-                } else {
-                    t
-                };
-                n.value(t)
-            }
+            Curve::Nurbs(n) => n.value(Self::nurbs_parameter(n, t)),
+        }
+    }
+
+    // A closed edge may run past the knot domain. Values and tangents must use the same
+    // turn; clamping the tangent while wrapping the point changes the boundary integral.
+    fn nurbs_parameter(n: &NurbsCurve, t: f64) -> f64 {
+        let (lo, hi) = n.domain();
+        if (t < lo || t > hi) && n.is_closed() {
+            lo + (t - lo).rem_euclid(hi - lo)
+        } else {
+            t
         }
     }
 
@@ -888,6 +890,38 @@ mod tests {
                 let (pu, pv) = s.parameters(p, None).unwrap();
                 let back = s.value(pu, pv);
                 assert!(dist(back, p) < 1e-9, "{s:?} at ({u}, {v})");
+            }
+        }
+    }
+
+    #[test]
+    fn closed_spline_tangents_follow_wrapped_points() {
+        let curve = Curve::Nurbs(
+            NurbsCurve::new(
+                1,
+                vec![
+                    [0.0, 0.0, 0.0],
+                    [2.0, 0.0, 0.0],
+                    [0.0, 3.0, 0.0],
+                    [0.0, 0.0, 0.0],
+                ],
+                vec![1.0; 4],
+                vec![0.0, 0.0, 1.0, 2.0, 3.0, 3.0],
+            )
+            .unwrap(),
+        );
+        let period = curve.period().unwrap();
+        for t in [0.25, 1.25, 2.25] {
+            for turn in [-3.0, -1.0, 0.0, 1.0, 4.0] {
+                let shifted = t + turn * period;
+                assert!(dist(curve.value(shifted), curve.value(t)) < 1e-14);
+                assert!(dist(curve.derivative(shifted), curve.derivative(t)) < 1e-14);
+                let h = 1e-5;
+                let finite_difference = scale(
+                    sub(curve.value(shifted + h), curve.value(shifted - h)),
+                    0.5 / h,
+                );
+                assert!(dist(curve.derivative(shifted), finite_difference) < 1e-8);
             }
         }
     }
