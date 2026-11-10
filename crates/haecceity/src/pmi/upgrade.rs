@@ -31,8 +31,8 @@ pub(super) fn rewrite_entities(
             .iter()
             .find(|(from, _)| name.eq_ignore_ascii_case(from))
         {
-            // R4 may already include this keyword change in its one replacement.
-            if repaired.binary_search_by_key(&id, |(id, _)| *id).is_err() {
+            // R4 already includes this keyword change in its one replacement.
+            if !repaired.contains(&(id, UpgradeRepairKind::R4UnsetRequiredString)) {
                 edit.rename_entity(id, to);
             }
             rewrites.push(EditionRewrite { id, from, to });

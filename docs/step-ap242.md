@@ -428,8 +428,12 @@ These override anything below and any stream brief that says otherwise.
    OPTIONAL `$` remains untouched. Every repair is reported
    with its id, kind and exact original and new record text; never repaired silently. Every
    instance must still pass the target table and no new `express_rules` violation may appear.
-   Every other byte stays as it was, apart from `FILE_SCHEMA` and added instances; a repaired
-   file's original record bytes are recoverable only through the report's original records.
+   Every other record stays as it was, apart from `FILE_SCHEMA` and added instances. A
+   repaired record is re-encoded whole: its values are unchanged, but its spacing, line
+   breaks, string escapes and integer signs take the writer's canonical form. A record
+   with two repairs (R2 or R3 with R4) is reported once per repair, each entry with the
+   same final text. A repaired file's original record bytes are recoverable only through
+   the report's original records.
    An AP242 file stays in its edition and receives no upgrade repairs unless the PMI
    being written causes an actual upgrade to a newer AP242 edition. R4 follows R3's
    precedent (below): it is available on that upgrade, never as cleanup during an ordinary

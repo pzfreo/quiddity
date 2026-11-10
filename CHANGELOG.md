@@ -16,6 +16,10 @@ in [docs/alpha1.md](docs/alpha1.md).
 - PMI edition upgrades report R4 repairs for unset required `label`/`text` attributes,
   writing empty strings without inventing identifiers or other values. Ordinary AP242
   writes preserve those defects; Add refuses source-record repairs with their kinds and ids.
+  **Rust API:** `UpgradeRepairKind` gains `R4UnsetRequiredString`; the enum is not
+  `#[non_exhaustive]`, so exhaustive matches need an arm. **CLI and Python:** a write
+  report's `instances.replaced` counts distinct records, so a record with two repairs
+  counts once.
 
 - Mass quadrature judges tangent rank independently of the UV parameter scales. The narrow
   spline sheet `captured/.../2fe0e2383b80a0b8` now has its true area (10 mm², was 0.011),
