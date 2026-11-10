@@ -38,8 +38,9 @@ source as `usnistgov/SFA` commit `0e8d700ebb73db281c33441d534fe85806d5b6e7`
 (2026-02-18), `NIST-PMI-STEP-Files.zip`. It is a U.S. federal government work, not
 subject to copyright in the United States. Its uncompressed SHA-256 is
 `2d05bd399463a9ced7b84a479872a759f170fe92f7a62f8194e83df77f86f117`;
-compression uses `gzip.compress(..., compresslevel=9, mtime=0)`. The existing fixture is also used by the mass regressions; its bytes are unchanged,
-and no new expected-PMI capture accompanies those tests.
+compression uses `gzip.compress(..., compresslevel=9, mtime=0)`. The existing fixture
+is also used by the mass regressions; its bytes are unchanged, and no new expected-PMI
+capture accompanies those tests.
 
 ### Expected PMI (`nist/<model>.expected.json`)
 
