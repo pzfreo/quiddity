@@ -267,13 +267,12 @@ fn repair_required_strings(record: &RawEntity, ap214: bool) -> Option<RawEntity>
             };
             let slots = express::TARGET.explicit_attributes(target_name)?;
             for (i, (value, slot)) in attributes.iter().zip(&slots).enumerate() {
-                if matches!(value, A::Unset) && empty_string_slot(slot) {
-                    let RawEntity::Simple {
+                if matches!(value, A::Unset)
+                    && empty_string_slot(slot)
+                    && let RawEntity::Simple {
                         name, attributes, ..
                     } = replacement.get_or_insert_with(|| record.clone())
-                    else {
-                        unreachable!()
-                    };
+                {
                     *name = target_name.to_string();
                     attributes[i] = A::String(String::new());
                 }
@@ -314,12 +313,10 @@ fn repair_required_strings(record: &RawEntity, ap214: bool) -> Option<RawEntity>
                             }
                         }
                     }
-                    if empty_string_slot(&slot) {
-                        let RawEntity::Complex { parts, .. } =
+                    if empty_string_slot(&slot)
+                        && let RawEntity::Complex { parts, .. } =
                             replacement.get_or_insert_with(|| record.clone())
-                        else {
-                            unreachable!()
-                        };
+                    {
                         parts[p].attributes[i] = A::String(String::new());
                     }
                 }
