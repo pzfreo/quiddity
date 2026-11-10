@@ -1277,8 +1277,8 @@ exterior plane on one valid solid. This ownership also keeps conical edge breaks
 out of drilled-wall predictions in the independent label ratchet. No class mapping
 or score floor is changed.
 
-New mouth chamfers append after existing plain/turned chamfers, preserving their
-ranks. Their `axis` is an explicit file-coordinate vector; scalar legs and acute
+New mouth chamfers append after both existing plain/turned and oriented chamfers
+in the merged publication, preserving both pools' ranks. Their `axis` is an explicit file-coordinate vector; scalar legs and acute
 `angle` follow the existing chamfer convention. The hole's nested `angle` instead
 names the angle from its top face, so an unequal bevel has an unambiguous machining
 note. Rust `Chamfer.axis` now uses `ChamferAxis` (`Principal(char)` or
