@@ -948,3 +948,67 @@ fn edge_count_excludes_unused_edges_in_the_same_geometry_component() {
     );
     check_bytes("unused edge in owned geometry", text.as_bytes());
 }
+
+#[test]
+fn product_lookup_survives_serde_and_explicit_membership_changes() {
+    let mut m = manifest::scan(Cursor::new(torus()), &ScanOptions::default()).unwrap();
+    let original = m.products[0].clone();
+    m.products = (0..4000)
+        .map(|i| {
+            let mut p = original.clone();
+            p.id = format!("p{i}");
+            p.product_definition = i;
+            p
+        })
+        .collect();
+    m.refusals.push(manifest::Refusal {
+        products: vec!["p3999".into()],
+        entity: 23,
+        reason: "indexed refusal".into(),
+    });
+    m.reindex_products().unwrap();
+    let value = serde_json::to_value(&m).unwrap();
+    assert!(value.get("product_index").is_none());
+    let mut round: Manifest = serde_json::from_value(value).unwrap();
+    assert_eq!(round, m);
+    let file = temp_source(&torus());
+    assert!(
+        round
+            .read_product(&file, "p3999")
+            .unwrap_err()
+            .to_string()
+            .contains("indexed refusal")
+    );
+    for i in 0..4000 {
+        assert_eq!(
+            round.product(&format!("p{i}")).unwrap().product_definition,
+            i
+        );
+    }
+    assert!(
+        round
+            .product("missing")
+            .unwrap_err()
+            .to_string()
+            .contains("missing")
+    );
+    round.products.swap(0, 3999);
+    assert!(
+        round
+            .product("p0")
+            .unwrap_err()
+            .to_string()
+            .contains("reindex_products")
+    );
+    round.reindex_products().unwrap();
+    assert_eq!(round.product("p0").unwrap().product_definition, 0);
+    round.products[0].id = round.products[1].id.clone();
+    assert!(
+        round
+            .reindex_products()
+            .unwrap_err()
+            .to_string()
+            .contains("duplicate")
+    );
+    assert!(serde_json::from_value::<Manifest>(serde_json::to_value(&round).unwrap()).is_err());
+}

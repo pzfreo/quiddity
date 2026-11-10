@@ -688,7 +688,8 @@ pub fn scan<R: Read + Seek>(mut reader: R, options: &ScanOptions) -> Result<Mani
         renumber: old_to_new,
     } = place_products(&model, &placement_graph, &report, products, options)?;
     let refusals = refusals(&mut index, &plans, &shared_sets, &shared_edges, &old_to_new)?;
-    Ok(Manifest {
+    let mut manifest = Manifest {
+        product_index: HashMap::new(),
         format: FORMAT.into(),
         source: Source {
             size,
@@ -704,7 +705,9 @@ pub fn scan<R: Read + Seek>(mut reader: R, options: &ScanOptions) -> Result<Mani
         instances,
         unowned,
         refusals,
-    })
+    };
+    manifest.reindex_products()?;
+    Ok(manifest)
 }
 fn push_range(
     ranges: &mut Vec<ByteRange>,

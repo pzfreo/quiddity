@@ -116,6 +116,8 @@ pub struct Refusal {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(try_from = "WireManifest")]
 pub struct Manifest {
+    #[serde(skip)]
+    product_index: HashMap<String, (usize, Option<usize>)>,
     pub format: String,
     pub source: Source,
     pub reader: ReaderVersion,
@@ -141,7 +143,8 @@ struct WireManifest {
 impl TryFrom<WireManifest> for Manifest {
     type Error = String;
     fn try_from(w: WireManifest) -> Result<Self, String> {
-        let m = Self {
+        let mut m = Self {
+            product_index: HashMap::new(),
             format: w.format,
             source: w.source,
             reader: w.reader,
@@ -153,6 +156,7 @@ impl TryFrom<WireManifest> for Manifest {
             refusals: w.refusals,
         };
         m.check_version().map_err(|e| e.to_string())?;
+        m.reindex_products().map_err(|e| e.to_string())?;
         Ok(m)
     }
 }
@@ -377,6 +381,37 @@ fn key_id(ids: &FileIds<'_>, key: m::EntityKey) -> Result<u64, StepError> {
         .ok_or_else(dangling)
 }
 impl Manifest {
+    /// Rebuild lookups after changing product ids/order/membership or refusal membership/order.
+    /// Scanning and deserialization build it automatically; editing hashes needs no rebuild.
+    pub fn reindex_products(&mut self) -> Result<(), StepError> {
+        let mut index = HashMap::with_capacity(self.products.len());
+        for (i, product) in self.products.iter().enumerate() {
+            if index.insert(product.id.clone(), (i, None)).is_some() {
+                return Err(failure(format!("duplicate product id {}", product.id)));
+            }
+        }
+        for (i, refusal) in self.refusals.iter().enumerate() {
+            for id in &refusal.products {
+                if let Some((_, first)) = index.get_mut(id) {
+                    first.get_or_insert(i);
+                }
+            }
+        }
+        self.product_index = index;
+        Ok(())
+    }
+
+    /// Constant-time lookup in the index built by scan/deserialization.
+    pub fn product(&self, id: &str) -> Result<&Product, StepError> {
+        let (i, _) = self
+            .product_index
+            .get(id)
+            .ok_or_else(|| failure(format!("unknown product {id}")))?;
+        self.products.get(*i).filter(|p| p.id == id).ok_or_else(|| {
+            failure("product ids/order changed; call reindex_products before reading")
+        })
+    }
+
     fn check_version(&self) -> Result<(), StepError> {
         if self.format != FORMAT {
             return Err(failure(format!(
@@ -398,11 +433,7 @@ impl Manifest {
     /// of `read_part_definitions` and `read_part`; manifest instance limits do not change them.
     pub fn read_product(&self, file: &File, id: &str) -> Result<Part, StepError> {
         self.check_version()?;
-        let p = self
-            .products
-            .iter()
-            .find(|p| p.id == id)
-            .ok_or_else(|| failure(format!("unknown product {id}")))?;
+        let p = self.product(id)?;
         let refuse = |why: String| {
             failure(format!(
                 "product {} (#{} {}): {why}",
@@ -412,7 +443,10 @@ impl Manifest {
         if self.source.compressed {
             return Err(refuse("compressed source cannot be read by ranges; supply an uncompressed source and rescan".into()));
         }
-        if let Some(r) = self.refusals.iter().find(|r| r.products.contains(&p.id)) {
+        if let Some(i) = self.product_index.get(id).and_then(|(_, refusal)| *refusal) {
+            let r = self.refusals.get(i).ok_or_else(|| {
+                refuse("refusals changed; call reindex_products before reading".into())
+            })?;
             return Err(refuse(r.reason.clone()));
         }
         if file.metadata().map_err(io)?.len() != self.source.size {
