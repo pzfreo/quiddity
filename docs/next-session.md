@@ -197,7 +197,7 @@ updates its pin; a future incompatible schema revision should be coordinated the
 
 Refusal publication exposed three verdict-count changes: 10103 and 10119 now include their
 caller-only source refusal for the already documented placement-dependent proof (+1 each).
-On holdout 163, the same refused constituent region [10, 11, 12, 13, 32] has caller defining
+On MFCAD++ model 163, the same refused constituent region [10, 11, 12, 13, 32] has caller defining
 faces [11, 12] and framed defining faces [10, 11, 12, 13] (+2 unmatched records). A direct
 read-only Python run at 6d544e0 reproduces both evidence associations and the same refusal
 reason. Overturnable judgement call: retain its equivalent verdict because the refused region

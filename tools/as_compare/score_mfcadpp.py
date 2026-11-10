@@ -19,7 +19,7 @@ comparison = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(comparison)
 
 
-def labels(raw, row):
+def face_names(raw):
     # Only names attached to source face entities are eligible; whitespace/newlines are legal.
     entries = re.findall(rb"#(\d+)\s*=\s*(?:ADVANCED_FACE|FACE_SURFACE)\s*\(\s*'((?:[^']|'')*)'", raw)
     names = {}
@@ -28,6 +28,11 @@ def labels(raw, row):
         if entity in names:
             raise ValueError(f'duplicate face entity #{entity}')
         names[entity] = name
+    return names
+
+
+def labels(raw, row):
+    names = face_names(raw)
     sources = row.get('face_sources')
     if (not isinstance(sources, list) or len(sources) != row['faces']
             or any(type(s) is not int for s in sources) or len(set(sources)) != len(sources)):
@@ -44,12 +49,28 @@ def labels(raw, row):
 def score(steps, sweep, out, revision):
     rows = comparison.load(str(sweep))
     gaps = defaultdict(Counter)
+    unavailable_labels = []
 
     def truth(model_id, digest):
         row = rows[model_id]
-        raw = Path(steps, f'{model_id}.step').read_bytes()
+        try:
+            raw = Path(steps, f'{model_id}.step').read_bytes()
+        except OSError:
+            unavailable_labels.append(model_id)
+            digest.update(f'{model_id}:unreadable\n'.encode())
+            return None, None
         digest.update(f'{model_id}:{hashlib.sha256(raw).hexdigest()}\n'.encode())
-        seg = labels(raw, row)
+        if row.get('status') == 'ok':
+            seg = labels(raw, row)
+        else:
+            # Failed imports have no caller-face binding and claim nothing. Only the
+            # label multiset matters here; never assign file order to caller faces.
+            names = face_names(raw)
+            if not names or any(not n.isdigit() or not 0 <= int(n) <= comparison.STOCK
+                                for n in names.values()):
+                unavailable_labels.append(model_id)
+                return None, None
+            seg = [int(n) for n in names.values()]
         claim = comparison.qr_claim(row, None) if row.get('status') == 'ok' else set()
         bodies = {family: comparison.qr_claim(row, {family})
                   for family in comparison.BODY} if row.get('status') == 'ok' else {}
@@ -70,6 +91,10 @@ def score(steps, sweep, out, revision):
 
     report = comparison.score(str(steps), str(sweep), '-', str(out), revision,
                               truth_loader=truth)
+    report['provenance']['metric_scorer_sha256'] = report['provenance']['scorer_sha256']
+    report['provenance']['scorer_sha256'] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    report['provenance']['scorer'] = 'tools/as_compare/score_mfcadpp.py using tools/as_compare/score.py'
+    report['provenance']['unavailable_label_models'] = sorted(unavailable_labels)
     report['provenance']['dataset'] = 'MFCAD++; labels through quiddity face_sources entity IDs'
     report['provenance']['instances'] = 'Unavailable: STEP names contain classes, not instance IDs; stock is one body.'
     report['gap_ranking'] = [

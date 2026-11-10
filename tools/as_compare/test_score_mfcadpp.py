@@ -1,4 +1,5 @@
 """Synthetic STEP-name/source binding and shared metric regression, no dataset files."""
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -44,6 +45,32 @@ class ScoringMfcadpp(unittest.TestCase):
         self.assertEqual(c['Stock (convex hull)']['qr']['recognition_pct'], 100)
         gap = report['gap_ranking'][0]
         self.assertEqual((gap['class'], gap['missed'], gap['body_only'], gap['body:plates']), (4, 1, 1, 1))
+
+    def test_unreadable_import_keeps_label_denominators_without_a_face_binding(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'synthetic.step').write_bytes(STEP)
+            sweep = root / 'qr.jsonl'
+            sweep.write_text(json.dumps({'id': 'synthetic', 'status': 'unreadable'}) + '\n')
+            report = mfc.score(root, sweep, root / 'out.json', 'synthetic')
+        self.assertEqual(report['health']['qr'], {'unreadable': 1})
+        self.assertEqual(report['comparisons']['Any feature']['qr']['labelled_faces'], 3)
+        self.assertEqual(report['comparisons']['Any feature']['qr']['true_faces'], 0)
+        self.assertEqual(report['provenance']['scorer_sha256'],
+                         hashlib.sha256(Path(mfc.__file__).read_bytes()).hexdigest())
+        self.assertEqual(report['provenance']['metric_scorer_sha256'],
+                         hashlib.sha256(Path(mfc.comparison.__file__).read_bytes()).hexdigest())
+
+    def test_unreadable_truth_is_reported_and_has_no_invented_denominator(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sweep = root / 'qr.jsonl'
+            sweep.write_text(json.dumps(ROW) + '\n')
+            report = mfc.score(root, sweep, root / 'out.json', 'synthetic')
+        self.assertEqual(report['models'], 1)
+        self.assertEqual(report['health']['qr'], {'unreadable': 1})
+        self.assertEqual(report['comparisons']['Any feature']['qr']['labelled_faces'], 0)
+        self.assertEqual(report['provenance']['unavailable_label_models'], ['synthetic'])
 
     def test_invalid_binding_refused(self):
         for sources in ([51, 7, 90], [51, 7, 90, 90], [51, 7, None, 8], [51, 7, 666, 8]):

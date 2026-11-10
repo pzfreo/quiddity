@@ -116,11 +116,15 @@ def score(labels_dir, qr_path, as_path, out_path, quiddity_revision,
     cpu = {t: {"read": [], "recognise": []} for t in TOOLS}
     for i in ids:
         seg, insts = truth(i)
+        truth_available = seg is not None
+        seg = seg if truth_available else []
         recs = {"qr": qr.get(i, {}), "as": asr.get(i, {})}
         usable = {}
         for t in TOOLS:
             r = recs[t]
             st = r.get("status", "missing")
+            if not truth_available:
+                st = "unreadable"
             if st == "ok" and r.get("faces") != len(seg):
                 st = "face_count_mismatch"
             if st == "ok" and t == "as" and any(not isinstance(r.get(k), list) for k in ("holes", "blends", "cavities", "hull", "shafts")):
