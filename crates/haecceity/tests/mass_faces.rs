@@ -125,7 +125,10 @@ fn mass_cache_is_independent_of_moment_query_order() {
         for first in 0..3 {
             let part = read_step_file(&path).unwrap();
             if first == 0 {
-                let _ = part.volume_centroid();
+                let cold = part.volume_centroid();
+                if !part.solids.is_empty() {
+                    assert_eq!(part.volume_centroid(), cold, "{name}: cache warm-up");
+                }
             } else {
                 let faces: Vec<usize> = if name.contains("stc_10") {
                     vec![60, 61, 62, 63, 66, 69, 75, 93, 96, 99, 100]
