@@ -1195,3 +1195,23 @@ Feature matching retains its existing size-spec contract: adding a floor fillet
 changes an existing pocket from an orphaned feature to a newly recognised feature
 across revisions, just as a `None`→`Some` corner-radius proof does. This change
 does not introduce a correspondence heuristic or alter other feature ranks.
+
+
+## Circular blind steps with conical entries
+
+A native flared quarter-cone can establish the opening of a circular blind step.
+The original surfaces must prove a coaxial shared rim, a complete quarter-cylinder,
+two perpendicular corner planes through its axis, and one perpendicular exterior
+mouth plane, with convex entry joins on a common valid solid. Both conical rims
+and both generators must be present. An interrupted cone or an entry tapering into
+material does not establish an opening. The complete floor sweep must contain zero
+material through the straight wall and the entry, up to the exterior mouth.
+
+The `circular_blind_steps` record measures the **straight cylindrical portion**;
+its length ends at the shared circular rim. The entry cone is consulted evidence,
+rather than a defining face of that straight step. Its native shared radius is used
+before presentation rounding, so a rounded cylinder-inventory diameter cannot
+change seam incidence or round the newly admitted radius twice. No record fields
+or schema versions change. Analytic flared/inward-taper controls, independent volume
+and placement checks, and a fractional-radius regression live in
+`src/features/circular_blind_steps.rs`.
