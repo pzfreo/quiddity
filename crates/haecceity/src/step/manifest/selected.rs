@@ -4,9 +4,6 @@ use super::*;
 use serde::de::{self, DeserializeSeed, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use std::fmt;
 
-fn valid(id: &str) -> bool {
-    id.starts_with('p') && id.len() > 1 && id[1..].bytes().all(|b| b.is_ascii_digit())
-}
 struct ProductSeed<'a> {
     wanted: &'a HashSet<&'a str>,
     known: &'a mut HashSet<String>,
@@ -33,7 +30,7 @@ impl<'de> Visitor<'de> for ProductSeed<'_> {
             }
             if key == "id" {
                 let value: String = map.next_value()?;
-                if !valid(&value) || !self.known.insert(value.clone()) {
+                if !valid_product_id(&value) || !self.known.insert(value.clone()) {
                     return Err(de::Error::custom(format!(
                         "invalid or duplicate manifest product id {value}"
                     )));
@@ -106,7 +103,7 @@ impl<'de, F: FnMut(Instance) -> Result<(), StepError>> Visitor<'de> for Instance
     }
     fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<(), A::Error> {
         while let Some(i) = seq.next_element::<Instance>()? {
-            if !valid(&i.product) {
+            if !valid_product_id(&i.product) {
                 return Err(de::Error::custom(format!(
                     "invalid instance product id {}",
                     i.product
@@ -182,22 +179,15 @@ impl<'de, F: FnMut(Instance) -> Result<(), StepError>> Visitor<'de> for Selected
                 unknown.join(", ")
             )));
         }
-        if let Some(id) = references.iter().find(|id| !known.contains(*id)) {
-            return Err(de::Error::custom(format!(
-                "instance references unknown product {id}"
-            )));
-        }
         let refusals = refusals.ok_or_else(|| de::Error::missing_field("refusals"))?;
-        for r in &refusals {
-            for id in &r.products {
-                if !valid(id) || !known.contains(id) {
-                    return Err(de::Error::custom(format!(
-                        "refusal references unknown product {id}"
-                    )));
-                }
-            }
-        }
-        Manifest::try_from(WireManifest {
+        check_references(references.iter().map(String::as_str), &refusals, |id| {
+            known.contains(id)
+        })
+        .map_err(de::Error::custom)?;
+        // References were checked against every streamed product, including those
+        // omitted from this projection, so do not validate them against the subset.
+        let mut m = Manifest {
+            product_index: HashMap::new(),
             format: format.ok_or_else(|| de::Error::missing_field("format"))?,
             source: source.ok_or_else(|| de::Error::missing_field("source"))?,
             reader: reader.ok_or_else(|| de::Error::missing_field("reader"))?,
@@ -207,8 +197,10 @@ impl<'de, F: FnMut(Instance) -> Result<(), StepError>> Visitor<'de> for Selected
             assemblies: Vec::new(),
             instances: Vec::new(),
             unowned: Unowned::default(),
-        })
-        .map_err(de::Error::custom)
+        };
+        m.check_version().map_err(de::Error::custom)?;
+        m.reindex_products().map_err(de::Error::custom)?;
+        Ok(m)
     }
 }
 impl Manifest {

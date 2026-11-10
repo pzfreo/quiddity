@@ -158,8 +158,38 @@ impl TryFrom<WireManifest> for Manifest {
         };
         m.check_version().map_err(|e| e.to_string())?;
         m.reindex_products().map_err(|e| e.to_string())?;
+        check_references(
+            m.instances.iter().map(|i| i.product.as_str()),
+            &m.refusals,
+            |id| m.product_index.contains_key(id),
+        )?;
         Ok(m)
     }
+}
+fn valid_product_id(id: &str) -> bool {
+    id.starts_with('p') && id.len() > 1 && id[1..].bytes().all(|b| b.is_ascii_digit())
+}
+fn check_references<'a>(
+    instances: impl IntoIterator<Item = &'a str>,
+    refusals: &[Refusal],
+    known: impl Fn(&str) -> bool,
+) -> Result<(), String> {
+    for id in instances {
+        if !valid_product_id(id) {
+            return Err(format!("invalid instance product id {id}"));
+        }
+        if !known(id) {
+            return Err(format!("instance references unknown product {id}"));
+        }
+    }
+    for r in refusals {
+        for id in &r.products {
+            if !valid_product_id(id) || !known(id) {
+                return Err(format!("refusal references unknown product {id}"));
+            }
+        }
+    }
+    Ok(())
 }
 fn failure(why: impl ToString) -> StepError {
     StepError::Unsupported(why.to_string())

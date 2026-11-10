@@ -111,3 +111,45 @@ fn refuses_unknown_ids_versions_trailing_data_and_callback_errors() {
             .contains("unknown product p999")
     );
 }
+
+#[test]
+fn full_and_selected_loads_validate_instance_and_refusal_references() {
+    let mut m = manifest();
+    let ids = vec![m.products[0].id.clone()];
+    m.refusals.push(manifest::Refusal {
+        products: m.products.iter().map(|p| p.id.clone()).collect(),
+        entity: m.products[1].shape,
+        reason: "valid references, including an unselected product".into(),
+    });
+    m.reindex_products().unwrap();
+    let bytes = serde_json::to_vec(&m).unwrap();
+    assert_eq!(serde_json::from_slice::<Manifest>(&bytes).unwrap(), m);
+    assert_eq!(load(&bytes, &ids).unwrap().refusals, m.refusals);
+
+    for id in ["p999", "../invalid"] {
+        for instance in [true, false] {
+            let mut corrupt = serde_json::to_value(&m).unwrap();
+            let expected = if instance {
+                corrupt["instances"][0]["product"] = id.into();
+                if id == "p999" {
+                    format!("instance references unknown product {id}")
+                } else {
+                    format!("invalid instance product id {id}")
+                }
+            } else {
+                corrupt["refusals"][0]["products"][0] = id.into();
+                format!("refusal references unknown product {id}")
+            };
+            let bytes = serde_json::to_vec(&corrupt).unwrap();
+            let full = serde_json::from_slice::<Manifest>(&bytes).unwrap_err();
+            assert_eq!(full.classify(), serde_json::error::Category::Data);
+            assert!(full.to_string().contains(&expected), "{full}");
+            let selected = load(&bytes, &ids).unwrap_err();
+            assert!(matches!(
+                selected,
+                haecceity::step::StepError::Unsupported(_)
+            ));
+            assert!(selected.to_string().contains(&expected), "{selected}");
+        }
+    }
+}
