@@ -320,3 +320,33 @@ fn scale_every_assembly_fixture() {
         }
     }
 }
+
+#[test]
+fn contiguous_uses_source_definition_order() {
+    let bytes = source();
+    let original = manifest::scan(Cursor::new(&bytes), &ScanOptions::default()).unwrap();
+    let doc = p21::Document::parse(bytes.clone()).unwrap();
+    let first = doc
+        .ids()
+        .filter_map(|id| doc.span(id).map(|s| s.start))
+        .min()
+        .unwrap();
+    let pd = original.products[1].product_definition;
+    let span = doc.span(pd).unwrap();
+    let mut moved = bytes[..first].to_vec();
+    moved.extend_from_slice(&bytes[span.clone()]);
+    moved.push(b'\n');
+    moved.extend_from_slice(&bytes[first..span.start]);
+    moved.extend_from_slice(&bytes[span.end..]);
+    let mut out = Vec::new();
+    engine::rewrite(&moved, Options::default(), &mut out).unwrap();
+    assert_eq!(statements(&out), statements(&bytes));
+    let doc = p21::Document::parse(out).unwrap();
+    assert!(
+        doc.span(pd).unwrap().start
+            < doc
+                .span(original.products[0].product_definition)
+                .unwrap()
+                .start
+    );
+}

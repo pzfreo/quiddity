@@ -186,7 +186,7 @@ cargo run --release -j 6 --example assembly_layout -- assembly.step \
   -o /tmp/scale.step
 ```
 
-`contiguous` groups products in manifest order, with shared records in a prefix.
+`contiguous` groups products in source definition order, with shared records in a prefix.
 `runs` cuts each product into `--runs` runs and interleaves them with a seeded product schedule. `shuffled`
 permutes all entity statements. Scale mode copies products with disjoint id
 blocks, suffixes `PRODUCT.id`, and places occurrences under a synthetic root on

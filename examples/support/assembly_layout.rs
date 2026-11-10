@@ -9,7 +9,7 @@ use haecceity::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     error::Error,
     io::{Cursor, Read, Seek, SeekFrom, Write},
 };
@@ -66,17 +66,27 @@ pub fn rewrite(bytes: &[u8], options: Options, mut out: impl Write) -> Result<()
     }
     let m = manifest::scan(Cursor::new(bytes), &ScanOptions::default())?;
     let mut rows = Vec::new();
+    let mut definitions: HashMap<_, _> = m
+        .products
+        .iter()
+        .map(|p| (p.product_definition, 0))
+        .collect();
     streaming::scan(bytes, 8192, |e| {
         if let Event::Instance(i, _) = e {
+            if let Some(at) = definitions.get_mut(&i.id) {
+                *at = i.offset;
+            }
             rows.push((i.offset as usize, i.length as usize));
         }
         Ok(())
     })?;
     let first = rows.first().ok_or("source has no entities")?.0;
     let end = rows.last().map(|(a, b)| a + b).unwrap();
-    let mut buckets = vec![Vec::new(); m.products.len() + 1];
+    let mut products: Vec<_> = m.products.iter().collect();
+    products.sort_by_key(|p| definitions[&p.product_definition]);
+    let mut buckets = vec![Vec::new(); products.len() + 1];
     for (i, &(at, _)) in rows.iter().enumerate() {
-        let mut owners = m.products.iter().enumerate().filter(|(_, p)| {
+        let mut owners = products.iter().enumerate().filter(|(_, p)| {
             p.ranges
                 .iter()
                 .any(|r| r[0] <= at as u64 && (at as u64) < r[1])
