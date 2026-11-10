@@ -36,6 +36,22 @@ fn statements(bytes: &[u8]) -> BTreeMap<u64, Vec<u8>> {
 fn layouts_preserve_every_statement_and_seed() {
     let bytes = source();
     let expected = statements(&bytes);
+    let original = manifest::scan(Cursor::new(&bytes), &ScanOptions::default()).unwrap();
+    let mut exclusive = BTreeMap::new();
+    streaming::scan(bytes.as_slice(), 8192, |e| {
+        if let Event::Instance(i, _) = e {
+            let owners: Vec<_> = original
+                .products
+                .iter()
+                .enumerate()
+                .filter(|(_, p)| p.ranges.iter().any(|r| r[0] <= i.offset && i.offset < r[1]))
+                .map(|(i, _)| i + 1)
+                .collect();
+            exclusive.insert(i.id, if owners.len() == 1 { owners[0] } else { 0 });
+        }
+        Ok(())
+    })
+    .unwrap();
     for layout in [Layout::Contiguous, Layout::Runs, Layout::Shuffled] {
         let options = Options {
             layout,
@@ -45,6 +61,26 @@ fn layouts_preserve_every_statement_and_seed() {
         let mut a = Vec::new();
         engine::rewrite(&bytes, options, &mut a).unwrap();
         assert_eq!(statements(&a), expected);
+        let mut runs = vec![0; original.products.len() + 1];
+        let mut last = None;
+        streaming::scan(a.as_slice(), 8192, |e| {
+            if let Event::Instance(i, _) = e {
+                let owner = exclusive[&i.id];
+                if last != Some(owner) {
+                    runs[owner] += 1;
+                    last = Some(owner);
+                }
+            }
+            Ok(())
+        })
+        .unwrap();
+        for &count in &runs[1..] {
+            match layout {
+                Layout::Contiguous => assert_eq!(count, 1),
+                Layout::Runs => assert_eq!(count, options.runs),
+                Layout::Shuffled => assert!(count > options.runs),
+            }
+        }
         let mut b = Vec::new();
         engine::rewrite(&bytes, options, &mut b).unwrap();
         assert_eq!(a, b);
@@ -114,7 +150,14 @@ fn check_scale(layout: Layout, distinct: usize, instances: usize, target_bytes: 
     assert_eq!(m.products.len(), expected.products);
     assert_eq!(m.instances.len(), expected.instances);
     let whole = StepFile::read(&bytes).unwrap();
-    for e in expected.per_product {
+    let max_id = p21::Document::parse(source()).unwrap().max_id();
+    let original = manifest::scan(Cursor::new(source()), &ScanOptions::default()).unwrap();
+    for (copy, e) in expected.per_product.into_iter().enumerate() {
+        assert_eq!(
+            e.product_definition,
+            original.products[copy % original.products.len()].product_definition
+                + (copy as u64 + 1) * max_id
+        );
         let p = m
             .products
             .iter()
@@ -234,4 +277,46 @@ fn encoder_remaps_only_references_not_string_hashes() {
     .unwrap();
     let doc = p21::Document::parse(out).unwrap();
     assert!(doc.graph().entities.values().any(|e|matches!(e,p21::RawEntity::Simple {name,attributes,..} if name=="PRODUCT" && matches!(&attributes[0],p21::Attribute::String(s) if s.starts_with("plate #123 'name'-copy-")))));
+}
+
+#[test]
+fn scale_every_assembly_fixture() {
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ap242/assembly");
+    let mut paths: Vec<_> = std::fs::read_dir(dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.extension().is_some_and(|e| e == "step"))
+        .collect();
+    paths.sort();
+    assert_eq!(paths.len(), 4);
+    for path in paths {
+        let bytes = std::fs::read(&path).unwrap();
+        let mut out = Vec::new();
+        let mut sidecar = Vec::new();
+        engine::scale(
+            &bytes,
+            Options::default(),
+            Scale {
+                distinct: 5,
+                instances: 8,
+                target_bytes: 0,
+            },
+            &mut out,
+            &mut sidecar,
+        )
+        .unwrap();
+        let expected: Expected = serde_json::from_slice(&sidecar).unwrap();
+        let m = manifest::scan(Cursor::new(out), &ScanOptions::default()).unwrap();
+        assert_eq!(m.products.len(), expected.products, "{}", path.display());
+        assert_eq!(m.instances.len(), expected.instances, "{}", path.display());
+        for (p, e) in m.products.iter().zip(expected.per_product) {
+            assert_eq!(
+                (p.product_definition, p.faces.len(), p.entities),
+                (e.product_definition, e.faces, e.entities),
+                "{}",
+                path.display()
+            );
+        }
+    }
 }

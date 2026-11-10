@@ -76,15 +76,19 @@ pub fn rewrite(bytes: &[u8], options: Options, mut out: impl Write) -> Result<()
     let end = rows.last().map(|(a, b)| a + b).unwrap();
     let mut buckets = vec![Vec::new(); m.products.len() + 1];
     for (i, &(at, _)) in rows.iter().enumerate() {
-        let owner = m
-            .products
-            .iter()
-            .position(|p| {
-                p.ranges
-                    .iter()
-                    .any(|r| r[0] <= at as u64 && (at as u64) < r[1])
-            })
-            .map_or(0, |p| p + 1);
+        let mut owners = m.products.iter().enumerate().filter(|(_, p)| {
+            p.ranges
+                .iter()
+                .any(|r| r[0] <= at as u64 && (at as u64) < r[1])
+        });
+        let first = owners.next().map(|(i, _)| i + 1);
+        // Shared contexts/frames cannot appear in two groups without duplicating
+        // their ids. Keep them with the shared prefix instead of favouring a part.
+        let owner = if owners.next().is_some() {
+            0
+        } else {
+            first.unwrap_or(0)
+        };
         buckets[owner].push(i);
     }
     let mut order = Vec::with_capacity(rows.len());
