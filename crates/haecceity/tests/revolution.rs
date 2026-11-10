@@ -10,7 +10,8 @@
 //! integrator still projects the 3D boundary curves.
 //!
 //! The master shaft's wholly inward boundary is repaired and reported. The master
-//! bore is mixed: its four bore faces already face outward, so it is retained unchanged.
+//! bore is mixed: its four bore faces already face outward. Proved inward normals
+//! are now repaired individually when its unchanged wires form an outward boundary.
 //! OCCT heals both on import. Pub's hole file repeats entity #539 (and others), with
 //! different types. Its permissive OCCT import is not a valid reference solid.
 
@@ -195,20 +196,27 @@ fn truck_master_inward_shell_is_repaired_and_reported() {
 }
 
 #[test]
-fn truck_master_bore_has_mixed_senses_and_is_retained() {
+fn truck_master_bore_repairs_only_proved_inward_normals() {
     use haecceity::classify::{Classifier, State};
     let part = fixture("truck_master_shaft_hole.step.gz", &IDENTITY);
-    assert!(part.input_repairs().is_empty());
-    // Unchanged raw-input result. OCCT's +46135.47088917437 additionally heals the
-    // mixed face senses; globally reversing this shell would give +47426.50384208946.
-    close(
-        "truck_master_shaft_hole.step.gz unrepaired mixed volume",
-        part.solid_mass(0).unwrap().0,
-        -47426.50384208946,
+    // Every material side is now proved before correcting the twenty inward normals;
+    // the four outward bore normals and all boundary wires are preserved.
+    assert_eq!(
+        part.input_repairs(),
+        ["solid 0: mixed face senses repaired (20 faces)"]
     );
+    close(
+        "truck_master_shaft_hole.step.gz repaired mixed volume",
+        part.solid_mass(0).unwrap().0,
+        46140.658347174205,
+    );
+    assert!(part.solid_is_valid(0));
+    for (i, f) in part.faces.iter().enumerate() {
+        assert_eq!(f.reversed, [15, 16, 21, 22].contains(&i), "face {i}");
+    }
     let classifier = Classifier::for_solid(&part, 0);
     for (face, want) in [
-        (0, (State::In, State::Out)),
+        (0, (State::Out, State::In)),
         (15, (State::Out, State::In)),
         (16, (State::Out, State::In)),
         (21, (State::Out, State::In)),
@@ -537,5 +545,41 @@ fn fully_reversed_shell_restores_wires_validity_and_convexity() {
                 "{name} convexity at {f}/{n}"
             );
         }
+    }
+}
+
+/// The mixed-normal fallback never guesses a missing material side or reverses
+/// mixed/inward wires piecemeal. These inputs retain their original face senses.
+#[test]
+fn mixed_normal_repair_refuses_unproved_faces_and_inward_wires() {
+    let repaired = fixture("truck_master_shaft_hole.step.gz", &IDENTITY);
+    for variant in 0..3 {
+        let mut faces = repaired.faces.clone();
+        for (i, face) in faces.iter_mut().enumerate() {
+            if ![15, 16, 21, 22].contains(&i) {
+                face.reversed = !face.reversed;
+            }
+            if variant == 1 {
+                for lp in &mut face.loops {
+                    lp.edges.reverse();
+                    for (_, forward) in &mut lp.edges {
+                        *forward = !*forward;
+                    }
+                }
+            }
+        }
+        if variant == 0 {
+            faces[15].surface = Surface::Other { kind: "unproved" };
+        } else if variant == 2 {
+            faces[15].loops[0].edges.pop();
+        }
+        let senses: Vec<_> = faces.iter().map(|f| f.reversed).collect();
+        let part = haecceity::Part::new(faces, repaired.edges.clone(), repaired.solids.clone())
+            .repair_inverted_shells();
+        assert!(part.input_repairs().is_empty(), "variant {variant}");
+        assert_eq!(
+            part.faces.iter().map(|f| f.reversed).collect::<Vec<_>>(),
+            senses
+        );
     }
 }

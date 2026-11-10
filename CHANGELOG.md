@@ -14,7 +14,12 @@ in [docs/alpha1.md](docs/alpha1.md).
 ### Fixed
 
 - Mass quadrature tests tangent rank independently of UV parameter scales, restoring
-  the area of narrow-parameter spline sheets.
+  the area of narrow-parameter spline sheets. Negative mixed solid boundaries can
+  have their inward face normals repaired after every material side is proved,
+  provided the unchanged wires form a coherent outward boundary; this restores
+  the sign of `truck_master_shaft_hole`. Independent closed-boundary regressions
+  distinguish OCCT's open-wire mass errors on `varying_pitch_sweep` and approximate
+  shaft cap pcurves from errors in our quadrature. No comparison bands change.
 
 - Mass integrals wrap closed spline tangents with their points and use consistent
   containment and integration domains for seamless torus bands. This restores the

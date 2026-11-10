@@ -1,23 +1,30 @@
-//! Conservative, reported repair of an entirely inward closed solid boundary.
+//! Conservative, reported normal repair of negative closed solid boundaries.
 //!
 //! A negative flux is only a candidate: mixed face senses can also give a negative volume.
 //! Ray parity is independent of the senses and supplies the material side. Every face must
-//! have three regular interior witnesses whose normal points into material, at two offsets.
-//! Any outward witness, unresolved face, open topology or insufficient evidence leaves the
-//! entire solid unchanged. Coherently inward boundary wires reverse with the normals;
-//! outward wires survive a normals-only repair. This does not sew or heal mixed shells.
+//! have three regular interior witnesses proving its material side, at two offsets.
+//! Unresolved faces, open topology or insufficient evidence leave the entire solid
+//! unchanged. A global inversion requires every face inward; a negative mixed boundary
+//! may instead have only its inward normals
+//! corrected if every material side is proved and its unchanged wires then form a
+//! coherent outward boundary. Coherently inward boundary wires reverse with the normals;
+//! outward wires survive a normals-only repair. This does not sew gaps or repair mixed wires.
 
 use crate::brep::{Part, holds};
 use crate::classify::{Classifier, ON_TOLERANCE, State};
 use crate::geom;
 
 impl Part {
-    /// Repair a closed boundary only when its signed volume is negative and every face is
-    /// established to face into material. STEP import applies this before returning the part;
+    /// Repair a closed boundary only when its signed volume is negative and every face's
+    /// material side is established. STEP import applies this before returning the part;
     /// callers building in-memory geometry can apply it explicitly before any other queries.
+    /// A negative mixed boundary may instead have only its proved inward normals reversed,
+    /// provided its unchanged wires are coherent under the corrected senses and every face
+    /// of the candidate is proved outward. This conservative fallback is attempted only when
+    /// the cheap outward proof does not already refuse repair.
     /// Coherently inward boundary wires are reversed too, preserving face validity and
     /// convexity; already outward wires are retained. Each repaired solid is named in
-    /// [`Self::input_repairs`]. Mixed or unproved boundaries
+    /// [`Self::input_repairs`]. Mixed wires or unproved boundaries
     /// retain their original face senses, signed mass and classification behaviour, as does a
     /// solid whose faces have only seam or vertex loops (a full sphere or torus), whose wire
     /// sense cannot be established.
@@ -38,13 +45,45 @@ impl Part {
                 continue;
             }
             let classifier = Classifier::for_solid(&self, solid);
-            if self.solids[solid]
+            let sides: Vec<_> = self.solids[solid]
                 .faces
                 .iter()
-                .all(|&f| face_side(&self, &classifier, f) == Side::Inward)
-                && let Some(reverse_wires) = inward_wires(&self, solid)
-            {
-                self.record_inverted_shell_repair(solid, reverse_wires);
+                .map(|&f| face_side(&self, &classifier, f))
+                .collect();
+            if sides.iter().all(|&s| s == Side::Inward) {
+                if let Some(reverse_wires) = inward_wires(&self, solid) {
+                    self.record_inverted_shell_repair(solid, reverse_wires);
+                }
+            } else if !sides.contains(&Side::Unproved) {
+                // A mixed negative boundary is not a global inversion. Repair only its
+                // normals, and only if the existing wires already describe a coherent
+                // outward boundary under the independently proved material sides.
+                let flips: Vec<_> = self.solids[solid]
+                    .faces
+                    .iter()
+                    .zip(sides)
+                    .filter_map(|(&f, side)| (side == Side::Inward).then_some(f))
+                    .collect();
+                let mut faces = self.faces.clone();
+                for &f in &flips {
+                    faces[f].reversed = !faces[f].reversed;
+                }
+                let candidate = Part::new(faces, self.edges.clone(), self.solids.clone());
+                if candidate.solid_is_valid(solid)
+                    && inward_wires(&candidate, solid) == Some(true)
+                    && candidate
+                        .solid_mass(solid)
+                        .is_some_and(|(v, _)| v.is_finite() && v > 0.0)
+                {
+                    let classifier = Classifier::for_solid(&candidate, solid);
+                    if candidate.solids[solid]
+                        .faces
+                        .iter()
+                        .all(|&f| face_side(&candidate, &classifier, f) == Side::Outward)
+                    {
+                        self.record_mixed_normal_repair(solid, &flips);
+                    }
+                }
             }
         }
         self
@@ -59,8 +98,8 @@ const PROOF_FACES: usize = 8;
 /// little in front of it outside the material, a little behind it inside, at two offsets) by
 /// ray parity against boxes that certainly contain each face ([`certain_box`]). A face whose
 /// normal leaves the material at one regular point does so everywhere, so the boundary is not
-/// entirely inward and the repair cannot apply: it needs every face to be found inward by the
-/// same parity test, under the same assumption that parity places a point correctly. A sampled
+/// entirely inward. Conservatively retain such inputs without attempting the more expensive
+/// mixed-normal fallback. A sampled
 /// box prunes the full classifier's rays; the certain boxes here prune none of the crossings the
 /// kernel's own contact test admits, and need no face's interior sampled to be built. A face
 /// found inward, or no witness either way, leaves the solid to the full test.
@@ -68,8 +107,8 @@ const PROOF_FACES: usize = 8;
 /// The proof is that the full test would say the same, not only that the parity is right: this
 /// classifier differs from [`Classifier::for_solid`] only in its pruning boxes, and each certain
 /// box contains the face's sampled box ([`Part::face_bounds`]) padded by at least 0.1 mm, so a
-/// witness found outward here is found outward by the full classifier too, and the full test
-/// would have refused the repair. `outward_proved_implies_full_test_refuses` checks this.
+/// witness found outward here is found outward by the full classifier too, ruling out a
+/// global inversion. `outward_proved_excludes_global_inversion` checks this.
 fn outward_proved(part: &Part, solid: usize) -> bool {
     let faces = &part.solids[solid].faces;
     let mut boxes = vec![crate::geom::Bounds::empty(); part.faces.len()];
@@ -288,11 +327,11 @@ mod tests {
         Part::new(faces, part.edges.clone(), part.solids.clone())
     }
 
-    /// The cheap proof skips the full test only where the full test would refuse the repair,
+    /// The cheap proof excludes a global inversion,
     /// on the #53/#59 fixtures read outward, inverted (normals only, and with the wires) and
     /// mixed. It must also prove the outward readings and never the inverted ones.
     #[test]
-    fn outward_proved_implies_full_test_refuses() {
+    fn outward_proved_excludes_global_inversion() {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures");
         let (mut proved, mut checked) = (0, 0);
         for name in [
@@ -328,15 +367,14 @@ mod tests {
                         !(cheap && full),
                         "{name} {reading} solid {solid}: proved outward, but the full test finds every face inward"
                     );
-                    // truck_master_shaft_hole has mixed senses as read (#59), so none of its
-                    // readings is coherently outward or inverted.
-                    let coherent = name != "truck_master_shaft_hole.step.gz";
-                    if coherent && inverted {
+                    // The shaft's mixed input normals are now proved and repaired at
+                    // import, so these synthetic readings start from a coherent boundary.
+                    if inverted {
                         assert!(
                             !cheap,
                             "{name} {reading} solid {solid}: inverted shell proved outward"
                         );
-                    } else if coherent && reading == "outward" {
+                    } else if reading == "outward" {
                         assert!(cheap, "{name} solid {solid}: outward shell not proved");
                     }
                     proved += usize::from(cheap);
