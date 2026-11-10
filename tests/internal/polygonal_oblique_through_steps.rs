@@ -16,6 +16,10 @@ fn corner(skew_lip: bool, tapered: bool) -> Part {
 }
 
 fn corner_with_shift(skew_lip: bool, tapered: bool, seam_shift: f64) -> Part {
+    corner_with_treatment(skew_lip, tapered, seam_shift, false)
+}
+
+fn corner_with_treatment(skew_lip: bool, tapered: bool, seam_shift: f64, chamfer: bool) -> Part {
     let k = if skew_lip { 3.0 } else { 2.0 };
     let polygons = vec![
         vec![
@@ -83,8 +87,31 @@ fn corner_with_shift(skew_lip: bool, tapered: bool, seam_shift: f64) -> Part {
             [15., 50., 40.],
         ],
     ];
-    // The negative uses a sloped outside edge; maintain a closed planar solid.
     let mut polygons = polygons;
+    if chamfer {
+        // Remove a 1 x 1 right triangle at the convex exterior corner (x=0,z=20),
+        // extruded across y=0..10. Both the floor and its exterior support gain
+        // a real diagonal edge; the rectangular slanted wall is untouched.
+        polygons[2].splice(4..5, [[0., 0., 21.], [1., 0., 20.]]);
+        polygons[6].splice(3..4, [[1., 10., 20.], [0., 10., 21.]]);
+        for point in &mut polygons[8] {
+            if point[2] == 20. {
+                point[2] = 21.;
+            }
+        }
+        for point in &mut polygons[9] {
+            if point[0] == 0. {
+                point[0] = 1.;
+            }
+        }
+        polygons.push(vec![
+            [1., 0., 20.],
+            [0., 0., 21.],
+            [0., 10., 21.],
+            [1., 10., 20.],
+        ]);
+    }
+    // The negative uses a sloped outside edge; maintain a closed planar solid.
     let wall_end = 5.0 + seam_shift;
     let right = 20.0_f64.max(wall_end + 10.0);
     for ring in &mut polygons {
@@ -313,4 +340,34 @@ fn sixty_degree_seam_is_measured_against_the_x_through_axis() {
     assert!(payload.get("wall_outline").is_none());
     assert_eq!(payload["floor_outline"].as_array().unwrap().len(), 6);
     assert_eq!(payload["through_axis"], serde_json::json!([1., 0., 0.]));
+}
+
+#[test]
+fn a_proved_corner_chamfer_preserves_the_seven_corner_step_floor() {
+    let original = corner_with_treatment(false, false, 2., true);
+    assert!(original.solid_is_geometrically_valid(0));
+    assert!((original.solid_mass(0).unwrap().0 - 22795.).abs() < 1e-6);
+    for axes in [[0, 1, 2], [1, 2, 0], [2, 0, 1]] {
+        let mut matrix = [[0.; 4]; 3];
+        for i in 0..3 {
+            matrix[axes[i]][i] = 1.;
+            matrix[i][3] = [123.456, -78.9, 41.3][i];
+        }
+        let part = original.transformed(&matrix).unwrap();
+        let found =
+            polygonal_oblique_through_steps::discover_verified(&Context::new(&part)).unwrap();
+        assert_eq!(found.len(), 1);
+        let step = &found[0];
+        assert_eq!(step.defining, vec![6, 5]);
+        assert!(step.context.contains(&12));
+        assert_eq!(step.record.floor_outline.len(), 7);
+        assert_eq!(step.record.depth, 20.);
+        assert_eq!(step.record.length, 40.05);
+        let all = features::recognise(&part);
+        assert_eq!(
+            all.defining["polygonal_oblique_through_steps"],
+            vec![vec![6, 5]]
+        );
+        assert!(all.defining["chamfers"].iter().any(|faces| faces == &[12]));
+    }
 }
