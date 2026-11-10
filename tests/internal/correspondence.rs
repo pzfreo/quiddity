@@ -218,6 +218,14 @@ fn check_expectation(
 ) -> (bool, String) {
     let family = exp["family"].as_str().unwrap();
     let class = exp["class"].as_str().unwrap();
+    if class == "absent" {
+        let absent = !old
+            .features
+            .iter()
+            .chain(&new.features)
+            .any(|f| f.family == family);
+        return (absent, format!("{family} must be absent in both revisions"));
+    }
     let new_id = nearest(new, family, &exp["new_at"]);
     if class == "new" {
         let Some(id) = new_id else {

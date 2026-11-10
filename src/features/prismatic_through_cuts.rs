@@ -42,41 +42,39 @@ fn prism(f: &LocalFrame, s: &PlanarSection, lo: f64, hi: f64) -> Option<Part> {
     let b: Vec<_> = s.boundary().iter().map(|v| world(f, hi, v.point)).collect();
     ruled_prism(&a, &b)
 }
-fn projection_bounds(p: &Part, faces: &[usize], run: V3) -> (f64, f64) {
-    // Measure curved trim extrema in a run-aligned frame. Projecting a world AABB
-    // would make the published extent depend on the part's rigid placement.
-    let axis = (0..3).find(|&i| run[i].abs() == 1. && (0..3).all(|j| i == j || run[j] == 0.));
-    let rotated;
-    let (p, run) = if axis.is_none() {
-        let f = LocalFrame::canonical(run, [0.; 3]).expect("unit run");
-        let matrix = [
-            [f.u[0], f.u[1], f.u[2], 0.],
-            [f.v[0], f.v[1], f.v[2], 0.],
-            [run[0], run[1], run[2], 0.],
-        ];
-        rotated = p.transformed(&matrix).expect("rigid frame");
-        (&rotated, [0., 0., 1.])
-    } else {
-        (p, run)
-    };
+fn projection_bounds(p: &Part, faces: &[usize], run: V3) -> Option<(f64, f64)> {
     let mut lo = f64::INFINITY;
     let mut hi = f64::NEG_INFINITY;
     for &face in faces {
-        let b = p.face_bounds(face);
-        for bits in 0..8 {
-            let q = [0, 1, 2].map(|i| {
-                if bits & (1 << i) == 0 {
-                    b.min[i]
-                } else {
-                    b.max[i]
-                }
-            });
-            let t = geom::dot(q, run);
-            lo = lo.min(t);
-            hi = hi.max(t);
-        }
+        let (a, b) = p.face_projection_bounds(face, run)?;
+        lo = lo.min(a);
+        hi = hi.max(b);
     }
-    (lo, hi)
+    (lo <= hi).then_some((lo, hi))
+}
+
+/// A conservative envelope suffices for the void proof; only the published wall
+/// extent needs exact directional extrema. No whole-part transforms are needed.
+fn owner_envelope(p: &Part, owner: usize, run: V3) -> Option<(f64, f64)> {
+    let bounds = p.solid_bounds(owner);
+    let mut lo = f64::INFINITY;
+    let mut hi = f64::NEG_INFINITY;
+    for bits in 0..8 {
+        let point = [0, 1, 2].map(|i| {
+            if bits & (1 << i) == 0 {
+                bounds.min[i]
+            } else {
+                bounds.max[i]
+            }
+        });
+        let t = geom::dot(point, run);
+        if !t.is_finite() {
+            return None;
+        }
+        lo = lo.min(t);
+        hi = hi.max(t);
+    }
+    (lo <= hi).then_some((lo, hi))
 }
 
 /// One actual collinear junction, allowing a gap made by a crossing cut. Its source segments
@@ -133,19 +131,18 @@ fn prove(
     let centre = raw.centroid();
     // Each original face must face into this convex void, not bound an exterior material prism.
     let centre_world = world(base, 0., centre);
-    if nodes.iter().any(|&w| {
-        let crate::kernel::geom::Surface::Plane { frame } = p.faces[w].surface else {
-            return true;
+    for &wall in nodes {
+        let crate::kernel::geom::Surface::Plane { frame } = p.faces[wall].surface else {
+            return None;
         };
-        geom::dot(normal(p, w).unwrap(), geom::sub(centre_world, frame.origin)) <= EPS
-    }) {
-        return None;
+        if geom::dot(normal(p, wall)?, geom::sub(centre_world, frame.origin)) <= EPS {
+            return None;
+        }
     }
     let frame = LocalFrame::canonical(base.run, centre_world).ok()?;
     let section = raw.translated([-centre[0], -centre[1]]).ok()?;
-    let (lo, hi) = projection_bounds(p, nodes, frame.run);
-    let body_faces = &p.solids[owner].faces;
-    let (body_lo, body_hi) = projection_bounds(p, body_faces, frame.run);
+    let (lo, hi) = projection_bounds(p, nodes, frame.run)?;
+    let (body_lo, body_hi) = owner_envelope(p, owner, frame.run)?;
     let tool = prism(&frame, &section, body_lo - 4. * EPS, body_hi + 4. * EPS)?;
     // Claim whole source faces only if the nominal side contains them, including curved trims.
     for &w in nodes {
@@ -214,74 +211,146 @@ fn prove(
 
 internal_entry! {
 pub fn discover(ctx:&Context<'_>)->Vec<Occurrence<PrismaticThroughCut>> {
-    discover_uncovered(ctx,&[])
+    discover_uncovered(ctx,&BTreeSet::new())
 }
+}
+
+/// Accepted subtractive owners take precedence on any shared defining face.
+/// Context/evidence faces and body/additive families are deliberately excluded.
+pub(crate) const CUT_OWNERS: &[&str] = &[
+    "holes",
+    "countersinks",
+    "double_d_bores",
+    "slots",
+    "oriented_slots",
+    "rectangular_blind_slots",
+    "round_bottom_blind_slots",
+    "semicircular_blind_slots",
+    "section_passages",
+    "section_recesses",
+    "pockets",
+    "prismatic_pockets",
+    "edge_open_circular_pockets",
+    "edge_open_prismatic_recesses",
+    "channels",
+    "v_channels",
+    "rectangular_through_notches",
+    "through_steps",
+    "local_steps",
+    "angled_steps",
+    "paired_ramp_steps",
+    "oblique_through_steps",
+    "polygonal_oblique_through_steps",
+    "circular_blind_steps",
+    "grooves",
+    "annular_grooves",
+    "internal_bevels",
+    "chamfers",
+    "oriented_chamfers",
+    "fillets",
+    "blends",
+    "interior_voids",
+];
+
+struct RunGroup {
+    frame: LocalFrame,
+    pairs: Vec<(usize, usize)>,
+}
+
+/// Quantisation is only a lookup accelerator. Neighbouring cells, both signs,
+/// and the original angular test decide equivalence, including cell boundaries.
+fn run_group(
+    groups: &mut Vec<RunGroup>,
+    bins: &mut BTreeMap<[i64; 3], Vec<usize>>,
+    frame: LocalFrame,
+) -> usize {
+    let key = |r: V3| r.map(|v| (v / ANG).floor() as i64);
+    let mut matched = None;
+    for sign in [1., -1.] {
+        let k = key(geom::scale(frame.run, sign));
+        for x in -1..=1 {
+            for y in -1..=1 {
+                for z in -1..=1 {
+                    if let Some(indices) = bins.get(&[k[0] + x, k[1] + y, k[2] + z]) {
+                        for &i in indices {
+                            if geom::norm(geom::cross(groups[i].frame.run, frame.run)) < ANG {
+                                matched = Some(matched.map_or(i, |old: usize| old.min(i)));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if let Some(i) = matched {
+        return i;
+    }
+    let i = groups.len();
+    bins.entry(key(frame.run)).or_default().push(i);
+    groups.push(RunGroup {
+        frame,
+        pairs: Vec::new(),
+    });
+    i
 }
 
 fn discover_uncovered(
     ctx: &Context<'_>,
-    covered: &[Vec<usize>],
+    occupied: &BTreeSet<usize>,
 ) -> Vec<Occurrence<PrismaticThroughCut>> {
     let p = ctx.part;
-    let mut runs: Vec<V3> = Vec::new();
-    let mut pairs = Vec::new();
+    let normals: Vec<_> = (0..p.faces.len())
+        .map(|f| if is_planar(p, f) { normal(p, f) } else { None })
+        .collect();
+    let mut groups: Vec<RunGroup> = Vec::new();
+    let mut bins = BTreeMap::new();
     for a in 0..p.faces.len() {
-        if !is_planar(p, a) {
-            continue;
-        }
-        for b in p.neighbours(a) {
-            if b <= a || !is_planar(p, b) || p.arc(a, b) != Some(Arc::Concave) {
-                continue;
-            }
-            let Some(run) = geom::unit(geom::cross(normal(p, a).unwrap(), normal(p, b).unwrap()))
-            else {
-                continue;
-            };
-            let Ok(f) = LocalFrame::canonical(run, [0.; 3]) else {
-                continue;
-            };
-            if !runs
-                .iter()
-                .any(|&r| geom::norm(geom::cross(r, f.run)) < ANG)
-            {
-                runs.push(f.run);
-            }
-            pairs.push((a, b));
-        }
-    }
-    runs.sort_by(|a, b| crate::kernel::py::tuple_order(a, b));
-    let mut found = Vec::new();
-    let mut seen = BTreeSet::new();
-    for run in runs {
-        let Ok(base) = LocalFrame::canonical(run, [0.; 3]) else {
+        let Some(na) = normals[a] else {
             continue;
         };
+        for b in p.neighbours(a) {
+            if b <= a || p.arc(a, b) != Some(Arc::Concave) {
+                continue;
+            }
+            let Some(nb) = normals[b] else {
+                continue;
+            };
+            let Some(run) = geom::unit(geom::cross(na, nb)) else {
+                continue;
+            };
+            let Ok(frame) = LocalFrame::canonical(run, [0.; 3]) else {
+                continue;
+            };
+            let i = run_group(&mut groups, &mut bins, frame);
+            groups[i].pairs.push((a, b));
+        }
+    }
+    groups.sort_by(|a, b| crate::kernel::py::tuple_order(&a.frame.run, &b.frame.run));
+    let mut found = Vec::new();
+    let mut seen = BTreeSet::new();
+    for group in groups {
+        let base = group.frame;
         let mut adj: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
         let mut lines = BTreeMap::new();
-        for &(a, b) in &pairs {
-            if normal(p, a).is_none_or(|n| geom::dot(n, run).abs() > ANG)
-                || normal(p, b).is_none_or(|n| geom::dot(n, run).abs() > ANG)
+        for (a, b) in group.pairs {
+            if normals[a].is_none_or(|n| geom::dot(n, base.run).abs() > ANG)
+                || normals[b].is_none_or(|n| geom::dot(n, base.run).abs() > ANG)
             {
                 continue;
             }
-            let Some(l) = junction(p, a, b, &base) else {
+            let Some(line) = junction(p, a, b, &base) else {
                 continue;
             };
             adj.entry(a).or_default().insert(b);
             adj.entry(b).or_default().insert(a);
-            lines.insert((a, b), l);
+            lines.insert((a, b), line);
         }
         let nodes = adj.keys().copied().collect();
         for component in components(&nodes, &adj) {
             if component.len() < 3
                 || component.iter().any(|w| adj[w].len() != 2)
                 || seen.contains(&component)
-            {
-                continue;
-            }
-            if covered
-                .iter()
-                .any(|old| component.iter().all(|w| old.contains(w)))
+                || component.iter().any(|w| occupied.contains(w))
             {
                 continue;
             }
@@ -296,11 +365,19 @@ fn discover_uncovered(
 }
 
 pub(crate) fn append(ctx: &Context<'_>, features: &mut Features) {
-    let covered: Vec<_> = ["section_passages", "section_recesses", "oriented_slots"]
-        .into_iter()
-        .flat_map(|family| features.defining.get(family).into_iter().flatten().cloned())
+    let occupied = CUT_OWNERS
+        .iter()
+        .flat_map(|family| {
+            features
+                .defining
+                .get(family)
+                .into_iter()
+                .flatten()
+                .flatten()
+                .copied()
+        })
         .collect();
-    let found = discover_uncovered(ctx, &covered);
+    let found = discover_uncovered(ctx, &occupied);
     if found.is_empty() {
         return;
     }
@@ -316,4 +393,25 @@ pub(crate) fn append(ctx: &Context<'_>, features: &mut Features) {
             .collect(),
     );
     features.prismatic_through_cuts = found.into_iter().map(|o| o.record).collect();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn direction_buckets_preserve_tolerance_across_cells_and_signs() {
+        let mut groups = Vec::new();
+        let mut bins = BTreeMap::new();
+        let frame = |x| LocalFrame::canonical([x, 0., 1.], [0.; 3]).unwrap();
+        let a = run_group(&mut groups, &mut bins, frame(0.99 * ANG));
+        let b = run_group(&mut groups, &mut bins, frame(1.01 * ANG));
+        assert_eq!(a, b, "nearby runs on different quantisation cells");
+        let mut opposite = frame(1.01 * ANG);
+        opposite.run = geom::scale(opposite.run, -1.);
+        opposite.v = geom::scale(opposite.v, -1.);
+        assert_eq!(a, run_group(&mut groups, &mut bins, opposite));
+        assert_ne!(a, run_group(&mut groups, &mut bins, frame(4. * ANG)));
+        assert_eq!(groups.len(), 2);
+    }
 }

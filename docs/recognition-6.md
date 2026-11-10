@@ -1212,14 +1212,17 @@ its length ends at the shared circular rim. The entry cone is consulted evidence
 rather than a defining face of that straight step. Its native shared radius is used
 before presentation rounding, so a rounded cylinder-inventory diameter cannot
 change seam incidence or round the newly admitted radius twice. No record fields
-or schema versions change. Analytic flared/inward-taper controls, independent volume
+or schema versions change. Planar entries retain their legacy inventory-diameter
+rounding: applying native publication there changes existing recorded radii.
+This compatibility exception affects presentation, not seam incidence.
+Analytic flared/inward-taper controls, independent volume
 and placement checks, and a fractional-radius regression live in
 `src/features/circular_blind_steps.rs`.
 
 ## Interrupted polygonal through-cuts
 
 The optional `prismatic_through_cuts` family extends through-cut recognition to planar
-polygonal walls interrupted by other cuts. Its `PrismaticThroughCut` record contains
+convex polygonal sections whose walls are interrupted by other cuts. Its `PrismaticThroughCut` record contains
 `cut` (a `SectionPassage` section and nominal prism), `extent: "observed_walls"`, and
 `core_interval` (an axial interval with complete original-wall support). The nominal
 `cut.run_interval` bounds the observed walls; its end planes are not asserted to be
@@ -1231,11 +1234,24 @@ owning solid, whole-face containment on the inferred prism sides, exact complete
 side coverage throughout the core, and an empty prism through the owner's entire
 axial envelope are required. Thus a surviving wall ring around a blind pocket does
 not suffice. Only original supported wall faces are claimed; inferred mouth faces
-are never claimed. A component fully covered by an existing accepted passage,
-recess or oriented slot is left to that record. Open/branched wall chains and
+are never claimed. Recovery is skipped on **any shared defining face** with an accepted cut record,
+including partial overlaps. This avoids a second callout for a slot whose legacy
+record owns only its two long walls. Context/evidence faces do not block recovery.
+Precedence families are `holes`, `countersinks`, `double_d_bores`, `slots`,
+`oriented_slots`, `rectangular_blind_slots`, `round_bottom_blind_slots`,
+`semicircular_blind_slots`, `section_passages`, `section_recesses`, `pockets`,
+`prismatic_pockets`, `edge_open_circular_pockets`, `edge_open_prismatic_recesses`,
+`channels`, `v_channels`, `rectangular_through_notches`, `through_steps`,
+`local_steps`, `angled_steps`, `paired_ramp_steps`, `oblique_through_steps`,
+`polygonal_oblique_through_steps`, `circular_blind_steps`, `grooves`,
+`annular_grooves`, `internal_bevels`, `chamfers`, `oriented_chamfers`, `fillets`,
+`blends` and `interior_voids`. Body/additive families (including `turned_steps`,
+`step_levels`, `risers`, `plates`, bosses and pads) do not own a machining cut.
+Later residual passes run after this recovery and consume its accepted claims.
+An optional recovery failure leaves those independent passes and floor completion
+available, rather than blocking them on missing planar-cut claims. Open/branched wall chains and
 profiles needing missing walls or curved sides are not inferred.
 
 This is a post-recognition extension, represented in recognition/6, fingerprints,
 and face accounting; the evidence document's legacy physical-candidate registry
-does not acquire a new candidate family. `passage_survey` is a read-only diagnostic
-example for source-face junctions, validation and independently proved cuts.
+does not acquire a new candidate family.

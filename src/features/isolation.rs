@@ -62,9 +62,7 @@ fn inputs(family: &str, stage: &str) -> &'static [&'static str] {
         ("pocket_patterns", _) => &["pockets"],
         ("oriented_slot_patterns", _) => &["oriented_slots"],
         ("oriented_slots" | "v_channels", _) => &["section_passages"],
-        ("prismatic_through_cuts", _) => {
-            &["section_passages", "section_recesses", "oriented_slots"]
-        }
+        ("prismatic_through_cuts", _) => super::prismatic_through_cuts::CUT_OWNERS,
         ("rectangular_through_notches", _) => &["plates", "channels"],
         ("freeform_surfaces", _) => &["thin_wall_bodies", "modelled_threads"],
         ("risers", _) => &["step_levels"],
@@ -94,7 +92,6 @@ const CLAIM_INPUTS: &[&str] = &[
     "slots",
     "pockets",
     "section_passages",
-    "prismatic_through_cuts",
     "oriented_slots",
     "modelled_threads",
     "helical_springs",
@@ -457,6 +454,42 @@ mod tests {
                 .get("prismatic_through_cuts")
                 .is_none_or(Vec::is_empty)
         );
+    }
+
+    #[test]
+    fn optional_through_cut_failure_keeps_later_passes_and_floors() {
+        let part = island_pocket();
+        let baseline = features::recognise(&part);
+        TRACE.with(|trace| trace.replace(Some(Vec::new())));
+        let found = injected("prismatic_through_cuts", "append", || {
+            features::recognise(&part)
+        });
+        let trace = TRACE.with(|trace| trace.replace(None)).unwrap();
+        for step in [
+            ("cylindrical_profiles", "append"),
+            ("turned_bodies", "suppress_od_bosses"),
+            ("face_grooves", "append"),
+            ("pockets", "claim_flat_floor"),
+        ] {
+            assert!(
+                trace.contains(&step),
+                "later pass {step:?} must run: {trace:?}"
+            );
+        }
+        assert_eq!(found.failures.len(), 1);
+        assert_eq!(found.failures[0].family, "prismatic_through_cuts");
+        for family in [
+            "cylindrical_profiles",
+            "turned_bodies",
+            "face_grooves",
+            "pockets",
+        ] {
+            assert_eq!(
+                found.defining.get(family),
+                baseline.defining.get(family),
+                "{family}"
+            );
+        }
     }
 
     #[test]

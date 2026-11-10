@@ -464,6 +464,9 @@ fn candidate(
         };
         radius
     } else {
+        // Compatibility: native-radius publication changes existing planar-entry
+        // snapshot dimensions. Retain their inventory-diameter rounding; the
+        // conical-entry extension above already publishes native precision.
         evidence.diameter / 2.
     };
     Some((

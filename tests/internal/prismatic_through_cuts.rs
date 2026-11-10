@@ -255,3 +255,66 @@ fn nearly_axis_aligned_walls_keep_their_axial_extent() {
         "{interval:?}"
     );
 }
+
+#[test]
+fn straight_through_slots_have_one_cut_owner() {
+    let p = quiddity::read_step_file(
+        &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/golden_straight_and_obround_slots.step"),
+    )
+    .unwrap();
+    let candidates = prismatic_through_cuts::discover(&Context::new(&p));
+    assert_eq!(candidates.len(), 4, "four straight-slot proofs");
+    let found = features::recognise(&p);
+    assert_eq!(found.slots.len(), 5, "four straight slots and one obround");
+    assert!(found.prismatic_through_cuts.is_empty());
+    for candidate in candidates {
+        let owners = prismatic_through_cuts::CUT_OWNERS
+            .iter()
+            .flat_map(|family| found.defining.get(family).into_iter().flatten())
+            .filter(|faces| faces.iter().any(|f| candidate.defining.contains(f)))
+            .count();
+        assert_eq!(owners, 1, "one physical straight slot, one cut record");
+    }
+}
+
+#[test]
+fn degenerate_wall_normal_is_a_refusal_not_a_panic() {
+    let (mut p, walls, _) = control(6, false);
+    let quiddity::kernel::geom::Surface::Plane { frame } = &mut p.faces[walls[0]].surface else {
+        panic!("planar control");
+    };
+    frame.z = [0.; 3];
+    assert!(prismatic_through_cuts::discover(&Context::new(&p)).is_empty());
+    // Non-finite input is rejected as well, before any bounds or tool construction.
+    let quiddity::kernel::geom::Surface::Plane { frame } = &mut p.faces[walls[0]].surface else {
+        unreachable!()
+    };
+    frame.z = [f64::NAN, 0., 0.];
+    assert!(prismatic_through_cuts::discover(&Context::new(&p)).is_empty());
+}
+
+#[test]
+fn curved_wall_trims_keep_their_exact_extent_under_rotation() {
+    let p = quiddity::read_step_file(
+        &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/revisions/gramil_shaft.old.step.gz"),
+    )
+    .unwrap();
+    let (s, c) = 0.37_f64.sin_cos();
+    let moved = p
+        .transformed(&[
+            [c, 0., s, 123.456],
+            [s * s, c, -s * c, -78.9],
+            [-s * c, s, c * c, 41.3],
+        ])
+        .unwrap();
+    for part in [&p, &moved] {
+        let cuts = prismatic_through_cuts::discover(&Context::new(part));
+        assert_eq!(cuts.len(), 1);
+        let interval = cuts[0].record.cut.run_interval;
+        // Radius-4 shaft with a flat 3.4 mm below its centre. Boundary vertices
+        // stop at +/-3.218598; the curved rim itself reaches +4.
+        assert!((interval.1 - interval.0 - 7.4).abs() < 1e-6, "{interval:?}");
+    }
+}
