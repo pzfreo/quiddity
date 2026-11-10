@@ -12,6 +12,7 @@ use std::collections::{BTreeMap, HashSet};
 
 mod index;
 mod scan;
+mod selected;
 use index::{Index, Kind};
 pub use scan::scan;
 use std::fs::File;

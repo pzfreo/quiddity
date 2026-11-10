@@ -13,7 +13,7 @@ description = "An exact B-rep reader and geometry query library in pure Rust: ST
 [features]
 default = ["presentation", "manifest"]
 presentation = []
-manifest = ["dep:serde", "dep:sha2", "dep:tempfile", "dep:memmap2"]
+manifest = ["dep:serde_json", "dep:serde", "dep:sha2", "dep:tempfile", "dep:memmap2"]
 json = ["dep:serde", "dep:serde_json"]
 json-import = ["json"]
 f3d = ["dep:cadmpeg-codec-f3d", "dep:cadmpeg-codec-step", "dep:cadmpeg-core", "dep:cadmpeg-ir"]
