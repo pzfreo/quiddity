@@ -100,6 +100,21 @@ def load(path):
     return [compound(parts)] if product_count == 1 and len(parts)>1 else parts
 
 
+def includes_sheets(path):
+    """Whether plain product surface area includes independent sheets, by FILE_SCHEMA."""
+    raw = open(path, 'rb').read()
+    if raw[:2] == b'\x1f\x8b':
+        raw = gzip.decompress(raw)
+    header = raw[:4096].decode('latin-1').upper()
+    start = header.find('FILE_SCHEMA')
+    schema = header[start:header.find(';', start)] if start >= 0 else ''
+    if 'AP203' in schema or 'CONFIG_CONTROL_DESIGN' in schema:
+        return True
+    if 'AP242' in schema:
+        return False
+    return None
+
+
 def material_measure(shape):
     solids=indexed(shape, TopAbs_SOLID)
     result=measure(compound(solids)) if solids else dict(volume=0.0,centroid=None,no_solid=True)
@@ -125,23 +140,29 @@ def compare(row):
         for prop in part['gvp']:
             if prop['faces']:
                 material=prop['reference'].get('volume') is not None or prop['reference'].get('centroid') is not None
-                key = (prop['scope'],prop.get('area_kind'),material,tuple(prop['faces']),prop['reference'].get('area'))
+                key = (prop['scope'],prop.get('area_kind'),material,tuple(prop['faces']))
                 if key not in cache:
                     if prop['scope']=='product':
                         cache[key] = dict(part['occt'])
                         solids = indexed(shape, TopAbs_SOLID)
                         sheets = solids and len(indexed(compound(solids), TopAbs_FACE)) < len(faces)
+                        kind = prop.get('area_kind')
                         if sheets:
-                            # Same scope rule as ours, chosen independently from OCCT's values.
-                            solid_area = measure(compound(solids), False)['area']
-                            reference = prop['reference'].get('area')
-                            use_solids = prop.get('area_kind') == 'wetted' or reference is None or abs(solid_area-reference) <= abs(cache[key]['area']-reference)
-                            if use_solids:
+                            # Same scope rule as ours (gvp_support::includes_sheets).
+                            solid_area = measure(compound(solids), False)['area'] if solids else 0.0
+                            scope = 'solids' if kind == 'wetted' else \
+                                {True: 'solids and sheets', False: 'solids'}.get(includes_sheets(row['file']))
+                            if scope == 'solids':
                                 cache[key]['area'] = solid_area
-                            cache[key]['area_scope'] = 'solids' if use_solids else 'solids and sheets'
+                            elif scope is None:
+                                cache[key]['area'] = None
+                            cache[key]['area_scope'] = scope or 'unknown for this schema'
                     else:
                         cache[key] = measure(compound([faces[i] for i in key[3]]),material)
                 prop['occt'] = cache[key]
+            if prop['reference'].get('independent_area') is not None:
+                sheet_faces = [faces[i] for i in prop.get('sheet_faces', [])]
+                prop['occt'] = dict(prop.get('occt', {}), independent_area=measure(compound(sheet_faces), False)['area'] if sheet_faces else 0.0)
     row['occt_version'] = OCP.__version__
     row['occt_tolerance'] = EPS
     return row

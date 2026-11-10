@@ -95,11 +95,25 @@ fn measure(part: &Part, faces: &[usize], whole: bool) -> Value {
     };
     json!({"unintegrated_faces":unintegrated,"volume":mass.map(|m|m.0),"area":mass.map(|m|m.1),"centroid":centroid.map(|m|m.1),"diagonal":geom::dist(bounds.min,bounds.max),"unresolved_faces":part.unresolved_faces(),"unresolved_edges":part.unresolved_edges()})
 }
+/// Whether plain product surface area includes independent sheets, by FILE_SCHEMA.
+fn includes_sheets(raw: &[u8]) -> Option<bool> {
+    let text = String::from_utf8_lossy(&raw[..raw.len().min(4096)]).to_ascii_uppercase();
+    let start = text.find("FILE_SCHEMA")?;
+    let schema = &text[start..start + text[start..].find(';')?];
+    if schema.contains("AP203") || schema.contains("CONFIG_CONTROL_DESIGN") {
+        Some(true)
+    } else if schema.contains("AP242") {
+        Some(false)
+    } else {
+        None
+    }
+}
 pub fn file(path: &Path) -> Result<Value, Box<dyn std::error::Error>> {
     let raw = bytes(path)?;
     let doc = Document::parse(raw.clone())?;
     let properties = gvp::read(&doc).map_err(std::io::Error::other)?;
     let file = StepFile::read(&raw)?;
+    let schema_includes_sheets = includes_sheets(&raw);
     let mut parts = Vec::new();
     for (i, def) in file.parts.iter().enumerate() {
         let part = file.part(i)?;
@@ -152,32 +166,50 @@ pub fn file(path: &Path) -> Result<Value, Box<dyn std::error::Error>> {
                     .or_insert_with(|| measure(&part, &faces, false))
                     .clone()
             };
-            // A product's surface area either includes its independent sheets or not:
-            // wetted area never does, and exporters differ for plain surface area (the
-            // NIST AP203 files include them, the AP242 files do not, with the same
-            // representation structure). Record the scope used rather than assume one.
+            // A product's surface area either includes its independent sheets or not.
+            // Wetted area never does. For plain surface area the NIST exports follow their schema: AP203 includes
+            // the sheets, AP242 excludes them, with the same representation structure.
+            // Any other schema has no recorded convention, so the area is unavailable.
             let sheets = !solid_faces.is_empty() && solid_faces.len() < whole_faces.len();
+            let sheet_faces: Vec<_> = faces
+                .iter()
+                .copied()
+                .filter(|&f| part.faces[f].solid.is_none())
+                .collect();
             if whole && sheets && !ours.is_null() {
-                let solids_area = solid_faces
-                    .iter()
-                    .try_fold(0.0, |a, &f| part.face_mass(f).map(|m| a + m[0]));
-                let with_sheets = ours["area"].as_f64();
-                let closer = |a: Option<f64>, b: Option<f64>| match (a, b, p.area) {
-                    (Some(a), Some(b), Some(r)) => (a - r).abs() <= (b - r).abs(),
-                    _ => true,
+                let scope = match p.area_kind {
+                    Some(gvp::AreaKind::Wetted) => Some("solids"),
+                    _ => match schema_includes_sheets {
+                        Some(true) => Some("solids and sheets"),
+                        Some(false) => Some("solids"),
+                        None => None,
+                    },
                 };
-                let use_solids =
-                    p.area_kind == Some(gvp::AreaKind::Wetted) || closer(solids_area, with_sheets);
-                if use_solids {
-                    ours["area"] = json!(solids_area);
+                match scope {
+                    Some("solids") => {
+                        ours["area"] = json!(
+                            solid_faces
+                                .iter()
+                                .try_fold(0.0, |a, &f| part.face_mass(f).map(|m| a + m[0]))
+                        )
+                    }
+                    Some(_) => {}
+                    None => ours["area"] = Value::Null,
                 }
-                ours["area_scope"] = json!(if use_solids {
-                    "solids"
-                } else {
-                    "solids and sheets"
-                });
+                ours["area_scope"] = json!(scope.unwrap_or("unknown for this schema"));
             }
-            validations.push(json!({"area_kind":match p.area_kind {Some(gvp::AreaKind::Wetted)=>Some("wetted"),Some(gvp::AreaKind::Surface)=>Some("surface"),None=>None},"property":p.property,"target":p.target,"items":p.items,"faces":faces,"reference":{"volume":p.volume,"area":p.area,"centroid":p.centroid},"ours":ours,"association":if surface_data {"legacy surface-data aspect: independent sheets of owning product"} else {"explicit STEP owner/geometry"},"scope":if whole {"product"} else {"aspect"}}));
+            // Independent surface area is the selection's sheets alone.
+            if p.independent_area.is_some() {
+                if ours.is_null() {
+                    ours = json!({"diagonal":whole_ours["diagonal"]});
+                }
+                ours["independent_area"] = json!(
+                    sheet_faces
+                        .iter()
+                        .try_fold(0.0, |a, &f| part.face_mass(f).map(|m| a + m[0]))
+                );
+            }
+            validations.push(json!({"area_kind":match p.area_kind {Some(gvp::AreaKind::Wetted)=>Some("wetted"),Some(gvp::AreaKind::Surface)=>Some("surface"),None=>None},"property":p.property,"target":p.target,"items":p.items,"faces":faces,"sheet_faces":sheet_faces,"reference":{"volume":p.volume,"area":p.area,"independent_area":p.independent_area,"centroid":p.centroid},"ours":ours,"association":if surface_data {"legacy surface-data aspect: independent sheets of owning product"} else {"explicit STEP owner/geometry"},"scope":if whole {"product"} else {"aspect"}}));
         }
         parts.push(json!({"part":i,"name":def.name,"product_definition":def.product_definition,"faces":def.faces,"placements":def.placements.iter().map(|p|p.placement).collect::<Vec<_>>(),"ours":whole_ours,"gvp":validations}));
     }
@@ -191,7 +223,7 @@ pub fn file(path: &Path) -> Result<Value, Box<dyn std::error::Error>> {
                 .filter_map(|p| p["property"].as_u64())
         })
         .collect();
-    let unattached:Vec<_>=properties.iter().filter(|p|!attached.contains(&p.property)).map(|p|json!({"area_kind":match p.area_kind {Some(gvp::AreaKind::Wetted)=>Some("wetted"),Some(gvp::AreaKind::Surface)=>Some("surface"),None=>None},"property":p.property,"target":p.target,"product_definition":p.product_definition,"occurrence":p.occurrence,"reference":{"volume":p.volume,"area":p.area,"centroid":p.centroid}})).collect();
+    let unattached:Vec<_>=properties.iter().filter(|p|!attached.contains(&p.property)).map(|p|json!({"area_kind":match p.area_kind {Some(gvp::AreaKind::Wetted)=>Some("wetted"),Some(gvp::AreaKind::Surface)=>Some("surface"),None=>None},"property":p.property,"target":p.target,"product_definition":p.product_definition,"occurrence":p.occurrence,"reference":{"volume":p.volume,"area":p.area,"independent_area":p.independent_area,"centroid":p.centroid}})).collect();
     Ok(
         json!({"file":path,"parts":parts,"unattached_gvp":unattached,"geometric_properties":properties.len()}),
     )

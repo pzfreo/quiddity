@@ -33,12 +33,15 @@ numbering contract; part and face count mismatches are reported rather than zipp
 silently. OCCT sometimes gives independent sheets their own free XCAF roots; these
 are regrouped only when the STEP text itself declares exactly one product definition.
 The parser keeps `surface area measure` and `wetted area measure` apart as `AreaKind`.
-For a product with both solids and independent sheets, wetted area excludes the sheets.
-Plain surface area has no single scope: of the NIST files, the AP203 exports (CTC-02 rc,
-CTC-05 rd) include the sheets and the AP242 exports (CTC-04, FTC-07) exclude them, with
-the same representation structure. Both scopes are measured, the one closer to the
-reference is used, and it is recorded as `area_scope`. OCCT chooses its scope
-independently, and the table counts any disagreement between the two as a FAIL. Volume
+For a product with both solids and independent sheets, wetted area excludes the sheets
+and `independent surface area measure` is the sheets alone. Plain surface area follows
+the file's schema: of the NIST files, the AP203 exports (CTC-02 rc, CTC-05 rd) include
+the sheets and the AP242 exports (CTC-04, FTC-07) exclude them, with the same
+representation structure, each matching its reference to better than 1e-5 while the
+other scope is off by the sheets' 0.004–0.19%. Any other schema has no recorded
+convention, so such an area is unavailable (a failure) rather than guessed. The scope
+used is recorded as `area_scope`, and the table counts any disagreement with OCCT's.
+Volume
 and material centroid use solids only. A sheet-only part reports area, zero volume and no material centroid. Legacy
 AP203 aspects explicitly described as "surface data associated with …" select the
 independent sheets of that product when their representation lists only boundary
@@ -69,7 +72,10 @@ value. The A–B rows
 identify disagreements between independent references; they do not decide correctness
 without comparing ours as well.
 
-CI runs `cargo test -p haecceity --release -j 6 --test gvp`. Committed fixtures always run; corpus checks use
+CI runs the `gvp` test binary in its nextest shards; locally, `cargo test -p haecceity --release -j 6 --test gvp`. It reads an explicit list of committed files
+with distinct properties and pins each file's number of checks per quantity, the
+corpus total, and the area scope of every product area on a part with independent
+sheets, so a dropped property or a changed scope fails. Committed fixtures always run; corpus checks use
 `QUIDDITY_CORPUS` and honor `QUIDDITY_CORPUS_REQUIRED`, like the existing suite.
 No OCCT installation is required in CI. `tests/fixtures/gvp-occt.json` contains
 independent evidence for a known wrong reference; the test requires both the

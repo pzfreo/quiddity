@@ -26,6 +26,8 @@ pub struct ValidationProperty {
     pub volume: Option<f64>,
     pub area: Option<f64>,
     pub area_kind: Option<AreaKind>,
+    /// Area of the independent (sheet) surfaces alone, stated separately from `area`.
+    pub independent_area: Option<f64>,
     /// Material centroid only; curve/surface/independent-point centroids are excluded.
     pub centroid: Option<[f64; 3]>,
 }
@@ -227,6 +229,7 @@ pub fn read(doc: &Document) -> Result<Vec<ValidationProperty>, String> {
                 volume: None,
                 area: None,
                 area_kind: None,
+                independent_area: None,
                 centroid: None,
             };
             for id in refs(r.get(1)?) {
@@ -245,7 +248,9 @@ pub fn read(doc: &Document) -> Result<Vec<ValidationProperty>, String> {
                     let name = name.to_ascii_lowercase();
                     let dimension = match name.as_str() {
                         "volume measure" => 3,
-                        "surface area measure" | "wetted area measure" => 2,
+                        "surface area measure"
+                        | "wetted area measure"
+                        | "independent surface area measure" => 2,
                         _ => continue,
                     };
                     let value = number(value)?;
@@ -261,6 +266,12 @@ pub fn read(doc: &Document) -> Result<Vec<ValidationProperty>, String> {
                     let value = value * scale;
                     if !value.is_finite() || value < 0.0 {
                         return None;
+                    }
+                    if name == "independent surface area measure" {
+                        if v.independent_area.replace(value).is_some() {
+                            return None;
+                        }
+                        continue;
                     }
                     if dimension == 2 {
                         v.area_kind = Some(if name == "wetted area measure" {
@@ -416,6 +427,16 @@ mod tests {
             read(&Document::parse(raw.into_bytes()).unwrap()).unwrap()[0].area_kind,
             Some(AreaKind::Wetted)
         );
+    }
+    #[test]
+    fn independent_surface_area_is_kept_apart_from_area() {
+        let doc = model("(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.))");
+        let raw = String::from_utf8(doc.bytes().to_vec())
+            .unwrap()
+            .replace("surface area measure", "independent surface area measure");
+        let v = &read(&Document::parse(raw.into_bytes()).unwrap()).unwrap()[0];
+        assert_eq!((v.area, v.area_kind), (None, None));
+        assert!(v.independent_area.is_some());
     }
     #[test]
     fn complex_measure_representation_item() {

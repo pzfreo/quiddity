@@ -14,7 +14,7 @@ import sys
 from gvp_occt import compare
 
 BAND = 0.001
-QUANTITIES = ('volume', 'area', 'centroid')
+QUANTITIES = ('volume', 'area', 'independent_area', 'centroid')
 # Known OCCT (B) reference problems, applied only while ours meets the exact value.
 # turned_body_disc.step: tools/make_turned_body_fixture.py's ring, inner radius 4,
 # outer radius 11 over z in [-3.25, 3.25] with 45-degree chamfers to radius 10.75 at
@@ -81,7 +81,7 @@ def main():
             counts[ref, quantity, status] += 1
             classification = known or ''
             if status == 'UNAVAILABLE':
-                classification = 'a face haecceity cannot resolve'
+                classification = 'no value from ours: an unresolved face, an empty selection, or an area scope unknown for this schema'
             elif status == 'FAIL':
                 c = (other or {}).get(quantity)
                 ac, bc = error(a, c, quantity, diagonal), error(b, c, quantity, diagonal)
