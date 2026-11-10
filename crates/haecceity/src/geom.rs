@@ -725,7 +725,7 @@ impl Curve {
     // turn; clamping the tangent while wrapping the point changes the boundary integral.
     fn nurbs_parameter(n: &NurbsCurve, t: f64) -> f64 {
         let (lo, hi) = n.domain();
-        if n.is_closed() && (t < lo || t > hi) {
+        if (t < lo || t > hi) && n.is_closed() {
             lo + (t - lo).rem_euclid(hi - lo)
         } else {
             t
