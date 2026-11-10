@@ -13,6 +13,30 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
+- Mass quadrature judges tangent rank independently of the UV parameter scales. The narrow
+  spline sheet `captured/.../2fe0e2383b80a0b8` now has its true area (10 mm², was 0.011),
+  and the recovery length and tolerances derived from it follow.
+- A solid whose face normals are mixed (some inward, some outward) and whose volume is
+  negative has its inward faces repaired, but only when every face's material side is
+  proved, the wires stay coherent, the mass becomes positive and every repaired face is
+  re-proved outward. `input_repairs` reports `solid 0: mixed face senses repaired (N faces)`.
+  The check is cheap and looks at the first eight faces, so it is face-order dependent: a
+  shell whose first decisive face is outward is not repaired
+  ([recognition trust](docs/recognition-trust.md)). In the fixtures, MFCAD++ (test split)
+  and MFInstSeg it fires only on `truck_master_shaft_hole`:
+  - its volume is now +46140.66 mm³, where it was −47426.50;
+  - its Ø30×40 outer cylinder is a `BossRecord` Ø30 h40 instead of a flat-bottomed
+    `HoleRecord` 40 deep;
+  - its fingerprint normals, convex/concave adjacency and frame refusal
+    (`no-analytic-direction`, was `no-material`) follow.
+- Two known differences from OCCT are recorded. Both are checked by independent integrals
+  that agree with ours, and neither changes a comparison band:
+  - `truck_master_shaft_hole` is 1.12e-4 above OCCT, which builds approximate cap pcurves.
+    The part's bore intersection curves lie up to 0.12 mm off their surfaces, so its
+    volume is only defined to about 2e-4 (the design intent is 46139.11 mm³).
+  - `varying_pitch_sweep` differs by 4.2% in volume because OCCT integrates its open pcurve
+    wires without closing the gaps. OCCT's own mesh agrees with ours, and `tools/gvp.py`
+    counts it as `KNOWN-REFERENCE` while ours stays within the band of that mesh.
 - The snapshot tool uses `/` in manifest-relative paths so Windows input digests
   and nested snapshots can be checked against the same provenance manifest.
 

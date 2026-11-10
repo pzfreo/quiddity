@@ -857,6 +857,20 @@ impl Part {
         self.bad_faces = OnceLock::new();
     }
 
+    pub(super) fn record_mixed_normal_repair(&mut self, solid: usize, flips: &[usize]) {
+        self.input_repairs.push(format!(
+            "solid {solid}: mixed face senses repaired ({} faces)",
+            flips.len()
+        ));
+        for &f in &self.solids[solid].faces {
+            if flips.contains(&f) {
+                self.faces[f].reversed = !self.faces[f].reversed;
+            }
+            self.cache[f] = FaceCache::default();
+        }
+        self.bad_faces = OnceLock::new();
+    }
+
     /// The face's axis-aligned box: its boundary plus any interior axis extremes.
     pub fn face_bounds(&self, face: usize) -> Bounds {
         *self.cache[face]

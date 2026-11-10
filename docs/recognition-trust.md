@@ -17,8 +17,23 @@ fingerprints keep their previous meaning. Readers should ignore unknown fields.
   means a closed boundary with negative signed volume had inward material-side
   witnesses on every face; the kernel reversed its face senses and, where needed,
   coherently inward boundary wires before recognition.
-  Mixed orientations or insufficient evidence retain their original senses and
-  signed volume. Ray-parity classification remains independent of those senses.
+  `solid N: mixed face senses repaired (M faces)` means only the M proved inward
+  normals changed; already outward normals and all boundary wires were retained.
+  To avoid mass quadrature on ordinary imports, the kernel first tries the first
+  eight faces for a decisive material-side witness. An outward first decision
+  skips repair; an inward first decision, or no decision, proceeds to the signed
+  mass check. This shortcut excludes a global inversion but can retain a negative
+  mixed shell: repair of mixed orientations depends on face order. For example,
+  moving an already-outward bore face of `truck_master_shaft_hole` to face 0 leaves
+  that mixed shell unchanged. An all-face trigger added substantial ray/spline
+  work and still integrated masses for unproved ordinary faces; the bounded
+  shortcut is retained to keep import cost close to the original reader.
+  For a mixed repair, every face must have three regular material-side witnesses at two offsets;
+  the candidate must have coherent outward wires, valid closed topology and
+  positive mass, and every candidate face must be re-proved outward with three
+  witnesses at two offsets before any mutation. Insufficient evidence or mixed
+  wires retain the original senses and signed volume. Ray-parity classification
+  remains independent of those senses.
   Missing `input_repairs` means no repair was reported, including in older documents.
 - Every `records[]` entry carries `evidence_status`: `verified` or `unproved`.
   Verified means the kernel's existing strict evidence ownership check succeeded:

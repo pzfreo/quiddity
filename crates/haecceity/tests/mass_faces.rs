@@ -370,3 +370,192 @@ fn wide_u_winding_torus_band_with_hole_and_reversed_face() {
 fn wide_v_winding_torus_band_with_hole_and_reversed_face() {
     check_wide_torus_band(false);
 }
+
+/// S(u,v) = (1e8, 1e8*u, v), u in [0,1e-7], v in [0,1]. The
+/// 10-by-1 rectangle is regular despite its very different parameter scales.
+#[test]
+fn narrow_parameter_sheet_has_analytic_area() {
+    let part = read_step_file(
+        &common::fixtures().join("captured/effective_surfaces/parts/2fe0e2383b80a0b8.step.gz"),
+    )
+    .unwrap();
+    assert!(part.solids.is_empty());
+    // OCP 8.0.1.1, BRepGProp::SurfaceProperties, adaptive eps=1e-9; sole face.
+    relative(part.face_mass(0).unwrap()[0], 10.0, 1e-6);
+    relative(part.face_moments(0).unwrap().area, 10.0, 1e-6);
+    relative(part.face_mass(0).unwrap()[1], 1e9, 1e-6);
+}
+
+/// Independent polygonal Green integrals on a cylinder, with explicit gap closure.
+/// Refining these boundary samples converges independently of mass.rs's quadrature,
+/// corner/knot splitting, primitive reference and loop placement.
+fn cylinder_green(part: &haecceity::Part, face: usize, n: usize) -> (f64, f64) {
+    let fc = &part.faces[face];
+    let geom::Surface::Cylinder { radius, .. } = fc.surface else {
+        panic!("cylinder")
+    };
+    assert_eq!(fc.loops.len(), 1);
+    let mut points: Vec<(f64, f64)> = Vec::new();
+    for &(e, forward) in &fc.loops[0].edges {
+        let ed = &part.edges[e];
+        let (mut a, mut b) = haecceity::sampling::edge_interval(
+            &ed.curve,
+            ed.start,
+            ed.end,
+            ed.same_sense,
+            ed.is_closed(),
+        );
+        if !forward {
+            std::mem::swap(&mut a, &mut b);
+        }
+        for k in 0..=n {
+            let t = a + (b - a) * k as f64 / n as f64;
+            let (mut u, v) = fc.surface.parameters(ed.curve.value(t), None).unwrap();
+            if let Some(previous) = points.last() {
+                u = geom::nearest_turn(u, previous.0);
+            }
+            points.push((u, v));
+        }
+    }
+    points.push(points[0]);
+    let mut h = 0.0;
+    let mut g = 0.0;
+    for w in points.windows(2) {
+        h -= radius * (w[0].1 + w[1].1) / 2.0 * (w[1].0 - w[0].0);
+        g += radius * (w[0].0 + w[1].0) / 2.0 * (w[1].1 - w[0].1);
+    }
+    (h.abs(), g.abs())
+}
+
+#[test]
+fn varying_pitch_sweep_closes_open_uv_wires() {
+    let part =
+        read_step_file(&common::fixtures().join("modelled_threads/varying_pitch_sweep.step.gz"))
+            .unwrap();
+    // OCP 8.0.1.1, BRepGProp adaptive eps=1e-9, TopExp order. These
+    // references integrate open pcurve wires: omitting gap closure in ∮u dv
+    // reproduces OCCT; closing them makes both Green paths agree with ours.
+    // Run: "$OCP_PY" -I tools/mass_fixture_evidence.py --freeform
+    // The sweep's known OCCT difference comes from open pcurve wires; closed
+    // projected-boundary integrals agree with ours instead of those references.
+    for (face, _occt, closed) in [
+        (4, 98.16765734609923, 98.17068665143155),
+        (7, 49.9435965949216, 34.08103140997729),
+        (8, 30.227164859519196, 30.228167268731845),
+        (17, 152.8168886339292, 152.81565932170744),
+        (20, 48.31801113428927, 32.47342792581202),
+    ] {
+        let mass = part.face_mass(face).unwrap();
+        relative(mass[0], closed, 1e-9);
+        relative(part.face_moments(face).unwrap().area, closed, 1e-9);
+        if matches!(part.faces[face].surface, geom::Surface::Cylinder { .. }) {
+            for n in [1024, 4096] {
+                let (h, g) = cylinder_green(&part, face, n);
+                relative(h, closed, 1e-6);
+                relative(g, closed, 1e-6);
+            }
+        }
+        // For spline faces4/17, --freeform projects the exact 3D curves and
+        // converges to 98.1706866503/152.8156593289 at 10,000 boundary panels.
+        // Their open pcurve integrals converge to the recorded OCCT references.
+    }
+    let (volume, area) = part.solid_mass(0).unwrap();
+    // Whole-shape OCCT values retain the open-wire fluxes, so numerical
+    // refinement cannot meet a 1e-6 comparison with that reference.
+    relative(volume - 2535.1985709713267, -105.6924497816597, 1e-6);
+    relative(area - 1531.3435624916838, -31.7042806581519, 1e-6);
+    let (v, c) = part.volume_centroid().unwrap();
+    relative(v, 2429.5088550056716, 1e-9);
+    assert!(
+        geom::dist(
+            c,
+            [
+                2.1085896316760242e-5,
+                5.4552655362173995e-8,
+                3.999138497140011
+            ]
+        ) < 1e-9
+    );
+    // OCCT material centroid from the same capture (not a matching reference).
+    let occt_c = [
+        -0.02083624294153927,
+        -2.384266550942814e-9,
+        3.9673645946049643,
+    ];
+    assert!(geom::dist(c, occt_c) > 1e-3);
+}
+
+#[test]
+fn truck_master_shaft_has_outward_mass_and_exact_caps() {
+    let part = read_step_file(&common::fixtures().join("truck_master_shaft_hole.step.gz")).unwrap();
+    assert_eq!(
+        part.input_repairs(),
+        ["solid 0: mixed face senses repaired (20 faces)"]
+    );
+    // OCP 8.0.1.1 BRepGProp adaptive eps=1e-9. Healing reorders this file:
+    // our10,14,17,23 -> OCCT15,16,5,8; bore15,16,21,22 -> OCCT13,6,7,12.
+    for (face, occt) in [
+        (0, 942.4777960769379),
+        (1, 942.4777960769379),
+        (2, 942.477796076938),
+        (3, 942.4777960769379),
+        (10, 917.0395542364357),
+        (14, 916.8916944960374),
+        (17, 916.8370933615403),
+        (23, 917.0506343679618),
+        (15, 120.48219649981259),
+        (16, 120.4776160661682),
+        (21, 120.47672061765437),
+        (22, 120.47331474425341),
+    ] {
+        relative(part.face_mass(face).unwrap()[0], occt, 1e-6);
+    }
+    // The exact circular 3D rims bound quarter disks. OCCT's approximate
+    // pcurves give smaller caps; independent 3D-boundary integration converges
+    // to these analytic values (tools/mass_fixture_evidence.py).
+    for (faces, exact, _occt) in [
+        (
+            &[4, 5, 6, 7][..],
+            225.0 * std::f64::consts::PI / 4.0,
+            176.66168008902335,
+        ),
+        (
+            &[11, 12, 13, 18][..],
+            25.0 * std::f64::consts::PI,
+            78.51630226178801,
+        ),
+    ] {
+        for &face in faces {
+            relative(part.face_mass(face).unwrap()[0], exact, 1e-12);
+            relative(part.face_moments(face).unwrap().area, exact, 1e-12);
+        }
+    }
+    // Whole OCCT volume=46135.47088917455, area=9333.051019799585.
+    // The remaining 1.12e-4 OCCT volume gap comes from its approximate cap pcurves.
+    // Off-surface bore intersection curves (up to 0.12 mm) make the shaft volume
+    // intrinsically ambiguous by about 2e-4; analytic design intent is 46139.110 mm³.
+    // These pins specify this quadrature's convention, not that geometric uncertainty.
+    let (volume, area) = part.solid_mass(0).unwrap();
+    relative(volume - 46135.47088917455, 5.187457999658829, 1e-6);
+    relative(area - 9333.051019799585, 0.3052675857500873, 1e-6);
+    let (v, c) = part.volume_centroid().unwrap();
+    relative(v, 46140.3795561635, 1e-9);
+    assert!(
+        geom::dist(
+            c,
+            [
+                39.36041247055186,
+                -4.339035384208806e-5,
+                -0.00011897503090313706
+            ]
+        ) < 1e-9
+    );
+    // OCCT centroid from that same capture; the different domain cannot meet
+    // 1e-6 of the diagonal (the observed normalized distance is ~6.84e-6).
+    let occt_c = [
+        39.361152572240144,
+        -4.2361593933366616e-5,
+        -5.350120068459397e-5,
+    ];
+    assert!(geom::dist(c, occt_c) > 1e-6 * geom::dist(part.bounds().min, part.bounds().max));
+}
