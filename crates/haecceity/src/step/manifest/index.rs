@@ -448,6 +448,12 @@ impl Index {
     fn connect(&mut self, source: u32, target: u32) {
         let k = self.kind(target);
         if k.geometry() {
+            // Resolve through the existing forward-reference waiters before retaining a
+            // traversal pair. Faces' surfaces and oriented edges' derived vertices are
+            // geometry dependencies, but only topology/edge targets count toward edges.
+            if self.kind(source) == Kind::Topology && matches!(k, Kind::Topology | Kind::Edge) {
+                self.boundary.push((source, target));
+            }
             self.union(source, target);
         } else if k != Kind::Presentation {
             self.boundary.push((source, target));
@@ -505,11 +511,6 @@ impl Index {
         if kind.geometry() {
             for &id in i.references {
                 let target = self.slot(id)?;
-                // Preserve only topology links for the face-reachable edge count. Ordinary
-                // geometry unions can include unused edges sharing a point or curve.
-                if kind == Kind::Topology {
-                    self.boundary.push((slot, target));
-                }
                 if self.present(target) {
                     self.connect(slot, target);
                 } else {
@@ -561,6 +562,54 @@ impl Index {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn edge_traversal_retains_no_surface_or_derived_vertex_pairs() {
+        let records = [
+            "#1=ADVANCED_FACE('',(#2),#3,.T.);",
+            "#2=FACE_OUTER_BOUND('',#4,.T.);",
+            "#3=PLANE();",
+            "#4=EDGE_LOOP('',(#5));",
+            "#5=ORIENTED_EDGE('',#6,#7,#8,.T.);",
+            "#6=VERTEX_POINT();",
+            "#7=VERTEX_POINT();",
+            "#8=EDGE_CURVE();",
+        ];
+        for face in [
+            records[0],
+            "#1=(ADVANCED_FACE()FACE_SURFACE(#3,.T.)FACE((#2))REPRESENTATION_ITEM(''));",
+        ] {
+            for reverse in [false, true] {
+                let mut records = records;
+                records[0] = face;
+                let mut text = b"ISO-10303-21;DATA;".to_vec();
+                let ordered: Vec<_> = if reverse {
+                    records.iter().rev().collect()
+                } else {
+                    records.iter().collect()
+                };
+                for row in ordered {
+                    text.extend_from_slice(row.as_bytes());
+                }
+                text.extend_from_slice(b"ENDSEC;END-ISO-10303-21;");
+                let mut index = Index::new(&ScanOptions::default()).unwrap();
+                streaming::scan_structure(text.as_slice(), 7, |event| {
+                    if let streaming::Event::Instance(i, _) = event {
+                        index.add(i).unwrap();
+                    }
+                    Ok(())
+                })
+                .unwrap();
+                index.finish().unwrap();
+                let mut expected: Vec<_> = [(1, 2), (2, 4), (4, 5), (5, 8)]
+                    .into_iter()
+                    .map(|(a, b)| (index.lookup(a).unwrap(), index.lookup(b).unwrap()))
+                    .collect();
+                expected.sort_unstable();
+                assert_eq!(index.boundary, expected);
+            }
+        }
+    }
+
     #[test]
     fn index_retains_only_compact_structure_with_dense_or_sparse_ids() {
         let text=b"ISO-10303-21;DATA;#1=THING('original entity text',#18446744073709551615);#18446744073709551615=THING('other text');ENDSEC;END-ISO-10303-21;";
