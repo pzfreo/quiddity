@@ -1,6 +1,6 @@
 //! Requirement planning for prismatic holes, patterns and support-plane levels.
 //!
-//! Ported and adapted from pzfreo/draftwright-rust (same copyright owner),
+//! Ported and adapted from pzfreo/draftwright (same copyright owner),
 //! `src/dims/holes.rs` (wants, lattice, line, pitch, consolidation),
 //! `src/bridge/holes.rs::established_with`, `src/dims/levels.rs` (ownership, shoulders, repeats),
 //! the step-section ownership boundary in `src/dims/steps.rs`,

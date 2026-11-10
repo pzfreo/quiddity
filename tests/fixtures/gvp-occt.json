@@ -1,0 +1,20 @@
+{
+  "ocp_version": "8.0.1.1",
+  "occt_version": "8.0.1 (OCP 8.0.1.1 distribution)",
+  "method": "BRepGProp adaptive VolumeProperties/SurfaceProperties; exact surfaces, no triangulation; relative tolerance 1e-9",
+  "files": {
+    "ap242/nist/nist_stc_06_asme1_ap242-e3.stp.gz": {
+      "property": 4097,
+      "target": 4088,
+      "item": 4078,
+      "faces": 144,
+      "reason": "The solid Body is explicitly selected by GISU #5080, but all three stored material properties are zero. Exemption is conditional on ours agreeing with independently captured OCCT within the unchanged bands, and A disagreeing with both.",
+      "stored": {"volume": 0.0, "area": 0.0, "centroid": [0.0, 0.0, 0.0]},
+      "occt": {
+        "volume": 3323540.520296338,
+        "area": 283414.45165781036,
+        "centroid": [109.60007544557124, -0.000084483726131922, 29.00873514179172]
+      }
+    }
+  }
+}

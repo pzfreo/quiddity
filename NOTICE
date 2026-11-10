@@ -36,7 +36,7 @@ tests/fixtures/ap242/presentation-placement/spindle.step.gz derives from the sam
 gramil shaft design and retains that licence (LICENSE-gramil beside the fixture).
 
 For #137, presentation notation, frame geometry and requirement-level tests are ported
-from pzfreo/draftwright-rust at aaa7a73 (src/dims/tolerance.rs, src/dims/gdt.rs and
+from pzfreo/draftwright at aaa7a73 (src/dims/tolerance.rs, src/dims/gdt.rs and
 tests/spec_gdt.rs), Copyright 2026 Paul Fremantle, at the copyright owner's direction
 for this Apache-2.0 project. Text uses the public-domain Hershey Futura Light data already
 carried by the datum writer, with explicit ISO symbols. The Hershey Fonts were originally

@@ -1,4 +1,4 @@
-//! Requirement notation ported from pzfreo/draftwright-rust aaa7a73,
+//! Requirement notation ported from pzfreo/draftwright aaa7a73,
 //! src/dims/tolerance.rs (Paul Fremantle; port authorized by the copyright owner for #137). Sheet precision and authoring stay there.
 /// Supported hole letters in discovery/refusal order.
 pub const HOLE_CLASSES: [&str; 3] = ["H", "G", "F"];

@@ -1,4 +1,4 @@
-//! Requirement wording and ISO 1302 geometry ported from pzfreo/draftwright-rust
+//! Requirement wording and ISO 1302 geometry ported from pzfreo/draftwright
 //! aaa7a73: src/dims/gdt.rs::finish_symbol, src/title_block.rs::removal_marks,
 //! src/pmi_lowering.rs::part_note_text, src/notes.rs (Paul Fremantle; #137).
 //! Material/tolerance title cells become labelled rows in the model's notes block.
