@@ -53,6 +53,8 @@ pub struct Context<'a> {
     cylinders: OnceLock<Vec<CylinderEvidence>>,
     sealed_void_shells: OnceLock<Vec<SealedVoidShell>>,
     threads: OnceLock<ThreadAnalysis>,
+    hole_stacks: OnceLock<Vec<Vec<super::cylinders::Segment>>>,
+    hole_mouth_chamfers: OnceLock<Vec<super::evidence::Occurrence<super::holes::MouthChamfer>>>,
     chamfers: OnceLock<Vec<super::evidence::Occurrence<super::chamfers::Chamfer>>>,
     oriented_chamfers: OnceLock<Vec<super::evidence::Occurrence<super::oriented_chamfers::OrientedChamfer>>>,
     fillets: OnceLock<Vec<super::evidence::Occurrence<super::fillets::Fillet>>>,
@@ -76,6 +78,8 @@ internal_entry! {
             cylinders: OnceLock::new(),
             sealed_void_shells: OnceLock::new(),
             threads: OnceLock::new(),
+            hole_stacks: OnceLock::new(),
+            hole_mouth_chamfers: OnceLock::new(),
             chamfers: OnceLock::new(),
             oriented_chamfers: OnceLock::new(),
             fillets: OnceLock::new(),
@@ -99,6 +103,14 @@ internal_entry! {
     pub(crate) fn edge_treatments(&self) -> &[super::evidence::Occurrence<()>] {
         self.edge_treatments
             .get_or_init(|| super::edge_treatments::discover(self))
+    }
+
+    pub(super) fn hole_stacks(&self) -> &[Vec<super::cylinders::Segment>] {
+        self.hole_stacks.get_or_init(|| super::holes::hole_stacks(self))
+    }
+
+    pub(super) fn hole_mouth_chamfers(&self) -> &[super::evidence::Occurrence<super::holes::MouthChamfer>] {
+        self.hole_mouth_chamfers.get_or_init(|| super::holes::discover_mouth_chamfers(self))
     }
 
     pub(crate) fn reported_chamfers(&self) -> &[super::evidence::Occurrence<super::chamfers::Chamfer>] {

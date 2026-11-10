@@ -1268,13 +1268,22 @@ size specifications, excluding placement and face indices. Empty arrays are
 omitted, and old records deserialize with no treatments. Rust struct literals
 must supply the new field.
 
-This is a hole detail rather than an `internal_bevels` record: that family proves
-concave planar strips, whereas this treatment is an axisymmetric convex edge
-break. The existing turned `chamfers` path describes external-cylinder edges.
-Attaching the cone to its hole also identifies the counterbore diameter to which
-a chamfer note applies, without a second unrelated feature. The cone is claimed
-as defining hole evidence and goes through the same solid and reconciliation
-checks as its cylindrical wall; the exterior plane is only support evidence.
+The hole retains a machining detail and face references; the cone itself is a
+turned `chamfers` record. This follows the edge-treatment family: it is a convex
+axisymmetric edge break, whereas `internal_bevels` proves concave planar strips.
+The cone is consulted evidence on the hole (like a composed countersink), not a
+new defining cylindrical wall. Each chamfer independently proves its cylinder and
+exterior plane on one valid solid. This ownership also keeps conical edge breaks
+out of drilled-wall predictions in the independent label ratchet. No class mapping
+or score floor is changed.
+
+New mouth chamfers append after existing plain/turned chamfers, preserving their
+ranks. Their `axis` is an explicit file-coordinate vector; scalar legs and acute
+`angle` follow the existing chamfer convention. The hole's nested `angle` instead
+names the angle from its top face, so an unequal bevel has an unambiguous machining
+note. Rust `Chamfer.axis` now uses `ChamferAxis` (`Principal(char)` or
+`Direction([f64;3])`), an alias of the existing `FilletAxis` presentation type.
+Legacy principal-axis JSON stays unchanged.
 
 Recognition requires a full circular cone, a coaxial internal cylinder sharing
 its minor end circle, and an outward-facing transverse plane sharing its major
@@ -1300,13 +1309,11 @@ existing dimension-planning adapter is not changed to generate chamfer notes.
 
 ### Saved face anchors
 
-Adding defining cone evidence can change a consumer's lowest-face anchor. On
-#244 the same `holes/0` grows from faces `[3,10]` to `[3,10,1]`, so its minimum
-changes **3 → 1**. This is an explicit compatibility cost of completing the hole
-claim, not a moved bore. Consumers can preserve an existing reference by matching
-the old cylinder faces through correspondence. To prevent this for newly stored
-IDs, use the minimum of the parent's faces **excluding**
-`mouth_chamfers[*].faces` as the hole's anchor, retaining the cone indices in the
-sub-record for selection/accounting. Applying that policy in draftwright (or
-introducing a separately versioned anchor-face field) is a follow-up; this change
-does not silently redefine the meaning of `faces` for existing consumers.
+The hole's `faces` remain its cylindrical walls and any independently proved
+bottom. Cone indices live in `mouth_chamfers[*].faces` and in their own chamfer
+record; the hole consults them as constituent evidence. On #244, `holes/0` retains
+`[3,10]` and anchor **3**, while `chamfers/0` owns `[1]`. Adding the cone to the
+hole's main face set would shift the anchor **3 → 1**, and also shifts anchors in
+the corpus. Keeping it in the sub-record avoids that migration. Existing hole,
+hole-pattern and chamfer lowest-face anchors must remain unchanged. Consumers can
+select the nested cone faces for a chamfer note without replacing the bore anchor.

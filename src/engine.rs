@@ -47,7 +47,7 @@ pub(crate) use evidence_view::build_recognition_evidence;
 pub use features::angled_steps::AngledStep;
 pub use features::blends::{Blend, BlendPath, CircularBlendPath, StraightBlendPath};
 pub use features::bosses::BossRecord;
-pub use features::chamfers::{Chamfer, ChamferOptions};
+pub use features::chamfers::{Chamfer, ChamferAxis, ChamferOptions};
 pub use features::channels::Channel;
 pub use features::circular_blind_steps::CircularBlindStep;
 pub use features::circular_face_patterns::CircularFacePattern;

@@ -50,7 +50,7 @@ pub enum FilletAxis {
 }
 
 impl FilletAxis {
-    fn order(self, other: Self) -> std::cmp::Ordering {
+    pub(super) fn order(self, other: Self) -> std::cmp::Ordering {
         use FilletAxis::{Direction, Principal};
         match (self, other) {
             (Principal(a), Principal(b)) => a.cmp(&b),

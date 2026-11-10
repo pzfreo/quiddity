@@ -66,7 +66,7 @@ pub struct MouthChamfer {
     pub depth: f64,
     /// Angle to the exterior support plane, in degrees (not a full cone angle).
     pub angle: f64,
-    /// Defining cone faces, also claimed by the parent occurrence.
+    /// Cone faces, claimed by `chamfers` and consulted by the parent hole.
     pub faces: Vec<usize>,
 }
 
@@ -860,13 +860,8 @@ fn mouth_chamfer(part: &Part, seg: &Segment, hi: bool) -> Option<(MouthChamfer, 
     if found.len() == 1 { found.pop() } else { None }
 }
 
-internal_entry! {
-/// Holes in stack order, each with its defining cylinder faces; *csinks* are composed onto the
-/// holes they flare.
-pub fn discover(
-    ctx: &Context<'_>,
-    csinks: &[Occurrence<CounterSink>],
-) -> Vec<Occurrence<HoleRecord>> {
+/// Coaxial internal cylinder stacks, shared by holes and their mouth treatments.
+pub(super) fn hole_stacks(ctx: &Context<'_>) -> Vec<Vec<Segment>> {
     let part = ctx.part;
     let cyls = ctx.cylinders();
     let (z, cross) = z_then_cross(cyls);
@@ -878,11 +873,54 @@ pub fn discover(
     if internal.is_empty() {
         return Vec::new();
     }
-    let enclosed: BTreeSet<_> = ctx.sealed_void_shells().iter()
-        .flat_map(|shell| shell.faces.iter().copied()).collect();
+    let enclosed: BTreeSet<_> = ctx
+        .sealed_void_shells()
+        .iter()
+        .flat_map(|shell| shell.faces.iter().copied())
+        .collect();
     internal.retain(|c| !enclosed.contains(&c.face));
-    let stacks = merge_stacks(part, merge_runs(&segments(&internal), line_key));
-    let has_cones = part.faces.iter().any(|f| matches!(f.surface, Surface::Cone { .. }));
+    merge_stacks(part, merge_runs(&segments(&internal), line_key))
+}
+
+/// Independent treatment occurrences: cones define chamfers; cylinder and top
+/// plane prove their attachment. The hole keeps these cones as consulted evidence.
+pub(super) fn discover_mouth_chamfers(ctx: &Context<'_>) -> Vec<Occurrence<MouthChamfer>> {
+    if !ctx
+        .part
+        .faces
+        .iter()
+        .any(|f| matches!(f.surface, Surface::Cone { .. }))
+    {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for stack in ctx.hole_stacks() {
+        for hi in [false, true] {
+            let i = end_segment(stack, |s| if hi { s.s_hi } else { -s.s_lo });
+            if let Some((record, support)) = mouth_chamfer(ctx.part, &stack[i], hi) {
+                let mut context = stack[i].faces.clone();
+                context.push(support);
+                out.push(Occurrence {
+                    defining: record.faces.clone(),
+                    record,
+                    context,
+                });
+            }
+        }
+    }
+    out.sort_by(|a, b| a.defining.cmp(&b.defining));
+    out
+}
+
+internal_entry! {
+/// Holes in stack order, each with its defining cylinder faces; *csinks* are composed onto the
+/// holes they flare.
+pub fn discover(
+    ctx: &Context<'_>,
+    csinks: &[Occurrence<CounterSink>],
+) -> Vec<Occurrence<HoleRecord>> {
+    let part = ctx.part;
+    let stacks = ctx.hole_stacks();
     let mut out = Vec::new();
     for stack in stacks {
         let d = stack[0].direction;
@@ -894,8 +932,8 @@ pub fn discover(
             mut terminal,
             presentation,
             exit_obstructions,
-        } = drilled_from(part, &stack);
-        let ordered = ordered_from(&stack, from_hi);
+        } = drilled_from(part, stack);
+        let ordered = ordered_from(stack, from_hi);
         let bore_i = py::first_min(&ordered, |s| s.diameter);
         let bore = &ordered[bore_i];
         let NearSideSteps {
@@ -905,7 +943,7 @@ pub fn discover(
             faces: mut step_faces,
         } = near_side_steps(&ordered[..bore_i]);
         if presentation {
-            let opposite = ordered_from(&stack, !from_hi);
+            let opposite = ordered_from(stack, !from_hi);
             let other_bore_i = py::first_min(&opposite, |s| s.diameter);
             let other = near_side_steps(&opposite[..other_bore_i]);
             // An end gauge cannot choose between different published readings. Identical
@@ -922,7 +960,7 @@ pub fn discover(
             }
         }
         let (depth, mut defining) = bore_depth(
-            &stack,
+            stack,
             bore,
             bottom == Bottom::Through || presentation,
             from_hi,
@@ -1001,13 +1039,11 @@ pub fn discover(
                 terminal.extend(&cs.defining);
             }
         }
-        for hi in [false, true].into_iter().filter(|_| has_cones) {
-            // A blind terminal cannot acquire a mouth treatment.
-            let i = end_segment(&stack, |s| if hi { s.s_hi } else { -s.s_lo });
-            if let Some((chamfer, support)) = mouth_chamfer(part, &stack[i], hi) {
-                defining.extend(&chamfer.faces);
-                terminal.push(support);
-                record.mouth_chamfers.push(chamfer);
+        for treatment in ctx.hole_mouth_chamfers() {
+            if treatment.context.iter().any(|f| stack.iter().any(|s| s.faces.contains(f))) {
+                terminal.extend(&treatment.defining);
+                terminal.extend(treatment.context.iter().filter(|f| !defining.contains(f)));
+                record.mouth_chamfers.push(treatment.record.clone());
             }
         }
         out.push(Occurrence {
@@ -1414,6 +1450,21 @@ mod tests {
                     let found = discover_verified(&Context::new(&part), &[]).unwrap();
                     assert_eq!(found.len(), 1);
                     let h = &found[0].record;
+                    let core: Vec<_> = part
+                        .faces
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, f)| {
+                            (f.reversed && matches!(f.surface, Surface::Cylinder { .. }))
+                                .then_some(i)
+                        })
+                        .collect();
+                    let mut claimed = found[0].defining.clone();
+                    claimed.sort_unstable();
+                    assert_eq!(
+                        claimed, core,
+                        "treatments must preserve cylindrical hole anchors"
+                    );
                     assert_eq!(
                         h.mouth_chamfers.len(),
                         1,
@@ -1424,7 +1475,7 @@ mod tests {
                     assert!((ch.depth - axial * scale).abs() < 1e-8);
                     assert_eq!(ch.angle, py::round_to(axial.atan2(0.25).to_degrees(), 2));
                     assert_eq!(ch.diameter, if cbore { 5. * scale } else { 3.3 * scale });
-                    assert!(ch.faces.iter().all(|f| found[0].defining.contains(f)));
+                    assert!(ch.faces.iter().all(|f| !found[0].defining.contains(f) && found[0].context.contains(f)));
                     assert!(countersinks::discover(&Context::new(&part)).is_empty());
                     if cbore {
                         assert_eq!(
@@ -1435,7 +1486,17 @@ mod tests {
                     let published = crate::correspondence::recognise(&part);
                     let doc = crate::recognition::document(&published, part.faces.len());
                     let hole = doc.records.iter().find(|r| r.family == "holes").unwrap();
-                    assert!(ch.faces.iter().all(|f| hole.faces.contains(f)));
+                    assert!(ch.faces.iter().all(|f| !hole.faces.contains(f)));
+                    for face in &ch.faces {
+                        let owner = doc
+                            .records
+                            .iter()
+                            .find(|r| r.family == "chamfers" && r.faces.contains(face))
+                            .unwrap();
+                        let axis: V3 =
+                            serde_json::from_value(owner.parameters["axis"].clone()).unwrap();
+                        assert!(geom::dot(axis, ch.axis) > 1. - 1e-7);
+                    }
                     let position: V3 = serde_json::from_value(
                         hole.parameters["mouth_chamfers"][0]["location"].clone(),
                     )
@@ -1479,7 +1540,7 @@ mod tests {
             h.mouth_chamfers
                 .iter()
                 .flat_map(|c| &c.faces)
-                .all(|f| holes[0].defining.contains(f))
+                .all(|f| !holes[0].defining.contains(f) && holes[0].context.contains(f))
         );
         let mut legacy = serde_json::to_value(h).unwrap();
         legacy.as_object_mut().unwrap().remove("mouth_chamfers");
