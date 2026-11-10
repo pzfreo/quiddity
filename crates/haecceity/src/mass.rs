@@ -553,7 +553,9 @@ fn uv_velocity(surface: &Surface, spans: (f64, f64), u: f64, v: f64, p: V3, c: V
     let (mut a, mut b, mut d) = (geom::dot(su, su), geom::dot(su, sv), geom::dot(sv, sv));
     let (p, q) = (geom::dot(su, c), geom::dot(sv, c));
     // Undisturbed, the first fundamental form: at a degenerate point it decides alone.
-    let scale = a.max(d);
+    // Compare rank with the product of the two tangent metrics, not their largest
+    // square: rescaling either UV coordinate must not turn a regular patch singular.
+    let metric = (a, d);
     let (hu, hv, (u0, u1, v0, v1), piece) = match surface {
         Surface::Freeform { surface, .. } => {
             let (u0, u1, v0, v1) = surface.domain();
@@ -597,7 +599,7 @@ fn uv_velocity(surface: &Surface, spans: (f64, f64), u: f64, v: f64, p: V3, c: V
         b -= along(su_c, su_d, vb - va);
         d -= along(sv_c, sv_d, vb - va);
     }
-    let one = |num: f64, den: f64| {
+    let one = |num: f64, den: f64, scale: f64| {
         if den.abs() <= 1e-6 * scale {
             0.0
         } else {
@@ -609,14 +611,14 @@ fn uv_velocity(surface: &Surface, spans: (f64, f64), u: f64, v: f64, p: V3, c: V
         !spans.1.is_finite() && (v <= v0 || v >= v1),
     ) {
         (true, true) => return (0.0, 0.0),
-        (true, false) => return (0.0, one(q, d)),
-        (false, true) => return (one(p, a), 0.0),
+        (true, false) => return (0.0, one(q, d, metric.1)),
+        (false, true) => return (one(p, a, metric.0), 0.0),
         (false, false) => {}
     }
     let det = a * d - b * b;
     // At a degenerate point (a pole, a collapsed B-spline edge) the parameters are not
     // determined; such points contribute nothing to the boundary integrals.
-    if det.abs() <= 1e-12 * scale * scale {
+    if det.abs() <= 1e-12 * metric.0 * metric.1 {
         return (0.0, 0.0);
     }
     ((d * p - b * q) / det, (a * q - b * p) / det)
