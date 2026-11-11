@@ -762,6 +762,7 @@ dependencies = [
  "clap_complete",
  "flate2",
  "haecceity",
+ "i_overlay",
  "libc",
  "serde",
  "serde_json",

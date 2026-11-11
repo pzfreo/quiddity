@@ -3,15 +3,15 @@
 //! pattern unfolded from them and checked for overlap.
 //!
 //! The bend allowance uses an explicit k-factor; the material and its forming history are absent
-//! from a STEP solid, so neither is inferred. Python triangulates each flange face with
-//! OpenCascade's mesher (`Face.tessellate(0.1)`); the port triangulates the same planar region
-//! from its boundary, thinned to the same deflections, so the flat faces' vertices and
-//! triangles, and the largest triangle overlap a witness reports, are another triangulation of
-//! one region.
+//! from a STEP solid, so neither is inferred. Flange meshes are for presentation; overlap is
+//! measured between boundary polygons with holes, independently of their triangulation.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::f64::consts::PI;
 
+use i_overlay::core::fill_rule::FillRule;
+use i_overlay::core::overlay_rule::OverlayRule;
+use i_overlay::float::single::SingleFloatOverlay;
 use serde::{Deserialize, Serialize};
 
 use super::Context;
@@ -106,7 +106,7 @@ pub struct UnfoldedBendStrip {
     pub corners: [[f64; 2]; 4],
 }
 
-/// One triangle overlap proving the development is not a single blank.
+/// The total common area of two developed regions proving the development is not a single blank.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct FlatOverlapWitness {
     pub first_kind: &'static str,
@@ -125,6 +125,7 @@ pub struct FlatPatternPlan {
     pub tree_bends: Vec<usize>,
     pub flat_faces: Vec<UnfoldedFlangeFace>,
     pub bend_strips: Vec<UnfoldedBendStrip>,
+    /// Presentation mesh deflection. Overlap uses finer curve boundaries with area-error bounds.
     pub tessellation_tolerance: f64,
     pub valid_blank: bool,
     pub overlap_witnesses: Vec<FlatOverlapWitness>,
@@ -805,47 +806,174 @@ fn cross2(a: V2, b: V2) -> f64 {
 }
 
 fn area2(polygon: &[V2]) -> f64 {
-    0.5 * py::sum((0..polygon.len()).map(|i| cross2(polygon[i], polygon[(i + 1) % polygon.len()])))
+    let Some(&origin) = polygon.first() else {
+        return 0.0;
+    };
+    0.5 * py::sum((0..polygon.len()).map(|i| {
+        let a = polygon[i];
+        let b = polygon[(i + 1) % polygon.len()];
+        cross2(
+            [a[0] - origin[0], a[1] - origin[1]],
+            [b[0] - origin[0], b[1] - origin[1]],
+        )
+    }))
 }
 
-/// `_overlap_area`: the area two triangles share (one clipped by the other); shared boundaries
-/// overlap by zero.
-fn overlap_area(first: &[V2; 3], second: &[V2; 3]) -> f64 {
-    let mut subject: Vec<V2> = first.to_vec();
-    let mut clip: Vec<V2> = second.to_vec();
-    if area2(&clip) < 0.0 {
-        clip.reverse();
-    }
-    for i in 0..3 {
-        let (start, end) = (clip[i], clip[(i + 1) % 3]);
-        let edge = [end[0] - start[0], end[1] - start[1]];
-        let Some(&last) = subject.last() else {
-            return 0.0;
-        };
-        let side_of = |p: V2| cross2(edge, [p[0] - start[0], p[1] - start[1]]);
-        let mut output = Vec::new();
-        let (mut previous, mut previous_side) = (last, side_of(last));
-        for &point in &subject {
-            let side = side_of(point);
-            if (side >= 0.0) != (previous_side >= 0.0) {
-                let fraction = previous_side / (previous_side - side);
-                output.push([
-                    previous[0] + fraction * (point[0] - previous[0]),
-                    previous[1] + fraction * (point[1] - previous[1]),
-                ]);
-            }
-            if side >= 0.0 {
-                output.push(point);
-            }
-            (previous, previous_side) = (point, side);
+/// A boundary region, including holes, and an upper bound on area changed by its chords.
+/// Display triangles never participate in the blank decision.
+struct FlatRegion {
+    id: i64,
+    loops: Vec<Vec<V2>>,
+    area_error: f64,
+    bounds: [[f64; 2]; 2],
+    perimeter: f64,
+}
+
+impl FlatRegion {
+    fn new(id: i64, loops: Vec<Vec<V2>>, area_error: f64) -> Self {
+        let perimeter = loops
+            .iter()
+            .map(|ring| {
+                (0..ring.len())
+                    .map(|i| dist2(ring[i], ring[(i + 1) % ring.len()]).sqrt())
+                    .sum::<f64>()
+            })
+            .sum();
+        let bounds = [0, 1].map(|k| {
+            loops
+                .iter()
+                .flatten()
+                .fold([f64::INFINITY, f64::NEG_INFINITY], |[lo, hi], p| {
+                    [lo.min(p[k]), hi.max(p[k])]
+                })
+        });
+        Self {
+            id,
+            loops,
+            area_error,
+            bounds,
+            perimeter,
         }
-        subject = output;
     }
-    if subject.len() >= 3 {
-        area2(&subject).abs()
-    } else {
-        0.0
+}
+
+fn overlap_area(first: &[Vec<V2>], second: &[Vec<V2>]) -> f64 {
+    // i64 integer predicates avoid floating-point clipping slivers and retain holes. The
+    // floating adapter chooses a local grid from both regions, independent of world origin.
+    first
+        .overlay_as::<i64>(&second, OverlayRule::Intersect, FillRule::EvenOdd)
+        .iter()
+        .map(|shape| {
+            let mut contours = shape.iter().map(|c| area2(c).abs());
+            contours.next().unwrap_or(0.0) - contours.sum::<f64>()
+        })
+        .sum()
+}
+
+fn region_overlaps(regions: &[FlatRegion], thickness: f64) -> Vec<FlatOverlapWitness> {
+    let source = |id: i64| -> (&'static str, usize) {
+        if id >= 0 {
+            ("flange_face", id as usize)
+        } else {
+            ("bend_strip", (-id - 1) as usize)
+        }
+    };
+    let mut overlaps = BTreeMap::new();
+    for (i, a) in regions.iter().enumerate() {
+        for b in &regions[i + 1..] {
+            if (0..2).any(|k| a.bounds[k][1] <= b.bounds[k][0] || b.bounds[k][1] <= a.bounds[k][0])
+            {
+                continue;
+            }
+            let area = overlap_area(&a.loops, &b.loops);
+            // A chord can add or remove at most area_error from its exact region. Do not
+            // call their possible intersection an overlap unless some area survives that
+            // uncertainty. Straight boundaries have only the scale-relative round-off band.
+            let roundoff = 1e-7 * thickness * (a.perimeter + b.perimeter);
+            if area > a.area_error + b.area_error + roundoff {
+                overlaps.insert((a.id.min(b.id), a.id.max(b.id)), area);
+            }
+        }
     }
+    overlaps
+        .into_iter()
+        .map(|((a, b), area)| {
+            let ((first_kind, first_index), (second_kind, second_index)) = (source(a), source(b));
+            FlatOverlapWitness {
+                first_kind,
+                first_index,
+                second_kind,
+                second_index,
+                area,
+            }
+        })
+        .collect()
+}
+
+/// Checking boundaries are sampled from the curves, not from the presentation mesh. Circular
+/// segments have an analytic symmetric-difference area bound. Other curves retain the kernel
+/// sampling error plus the thinning deflection. Both the deflection and decision band scale
+/// with sheet thickness; the angular cap makes mirror circles sample identically.
+fn checking_boundary(part: &Part, face: usize, thickness: f64) -> (Vec<Vec<V3>>, f64) {
+    let deflection = 1e-4 * thickness;
+    let mut area_error = 0.0;
+    let loops = part.faces[face]
+        .loops
+        .iter()
+        .filter(|lp| !lp.edges.is_empty())
+        .map(|lp| {
+            let mut ring = Vec::new();
+            for &(e, forward) in &lp.edges {
+                let edge = &part.edges[e];
+                let mut points = match edge.curve {
+                    Curve::Line { .. } => vec![edge.start, edge.end],
+                    Curve::Circle { radius, .. } => {
+                        let (a, b) = edge_interval(
+                            &edge.curve,
+                            edge.start,
+                            edge.end,
+                            edge.same_sense,
+                            edge.is_closed(),
+                        );
+                        let step = 0.01_f64.min((8.0 * deflection / radius).sqrt());
+                        let n = (((b - a).abs() / step).ceil() as usize).max(1);
+                        let angle = (b - a).abs() / n as f64;
+                        area_error += 0.5 * radius.powi(2) * n as f64 * (angle - angle.sin());
+                        let mut points: Vec<_> = (0..=n)
+                            .map(|i| edge.curve.value(a + (b - a) * i as f64 / n as f64))
+                            .collect();
+                        points[0] = edge.start;
+                        points[n] = edge.end;
+                        points
+                    }
+                    _ => {
+                        let mut points = Vec::new();
+                        thin(&edge.samples, deflection, &mut points);
+                        area_error += (deflection + crate::kernel::sampling::CHORD_TOLERANCE)
+                            * edge_length(part, e);
+                        points
+                    }
+                };
+                if !forward {
+                    points.reverse();
+                }
+                points.pop();
+                ring.extend(points);
+            }
+            ring
+        })
+        .filter(|ring| ring.len() >= 3)
+        .collect();
+    (loops, area_error)
+}
+
+/// Into the bend, in the parent plane and perpendicular to the hinge. A trimmed cylinder's
+/// parameter midpoint can lie off the joint midpoint along the axis; that must not skew the
+/// allowance rectangle or move the child along its hinge. Reversing the axis changes neither.
+fn bend_approach(normal: V3, axis: V3, towards_bend: V3) -> Option<V3> {
+    let across = py::unit(geom::cross(axis, normal))?;
+    let side = geom::dot(across, towards_bend);
+    (side != 0.0).then(|| geom::scale(across, side.signum()))
 }
 
 /// `_joint_edges`: for the first of the bend's pairs whose reference face meets both flanges,
@@ -950,15 +1078,11 @@ fn flat_pattern_plan(
     let mut tree = Vec::new();
     let mut pending = VecDeque::from([base]);
     // The face's centre and the approach from a joint point towards it, across the parent plane.
-    let approach_from = |reference: usize, point: V3, parent: &SheetFlange| -> Option<V3> {
-        let centre = part.face_centre(reference)?;
-        let approach = geom::sub(centre, point);
-        let approach = geom::sub(
-            approach,
-            geom::scale(parent.normal, py::dot(&approach, &parent.normal)),
-        );
-        py::unit(approach)
-    };
+    let approach_from =
+        |reference: usize, point: V3, parent: &SheetFlange, axis: V3| -> Option<V3> {
+            let centre = part.face_centre(reference)?;
+            bend_approach(parent.normal, axis, geom::sub(centre, point))
+        };
     while let Some(current) = pending.pop_front() {
         for bend in bends {
             let other = if bend.first_flange == current {
@@ -976,7 +1100,8 @@ fn flat_pattern_plan(
                 joint_edges(s, &bend.face_pairs, parent, child, first)?;
             let parent_point = edge_point(part, reference, parent_edge, 0.5);
             let child_point = edge_point(part, reference, child_edge, 0.5);
-            let unit_approach = approach_from(reference, parent_point, parent)?;
+            let unit_approach =
+                approach_from(reference, parent_point, parent, bend.axis_direction)?;
             let axis = bend.axis_direction;
             let angle = py::dot(&axis, &geom::cross(child.normal, parent.normal))
                 .atan2(py::dot(&child.normal, &parent.normal));
@@ -1010,13 +1135,17 @@ fn flat_pattern_plan(
         [py::dot(&placed, &x_axis), py::dot(&placed, &y_axis)]
     };
     let mut flat_faces = Vec::new();
-    // Each triangle with its source: a flange face (its index), or a bend strip (-1 - strip).
-    let mut triangles: Vec<(i64, [V2; 3])> = Vec::new();
+    let mut regions = Vec::new();
     for flange in flanges {
         for &face in &flange.reference_faces {
             let (vertices, cells) = triangulate_plane(part, face, TESSELLATION_TOLERANCE)?;
             let projected: Vec<V2> = vertices.iter().map(|&v| flat(v, flange.index)).collect();
-            triangles.extend(cells.iter().map(|c| (face as i64, c.map(|i| projected[i]))));
+            let (loops, area_error) = checking_boundary(part, face, thickness);
+            let loops = loops
+                .iter()
+                .map(|ring| ring.iter().map(|&p| flat(p, flange.index)).collect())
+                .collect();
+            regions.push(FlatRegion::new(face as i64, loops, area_error));
             flat_faces.push(UnfoldedFlangeFace {
                 source_face: face,
                 flange: flange.index,
@@ -1034,8 +1163,12 @@ fn flat_pattern_plan(
                 joint_edges(s, std::slice::from_ref(pair), parent, child, first)?;
             let p0 = edge_point(part, reference, edge, 0.0);
             let p1 = edge_point(part, reference, edge, 1.0);
-            let unit_approach =
-                approach_from(reference, edge_point(part, reference, edge, 0.5), parent)?;
+            let unit_approach = approach_from(
+                reference,
+                edge_point(part, reference, edge, 0.5),
+                parent,
+                bend.axis_direction,
+            )?;
             let q0 = geom::add(p0, geom::scale(unit_approach, bend.bend_allowance));
             let q1 = geom::add(p1, geom::scale(unit_approach, bend.bend_allowance));
             let corners = [p0, p1, q1, q0].map(|p| flat(p, parent.index));
@@ -1045,58 +1178,14 @@ fn flat_pattern_plan(
                 corners,
             });
             let id = -(strips.len() as i64);
-            triangles.push((id, [corners[0], corners[1], corners[2]]));
-            triangles.push((id, [corners[0], corners[2], corners[3]]));
+            regions.push(FlatRegion::new(id, vec![corners.to_vec()], 0.0));
         }
     }
     let worst = deviations.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     if deviations.is_empty() || worst > length_tol(thickness, 0.001) {
         return None;
     }
-    let mut overlaps: BTreeMap<(i64, i64), f64> = BTreeMap::new();
-    let range = |t: &[V2; 3], k: usize| {
-        let lo = t[0][k].min(t[1][k]).min(t[2][k]);
-        let hi = t[0][k].max(t[1][k]).max(t[2][k]);
-        (lo, hi)
-    };
-    for (i, (first_id, first_triangle)) in triangles.iter().enumerate() {
-        let ((fx0, fx1), (fy0, fy1)) = (range(first_triangle, 0), range(first_triangle, 1));
-        for (second_id, second_triangle) in &triangles[i + 1..] {
-            if first_id == second_id {
-                continue;
-            }
-            let ((sx0, sx1), (sy0, sy1)) = (range(second_triangle, 0), range(second_triangle, 1));
-            if fx1 <= sx0 + 1e-6 || sx1 <= fx0 + 1e-6 || fy1 <= sy0 + 1e-6 || sy1 <= fy0 + 1e-6 {
-                continue;
-            }
-            let area = overlap_area(first_triangle, second_triangle);
-            if area > 0.01 * thickness.powi(2) {
-                let key = (*first_id.min(second_id), *first_id.max(second_id));
-                let entry = overlaps.entry(key).or_insert(0.0);
-                *entry = entry.max(area);
-            }
-        }
-    }
-    let source = |id: i64| -> (&'static str, usize) {
-        if id >= 0 {
-            ("flange_face", id as usize)
-        } else {
-            ("bend_strip", (-id - 1) as usize)
-        }
-    };
-    let witnesses: Vec<FlatOverlapWitness> = overlaps
-        .into_iter()
-        .map(|((a, b), area)| {
-            let ((first_kind, first_index), (second_kind, second_index)) = (source(a), source(b));
-            FlatOverlapWitness {
-                first_kind,
-                first_index,
-                second_kind,
-                second_index,
-                area,
-            }
-        })
-        .collect();
+    let witnesses = region_overlaps(&regions, thickness);
     Some(FlatPatternPlan {
         k_factor,
         base_flange: base,
@@ -1407,6 +1496,445 @@ mod tests {
     use super::*;
 
     #[test]
+    fn hanger_windows_are_too_short_and_total_overlaps_are_symmetric() {
+        use crate::kernel::step::{IDENTITY, read_step, read_step_placed};
+        use std::io::Read;
+        let bytes = include_bytes!("../../tests/fixtures/captured/876837d9cf19ff05.step.gz");
+        let mut source = String::new();
+        flate2::read::GzDecoder::new(&bytes[..])
+            .read_to_string(&mut source)
+            .unwrap();
+        let r = rotation(py::unit([1., 2., 3.]).unwrap(), 0.731);
+        let moved = [0, 1, 2].map(|i| [r[i][0], r[i][1], r[i][2], [123.456, -78.9, 41.3][i]]);
+        for (units, scale) in [(".MILLI.", 1_f64), (".CENTI.", 10.)] {
+            let source = source.replace(
+                "SI_UNIT(.MILLI.,.METRE.)",
+                &format!("SI_UNIT({units},.METRE.)"),
+            );
+            let original = read_step(source.as_bytes()).unwrap();
+            assert_eq!(original.faces[64].loops.len(), 3);
+            // These are genuine holes, but only the outer R7 bend's intersection with the
+            // z=65 plane (sqrt(7²-3²)), not the outline of the 20 mm straight tab.
+            let (loops, _) = checking_boundary(&original, 64, 4. * scale);
+            for window in &loops[1..] {
+                assert_eq!(window.len(), 4);
+                let xy: Vec<_> = window.iter().map(|p| [p[0], p[1]]).collect();
+                assert!((area2(&xy).abs() / scale.powi(2) - 16. * 40_f64.sqrt()).abs() < 1e-7);
+            }
+            for placement in [IDENTITY, moved] {
+                let part = read_step_placed(source.as_bytes(), &placement).unwrap();
+                let sheets =
+                    recognise_sheet_metal_bodies(&part, &SheetMetalOptions::default()).unwrap();
+                assert_eq!(sheets.len(), 1);
+                let sheet = &sheets[0];
+                assert_eq!((sheet.flanges.len(), sheet.bends.len()), (9, 8));
+                assert_eq!(sheet.flat_pattern_status, "overlap");
+                let plan = sheet.flat_pattern.as_ref().unwrap();
+                assert!(!plan.valid_blank);
+                assert_eq!(
+                    plan.overlap_witnesses.len(),
+                    4,
+                    "{:?}",
+                    plan.overlap_witnesses
+                );
+                let tabs: Vec<_> = plan
+                    .overlap_witnesses
+                    .iter()
+                    .filter(|w| w.first_kind == "flange_face")
+                    .collect();
+                let strips: Vec<_> = plan
+                    .overlap_witnesses
+                    .iter()
+                    .filter(|w| w.first_kind == "bend_strip")
+                    .collect();
+                assert_eq!((tabs.len(), strips.len()), (2, 2));
+                for w in &tabs {
+                    assert_eq!(w.first_index, 64);
+                    assert!([66, 79].contains(&w.second_index));
+                    assert!(
+                        (w.area / scale.powi(2) - 231.2722932124155).abs() < 0.002,
+                        "{w:?}"
+                    );
+                }
+                for w in &strips {
+                    assert_eq!((w.second_kind, w.second_index), ("flange_face", 64));
+                    assert!(
+                        (w.area / scale.powi(2)
+                            - 16. * (sheet.bends[6].bend_allowance / scale - 40_f64.sqrt()))
+                        .abs()
+                            < 1e-7,
+                        "{w:?}"
+                    );
+                }
+                assert!(
+                    (tabs[0].area - tabs[1].area).abs() < 1e-8 * scale.powi(2),
+                    "{tabs:?}"
+                );
+                assert!(
+                    (strips[0].area - strips[1].area).abs() < 1e-8 * scale.powi(2),
+                    "{strips:?}"
+                );
+                // The physical parent tangent is x=±21,z=65, not the tab plane x=±24.
+                for bend in &sheet.bends[6..] {
+                    assert!((bend.bend_allowance / scale - 2.5 * PI).abs() < 1e-8);
+                }
+            }
+        }
+    }
+
+    // Analytic reference skins of a lanced sheet: a planar base with a rectangular window,
+    // a 90-degree R3 bend, and a 16 x 20 tab. Test the development directly so the expected
+    // window and allowance do not depend on the thin-wall recogniser or a CAD exporter.
+    fn lanced_development(
+        scale: f64,
+        mirror: f64,
+        window_length: f64,
+        axis_sign: f64,
+        moved: bool,
+    ) -> FlatPatternPlan {
+        use super::thin_walls::ShellHistoryHint;
+        use crate::kernel::brep::{Edge, Face, Loop};
+        use crate::kernel::geom::Frame;
+        let point = |p: V3| [mirror * scale * p[0], scale * p[1], scale * p[2]];
+        let mut edges = Vec::<Edge>::new();
+        let mut add = |a: V3, b: V3, circle: bool| {
+            let (a, b) = (point(a), point(b));
+            let curve = if circle {
+                Curve::Circle {
+                    frame: Frame {
+                        origin: point([0., a[1] / scale, 3.]),
+                        x: [mirror, 0., 0.],
+                        y: [0., 0., -1.],
+                        z: [0., mirror, 0.],
+                    },
+                    radius: 3. * scale,
+                }
+            } else {
+                Curve::Line {
+                    origin: a,
+                    dir: py::unit(geom::sub(b, a)).unwrap(),
+                }
+            };
+            let same_sense = !circle || a[0].abs() > b[0].abs();
+            let samples = crate::kernel::sampling::sample_edge(&curve, a, b, same_sense, false);
+            let id = edges.len();
+            edges.push(Edge {
+                curve,
+                start: a,
+                end: b,
+                vertices: (2 * id, 2 * id + 1),
+                same_sense,
+                samples,
+            });
+            id
+        };
+        let mut ring = |points: &[V3]| -> Vec<(usize, bool)> {
+            (0..points.len())
+                .map(|i| (add(points[i], points[(i + 1) % points.len()], false), true))
+                .collect()
+        };
+        let outer = ring(&[
+            [-40., -30., 0.],
+            [40., -30., 0.],
+            [40., 30., 0.],
+            [-40., 30., 0.],
+        ]);
+        let hole = ring(&[
+            [0., -8., 0.],
+            [0., 8., 0.],
+            [window_length, 8., 0.],
+            [window_length, -8., 0.],
+        ]);
+        let tab = ring(&[[3., 8., 3.], [3., -8., 3.], [3., -8., 23.], [3., 8., 23.]]);
+        let bend = vec![
+            hole[0],
+            (add([0., 8., 0.], [3., 8., 3.], true), true),
+            tab[0],
+            (add([3., -8., 3.], [0., -8., 0.], true), true),
+        ];
+        let frame = |origin: V3, x: V3, z: V3| Frame {
+            origin: point(origin),
+            x,
+            y: geom::cross(z, x),
+            z,
+        };
+        let face = |surface, rings: Vec<Vec<(usize, bool)>>| Face {
+            surface,
+            reversed: false,
+            loops: rings
+                .into_iter()
+                .map(|edges| Loop {
+                    edges,
+                    vertex: None,
+                })
+                .collect(),
+            solid: None,
+            pcurves: vec![],
+        };
+        let faces = vec![
+            face(
+                Surface::Plane {
+                    frame: frame([0.; 3], [1., 0., 0.], [0., 0., 1.]),
+                },
+                vec![outer, hole],
+            ),
+            face(
+                Surface::Plane {
+                    frame: frame([3., 0., 3.], [0., 1., 0.], [-mirror, 0., 0.]),
+                },
+                vec![tab],
+            ),
+            face(
+                Surface::Cylinder {
+                    frame: frame([0., 0., 3.], [mirror, 0., 0.], [0., mirror, 0.]),
+                    radius: 3. * scale,
+                },
+                vec![bend],
+            ),
+        ];
+        let part = Part::new(faces, edges, vec![]);
+        let r = rotation(py::unit([1., 2., 3.]).unwrap(), 0.731);
+        let placement = [0, 1, 2].map(|i| [r[i][0], r[i][1], r[i][2], [123.456, -78.9, 41.3][i]]);
+        let part = if moved {
+            part.transformed(&placement).unwrap()
+        } else {
+            part
+        };
+        let flanges: Vec<_> = [0, 1]
+            .map(|i| {
+                let Surface::Plane { frame } = part.faces[i].surface else {
+                    unreachable!()
+                };
+                SheetFlange {
+                    index: i,
+                    reference_faces: vec![i],
+                    mate_faces: vec![],
+                    origin: frame.origin,
+                    normal: frame.z,
+                    area: if i == 0 { 4000. } else { 320. } * scale.powi(2),
+                }
+            })
+            .into();
+        let pair = WallFacePair {
+            first_face: 2,
+            second_face: 2,
+            thickness: Some(4. * scale),
+        };
+        let axis = [0., mirror * axis_sign, 0.];
+        let axis = if moved { mat_vec(&r, axis) } else { axis };
+        let Surface::Cylinder { frame, .. } = part.faces[2].surface else {
+            unreachable!()
+        };
+        let bend = SheetBend {
+            index: 0,
+            face_pairs: vec![pair.clone()],
+            first_flange: 0,
+            second_flange: 1,
+            axis_origin: frame.origin,
+            axis_direction: axis,
+            angle_degrees: 90.,
+            inner_radius: 3. * scale,
+            reference_skin: "inner",
+            neutral_radius: 5. * scale,
+            bend_allowance: 2.5 * PI * scale,
+        };
+        let wall = ThinWallBody {
+            body_index: 0,
+            body_key: None,
+            thickness: 4. * scale,
+            face_pairs: vec![pair],
+            unpaired_faces: vec![],
+            rim_regions: vec![],
+            paired_area_fraction: 1.,
+            history_hint: ShellHistoryHint {
+                basis: "analytic",
+                direction: None,
+                outer_faces: vec![],
+                inner_faces: vec![],
+                opening_rims: vec![],
+                before_shell_collar_pairs: vec![],
+                after_shell_cut_faces: vec![],
+            },
+            unpaired_face_classes: vec![],
+        };
+        let sheet = Sheet {
+            part: &part,
+            wall: &wall,
+            area: BTreeMap::new(),
+            paired: BTreeSet::new(),
+        };
+        flat_pattern_plan(&sheet, &flanges, &[bend], 0.5, &BTreeSet::from([0, 1, 2])).unwrap()
+    }
+
+    #[test]
+    fn lanced_tabs_fit_their_windows_in_both_orientations_and_motions() {
+        for scale in [0.1, 1., 10.] {
+            for mirror in [-1., 1.] {
+                for axis in [-1., 1.] {
+                    for moved in [false, true] {
+                        let plan = lanced_development(scale, mirror, 20. + 2.5 * PI, axis, moved);
+                        assert!(
+                            plan.valid_blank,
+                            "{scale} {mirror} {axis} {moved}: {:?}",
+                            plan.overlap_witnesses
+                        );
+                        let strip = &plan.bend_strips[0];
+                        assert!(
+                            (area2(&strip.corners).abs() / scale.powi(2) - 16. * 2.5 * PI).abs()
+                                < 1e-8
+                        );
+                        let face = &plan.flat_faces[1];
+                        let area: f64 = face
+                            .triangles
+                            .iter()
+                            .map(|t| area2(&t.map(|i| face.vertices[i])).abs())
+                            .sum();
+                        assert!((area / scale.powi(2) - 320.).abs() < 1e-8);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn an_overlong_lanced_tab_reports_total_real_overlap_symmetrically() {
+        for scale in [0.1, 1., 10.] {
+            for mirror in [-1., 1.] {
+                for axis in [-1., 1.] {
+                    for moved in [false, true] {
+                        // The window holds the bend plus only 15 mm of a 20 mm tab.
+                        let plan = lanced_development(scale, mirror, 15. + 2.5 * PI, axis, moved);
+                        assert!(!plan.valid_blank);
+                        assert_eq!(plan.overlap_witnesses.len(), 1);
+                        let w = &plan.overlap_witnesses[0];
+                        assert_eq!(
+                            (w.first_kind, w.first_index, w.second_kind, w.second_index),
+                            ("flange_face", 0, "flange_face", 1)
+                        );
+                        assert!((w.area / scale.powi(2) - 80.).abs() < 1e-8, "{w:?}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn bend_travel_is_perpendicular_to_either_axis_direction() {
+        for sign in [-1., 1.] {
+            assert_eq!(
+                bend_approach([0., 0., 1.], [0., sign, 0.], [2., 17., 3.]),
+                Some([1., 0., 0.])
+            );
+        }
+    }
+
+    #[test]
+    fn independently_sampled_coincident_circles_do_not_overlap_the_window_rim() {
+        use crate::kernel::brep::{Edge, Face, Loop};
+        use crate::kernel::geom::Frame;
+        let frame = Frame {
+            origin: [0.; 3],
+            x: [1., 0., 0.],
+            y: [0., 1., 0.],
+            z: [0., 0., 1.],
+        };
+        let mut edges = Vec::new();
+        let mut add = |curve: Curve, start: V3, end: V3, closed: bool| {
+            let id = edges.len();
+            let samples = crate::kernel::sampling::sample_edge(&curve, start, end, true, closed);
+            edges.push(Edge {
+                curve,
+                start,
+                end,
+                vertices: (2 * id, if closed { 2 * id } else { 2 * id + 1 }),
+                same_sense: true,
+                samples,
+            });
+            (id, true)
+        };
+        let points = [
+            [-20., -20., 0.],
+            [20., -20., 0.],
+            [20., 20., 0.],
+            [-20., 20., 0.],
+        ];
+        let outer = (0..4)
+            .map(|i| {
+                let (start, end) = (points[i], points[(i + 1) % 4]);
+                add(
+                    Curve::Line {
+                        origin: start,
+                        dir: py::unit(geom::sub(end, start)).unwrap(),
+                    },
+                    start,
+                    end,
+                    false,
+                )
+            })
+            .collect();
+        let circle = Curve::Circle { frame, radius: 10. };
+        let hole = vec![add(circle.clone(), [10., 0., 0.], [10., 0., 0.], true)];
+        let tab = vec![
+            add(circle.clone(), [10., 0., 0.], [-10., 0., 0.], false),
+            add(circle, [-10., 0., 0.], [10., 0., 0.], false),
+        ];
+        let face = |rings: Vec<Vec<(usize, bool)>>| Face {
+            surface: Surface::Plane { frame },
+            reversed: false,
+            loops: rings
+                .into_iter()
+                .map(|edges| Loop {
+                    edges,
+                    vertex: None,
+                })
+                .collect(),
+            solid: None,
+            pcurves: vec![],
+        };
+        let part = Part::new(
+            vec![face(vec![outer, hole]), face(vec![tab])],
+            edges,
+            vec![],
+        );
+        let regions: Vec<_> = (0..2)
+            .map(|f| {
+                let (loops, error) = checking_boundary(&part, f, 4.);
+                FlatRegion::new(
+                    f as i64,
+                    loops
+                        .iter()
+                        .map(|ring| ring.iter().map(|p| [p[0], p[1]]).collect())
+                        .collect(),
+                    error,
+                )
+            })
+            .collect();
+        // A full circle and two half circles need different chord counts. Their polygons
+        // intersect in slivers, although their exact curved boundaries coincide.
+        assert!(overlap_area(&regions[0].loops, &regions[1].loops) > 1e-6);
+        assert!(region_overlaps(&regions, 4.).is_empty());
+    }
+
+    #[test]
+    fn curved_boundary_uncertainty_cannot_make_a_sliver_an_overlap() {
+        let rect = |a: f64, b: f64| vec![vec![[a, 0.], [b, 0.], [b, 10.], [a, 10.]]];
+        let regions = [
+            FlatRegion::new(0, rect(0., 10.), 0.02),
+            FlatRegion::new(1, rect(9.999, 20.), 0.02),
+        ];
+        assert!(region_overlaps(&regions, 4.).is_empty());
+        // The same 0.01 mm² intersection of exact straight boundaries is real, even though
+        // it is below the old per-triangle 0.16 mm² cutoff.
+        let regions = [
+            FlatRegion::new(0, rect(0., 10.), 0.),
+            FlatRegion::new(1, rect(9.999, 20.), 0.),
+        ];
+        let found = region_overlaps(&regions, 4.);
+        assert_eq!(found.len(), 1);
+        assert!((found[0].area - 0.01).abs() < 1e-10);
+    }
+
+    #[test]
     fn a_k_factor_outside_zero_to_one_is_refused() {
         let part = Part::new(Vec::new(), Vec::new(), Vec::new());
         for k in [-0.1, 1.1, f64::NAN] {
@@ -1451,9 +1979,9 @@ mod tests {
     #[test]
     fn overlap_of_a_triangle_with_itself_is_its_area_and_a_shared_edge_is_zero() {
         let t = [[0.0, 0.0], [2.0, 0.0], [0.0, 2.0]];
-        assert!((overlap_area(&t, &t) - 2.0).abs() < 1e-12);
+        assert!((overlap_area(&[t.to_vec()], &[t.to_vec()]) - 2.0).abs() < 1e-12);
         let u = [[2.0, 0.0], [0.0, 2.0], [2.0, 2.0]];
-        assert!(overlap_area(&t, &u).abs() < 1e-12);
+        assert!(overlap_area(&[t.to_vec()], &[u.to_vec()]).abs() < 1e-12);
     }
 
     #[test]
