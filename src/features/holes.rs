@@ -1561,6 +1561,50 @@ mod tests {
     }
 
     #[test]
+    fn convex_inner_counterbore_step_is_not_an_exterior_mouth() {
+        let (s, c) = 0.37_f64.sin_cos();
+        for scale in [0.1, 1., 10.] {
+            // Convex edge break on the THROUGH-bore lip at the counterbore floor,
+            // in addition to the outer floor/wall bevel tested above.
+            let rings = [
+                (15., -5.),
+                (15., 0.),
+                (4., 0.),
+                (4., 2.),
+                (2.5, 2.),
+                (2.5, -0.25),
+                (1.9, -0.25),
+                (1.65, -0.5),
+                (1.65, -5.),
+            ];
+            let base = turned_ring(&rings.map(|(r, z)| (r * scale, z * scale)));
+            assert!(base.solid_is_geometrically_valid(0));
+            for motion in [
+                IDENTITY,
+                [[c, 0., s, 123.], [0., 1., 0., -37.], [-s, 0., c, 19.]],
+            ] {
+                let part = base.transformed(&motion).unwrap();
+                let ctx = Context::new(&part);
+                let stacks = hole_stacks(&ctx);
+                assert_eq!(stacks.len(), 1);
+                let bore = &stacks[0][py::first_min(&stacks[0], |s| s.diameter)];
+                // It meets the local coaxial-cone/convex-plane tests. Only its
+                // position inside the complete stack excludes it as a mouth.
+                assert!(
+                    [false, true]
+                        .into_iter()
+                        .any(|hi| mouth_chamfer(&part, bore, hi).is_some())
+                );
+                let holes = discover_verified(&ctx, &[]).unwrap();
+                assert_eq!(holes.len(), 1);
+                assert!(holes[0].record.cbore.is_some());
+                assert!(holes[0].record.mouth_chamfers.is_empty());
+                assert!(countersinks::discover(&ctx).is_empty());
+            }
+        }
+    }
+
+    #[test]
     fn mouth_chamfer_requires_coaxial_surface_and_convex_exterior_support() {
         let base = chamfered_hole(false, true, 0.25, 0.25, false, 1.);
         let cone = base
