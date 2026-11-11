@@ -58,6 +58,7 @@ jobs:
     environment: crates-io
     permissions:
       contents: read
+      actions: read # the CI gate below reads ci.yml's runs
       id-token: write
     env:
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
@@ -65,6 +66,16 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: refs/tags/${{ env.TAG }}
+      - name: ci.yml passed on the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          n=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=$sha&status=success" --jq .total_count)
+          if [ "$n" -lt 1 ]; then
+            echo "::error::ci.yml has no successful run for $sha ($TAG): publish refused"
+            exit 1
+          fi
       - run: rustup toolchain install
       - name: The tag is the workspace version
         run: |
