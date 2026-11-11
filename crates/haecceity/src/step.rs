@@ -2177,6 +2177,15 @@ fn build(parsed: &Parsed, scope: Scope<'_>) -> Result<Read, StepError> {
         };
         let mut members = Vec::new();
         for (face, flipped) in faces {
+            // ADVANCED_FACE and FACE_SURFACE bounds are SET [1:?]. step-io can
+            // retain a typed reference to an incompatible complex instance while
+            // its scene iterator skips that bound. Refuse before building a Face.
+            if face.bounds().next().is_none() {
+                return Err(StepError::Incomplete(format!(
+                    "face #{} has no readable bounds (expected at least one face loop)",
+                    ids.id(face.key())?
+                )));
+            }
             let mut loops = Vec::new();
             for bound in face.bounds() {
                 let mut edges = Vec::new();
@@ -3342,6 +3351,16 @@ mod tests {
     #[test]
     fn broken_files_are_refused() {
         let error = |name: &str| read_step_file(&fixture(name)).unwrap_err().to_string();
+        for name in [
+            "golden_simple_through_hole_no_bounds.step",
+            "kissing_cylinders_knife_no_bounds.step",
+        ] {
+            let err = error(&format!("broken/{name}"));
+            assert!(
+                err.contains("face #17 has no readable bounds"),
+                "{name}: {err}"
+            );
+        }
         assert!(error("broken/empty_data.step").contains("no solid or shell"));
         assert!(error("broken/truncated.step").contains("parse error"));
         assert!(error("broken/truncated_closed.step").contains("#105 is referenced"));
