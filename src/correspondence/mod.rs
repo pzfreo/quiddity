@@ -260,7 +260,6 @@ pub enum Class {
 
 /// The alignment found (or not) between the revisions.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[non_exhaustive]
 pub struct Alignment {
     pub found: bool,
     /// Rows of the rotation taking the old revision's frame to the new one's.
@@ -319,7 +318,6 @@ pub struct Entry<T> {
 
 /// What `correspond` finds.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[non_exhaustive]
 pub struct Correspondence {
     pub fingerprint_version: String,
     pub alignment: Alignment,

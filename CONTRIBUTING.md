@@ -62,6 +62,14 @@ regardless of the manifest version. With it, completed API-lint failures are
 reported and accepted for the declared pending release; build/tool failures fail.
 This also applies while current = published, including the pending 0.5.0 release. CI also runs cargo-audit against Cargo.lock.
 
+## Test files and data
+
+Add only files you created yourself or whose licence allows redistribution, and record each
+file's source and licence beside it (a fixture README or NOTICE entry). Never add customer,
+confidential or NDA-covered files, or geometry extracted from them, to the repository, to
+issues or to pull requests. For a bug seen on such a part, share a reduced synthetic part that
+reproduces it instead.
+
 ## Developer Certificate of Origin
 
 Contributions are accepted under the project's licence, Apache-2.0 (its section 5 covers

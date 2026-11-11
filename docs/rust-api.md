@@ -30,7 +30,7 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `haecceity::removal`: `Blocker`, `Emptied`, `RemovalPlan`, `RemovalRefusal`, `RemovalReport`.
 - `haecceity::step`: `Assembly`, `Component`, `PartDefinition`, `PartPlacement`, `StepError`, `StepFile`.
 - `haecceity::step::manifest`: `Common`, `Instance`, `Manifest`, `Product`, `Ranges`, `ReaderVersion`, `Refusal`, `ScanOptions`, `Source`, `Unowned`.
-- `quiddity::correspondence`: `Alignment`, `Change`, `Correspondence`, `Entry`, `FaceFingerprint`, `FeatureFingerprint`, `Fingerprints`, `Recognition`, `Thresholds`.
+- `quiddity::correspondence`: `Change`, `Entry`, `FaceFingerprint`, `FeatureFingerprint`, `Recognition`, `Thresholds`.
 - `quiddity::evidence_view`: `EvidenceCandidate`, `EvidenceDocument`, `EvidenceFeature`, `EvidenceRecord`.
 - `quiddity::features::angled_steps`: `AngledStep`.
 - `quiddity::features::annular_grooves`: `AnnularGroove`.
@@ -156,7 +156,9 @@ planning/input values. Fixed mathematical representations (`V3`, `Bounds`, `Fram
 (`Edge`, `Loop`, `Face`, `Solid`, `Source`), identifier/quantity wrappers, EXPRESS
 syntax values, PMI model values and standard-defined enums remain constructible
 and exhaustive. Their fields and variants are a source compatibility commitment:
-adding one requires a minor release. This also covers correspondence `Class` and
+adding one requires a minor release. This also covers correspondence `Class`, the
+stored and compared values `Fingerprints`, `Correspondence` and `Alignment` (Specify
+builds and persists them as plain values), and
 coordinate representations (`RecordFrame`, `FrameGauge`, `FilletAxis`, `ProfileAxis`, `Grid`).
 Input tolerances without defaults remain explicit closed values; no tolerance or
 recognition policy changed in this migration. Opaque objects with private state

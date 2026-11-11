@@ -18,7 +18,6 @@ pub const FINGERPRINT_VERSION: &str = "quiddity-rust/fingerprint/3";
 
 /// The fingerprints of one recognition result.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[non_exhaustive]
 pub struct Fingerprints {
     pub fingerprint_version: String,
     /// The part's size, mm: the square root of its faces' total area (unchanged by motion,
