@@ -26,6 +26,8 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::ops::Range;
 
+pub mod streaming;
+
 pub use step_io::parser::{Attribute, RawEntity, RawEntityPart};
 use step_io::parser::{Graph, Span};
 
@@ -1476,5 +1478,40 @@ mod description_reference_tests {
             file_description_attributes(Some(&malformed), &requests),
             None
         );
+    }
+}
+
+#[cfg(test)]
+mod scan_compatibility_tests {
+    use super::*;
+    #[test]
+    fn extent_scanning_keeps_main_errors_and_does_not_require_equals() {
+        let no_equals = b"ISO-10303-21;DATA;#1 THING();ENDSEC;END-ISO-10303-21;";
+        assert!(scan(no_equals).is_ok());
+        for chunk in [1, 7, 4096] {
+            assert!(streaming::scan(no_equals.as_slice(), chunk, |_| Ok(())).is_ok());
+            assert!(streaming::scan_structure(no_equals.as_slice(), chunk, |_| Ok(())).is_err());
+        }
+        for bytes in [
+            b"\n/* unterminated".as_slice(),
+            b"ISO-10303-21;\nDATA;\n#x=THING();ENDSEC;END-ISO-10303-21;",
+            b"ISO-10303-21;\nDATA;\n#1=THING(\n'unterminated",
+            b"ISO-10303-21;\nHEADER;\n#1=THING();ENDSEC;END-ISO-10303-21;",
+            b"ISO-10303-21;\nSIGNATURE;",
+            b"ISO-10303-21;\nHEADER;\n/* unterminated",
+            b"/?bad",
+            b"",
+            b"\nISO-10303-21;\nEND-ISO-10303-21;X;",
+        ] {
+            let expected = scan(bytes).map(|_| ());
+            for chunk in [1, 7, 4096] {
+                assert_eq!(
+                    streaming::scan(bytes, chunk, |_| Ok(())),
+                    expected,
+                    "{} chunk {chunk}",
+                    String::from_utf8_lossy(bytes)
+                );
+            }
+        }
     }
 }

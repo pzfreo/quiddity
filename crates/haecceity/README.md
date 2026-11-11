@@ -214,3 +214,78 @@ and JSON → STEP writing with checked identity restoration. Both are independen
 of `presentation`. See [the reference](docs/pmi-json.md), packaged `schema/`,
 and the `json_wasm_size` example. Ordinary writer output is unchanged except
 for Annex C-conformant gram/milligram definitions.
+
+### Large STEP assemblies: the manifest reader
+
+The default `manifest` feature provides `step::manifest::scan(reader, &ScanOptions::default())`
+and serde `quiddity-manifest/1`. Disable default features for WASM consumers that do not need
+filesystem manifests; serde, SHA-256, tempfile and mmap dependencies are optional. The source
+implements `Read + Seek` solely for replay: the scan uses 8 MiB chunks and one rewind, followed
+by one forward pass combining all placement fetches with range hashes. A gzip source is decoded
+once per pass, without backwards decoded seeks. Source size and SHA-256 come from the first pass.
+`p21::streaming::scan` accepts any `Read` and captures extents only; `scan_structure` opts into
+borrowed keywords and references using reusable buffers. Lossless `Document::parse` retains its
+original slice scanner and diagnostics.
+
+Ranges are half-open `[start, end)` offsets into the uncompressed source. Each product has
+coalesced ranges, entity and byte counts, SHA-256, and the ordered face entity IDs. Edge indices
+come from the existing product reader; the manifest carries no edge index map. A normals-only
+shell repair can change edge traversal order, so equivalence compares edge counts and sets.
+The manifest also carries assemblies, occurrence paths and placements in millimetres, unowned
+presentation/other ranges, and shared-geometry refusals. `read_product(&file, "p0")` reads the
+header and common/product ranges in one forward pass, checks size and hashes, and uses the
+existing part readers with exact ordered face checks. Headers are bounded to 16 MiB before a
+manifest-controlled allocation. `verify_source(reader)` explicitly checks the whole source.
+The common hash includes the original header bytes followed by the common range bytes.
+Incompatible manifests report both reader versions; haecceity records only its own version.
+Gzip sources can be scanned, but range reads refuse them.
+
+Only contexts/units reached by product or assembly chains, or their shape representations,
+go to `common`. Geometry-only contexts (including per-pcurve contexts) go into their product's
+ranges, and a context used by several products is copied into each without unioning them.
+Unreached contexts remain unowned. Frames and their point/direction dependencies are also copied
+by indexed dependency links, without retaining parsed geometry frames. Only actual assembly
+transform frames are fetched into the small placement document after scanning.
+
+`ScanOptions::no_product_hashes` is the explicit size-only fallback. `index_dir` places the
+16-byte extent/union entries in a temporary mapped file, cleaned up on success or refusal;
+otherwise fixed-size RAM pages avoid reallocating and copying the full index. Dense IDs use a
+paged 4-byte slot array, with a sparse hash table for outlying IDs. Forward references use inline
+or recycled flat links. Class and adjacency flags share the extent entry (offsets are bounded
+to 56 bits, well beyond practical STEP file sizes). File-order links are
+needed only for unordered/sparse IDs. Ownership uses inline product tags and pooled shared-owner
+links. Retained structure contains assembly records, shape/solid roots and shell face lists,
+not faces, bounds, loops or oriented edges; neither index stores entity text. The lexer keeps its
+current statement and chunk buffers. There is no automatic RAM/disk threshold.
+The independent `instance_limit` defaults to 1,000,000, counting visited definitions and emitted
+solid/surface-model instances separately; hierarchy depth remains bounded at 64. Per-product
+reads retain the existing reader's limits.
+
+Classification uses type names, including every leaf of complex entities, in this order:
+
+- Context/unit boundary types: names ending in `CONTEXT` or `UNIT`, plus `DIMENSIONAL_EXPONENTS`,
+  `DERIVED_UNIT_ELEMENT`, `CONVERSION_BASED_UNIT_WITH_OFFSET`,
+  `MEASURE_WITH_UNIT`, `UNCERTAINTY_MEASURE_WITH_UNIT`, `APPLICATION_PROTOCOL_DEFINITION`.
+- Assembly: `PRODUCT`, `PRODUCT_DEFINITION` (also `_WITH_ASSOCIATED_DOCUMENTS`),
+  `PRODUCT_DEFINITION_FORMATION` (also `_WITH_SPECIFIED_SOURCE`), `PRODUCT_DEFINITION_SHAPE`,
+  `SHAPE_DEFINITION_REPRESENTATION`, `NEXT_ASSEMBLY_USAGE_OCCURRENCE`,
+  `CONTEXT_DEPENDENT_SHAPE_REPRESENTATION`, `ITEM_DEFINED_TRANSFORMATION`,
+  `REPRESENTATION_RELATIONSHIP`, `REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION`,
+  `AXIS2_PLACEMENT_3D`, `AXIS2_PLACEMENT_2D`. Placement frames and their point/direction
+  dependencies are copied without joining products through a shared standard frame.
+- Presentation/PMI: prefixes `STYLED_`, `COLOUR`, `COLOR`, `PRESENTATION_`, `SURFACE_STYLE`,
+  `CURVE_STYLE`, `FILL_AREA_STYLE`, `POINT_STYLE`, `TEXT_STYLE`, `TEXT_LITERAL`, `COMPOSITE_TEXT`,
+  `SURFACE_CONDITION`, `SURFACE_TEXTURE`, `ANNOTATION`, `DRAUGHTING`,
+  `CAMERA`, `LIGHT_SOURCE`, `GEOMETRIC_TOLERANCE`, `DATUM`, `DIMENSIONAL_`, `DIMENSION_`,
+  `SHAPE_ASPECT`, `TESSELLATED_ANNOTATION`; names containing `TOLERANCE`, `SHAPE_ASPECT`,
+  `STYLE` or `SYMBOL`, or ending in `_FONT`;
+  and `MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION`, `OVER_RIDING_STYLED_ITEM`,
+  `INVISIBILITY`, `PRE_DEFINED_COLOUR`, `PRE_DEFINED_CURVE_FONT`, `GEOMETRIC_ITEM_SPECIFIC_USAGE`,
+  `ITEM_IDENTIFIED_REPRESENTATION_USAGE`, `COMMON_DATUM`, `LIMITS_AND_FITS`.
+- A plain `SHAPE_REPRESENTATION_RELATIONSHIP` (including its complex inherited leaves) is
+  geometry; a relationship with a transformation is assembly.
+- Geometry: everything else. Only references between geometry entities participate in
+  union-find. A component claimed by multiple products records a refusal with a shared
+  entity ID; callers use their existing whole-file fallback for those products.
+
+The CLI and Python manifest interfaces are separate work.

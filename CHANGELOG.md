@@ -89,6 +89,14 @@ in [docs/alpha1.md](docs/alpha1.md).
   product/occurrence associations, plus a local haecceity/GVP/OCCT accuracy tool
   and relative-tolerance CI coverage. See `docs/geometric-validation.md`.
 
+- haecceity’s `step::manifest` scans large STEP assemblies into serde manifests and reads
+  individual products through checked byte ranges, with source/product hashes, hierarchy and
+  placements, topology IDs, shared-geometry refusals, and an optional mapped index (#190, PR 1).
+  The optional structured Part 21 lexer reads bounded chunks across arbitrary boundaries,
+  while lossless editing retains its original extent scanner. Manifests store the ordered face
+  map; existing product reads supply edge numbering. Context ownership and all post-scan
+  placement/hash work use compact indexes and one forward replay, including gzip sources.
+
 - `internal_bevels` recognises bounded concave planar corner treatments with measured
   support legs, angle and run, backed by a complete material-filled wedge proof (#213).
   The optional sibling family preserves existing chamfer ranks and saved Spec references;
