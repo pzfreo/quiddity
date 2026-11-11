@@ -13,13 +13,155 @@ use crate::kernel::geom::{self, Surface, V3};
 use crate::kernel::py;
 
 /// Fingerprint format version: correspondence refuses different formats.
-/// Intentional value changes within v3 are recorded in the changelog (#71, #92, #134).
+/// Value changes within this format bump [`FINGERPRINT_REVISION`] and add an entry to
+/// [`VALUE_CHANGES`]. Changes not expressible as excluded keys require fingerprint/4.
 pub const FINGERPRINT_VERSION: &str = "quiddity-rust/fingerprint/3";
+
+/// Vintage of the current values, independent of the crate's release version.
+pub const FINGERPRINT_REVISION: u32 = 1;
+
+/// A known value change within fingerprint/3. Keys use correspondence's `traits.` / `sizes.`
+/// paths, or `position`, `axis`, `neighbourhood`; a trailing `.*` covers indexed descendants.
+/// Revision 0 means "before revision 1": the precise historical vintage was not recorded.
+pub struct FingerprintValueChange {
+    pub revision: u32,
+    pub families: &'static [&'static str],
+    pub keys: &'static [&'static str],
+    pub evidence: &'static str,
+}
+
+/// Known key-level corrections, all predating recorded revisions. This is executable migration
+/// data, not a list of recogniser additions/removals: exclusions cannot recreate missing records
+/// or migrate face topology. Family renames additionally need `merge_legacy_families` below.
+pub const VALUE_CHANGES: &[FingerprintValueChange] = &[
+    FingerprintValueChange {
+        revision: 0,
+        families: &["plates"],
+        keys: &["sizes.thickness"],
+        evidence: "CHANGELOG 0.1.1 #71: supporting face planes; 0.2.0-alpha.1 #84/#85: exact separation and whistle's envelope",
+    },
+    FingerprintValueChange {
+        revision: 0,
+        families: &["slot_patterns"],
+        keys: &["sizes.pitch", "sizes.row_pitch", "sizes.col_pitch", "axis"],
+        evidence: "CHANGELOG 0.2.0-alpha.2 #92: raw member centres for pitches and directions",
+    },
+    FingerprintValueChange {
+        revision: 0,
+        families: &["chamfers"],
+        keys: &["traits.turned"],
+        evidence: "CHANGELOG 0.2.0-alpha.2 #92; merge_fingerprint: oriented chamfers gain turned=false; family/ID migration is separate",
+    },
+    FingerprintValueChange {
+        revision: 0,
+        families: &["slots"],
+        keys: &[
+            "traits.source.ends.low_capped",
+            "traits.source.ends.high_capped",
+        ],
+        evidence: "CHANGELOG 0.2.0-alpha.2 #92; merge_fingerprint: oriented source-end proofs removed",
+    },
+    FingerprintValueChange {
+        revision: 0,
+        families: &[
+            "holes",
+            "hole_patterns",
+            "slots",
+            "slot_patterns",
+            "polygonal_bosses",
+        ],
+        keys: &["position", "neighbourhood"],
+        evidence: "CHANGELOG 0.2.0 and 0.2.1-alpha.1 #100: drill-point cones, slot end walls, polygonal boss free-end cap join defining faces; 0.2.0-alpha.1 #83 and 0.2.2 #118: both hole mouths and outer-step faces; derived_faces propagates member claims to patterns",
+    },
+    FingerprintValueChange {
+        revision: 0,
+        families: &["pockets"],
+        keys: &["traits.rectangular_boundary"],
+        evidence: "CHANGELOG 0.2.0: proved rectangular pocket boundaries; FAMILIES pockets",
+    },
+    FingerprintValueChange {
+        revision: 0,
+        families: &["v_channels"],
+        keys: &[
+            "sizes.trough_radius",
+            "sizes.depth",
+            "position",
+            "neighbourhood",
+        ],
+        evidence: "CHANGELOG 0.2.1-alpha.1 #100: rounded trough, depth from flank intersection, defining trough cylinder",
+    },
+    FingerprintValueChange {
+        revision: 0,
+        families: &["holes"],
+        keys: &[
+            "traits.cbore",
+            "traits.spotface",
+            "sizes.cbore.diameter",
+            "sizes.cbore.depth",
+            "sizes.spotface.diameter",
+            "sizes.spotface.depth",
+            "sizes.outer_steps.*",
+            "position",
+            "neighbourhood",
+        ],
+        evidence: "CHANGELOG 0.2.2 #118: counterbore/spotface threshold, outer_steps and their defining faces; derived_sizes holes",
+    },
+    FingerprintValueChange {
+        revision: 0,
+        families: &["bosses"],
+        keys: &["sizes.height", "position", "neighbourhood"],
+        evidence: "CHANGELOG 0.2.5 #134; fingerprint_with_axes: complete boss height/midpoint and contracted treatment graph",
+    },
+    FingerprintValueChange {
+        revision: 0,
+        families: &["plates"],
+        keys: &["position", "neighbourhood"],
+        evidence: "CHANGELOG 0.2.5 #134; plate_position and supporting_neighbourhood: restored projected strips and contracted graph",
+    },
+    FingerprintValueChange {
+        revision: 0,
+        families: &["fillets"],
+        keys: &["traits.side"],
+        evidence: "CHANGELOG 0.2.5 #134: concave turned fillets report their actual side",
+    },
+    FingerprintValueChange {
+        revision: 0,
+        families: &["interior_voids"],
+        keys: &[
+            "sizes.estimated_volume",
+            "traits.volume_method",
+            "position",
+            "neighbourhood",
+        ],
+        evidence: "CHANGELOG 0.4.7 #189; interior_voids::analyse: closed_shell exact volume and complete shell defining faces; sample fields are ignored, openings remain zero",
+    },
+    FingerprintValueChange {
+        revision: 0,
+        families: &["local_steps"],
+        keys: &["sizes.height", "sizes.depth", "sizes.section.legs.*"],
+        evidence: "#211 commit 970e066c: replace frame-named height/depth by sorted intrinsic section legs",
+    },
+    FingerprintValueChange {
+        revision: 0,
+        families: &["internal_bevels"],
+        keys: &["sizes.leg1", "sizes.leg2", "sizes.angle"],
+        evidence: "CHANGELOG Unreleased #213; commit 019bd032: intrinsic support-area leg ties and actual support angle",
+    },
+    FingerprintValueChange {
+        revision: 0,
+        families: &["pockets"],
+        keys: &["sizes.floor_radius"],
+        evidence: "CHANGELOG Unreleased #228; commit e01b44ac: optional proved floor_radius (floor_fillets are ignored)",
+    },
+];
 
 /// The fingerprints of one recognition result.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Fingerprints {
     pub fingerprint_version: String,
+    /// 0 is an unrecorded fingerprint/3 vintage (through 0.4.x); never a crate version.
+    #[serde(default)]
+    pub fingerprint_revision: u32,
     /// The part's size, mm: the square root of its faces' total area (unchanged by motion,
     /// unlike a box). Tolerances and placement costs are relative to it.
     pub scale: f64,
@@ -1312,6 +1454,7 @@ fn fingerprint_with_axes(
     }
     Fingerprints {
         fingerprint_version: FINGERPRINT_VERSION.into(),
+        fingerprint_revision: FINGERPRINT_REVISION,
         scale,
         features: out,
         faces,

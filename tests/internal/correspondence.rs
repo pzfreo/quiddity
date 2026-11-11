@@ -61,6 +61,15 @@ fn revision_pairs_have_their_expected_classes() {
         };
         let (old, new) = (read("old"), read("new"));
         let c = correspondence::correspond(&old, &new).unwrap();
+        // Equal vintages retain the existing matcher exactly, including every cost, change,
+        // ambiguity, face match and alignment on these established revision corpus pairs.
+        let (mut unrecorded_old, mut unrecorded_new) = (old.clone(), new.clone());
+        unrecorded_old.fingerprint_revision = 0;
+        unrecorded_new.fingerprint_revision = 0;
+        let mut unrecorded = correspondence::correspond(&unrecorded_old, &unrecorded_new).unwrap();
+        assert!(c.excluded_keys.is_empty() && unrecorded.excluded_keys.is_empty());
+        unrecorded.revisions = c.revisions;
+        assert_eq!(c, unrecorded, "equal revision behaviour: {name}");
         let mut results: Vec<(String, bool, String)> = Vec::new();
         // Alignment.
         let aligned = case["aligned"].as_bool().unwrap();

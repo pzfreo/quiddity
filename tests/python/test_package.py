@@ -159,6 +159,17 @@ def test_correspond():
     result = json.loads(quiddity.correspond(before, after))
     assert result == json.loads(cli("correspond", FIXTURES / "revisions/hole_moved.old.step.gz", FIXTURES / "revisions/hole_moved.new.step.gz").stdout)
     assert result["features"]
+    assert result["revisions"] == {"old": 1, "new": 1}
+    assert "excluded_keys" not in result
+
+
+def test_fingerprint_revision_is_stable_and_passes_through():
+    first = json.loads(quiddity.fingerprints(str(PLATE)))
+    second = json.loads(quiddity.fingerprints(PLATE.read_bytes()))
+    assert first["fingerprint_revision"] == 1
+    assert first == second
+    assert first == json.loads(cli("fingerprints", PLATE).stdout)
+    assert first == json.loads(quiddity.recognise(str(PLATE)))["fingerprints"]
 
 
 def test_capabilities_version_and_console_script():

@@ -21,6 +21,43 @@ results.
 Every recognised feature and every face gets a fingerprint in the result. It is deterministic,
 serialised, and versioned (`fingerprint_version`).
 
+`fingerprint_revision` records the vintage of the values within `fingerprint/3`, independently
+of the crate release. New fingerprints carry `FINGERPRINT_REVISION` (currently 1). There is no
+producer version: a release that leaves the values unchanged must leave saved fingerprints
+unchanged too. A missing revision deserialises as 0: fingerprint/3 from before revisions were
+recorded (through 0.4.x), with unknown vintage.
+
+When revisions differ, `correspond_with` consults `VALUE_CHANGES` in
+[`fingerprint.rs`](../src/correspondence/fingerprint.rs). Each entry lists its introducing
+revision, affected families, exact trait/size keys or placement/neighbourhood parts, and the
+changelog/issue or code evidence. Historical entries say "before revision 1" (represented by 0).
+An entry applies when its introducing revision lies above the smaller input revision and at
+or below the larger one. A revision-0 input may predate **every** entry, in either direction.
+Equal revisions, including 0 versus 0, use the existing comparison without exclusions.
+
+For a revision gap, temporary comparison views omit the listed keys from both inputs before
+alignment and matching. Excluded sizes/traits do not enter semantic costs or adaptation;
+excluded axes, positions and neighbourhoods do not enter their costs or change reports. An
+excluded position cannot supply an alignment anchor. Stored fingerprints are never rewritten.
+The result always includes `revisions: {"old": ..., "new": ...}`. `excluded_keys` lists concrete
+`{"family": ..., "key": ...}` pairs present on either side, sorted and deduplicated, with indexed
+size paths expanded; it is absent when empty. Older correspondence JSON still loads with
+revisions 0/0 and no exclusions. Exclusions mark unavailable evidence; they do not assert that
+the design is unchanged and can leave less evidence to distinguish repeated features.
+
+The existing migration of `oriented_slots`, `oriented_chamfers` and `oriented_slot_patterns`
+remains separate and runs first. It maps family names and known trait conversions exactly,
+preserving old IDs for saved answers, even when revisions are equal. Key exclusions cannot
+rename families or recover features removed by historical recognition fixes. Face fingerprints
+and their physical topology remain compared as before. Publication-only position grids and
+ignored sampling diagnostics do not become excluded fingerprint keys.
+
+**Maintenance rule:** any future change to a fingerprint value bumps `FINGERPRINT_REVISION`
+and adds a table entry; a change that cannot be described as excluded keys needs fingerprint/4.
+Do not add a crate/producer version to `Fingerprints`: it would change persisted bytes on
+every release, even when the fingerprint values are identical. `Fingerprints`, `Correspondence`
+and `Alignment` remain exhaustive Rust structs.
+
 - **Feature:** three parts.
   - *Semantics:* family and subtype, its intrinsic sizes (diameter, depth, width, length,
     radius, angle, as the family has them), and its pattern count and pitch.
@@ -374,5 +411,6 @@ For #134, boss placement is the complete measured axial midpoint, and plate plac
 restores the projected strips removed from its skins by proved convex edge treatments.
 These two families' neighbourhoods contract those treatments to their supports.
 These intentional value corrections stay in fingerprint format `/3` (as for #71/#92);
+revision-gap comparisons exclude the affected keys as described above;
 face fingerprints still describe the physically trimmed geometry. An aligned matched
 plate seeds mutually unique skin planes without requiring their areas to remain alike.

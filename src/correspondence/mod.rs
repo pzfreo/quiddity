@@ -16,6 +16,7 @@ pub mod align;
 pub mod assign;
 mod congruent;
 pub mod fingerprint;
+mod revisions;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -32,8 +33,10 @@ use crate::published_records::PublishedFeatures;
 pub use align::Motion;
 pub use congruent::{congruent, congruent_with};
 pub use fingerprint::{
-    FINGERPRINT_VERSION, FaceFingerprint, FeatureFingerprint, Fingerprints, fingerprint,
+    FINGERPRINT_REVISION, FINGERPRINT_VERSION, FaceFingerprint, FeatureFingerprint, Fingerprints,
+    fingerprint,
 };
+pub use revisions::{ExcludedKey, FingerprintRevisions};
 
 /// A recognition result with its fingerprints: what `quiddity part.step` writes. The families'
 /// records are at the top level beside `fingerprints`. The recognition document reports the
@@ -316,6 +319,12 @@ pub struct Entry<T> {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Correspondence {
     pub fingerprint_version: String,
+    /// Value vintages compared, always emitted, including when equal or unknown (0).
+    #[serde(default)]
+    pub revisions: FingerprintRevisions,
+    /// Family/key pairs not comparable across these vintages, sorted and deduplicated.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub excluded_keys: Vec<ExcludedKey>,
     pub alignment: Alignment,
     /// One entry per old feature, in the old result's order.
     pub features: Vec<Entry<String>>,
@@ -360,6 +369,17 @@ pub fn correspond_with(
     for (which, f) in [("old", old), ("new", new)] {
         validate(f).map_err(|e| format!("the {which} fingerprints {e}"))?;
     }
+    let revisions = FingerprintRevisions {
+        old: old.fingerprint_revision,
+        new: new.fingerprint_revision,
+    };
+    let excluded_keys = revisions::excluded_keys(old, new);
+    // Work on comparison views only. Excluded semantics must not reject alignment anchors,
+    // and neither costs nor change reports may observe their original values.
+    let comparable_old = revisions::comparison_view(old, &excluded_keys);
+    let comparable_new = revisions::comparison_view(new, &excluded_keys);
+    let old = comparable_old.as_ref().unwrap_or(old);
+    let new = comparable_new.as_ref().unwrap_or(new);
     let (motion, alignment) = align::align(old, new, th);
     let ctx = Ctx {
         old,
@@ -369,12 +389,15 @@ pub fn correspond_with(
         aligned: alignment.found,
         axis: alignment.axis.map(|[p, d]| (p, d)),
         scale: old.scale.max(new.scale),
+        excluded_keys: &excluded_keys,
     };
     let mut questions = Vec::new();
     let (features, new_features) = ctx.match_features(&mut questions);
     let (faces, new_faces) = ctx.match_faces(&features, &mut questions);
     Ok(Correspondence {
         fingerprint_version: FINGERPRINT_VERSION.into(),
+        revisions,
+        excluded_keys,
         alignment,
         features,
         new_features,
@@ -507,6 +530,7 @@ struct Ctx<'a> {
     /// The line about which an axisymmetric alignment's turn is free.
     axis: Option<(V3, V3)>,
     scale: f64,
+    excluded_keys: &'a [ExcludedKey],
 }
 
 impl Ctx<'_> {
@@ -572,6 +596,16 @@ impl Ctx<'_> {
 
     /// Placement, in [0, 1]: half the axis (as lines), half the position.
     fn placement(&self, a: (Option<V3>, Option<V3>), b: (Option<V3>, Option<V3>)) -> f64 {
+        self.placement_parts(a, b, true, true)
+    }
+
+    fn placement_parts(
+        &self,
+        a: (Option<V3>, Option<V3>),
+        b: (Option<V3>, Option<V3>),
+        compare_axis: bool,
+        compare_position: bool,
+    ) -> f64 {
         let axis = match (a.0, b.0) {
             (Some(x), Some(y)) => 1.0 - self.agreement(x, y, true),
             (None, None) => 0.0,
@@ -581,7 +615,8 @@ impl Ctx<'_> {
             (Some(p), Some(q)) => self.displacement(self.gap(p, q)),
             _ => 0.5,
         };
-        0.5 * axis + 0.5 * position
+        0.5 * if compare_axis { axis } else { 0.0 }
+            + 0.5 * if compare_position { position } else { 0.0 }
     }
 
     fn feature_cost(&self, a: &FeatureFingerprint, b: &FeatureFingerprint) -> f64 {
@@ -598,7 +633,18 @@ impl Ctx<'_> {
         };
         let semantics = (traits + size_sum) / (1.0 + size_n as f64);
         let neighbourhood = multiset_distance(&a.neighbourhood, &b.neighbourhood);
-        let placement = self.placement((a.axis, a.position), (b.axis, b.position));
+        let compare = |key: &str| {
+            !self
+                .excluded_keys
+                .iter()
+                .any(|e| e.family == a.family && e.key == key)
+        };
+        let placement = self.placement_parts(
+            (a.axis, a.position),
+            (b.axis, b.position),
+            compare("axis"),
+            compare("position"),
+        );
         self.th.semantics_weight * semantics
             + self.th.neighbourhood_weight * neighbourhood
             + self.placement_weight() * placement
