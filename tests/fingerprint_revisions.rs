@@ -28,7 +28,10 @@ fn new_values_have_a_revision_and_repeat_structurally() {
 
 #[test]
 fn absent_revision_loads_as_zero_and_old_correspondence_still_loads() {
-    let current = recognise("prismatic.step");
+    let mut current = recognise("prismatic.step");
+    // A single feature isolates JSON compatibility from the intentionally reduced evidence
+    // for distinguishing repeated features across an unknown historical vintage.
+    current.features.truncate(1);
     let mut stored = serde_json::to_value(&current).unwrap();
     stored
         .as_object_mut()
@@ -52,14 +55,25 @@ fn absent_revision_loads_as_zero_and_old_correspondence_still_loads() {
 
 #[test]
 fn unknown_void_volume_is_excluded_but_same_revision_volume_is_adapted() {
-    let new = recognise("sealed_cylindrical_voids.step.gz");
+    let mut new = recognise("sealed_cylindrical_voids.step.gz");
+    // Use one real cavity from this three-cavity part; all three have identical volume and
+    // graph, so excluding their placement would deliberately leave them ambiguous.
+    let id = new
+        .features
+        .iter()
+        .find(|f| f.family == "interior_voids")
+        .unwrap()
+        .id
+        .clone();
+    new.features
+        .retain(|f| f.family != "interior_voids" || f.id == id);
     let mut old = new.clone();
     let void = old
         .features
         .iter_mut()
         .find(|f| f.family == "interior_voids")
         .unwrap();
-    let id = void.id.clone();
+    assert_eq!(void.id, id);
     *void.sizes.get_mut("estimated_volume").unwrap() *= 0.8;
     void.traits
         .insert("volume_method".into(), "air_grid".into());
@@ -134,6 +148,80 @@ fn exclusions_are_key_and_family_specific_and_expand_indexed_sizes() {
             .changes
             .contains_key("sizes.outer_steps.0.diameter")
     );
+}
+
+#[test]
+fn excluded_semantics_can_still_supply_alignment_anchors() {
+    use correspondence::FeatureFingerprint;
+    let mut new = Fingerprints {
+        fingerprint_version: correspondence::FINGERPRINT_VERSION.into(),
+        fingerprint_revision: FINGERPRINT_REVISION,
+        scale: 10.0,
+        features: Vec::new(),
+        faces: Vec::new(),
+    };
+    for (i, position) in [[0., 0., 0.], [10., 0., 0.], [0., 20., 0.]]
+        .into_iter()
+        .enumerate()
+    {
+        new.features.push(FeatureFingerprint {
+            id: format!("pockets/{i}"),
+            family: "pockets".into(),
+            traits: [("rectangular_boundary".into(), "true".into())].into(),
+            sizes: [("width".into(), 10.0 * (i + 1) as f64)].into(),
+            position: Some(position),
+            axis: Some([0., 0., 1.]),
+            neighbourhood: Vec::new(),
+            faces: Vec::new(),
+        });
+    }
+    let mut old = new.clone();
+    for f in &mut old.features {
+        f.traits.remove("rectangular_boundary");
+        f.position = f.position.map(|p| [p[0] + 3., p[1] + 4., p[2] + 5.]);
+    }
+    assert!(
+        !correspondence::correspond(&old, &new)
+            .unwrap()
+            .alignment
+            .found
+    );
+    old.fingerprint_revision = 0;
+    let c = correspondence::correspond(&old, &new).unwrap();
+    assert!(c.alignment.found);
+    assert_eq!(c.alignment.inliers, 3);
+    assert!(c.features.iter().all(|e| e.class == Class::Carried));
+    assert_eq!(c.excluded_keys.len(), 1);
+    assert_eq!(c.excluded_keys[0].key, "traits.rectangular_boundary");
+}
+
+#[test]
+fn excluded_placement_and_neighbourhood_have_no_cost() {
+    for family in ["bosses", "slot_patterns"] {
+        let mut new = recognise("prismatic.step");
+        new.features.truncate(1);
+        new.features[0].family = family.into();
+        let mut old = new.clone();
+        old.fingerprint_revision = 0;
+        if family == "bosses" {
+            old.features[0].position = Some([1000., 2000., 3000.]);
+        }
+        old.features[0].neighbourhood = vec!["obsolete-graph".into()];
+        if family == "slot_patterns" {
+            old.features[0].axis = Some([1., 0., 0.]);
+            new.features[0].axis = Some([0., 1., 0.]);
+        }
+        let c = correspondence::correspond(&old, &new).unwrap();
+        assert_eq!(c.features[0].class, Class::Carried);
+        assert_eq!(c.features[0].cost, Some(0.0));
+        if family == "bosses" {
+            assert!(c.excluded_keys.iter().any(|e| e.key == "position"));
+        }
+        assert!(c.excluded_keys.iter().any(|e| e.key == "neighbourhood"));
+        if family == "slot_patterns" {
+            assert!(c.excluded_keys.iter().any(|e| e.key == "axis"));
+        }
+    }
 }
 
 #[test]

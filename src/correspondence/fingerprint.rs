@@ -63,15 +63,15 @@ pub const VALUE_CHANGES: &[FingerprintValueChange] = &[
     },
     FingerprintValueChange {
         revision: 0,
-        families: &[
-            "holes",
-            "hole_patterns",
-            "slots",
-            "slot_patterns",
-            "polygonal_bosses",
-        ],
+        families: &["holes", "hole_patterns", "polygonal_bosses"],
         keys: &["position", "neighbourhood"],
-        evidence: "CHANGELOG 0.2.0 and 0.2.1-alpha.1 #100: drill-point cones, slot end walls, polygonal boss free-end cap join defining faces; 0.2.0-alpha.1 #83 and 0.2.2 #118: both hole mouths and outer-step faces; derived_faces propagates member claims to patterns",
+        evidence: "CHANGELOG 0.2.0 and 0.2.1-alpha.1 #100: drill-point cones and polygonal boss free-end cap join defining faces; 0.2.0-alpha.1 #83 and 0.2.2 #118: both hole mouths and outer-step faces; derived_faces propagates member claims to patterns",
+    },
+    FingerprintValueChange {
+        revision: 0,
+        families: &["slots", "slot_patterns"],
+        keys: &["neighbourhood"],
+        evidence: "CHANGELOG 0.2.0 #100: rounded rectangular slots claim both proved end walls; symmetric end walls preserve the centroid, while their graph changes; derived_faces propagates claims to patterns",
     },
     FingerprintValueChange {
         revision: 0,
@@ -144,8 +144,14 @@ pub const VALUE_CHANGES: &[FingerprintValueChange] = &[
     FingerprintValueChange {
         revision: 0,
         families: &["internal_bevels"],
-        keys: &["sizes.leg1", "sizes.leg2", "sizes.angle"],
-        evidence: "CHANGELOG Unreleased #213; commit 019bd032: intrinsic support-area leg ties and actual support angle",
+        keys: &["sizes.angle"],
+        evidence: "CHANGELOG Unreleased #213; commit 019bd032: actual support angle; leg ties only reorder equal published lengths, direction slots are Placement",
+    },
+    FingerprintValueChange {
+        revision: 0,
+        families: &["polygonal_oblique_through_steps"],
+        keys: &["sizes.slant_degrees"],
+        evidence: "CHANGELOG Unreleased #212; commit 49a11c17: measure slant against through_axis instead of nearest principal axis; outline fields are Placement",
     },
     FingerprintValueChange {
         revision: 0,
