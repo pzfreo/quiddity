@@ -64,6 +64,7 @@ fn refuse<T>(message: &'static str) -> Checked<T> {
 /// and centre, and its cross-section corners in the two other axes, all to 3 decimals; the
 /// corners anticlockwise from the least.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct Passage {
     pub axis: String,
     pub sides: usize,
@@ -74,6 +75,7 @@ pub struct Passage {
 
 /// A section passage's placement frame (`PassageFrame`): origin to 3 decimals, directions to 6.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct PassageFrame {
     pub origin: Placed<V3>,
     pub run: V3,
@@ -84,6 +86,7 @@ pub struct PassageFrame {
 /// One section vertex (`PassageSectionVertex`): its point to 4 decimals and the bulge of the
 /// edge to the next to 12.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct PassageSectionVertex {
     pub point: V2,
     pub bulge: f64,
@@ -91,12 +94,14 @@ pub struct PassageSectionVertex {
 
 /// The canonical, origin-centred section (`PassageSection`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct PassageSection {
     pub boundary: Vec<PassageSectionVertex>,
 }
 
 /// Both ends open, and each termination plane's gradient across the section (`PassageEnds`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct PassageEnds {
     pub low_capped: bool,
     pub high_capped: bool,
@@ -106,6 +111,7 @@ pub struct PassageEnds {
 
 /// A recognised section passage (`SectionPassage`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct SectionPassage {
     pub frame: PassageFrame,
     pub run_interval: Placed<(f64, f64)>,

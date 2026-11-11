@@ -278,7 +278,16 @@
     "tests/fixtures/boss_end_sphere.step.gz": "bd1e136cd062485a37f0de16f874bdf467c82c73e784fedec24e51b93da3e5b8",
     "tests/fixtures/broken/deleted_face.step": "d2180c320803d6834579d5679d407a09dd8395efed470796bd9e03a87a213e91",
     "tests/fixtures/broken/empty_data.step": "11aef9b8f89af4e4cedcf3f6b570163de2d78c931671d46b81a16eeaa4b452e6",
+    "tests/fixtures/broken/golden_complex_bound_loop.step": "a7289cdf3f9764d40362d40a1b03d1c7aed821dd2341a33b2ddc6501a3c0fe63",
+    "tests/fixtures/broken/golden_complex_edge_element.step": "36ad89172f97dac6eadcd79afc701579a4f7bbe49d4422a2adddaaf0257886f5",
+    "tests/fixtures/broken/golden_complex_face_surface.step": "e77156156094d3d97a9ca5cce0ef83fc56f7a6a27d0c123338fac41370bd4506",
+    "tests/fixtures/broken/golden_complex_inner_bound.step": "cec8c59896d329c93816370cc889046805635146666bb52c645ba3976b87e821",
+    "tests/fixtures/broken/golden_complex_loop_edges.step": "c6b0e3c9755d8ee259aab1eab88627f576b5c3fbdf6af72760bbfc4b9c519770",
+    "tests/fixtures/broken/golden_complex_oriented_edge.step": "cb6a2f1df92045b4d0be131aa071e11ca0b1a526d5b1bc1b8ab9bb98f3ef9494",
+    "tests/fixtures/broken/golden_complex_outer_bound.step": "025acdb32836ae15edb84486c61fce347e9c6164f86d37cc802254e11c798179",
+    "tests/fixtures/broken/golden_simple_through_hole_no_bounds.step": "deeb9a88f183bb08b9fcc0d87670dff176ef552b80bcbfeaa4065031b497a8d0",
     "tests/fixtures/broken/header_only.step": "4a95e3e106593a7c5f16e014f511e04229516e9d85d447a0337ef7cf26421559",
+    "tests/fixtures/broken/kissing_cylinders_knife_no_bounds.step": "72d27825570fd7cdd6af563c532e4c4757b5a91c845891d6af8bd9f06bc72ebc",
     "tests/fixtures/broken/truck_pub_shaft_hole.step.gz": "9f85ae8d0f698b561a85bbf27dacb633bb72b97a6db1a904851a93ff186ef8aa",
     "tests/fixtures/broken/truncated.step": "9c2770f81a13a98d5394cba3a05b7d252a226cfe638830ee98a187a863fad303",
     "tests/fixtures/broken/truncated_closed.step": "57887deb82ac32094fa3ba9a978e4519c6db411f04fc5b9cac11a2139b5e1848",
@@ -5920,5 +5929,5 @@
     "sections/test/parts/fc9cb0ef3d518aa4.step.gz.json.gz": "ad246bd3ca231dda3e7fe1fc54cd798984e7dcd9da376dcb609c3c42001086f8",
     "step_levels.json.gz": "6ff3ceadb33888e9d529a10b9a880babaf979f4f8d869962215d9d3193902f00"
   },
-  "source_commit": "0b9c04a2f4643499cb91608b9b1f85fd5f54d3a8"
+  "source_commit": "5ebe001ffdbffd6db3b9f2425fadf0b427cf04ba"
 }

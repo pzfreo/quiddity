@@ -37,6 +37,9 @@ path, never inline STEP text. Path inputs also accept the existing `.step.gz` /
 the same uncompressed input have identical source digests and JSON. Geometry
 work releases the GIL. Rust input/refusal messages become `ValueError`; wrong input
 types raise `TypeError`, and negative face indices raise `OverflowError`.
+Internal Rust panics become `quiddity.QuiddityError`, a `RuntimeError` subclass
+caught by `except Exception`, with the panic message. This boundary covers
+recognition, evidence, correspondence, manifests, PMI and the CLI.
 
 ## Assembly manifests
 

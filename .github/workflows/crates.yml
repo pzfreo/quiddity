@@ -13,6 +13,8 @@ on:
       - 'LICENSE'
       - 'NOTICE'
       - '.github/workflows/crates.yml'
+      - '.github/check_semver.py'
+      - '.github/test_check_semver.py'
   # A published GitHub release publishes haecceity and quiddity to crates.io, as it publishes
   # the wheel to PyPI (python.yml): the maintainer's release is the approval. A pre-release is
   # not published (a crates.io version can be yanked but never removed); a manual run can.
@@ -46,6 +48,19 @@ jobs:
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: cargo publish --dry-run --locked -p haecceity -p quiddity
+
+  semver:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: cargo install cargo-semver-checks --version 0.51.0 --locked
+      # Explicit latest stable crates.io baseline, including once 0.5.0 is published.
+      - run: python3 -m unittest discover -s .github -p test_check_semver.py
+      - run: python3 .github/check_semver.py
 
   publish:
     if: >-

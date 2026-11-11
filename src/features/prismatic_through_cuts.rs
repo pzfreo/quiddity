@@ -22,6 +22,7 @@ const ANG: f64 = 2e-8;
 /// proof evidence: all sides there have complete original-face support. Elsewhere intersections
 /// may remove wall patches. The void proof continues through the entire owner, beyond `cut`.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct PrismaticThroughCut {
     pub cut: SectionPassage,
     pub core_interval: Placed<(f64, f64)>,

@@ -10,6 +10,7 @@ use crate::kernel::brep::Part;
 use crate::kernel::geom::{self, COORD_FLOOR, Curve, Surface, V3};
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct Bore {
     pub diameter: f64,
     /// Signed distances from `axis_point`, along `axis`.
@@ -20,6 +21,7 @@ pub struct Bore {
 /// from axis_point, radius]. Circular arcs carry their centre, radius and signed sweep
 /// in this plane (positive from +axial towards +radius), so even reentrant tori are exact.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct ProfileSegment {
     pub kind: &'static str,
     pub side: &'static str,
@@ -32,6 +34,7 @@ pub struct ProfileSegment {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct TurnedBody {
     pub axis: ProfileAxis,
     /// Midpoint of the solid's axial extent, on its common axis.

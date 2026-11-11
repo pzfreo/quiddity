@@ -11,6 +11,7 @@ use crate::kernel::geom::{self, Curve, Surface, V3};
 
 /// A line, with unit direction and the point on the line closest to the origin.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct ThreadAxis {
     pub point: V3,
     pub direction: V3,
@@ -40,6 +41,7 @@ impl ThreadAxis {
 /// Physical measurements, in millimetres. The span is measured from `axis.point` along
 /// `axis.direction`; `length = end - start`. Hand is intrinsic and survives axis reversal.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct ModelledThread {
     pub axis: ThreadAxis,
     pub side: &'static str,
@@ -68,6 +70,7 @@ pub struct ThreadTolerances {
 
 /// A helical candidate that could not establish a constant screw thread. It claims no faces.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct ModelledThreadRefusal {
     pub axis: ThreadAxis,
     pub faces: Vec<usize>,

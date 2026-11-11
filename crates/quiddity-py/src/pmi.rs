@@ -144,7 +144,7 @@ fn pmi_read(
     findings: bool,
 ) -> PyResult<(String, Option<String>)> {
     let input = super::Input::extract(step)?;
-    py.detach(|| read(input, part, names, presentation, findings))
+    super::detached(py, || read(input, part, names, presentation, findings))?
         .map_err(|e| e.raised(py))
 }
 
@@ -193,71 +193,67 @@ fn pmi_write<'py>(
     presentation: Option<String>,
 ) -> PyResult<(Bound<'py, PyBytes>, Option<String>)> {
     let input = super::Input::extract(geometry)?;
-    let (output, details) = py
-        .detach(|| {
-            let value = json::parse(&document).map_err(Failure::new)?;
-            let (doc, parts, selected) = source(input, part)?;
-            let read = pmi::read(&doc, &parts).map_err(Failure::new)?;
-            let written = (|| {
-                // Validation shares geometry-independent writer refusals with the CLI; decoding
-                // resolves topology against this exact geometry snapshot before writing.
-                json::validate(&value)?;
-                let semantic = json::from_value(&value, &Anchors::read(&doc, &parts[selected]))?;
-                let requested = [(PartId(selected), semantic)];
-                // write_preserving already verifies exact model, requirement ids and units by
-                // reading the candidate back. Presentation is enabled by the dependency defaults.
-                let presentation = presentation
-                    .as_deref()
-                    .map(|text| {
-                        let value = json::parse(text)?;
-                        Ok::<_, json::Error>((
-                            PartId(selected),
-                            json::presentation::from_value(value)?,
-                        ))
-                    })
-                    .transpose()?
-                    .into_iter()
-                    .collect::<Vec<_>>();
-                let (output, written) = json::write_with_presentation(
+    let (output, details) = super::detached(py, || {
+        let value = json::parse(&document).map_err(Failure::new)?;
+        let (doc, parts, selected) = source(input, part)?;
+        let read = pmi::read(&doc, &parts).map_err(Failure::new)?;
+        let written = (|| {
+            // Validation shares geometry-independent writer refusals with the CLI; decoding
+            // resolves topology against this exact geometry snapshot before writing.
+            json::validate(&value)?;
+            let semantic = json::from_value(&value, &Anchors::read(&doc, &parts[selected]))?;
+            let requested = [(PartId(selected), semantic)];
+            // write_preserving already verifies exact model, requirement ids and units by
+            // reading the candidate back. Presentation is enabled by the dependency defaults.
+            let presentation = presentation
+                .as_deref()
+                .map(|text| {
+                    let value = json::parse(text)?;
+                    Ok::<_, json::Error>((PartId(selected), json::presentation::from_value(value)?))
+                })
+                .transpose()?
+                .into_iter()
+                .collect::<Vec<_>>();
+            let (output, written) = json::write_with_presentation(
+                &doc,
+                &parts,
+                &requested,
+                pmi::write::PresentationPolicy::RemovePresentation,
+                &presentation,
+            )?;
+            let details = if report {
+                Some(serde_json::to_string(&import_report(
                     &doc,
-                    &parts,
-                    &requested,
-                    pmi::write::PresentationPolicy::RemovePresentation,
-                    &presentation,
-                )?;
-                let details = if report {
-                    Some(serde_json::to_string(&import_report(
-                        &doc,
-                        &output,
-                        selected,
-                        &requested[0].1.pmi,
-                        &read,
-                        &written,
-                    )?)?)
-                } else {
-                    None
-                };
-                Ok::<_, json::Error>((output, details))
-            })();
-            written.map_err(|error| Failure {
-                message: error.to_string(),
-                findings: findings(&read),
-            })
+                    &output,
+                    selected,
+                    &requested[0].1.pmi,
+                    &read,
+                    &written,
+                )?)?)
+            } else {
+                None
+            };
+            Ok::<_, json::Error>((output, details))
+        })();
+        written.map_err(|error| Failure {
+            message: error.to_string(),
+            findings: findings(&read),
         })
-        .map_err(|e| e.raised(py))?;
+    })?
+    .map_err(|e| e.raised(py))?;
     Ok((PyBytes::new(py, &output), details))
 }
 
 #[pyfunction]
 fn pmi_validate(py: Python<'_>, document: String) -> PyResult<()> {
-    py.detach(|| {
+    super::detached(py, || {
         let value = json::parse(&document)?;
         if value["schema"] == "haecceity.presentation/1" {
             json::presentation::validate(&value)
         } else {
             json::validate(&value)
         }
-    })
+    })?
     .map_err(|e| Failure::new(e).raised(py))
 }
 

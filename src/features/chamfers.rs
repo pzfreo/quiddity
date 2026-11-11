@@ -20,6 +20,7 @@ use crate::kernel::geom::{self, COORD_FLOOR, Surface, V3, dominant_axis};
 use crate::kernel::py;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct Chamfer {
     pub axis: char,
     pub leg1: f64,
@@ -35,6 +36,7 @@ pub struct Chamfer {
 /// Options named as `recognise_chamfers`' keyword arguments.
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+#[non_exhaustive]
 pub struct ChamferOptions {
     /// The minimum leg (an edge break below it is not reported); 0 by default.
     pub tol: Option<f64>,

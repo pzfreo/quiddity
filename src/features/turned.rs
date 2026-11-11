@@ -112,6 +112,7 @@ pub fn cone_rims(part: &Part, face: usize) -> Option<(Rim, Rim, f64)> {
 /// The body-local membership of one turned profile (`TurnedProfileKey`): the axis letter, the
 /// commonest band axis point with its axial coordinate zeroed, the body's box and its key.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct TurnedProfileKey {
     pub axis: char,
     pub axis_origin: Placed<V3>,

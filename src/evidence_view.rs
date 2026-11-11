@@ -114,6 +114,7 @@ pub const RECESS_SOURCE_FAMILIES: [&str; 8] = [
 
 /// One accepted feature (a physical occurrence, a section recess or refusal, or a hole pattern).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
 pub struct EvidenceFeature {
     /// Python's family value (`passages` for the port's section passages).
     pub family: &'static str,
@@ -131,6 +132,7 @@ pub struct EvidenceFeature {
 
 /// One projected candidate.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
 pub struct EvidenceCandidate {
     pub family: &'static str,
     /// Its position among the family's physical candidates.
@@ -724,6 +726,7 @@ fn axial_hosts(
 /// Versioned, owned JSON boundary for an evidence run. Face indices always refer to the
 /// input STEP part, including when the geometry was transformed to a local frame.
 #[derive(Clone, Debug, Serialize)]
+#[non_exhaustive]
 pub struct EvidenceDocument {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub failures: Vec<features::FamilyFailure>,
@@ -756,6 +759,7 @@ pub type EvidenceEdgeSource = EvidenceFaceSource;
 /// One feature with its record and physical evidence. `index` is family-local;
 /// `members` contains positions in the document's features array.
 #[derive(Clone, Debug, Serialize)]
+#[non_exhaustive]
 pub struct EvidenceRecord {
     pub index: usize,
     pub family: &'static str,

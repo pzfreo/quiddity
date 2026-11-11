@@ -57,6 +57,7 @@ use crate::p21::{Attribute, Document, RawEntity};
 
 /// One instance that violates one rule.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
 pub struct RuleViolation {
     pub id: u64,
     /// The instance's type: its entity name, or `(a b c)` for a complex instance, lower case.

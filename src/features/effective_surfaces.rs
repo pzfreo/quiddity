@@ -60,6 +60,7 @@ pub enum SurfaceProvenance {
 /// port's recovery) and with `NotRecovered` for the three recovery outcomes `recover.rs` does
 /// not tell apart.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SurfaceRefusalReason {
     /// An extrusion or revolution surface: not native, not a B-spline or Bezier.
     UnsupportedKind,
@@ -93,6 +94,7 @@ impl SurfaceRefusalReason {
 
 /// `MaterialSideRefusalReason`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum MaterialSideRefusalReason {
     SurfaceUnavailable,
     UnsupportedPrimitive,
@@ -196,6 +198,7 @@ pub type SurfaceUseResult = Result<SurfaceUse, SurfaceUseRefusal>;
 
 /// Why `oriented_fact` refuses (Python raises `ValueError`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum OrientedRefusal {
     Unavailable(SurfaceRefusalReason),
     /// `ORIENTATION_UNPROVEN`: a recovered surface.

@@ -355,6 +355,9 @@ pub struct Part {
 }
 
 impl Part {
+    /// Build caller-supplied topology with fresh query caches. Each face must have
+    /// at least one loop and all indices must refer to members of this part.
+    /// STEP import enforces the nonempty-bounds invariant before constructing faces.
     pub fn new(faces: Vec<Face>, edges: Vec<Edge>, solids: Vec<Solid>) -> Self {
         let cache = faces.iter().map(|_| FaceCache::default()).collect();
         Part {

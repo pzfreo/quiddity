@@ -32,6 +32,7 @@ const END_MARGIN_MAX_FRAC: f64 = 0.25;
 const AGGREGATE_RISER_MIN_AREA_FRAC: f64 = 0.15;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct FaceLevel {
     pub z: f64,
     pub x_span: Option<(f64, f64)>,
@@ -65,6 +66,7 @@ fn key_order(a: &Option<BodyKey>, b: &Option<BodyKey>) -> Ordering {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct RiserEvidence {
     pub vertical: bool,
     pub axis: char,
@@ -116,6 +118,7 @@ impl RiserEvidence {
 /// Options named as `recognise_face_levels`' keyword arguments.
 #[derive(Clone, Copy, Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+#[non_exhaustive]
 pub struct FaceLevelOptions {
     pub tol: Option<f64>,
     pub min_area_frac: f64,
@@ -124,6 +127,7 @@ pub struct FaceLevelOptions {
 /// Options named as `recognise_risers`' keyword arguments.
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+#[non_exhaustive]
 pub struct RiserOptions {
     pub min_area_frac: f64,
     pub tol: Option<f64>,

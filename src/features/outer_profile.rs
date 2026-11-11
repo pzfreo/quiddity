@@ -24,6 +24,7 @@ const DIRECTION_TOL: f64 = 2e-8;
 
 /// An oriented finite straight support, traversed from start to end (`ProfileLine`).
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct ProfileLine {
     pub start: V3,
     pub end: V3,
@@ -39,6 +40,7 @@ impl ProfileLine {
 
 /// A finite circular arc; its signed sweep is radians about the profile normal (`ProfileArc`).
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct ProfileArc {
     pub start: V3,
     pub end: V3,
@@ -50,6 +52,7 @@ pub struct ProfileArc {
 /// One support of an outer profile; serialises as Python's `to_dict`, with its `kind`.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum ProfileSupport {
     Line(ProfileLine),
     Arc(ProfileArc),
@@ -96,6 +99,7 @@ impl ProfileSupport {
 /// a profile with a concave turn or fewer than two lines. A serialised value carries geometry
 /// only, never source or body identity.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct PlanarOuterProfile {
     pub origin: V3,
     pub normal: V3,
@@ -109,6 +113,7 @@ pub struct PlanarOuterProfile {
 /// returns `InsufficientLineSupports` or `ConcaveProfile` (it keeps such wires as schema 2); they
 /// are part of its public enumeration.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum OuterProfileRefusalReason {
     NotPlanar,
     AmbiguousBody,

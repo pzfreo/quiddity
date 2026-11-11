@@ -29,6 +29,7 @@ const AXES: [char; 3] = ['x', 'y', 'z'];
 /// of its mouth; `depth_sign` the side the U opens to along `depth_axis`. The opening is
 /// `flat_width + 2 * radius` wide and `radius` deep.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct RoundBottomBlindSlot {
     pub axis: char,
     pub open_sign: i32,

@@ -55,8 +55,44 @@ const REFUSAL_FIXTURES: &[(&str, &str)] = &[
         "no solid or shell with faces",
     ),
     (
+        "tests/fixtures/broken/golden_simple_through_hole_no_bounds.step",
+        "NonstandardReference: ADVANCED_FACE: 'bounds' references",
+    ),
+    (
+        "tests/fixtures/broken/golden_complex_loop_edges.step",
+        "NonstandardReference: EDGE_LOOP: 'edge_list' references",
+    ),
+    (
+        "tests/fixtures/broken/golden_complex_bound_loop.step",
+        "NonstandardReference: FACE_BOUND: 'bound' references",
+    ),
+    (
+        "tests/fixtures/broken/golden_complex_oriented_edge.step",
+        "NonstandardReference: EDGE_LOOP: 'edge_list' references",
+    ),
+    (
+        "tests/fixtures/broken/golden_complex_inner_bound.step",
+        "NonstandardReference: ADVANCED_FACE: 'bounds' references",
+    ),
+    (
+        "tests/fixtures/broken/golden_complex_outer_bound.step",
+        "NonstandardReference: ADVANCED_FACE: 'bounds' references",
+    ),
+    (
+        "tests/fixtures/broken/golden_complex_edge_element.step",
+        "NonstandardReference: ORIENTED_EDGE: 'edge_element' references",
+    ),
+    (
+        "tests/fixtures/broken/golden_complex_face_surface.step",
+        "NonstandardReference: ADVANCED_FACE: 'face_geometry' references",
+    ),
+    (
         "tests/fixtures/broken/header_only.step",
         "unexpected end of file",
+    ),
+    (
+        "tests/fixtures/broken/kissing_cylinders_knife_no_bounds.step",
+        "NonstandardReference: ADVANCED_FACE: 'bounds' references",
     ),
     (
         "tests/fixtures/broken/truck_pub_shaft_hole.step.gz",
@@ -382,10 +418,7 @@ fn staleness_versions_size_only_and_mapped_index() {
     assert!(incompatible.read_product(&temp_source(&b), &p.id).is_err());
     let size_only = manifest::scan(
         Cursor::new(&b),
-        &ScanOptions {
-            no_product_hashes: true,
-            ..ScanOptions::default()
-        },
+        &ScanOptions::default().with_no_product_hashes(true),
     )
     .unwrap();
     assert!(size_only.common.sha256.is_none());
@@ -394,21 +427,16 @@ fn staleness_versions_size_only_and_mapped_index() {
     let dir = tempfile::tempdir().unwrap();
     let mapped = manifest::scan(
         Cursor::new(&b),
-        &ScanOptions {
-            index_dir: Some(dir.path().into()),
-            chunk_size: 7,
-            ..ScanOptions::default()
-        },
+        &ScanOptions::default()
+            .with_index_dir(Some(dir.path().into()))
+            .with_chunk_size(7),
     )
     .unwrap();
     assert_eq!(mapped, m);
     assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
     let error = manifest::scan(
         Cursor::new(&b),
-        &ScanOptions {
-            instance_limit: 0,
-            ..ScanOptions::default()
-        },
+        &ScanOptions::default().with_instance_limit(0),
     )
     .unwrap_err()
     .to_string();
@@ -867,11 +895,11 @@ fn product_lookup_survives_serde_and_explicit_membership_changes() {
             p
         })
         .collect();
-    m.refusals.push(manifest::Refusal {
-        products: vec!["p3999".into()],
-        entity: 23,
-        reason: "indexed refusal".into(),
-    });
+    m.refusals.push(manifest::Refusal::new(
+        vec!["p3999".into()],
+        23,
+        "indexed refusal".into(),
+    ));
     m.reindex_products().unwrap();
     let value = serde_json::to_value(&m).unwrap();
     assert!(value.get("product_index").is_none());

@@ -25,6 +25,7 @@ const OD_REACH_FRAC: f64 = 0.025;
 const AXIS_LINE_FRAC: f64 = 0.025;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct Flat {
     pub axis: char,
     /// The distance across the flats (or from one flat to the far side of the stock).

@@ -17,6 +17,7 @@ use std::f64::consts::TAU;
 /// `floor_center` towards the mouth; both cylinder walls have the same `depth`. No nominal
 /// seal dimensions, machining process or intended function are inferred.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct AnnularGroove {
     pub axis: V3,
     pub floor_center: V3,

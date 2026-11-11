@@ -14,6 +14,7 @@ const MESH_ANGULAR: f64 = 0.3;
 /// A point on a face and its surface parameters: `point` is the surface's point at `uv`, and
 /// the face's trimming domain contains `uv`.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct FaceAnchor {
     pub point: V3,
     pub uv: (f64, f64),
@@ -21,6 +22,7 @@ pub struct FaceAnchor {
 
 /// Why no point was proved on a face.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct AnchorRefusal {
     pub reason: String,
 }

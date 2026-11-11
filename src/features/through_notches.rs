@@ -30,6 +30,7 @@ use crate::kernel::py;
 /// mouth plane and `thickness` is the slab's. `corner_radius` is that of the two concave
 /// corner rounds, absent where the corners are sharp.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct RectangularThroughNotch {
     pub axis: V3,
     pub opening: V3,

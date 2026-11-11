@@ -272,19 +272,11 @@ fn assert_verified_as(f: &File, w: &Written, p: &PartPmi, mode: Mode) {
     let before = pmi::read(&f.doc, &f.parts).unwrap();
     let parts = read_part_definitions(w.doc.bytes()).unwrap();
     let v = pmi::verify(
-        pmi::Snapshot {
-            doc: &f.doc,
-            defs: &f.parts,
-            read: &before,
-        },
+        pmi::Snapshot::new(&f.doc, &f.parts, &before),
         &f.doc,
         &[(PartId(0), p.clone())],
         mode,
-        pmi::Snapshot {
-            doc: &w.doc,
-            defs: &parts,
-            read: &w.read,
-        },
+        pmi::Snapshot::new(&w.doc, &parts, &w.read),
     );
     assert!(v.is_ok(), "{:?}", v.into_result());
 }
@@ -8723,11 +8715,11 @@ fn ap214_product_type_keyword_only_and_readback() {
     assert_verified_as(&f, &w, &p, Mode::Replace);
     assert_eq!(
         w.report.edition_rewrites,
-        [EditionRewrite {
-            id: 132,
-            from: "PRODUCT_TYPE",
-            to: "PRODUCT_RELATED_PRODUCT_CATEGORY",
-        }]
+        [EditionRewrite::new(
+            132,
+            "PRODUCT_TYPE",
+            "PRODUCT_RELATED_PRODUCT_CATEGORY"
+        )]
     );
     assert!(w.report.repairs.is_empty());
     for id in f.doc.ids() {
