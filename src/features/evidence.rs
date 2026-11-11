@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 /// The completed inventory's mode, retained after the retry's thread-local flag is restored.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[non_exhaustive]
 pub enum RunMode {
     /// Missing from documents written before the trust contract.
     #[default]
@@ -20,6 +21,7 @@ pub enum RunMode {
 /// Strict valid-solid evidence for a published record. Missing proof is never verification.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[non_exhaustive]
 pub enum EvidenceStatus {
     Verified,
     #[default]
@@ -54,13 +56,25 @@ fn strict_valid_solid(part: &Part, mut faces: impl Iterator<Item = usize>) -> Op
 
 /// A recognised record, the faces that define it, and the faces consulted to prove it.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Occurrence<R> {
     pub record: R,
     pub defining: Vec<usize>,
     pub context: Vec<usize>,
 }
 
+impl<R> Occurrence<R> {
+    pub fn new(record: R, defining: Vec<usize>, context: Vec<usize>) -> Self {
+        Self {
+            record,
+            defining,
+            context,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum EvidenceError {
     /// A defining face has no single valid solid shared with the rest of its evidence.
     NoValidSolid,

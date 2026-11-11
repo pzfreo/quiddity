@@ -55,14 +55,25 @@ use crate::recognition::{self, RecognitionDocument};
 
 /// What `quiddity <file.step>` writes and `recognise` returns.
 #[derive(Serialize)]
+#[non_exhaustive]
 pub struct RecognitionOutput {
     #[serde(flatten)]
     pub recognition: Recognition,
     pub document: RecognitionDocument,
 }
 
+impl RecognitionOutput {
+    pub fn new(recognition: Recognition, document: RecognitionDocument) -> Self {
+        Self {
+            recognition,
+            document,
+        }
+    }
+}
+
 /// A refused request: its error code and message.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
 pub struct Failure {
     pub code: &'static str,
     pub message: String,

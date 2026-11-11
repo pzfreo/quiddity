@@ -39,6 +39,7 @@ pub use write::{Mode, write};
 
 /// The result of reading a file's PMI.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct PmiRead {
     /// Own entity of each independently identified item, used by JSON presentation links.
     #[cfg(feature = "json")]
@@ -73,6 +74,7 @@ impl Eq for PmiRead {}
 /// A named camera and displayed contents (CAx-IF PMI 4.1 §9.4.2).
 /// Kept separate from semantic PMI: Add preserves these records unchanged.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct SavedView {
     pub id: u64,
     pub name: String,
@@ -86,6 +88,7 @@ pub struct SavedView {
 /// Annotation planes are containers; their elements are listed instead. Read-only evidence,
 /// separate from the semantic model and its replace/consumption policy.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct GraphicalCallout {
     /// The annotation's STEP instance id (without the `#`, like `Finding.ids`).
     pub id: u64,
@@ -98,6 +101,7 @@ pub struct GraphicalCallout {
 
 /// A `draughting_model_item_association` (including subtypes) and its semantic definition.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct CalloutLink {
     pub association: u64,
     /// The definition's STEP instance, retained even when it is not modelled.
@@ -173,6 +177,7 @@ impl PresentedItem {
 
 /// Why a file's PMI could not be read at all.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ReadError {
     /// The part definitions do not belong to this document (an id is not an instance of it).
     Parts(String),
@@ -195,6 +200,7 @@ impl std::error::Error for ReadError {}
 
 /// A factual observation, something not read, or a stated interpretation.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
 pub struct Finding {
     pub kind: FindingKind,
     /// The part it concerns, when known.
@@ -206,7 +212,45 @@ pub struct Finding {
     pub detail: String,
 }
 
+impl GraphicalCallout {
+    pub fn new(id: u64, name: String, links: Vec<CalloutLink>) -> Self {
+        Self { id, name, links }
+    }
+}
+
+impl CalloutLink {
+    pub fn new(
+        association: u64,
+        definition: u64,
+        targets: Vec<CalloutTarget>,
+        entity: String,
+    ) -> Self {
+        Self {
+            association,
+            definition,
+            targets,
+            entity,
+        }
+    }
+}
+
 impl Finding {
+    pub fn new(
+        kind: FindingKind,
+        part: Option<PartId>,
+        ids: Vec<u64>,
+        entity: String,
+        detail: String,
+    ) -> Self {
+        Self {
+            kind,
+            part,
+            ids,
+            entity,
+            detail,
+        }
+    }
+
     /// Factual observations survive replacement under fresh entity ids. Match their
     /// content and multiplicity, rather than their document-local provenance.
     #[must_use]
@@ -226,6 +270,7 @@ impl Finding {
 
 /// The kinds of finding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
 pub enum FindingKind {
     /// A factual observation about a construct that is read and preserved.
     Fact,
@@ -281,12 +326,14 @@ impl FindingKind {
 /// instances (a datum system two tolerances use, a qualifier several values use) are listed
 /// under each item that consumed them.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Provenance {
     pub parts: Vec<PartProvenance>,
 }
 
 /// The ids behind each item of one [`PartPmi`], index for index.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct PartProvenance {
     #[cfg(feature = "json")]
     pub(crate) transport: Vec<u64>,
@@ -317,6 +364,7 @@ pub struct PartProvenance {
 /// from its support. Absent or ambiguous identifiers are `None`; duplicates are findings.
 /// Kept separate from the semantic model, like [`Provenance`].
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Identifiers {
     pub parts: Vec<PartIdentifiers>,
 }
@@ -327,6 +375,7 @@ pub struct Identifiers {
 /// Settings merged from several entities (material, standards, decimal places) have no
 /// single requirement entity and are not indexed here.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct PartIdentifiers {
     /// Optional source identifier observations retained by the JSON transport, separate
     /// from its unique wire aliases. An empty map means the producer supplied none.
@@ -399,6 +448,7 @@ impl PartProvenance {
 /// How the file's instances were accounted for: every semantic-PMI instance is consumed by a
 /// part or named by a finding.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Accounting {
     /// Instances of the semantic-PMI family (`express::Family::SemanticPmi`).
     pub semantic: usize,

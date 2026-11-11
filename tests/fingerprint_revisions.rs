@@ -164,16 +164,19 @@ fn excluded_semantics_can_still_supply_alignment_anchors() {
         .into_iter()
         .enumerate()
     {
-        new.features.push(FeatureFingerprint {
-            id: format!("pockets/{i}"),
-            family: "pockets".into(),
-            traits: [("rectangular_boundary".into(), "true".into())].into(),
-            sizes: [("width".into(), 10.0 * (i + 1) as f64)].into(),
-            position: Some(position),
-            axis: Some([0., 0., 1.]),
-            neighbourhood: Vec::new(),
-            faces: Vec::new(),
-        });
+        // `FeatureFingerprint` is non-exhaustive: build it as a stored fingerprint would load.
+        let feature: FeatureFingerprint = serde_json::from_value(json!({
+            "id": format!("pockets/{i}"),
+            "family": "pockets",
+            "traits": {"rectangular_boundary": "true"},
+            "sizes": {"width": 10.0 * (i + 1) as f64},
+            "position": position,
+            "axis": [0., 0., 1.],
+            "neighbourhood": [],
+            "faces": [],
+        }))
+        .unwrap();
+        new.features.push(feature);
     }
     let mut old = new.clone();
     for f in &mut old.features {

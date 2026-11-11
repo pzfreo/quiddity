@@ -25,6 +25,7 @@ pub struct Text {
 
 /// Geometry and readable cells of one annotation, before placement in a model or sheet.
 #[derive(Default, Clone, Debug)]
+#[non_exhaustive]
 pub struct Callout {
     pub strokes: Vec<[[f64; 2]; 2]>,
     /// Initial straight strokes which form frames (remaining strokes are symbols).

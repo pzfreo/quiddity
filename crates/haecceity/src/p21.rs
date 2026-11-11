@@ -54,6 +54,7 @@ pub(super) fn parse_message(bytes: &[u8], error: &step_io::Error) -> String {
 /// Why a document could not be read, an edit could not be applied, or a record or string could
 /// not be written.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum P21Error {
     /// step-io or the extent scanner could not read the file.
     Parse(String),

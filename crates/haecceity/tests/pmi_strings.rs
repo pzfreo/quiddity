@@ -383,10 +383,7 @@ fn geometry_writer_preserves_oversized_source_labels_and_reports_them() {
     let part = haecceity::step::read_part(doc.bytes(), &parts[0]).unwrap();
     let (bytes, report) = haecceity::brep_write::write_step(
         &part,
-        &haecceity::brep_write::WriteOptions {
-            name: "fallback",
-            pmi: None,
-        },
+        &haecceity::brep_write::WriteOptions::new("fallback").with_pmi(None),
     )
     .unwrap();
     assert!(report.long_strings.iter().any(|w| w.record == "FILE_NAME"));
@@ -402,10 +399,10 @@ fn geometry_writer_preserves_oversized_source_labels_and_reports_them() {
     let anonymous = haecceity::brep::Part::new(vec![], vec![], vec![]);
     let error = haecceity::brep_write::write_step(
         &anonymous,
-        &haecceity::brep_write::WriteOptions {
-            name: &"x".repeat(pmi::write::MAX_STRING_LITERAL_BYTES),
-            pmi: None,
-        },
+        &haecceity::brep_write::WriteOptions::new(
+            &"x".repeat(pmi::write::MAX_STRING_LITERAL_BYTES),
+        )
+        .with_pmi(None),
     )
     .unwrap_err()
     .to_string();

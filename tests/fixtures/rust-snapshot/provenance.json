@@ -278,7 +278,16 @@
     "tests/fixtures/boss_end_sphere.step.gz": "bd1e136cd062485a37f0de16f874bdf467c82c73e784fedec24e51b93da3e5b8",
     "tests/fixtures/broken/deleted_face.step": "d2180c320803d6834579d5679d407a09dd8395efed470796bd9e03a87a213e91",
     "tests/fixtures/broken/empty_data.step": "11aef9b8f89af4e4cedcf3f6b570163de2d78c931671d46b81a16eeaa4b452e6",
+    "tests/fixtures/broken/golden_complex_bound_loop.step": "a7289cdf3f9764d40362d40a1b03d1c7aed821dd2341a33b2ddc6501a3c0fe63",
+    "tests/fixtures/broken/golden_complex_edge_element.step": "36ad89172f97dac6eadcd79afc701579a4f7bbe49d4422a2adddaaf0257886f5",
+    "tests/fixtures/broken/golden_complex_face_surface.step": "e77156156094d3d97a9ca5cce0ef83fc56f7a6a27d0c123338fac41370bd4506",
+    "tests/fixtures/broken/golden_complex_inner_bound.step": "cec8c59896d329c93816370cc889046805635146666bb52c645ba3976b87e821",
+    "tests/fixtures/broken/golden_complex_loop_edges.step": "c6b0e3c9755d8ee259aab1eab88627f576b5c3fbdf6af72760bbfc4b9c519770",
+    "tests/fixtures/broken/golden_complex_oriented_edge.step": "cb6a2f1df92045b4d0be131aa071e11ca0b1a526d5b1bc1b8ab9bb98f3ef9494",
+    "tests/fixtures/broken/golden_complex_outer_bound.step": "025acdb32836ae15edb84486c61fce347e9c6164f86d37cc802254e11c798179",
+    "tests/fixtures/broken/golden_simple_through_hole_no_bounds.step": "deeb9a88f183bb08b9fcc0d87670dff176ef552b80bcbfeaa4065031b497a8d0",
     "tests/fixtures/broken/header_only.step": "4a95e3e106593a7c5f16e014f511e04229516e9d85d447a0337ef7cf26421559",
+    "tests/fixtures/broken/kissing_cylinders_knife_no_bounds.step": "72d27825570fd7cdd6af563c532e4c4757b5a91c845891d6af8bd9f06bc72ebc",
     "tests/fixtures/broken/truck_pub_shaft_hole.step.gz": "9f85ae8d0f698b561a85bbf27dacb633bb72b97a6db1a904851a93ff186ef8aa",
     "tests/fixtures/broken/truncated.step": "9c2770f81a13a98d5394cba3a05b7d252a226cfe638830ee98a187a863fad303",
     "tests/fixtures/broken/truncated_closed.step": "57887deb82ac32094fa3ba9a978e4519c6db411f04fc5b9cac11a2139b5e1848",
@@ -3263,7 +3272,7 @@
     "calls/recognise_through_steps.json.gz": "ab6a0b5b06756fa3435099be76e5ab432b867be4d4a1b42c49047ff83b086cca",
     "calls/recognise_turned_steps.json.gz": "37d10e8c5e2ce5dcf6c5bd2fdc7444e86494bb44768e9d32d9a1abfd3f2fbd90",
     "channel_geometry.json.gz": "bd25ff87def7f73b4f119d26614600b141ee4350f45c77cef55aae7ea787e85f",
-    "corpus.json.gz": "6f258356e89f1a397b3563c9cac0a0d09ff397cb0cc24863a81b5eaf57be0062",
+    "corpus.json.gz": "8ed48f8d925c8b75951f9339a5e5441a43a4c1de099115022c20181ad1a07ffc",
     "coverage.json.gz": "c835b80d39757ae5ef556953e11a2d7e8bbde3148a233f2af51ae92e1d23a971",
     "cylindrical_proofs/corpus/cadgenbench/flanged_spool_132.step.json.gz": "b93acca566253df99ab62bb5ac97424226850b3ee3963c8d1025939a7339d823",
     "cylindrical_proofs/corpus/cadgenbench/threaded_connector_109.step.json.gz": "eea12e52bf91a9c762e7cadc1b12994398bf8f3836ab11ab8b58a2bf4c5d9a4e",
@@ -4706,7 +4715,7 @@
     "pattern_publication/parts/e66bb72e930f6a46.step.gz.json.gz": "e8493470a06a0395f5802d0f66ba6e257ef8cda6ccbd125201675fc9691e940e",
     "pattern_publication/parts/ef7e51c60e7131c4.step.gz.json.gz": "0cb2e25673259583351d3e309d5a940bb7224ad705f2cf127cd1f24178ea6aeb",
     "pmi.json.gz": "a0e2e6a5ddead71f4ab3b92e6357c16897af2c0a1664ebe32274cad02d3a8018",
-    "pocket_floor_fillets.json.gz": "2c4028ea0638e41cca554de2923f68b276cf9aa23a7d9120349db38299d27cce",
+    "pocket_floor_fillets.json.gz": "ba48b9fd857ee7a9251c2049ef2033f1dbd898bbb14a0c40e1bb7d5aad253143",
     "probes.json.gz": "09be0061e3d3a99249c9bc0222e64763cac636f3d038bed86a40ec6256e18aed",
     "quality_recess_publication.json.gz": "b34304d3944ae442982356664254e7dd3f0c28aeecfb019d81c6f262eaa29659",
     "recess_documents/corpus/cadgenbench/flanged_spool_132.step.json.gz": "39e94251e1cf600d61138e58a5b276e799225b767239785f9495270dbecfc09e",
@@ -5920,5 +5929,5 @@
     "sections/test/parts/fc9cb0ef3d518aa4.step.gz.json.gz": "ad246bd3ca231dda3e7fe1fc54cd798984e7dcd9da376dcb609c3c42001086f8",
     "step_levels.json.gz": "6ff3ceadb33888e9d529a10b9a880babaf979f4f8d869962215d9d3193902f00"
   },
-  "source_commit": "a6e39a5b3bc330366d68c48b1d8e65d7083e827f"
+  "source_commit": "5ebe001ffdbffd6db3b9f2425fadf0b427cf04ba"
 }

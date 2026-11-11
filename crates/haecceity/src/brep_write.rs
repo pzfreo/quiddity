@@ -60,6 +60,7 @@ pub const UNCERTAINTY_MM: f64 = 1e-7;
 
 /// How to write a part.
 #[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
 pub struct WriteOptions<'a> {
     /// The product's name and id when the part holds none (a part not read from a file, or
     /// read through no product); the source products' names are kept where the part holds them.
@@ -68,6 +69,17 @@ pub struct WriteOptions<'a> {
     pub name: &'a str,
     /// The part's semantic PMI, anchored to its faces and edges by index; `None` writes none.
     pub pmi: Option<&'a PartPmi>,
+}
+
+impl<'a> WriteOptions<'a> {
+    /// Write geometry under this fallback product name, without semantic PMI.
+    pub fn new(name: &'a str) -> Self {
+        Self { name, pmi: None }
+    }
+    pub fn with_pmi(mut self, pmi: Option<&'a PartPmi>) -> Self {
+        self.pmi = pmi;
+        self
+    }
 }
 
 /// What a write did, beyond the geometry it wrote exactly.
@@ -201,6 +213,9 @@ fn refuse_unwritable(part: &Part) -> Result<(), WriteError> {
         ));
     }
     for (f, face) in part.faces.iter().enumerate() {
+        if face.loops.is_empty() {
+            problems.push(format!("face {f}: no bounds"));
+        }
         if let Surface::Other { kind } = &face.surface
             && !part.unresolved_faces().contains(&f)
         {

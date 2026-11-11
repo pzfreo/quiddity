@@ -35,6 +35,7 @@ const TESSELLATION_TOLERANCE: f64 = 0.1;
 /// Options named as `recognise_sheet_metal_bodies`' keyword arguments.
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+#[non_exhaustive]
 pub struct SheetMetalOptions {
     /// Where the neutral axis sits through the thickness, from the inner skin (0..=1).
     pub k_factor: f64,
@@ -64,6 +65,7 @@ impl std::error::Error for InvalidKFactor {}
 
 /// One planar region on the reference side and its opposite skin patches.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct SheetFlange {
     pub index: usize,
     pub reference_faces: Vec<usize>,
@@ -75,6 +77,7 @@ pub struct SheetFlange {
 
 /// A cylindrical bend pair between two flanges.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct SheetBend {
     pub index: usize,
     pub face_pairs: Vec<WallFacePair>,
@@ -91,6 +94,7 @@ pub struct SheetBend {
 
 /// A triangulated planar source face in the neutral flat frame.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct UnfoldedFlangeFace {
     pub source_face: usize,
     pub flange: usize,
@@ -100,6 +104,7 @@ pub struct UnfoldedFlangeFace {
 
 /// The neutral-axis developed rectangle of one cylindrical bend segment.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct UnfoldedBendStrip {
     pub bend: usize,
     pub source_face_pair: WallFacePair,
@@ -108,6 +113,7 @@ pub struct UnfoldedBendStrip {
 
 /// One triangle overlap proving the development is not a single blank.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct FlatOverlapWitness {
     pub first_kind: &'static str,
     pub first_index: usize,
@@ -119,6 +125,7 @@ pub struct FlatOverlapWitness {
 /// A neutral development of flange faces and bend strips; `valid_blank` false keeps overlap
 /// witnesses and is no manufacturing blank claim.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct FlatPatternPlan {
     pub k_factor: f64,
     pub base_flange: usize,
@@ -132,6 +139,7 @@ pub struct FlatPatternPlan {
 
 /// A local curved region with partial offset-skin evidence.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct FormedSheetFeature {
     pub faces: Vec<usize>,
     pub paired_faces: Vec<usize>,
@@ -139,6 +147,7 @@ pub struct FormedSheetFeature {
 
 /// One rounded or chamfered contour face, kept by its source face.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct SheetEdgeTreatment {
     pub face: usize,
     pub kind: &'static str,
@@ -147,6 +156,7 @@ pub struct SheetEdgeTreatment {
 
 /// A dominant developable sheet with its flange and bend geometry.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct SheetMetalBody {
     pub body_index: usize,
     pub body_key: Option<BodyKey>,

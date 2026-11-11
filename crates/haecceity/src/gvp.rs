@@ -13,6 +13,7 @@ pub enum AreaKind {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct ValidationProperty {
     pub property: u64,
     pub representation: u64,

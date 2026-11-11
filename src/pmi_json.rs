@@ -2297,13 +2297,13 @@ fn finding_from(v: &Json, path: &str) -> R<Finding> {
             None => fail(p, format!("unknown finding kind {s:?}")),
         }
     })?;
-    Ok(Finding {
+    Ok(Finding::new(
         kind,
-        part: o.opt_with("part", |x, p| uint(x, p).map(PartId))?,
-        ids: o.list("ids", uint::<u64>)?,
-        entity: o.req_with("entity", string)?,
-        detail: o.req_with("detail", string)?,
-    })
+        o.opt_with("part", |x, p| uint(x, p).map(PartId))?,
+        o.list("ids", uint::<u64>)?,
+        o.req_with("entity", string)?,
+        o.req_with("detail", string)?,
+    ))
 }
 
 /// The JSON form of a document.
@@ -2675,12 +2675,7 @@ pub fn write_report_json(
                     .iter()
                     .map(|r| json!({
                         "id": r.id,
-                        "repair": match r.repair {
-                            write::UpgradeRepairKind::R1ApprovalAssignment => "R1",
-                            write::UpgradeRepairKind::R2ConversionUnitDimensions => "R2",
-                            write::UpgradeRepairKind::R3IntegerLiteral => "R3",
-                            write::UpgradeRepairKind::R4UnsetRequiredString => "R4",
-                        },
+                        "repair": r.repair.code(),
                         "original_record": r.original_record,
                         "new_record": r.new_record,
                     }))
@@ -2864,13 +2859,7 @@ mod tests {
         }
         assert_eq!(TOLERANCE_KINDS.len(), ToleranceKind::ALL.len());
         for k in FINDING_KINDS {
-            let f = Finding {
-                kind: k,
-                part: None,
-                ids: vec![1],
-                entity: "x".into(),
-                detail: String::new(),
-            };
+            let f = Finding::new(k, None, vec![1], "x".into(), String::new());
             assert_eq!(finding_from(&finding_json(&f), "f").unwrap(), f);
         }
     }

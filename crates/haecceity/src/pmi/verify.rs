@@ -12,16 +12,24 @@ use crate::step::PartDefinition;
 
 /// One file as read for verification: its document, its parts and its PMI read from them.
 #[derive(Clone, Copy)]
+#[non_exhaustive]
 pub struct Snapshot<'a> {
     pub doc: &'a Document,
     pub defs: &'a [PartDefinition],
     pub read: &'a PmiRead,
 }
 
+impl<'a> Snapshot<'a> {
+    pub fn new(doc: &'a Document, defs: &'a [PartDefinition], read: &'a PmiRead) -> Self {
+        Self { doc, defs, read }
+    }
+}
+
 /// One way the file read back differs from what the write should have made of it. Differences
 /// are named as [`differences_as_stated`] names them ("tolerance only in the second: …"); the
 /// `Display` form is `quiddity pmi write`'s message for it.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Problem {
     /// The file read back has another number of parts (nothing else is compared then).
     PartCount { before: usize, after: usize },
@@ -79,6 +87,7 @@ impl fmt::Display for Problem {
 
 /// What [`verify()`] found: empty when the file read back is what the write should have made.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Verification {
     pub problems: Vec<Problem>,
 }

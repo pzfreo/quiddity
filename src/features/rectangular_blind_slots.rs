@@ -26,6 +26,7 @@ const AXES: [char; 3] = ['x', 'y', 'z'];
 /// `open_sign` the side of its mouth; `depth_sign` the side the section opens to along
 /// `depth_axis`.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct RectangularBlindSlot {
     pub axis: char,
     pub open_sign: i32,

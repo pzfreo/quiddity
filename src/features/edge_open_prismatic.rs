@@ -28,6 +28,7 @@ type Point = [f64; 2];
 
 /// The physical endpoints of the absent wall, with no implied segment between them.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct OpenSectionOpening {
     pub start: Placed<Point>,
     pub end: Placed<Point>,
@@ -35,6 +36,7 @@ pub struct OpenSectionOpening {
 
 /// The canonical wall chain and its opening side.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct OpenPolygonalSection {
     pub wall_chain: Vec<Placed<Point>>,
     pub opening: OpenSectionOpening,
@@ -50,6 +52,7 @@ impl OpenPolygonalSection {
 /// A blind prismatic recess with one physical side open. `run_interval` is floor to mouth
 /// along `axis`, and `open_sign` the side of the mouth.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct EdgeOpenPrismaticRecess {
     pub axis: char,
     pub run_interval: Placed<[f64; 2]>,

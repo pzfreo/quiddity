@@ -42,6 +42,7 @@ pub use revisions::{ExcludedKey, FingerprintRevisions};
 /// records are at the top level beside `fingerprints`. The recognition document reports the
 /// provenance frame; every record is self-contained in file coordinates.
 #[derive(Clone, Debug, Serialize)]
+#[non_exhaustive]
 pub struct Recognition {
     #[serde(flatten)]
     pub features: PublishedFeatures,
@@ -171,6 +172,7 @@ pub(crate) fn caller_space_recognise(part: &Part) -> Recognition {
 ///   placed by the identity and a near one is reported ambiguous. Aligned, displacements cost
 ///   by their logarithm in tolerances, so repeats a few millimetres apart differ by ~0.5.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Thresholds {
     /// Sizes, areas and surface parameters agree when within this relative difference.
     pub same_rel: f64,
@@ -293,6 +295,7 @@ pub struct Alignment {
 
 /// A field that changed: its old and new values (positions and axes in the new frame).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Change {
     pub old: Value,
     pub new: Value,
@@ -300,6 +303,7 @@ pub struct Change {
 
 /// One old item's fate. `T` is a feature id or a face index.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Entry<T> {
     pub old: T,
     pub class: Class,

@@ -13,6 +13,7 @@ use crate::kernel::geom::{self, Curve, V3};
 use crate::kernel::py;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct AngledStep {
     pub axis: char,
     pub leg1: f64,

@@ -45,6 +45,7 @@ const SPOTFACE_MAX_DEPTH_MM: f64 = 1.0;
 /// A cylindrical enlargement at a hole mouth. Depth is the cylindrical span,
 /// excluding any conical mouth treatment.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct CounterBore {
     pub diameter: f64,
     pub depth: f64,
@@ -53,6 +54,7 @@ pub struct CounterBore {
 /// A small conical edge break at an exterior end of the hole stack.
 /// Depths on the parent hole and its cylindrical enlargements exclude this cone.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct MouthChamfer {
     /// Direction from the wide rim into the cylindrical mouth.
     pub axis: V3,
@@ -84,6 +86,7 @@ pub enum Bottom {
 
 /// A partial planar cap at an otherwise through mouth.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct ExitObstruction {
     /// Axis point at the obstructed mouth, in file coordinates.
     pub location: Placed<V3>,
@@ -103,6 +106,7 @@ pub struct ExitObstruction {
 /// With no proved attachment,
 /// the gauge is on the bore itself. No material drilling-entry end is asserted.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct HoleRecord {
     /// Optional additive reference to the identical/superseding published feature.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -131,6 +135,7 @@ pub struct HoleRecord {
 /// Options named as `recognise_holes`' keyword arguments.
 #[derive(Clone, Copy, Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+#[non_exhaustive]
 pub struct HoleOptions {
     /// Compose recognised countersinks onto the holes they flare: Python's
     /// `csinks=recognise_countersinks(part)`, spelled `"csinks": "auto"`. Off by default, as

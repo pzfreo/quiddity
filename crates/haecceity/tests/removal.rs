@@ -434,12 +434,12 @@ fn refuse_names_the_presentation_that_references_removed_pmi() {
     let r = removal::plan(&doc, &handmade_seeds(&doc), PresentationPolicy::Refuse).unwrap_err();
     assert_eq!(
         r.blockers,
-        vec![removal::Blocker {
-            id: 53,
-            entity: "draughting_model_item_association".into(),
-            family: Family::Presentation,
-            references: vec![22],
-        }]
+        vec![removal::Blocker::new(
+            53,
+            "draughting_model_item_association".into(),
+            Family::Presentation,
+            vec![22]
+        )]
     );
     assert!(
         r.to_string()
@@ -545,12 +545,12 @@ fn a_model_that_would_be_emptied_is_refused() {
     assert!(r.blockers.is_empty());
     assert_eq!(
         r.emptied,
-        vec![removal::Emptied {
-            id: 50,
-            entity: "draughting_model".into(),
-            attribute: "representation.items".into(),
-            lower: 1,
-        }]
+        vec![removal::Emptied::new(
+            50,
+            "draughting_model".into(),
+            "representation.items".into(),
+            1
+        )]
     );
     assert!(
         r.to_string()

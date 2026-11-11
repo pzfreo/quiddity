@@ -26,6 +26,7 @@ const AXES: [char; 3] = ['x', 'y', 'z'];
 
 /// A right-triangular rib between two perpendicular support planes (`GussetRib`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct GussetRib {
     pub thickness_axis: char,
     pub thickness_bounds: Placed<(f64, f64)>,
@@ -40,6 +41,7 @@ pub struct GussetRib {
 /// across the body's centre plane (`GussetRibMirrorPair`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum GussetRibPattern {
     Array {
         ribs: Vec<GussetRib>,

@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 /// A family that could not be evaluated. Exactly one of `message` and `blocked_by` is set.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct FamilyFailure {
     pub family: String,
     pub stage: String,
@@ -17,6 +18,18 @@ pub struct FamilyFailure {
     pub message: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub blocked_by: Vec<String>,
+}
+
+impl FamilyFailure {
+    /// A family whose evaluation panicked, rather than one blocked by a dependency.
+    pub fn panicked(family: String, stage: String, message: String) -> Self {
+        Self {
+            family,
+            stage,
+            message: Some(message),
+            blocked_by: Vec::new(),
+        }
+    }
 }
 
 thread_local! {

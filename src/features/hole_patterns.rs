@@ -26,6 +26,7 @@ const OPENING_PLANE_REL_TOL: f64 = 2e-6;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum HolePattern {
     RectGrid {
         holes: Vec<HoleRecord>,

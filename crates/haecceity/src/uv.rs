@@ -298,6 +298,9 @@ impl Part {
     /// face's first sample still lands inside it.
     pub(super) fn loop_placement(&self, face: usize) -> Option<(usize, Vec<(f64, f64)>)> {
         let loops = self.uv_loops(face)?;
+        if loops.is_empty() {
+            return None;
+        }
         let (pu, pv) = self.faces[face].surface.periodic();
         let boxes: Vec<[f64; 4]> = loops
             .iter()
@@ -392,7 +395,7 @@ impl Part {
                 (su, sv)
             })
             .collect();
-        (!loops.is_empty()).then_some((outer, shifts))
+        Some((outer, shifts))
     }
 
     /// ∮ (x dy − y dx)/2, ∮ x² dy/2 and −∮ y² dx/2 along one edge in the plane of *frame*, by
@@ -1384,6 +1387,20 @@ fn into_period(c: f64, periodic: bool) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn empty_face_has_no_loop_placement() {
+        let mut part = crate::read_step_file(std::path::Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/golden_simple_through_hole.step"
+        )))
+        .unwrap();
+        // Programmatic Parts can still be incomplete; queries must fail closed.
+        part.faces[0].loops.clear();
+        let part = Part::new(part.faces, part.edges, part.solids);
+        assert!(part.loop_placement(0).is_none());
+        assert!(part.outer_loop(0).is_none());
+    }
+
     use super::*;
 
     fn domain(loops: Vec<Vec<(f64, f64)>>, periodic: (bool, bool)) -> FaceDomain {
