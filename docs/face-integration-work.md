@@ -7,7 +7,8 @@ from elapsed time, face size, spline degree or a large parent-panel error.
 ## Reusing work
 
 `face_moments` stores its complete result in the immutable part's face cache, including
-`None`. Placement changes and sense repairs already replace the face caches. The mass
+`None`; all moment components are retained. A transformed part starts with fresh
+geometry caches, and sense repairs also replace the face caches. The mass
 cache introduced by the existing shared moment/mass integration retains its own rule.
 
 An adaptive panel requests kink locations only if there is a refinement floor, its

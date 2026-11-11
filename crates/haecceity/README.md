@@ -5,14 +5,6 @@ native dependency. It reads, queries and writes B-reps, and does not model them 
 [Scope](#scope)). It is the geometry under [quiddity](https://crates.io/crates/quiddity), which
 recognises manufacturing features. Use haecceity directly when you need the geometry itself.
 
-Face moments are cached with the immutable part, including missing results; a transformed
-part starts with fresh geometry caches. Boundary integration only locates kinks when the
-adaptive panel can use them. The integration nodes, walking state, complete moment
-components and error criteria are unchanged. Refinement stops once an accepted leaf
-makes the existing final rejection inevitable; it does not abandon a merely expensive
-integral. The [argument and limits](../../docs/face-integration-work.md) distinguish an
-algorithmic refusal from mathematical non-integrability.
-
 - **STEP:** reads AP203, AP214 and AP242 files (plain or gzipped) into a B-rep `Part`:
   solids, faces, edges and their exact surfaces and curves. A malformed or unsupported file is
   refused with a typed error, never a panic.
