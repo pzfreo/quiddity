@@ -96,6 +96,16 @@ fn check(path: &Path) -> usize {
             .collect();
         assert_eq!(got, placements);
         let part = whole.part(i).unwrap();
+        let extracted = m
+            .read_product(&std::fs::File::open(path).unwrap(), &product.id)
+            .unwrap();
+        let face_map = |p: &haecceity::Part| {
+            (0..p.faces.len())
+                .map(|i| p.face_source(i).unwrap().entity)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(face_map(&part), product.faces);
+        assert_eq!(face_map(&extracted), product.faces);
         // Independent whole-file baseline: do not use the new product wrapper for expected JSON.
         let mut recognition = quiddity::correspondence::recognise(&part);
         recognition.source_sha256 = Some(source_sha256.clone());
@@ -123,7 +133,7 @@ fn every_assembly_fixture() {
         .collect();
     files.sort();
     assert_eq!(files.len(), 4);
-    let count: usize = files.iter().map(|p| check(p)).sum();
+    let count: usize = files.iter().map(|p| check(p) + check_layouts(p)).sum();
     eprintln!(
         "CLI assembly equivalence: {} files, {count} products",
         files.len()
@@ -139,6 +149,7 @@ fn gramil_pack() {
             std::env::var_os("QUIDDITY_GRAMIL_REQUIRED").is_none(),
             "required gramil pack missing"
         );
+        eprintln!("SKIP gramil pack: set QUIDDITY_GRAMIL to the gramil STEP directory");
         return;
     }
     let mut files: Vec<_> = std::fs::read_dir(dir)
@@ -154,13 +165,33 @@ fn gramil_pack() {
         files.len()
     );
 }
-#[test]
-fn shuffled_layout() {
+fn check_layouts(path: &Path) -> usize {
     let dir = tempfile::tempdir().unwrap();
-    let source = dir.path().join("shuffled.step");
-    let bytes = std::fs::read(fixture()).unwrap();
-    std::fs::write(&source, layouts::layouts(&bytes).pop().unwrap()).unwrap();
-    check(&source);
+    let bytes = std::fs::read(path).unwrap();
+    let mut count = 0;
+    for (i, bytes) in layouts::layouts(&bytes).into_iter().enumerate() {
+        let source = dir.path().join(format!("layout-{i}.step"));
+        std::fs::write(&source, bytes).unwrap();
+        count += check(&source);
+    }
+    count
+}
+#[test]
+fn gramil_assembly_all_layouts() {
+    let dir = std::env::var_os("QUIDDITY_GRAMIL")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/Users/paul/repos/gramil/dist/step"));
+    let path = dir.join("gramil_assembly.step");
+    if !path.is_file() {
+        assert!(
+            std::env::var_os("QUIDDITY_GRAMIL_REQUIRED").is_none(),
+            "required gramil assembly missing"
+        );
+        eprintln!("SKIP gramil assembly layouts: set QUIDDITY_GRAMIL to the gramil STEP directory");
+        return;
+    }
+    let count = check_layouts(&path);
+    eprintln!("CLI gramil all layouts: 3 layouts, {count} product comparisons");
 }
 #[test]
 fn writes_only_output_and_cleans_index() {

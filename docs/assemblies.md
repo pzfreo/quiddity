@@ -170,3 +170,57 @@ instance and face limits still apply to each product read.
 Stage 1 records presentation/PMI ranges but does not read PMI or presentation per
 product. It does not split STEP, export placed copies, or provide cross-revision
 product identity. Existing whole-file PMI and B-rep commands remain available.
+
+## Generating test files
+
+The example uses the manifest scanner to group entities and preserves each
+statement's bytes and ids when changing layout:
+
+```sh
+cargo run --release -j 6 --example assembly_layout -- assembly.step \
+  --layout runs --runs 8 --seed 190 -o /tmp/runs.step
+cargo run --release -j 6 --example assembly_layout -- assembly.step \
+  --layout shuffled --seed 190 -o /tmp/shuffled.step
+cargo run --release -j 6 --example assembly_layout -- assembly.step \
+  --scale --distinct 20 --instances 40 --target-bytes 200000000 \
+  -o /tmp/scale.step
+```
+
+`contiguous` groups products in source definition order, with shared records in a prefix.
+`runs` cuts each product into `--runs` runs and interleaves them with a seeded product schedule. `shuffled`
+permutes all entity statements. Scale mode copies products with disjoint id
+blocks, suffixes `PRODUCT.id`, and places occurrences under a synthetic root on
+a grid (1,000 source length units). `--distinct` and `--instances` are minimum
+counts; instances count placed solids, so a multi-solid product contributes several
+per occurrence. Complete product copies, each with an occurrence, are added until
+`--target-bytes` is reached. It never fills the target with padding or unused
+entities. Extra requested instances reuse the generated products.
+
+The sidecar defaults to `OUTPUT.expected.json` (`--sidecar` overrides it) and
+records actual bytes, total entities, products and instances, plus each product's
+definition id, face count and entity count. Contiguous scale output and sidecar
+rows stream directly from source-sized templates. Runs and shuffled scale output
+use temporary statement, extent and group files, removed on completion; their
+indexes and schedules stay on disk. The scale shuffle is a seeded affine
+bijection over all entity positions. Memory depends on the source template,
+not the target size; temporary disk space can exceed twice the output size.
+Generated files belong in scratch, never in the repository.
+
+The fixture and optional gramil CLI tests compare every product in all three
+layouts against whole-file recognition, including face ids. Set
+`QUIDDITY_GRAMIL` to the gramil pack's STEP directory; as with the existing gramil
+tests, absent local data skips with a message, and `QUIDDITY_GRAMIL_REQUIRED=1`
+makes absence fail. CI currently checks out the optional corpus but not gramil.
+
+The approximately 200 MB memory/limits test runs in the ordinary Linux CI shards
+(and the full macOS suite). Run it separately with:
+
+```sh
+cargo test --release -j 6 --test assembly_layout scale_200mb -- --exact --nocapture
+```
+
+It checks both index backends, sidecar counts, selected reading past the aggregate
+whole-file face limit, a deliberately low manifest instance limit, and temporary
+index cleanup. The AP242 presentation regression checks complete reference
+closures and whole-file/product equivalence in all layouts. For memory comparisons,
+record both RSS and peak physical footprint: RSS includes clean mapped index pages.
