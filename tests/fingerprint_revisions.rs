@@ -201,10 +201,15 @@ fn excluded_placement_and_neighbourhood_have_no_cost() {
         let mut new = recognise("prismatic.step");
         new.features.truncate(1);
         new.features[0].family = family.into();
+        if family == "bosses" {
+            new.features[0].axis = Some([0., 0., 1.]);
+            new.features[0].position = Some([1., 2., 3.]);
+        }
         let mut old = new.clone();
         old.fingerprint_revision = 0;
         if family == "bosses" {
-            old.features[0].position = Some([1000., 2000., 3000.]);
+            // Only the component along the axis is excluded.
+            old.features[0].position = Some([1., 2., 3000.]);
         }
         old.features[0].neighbourhood = vec!["obsolete-graph".into()];
         if family == "slot_patterns" {
@@ -215,7 +220,7 @@ fn excluded_placement_and_neighbourhood_have_no_cost() {
         assert_eq!(c.features[0].class, Class::Carried);
         assert_eq!(c.features[0].cost, Some(0.0));
         if family == "bosses" {
-            assert!(c.excluded_keys.iter().any(|e| e.key == "position"));
+            assert!(c.excluded_keys.iter().any(|e| e.key == "position.axial"));
         }
         assert!(c.excluded_keys.iter().any(|e| e.key == "neighbourhood"));
         if family == "slot_patterns" {
@@ -265,4 +270,116 @@ fn cli_passes_revision_metadata_through_for_step_and_saved_json() {
             .as_array()
             .is_some_and(|a| !a.is_empty())
     );
+}
+
+#[test]
+fn axial_exclusion_keeps_the_perpendicular_position() {
+    let mut new = recognise("prismatic.step");
+    new.features.truncate(1);
+    let f = &mut new.features[0];
+    f.family = "holes".into();
+    f.axis = Some([0., 0., 1.]);
+    f.position = Some([10., 20., 30.]);
+    f.neighbourhood.clear();
+    let mut old = new.clone();
+    old.fingerprint_revision = 0;
+    old.features[0].position = Some([10., 20., 35.]);
+    let c = correspondence::correspond(&old, &new).unwrap();
+    assert_eq!(c.features[0].class, Class::Carried);
+    assert!(
+        c.excluded_keys
+            .iter()
+            .any(|e| e.family == "holes" && e.key == "position.axial")
+    );
+    old.features[0].position = Some([16., 20., 35.]);
+    let c = correspondence::correspond(&old, &new).unwrap();
+    assert_eq!(c.features[0].class, Class::Adapted);
+    assert!(c.features[0].changes.contains_key("position"));
+}
+
+#[test]
+fn every_value_change_key_names_a_fingerprint_field() {
+    use correspondence::fingerprint::{FAMILIES, Role, VALUE_CHANGES};
+    for change in VALUE_CHANGES {
+        for family in change.families {
+            let table = FAMILIES
+                .iter()
+                .find(|f| f.family == *family)
+                .unwrap_or_else(|| panic!("unknown family {family}"));
+            for key in change.keys {
+                let stem = key.strip_suffix(".*").unwrap_or(key);
+                let ok = match *key {
+                    // Sizes computed by `derived_sizes`, not record fields.
+                    "sizes.thickness" if *family == "plates" => true,
+                    "position" | "position.axial" | "neighbourhood" => true,
+                    "axis" => table.fields.iter().any(|(_, r)| matches!(r, Role::Axis)),
+                    _ => {
+                        let path = stem
+                            .strip_prefix("traits.")
+                            .or_else(|| stem.strip_prefix("sizes."))
+                            .unwrap_or_else(|| panic!("{key} is not a fingerprint key"));
+                        // `outer_steps.0.diameter` is the field path `outer_steps[].diameter`.
+                        let path: Vec<&str> = path
+                            .split('.')
+                            .map(|s| {
+                                if s.chars().all(|c| c.is_ascii_digit()) {
+                                    "[]"
+                                } else {
+                                    s
+                                }
+                            })
+                            .collect();
+                        let path = path.join(".").replace(".[]", "[]");
+                        table.fields.iter().any(|(p, _)| {
+                            let p = p.to_string();
+                            p == path
+                                || p.starts_with(&format!("{path}."))
+                                || p.starts_with(&format!("{path}["))
+                        })
+                    }
+                };
+                assert!(ok, "{family}: {key} matches no FAMILIES field");
+            }
+        }
+    }
+}
+
+#[test]
+fn value_changes_name_only_released_vintages() {
+    // Every entry predates recorded revisions; none may cite unreleased code.
+    for change in correspondence::fingerprint::VALUE_CHANGES {
+        assert_eq!(change.revision, 0);
+        assert!(
+            !change.evidence.contains("Unreleased"),
+            "{}",
+            change.evidence
+        );
+    }
+}
+
+#[test]
+fn excluded_keys_need_the_family_on_both_sides() {
+    let mut new = recognise("prismatic.step");
+    new.features.truncate(1);
+    new.features[0].family = "plates".into();
+    let mut old = new.clone();
+    old.fingerprint_revision = 0;
+    old.features[0].family = "holes".into();
+    let c = correspondence::correspond(&old, &new).unwrap();
+    assert!(c.excluded_keys.is_empty(), "{:?}", c.excluded_keys);
+}
+
+#[test]
+fn a_part_against_itself_across_the_gap_is_all_carried() {
+    for name in ["filleted_plate_with_holes.step", "prismatic.step"] {
+        let new = recognise(name);
+        let mut old = new.clone();
+        old.fingerprint_revision = 0;
+        let c = correspondence::correspond(&old, &new).unwrap();
+        assert!(
+            c.features.iter().all(|e| e.class == Class::Carried)
+                && c.faces.iter().all(|e| e.class == Class::Carried),
+            "{name}"
+        );
+    }
 }

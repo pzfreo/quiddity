@@ -21,7 +21,8 @@ pub const FINGERPRINT_VERSION: &str = "quiddity-rust/fingerprint/3";
 pub const FINGERPRINT_REVISION: u32 = 1;
 
 /// A known value change within fingerprint/3. Keys use correspondence's `traits.` / `sizes.`
-/// paths, or `position`, `axis`, `neighbourhood`; a trailing `.*` covers indexed descendants.
+/// paths, or `position`, `position.axial` (the component along the feature's axis only),
+/// `axis`, `neighbourhood`; a trailing `.*` covers indexed descendants.
 /// Revision 0 means "before revision 1": the precise historical vintage was not recorded.
 pub struct FingerprintValueChange {
     pub revision: u32,
@@ -33,6 +34,9 @@ pub struct FingerprintValueChange {
 /// Known key-level corrections, all predating recorded revisions. This is executable migration
 /// data, not a list of recogniser additions/removals: exclusions cannot recreate missing records
 /// or migrate face topology. Family renames additionally need `merge_legacy_families` below.
+/// Only changes between released versions belong here: a revision-0 fingerprint cannot hold the
+/// values of unreleased code. Prefer a narrow exclusion (one component, one key) that sometimes
+/// reports a real old difference over a broad one that hides a design change.
 pub const VALUE_CHANGES: &[FingerprintValueChange] = &[
     FingerprintValueChange {
         revision: 0,
@@ -48,24 +52,9 @@ pub const VALUE_CHANGES: &[FingerprintValueChange] = &[
     },
     FingerprintValueChange {
         revision: 0,
-        families: &["chamfers"],
-        keys: &["traits.turned"],
-        evidence: "CHANGELOG 0.2.0-alpha.2 #92; merge_fingerprint: oriented chamfers gain turned=false; family/ID migration is separate",
-    },
-    FingerprintValueChange {
-        revision: 0,
-        families: &["slots"],
-        keys: &[
-            "traits.source.ends.low_capped",
-            "traits.source.ends.high_capped",
-        ],
-        evidence: "CHANGELOG 0.2.0-alpha.2 #92; merge_fingerprint: oriented source-end proofs removed",
-    },
-    FingerprintValueChange {
-        revision: 0,
-        families: &["holes", "hole_patterns", "polygonal_bosses"],
-        keys: &["position", "neighbourhood"],
-        evidence: "CHANGELOG 0.2.0 and 0.2.1-alpha.1 #100: drill-point cones and polygonal boss free-end cap join defining faces; 0.2.0-alpha.1 #83 and 0.2.2 #118: both hole mouths and outer-step faces; derived_faces propagates member claims to patterns",
+        families: &["holes", "polygonal_bosses"],
+        keys: &["position.axial"],
+        evidence: "CHANGELOG 0.2.0 and 0.2.1-alpha.1 #100: drill-point cones and polygonal boss free-end cap join the defining faces; 0.2.0-alpha.1 #83 and 0.2.2 #118: hole mouths and outer steps. These faces are coaxial, so the centroid moves along the feature's axis only; the graph is kept comparable. hole_patterns are not listed: their axis is the row direction, not the members' drilling axis",
     },
     FingerprintValueChange {
         revision: 0,
@@ -90,16 +79,14 @@ pub const VALUE_CHANGES: &[FingerprintValueChange] = &[
             "sizes.spotface.diameter",
             "sizes.spotface.depth",
             "sizes.outer_steps.*",
-            "position",
-            "neighbourhood",
         ],
-        evidence: "CHANGELOG 0.2.2 #118: counterbore/spotface threshold, outer_steps and their defining faces; derived_sizes holes",
+        evidence: "CHANGELOG 0.2.2 #118: counterbore/spotface threshold and outer_steps; derived_sizes holes",
     },
     FingerprintValueChange {
         revision: 0,
         families: &["bosses"],
-        keys: &["sizes.height", "position", "neighbourhood"],
-        evidence: "CHANGELOG 0.2.5 #134; fingerprint_with_axes: complete boss height/midpoint and contracted treatment graph",
+        keys: &["sizes.height", "position.axial", "neighbourhood"],
+        evidence: "CHANGELOG 0.2.5 #134; fingerprint_with_axes: complete boss height and axial midpoint, contracted treatment graph",
     },
     FingerprintValueChange {
         revision: 0,
@@ -123,30 +110,6 @@ pub const VALUE_CHANGES: &[FingerprintValueChange] = &[
             "neighbourhood",
         ],
         evidence: "CHANGELOG 0.4.7 #189; interior_voids::analyse: closed_shell exact volume and complete shell defining faces; sample fields are ignored, openings remain zero",
-    },
-    FingerprintValueChange {
-        revision: 0,
-        families: &["local_steps"],
-        keys: &["sizes.height", "sizes.depth", "sizes.section.legs.*"],
-        evidence: "#211 commit 970e066c: replace frame-named height/depth by sorted intrinsic section legs",
-    },
-    FingerprintValueChange {
-        revision: 0,
-        families: &["internal_bevels"],
-        keys: &["sizes.angle"],
-        evidence: "CHANGELOG Unreleased #213; commit 019bd032: actual support angle; leg ties only reorder equal published lengths, direction slots are Placement",
-    },
-    FingerprintValueChange {
-        revision: 0,
-        families: &["polygonal_oblique_through_steps"],
-        keys: &["sizes.slant_degrees"],
-        evidence: "CHANGELOG Unreleased #212; commit 49a11c17: measure slant against through_axis instead of nearest principal axis; outline fields are Placement",
-    },
-    FingerprintValueChange {
-        revision: 0,
-        families: &["pockets"],
-        keys: &["sizes.floor_radius"],
-        evidence: "CHANGELOG Unreleased #228; commit e01b44ac: optional proved floor_radius (floor_fillets are ignored)",
     },
 ];
 

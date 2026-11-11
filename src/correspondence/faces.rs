@@ -174,6 +174,7 @@ impl Ctx<'_> {
                 } else {
                     self.th.angle_tol
                 },
+                false,
             );
             for (k, v) in placed {
                 let k = match k.as_str() {

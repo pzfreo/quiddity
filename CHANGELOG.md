@@ -10,14 +10,16 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 - `Fingerprints` gains public `fingerprint_revision`; `Correspondence` gains public
   `revisions` and `excluded_keys`. Struct literals must add these fields. These structs
-  and `Alignment` remain exhaustive (#254).
+  and `Alignment` remain exhaustive. New public items: `correspondence::FingerprintRevisions`,
+  `correspondence::ExcludedKey`, `correspondence::FINGERPRINT_REVISION`, and in
+  `correspondence::fingerprint` `FingerprintValueChange` and `VALUE_CHANGES` (#254).
 
 ### Changed
 
 - Fingerprints record additive `fingerprint_revision: 1`; missing revisions load as 0
   (unknown historical vintage). Correspondence always reports `revisions: {old, new}`
   and, across a revision gap, optional `excluded_keys` family/key pairs. Known value
-  corrections are excluded from alignment, matching costs and adaptation decisions;
+  corrections between released versions are excluded from alignment, matching costs and adaptation decisions;
   equal revisions retain the existing behaviour. Recognition schema `/6` and fingerprint
   format `/3` are unchanged. No producer/crate-version field is added (#254).
 

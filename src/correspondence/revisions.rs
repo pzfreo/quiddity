@@ -44,9 +44,14 @@ fn exclusions(
         old: old.fingerprint_revision,
         new: new.fingerprint_revision,
     };
+    let has = |f: &Fingerprints, family: &str| f.features.iter().any(|x| x.family == family);
     let mut out = BTreeSet::new();
     for change in changes.iter().filter(|c| revisions.crosses(c)) {
         for feature in old.features.iter().chain(&new.features) {
+            // Only a family present on both sides is compared at all.
+            if !has(old, &feature.family) || !has(new, &feature.family) {
+                continue;
+            }
             if !change.families.contains(&feature.family.as_str()) {
                 continue;
             }
@@ -57,6 +62,12 @@ fn exclusions(
                 .chain(feature.sizes.keys().map(|k| format!("sizes.{k}")))
                 .chain(feature.axis.map(|_| "axis".into()))
                 .chain(feature.position.map(|_| "position".into()))
+                .chain(
+                    feature
+                        .position
+                        .zip(feature.axis)
+                        .map(|_| "position.axial".into()),
+                )
                 .chain((!feature.neighbourhood.is_empty()).then(|| "neighbourhood".into()));
             for key in keys {
                 if change.keys.iter().any(|pattern| {
@@ -76,7 +87,14 @@ fn exclusions(
     out.into_iter().collect()
 }
 
-pub(super) fn comparison_view(f: &Fingerprints, excluded: &[ExcludedKey]) -> Option<Fingerprints> {
+/// *f* without the excluded keys. For `align`, a feature whose position is only partly
+/// excluded (`position.axial`) has no position at all, since an anchor needs the whole point;
+/// matching costs keep it and compare the remaining components.
+pub(super) fn comparison_view(
+    f: &Fingerprints,
+    excluded: &[ExcludedKey],
+    align: bool,
+) -> Option<Fingerprints> {
     if excluded.is_empty() {
         return None;
     }
@@ -92,9 +110,15 @@ pub(super) fn comparison_view(f: &Fingerprints, excluded: &[ExcludedKey]) -> Opt
                     // A missing position also prevents an unsound alignment anchor. A missing
                     // axis permits a point-only anchor. Faces still provide their own anchors.
                     "position" => feature.position = None,
+                    "position.axial" => {
+                        if align {
+                            feature.position = None;
+                        }
+                    }
                     "axis" => feature.axis = None,
                     "neighbourhood" => feature.neighbourhood.clear(),
-                    _ => unreachable!("VALUE_CHANGES contains a non-fingerprint key"),
+                    // Other keys are not fingerprint paths; `value_change_keys_exist` checks the table.
+                    _ => {}
                 }
             }
         }

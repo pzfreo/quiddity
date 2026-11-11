@@ -31,14 +31,22 @@ When revisions differ, `correspond_with` consults `VALUE_CHANGES` in
 [`fingerprint.rs`](../src/correspondence/fingerprint.rs). Each entry lists its introducing
 revision, affected families, exact trait/size keys or placement/neighbourhood parts, and the
 changelog/issue or code evidence. Historical entries say "before revision 1" (represented by 0).
+Only changes between released versions are listed, and each exclusion is as narrow as the
+evidence: a hole's or boss's position is excluded along its own axis only (drill-point cones and
+outer steps are coaxial), and graph (neighbourhood) evidence is kept unless a cited change
+altered it. A narrow exclusion may report a real but old difference; a broad one would hide
+design changes.
 An entry applies when its introducing revision lies above the smaller input revision and at
 or below the larger one. A revision-0 input may predate **every** entry, in either direction.
 Equal revisions, including 0 versus 0, use the existing comparison without exclusions.
 
 For a revision gap, temporary comparison views omit the listed keys from both inputs before
 alignment and matching. Excluded sizes/traits do not enter semantic costs or adaptation;
-excluded axes, positions and neighbourhoods do not enter their costs or change reports. An
-excluded position cannot supply an alignment anchor. Stored fingerprints are never rewritten.
+excluded axes, positions and neighbourhoods do not enter their costs or change reports. The key
+`position.axial` removes only the displacement along the new feature's axis from the cost and the
+position change; a position that moved across the axis is still reported. A position that is
+wholly or partly excluded cannot supply an alignment anchor. `excluded_keys` lists a family only
+when both inputs have features of it. Stored fingerprints are never rewritten.
 The result always includes `revisions: {"old": ..., "new": ...}`. `excluded_keys` lists concrete
 `{"family": ..., "key": ...}` pairs present on either side, sorted and deduplicated, with indexed
 size paths expanded; it is absent when empty. Older correspondence JSON still loads with

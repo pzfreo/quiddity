@@ -61,15 +61,21 @@ fn revision_pairs_have_their_expected_classes() {
         };
         let (old, new) = (read("old"), read("new"));
         let c = correspondence::correspond(&old, &new).unwrap();
-        // Equal vintages retain the existing matcher exactly, including every cost, change,
-        // ambiguity, face match and alignment on these established revision corpus pairs.
-        let (mut unrecorded_old, mut unrecorded_new) = (old.clone(), new.clone());
-        unrecorded_old.fingerprint_revision = 0;
-        unrecorded_new.fingerprint_revision = 0;
-        let mut unrecorded = correspondence::correspond(&unrecorded_old, &unrecorded_new).unwrap();
-        assert!(c.excluded_keys.is_empty() && unrecorded.excluded_keys.is_empty());
-        unrecorded.revisions = c.revisions;
-        assert_eq!(c, unrecorded, "equal revision behaviour: {name}");
+        // Equal revisions are the pre-existing matcher; this file's expectations below were
+        // written before revisions existed. Across the revision gap the result must agree
+        // with it exactly on every corpus pair.
+        assert!(c.excluded_keys.is_empty());
+        let mut gap_old = old.clone();
+        gap_old.fingerprint_revision = 0;
+        let g = correspondence::correspond(&gap_old, &new).unwrap();
+        assert_same_classification(&new, &c, &g, &format!("{name}: revision 0 against current"));
+        // A part against itself across the gap is all carried.
+        let s = correspondence::correspond(&gap_old, &old).unwrap();
+        assert!(
+            s.features.iter().all(|e| e.class == Class::Carried)
+                && s.faces.iter().all(|e| e.class == Class::Carried),
+            "{name}: old against itself across the gap"
+        );
         let mut results: Vec<(String, bool, String)> = Vec::new();
         // Alignment.
         let aligned = case["aligned"].as_bool().unwrap();
@@ -267,4 +273,67 @@ fn check_expectation(
         .collect();
     let changes_ok = changes.keys().all(|k| e.changes.contains_key(*k));
     (class_ok && partner_ok && changes_ok, got)
+}
+
+/// The same class, partner and candidates for every feature, and class and partner for every face.
+fn assert_same_classification(
+    new: &Fingerprints,
+    equal: &Correspondence,
+    gap: &Correspondence,
+    what: &str,
+) {
+    // A feature whose equal-revision changes name a key the gap excludes may differ: a real
+    // difference in a key of unknown vintage is the table's purpose.
+    let excluded = |family: &str, key: &str| {
+        gap.excluded_keys
+            .iter()
+            .any(|e| e.family == family && e.key == key)
+    };
+    // A position change excluded only along the axis is excusable when it is wholly axial.
+    let axial = |e: &correspondence::Entry<String>| {
+        let family = e.old.split('/').next().unwrap();
+        let (Some(change), Some(id)) = (e.changes.get("position"), &e.new) else {
+            return false;
+        };
+        let (Some(axis), true) = (
+            new.features
+                .iter()
+                .find(|f| &f.id == id)
+                .and_then(|f| f.axis),
+            excluded(family, "position.axial"),
+        ) else {
+            return false;
+        };
+        let v = |x: &Value| -> [f64; 3] { std::array::from_fn(|i| x[i].as_f64().unwrap()) };
+        let (a, b) = (v(&change.old), v(&change.new));
+        let d: [f64; 3] = std::array::from_fn(|i| b[i] - a[i]);
+        let along: f64 = (0..3).map(|i| d[i] * axis[i]).sum();
+        let across = (0..3)
+            .map(|i| (d[i] - along * axis[i]).powi(2))
+            .sum::<f64>()
+            .sqrt();
+        across < 2e-3
+    };
+    for (e, g) in equal.features.iter().zip(&gap.features) {
+        assert_eq!(e.old, g.old);
+        let family = e.old.split('/').next().unwrap();
+        if e.changes.keys().any(|k| excluded(family, k)) || axial(e) {
+            eprintln!("{what}: {} differs in an excluded key", e.old);
+            continue;
+        }
+        assert_eq!(
+            (e.class, &e.new, &e.candidates),
+            (g.class, &g.new, &g.candidates),
+            "{what}: {}",
+            e.old
+        );
+    }
+    for (e, g) in equal.faces.iter().zip(&gap.faces) {
+        assert_eq!(
+            (e.class, &e.new),
+            (g.class, &g.new),
+            "{what}: face {}",
+            e.old
+        );
+    }
 }

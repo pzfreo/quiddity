@@ -376,11 +376,17 @@ pub fn correspond_with(
     let excluded_keys = revisions::excluded_keys(old, new);
     // Work on comparison views only. Excluded semantics must not reject alignment anchors,
     // and neither costs nor change reports may observe their original values.
-    let comparable_old = revisions::comparison_view(old, &excluded_keys);
-    let comparable_new = revisions::comparison_view(new, &excluded_keys);
+    let anchors_old = revisions::comparison_view(old, &excluded_keys, true);
+    let anchors_new = revisions::comparison_view(new, &excluded_keys, true);
+    let (motion, alignment) = align::align(
+        anchors_old.as_ref().unwrap_or(old),
+        anchors_new.as_ref().unwrap_or(new),
+        th,
+    );
+    let comparable_old = revisions::comparison_view(old, &excluded_keys, false);
+    let comparable_new = revisions::comparison_view(new, &excluded_keys, false);
     let old = comparable_old.as_ref().unwrap_or(old);
     let new = comparable_new.as_ref().unwrap_or(new);
-    let (motion, alignment) = align::align(old, new, th);
     let ctx = Ctx {
         old,
         new,
@@ -541,7 +547,15 @@ impl Ctx<'_> {
     /// How far old point *p*, moved, is from new point *q*: about an axisymmetric alignment's
     /// line, in distance along it and from it only.
     fn gap(&self, p: V3, q: V3) -> f64 {
-        let p = self.motion.point(p);
+        self.gap_along(p, q, None)
+    }
+
+    /// [`Self::gap`] with the component along unit direction *along* (in the new frame) removed.
+    fn gap_along(&self, p: V3, q: V3, along: Option<V3>) -> f64 {
+        let mut p = self.motion.point(p);
+        if let Some(d) = along {
+            p = geom::sub(p, geom::scale(d, geom::dot(geom::sub(p, q), d)));
+        }
         match self.axis {
             Some((o, d)) => {
                 let split = |x: V3| {
@@ -594,9 +608,11 @@ impl Ctx<'_> {
         }
     }
 
-    /// Placement, in [0, 1]: half the axis (as lines), half the position.
-    fn placement(&self, a: (Option<V3>, Option<V3>), b: (Option<V3>, Option<V3>)) -> f64 {
-        self.placement_parts(a, b, true, true)
+    /// Whether *key* is excluded for features of *family*.
+    fn excludes(&self, family: &str, key: &str) -> bool {
+        self.excluded_keys
+            .iter()
+            .any(|e| e.family == family && e.key == key)
     }
 
     fn placement_parts(
@@ -605,6 +621,7 @@ impl Ctx<'_> {
         b: (Option<V3>, Option<V3>),
         compare_axis: bool,
         compare_position: bool,
+        axial_excluded: bool,
     ) -> f64 {
         let axis = match (a.0, b.0) {
             (Some(x), Some(y)) => 1.0 - self.agreement(x, y, true),
@@ -612,7 +629,14 @@ impl Ctx<'_> {
             _ => 1.0,
         };
         let position = match (a.1, b.1) {
-            (Some(p), Some(q)) => self.displacement(self.gap(p, q)),
+            (Some(p), Some(q)) => {
+                let along = if axial_excluded {
+                    b.0.filter(|_| a.0.is_some())
+                } else {
+                    None
+                };
+                self.displacement(self.gap_along(p, q, along))
+            }
             _ => 0.5,
         };
         0.5 * if compare_axis { axis } else { 0.0 }
@@ -633,17 +657,12 @@ impl Ctx<'_> {
         };
         let semantics = (traits + size_sum) / (1.0 + size_n as f64);
         let neighbourhood = multiset_distance(&a.neighbourhood, &b.neighbourhood);
-        let compare = |key: &str| {
-            !self
-                .excluded_keys
-                .iter()
-                .any(|e| e.family == a.family && e.key == key)
-        };
         let placement = self.placement_parts(
             (a.axis, a.position),
             (b.axis, b.position),
-            compare("axis"),
-            compare("position"),
+            !self.excludes(&a.family, "axis"),
+            !self.excludes(&a.family, "position"),
+            self.excludes(&a.family, "position.axial"),
         );
         self.th.semantics_weight * semantics
             + self.th.neighbourhood_weight * neighbourhood
@@ -699,6 +718,7 @@ impl Ctx<'_> {
                 (b.axis, b.position),
                 true,
                 self.th.angle_tol,
+                self.excludes(&a.family, "position.axial"),
             );
         }
         out
@@ -712,6 +732,7 @@ impl Ctx<'_> {
         b: (Option<V3>, Option<V3>),
         line: bool,
         angle_tol: f64,
+        axial_excluded: bool,
     ) {
         if let (Some(x), Some(y)) = (a.0, b.0)
             && self.agreement(x, y, line) < angle_tol.cos()
@@ -725,7 +746,15 @@ impl Ctx<'_> {
             );
         }
         if let (Some(p), Some(q)) = (a.1, b.1)
-            && self.gap(p, q) > self.tol()
+            && self.gap_along(
+                p,
+                q,
+                if axial_excluded {
+                    b.0.filter(|_| a.0.is_some())
+                } else {
+                    None
+                },
+            ) > self.tol()
         {
             out.insert(
                 "position".into(),
