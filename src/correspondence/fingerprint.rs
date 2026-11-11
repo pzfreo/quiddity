@@ -320,6 +320,8 @@ pub const FAMILIES: &[FamilyFingerprint] = &[
             ("spotface.depth", Size),
             // Keep each diameter paired with its depth in canonical mouth-to-bore order.
             ("outer_steps", Derived),
+            // Edge-break annotations do not redefine the cylindrical hole's identity.
+            ("mouth_chamfers", Ignored),
             ("exit_obstructions", Derived),
             ("csink", Trait),
             ("csink.major_diameter", Size),

@@ -124,7 +124,8 @@ pub struct Record {
     pub family: String,
     /// Python's record class name ([`RECORD_TYPES`]).
     pub record_type: String,
-    /// The faces that define it, ascending (a pattern's are its members').
+    /// Core defining faces, ascending (a pattern's are its members'). These anchor
+    /// the fingerprint; use `claimed_faces` for nested treatment claims as well.
     pub faces: Vec<usize>,
     /// The record as the family serialises it.
     pub parameters: Map<String, Value>,
@@ -135,6 +136,25 @@ pub struct Record {
 }
 
 impl Record {
+    /// All claimed faces, including proved hole-mouth treatments. The main `faces`
+    /// remain the cylindrical feature's anchor; consulted support planes are not claims.
+    pub fn claimed_faces(&self) -> impl Iterator<Item = usize> + '_ {
+        let treatments = (self.family == "holes")
+            .then(|| {
+                self.parameters
+                    .get("mouth_chamfers")
+                    .and_then(Value::as_array)
+            })
+            .flatten()
+            .into_iter()
+            .flatten()
+            .filter_map(|c| c.get("faces").and_then(Value::as_array))
+            .flatten()
+            .filter_map(Value::as_u64)
+            .filter_map(|f| usize::try_from(f).ok());
+        self.faces.iter().copied().chain(treatments)
+    }
+
     /// A published explanation of a refused projection, rather than a feature claim.
     /// Consumers should inspect its type and reason separately from feature evidence status.
     pub fn is_refusal(&self) -> bool {
@@ -553,15 +573,27 @@ fn record_status(
     status(family, n)
 }
 
-/// Partition the complete inventory, independently of record serialization.
+/// Partition core defining faces and proved nested treatment claims.
 fn account_faces(
     records: &[Record],
     body_evidence: &BTreeMap<usize, BodyReason>,
     face_count: usize,
 ) -> Vec<FaceAccounting> {
-    (0..face_count)
-        .map(|face| {
-            let owners: Vec<_> = records.iter().filter(|r| r.faces.contains(&face)).collect();
+    let mut by_face: Vec<Vec<&Record>> = vec![Vec::new(); face_count];
+    for record in records {
+        let mut claimed: Vec<_> = record.claimed_faces().collect();
+        claimed.sort_unstable();
+        claimed.dedup();
+        for face in claimed {
+            if let Some(owners) = by_face.get_mut(face) {
+                owners.push(record);
+            }
+        }
+    }
+    by_face
+        .into_iter()
+        .enumerate()
+        .map(|(face, owners)| {
             let record_ids: Vec<_> = owners
                 .iter()
                 .filter(|r| !r.is_refusal())
@@ -596,6 +628,31 @@ fn account_faces(
 #[cfg(test)]
 mod accounting_tests {
     use super::*;
+
+    #[test]
+    fn nested_mouth_claims_preserve_core_anchors_and_exclude_support_planes() {
+        let record=Record {
+            id:"holes/0".into(),family:"holes".into(),record_type:"HoleRecord".into(),
+            faces:vec![3,10],evidence_status:EvidenceStatus::Verified,
+            parameters:serde_json::from_value(serde_json::json!({
+                "mouth_chamfers":[{"faces":[1,1],"location":[0,0,2],"size":0.25,"depth":0.25,"angle":45}],
+                "exit_obstructions":[{"faces":[5]}]
+            })).unwrap(),
+        };
+        assert_eq!(record.faces.iter().min(), Some(&3));
+        assert!(record.claimed_faces().any(|f| f == 1));
+        assert!(!record.claimed_faces().any(|f| f == 5));
+        let groups = account_faces(&[record], &BTreeMap::new(), 11);
+        assert_eq!(
+            groups[1],
+            FaceAccounting::Feature {
+                record_ids: vec!["holes/0".into()]
+            }
+        );
+        assert_eq!(groups[5], FaceAccounting::Unexplained);
+        assert_eq!(groups[3], groups[1]);
+        assert_eq!(groups[10], groups[1]);
+    }
 
     #[test]
     fn overlapping_claims_refusals_and_body_have_explicit_precedence() {

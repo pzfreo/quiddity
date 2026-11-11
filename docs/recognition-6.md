@@ -1255,3 +1255,82 @@ profiles needing missing walls or curved sides are not inferred.
 This is a post-recognition extension, represented in recognition/6, fingerprints,
 and face accounting; the evidence document's legacy physical-candidate registry
 does not acquire a new candidate family.
+
+## Hole mouth edge breaks (#244)
+
+`HoleRecord` has an optional, default-empty `mouth_chamfers` array. Each entry has
+`axis` (into the hole), `location` (wide-rim centre in file coordinates), `diameter`
+(the cylindrical mouth diameter), radial `size`, axial `depth`, `angle` (degrees
+from the transverse top face, **not** included cone angle), and `faces` (cone face
+indices). Both exterior ends may carry entries; array order does not assert a
+machining entry end. Empty arrays are omitted, and old hole records deserialize
+with no treatments. Rust struct literals must supply the new field.
+
+This is a composed hole detail, like a mouth attachment, rather than a separate
+correspondence feature. `internal_bevels` proves concave planar strips, whereas
+this is a convex axisymmetric edge break. Existing turned `chamfers` describes
+external-cylinder edges. Making every small hole-mouth trim another independent
+chamfer feature also adds indistinguishable features on symmetric hole patterns,
+expanding existing correspondence ambiguities. The nested record describes the
+machining note without introducing another feature identity. Hole patterns retain
+per-member treatments, but exclude them from the matching specification: a missing,
+interrupted or slightly noisy cone must not split a bolt circle or change its ID.
+
+The cone and its support plane are consulted evidence on the hole and must share
+its valid solid. The cone is claimed through the nested treatment; the plane is
+only support. `Record.faces` remains the core defining face set used by the
+fingerprint and stable anchor. `Record.claimed_faces()` additionally iterates the
+proved `mouth_chamfers[*].faces` for holes, and complete face accounting uses that
+union. It does **not** claim arbitrary consulted faces, support planes, or nested
+exit-obstruction faces. Patterns retain their existing defining member-face union;
+the individual hole owns its treatment. Existing readers can keep using the core
+`faces` for saved IDs and inspect the sub-record for chamfer selection.
+
+Treatment annotations do not enter hole fingerprints: the bore's identity and
+all existing correspondence evidence stay unchanged. Consumers updating chamfer
+notes should compare the treatment parameters. The `face_claims`/`as_compare`
+benchmark scores defining-face unions; it does not score these nested treatment
+claims. Its unchanged scores therefore do not imply unchanged complete face
+accounting. No class mapping, score floor, or correspondence allowance is changed.
+
+Recognition requires a full circular cone, a coaxial internal cylinder sharing
+its minor end circle, and an outward-facing transverse plane sharing its major
+circle. Both joins must be convex. The cone must flare outward at an extreme of
+the **whole** cylinder stack, excluding a counterbore floor/step edge even if that
+edge has a small cone. A flare strictly below the countersink family's 1.5
+major/minor-radius boundary and an axial leg below half the mouth radius prove
+a small edge break. No boss, absolute size, file axis, or dataset identity is
+required. Large seats retain `csink`/`countersinks` recognition. Split or interrupted
+cones without a complete single-face circumference are not claimed by this rule.
+The unrounded angle must be within 15°–75°, inclusive, to exclude shallow tapers
+and nearly transverse lead-ins. This symmetric band is the same from the axis or
+the top plane; the recorded angle remains measured from the top plane. It is a
+conservative chamfer-family policy, not a claim that other cone angles cannot be
+manufactured. Split-cone support needs an angular-coverage and shared-seam proof,
+not just adding patch angles (which could overlap); the two-half-cone regression
+pins the current abstention while preserving the cylindrical hole.
+
+At the shared 1.5 major/minor-radius boundary, a 0.5 × 45° edge on a ⌀2 bore
+remains a ⌀3 × 90° countersink. A small screw seat and an edge break can have
+identical geometry, including the same adjoining cylinder and relative depth.
+Those dimensions cannot establish machining intent. Keep the existing scale-free
+family boundary rather than infer a chamfer from bore depth or change saved seats.
+
+Depth semantics stay cylindrical, consistent with existing plain-hole/countersink
+handling: neither `HoleRecord.depth` nor `cbore.depth`, `spotface.depth`, or
+`outer_steps[*].depth` includes an entry cone. `location` remains the cylindrical
+opening/gauge; the treatment carries its own top-face location. In #244, `cbore`
+remains `{diameter:5, depth:2}`, and the entry has
+`{diameter:5, size:0.25, depth:0.25, angle:45}`. A drawing referenced to the boss top
+should read **⌴⌀5 ↧2.25**, plus **0.25 × 45° at counterbore mouth**: add the entry's
+axial depth to the 2.0 mm cylinder span. Printing ↧2.0 from that top face would
+locate the floor incorrectly. This is callout guidance; the existing dimension
+planner is not changed to generate chamfer notes.
+
+### Saved face anchors
+
+On #244, `holes/0` retains faces `[3,10]` and anchor **3**. Its sub-record claims
+cone face `[1]`, so the cone is explained without shifting the hole's anchor to 1.
+No standalone feature is added, and existing hole, pattern and chamfer IDs and
+fingerprints stay unchanged. Consumers can select the nested cone faces for a
+chamfer note while preserving the cylinder as the saved feature reference.

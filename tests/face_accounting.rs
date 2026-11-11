@@ -7,12 +7,32 @@ use quiddity::recognition::{FaceAccounting, RecognitionDocument};
 fn check(doc: &RecognitionDocument) -> [usize; 5] {
     let groups = doc.face_accounting.as_ref().unwrap();
     assert_eq!(groups.len(), doc.face_count);
+    // A nested cone must be claimed while preserving the parent's core face set.
+    // Check the published parameter references independently of claimed_faces().
+    for record in doc.records.iter().filter(|r| r.family == "holes") {
+        for treatment in record
+            .parameters
+            .get("mouth_chamfers")
+            .and_then(serde_json::Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            for face in treatment["faces"].as_array().unwrap() {
+                let face = usize::try_from(face.as_u64().unwrap()).unwrap();
+                assert!(!record.faces.contains(&face));
+                let FaceAccounting::Feature { record_ids } = &groups[face] else {
+                    panic!("nested treatment is not accounted as a feature")
+                };
+                assert!(record_ids.contains(&record.id));
+            }
+        }
+    }
     let mut counts = [0; 5]; // feature, body, refused, unexplained, unclaimed before
     for (face, group) in groups.iter().enumerate() {
         let records: Vec<_> = doc
             .records
             .iter()
-            .filter(|r| r.faces.contains(&face))
+            .filter(|r| r.claimed_faces().any(|claimed| claimed == face))
             .collect();
         let feature_ids: Vec<_> = records
             .iter()
@@ -142,6 +162,31 @@ fn complete_partition_on_all_goldens_and_recorded_corpus() {
         assert_eq!(back, doc);
     }
     eprintln!("ACCOUNTING TOTAL {total:?}");
+}
+
+#[test]
+fn original_q244_counterbore_mouth_claim_preserves_the_saved_hole_anchor() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/hole_mouth/cbore_chamfer.step");
+    let part = quiddity::read_step_file(&path).unwrap();
+    let recognition = quiddity::correspondence::recognise(&part);
+    let doc = quiddity::recognition::document(&recognition, part.faces.len());
+    check(&doc);
+    let hole = doc.records.iter().find(|r| r.id == "holes/0").unwrap();
+    assert_eq!(hole.faces, [3, 10]);
+    assert_eq!(
+        hole.parameters["mouth_chamfers"][0]["faces"],
+        serde_json::json!([1])
+    );
+    assert_eq!(hole.parameters["mouth_chamfers"][0]["size"], 0.25);
+    assert_eq!(hole.parameters["mouth_chamfers"][0]["angle"], 45.);
+    assert_eq!(hole.parameters["cbore"]["depth"], 2.);
+    assert_eq!(
+        doc.face_accounting.as_ref().unwrap()[1],
+        FaceAccounting::Feature {
+            record_ids: vec!["holes/0".into()]
+        }
+    );
 }
 
 #[test]

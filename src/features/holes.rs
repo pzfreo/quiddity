@@ -27,7 +27,7 @@ use super::evidence::{self, EvidenceError, Occurrence};
 use super::placed::{Grid, Placed};
 use super::policy;
 use super::stacks::{End, classify_end, end_partners};
-use crate::kernel::brep::Part;
+use crate::kernel::brep::{Arc, Part};
 use crate::kernel::geom::{self, COORD_FLOOR, Surface, V3};
 use crate::kernel::py;
 
@@ -42,11 +42,33 @@ const SPOTFACE_MAX_RATIO: f64 = 0.2;
 /// a spotface only cleans up a surface; deeper recesses are functional counterbores.
 const SPOTFACE_MAX_DEPTH_MM: f64 = 1.0;
 
-/// A cylindrical enlargement at a hole mouth.
+/// A cylindrical enlargement at a hole mouth. Depth is the cylindrical span,
+/// excluding any conical mouth treatment.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CounterBore {
     pub diameter: f64,
     pub depth: f64,
+}
+
+/// A small conical edge break at an exterior end of the hole stack.
+/// Depths on the parent hole and its cylindrical enlargements exclude this cone.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MouthChamfer {
+    /// Direction from the wide rim into the cylindrical mouth.
+    pub axis: V3,
+    /// Centre of the wide rim on the exterior support plane.
+    pub location: Placed<V3>,
+    /// Diameter of the cylinder this cone meets (not the through drill diameter).
+    pub diameter: f64,
+    /// Radial setback from the virtual sharp cylindrical mouth.
+    pub size: f64,
+    /// Axial span, to add to the cylinder depth for a top-face depth callout.
+    pub depth: f64,
+    /// Angle to the exterior support plane, in degrees (not a full cone angle).
+    pub angle: f64,
+    /// Cone faces, claimed by this nested treatment; excluded from the parent
+    /// hole's defining faces and fingerprint to preserve its cylindrical anchor.
+    pub faces: Vec<usize>,
 }
 
 /// What closes a hole's deep end.
@@ -97,6 +119,10 @@ pub struct HoleRecord {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub outer_steps: Vec<CounterBore>,
     pub csink: Option<CounterSink>,
+    /// Exterior edge breaks, independently located so both ends of a through hole can
+    /// be described without turning its presentation gauge into a drilling-entry claim.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mouth_chamfers: Vec<MouthChamfer>,
     /// Partial caps on otherwise through mouths. Absent for unobstructed or blind holes.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub exit_obstructions: Vec<ExitObstruction>,
@@ -753,13 +779,94 @@ fn symmetric_seats(matching: &[&Occurrence<CounterSink>], mouth: &HoleMouth) -> 
     (at_end(a, false) && at_end(b, true)) || (at_end(b, false) && at_end(a, true))
 }
 
-internal_entry! {
-/// Holes in stack order, each with its defining cylinder faces; *csinks* are composed onto the
-/// holes they flare.
-pub fn discover(
-    ctx: &Context<'_>,
-    csinks: &[Occurrence<CounterSink>],
-) -> Vec<Occurrence<HoleRecord>> {
+/// Prove an edge break on an exterior end of the complete stack, never on an
+/// intermediate shoulder. A full coaxial cone joins the cylinder's end circle to
+/// an outward-facing transverse plane, with convex joins. The flare stays below
+/// the countersink family's 1.5 radius ratio; both legs must be small relative to
+/// the mouth radius. All tests use unrounded geometry and proportional tolerances.
+fn mouth_chamfer(part: &Part, seg: &Segment, hi: bool) -> Option<(MouthChamfer, usize)> {
+    let end = if hi { seg.s_hi } else { seg.s_lo };
+    let centre = axis_point_at(seg, end);
+    let outward = geom::scale(seg.direction, if hi { 1. } else { -1. });
+    let radius = 0.5 * seg.diameter;
+    let tol = policy::length_tol(seg.diameter, 1e-6);
+    let mut found = Vec::new();
+    for face in end_partners(part, seg, end) {
+        let Surface::Cone { frame, .. } = part.faces[face].surface else {
+            continue;
+        };
+        let Some(((minor, narrow), (major, wide), _)) = super::turned::cone_rims(part, face) else {
+            continue;
+        };
+        let Some((u0, u1, _, _)) = part.uv_bounds(face) else {
+            continue;
+        };
+        let delta = geom::sub(wide, narrow);
+        let depth = geom::dot(delta, outward);
+        let size = major - minor;
+        // A symmetric band is identical whether measured from the axis or the
+        // support plane. Exclude shallow tapers and nearly transverse lead-ins.
+        let angle = depth.atan2(size).to_degrees();
+        if (minor - radius).abs() > tol
+            || geom::norm(geom::sub(narrow, centre)) > tol
+            || geom::dot(frame.z, outward).abs() < 1. - 1e-6
+            || geom::norm(geom::cross(geom::sub(frame.origin, centre), outward)) > tol
+            || geom::norm(geom::cross(delta, outward)) > tol
+            || u1 - u0 < std::f64::consts::TAU - 1e-6
+            || size <= tol
+            || depth <= tol
+            || major >= countersinks::MIN_MAJOR_RATIO * minor
+            || depth >= 0.5 * minor
+            || !(15.0..=75.0).contains(&angle)
+        {
+            continue;
+        }
+        // Shared circle and convexity prove attachment, not just analytic coincidence.
+        if !seg
+            .faces
+            .iter()
+            .any(|&wall| part.arc(face, wall) == Some(Arc::Convex))
+        {
+            continue;
+        }
+        let exterior = part.neighbours(face).into_iter().find(|&support| {
+            let Surface::Plane { frame } = part.faces[support].surface else {
+                return false;
+            };
+            part.face_normal(support, 0., 0.).is_some_and(|normal| {
+                geom::dot(normal, outward) > 1. - 1e-6
+                    && geom::dot(geom::sub(wide, frame.origin), normal).abs() <= tol
+            }) && part.arc(face, support) == Some(Arc::Convex)
+                && part.shared_edges(face, support).iter().any(|&edge| {
+                    let crate::kernel::geom::Curve::Circle { frame, radius } =
+                        part.edges[edge].curve
+                    else {
+                        return false;
+                    };
+                    (radius - major).abs() <= tol
+                        && geom::norm(geom::sub(frame.origin, wide)) <= tol
+                })
+        });
+        if let Some(support) = exterior {
+            found.push((
+                MouthChamfer {
+                    axis: geom::scale(outward, -1.).map(py::without_negative_zero),
+                    location: Placed::new(wide, Grid::Figures(11)),
+                    diameter: seg.diameter,
+                    size: policy::round_measurement(size, 4),
+                    depth: policy::round_measurement(depth, 4),
+                    angle: py::round_to(angle, 2),
+                    faces: vec![face],
+                },
+                support,
+            ));
+        }
+    }
+    if found.len() == 1 { found.pop() } else { None }
+}
+
+/// Coaxial internal cylinder stacks, shared by holes and their mouth treatments.
+pub(super) fn hole_stacks(ctx: &Context<'_>) -> Vec<Vec<Segment>> {
     let part = ctx.part;
     let cyls = ctx.cylinders();
     let (z, cross) = z_then_cross(cyls);
@@ -771,10 +878,25 @@ pub fn discover(
     if internal.is_empty() {
         return Vec::new();
     }
-    let enclosed: BTreeSet<_> = ctx.sealed_void_shells().iter()
-        .flat_map(|shell| shell.faces.iter().copied()).collect();
+    let enclosed: BTreeSet<_> = ctx
+        .sealed_void_shells()
+        .iter()
+        .flat_map(|shell| shell.faces.iter().copied())
+        .collect();
     internal.retain(|c| !enclosed.contains(&c.face));
-    let stacks = merge_stacks(part, merge_runs(&segments(&internal), line_key));
+    merge_stacks(part, merge_runs(&segments(&internal), line_key))
+}
+
+internal_entry! {
+/// Holes in stack order, each with its defining cylinder faces; *csinks* are composed onto the
+/// holes they flare.
+pub fn discover(
+    ctx: &Context<'_>,
+    csinks: &[Occurrence<CounterSink>],
+) -> Vec<Occurrence<HoleRecord>> {
+    let part = ctx.part;
+    let stacks = hole_stacks(ctx);
+    let has_cones = part.faces.iter().any(|f| matches!(f.surface, Surface::Cone { .. }));
     let mut out = Vec::new();
     for stack in stacks {
         let d = stack[0].direction;
@@ -842,6 +964,7 @@ pub fn discover(
             spotface,
             outer_steps,
             csink: None,
+            mouth_chamfers: Vec::new(),
             exit_obstructions,
         };
         let mouth = HoleMouth {
@@ -890,6 +1013,15 @@ pub fn discover(
             // The seat's face is consulted evidence: it must share the hole's solid.
             if !symmetric {
                 terminal.extend(&cs.defining);
+            }
+        }
+        for hi in [false, true].into_iter().filter(|_| has_cones) {
+            let i = end_segment(&stack, |s| if hi { s.s_hi } else { -s.s_lo });
+            if let Some((treatment, support)) = mouth_chamfer(part, &stack[i], hi) {
+                terminal.extend(&treatment.faces);
+                terminal.push(support);
+                terminal.extend(stack[i].faces.iter().filter(|f| !defining.contains(f)));
+                record.mouth_chamfers.push(treatment);
             }
         }
         out.push(Occurrence {
@@ -1007,6 +1139,9 @@ pub(crate) fn claim_drill_point(
         .iter()
         .copied()
         .filter(|&f| {
+            if record.mouth_chamfers.iter().any(|c| c.faces.contains(&f)) {
+                return false;
+            }
             let Some(apex) = part.faces[f].surface.cone_apex() else {
                 return false;
             };
@@ -1166,6 +1301,37 @@ mod tests {
                         (seam, false),
                     ]],
                 )
+            } else if z != next_z {
+                let (bottom, top) = if z < next_z { (i, j) } else { (j, i) };
+                let (low_r, low_z) = rings[bottom];
+                let (high_r, high_z) = rings[top];
+                let seam = edges.len();
+                let (start, end) = (edges[bottom].start, edges[top].start);
+                edges.push(Edge {
+                    curve: Curve::Line {
+                        origin: start,
+                        dir: geom::unit(geom::sub(end, start)).unwrap(),
+                    },
+                    start,
+                    end,
+                    vertices: (bottom, top),
+                    same_sense: true,
+                    samples: vec![start, end],
+                });
+                (
+                    Surface::Cone {
+                        frame: frame(low_z),
+                        radius: low_r,
+                        semi_angle: ((high_r - low_r) / (high_z - low_z)).atan(),
+                    },
+                    z > next_z,
+                    vec![vec![
+                        (bottom, true),
+                        (seam, true),
+                        (top, false),
+                        (seam, false),
+                    ]],
+                )
             } else {
                 assert_eq!(z, next_z);
                 let reversed = radius < next_radius;
@@ -1196,6 +1362,456 @@ mod tests {
                 faces: (0..rings.len()).collect(),
             }],
         )
+    }
+
+    /// A turned plate section with an optional boss and counterbore. The radial
+    /// cross-section is analytic test data, independent of STEP import and CAD kernels.
+    fn chamfered_hole(
+        boss: bool,
+        counterbore: bool,
+        size: f64,
+        axial: f64,
+        floor: bool,
+        scale: f64,
+    ) -> Part {
+        let mut rings = vec![(15., -5.), (15., 0.)];
+        let top = if boss { 2. } else { 0. };
+        if boss {
+            rings.extend([(4., 0.), (4., top)]);
+        }
+        if counterbore {
+            if floor {
+                rings.extend([
+                    (2.5, top),
+                    (2.5, top - 2.25 + axial),
+                    (2.5 - size, top - 2.25),
+                    (1.65, top - 2.25),
+                ]);
+            } else {
+                rings.extend([
+                    (2.5 + size, top),
+                    (2.5, top - axial),
+                    (2.5, top - 2.25),
+                    (1.65, top - 2.25),
+                ]);
+            }
+        } else {
+            rings.extend([(1.65 + size, top), (1.65, top - axial)]);
+        }
+        rings.push((1.65, -5.));
+        turned_ring(
+            &rings
+                .into_iter()
+                .map(|(r, z)| (r * scale, z * scale))
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    #[test]
+    fn mouth_chamfers_are_geometric_invariant_hole_details() {
+        let (s, c) = 0.63_f64.sin_cos();
+        for (boss, cbore, axial) in [
+            (true, true, 0.25),
+            (true, true, 0.4),
+            (false, true, 0.25),
+            (false, false, 0.25),
+        ] {
+            for scale in [0.1, 1., 10.] {
+                let base = chamfered_hole(boss, cbore, 0.25, axial, false, scale);
+                assert!(base.solid_is_geometrically_valid(0));
+                for rotation in [
+                    IDENTITY,
+                    [
+                        [c, -s, 0., 123.],
+                        [s * c, c * c, -s, -37.],
+                        [s * s, c * s, c, 19.],
+                    ],
+                ] {
+                    let part = base.transformed(&rotation).unwrap();
+                    let found = discover_verified(&Context::new(&part), &[]).unwrap();
+                    assert_eq!(found.len(), 1);
+                    let h = &found[0].record;
+                    let core: Vec<_> = part
+                        .faces
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, f)| {
+                            (f.reversed && matches!(f.surface, Surface::Cylinder { .. }))
+                                .then_some(i)
+                        })
+                        .collect();
+                    let mut claimed = found[0].defining.clone();
+                    claimed.sort_unstable();
+                    assert_eq!(
+                        claimed, core,
+                        "treatments must preserve cylindrical hole anchors"
+                    );
+                    assert_eq!(
+                        h.mouth_chamfers.len(),
+                        1,
+                        "boss={boss} cbore={cbore} axial={axial} scale={scale}"
+                    );
+                    let ch = &h.mouth_chamfers[0];
+                    assert!((ch.size - 0.25 * scale).abs() < 1e-8);
+                    assert!((ch.depth - axial * scale).abs() < 1e-8);
+                    assert_eq!(ch.angle, py::round_to(axial.atan2(0.25).to_degrees(), 2));
+                    assert_eq!(ch.diameter, if cbore { 5. * scale } else { 3.3 * scale });
+                    assert!(ch.faces.iter().all(|f| !found[0].defining.contains(f) && found[0].context.contains(f)));
+                    assert!(countersinks::discover(&Context::new(&part)).is_empty());
+                    if cbore {
+                        assert_eq!(
+                            h.cbore.as_ref().unwrap().depth,
+                            policy::round_measurement((2.25 - axial) * scale, 2)
+                        );
+                    }
+                    let published = crate::correspondence::recognise(&part);
+                    let doc = crate::recognition::document(&published, part.faces.len());
+                    let hole = doc.records.iter().find(|r| r.family == "holes").unwrap();
+                    assert!(ch.faces.iter().all(|f| !hole.faces.contains(f)));
+                    for face in &ch.faces {
+                        assert!(hole.claimed_faces().any(|f| f == *face));
+                        // A whole turned-body record may already co-own this analytic
+                        // ring. Preserve every existing core owner and add the hole.
+                        let owners = doc
+                            .records
+                            .iter()
+                            .filter(|r| r.faces.contains(face) || r.id == hole.id)
+                            .map(|r| r.id.clone())
+                            .collect();
+                        assert_eq!(
+                            doc.face_accounting.as_ref().unwrap()[*face],
+                            crate::recognition::FaceAccounting::Feature { record_ids: owners }
+                        );
+                    }
+                    let position: V3 = serde_json::from_value(
+                        hole.parameters["mouth_chamfers"][0]["location"].clone(),
+                    )
+                    .unwrap();
+                    assert!(geom::norm(geom::sub(position, *ch.location)) < 1e-7);
+                    let expected = [0, 1, 2].map(|i| {
+                        rotation[i][2] * if boss { 2. * scale } else { 0. } + rotation[i][3]
+                    });
+                    assert!(geom::norm(geom::sub(position, expected)) < 1e-7);
+                    let fp = published
+                        .fingerprints
+                        .features
+                        .iter()
+                        .find(|f| f.family == "holes")
+                        .unwrap();
+                    assert_eq!(fp.faces, hole.faces);
+                    assert!(!fp.sizes.keys().any(|key| key.starts_with("mouth_chamfers")));
+                    let encoded = serde_json::to_value(h).unwrap();
+                    assert_eq!(serde_json::from_value::<HoleRecord>(encoded).unwrap(), *h);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn both_plain_hole_ends_retain_their_edge_breaks_and_legacy_default() {
+        let part = turned_ring(&[
+            (10., 0.),
+            (10., 5.),
+            (2.25, 5.),
+            (2., 4.75),
+            (2., 0.25),
+            (2.25, 0.),
+        ]);
+        let holes = discover_verified(&Context::new(&part), &[]).unwrap();
+        assert_eq!(holes.len(), 1);
+        let h = &holes[0].record;
+        assert_eq!(h.mouth_chamfers.len(), 2);
+        assert_eq!(h.depth, 4.5);
+        assert!(geom::dot(h.mouth_chamfers[0].axis, h.mouth_chamfers[1].axis) < -0.999);
+        assert!(
+            h.mouth_chamfers
+                .iter()
+                .flat_map(|c| &c.faces)
+                .all(|f| !holes[0].defining.contains(f) && holes[0].context.contains(f))
+        );
+        let mut legacy = serde_json::to_value(h).unwrap();
+        legacy.as_object_mut().unwrap().remove("mouth_chamfers");
+        let decoded: HoleRecord = serde_json::from_value(legacy.clone()).unwrap();
+        assert!(decoded.mouth_chamfers.is_empty());
+        assert_eq!(serde_json::to_value(decoded).unwrap(), legacy);
+    }
+
+    #[test]
+    fn floor_bevel_is_not_a_mouth_and_screw_seat_stays_a_countersink() {
+        let (s, c) = 0.37_f64.sin_cos();
+        for scale in [0.1, 1., 10.] {
+            for motion in [
+                IDENTITY,
+                [[c, 0., s, 123.], [0., 1., 0., -37.], [-s, 0., c, 19.]],
+            ] {
+                for is_seat in [false, true] {
+                    let base = if is_seat {
+                        chamfered_hole(false, false, 1., 1., false, scale)
+                    } else {
+                        chamfered_hole(true, true, 0.25, 0.25, true, scale)
+                    };
+                    let part = base.transformed(&motion).unwrap();
+                    let ctx = Context::new(&part);
+                    let cs = countersinks::discover(&ctx);
+                    assert_eq!(cs.len(), usize::from(is_seat));
+                    let holes = discover_verified(&ctx, &cs).unwrap();
+                    assert_eq!(holes.len(), 1);
+                    assert!(holes[0].record.mouth_chamfers.is_empty());
+                    assert_eq!(holes[0].record.csink.is_some(), is_seat);
+                    assert_eq!(holes[0].record.cbore.is_some(), !is_seat);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn convex_inner_counterbore_step_is_not_an_exterior_mouth() {
+        let (s, c) = 0.37_f64.sin_cos();
+        for scale in [0.1, 1., 10.] {
+            // Convex edge break on the THROUGH-bore lip at the counterbore floor,
+            // in addition to the outer floor/wall bevel tested above.
+            let rings = [
+                (15., -5.),
+                (15., 0.),
+                (4., 0.),
+                (4., 2.),
+                (2.5, 2.),
+                (2.5, -0.25),
+                (1.9, -0.25),
+                (1.65, -0.5),
+                (1.65, -5.),
+            ];
+            let base = turned_ring(&rings.map(|(r, z)| (r * scale, z * scale)));
+            assert!(base.solid_is_geometrically_valid(0));
+            for motion in [
+                IDENTITY,
+                [[c, 0., s, 123.], [0., 1., 0., -37.], [-s, 0., c, 19.]],
+            ] {
+                let part = base.transformed(&motion).unwrap();
+                let ctx = Context::new(&part);
+                let stacks = hole_stacks(&ctx);
+                assert_eq!(stacks.len(), 1);
+                let bore = &stacks[0][py::first_min(&stacks[0], |s| s.diameter)];
+                // It meets the local coaxial-cone/convex-plane tests. Only its
+                // position inside the complete stack excludes it as a mouth.
+                assert!(
+                    [false, true]
+                        .into_iter()
+                        .any(|hi| mouth_chamfer(&part, bore, hi).is_some())
+                );
+                let holes = discover_verified(&ctx, &[]).unwrap();
+                assert_eq!(holes.len(), 1);
+                assert!(holes[0].record.cbore.is_some());
+                assert!(holes[0].record.mouth_chamfers.is_empty());
+                assert!(countersinks::discover(&ctx).is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn mouth_chamfer_requires_coaxial_surface_and_convex_exterior_support() {
+        let base = chamfered_hole(false, true, 0.25, 0.25, false, 1.);
+        let cone = base
+            .faces
+            .iter()
+            .position(|f| matches!(f.surface, Surface::Cone { .. }))
+            .unwrap();
+        let top = base
+            .neighbours(cone)
+            .into_iter()
+            .find(|&f| matches!(base.faces[f].surface, Surface::Plane { .. }))
+            .unwrap();
+        for off_axis in [false, true] {
+            let mut faces = base.faces.clone();
+            if off_axis {
+                let Surface::Cone { frame, .. } = &mut faces[cone].surface else {
+                    unreachable!()
+                };
+                frame.origin[0] += 0.1;
+            } else {
+                faces[top].reversed = !faces[top].reversed;
+            }
+            let part = Part::new(faces, base.edges.clone(), base.solids.clone());
+            let holes = discover(&Context::new(&part), &[]);
+            assert!(holes.iter().all(|h| h.record.mouth_chamfers.is_empty()));
+        }
+    }
+
+    #[test]
+    fn shallow_and_steep_lead_ins_are_not_mouth_chamfers() {
+        let (s, c) = 0.37_f64.sin_cos();
+        for scale in [0.1, 1., 10.] {
+            // Cover 5° and 86° measured from either the axis or the top plane.
+            for degrees in [4_f64, 5., 85., 86.] {
+                let (size, depth) = if degrees < 45. {
+                    (0.2, 0.2 * degrees.to_radians().tan())
+                } else {
+                    (0.2 / degrees.to_radians().tan(), 0.2)
+                };
+                let base = chamfered_hole(false, true, size, depth, false, scale);
+                assert!(base.solid_is_geometrically_valid(0));
+                for motion in [
+                    IDENTITY,
+                    [[c, 0., s, 123.], [0., 1., 0., -37.], [-s, 0., c, 19.]],
+                ] {
+                    let part = base.transformed(&motion).unwrap();
+                    let ctx = Context::new(&part);
+                    assert!(countersinks::discover(&ctx).is_empty());
+                    let holes = discover_verified(&ctx, &[]).unwrap();
+                    assert_eq!(holes.len(), 1);
+                    assert!(
+                        holes[0].record.mouth_chamfers.is_empty(),
+                        "angle={degrees} scale={scale}"
+                    );
+                    assert!(holes[0].record.cbore.is_some());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn ambiguous_half_millimetre_edge_on_two_millimetre_bore_keeps_the_seat_boundary() {
+        for scale in [0.1, 1., 10.] {
+            let part = turned_ring(
+                &[(5., 0.), (5., 4.), (1.5, 4.), (1., 3.5), (1., 0.)]
+                    .map(|(r, z)| (r * scale, z * scale)),
+            );
+            let ctx = Context::new(&part);
+            let seats = countersinks::discover(&ctx);
+            assert_eq!(seats.len(), 1);
+            let holes = discover_verified(&ctx, &seats).unwrap();
+            assert_eq!(holes.len(), 1);
+            assert!(holes[0].record.mouth_chamfers.is_empty());
+            let seat = holes[0].record.csink.as_ref().unwrap();
+            assert_eq!(
+                seat.major_diameter,
+                policy::round_measurement(3. * scale, 2)
+            );
+            assert_eq!(seat.included_angle, 90.);
+        }
+    }
+
+    /// Split just the cone and its two circular rims into complementary half
+    /// patches. Adjacent cylinder/plane loops retain both shared rim arcs, and
+    /// the cone patches share the original seam plus an independently built pi seam.
+    fn split_mouth_cone(base: &Part) -> Part {
+        let mut faces = base.faces.clone();
+        let mut edges = base.edges.clone();
+        let cone = faces
+            .iter()
+            .position(|f| matches!(f.surface, Surface::Cone { .. }))
+            .unwrap();
+        let loop_edges = faces[cone].loops[0].edges.clone();
+        let (low, seam, high) = (loop_edges[0].0, loop_edges[1].0, loop_edges[2].0);
+        let mut halves = Vec::new();
+        let next_vertex = edges
+            .iter()
+            .flat_map(|e| [e.vertices.0, e.vertices.1])
+            .max()
+            .unwrap()
+            + 1;
+        for (pi_vertex, rim) in (next_vertex..).zip([low, high]) {
+            let original = edges[rim].clone();
+            let mut second = original.clone();
+            edges[rim].end = original.curve.value(std::f64::consts::PI);
+            edges[rim].vertices.1 = pi_vertex;
+            edges[rim].samples = (0..=16)
+                .map(|i| original.curve.value(std::f64::consts::PI * i as f64 / 16.))
+                .collect();
+            second.start = edges[rim].end;
+            second.vertices.0 = pi_vertex;
+            second.samples = (0..=16)
+                .map(|i| {
+                    original
+                        .curve
+                        .value(std::f64::consts::PI * (1. + i as f64 / 16.))
+                })
+                .collect();
+            let other = edges.len();
+            edges.push(second);
+            halves.push(other);
+            for (face_index, face) in faces.iter_mut().enumerate() {
+                if face_index == cone {
+                    continue;
+                }
+                for boundary in &mut face.loops {
+                    boundary.edges = boundary
+                        .edges
+                        .iter()
+                        .flat_map(|&(e, forward)| {
+                            if e != rim {
+                                vec![(e, forward)]
+                            } else if forward {
+                                vec![(rim, true), (other, true)]
+                            } else {
+                                vec![(other, false), (rim, false)]
+                            }
+                        })
+                        .collect();
+                }
+            }
+        }
+        let pi_seam = edges.len();
+        let start = edges[low].end;
+        let end = edges[high].end;
+        edges.push(Edge {
+            curve: Curve::Line {
+                origin: start,
+                dir: geom::unit(geom::sub(end, start)).unwrap(),
+            },
+            start,
+            end,
+            vertices: (edges[low].vertices.1, edges[high].vertices.1),
+            same_sense: true,
+            samples: vec![start, end],
+        });
+        let mut other = faces[cone].clone();
+        // Closed circles in the original helper are direction-exempt; these
+        // open arcs must run opposite their cylinder/plane neighbours.
+        faces[cone].loops[0].edges =
+            vec![(low, false), (seam, true), (high, true), (pi_seam, false)];
+        other.loops[0].edges = vec![
+            (halves[0], false),
+            (pi_seam, true),
+            (halves[1], true),
+            (seam, false),
+        ];
+        let other_face = faces.len();
+        faces.push(other);
+        let mut solids = base.solids.clone();
+        solids[0].faces.push(other_face);
+        Part::new(faces, edges, solids)
+    }
+
+    #[test]
+    fn two_half_cone_patches_preserve_the_bore_but_abstain_from_a_mouth_claim() {
+        let (s, c) = 0.37_f64.sin_cos();
+        for scale in [0.1, 1., 10.] {
+            let base = split_mouth_cone(&chamfered_hole(false, true, 0.25, 0.25, false, scale));
+            assert!(base.solid_is_geometrically_valid(0));
+            for motion in [
+                IDENTITY,
+                [[c, 0., s, 123.], [0., 1., 0., -37.], [-s, 0., c, 19.]],
+            ] {
+                let part = base.transformed(&motion).unwrap();
+                let cones: Vec<_> = part
+                    .faces
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, f)| matches!(f.surface, Surface::Cone { .. }).then_some(i))
+                    .collect();
+                assert_eq!(cones.len(), 2);
+                for &cone in &cones {
+                    let (lo, hi, _, _) = part.uv_bounds(cone).unwrap();
+                    assert!((hi - lo - std::f64::consts::PI).abs() < 1e-8);
+                }
+                let holes = discover_verified(&Context::new(&part), &[]).unwrap();
+                assert_eq!(holes.len(), 1);
+                assert_eq!(holes[0].record.cbore.as_ref().unwrap().diameter, 5. * scale);
+                assert!(holes[0].record.mouth_chamfers.is_empty());
+                assert!(cones.iter().all(|f| !holes[0].defining.contains(f)));
+            }
+        }
     }
 
     #[test]
