@@ -220,6 +220,7 @@ pub const RECORD_TYPES: &[(&str, &[&str])] = &[
     ("polygonal_bosses", &["PolygonalBoss"]),
     ("polygonal_stock", &["PolygonalStock"]),
     ("section_passages", &["SectionPassage"]),
+    ("prismatic_through_cuts", &["PrismaticThroughCut"]),
     ("prismatic_pockets", &["PrismaticPocket"]),
     ("pads", &["RaisedPad"]),
     ("step_levels", &["FaceLevel"]),

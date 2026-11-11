@@ -101,7 +101,7 @@ fn snapshot_digests(dir: &Path) -> Result<Digests> {
         .filter(|p| p.to_string_lossy().ends_with(".json.gz"))
         .map(|p| {
             Ok((
-                p.strip_prefix(dir)?.to_string_lossy().into_owned(),
+                p.strip_prefix(dir)?.to_string_lossy().replace('\\', "/"),
                 digest(p)?,
             ))
         })
@@ -112,7 +112,9 @@ fn inputs(root: &Path, corpus: &Path) -> Result<Digests> {
     for path in files(&root.join("tests/fixtures"))? {
         if !path.starts_with(root.join(PREFIX)) {
             found.insert(
-                path.strip_prefix(root)?.to_string_lossy().into_owned(),
+                path.strip_prefix(root)?
+                    .to_string_lossy()
+                    .replace('\\', "/"),
                 digest(&path)?,
             );
         }
@@ -391,6 +393,28 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn nested_input_and_snapshot_keys_match_portable_provenance() {
+        let root = Temporary::new().unwrap();
+        let fixtures = root.0.join("tests/fixtures");
+        fs::create_dir_all(fixtures.join("nested")).unwrap();
+        fs::write(fixtures.join("nested/part.step"), b"STEP input").unwrap();
+        fs::write(fixtures.join("corpus.json"), br#"{"files":[]}"#).unwrap();
+        let found = inputs(&root.0, &root.0).unwrap();
+        assert_eq!(found.len(), 2);
+        assert!(found.contains_key("tests/fixtures/nested/part.step"));
+        assert!(found.contains_key("tests/fixtures/corpus.json"));
+
+        let out = root.0.join(PREFIX);
+        fs::create_dir_all(out.join("nested")).unwrap();
+        let snapshot = out.join("nested/part.json.gz");
+        fs::write(&snapshot, b"expected").unwrap();
+        assert_eq!(
+            snapshot_digests(&out).unwrap(),
+            Digests::from([("nested/part.json.gz".into(), digest(&snapshot).unwrap())])
+        );
+    }
+
     fn inventory() -> Digests {
         [
             ("corpus.json.gz", "a"),

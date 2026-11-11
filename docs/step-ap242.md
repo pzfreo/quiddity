@@ -409,21 +409,39 @@ These override anything below and any stream brief that says otherwise.
    AP214 and AP203 cannot carry semantic PMI: its `FILE_SCHEMA` becomes the target AP242
    edition's identifier, and that claim must be true, so every instance of the edited file must
    pass `validate_document` against the target table; otherwise the edit is refused, naming the
-   violating instances. Besides the closed AP214 keyword table below, only two named upgrade repairs are allowed, only when an AP203/AP214
-   file gains PMI: **R1 approval assignment**, a `cc_design_approval` with items outside
+   violating instances. Besides the closed AP214 keyword table below, only these named
+   repairs are allowed when an AP203/AP214 file gains PMI: **R1 approval assignment**, a `cc_design_approval` with items outside
    `approved_item` but all in `approval_item` becomes `applied_approval_assignment`, keeping
    its attributes and id; **R2 conversion unit dimensions**, a conversion unit's `named_unit(*)`
    becomes an explicit reference to `dimensional_exponents` computed from its conversion
    factor's unit (SI dimensions per ISO 10303-41, recursively through conversion and derived
    units). Equal exponents already in the file are reused, else one instance per exponent set
-   is added; indeterminate dimensions are refused, naming the unit. Every repair is reported
-   with its id, R1/R2 and exact original and new record text; never repaired silently. Every
+   is added; indeterminate dimensions are refused, naming the unit; **R4 unset required
+   string**, an explicit attribute written `$` becomes `''` only when the target schema
+   declares it non-OPTIONAL, not redeclared as derived, and its defined-type chain passes
+   through `label` or `text` to STRING. This includes inherited slots in simple records and
+   own slots in complex records, with applicable redeclarations checked. Empty `text` is
+   included because it adds no descriptive content, just as an empty label adds no name.
+   `identifier` conveys identity and is excluded: its STRING representation alone gives
+   no schema basis for inventing an identity. Bare STRING, SELECTs, aggregates (including
+   unset elements), non-string values, derived and inverse attributes receive no defaults.
+   OPTIONAL `$` remains untouched. Every repair is reported
+   with its id, kind and exact original and new record text; never repaired silently. Every
    instance must still pass the target table and no new `express_rules` violation may appear.
-   Every other byte stays as it was, apart from `FILE_SCHEMA` and added instances; a repaired
-   file's original record bytes are recoverable only through the report's original records.
-   An AP242 file stays AP242 and receives no upgrade repairs, except R3 (below), which is
-   allowed only when the PMI being written requires a newer AP242 edition (decision
-   2026-11-03). Which corpus and NIST AP214/AP203
+   Every other record stays as it was, apart from `FILE_SCHEMA` and added instances. A
+   repaired record is re-encoded whole: its values are unchanged, but its spacing, line
+   breaks, string escapes and integer signs take the writer's canonical form. A record
+   with two repairs (R2 or R3 with R4) is reported once per repair, each entry with the
+   same final text. A repaired file's original record bytes are recoverable only through
+   the report's original records.
+   An AP242 file stays in its edition and receives no upgrade repairs unless the PMI
+   being written causes an actual upgrade to a newer AP242 edition. R4 follows R3's
+   precedent (below): it is available on that upgrade, never as cleanup during an ordinary
+   AP242 write. Other violations remain named in the complete target-schema refusal;
+   repairing names cannot make a non-string defect disappear. R4 runs inside the existing
+   repair loop, with no extra whole-document pass and no schema lookup or record clone
+   for records without a top-level `$`. Stated REAL tokens in R4 records are preserved.
+   Which corpus and NIST AP214/AP203
    files pass without repairs, pass with the listed repairs, or are refused is pinned per file;
    the original violations keep their verdicts and reasons.
 
@@ -448,7 +466,7 @@ These override anything below and any stream brief that says otherwise.
    optionality, aggregate bounds and absence of redeclarations in both tables.
 
    `WriteReport.edition_rewrites` lists `{id, from, to}` in ascending instance-id order,
-   with canonical uppercase names; it is separate from R1/R2 `repairs` and presentation
+   with canonical uppercase names; it is separate from R1–R4 `repairs` and presentation
    `rewritten`. The CLI/Python writer report exposes `edition_rewrites` only when nonempty,
    includes these instances in its replaced count, and otherwise keeps its previous output.
 
@@ -537,7 +555,7 @@ Replace first checks Notes-view eligibility while retaining edition 1. Only when
 a view is eligible does it attempt the existing validated upgrade to edition 4;
 the upgrade is kept only if that attempt actually writes the view. Several planes,
 several orientations or a retained Notes model therefore do not cause an optional
-upgrade or R3 repairs. If that optional upgrade cannot pass validation, the writer
+upgrade or R3/R4 repairs. If that optional upgrade cannot pass validation, the writer
 retains edition 1 and reports that the Notes view was skipped. Add retains edition 1
 and skips the optional view with the same factual finding; notes still write. An existing default is retained and Notes becomes an ordinary
 `MODEL_GEOMETRIC_VIEW`, with a factual report entry. General notes spanning several
@@ -2094,8 +2112,9 @@ are absent there; the common findings projection supports these canonical record
 
 Add verifies every original entity's exact bytes before returning an edit. AP203
 or AP214 upgrades needing original-entity repairs fail atomically with
-`WriteError::AddPreservation`. The refusal lists the R1 approval-assignment or R2
-conversion-unit-dimension repairs and their ids (or the AP214 keyword rewrite).
+`WriteError::AddPreservation`. The refusal lists the R1 approval-assignment, R2
+conversion-unit-dimension, R3 integer-literal or R4 unset-required-string repairs and
+their ids (or the AP214 keyword rewrite).
 Replace performs those repairs. When a part has no PMI, Replace retains everything
 already in it; when it has existing PMI, Replace re-authors that PMI. Header-only
 upgrades with no entity repairs remain possible. Cross-representation carrier
@@ -2272,9 +2291,8 @@ validation on 46 `INTEGER_REPRESENTATION_ITEM` records whose
 
 R3 writes only finite, exactly integral REAL values within ±2^53 as INTEGERs;
 it never rounds fractional values or relaxes schema validation. Each repair
-records the exact original and new entity text. R3 is used only on an edition
-upgrade that the written PMI requires; an AP242 file written in its own edition
-receives no repairs.
+records the exact original and new entity text. R3 and R4 are used only on an actual edition
+upgrade that adds PMI; an AP242 file written in its own edition receives no repairs.
 
 The reader binding advances to `haecceity-pmi-read/17` because absent-value
 findings and anonymous unit identities change. The interchange schema remains /1.

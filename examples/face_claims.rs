@@ -90,6 +90,10 @@ fn sweep(path: &std::path::Path) -> serde_json::Value {
                 serde_json::json!({"status": "panicked", "faces": faces, "message": message})
             }
         };
+    line["face_sources"] = (0..faces)
+        .map(|f| part.face_source(f).map(|s| s.entity))
+        .collect::<Vec<_>>()
+        .into();
     line["read_cpu_s"] = (c1 - c0).into();
     line["recognise_cpu_s"] = (c2 - c1).into();
     line

@@ -76,6 +76,7 @@ pub mod policy;
 pub mod polygonal_bosses;
 pub mod polygonal_oblique_through_steps;
 pub mod prismatic_pockets;
+pub mod prismatic_through_cuts;
 pub mod probes;
 pub mod profiled_bores;
 pub mod recess_core;
@@ -219,6 +220,9 @@ pub struct Features {
     /// accepted section passage (reconciliation rejects a passage a slot or an oriented slot
     /// dimensions).
     pub section_passages: Vec<passages::SectionPassage>,
+    /// Nominal through-cuts with an observed intact core, possibly interrupted elsewhere.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub prismatic_through_cuts: Vec<prismatic_through_cuts::PrismaticThroughCut>,
     pub prismatic_pockets: Vec<prismatic_pockets::PrismaticPocket>,
     pub oriented_slots: Vec<oriented_slots::OrientedSlot>,
     pub oriented_slot_patterns: Vec<oriented_slots::OrientedSlotPattern>,
@@ -401,6 +405,9 @@ pub(crate) fn recognise_in(ctx: &Context<'_>, mut inventory: Inventory) -> Featu
                 polygonal_bosses::claim_terminal_cap(ctx.part, record, faces, constituent);
             }
         }
+    });
+    post!("prismatic_through_cuts", "append", || {
+        prismatic_through_cuts::append(ctx, &mut features)
     });
     post!("cylindrical_profiles", "append", || {
         cylindrical_profiles::append(ctx, &mut features)
@@ -1125,6 +1132,7 @@ fn inventory_in_with(
             ),
         ),
         section_passages: kept(&mut defining, "section_passages", passages),
+        prismatic_through_cuts: Vec::new(),
         prismatic_pockets: kept(
             &mut defining,
             "prismatic_pockets",

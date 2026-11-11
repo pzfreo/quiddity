@@ -56,6 +56,10 @@ fn every_family_has_a_record_type() {
         record_types("internal_bevels"),
         Some(&["InternalBevel"][..])
     );
+    let (cut, _, _) = super::prismatic_through_cuts::control(6, false);
+    let cuts = features::recognise(&cut).prismatic_through_cuts;
+    assert_eq!(cuts.len(), 1);
+    found.prismatic_through_cuts = cuts;
     let keys: Vec<String> = PublishedFeatures::from(found)
         .families()
         .into_iter()

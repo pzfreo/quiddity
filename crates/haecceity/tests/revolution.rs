@@ -10,7 +10,8 @@
 //! integrator still projects the 3D boundary curves.
 //!
 //! The master shaft's wholly inward boundary is repaired and reported. The master
-//! bore is mixed: its four bore faces already face outward, so it is retained unchanged.
+//! bore is mixed: its four bore faces already face outward. Proved inward normals
+//! are now repaired individually when its unchanged wires form an outward boundary.
 //! OCCT heals both on import. Pub's hole file repeats entity #539 (and others), with
 //! different types. Its permissive OCCT import is not a valid reference solid.
 
@@ -195,20 +196,27 @@ fn truck_master_inward_shell_is_repaired_and_reported() {
 }
 
 #[test]
-fn truck_master_bore_has_mixed_senses_and_is_retained() {
+fn truck_master_bore_repairs_only_proved_inward_normals() {
     use haecceity::classify::{Classifier, State};
     let part = fixture("truck_master_shaft_hole.step.gz", &IDENTITY);
-    assert!(part.input_repairs().is_empty());
-    // Unchanged raw-input result. OCCT's +46135.47088917437 additionally heals the
-    // mixed face senses; globally reversing this shell would give +47426.50384208946.
-    close(
-        "truck_master_shaft_hole.step.gz unrepaired mixed volume",
-        part.solid_mass(0).unwrap().0,
-        -47426.50384208946,
+    // Every material side is now proved before correcting the twenty inward normals;
+    // the four outward bore normals and all boundary wires are preserved.
+    assert_eq!(
+        part.input_repairs(),
+        ["solid 0: mixed face senses repaired (20 faces)"]
     );
+    close(
+        "truck_master_shaft_hole.step.gz repaired mixed volume",
+        part.solid_mass(0).unwrap().0,
+        46140.658347174205,
+    );
+    assert!(part.solid_is_valid(0));
+    for (i, f) in part.faces.iter().enumerate() {
+        assert_eq!(f.reversed, [15, 16, 21, 22].contains(&i), "face {i}");
+    }
     let classifier = Classifier::for_solid(&part, 0);
     for (face, want) in [
-        (0, (State::In, State::Out)),
+        (0, (State::Out, State::In)),
         (15, (State::Out, State::In)),
         (16, (State::Out, State::In)),
         (21, (State::Out, State::In)),
@@ -225,7 +233,7 @@ fn truck_master_bore_has_mixed_senses_and_is_retained() {
 }
 
 #[test]
-fn independent_inverted_shell_is_repaired_but_negative_mixed_shell_is_not() {
+fn independent_inversion_repairs_but_first_outward_mixed_face_skips_repair() {
     use haecceity::classify::{Classifier, State};
     for name in ["revolution_shaft.step.gz", "revolution_line_shaft.step.gz"] {
         let original = fixture(name, &IDENTITY);
@@ -269,38 +277,53 @@ fn independent_inverted_shell_is_repaired_but_negative_mixed_shell_is_not() {
             let repaired = raw.repair_inverted_shells();
             assert_eq!(imported.input_repairs(), repaired.input_repairs());
             assert_eq!(imported.solid_mass(0), repaired.solid_mass(0));
+            // The bounded cheap proof deliberately retains a mixed shell when its
+            // first decisive witness is outward. Avoiding eager quadrature restores
+            // main's cost; retain this limitation explicitly rather than claiming
+            // face-order-independent mixed repair.
             if mixed {
                 assert!(repaired.input_repairs().is_empty());
                 assert_eq!(repaired.solid_mass(0).unwrap(), before);
-            } else {
-                assert_eq!(
-                    repaired.input_repairs(),
-                    ["solid 0: inverted closed shell repaired"]
-                );
-                close(
-                    &format!("{name} repaired volume"),
-                    repaired.solid_mass(0).unwrap().0,
-                    15000.0 * PI,
-                );
-                close(
-                    &format!("{name} repaired centroid volume"),
-                    repaired.volume_centroid().unwrap().0,
-                    15000.0 * PI,
-                );
-                for f in 0..original.faces.len() {
-                    assert_eq!(repaired.faces[f].reversed, original.faces[f].reversed);
-                    assert!(
-                        geom::dist(
-                            repaired.face_moments(f).unwrap().area_vector,
-                            original.face_moments(f).unwrap().area_vector
-                        ) < 1e-8
+                for (i, face) in repaired.faces.iter().enumerate() {
+                    assert_eq!(
+                        face.reversed,
+                        if i == 0 {
+                            original.faces[i].reversed
+                        } else {
+                            !original.faces[i].reversed
+                        }
                     );
+                    for (a, b) in face.loops.iter().zip(&original.faces[i].loops) {
+                        assert_eq!(a.edges, b.edges);
+                    }
                 }
-                let classifier = Classifier::for_solid(&repaired, 0);
-                assert_eq!(classifier.classify([20.0, 0.0, 0.0]), State::In);
-                assert_eq!(classifier.classify([20.0, 20.0, 0.0]), State::Out);
-                assert_eq!(repaired.repair_inverted_shells().input_repairs().len(), 1);
+                continue;
             }
+            let message = "solid 0: inverted closed shell repaired";
+            assert_eq!(repaired.input_repairs(), [message]);
+            close(
+                &format!("{name} repaired volume"),
+                repaired.solid_mass(0).unwrap().0,
+                15000.0 * PI,
+            );
+            close(
+                &format!("{name} repaired centroid volume"),
+                repaired.volume_centroid().unwrap().0,
+                15000.0 * PI,
+            );
+            for f in 0..original.faces.len() {
+                assert_eq!(repaired.faces[f].reversed, original.faces[f].reversed);
+                assert!(
+                    geom::dist(
+                        repaired.face_moments(f).unwrap().area_vector,
+                        original.face_moments(f).unwrap().area_vector
+                    ) < 1e-8
+                );
+            }
+            let classifier = Classifier::for_solid(&repaired, 0);
+            assert_eq!(classifier.classify([20.0, 0.0, 0.0]), State::In);
+            assert_eq!(classifier.classify([20.0, 20.0, 0.0]), State::Out);
+            assert_eq!(repaired.repair_inverted_shells().input_repairs().len(), 1);
         }
     }
 }
@@ -536,6 +559,93 @@ fn fully_reversed_shell_restores_wires_validity_and_convexity() {
                 original.arc(f, n),
                 "{name} convexity at {f}/{n}"
             );
+        }
+    }
+}
+
+/// The mixed-normal fallback never guesses a missing material side or reverses
+/// mixed/inward wires piecemeal. These inputs retain their original face senses.
+#[test]
+fn mixed_normal_repair_refuses_unproved_faces_and_inward_wires() {
+    let repaired = fixture("truck_master_shaft_hole.step.gz", &IDENTITY);
+    for variant in 0..3 {
+        let mut faces = repaired.faces.clone();
+        for (i, face) in faces.iter_mut().enumerate() {
+            if ![15, 16, 21, 22].contains(&i) {
+                face.reversed = !face.reversed;
+            }
+            if variant == 1 {
+                for lp in &mut face.loops {
+                    lp.edges.reverse();
+                    for (_, forward) in &mut lp.edges {
+                        *forward = !*forward;
+                    }
+                }
+            }
+        }
+        if variant == 0 {
+            faces[15].surface = Surface::Other { kind: "unproved" };
+        } else if variant == 2 {
+            faces[15].loops[0].edges.pop();
+        }
+        let senses: Vec<_> = faces.iter().map(|f| f.reversed).collect();
+        let part = haecceity::Part::new(faces, repaired.edges.clone(), repaired.solids.clone())
+            .repair_inverted_shells();
+        assert!(part.input_repairs().is_empty(), "variant {variant}");
+        assert_eq!(
+            part.faces.iter().map(|f| f.reversed).collect::<Vec<_>>(),
+            senses
+        );
+    }
+}
+
+/// Pin the permitted face-order limitation of the bounded outward shortcut.
+/// Rotations placing an already-outward bore face first retain the mixed shell;
+/// rotations starting inward still repair it after all the full proofs.
+#[test]
+fn mixed_shaft_repair_documents_the_first_outward_witness_limit() {
+    let original = fixture("truck_master_shaft_hole.step.gz", &IDENTITY);
+    let n = original.faces.len();
+    let expected = original.solid_mass(0).unwrap();
+    for rotation in 0..n {
+        let mut faces = original.faces.clone();
+        for (i, face) in faces.iter_mut().enumerate() {
+            if ![15, 16, 21, 22].contains(&i) {
+                face.reversed = !face.reversed;
+            }
+        }
+        faces.rotate_left(rotation);
+        let mut solids = original.solids.clone();
+        for f in &mut solids[0].faces {
+            *f = (*f + n - rotation) % n;
+        }
+        solids[0].faces.rotate_left(rotation);
+        let raw = haecceity::Part::new(faces, original.edges.clone(), solids);
+        let before = raw.solid_mass(0).unwrap();
+        assert!(before.0 < 0.0, "rotation {rotation}");
+        let part = raw.repair_inverted_shells();
+        let retained = [15, 16, 21, 22].contains(&rotation);
+        if retained {
+            assert!(part.input_repairs().is_empty(), "rotation {rotation}");
+            assert_eq!(part.solid_mass(0).unwrap(), before);
+        } else {
+            assert_eq!(
+                part.input_repairs(),
+                ["solid 0: mixed face senses repaired (20 faces)"],
+                "rotation {rotation}"
+            );
+        }
+        for (i, face) in part.faces.iter().enumerate() {
+            let expected_face = &original.faces[(i + rotation) % n];
+            assert_eq!(face.reversed, retained || expected_face.reversed);
+            for (a, b) in face.loops.iter().zip(&expected_face.loops) {
+                assert_eq!(a.edges, b.edges);
+            }
+        }
+        if !retained {
+            let mass = part.solid_mass(0).unwrap();
+            close("permuted volume", mass.0, expected.0);
+            close("permuted area", mass.1, expected.1);
         }
     }
 }
