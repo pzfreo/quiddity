@@ -227,6 +227,7 @@ pub(super) struct FaceCache {
     pub(super) domain: OnceLock<Option<FaceDomain>>,
     pub(super) bounds: OnceLock<Bounds>,
     pub(super) mass: OnceLock<Option<[f64; 5]>>,
+    pub(super) moments: OnceLock<Option<super::mass::FaceMoments>>,
     pub(super) edge_deviation: OnceLock<Vec<(usize, f64)>>,
     pub(super) uv_bounds: OnceLock<Option<(f64, f64, f64, f64)>>,
     pub(super) recovered: OnceLock<Option<Surface>>,

@@ -150,12 +150,26 @@ jobs:
 
   publish:
     needs: [wheels, sdist, test, test-sdist]
-    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.publish == true && github.ref == 'refs/heads/main')
+    # A GitHub pre-release never publishes: pyproject carries a final version, so PyPI would
+    # receive it as final (crates.yml skips pre-releases the same way).
+    if: (github.event_name == 'release' && !github.event.release.prerelease) || (github.event_name == 'workflow_dispatch' && inputs.publish == true && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
+      contents: read
+      actions: read # the CI gate below reads ci.yml's runs
       id-token: write # PyPI trusted publishing
     steps:
+      - name: ci.yml passed on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          n=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=$SHA&status=success" --jq .total_count)
+          if [ "$n" -lt 1 ]; then
+            echo "::error::ci.yml has no successful run for $SHA: publish refused"
+            exit 1
+          fi
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           sparse-checkout: |

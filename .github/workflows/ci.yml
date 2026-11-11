@@ -56,26 +56,26 @@ jobs:
       - run: python3 -I tools/as_compare/test_score.py
       - run: python3 -I tools/as_compare/test_score_mfcadpp.py
       - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets --release -- -D warnings
+      - run: cargo clippy --workspace --all-targets --release --locked -- -D warnings
       # Keep optional Fusion coverage on the existing Linux runner, without another archive
       # or shard build. cadmpeg's release code generation is too costly to repeat in CI.
       # Local first feature check: 2.7 minutes at load ~55; budget ~3 added Linux minutes.
-      - run: cargo check --workspace --all-targets --release --features f3d
+      - run: cargo check --workspace --all-targets --release --locked --features f3d
         if: runner.os == 'Linux'
       # One serial Linux binary exercises feature-off goldens and removal, without a
       # second matrix, archive or shard build. Reuse this runner's release dependencies.
-      - run: cargo test -p haecceity --release --no-default-features --test pmi_write
+      - run: cargo test -p haecceity --release --locked --no-default-features --test pmi_write
         if: runner.os == 'Linux'
       # The library without the command line (and clap), as specify-core's WASM build uses it.
-      - run: cargo check -p quiddity --release --no-default-features --features presentation
+      - run: cargo check -p quiddity --release --locked --no-default-features --features presentation
         if: runner.os == 'Linux'
       # Strict STEP -> PartPmi -> JSON -> PartPmi -> STEP, with no corpus scan.
       # The workspace archive unifies json-import through quiddity-py (including
       # the source-presentation binary); keep this strict NIST gate explicit.
-      - run: cargo test -p haecceity --release --features json-import --test pmi_json_roundtrip nist_roundtrip -- --exact
+      - run: cargo test -p haecceity --release --locked --features json-import --test pmi_json_roundtrip nist_roundtrip -- --exact
         if: runner.os == 'Linux'
       # nextest does not run doc-tests.
-      - run: cargo test --doc --workspace --release
+      - run: cargo test --doc --workspace --release --locked
 
   linux:
     uses: ./.github/workflows/suite.yml

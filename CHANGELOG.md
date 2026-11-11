@@ -26,6 +26,11 @@ Pending version: 0.5.0
   CI checks both published crates against their latest stable crates.io release;
   a non-empty Unreleased Breaking (Rust API) section sanctions a pending minor bump.
 
+### Changed
+
+- Face integration reuses complete cached moments, skips kink searches that cannot
+  affect refinement, and stops once an accepted leaf makes the existing refusal
+  inevitable. Integration nodes, error criteria and returned results are unchanged.
 
 ### Documentation
 
