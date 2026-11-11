@@ -3256,14 +3256,14 @@
     "calls/recognise_repeating_radial_profiles.json.gz": "a4020e4825b562c1393fd4f6cda3885250054384aa6c3c659ee8dbcd0bf08b31",
     "calls/recognise_risers.json.gz": "0a0d7f16a7f7d8ac8e5bee684a935d8db9897c76967e39b78ab0431d6a53cf41",
     "calls/recognise_round_bottom_blind_slots.json.gz": "8c3ab3da80247dc7a9f6bd6f6f3054e3979e949acd3b4c16857e90cd12006b5e",
-    "calls/recognise_sheet_metal_bodies.json.gz": "9b3072e2b4e5bab7948ce5e138b2961ae31a499833a26e62b65b4d72afd24076",
+    "calls/recognise_sheet_metal_bodies.json.gz": "efe3fa91b7128032913cefb8f1dda0904cf1cddbdf5596d65a3dede252d90e30",
     "calls/recognise_slot_patterns.json.gz": "898a47913b2422f640aba1881830e04ed6d20cc7c9021214d13137e4b3f72b65",
     "calls/recognise_slots.json.gz": "c15bf43e3ccc5e326d69e64ce778c486e7bf8d5bba92067419786945696f1592",
     "calls/recognise_thin_wall_bodies.json.gz": "9dcdac49f61ba95eeb56458f13138d07a59550d1f06a788904a26fb516cd350b",
     "calls/recognise_through_steps.json.gz": "ab6a0b5b06756fa3435099be76e5ab432b867be4d4a1b42c49047ff83b086cca",
     "calls/recognise_turned_steps.json.gz": "37d10e8c5e2ce5dcf6c5bd2fdc7444e86494bb44768e9d32d9a1abfd3f2fbd90",
     "channel_geometry.json.gz": "bd25ff87def7f73b4f119d26614600b141ee4350f45c77cef55aae7ea787e85f",
-    "corpus.json.gz": "3b60f711595d8953edfb6f4151b31ba46c3ed4cb3e238661d622ef9abbcd4f39",
+    "corpus.json.gz": "cb41a3236727501d8eb2af23478e3dee33d7e9b75fa965b69ba521c0fc2f2628",
     "coverage.json.gz": "c835b80d39757ae5ef556953e11a2d7e8bbde3148a233f2af51ae92e1d23a971",
     "cylindrical_proofs/corpus/cadgenbench/flanged_spool_132.step.json.gz": "b93acca566253df99ab62bb5ac97424226850b3ee3963c8d1025939a7339d823",
     "cylindrical_proofs/corpus/cadgenbench/threaded_connector_109.step.json.gz": "eea12e52bf91a9c762e7cadc1b12994398bf8f3836ab11ab8b58a2bf4c5d9a4e",
@@ -5920,5 +5920,5 @@
     "sections/test/parts/fc9cb0ef3d518aa4.step.gz.json.gz": "ad246bd3ca231dda3e7fe1fc54cd798984e7dcd9da376dcb609c3c42001086f8",
     "step_levels.json.gz": "6ff3ceadb33888e9d529a10b9a880babaf979f4f8d869962215d9d3193902f00"
   },
-  "source_commit": "62f8bf014b7e4c1e74a0376859bc15c51385ba02"
+  "source_commit": "a39530fe198dd952b622e91754e70e4d147292f0"
 }
