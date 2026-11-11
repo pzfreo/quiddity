@@ -6,6 +6,12 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+### Changed
+
+- Face integration reuses complete cached moments, skips kink searches that cannot
+  affect refinement, and stops once an accepted leaf makes the existing refusal
+  inevitable. Integration nodes, error criteria and returned results are unchanged.
+
 ### Documentation
 
 - haecceity states its scope: it reads, queries and writes B-reps and does not model them
