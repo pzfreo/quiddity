@@ -859,11 +859,11 @@ fn product_lookup_survives_serde_and_explicit_membership_changes() {
             p
         })
         .collect();
-    m.refusals.push(manifest::Refusal {
-        products: vec!["p3999".into()],
-        entity: 23,
-        reason: "indexed refusal".into(),
-    });
+    m.refusals.push(manifest::Refusal::new(
+        vec!["p3999".into()],
+        23,
+        "indexed refusal".into(),
+    ));
     m.reindex_products().unwrap();
     let value = serde_json::to_value(&m).unwrap();
     assert!(value.get("product_index").is_none());
