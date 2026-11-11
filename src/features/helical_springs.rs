@@ -15,6 +15,7 @@ use crate::kernel::geom::{self, Surface, V3};
 /// the file origin. `start`/`end` bound the physical wire along its unit direction.
 /// Unknown active coils are deliberately null: geometry does not establish seating/load.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct HelicalSpring {
     pub axis: ThreadAxis,
     pub hand: &'static str,

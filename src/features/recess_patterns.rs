@@ -17,6 +17,7 @@ use crate::kernel::py;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum SlotPattern {
     SlotGrid {
         slots: Vec<Slot>,
@@ -36,6 +37,7 @@ pub enum SlotPattern {
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum PocketPattern {
     PocketGrid {
         pockets: Vec<Pocket>,

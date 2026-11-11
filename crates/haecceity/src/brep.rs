@@ -227,6 +227,7 @@ pub(super) struct FaceCache {
     pub(super) domain: OnceLock<Option<FaceDomain>>,
     pub(super) bounds: OnceLock<Bounds>,
     pub(super) mass: OnceLock<Option<[f64; 5]>>,
+    pub(super) moments: OnceLock<Option<super::mass::FaceMoments>>,
     pub(super) edge_deviation: OnceLock<Vec<(usize, f64)>>,
     pub(super) uv_bounds: OnceLock<Option<(f64, f64, f64, f64)>>,
     pub(super) recovered: OnceLock<Option<Surface>>,
@@ -354,6 +355,9 @@ pub struct Part {
 }
 
 impl Part {
+    /// Build caller-supplied topology with fresh query caches. Each face must have
+    /// at least one loop and all indices must refer to members of this part.
+    /// STEP import enforces the nonempty-bounds invariant before constructing faces.
     pub fn new(faces: Vec<Face>, edges: Vec<Edge>, solids: Vec<Solid>) -> Self {
         let cache = faces.iter().map(|_| FaceCache::default()).collect();
         Part {

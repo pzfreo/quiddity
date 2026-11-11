@@ -20,6 +20,7 @@ pub use layout::{Plane, TextPlacement, View};
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
 #[cfg_attr(feature = "json-import", derive(serde::Deserialize))]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum PolylineRole {
     Text,
     Frame,
@@ -32,6 +33,7 @@ pub enum PolylineRole {
 #[derive(Clone, Debug, Serialize, PartialEq)]
 #[cfg_attr(feature = "json-import", derive(serde::Deserialize))]
 #[serde(deny_unknown_fields)]
+#[non_exhaustive]
 pub struct Graphic {
     /// Document-local identity, shared by copies under multiple semantic keys.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -53,6 +55,7 @@ pub struct Graphic {
     pub step_ids: Vec<u64>,
     pub unsupported: Vec<String>,
 }
+
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
 #[cfg_attr(feature = "json-import", derive(serde::Deserialize))]
 #[serde(rename_all = "snake_case")]
@@ -63,6 +66,7 @@ pub enum Source {
 #[derive(Clone, Debug, Serialize, PartialEq)]
 #[cfg_attr(feature = "json-import", derive(serde::Deserialize))]
 #[serde(deny_unknown_fields)]
+#[non_exhaustive]
 pub struct Presentation {
     pub schema: String,
     pub length_unit: String,
@@ -108,7 +112,8 @@ pub fn from_value(mut value: Value) -> Result<Presentation> {
 }
 
 impl Graphic {
-    fn new(source: Source, name: String) -> Self {
+    /// Start an empty graphic and fill its public geometry and metadata fields.
+    pub fn new(source: Source, name: String) -> Self {
         Self {
             id: None,
             plane_id: None,

@@ -18,6 +18,7 @@ use crate::framed_records::Rigid;
 use crate::kernel::geom::V3;
 
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct PublishedFeatures {
     working: Features,
     records: OnceLock<BTreeMap<String, Value>>,

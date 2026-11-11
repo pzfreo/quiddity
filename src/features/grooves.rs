@@ -36,6 +36,7 @@ const WIDTH_MARGIN: f64 = 0.05;
 /// A recognised turned groove. `axis` is the turning axis, `width` the floor's axial span,
 /// `diameter` the floor diameter and `at` the floor face's box centre (the leader tip).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Groove {
     pub axis: char,
     pub width: f64,

@@ -25,6 +25,7 @@ const AXES: [char; 3] = ['x', 'y', 'z'];
 pub type EndpointScope = &'static str;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct ThroughStep {
     pub axis: char,
     pub length: f64,

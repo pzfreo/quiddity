@@ -16,6 +16,7 @@ use crate::kernel::geom::{self, Surface, V3};
 /// degrees to the axis (90 for a cylindrical wall). `axis_point` is the mouth centre and
 /// `axis` points from floor to mouth. Separate occurrences are never counted as a pattern.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct FaceGroove {
     pub axis: V3,
     pub axis_point: V3,

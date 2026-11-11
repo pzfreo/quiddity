@@ -37,6 +37,7 @@ const OD_FILL_MIN: f64 = 0.6;
 
 /// One axial segment of a stepped shaft, between two shoulders (or ends), measured along `axis`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct TurnedStep {
     pub axis: char,
     pub lo: Placed<f64>,

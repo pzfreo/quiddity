@@ -50,6 +50,7 @@ const AXIS_NAMES: [&str; 3] = ["x", "y", "z"];
 /// `RaisedPad`: a bounded rectangular island, its box rounded to 3 decimals, the principal
 /// `axis` it rises along (`"x"`, `"y"` or `"z"`) and its `direction` (1 or -1) along it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct RaisedPad {
     pub x0: Placed<f64>,
     pub x1: Placed<f64>,
@@ -98,6 +99,7 @@ fn record_order(a: &RaisedPad, b: &RaisedPad) -> Ordering {
 /// Options named as `recognise_rectangular_pads`' keyword arguments.
 #[derive(Clone, Copy, Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+#[non_exhaustive]
 pub struct PadOptions {
     /// The span and fit threshold; 0.2 mm when `None`.
     pub tol: Option<f64>,
@@ -105,6 +107,7 @@ pub struct PadOptions {
 
 /// Where Python raises `ValueError`, with its message.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PadError {
     /// The blend collapse refused the selection (its own message).
     Collapse(&'static str),

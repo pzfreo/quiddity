@@ -73,6 +73,7 @@ pub fn round_clean(value: f64, digits: usize) -> f64 {
 
 /// A right-handed placement frame (`LocalFrame`): a section's `u`, `v` across the `run`.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct LocalFrame {
     pub origin: V3,
     pub run: V3,
@@ -727,6 +728,7 @@ impl PlanarSection {
 
 /// Which ends of an occurrence are capped (`SectionEnds`): never both.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
 pub struct SectionEnds {
     pub low_capped: bool,
     pub high_capped: bool,
@@ -884,6 +886,7 @@ pub fn validate_occurrence(o: &SectionOccurrence, body_refs: &BodyRefIssuer) -> 
 
 /// A published vertex (`section_vertex_dict`).
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct VertexValue {
     pub point: V2,
     pub bulge: f64,
@@ -892,6 +895,7 @@ pub struct VertexValue {
 /// The primitive-only version-1 proposal shape (`occurrence_geometry_dict`); the body identity
 /// does not cross it.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct OccurrenceGeometry {
     pub frame: LocalFrame,
     pub run_interval: (f64, f64),
@@ -905,6 +909,7 @@ pub struct OccurrenceGeometry {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct SectionValue {
     pub boundary: Vec<VertexValue>,
 }

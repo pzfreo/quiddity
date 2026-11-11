@@ -32,6 +32,36 @@ cargo clippy --workspace --all-targets --release -- -D warnings
 QUIDDITY_CORPUS_REQUIRED=1 cargo test --workspace --release
 ```
 
+## Public Rust API and releases
+
+Before 1.0, any breaking public API change requires a **minor** version bump
+(`0.4.x` → `0.5.0`); patch releases must remain source compatible. Adding fields
+or variants to exhaustive public types, changing signatures, removing exports,
+changing defaults, or moving an API behind a feature can break callers. State the
+break and migration in CHANGELOG's `Breaking (Rust API)` section. Release tooling
+changes the Cargo versions; do not disguise a break as a patch release.
+
+Use `#[non_exhaustive]` on extensible results, reports, errors and options. Keep
+construction possible through meaningful constructors/builders or `Default` plus
+public field assignment. Closed mathematical and interchange value types may stay
+exhaustive: extending them then requires a minor release. Preserve the default
+feature surface and check supported feature-off builds too. See the maintained
+[type inventory and migration examples](docs/rust-api.md).
+
+CI pins cargo-semver-checks 0.51.0 and compares haecceity and quiddity with each
+crate's latest stable crates.io version, with default features plus JSON. The lint
+job also compiles supported feature-off builds.
+Every run uses patch lints, even when Cargo versions await release. A non-empty
+`### Breaking (Rust API)` subsection under `## Unreleased` is the sanctioned
+breaking override. It must be accompanied by `Pending version: X.Y.Z` under
+Unreleased, at least the next minor over each published baseline before 1.0
+(at least the next major after 1.0), and no lower than the manifest version.
+Document the actual break and caller migration there. Empty/commented sections
+and historical releases grant no override. Without that section, API breaks fail
+regardless of the manifest version. With it, completed API-lint failures are
+reported and accepted for the declared pending release; build/tool failures fail.
+This also applies while current = published, including the pending 0.5.0 release. CI also runs cargo-audit against Cargo.lock.
+
 ## Test files and data
 
 Add only files you created yourself or whose licence allows redistribution, and record each

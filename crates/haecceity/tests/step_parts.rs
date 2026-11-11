@@ -113,24 +113,15 @@ fn an_assembly_part_is_read_in_its_own_coordinates() {
     assert_eq!(names, ["plate", "pin"]);
     assert_eq!(
         file.assemblies,
-        [Assembly {
-            product_definition: 5,
-            name: "assembly".into(),
-            components: vec![
-                Component {
-                    occurrence: 968,
-                    definition: 35
-                },
-                Component {
-                    occurrence: 1265,
-                    definition: 972
-                },
-                Component {
-                    occurrence: 1271,
-                    definition: 972
-                },
-            ],
-        }]
+        [Assembly::new(
+            5,
+            "assembly".into(),
+            vec![
+                Component::new(968, 35),
+                Component::new(1265, 972),
+                Component::new(1271, 972),
+            ]
+        )]
     );
     let pin = &file.parts[1];
     assert_eq!(pin.placements.len(), 2);
@@ -180,10 +171,7 @@ fn a_wrapped_part_takes_its_assemblys_name() {
     assert_eq!(file.assemblies[0].name, "Gehäuse Ø");
     assert_eq!(
         file.assemblies[0].components,
-        [Component {
-            occurrence: 960,
-            definition: file.parts[0].product_definition
-        }]
+        [Component::new(960, file.parts[0].product_definition)]
     );
     let def = &file.parts[0];
     assert_ne!(def.placements[0].placement, haecceity::step::IDENTITY);

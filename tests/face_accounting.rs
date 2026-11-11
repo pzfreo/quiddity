@@ -70,6 +70,7 @@ fn check(doc: &RecognitionDocument) -> [usize; 5] {
                 assert!(records.is_empty());
                 counts[3] += 1;
             }
+            other => panic!("unknown face accounting group: {other:?}"),
         }
     }
     assert_eq!(counts[..4].iter().sum::<usize>(), doc.face_count);

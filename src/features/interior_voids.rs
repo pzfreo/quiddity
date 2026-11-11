@@ -28,6 +28,7 @@ const CELLS_ON_LONGEST_AXIS: f64 = 64.0;
 const MIN_COMPONENT_SPAN: i64 = 3;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct InteriorVoid {
     pub body_index: usize,
     pub body_key: Option<BodyKey>,
@@ -43,6 +44,7 @@ pub struct InteriorVoid {
 /// A bounded-air candidate whose sampled throat does not establish an interior chamber.
 /// Retain its complete measurements and source anatomy in the recognition document.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct InteriorVoidRefusal {
     #[serde(flatten)]
     pub candidate: InteriorVoid,

@@ -106,11 +106,7 @@ fn check(path: &Path) -> usize {
         let mut recognition = quiddity::correspondence::recognise(&part);
         recognition.source_sha256 = Some(source_sha256.clone());
         let document = quiddity::recognition::document(&recognition, part.faces.len());
-        let expected = file_api::json(&RecognitionOutput {
-            recognition,
-            document,
-        })
-        .unwrap();
+        let expected = file_api::json(&RecognitionOutput::new(recognition, document)).unwrap();
         let actual = std::fs::read_to_string(
             dir.path()
                 .join(format!("results/products/{}.json", product.id)),

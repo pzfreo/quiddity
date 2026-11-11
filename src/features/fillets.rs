@@ -32,6 +32,7 @@ const FILLET_SWEEP_TOL_DEG: f64 = 0.5;
 pub(super) const TURNED_FILLET_MAX_EXTENT: f64 = PI / 2.0 * 1.05;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct Fillet {
     pub axis: FilletAxis,
     pub radius: f64,
@@ -64,6 +65,7 @@ impl FilletAxis {
 /// Options named as `recognise_fillets`' keyword arguments.
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+#[non_exhaustive]
 pub struct FilletOptions {
     pub min_radius: Option<f64>,
     pub max_radius_frac: f64,

@@ -25,6 +25,7 @@ use crate::kernel::volume::{Prism, PrismEdge, Probe, common_volume};
 /// `across_flats` the distance between the chords, and `flat_direction` their canonical unit
 /// normal. `location` is the profile centre on the bore's high end.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct DoubleDBore {
     pub axis: V3,
     pub location: V3,
@@ -47,6 +48,7 @@ impl DoubleDBore {
 /// `recognise_double_d_bores`' keyword arguments.
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+#[non_exhaustive]
 pub struct DoubleDBoreOptions {
     pub tol: f64,
 }

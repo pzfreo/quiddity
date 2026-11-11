@@ -55,6 +55,7 @@ pub enum FrameGauge {
 /// number.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[non_exhaustive]
 pub enum FrameRefusal {
     NoMaterial,
     /// No unique analytic direction can establish the required frame or axial line.
@@ -81,6 +82,7 @@ impl FrameRefusal {
 /// `PartFrame`: the caller-space placement of the local recognition coordinates. A caller-space
 /// point `p` is `(dot(p - origin, x), dot(p - origin, y), dot(p - origin, z))` locally.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct PartFrame {
     pub origin: V3,
     pub x: V3,
@@ -549,6 +551,7 @@ fn axial_line(classes: &[DirectionClass], tied: &[usize]) -> Result<V3, FrameRef
 #[cfg(test)]
 #[doc(hidden)]
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum FramedError {
     Read(Box<dyn std::error::Error>),
     Frame(FrameRefusal),
@@ -681,6 +684,7 @@ impl FramedPart {
 /// working part they were found on.
 #[cfg(test)]
 #[doc(hidden)]
+#[non_exhaustive]
 pub struct FramedRecognition {
     pub frame: PartFrame,
     pub part: Part,
