@@ -246,6 +246,71 @@ fn equal_pitch_grid_uses_population_to_assign_rows_under_motion() {
 }
 
 #[test]
+fn bolt_circle_identity_ignores_missing_and_noisy_member_mouth_chamfers() {
+    use features::hole_patterns::{HolePattern, recognise_hole_patterns};
+    use features::holes::MouthChamfer;
+    let path = common::fixtures().join("golden_bolt_circle_and_rectangular_grid.step");
+    for at in motions() {
+        let part = read_step_file_placed(&path, &at).unwrap();
+        let mut base = features::recognise(&part);
+        for hole in &mut base.holes {
+            hole.mouth_chamfers.clear();
+        }
+        base.hole_patterns = recognise_hole_patterns(&base.holes);
+        assert!(
+            base.hole_patterns
+                .iter()
+                .any(|p| matches!(p, HolePattern::BoltCircle { .. }))
+        );
+        let missing_location = base
+            .hole_patterns
+            .iter()
+            .find_map(|p| {
+                if let HolePattern::BoltCircle { holes, .. } = p {
+                    Some(holes[0].location)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        let identity = claim_identity(&part, &base);
+        let mut treated = base.clone();
+        for (i, hole) in treated.holes.iter_mut().enumerate() {
+            if hole.location == missing_location {
+                continue;
+            }
+            hole.mouth_chamfers.push(MouthChamfer {
+                axis: hole.axis,
+                location: hole.location,
+                diameter: hole.diameter,
+                size: 0.1,
+                depth: 0.1,
+                angle: if i % 2 == 0 { 45. } else { 44.99 },
+                faces: Vec::new(),
+            });
+        }
+        treated.hole_patterns = recognise_hole_patterns(&treated.holes);
+        assert_eq!(treated.hole_patterns.len(), base.hole_patterns.len());
+        let before = serde_json::to_value(&base.hole_patterns).unwrap();
+        let mut after = serde_json::to_value(&treated.hole_patterns).unwrap();
+        for pattern in after.as_array_mut().unwrap() {
+            for hole in pattern["holes"].as_array_mut().unwrap() {
+                hole.as_object_mut().unwrap().remove("mouth_chamfers");
+            }
+        }
+        assert_eq!(
+            before, after,
+            "member treatments must not split or reorder patterns"
+        );
+        assert_eq!(
+            identity,
+            claim_identity(&part, &treated),
+            "IDs, faces and fingerprint parameters must stay unchanged"
+        );
+    }
+}
+
+#[test]
 fn contradictory_equal_distance_end_supports_report_unknown_under_motion() {
     use features::cylinders::Segment;
     use features::stacks::{End, classify_end};

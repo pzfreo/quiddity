@@ -104,7 +104,6 @@ struct HoleSpec {
     cbore: Option<CounterBore>,
     spotface: Option<CounterBore>,
     outer_steps: Vec<CounterBore>,
-    mouth_chamfers: Vec<[f64; 4]>,
     csink: Option<(f64, f64)>,
 }
 
@@ -124,15 +123,6 @@ impl HoleSpec {
             cbore: h.cbore.clone(),
             spotface: h.spotface.clone(),
             outer_steps: h.outer_steps.clone(),
-            mouth_chamfers: {
-                let mut specs: Vec<_> = h
-                    .mouth_chamfers
-                    .iter()
-                    .map(|c| [c.diameter, c.size, c.depth, c.angle])
-                    .collect();
-                specs.sort_by(|a, b| py::tuple_order(a, b));
-                specs
-            },
             csink: h
                 .csink
                 .as_ref()

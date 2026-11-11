@@ -804,6 +804,9 @@ fn mouth_chamfer(part: &Part, seg: &Segment, hi: bool) -> Option<(MouthChamfer, 
         let delta = geom::sub(wide, narrow);
         let depth = geom::dot(delta, outward);
         let size = major - minor;
+        // A symmetric band is identical whether measured from the axis or the
+        // support plane. Exclude shallow tapers and nearly transverse lead-ins.
+        let angle = depth.atan2(size).to_degrees();
         if (minor - radius).abs() > tol
             || geom::norm(geom::sub(narrow, centre)) > tol
             || geom::dot(frame.z, outward).abs() < 1. - 1e-6
@@ -814,6 +817,7 @@ fn mouth_chamfer(part: &Part, seg: &Segment, hi: bool) -> Option<(MouthChamfer, 
             || depth <= tol
             || major >= countersinks::MIN_MAJOR_RATIO * minor
             || depth >= 0.5 * minor
+            || !(15.0..=75.0).contains(&angle)
         {
             continue;
         }
@@ -851,7 +855,7 @@ fn mouth_chamfer(part: &Part, seg: &Segment, hi: bool) -> Option<(MouthChamfer, 
                     diameter: seg.diameter,
                     size: policy::round_measurement(size, 4),
                     depth: policy::round_measurement(depth, 4),
-                    angle: py::round_to(depth.atan2(size).to_degrees(), 2),
+                    angle: py::round_to(angle, 2),
                     faces: vec![face],
                 },
                 support,
@@ -1630,6 +1634,183 @@ mod tests {
             let part = Part::new(faces, base.edges.clone(), base.solids.clone());
             let holes = discover(&Context::new(&part), &[]);
             assert!(holes.iter().all(|h| h.record.mouth_chamfers.is_empty()));
+        }
+    }
+
+    #[test]
+    fn shallow_and_steep_lead_ins_are_not_mouth_chamfers() {
+        let (s, c) = 0.37_f64.sin_cos();
+        for scale in [0.1, 1., 10.] {
+            // Cover 5° and 86° measured from either the axis or the top plane.
+            for degrees in [4_f64, 5., 85., 86.] {
+                let (size, depth) = if degrees < 45. {
+                    (0.2, 0.2 * degrees.to_radians().tan())
+                } else {
+                    (0.2 / degrees.to_radians().tan(), 0.2)
+                };
+                let base = chamfered_hole(false, true, size, depth, false, scale);
+                assert!(base.solid_is_geometrically_valid(0));
+                for motion in [
+                    IDENTITY,
+                    [[c, 0., s, 123.], [0., 1., 0., -37.], [-s, 0., c, 19.]],
+                ] {
+                    let part = base.transformed(&motion).unwrap();
+                    let ctx = Context::new(&part);
+                    assert!(countersinks::discover(&ctx).is_empty());
+                    let holes = discover_verified(&ctx, &[]).unwrap();
+                    assert_eq!(holes.len(), 1);
+                    assert!(
+                        holes[0].record.mouth_chamfers.is_empty(),
+                        "angle={degrees} scale={scale}"
+                    );
+                    assert!(holes[0].record.cbore.is_some());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn ambiguous_half_millimetre_edge_on_two_millimetre_bore_keeps_the_seat_boundary() {
+        for scale in [0.1, 1., 10.] {
+            let part = turned_ring(
+                &[(5., 0.), (5., 4.), (1.5, 4.), (1., 3.5), (1., 0.)]
+                    .map(|(r, z)| (r * scale, z * scale)),
+            );
+            let ctx = Context::new(&part);
+            let seats = countersinks::discover(&ctx);
+            assert_eq!(seats.len(), 1);
+            let holes = discover_verified(&ctx, &seats).unwrap();
+            assert_eq!(holes.len(), 1);
+            assert!(holes[0].record.mouth_chamfers.is_empty());
+            let seat = holes[0].record.csink.as_ref().unwrap();
+            assert_eq!(
+                seat.major_diameter,
+                policy::round_measurement(3. * scale, 2)
+            );
+            assert_eq!(seat.included_angle, 90.);
+        }
+    }
+
+    /// Split just the cone and its two circular rims into complementary half
+    /// patches. Adjacent cylinder/plane loops retain both shared rim arcs, and
+    /// the cone patches share the original seam plus an independently built pi seam.
+    fn split_mouth_cone(base: &Part) -> Part {
+        let mut faces = base.faces.clone();
+        let mut edges = base.edges.clone();
+        let cone = faces
+            .iter()
+            .position(|f| matches!(f.surface, Surface::Cone { .. }))
+            .unwrap();
+        let loop_edges = faces[cone].loops[0].edges.clone();
+        let (low, seam, high) = (loop_edges[0].0, loop_edges[1].0, loop_edges[2].0);
+        let mut halves = Vec::new();
+        let next_vertex = edges
+            .iter()
+            .flat_map(|e| [e.vertices.0, e.vertices.1])
+            .max()
+            .unwrap()
+            + 1;
+        for (pi_vertex, rim) in (next_vertex..).zip([low, high]) {
+            let original = edges[rim].clone();
+            let mut second = original.clone();
+            edges[rim].end = original.curve.value(std::f64::consts::PI);
+            edges[rim].vertices.1 = pi_vertex;
+            edges[rim].samples = (0..=16)
+                .map(|i| original.curve.value(std::f64::consts::PI * i as f64 / 16.))
+                .collect();
+            second.start = edges[rim].end;
+            second.vertices.0 = pi_vertex;
+            second.samples = (0..=16)
+                .map(|i| {
+                    original
+                        .curve
+                        .value(std::f64::consts::PI * (1. + i as f64 / 16.))
+                })
+                .collect();
+            let other = edges.len();
+            edges.push(second);
+            halves.push(other);
+            for (face_index, face) in faces.iter_mut().enumerate() {
+                if face_index == cone {
+                    continue;
+                }
+                for boundary in &mut face.loops {
+                    boundary.edges = boundary
+                        .edges
+                        .iter()
+                        .flat_map(|&(e, forward)| {
+                            if e != rim {
+                                vec![(e, forward)]
+                            } else if forward {
+                                vec![(rim, true), (other, true)]
+                            } else {
+                                vec![(other, false), (rim, false)]
+                            }
+                        })
+                        .collect();
+                }
+            }
+        }
+        let pi_seam = edges.len();
+        let start = edges[low].end;
+        let end = edges[high].end;
+        edges.push(Edge {
+            curve: Curve::Line {
+                origin: start,
+                dir: geom::unit(geom::sub(end, start)).unwrap(),
+            },
+            start,
+            end,
+            vertices: (edges[low].vertices.1, edges[high].vertices.1),
+            same_sense: true,
+            samples: vec![start, end],
+        });
+        let mut other = faces[cone].clone();
+        // Closed circles in the original helper are direction-exempt; these
+        // open arcs must run opposite their cylinder/plane neighbours.
+        faces[cone].loops[0].edges =
+            vec![(low, false), (seam, true), (high, true), (pi_seam, false)];
+        other.loops[0].edges = vec![
+            (halves[0], false),
+            (pi_seam, true),
+            (halves[1], true),
+            (seam, false),
+        ];
+        let other_face = faces.len();
+        faces.push(other);
+        let mut solids = base.solids.clone();
+        solids[0].faces.push(other_face);
+        Part::new(faces, edges, solids)
+    }
+
+    #[test]
+    fn two_half_cone_patches_preserve_the_bore_but_abstain_from_a_mouth_claim() {
+        let (s, c) = 0.37_f64.sin_cos();
+        for scale in [0.1, 1., 10.] {
+            let base = split_mouth_cone(&chamfered_hole(false, true, 0.25, 0.25, false, scale));
+            assert!(base.solid_is_geometrically_valid(0));
+            for motion in [
+                IDENTITY,
+                [[c, 0., s, 123.], [0., 1., 0., -37.], [-s, 0., c, 19.]],
+            ] {
+                let part = base.transformed(&motion).unwrap();
+                let cones: Vec<_> = part
+                    .faces
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, f)| matches!(f.surface, Surface::Cone { .. }).then_some(i))
+                    .collect();
+                assert_eq!(cones.len(), 2);
+                for &cone in &cones {
+                    let (lo, hi, _, _) = part.uv_bounds(cone).unwrap();
+                    assert!((hi - lo - std::f64::consts::PI).abs() < 1e-8);
+                }
+                let holes = discover_verified(&Context::new(&part), &[]).unwrap();
+                assert_eq!(holes.len(), 1);
+                assert_eq!(holes[0].record.cbore.as_ref().unwrap().diameter, 5. * scale);
+                assert!(holes[0].record.mouth_chamfers.is_empty());
+                assert!(cones.iter().all(|f| !holes[0].defining.contains(f)));
+            }
         }
     }
 

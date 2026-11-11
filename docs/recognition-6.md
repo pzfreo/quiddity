@@ -1272,8 +1272,9 @@ this is a convex axisymmetric edge break. Existing turned `chamfers` describes
 external-cylinder edges. Making every small hole-mouth trim another independent
 chamfer feature also adds indistinguishable features on symmetric hole patterns,
 expanding existing correspondence ambiguities. The nested record describes the
-machining note without introducing another feature identity. Hole patterns compare
-the sorted treatment sizes as part of their machining specifications.
+machining note without introducing another feature identity. Hole patterns retain
+per-member treatments, but exclude them from the matching specification: a missing,
+interrupted or slightly noisy cone must not split a bolt circle or change its ID.
 
 The cone and its support plane are consulted evidence on the hole and must share
 its valid solid. The cone is claimed through the nested treatment; the plane is
@@ -1301,6 +1302,19 @@ major/minor-radius boundary and an axial leg below half the mouth radius prove
 a small edge break. No boss, absolute size, file axis, or dataset identity is
 required. Large seats retain `csink`/`countersinks` recognition. Split or interrupted
 cones without a complete single-face circumference are not claimed by this rule.
+The unrounded angle must be within 15°–75°, inclusive, to exclude shallow tapers
+and nearly transverse lead-ins. This symmetric band is the same from the axis or
+the top plane; the recorded angle remains measured from the top plane. It is a
+conservative chamfer-family policy, not a claim that other cone angles cannot be
+manufactured. Split-cone support needs an angular-coverage and shared-seam proof,
+not just adding patch angles (which could overlap); the two-half-cone regression
+pins the current abstention while preserving the cylindrical hole.
+
+At the shared 1.5 major/minor-radius boundary, a 0.5 × 45° edge on a ⌀2 bore
+remains a ⌀3 × 90° countersink. A small screw seat and an edge break can have
+identical geometry, including the same adjoining cylinder and relative depth.
+Those dimensions cannot establish machining intent. Keep the existing scale-free
+family boundary rather than infer a chamfer from bore depth or change saved seats.
 
 Depth semantics stay cylindrical, consistent with existing plain-hole/countersink
 handling: neither `HoleRecord.depth` nor `cbore.depth`, `spotface.depth`, or

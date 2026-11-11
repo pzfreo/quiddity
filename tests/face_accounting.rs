@@ -165,6 +165,31 @@ fn complete_partition_on_all_goldens_and_recorded_corpus() {
 }
 
 #[test]
+fn original_q244_counterbore_mouth_claim_preserves_the_saved_hole_anchor() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/hole_mouth/cbore_chamfer.step");
+    let part = quiddity::read_step_file(&path).unwrap();
+    let recognition = quiddity::correspondence::recognise(&part);
+    let doc = quiddity::recognition::document(&recognition, part.faces.len());
+    check(&doc);
+    let hole = doc.records.iter().find(|r| r.id == "holes/0").unwrap();
+    assert_eq!(hole.faces, [3, 10]);
+    assert_eq!(
+        hole.parameters["mouth_chamfers"][0]["faces"],
+        serde_json::json!([1])
+    );
+    assert_eq!(hole.parameters["mouth_chamfers"][0]["size"], 0.25);
+    assert_eq!(hole.parameters["mouth_chamfers"][0]["angle"], 45.);
+    assert_eq!(hole.parameters["cbore"]["depth"], 2.);
+    assert_eq!(
+        doc.face_accounting.as_ref().unwrap()[1],
+        FaceAccounting::Feature {
+            record_ids: vec!["holes/0".into()]
+        }
+    );
+}
+
+#[test]
 fn legacy_missing_accounting_is_unknown() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/golden_simple_through_hole.step");

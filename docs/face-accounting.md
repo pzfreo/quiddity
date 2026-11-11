@@ -6,7 +6,9 @@ objects: array index is the original file face index. Accounting itself does not
 fingerprints or evidence status. Precedence is:
 
 1. `{"group":"feature","record_ids":[...]}`: every published non-refusal record
-   naming the face, in document order, including derived and body-description records.
+   naming the face in its core `faces` or (for holes) proved nested
+   `mouth_chamfers[*].faces`, in document order, including derived and
+   body-description records. `Record::claimed_faces()` supplies this union.
 2. `{"group":"refused","refusals":[{"record_id":"...","reason":"..."}]}`:
    every named refusal covering the face, in document order, retaining its reason.
 3. `{"group":"body","reason":"..."}`: one of the positive evidence codes below.
@@ -39,6 +41,11 @@ evidence still describe the original walls and consulted floor; these final clai
 are completed in the same post-reconciliation pass as drill-point tips.
 Patterns are derived: their faces are the union of their members' completed faces,
 including floors and drill points. They do not compete as individual floor owners.
+Hole-mouth cones are an exception: the individual hole claims its nested treatment,
+but the parent `hole_pattern` does not co-own that cone. Its core member-face union
+continues to anchor the saved pattern identity; adding an optional, interrupted or
+noisy mouth treatment must not change that union. Pattern parameters retain each
+member's treatments, which do not participate in matching the members.
 
 Readers accept older documents: absent `face_accounting` deserializes to `None`,
 which means **unknown accounting**, never “no unexplained faces”. New empty parts
