@@ -55,8 +55,16 @@ const REFUSAL_FIXTURES: &[(&str, &str)] = &[
         "no solid or shell with faces",
     ),
     (
+        "tests/fixtures/broken/golden_simple_through_hole_no_bounds.step",
+        "face #17 has no readable bounds",
+    ),
+    (
         "tests/fixtures/broken/header_only.step",
         "unexpected end of file",
+    ),
+    (
+        "tests/fixtures/broken/kissing_cylinders_knife_no_bounds.step",
+        "face #17 has no readable bounds",
     ),
     (
         "tests/fixtures/broken/truck_pub_shaft_hole.step.gz",
