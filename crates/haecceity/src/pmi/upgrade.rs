@@ -1,7 +1,7 @@
 //! Closed, reported repairs for an edition upgrade gaining PMI. No general cleanup.
 
 use super::{EditionRewrite, UpgradeRepairKind, WriteError, attr, attr_ref, is_a, leaf_names};
-use crate::express::{self, Kind, TypeDef};
+use crate::express::{self, Kind, Slot, Ty, TypeDef};
 use crate::p21::{self, Attribute as A, Complex, Document, Edit, RawEntity};
 use crate::pmi::Decimal;
 use std::collections::BTreeSet;
@@ -20,6 +20,7 @@ pub(super) fn rewrite_entities(
     doc: &Document,
     edit: &mut Edit,
     excluded: &BTreeSet<u64>,
+    repaired: &[(u64, UpgradeRepairKind)],
 ) -> Vec<EditionRewrite> {
     let mut rewrites = Vec::new();
     for id in doc.ids().filter(|id| !excluded.contains(id)) {
@@ -30,7 +31,10 @@ pub(super) fn rewrite_entities(
             .iter()
             .find(|(from, _)| name.eq_ignore_ascii_case(from))
         {
-            edit.rename_entity(id, to);
+            // R4 already includes this keyword change in its one replacement.
+            if !repaired.contains(&(id, UpgradeRepairKind::R4UnsetRequiredString)) {
+                edit.rename_entity(id, to);
+            }
             rewrites.push(EditionRewrite { id, from, to });
         }
     }
@@ -54,6 +58,10 @@ pub(super) fn repair(
     emitted_dimensions: Vec<(Dimensions, A)>,
     repair_integer_literals: bool,
 ) -> Result<(Repairs, usize), WriteError> {
+    let ap214 = doc
+        .file_schema()?
+        .first()
+        .is_some_and(|s| s.to_ascii_uppercase().starts_with("AUTOMOTIVE_DESIGN"));
     let mut repairs = Vec::new();
     let mut added = 0;
     // Ascending ids choose the first equal existing dimensions deterministically. Provisional
@@ -68,6 +76,8 @@ pub(super) fn repair(
         let Some(record) = doc.get(id) else {
             continue;
         };
+        let repair_start = repairs.len();
+        let mut replacement = None;
         match record {
             RawEntity::Simple {
                 name, attributes, ..
@@ -104,7 +114,7 @@ pub(super) fn repair(
                     {
                         attributes[i] = A::Integer(integer);
                         record_text(doc, id)?;
-                        edit.replace(id, p21::simple(name, attributes));
+                        replacement = Some(p21::simple(name, attributes));
                         repairs.push((id, UpgradeRepairKind::R3IntegerLiteral));
                     }
                 }
@@ -123,10 +133,10 @@ pub(super) fn repair(
                     && items.iter().all(|a| member(a, "approval_item"))
                 {
                     record_text(doc, id)?;
-                    edit.replace(
-                        id,
-                        p21::simple("APPLIED_APPROVAL_ASSIGNMENT", attributes.clone()),
-                    );
+                    replacement = Some(p21::simple(
+                        "APPLIED_APPROVAL_ASSIGNMENT",
+                        attributes.clone(),
+                    ));
                     repairs.push((id, UpgradeRepairKind::R1ApprovalAssignment));
                 }
             }
@@ -175,13 +185,145 @@ pub(super) fn repair(
                         )))
                     })?;
                 named.attributes[0] = reference;
-                edit.replace(id, Complex::new(leaves)?);
+                replacement = Some(Complex::new(leaves)?.into_record());
                 repairs.push((id, UpgradeRepairKind::R2ConversionUnitDimensions));
             }
             _ => {}
         }
+        let strings = repair_required_strings(replacement.as_ref().unwrap_or(record), ap214);
+        let repaired_strings = strings.is_some();
+        if let Some(repaired) = strings {
+            record_text(doc, id)?;
+            replacement = Some(repaired);
+            repairs.push((id, UpgradeRepairKind::R4UnsetRequiredString));
+        }
+        if let Some(record) = replacement {
+            // R4 changes no numeric value. Preserve every stated REAL, even when its
+            // decimal has more precision than the parser's f64. R3 intentionally changes
+            // its one REAL to INTEGER and has already checked the exact source token.
+            let record = p21::Record::new(record);
+            let record = if !repaired_strings
+                || repairs[repair_start..].contains(&(id, UpgradeRepairKind::R3IntegerLiteral))
+            {
+                record
+            } else {
+                let tokens = super::super::read::real_tokens(
+                    &doc.bytes()[doc.span(id).ok_or(p21::P21Error::Missing(id))?],
+                );
+                record.state_reals(&tokens.iter().map(String::as_str).collect::<Vec<_>>())?
+            };
+            edit.replace(id, record);
+        }
     }
     Ok((repairs, added))
+}
+
+/// Only defined-type chains through label/text to STRING qualify. In particular,
+/// identifier and bare STRING do not become labels just because of an attribute name.
+fn empty_string_type(mut ty: Ty) -> bool {
+    let mut descriptive = false;
+    for _ in 0..128 {
+        match ty {
+            Ty::Named(name) => {
+                descriptive |= matches!(name, "label" | "text");
+                let Some(TypeDef::Defined(next)) = express::TARGET.type_decl(name).map(|t| &t.def)
+                else {
+                    return false;
+                };
+                ty = *next;
+            }
+            Ty::String => return descriptive,
+            _ => return false,
+        }
+    }
+    false
+}
+
+fn empty_string_slot(slot: &Slot) -> bool {
+    !slot.optional
+        && !slot.derived
+        && empty_string_type(slot.ty)
+        && slot.redeclared.iter().all(|ty| empty_string_type(*ty))
+}
+
+fn repair_required_strings(record: &RawEntity, ap214: bool) -> Option<RawEntity> {
+    // Stay in the existing repair loop. No schema lookup or record clone without
+    // a top-level unset explicit value; aggregate elements are never repaired.
+    let mut replacement = None;
+    match record {
+        RawEntity::Simple {
+            name, attributes, ..
+        } => {
+            if !attributes.iter().any(|a| matches!(a, A::Unset)) {
+                return None;
+            }
+            let target_name = if ap214 {
+                AP214_SUBTYPES
+                    .iter()
+                    .find(|(from, _)| name.eq_ignore_ascii_case(from))
+                    .map_or(name.as_str(), |(_, to)| *to)
+            } else {
+                name.as_str()
+            };
+            let slots = express::TARGET.explicit_attributes(target_name)?;
+            for (i, (value, slot)) in attributes.iter().zip(&slots).enumerate() {
+                if matches!(value, A::Unset)
+                    && empty_string_slot(slot)
+                    && let RawEntity::Simple {
+                        name, attributes, ..
+                    } = replacement.get_or_insert_with(|| record.clone())
+                {
+                    *name = target_name.to_string();
+                    attributes[i] = A::String(String::new());
+                }
+            }
+        }
+        RawEntity::Complex { parts, .. } => {
+            for (p, part) in parts.iter().enumerate() {
+                if !part.attributes.iter().any(|a| matches!(a, A::Unset)) {
+                    continue;
+                }
+                let Some(entity) = express::TARGET.entity(&part.name) else {
+                    continue;
+                };
+                let Some(slots) = express::TARGET.explicit_attributes(&part.name) else {
+                    continue;
+                };
+                for (i, (value, mut slot)) in part
+                    .attributes
+                    .iter()
+                    .zip(slots.into_iter().filter(|s| s.entity == entity.name))
+                    .enumerate()
+                {
+                    if !matches!(value, A::Unset) {
+                        continue;
+                    }
+                    // External mapping stores own attributes in each part. Other
+                    // parts may redeclare them; derived slots are always excluded.
+                    for decl in parts.iter().filter_map(|p| express::TARGET.entity(&p.name)) {
+                        for r in decl
+                            .redeclared
+                            .iter()
+                            .filter(|r| r.entity == slot.entity && r.attribute == slot.name)
+                        {
+                            slot.derived |= r.derived;
+                            if !r.derived {
+                                slot.optional &= r.optional;
+                                slot.redeclared.push(r.ty);
+                            }
+                        }
+                    }
+                    if empty_string_slot(&slot)
+                        && let RawEntity::Complex { parts, .. } =
+                            replacement.get_or_insert_with(|| record.clone())
+                    {
+                        parts[p].attributes[i] = A::String(String::new());
+                    }
+                }
+            }
+        }
+    }
+    replacement
 }
 
 fn in_select(doc: &Document, id: u64, select: &str) -> bool {

@@ -857,11 +857,42 @@ impl Part {
         self.bad_faces = OnceLock::new();
     }
 
+    pub(super) fn record_mixed_normal_repair(&mut self, solid: usize, flips: &[usize]) {
+        self.input_repairs.push(format!(
+            "solid {solid}: mixed face senses repaired ({} faces)",
+            flips.len()
+        ));
+        for &f in &self.solids[solid].faces {
+            if flips.contains(&f) {
+                self.faces[f].reversed = !self.faces[f].reversed;
+            }
+            self.cache[f] = FaceCache::default();
+        }
+        self.bad_faces = OnceLock::new();
+    }
+
     /// The face's axis-aligned box: its boundary plus any interior axis extremes.
     pub fn face_bounds(&self, face: usize) -> Bounds {
         *self.cache[face]
             .bounds
             .get_or_init(|| self.compute_face_bounds(face))
+    }
+
+    /// Boundary and surface extrema projected onto a unit direction, without copying
+    /// or rotating the part. Uses the same conic/NURBS extrema as `face_bounds`.
+    pub fn face_projection_bounds(&self, face: usize, direction: V3) -> Option<(f64, f64)> {
+        let direction = geom::unit(direction)?;
+        let mut lo = f64::INFINITY;
+        let mut hi = f64::NEG_INFINITY;
+        for point in self.face_extreme_points(face, &[direction]) {
+            let t = geom::dot(point, direction);
+            if !t.is_finite() {
+                return None;
+            }
+            lo = lo.min(t);
+            hi = hi.max(t);
+        }
+        (lo <= hi).then_some((lo, hi))
     }
 
     fn compute_face_bounds(&self, face: usize) -> Bounds {

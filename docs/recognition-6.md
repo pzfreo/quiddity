@@ -949,8 +949,8 @@ family is omitted when empty; recognition schema 6 and fingerprint format 3 rema
 
 The principal wall is a planar, simple, straight-edged polygon with **more than
 four noncollinear corners**, without inner wires. Its boundary consists of one
-complete straight concave seam and a chain of principal-axis edges, all convexly
-joined to unique exterior supports. A curved support may trim a straight edge;
+complete straight concave seam and a chain of principal-axis edges or edges
+owned by proved convex corner chamfers, all convexly joined to unique exterior supports. A curved support may trim a straight edge;
 its normal does not measure the step. The perpendicular oblique wall is a
 complete rectangle with that seam as one side. Both run ends must lie on opposite
 sides of the same stock-envelope axis and have a unique common convex planar
@@ -1195,3 +1195,63 @@ Feature matching retains its existing size-spec contract: adding a floor fillet
 changes an existing pocket from an orphaned feature to a newly recognised feature
 across revisions, just as a `None`→`Some` corner-radius proof does. This change
 does not introduce a correspondence heuristic or alter other feature ranks.
+
+
+## Circular blind steps with conical entries
+
+A native flared quarter-cone can establish the opening of a circular blind step.
+The original surfaces must prove a coaxial shared rim, a complete quarter-cylinder,
+two perpendicular corner planes through its axis, and one perpendicular exterior
+mouth plane, with convex entry joins on a common valid solid. Both conical rims
+and both generators must be present. An interrupted cone or an entry tapering into
+material does not establish an opening. The complete floor sweep must contain zero
+material through the straight wall and the entry, up to the exterior mouth.
+
+The `circular_blind_steps` record measures the **straight cylindrical portion**;
+its length ends at the shared circular rim. The entry cone is consulted evidence,
+rather than a defining face of that straight step. Its native shared radius is used
+before presentation rounding, so a rounded cylinder-inventory diameter cannot
+change seam incidence or round the newly admitted radius twice. No record fields
+or schema versions change. Planar entries retain their legacy inventory-diameter
+rounding: applying native publication there changes existing recorded radii.
+This compatibility exception affects presentation, not seam incidence.
+Analytic flared/inward-taper controls, independent volume
+and placement checks, and a fractional-radius regression live in
+`src/features/circular_blind_steps.rs`.
+
+## Interrupted polygonal through-cuts
+
+The optional `prismatic_through_cuts` family extends through-cut recognition to planar
+convex polygonal sections whose walls are interrupted by other cuts. Its `PrismaticThroughCut` record contains
+`cut` (a `SectionPassage` section and nominal prism), `extent: "observed_walls"`, and
+`core_interval` (an axial interval with complete original-wall support). The nominal
+`cut.run_interval` bounds the observed walls; its end planes are not asserted to be
+physical mouths. The legacy `section_passages` end-plane contract is unchanged.
+
+Discovery derives the run from adjacent wall-plane normals and accepts a closed
+concave junction cycle, without assuming a principal axis or a wall count. A valid
+owning solid, whole-face containment on the inferred prism sides, exact complete
+side coverage throughout the core, and an empty prism through the owner's entire
+axial envelope are required. Thus a surviving wall ring around a blind pocket does
+not suffice. Only original supported wall faces are claimed; inferred mouth faces
+are never claimed. Recovery is skipped on **any shared defining face** with an accepted cut record,
+including partial overlaps. This avoids a second callout for a slot whose legacy
+record owns only its two long walls. Context/evidence faces do not block recovery.
+Precedence families are `holes`, `countersinks`, `double_d_bores`, `slots`,
+`oriented_slots`, `rectangular_blind_slots`, `round_bottom_blind_slots`,
+`semicircular_blind_slots`, `section_passages`, `section_recesses`, `pockets`,
+`prismatic_pockets`, `edge_open_circular_pockets`, `edge_open_prismatic_recesses`,
+`channels`, `v_channels`, `rectangular_through_notches`, `through_steps`,
+`local_steps`, `angled_steps`, `paired_ramp_steps`, `oblique_through_steps`,
+`polygonal_oblique_through_steps`, `circular_blind_steps`, `grooves`,
+`annular_grooves`, `internal_bevels`, `chamfers`, `oriented_chamfers`, `fillets`,
+`blends` and `interior_voids`. Body/additive families (including `turned_steps`,
+`step_levels`, `risers`, `plates`, bosses and pads) do not own a machining cut.
+Later residual passes run after this recovery and consume its accepted claims.
+An optional recovery failure leaves those independent passes and floor completion
+available, rather than blocking them on missing planar-cut claims. Open/branched wall chains and
+profiles needing missing walls or curved sides are not inferred.
+
+This is a post-recognition extension, represented in recognition/6, fingerprints,
+and face accounting; the evidence document's legacy physical-candidate registry
+does not acquire a new candidate family.

@@ -364,3 +364,35 @@ fn inverted_shell_repair_is_reported_in_documents_cli_and_serve() {
             .is_none()
     );
 }
+
+/// The mixed shell's corrected material side changes the outer Ø30×40
+/// cylinder from an erroneous flat-bottomed hole to an external boss.
+#[test]
+fn mixed_shaft_publishes_outer_boss_instead_of_hole() {
+    let part = read_step_file(&common::fixtures().join("truck_master_shaft_hole.step.gz")).unwrap();
+    let recognised = correspondence::recognise(&part);
+    let bosses: Vec<_> = recognised
+        .features
+        .bosses
+        .iter()
+        .filter(|b| (b.diameter - 30.0).abs() < 1e-6 && (b.height - 40.0).abs() < 1e-6)
+        .collect();
+    assert_eq!(bosses.len(), 1, "{:?}", recognised.features.bosses);
+    assert!(
+        !recognised
+            .features
+            .holes
+            .iter()
+            .any(|h| (h.diameter - 30.0).abs() < 1e-6 && (h.depth - 40.0).abs() < 1e-6)
+    );
+    assert_eq!(
+        recognition::document(&recognised, part.faces.len()).input_repairs,
+        ["solid 0: mixed face senses repaired (20 faces)"]
+    );
+    assert_eq!(
+        quiddity::frames::infer_part_frame(&part)
+            .unwrap_err()
+            .as_str(),
+        "no-analytic-direction"
+    );
+}

@@ -2247,15 +2247,6 @@
     "reason": "Edge.length (GCPnts_AbscissaPoint at its default tolerance) is short or long by ~1e-5 relative on this face's ellipse or B-spline edges; integrated to 1e-10 it agrees with the port's perimeter. The areas agree."
   },
   {
-    "file": "parts/2fe0e2383b80a0b8.step.gz",
-    "field": "nominal",
-    "faces": [
-      0
-    ],
-    "verdict": "rust-wrong",
-    "reason": "A cylinder patch of radius 1e8 stored as a B-spline (Python's huge-radius ambiguity test): mass.rs gives its area as 0.0109 against 10.0 (round-off at coordinates of 1e8), so the port's nominal is wrong; both sides still refuse the surface."
-  },
-  {
     "file": "parts/49b3ceab51182892.step.gz",
     "field": "nominal",
     "faces": [

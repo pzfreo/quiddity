@@ -103,3 +103,6 @@ mod internal_bevels;
 
 #[path = "pocket_floor_fillets.rs"]
 mod pocket_floor_fillets;
+
+#[path = "prismatic_through_cuts.rs"]
+mod prismatic_through_cuts;

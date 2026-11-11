@@ -2650,7 +2650,10 @@ pub fn write_report_json(
             "instances",
             json!({
                 "added": report.added,
-                "replaced": report.rewritten.len() + report.repairs.len() + report.edition_rewrites.len(),
+                "replaced": report.rewritten.iter().copied()
+                    .chain(report.repairs.iter().map(|r| r.id))
+                    .chain(report.edition_rewrites.iter().map(|r| r.id))
+                    .collect::<std::collections::BTreeSet<_>>().len(),
                 "removed": report.removed.len(),
             }),
         )
@@ -2676,6 +2679,7 @@ pub fn write_report_json(
                             write::UpgradeRepairKind::R1ApprovalAssignment => "R1",
                             write::UpgradeRepairKind::R2ConversionUnitDimensions => "R2",
                             write::UpgradeRepairKind::R3IntegerLiteral => "R3",
+                            write::UpgradeRepairKind::R4UnsetRequiredString => "R4",
                         },
                         "original_record": r.original_record,
                         "new_record": r.new_record,

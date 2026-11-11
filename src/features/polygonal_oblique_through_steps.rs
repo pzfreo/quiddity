@@ -306,18 +306,26 @@ fn one_pair(
             return None;
         }
     }
-    // The principal polygon is bounded by a single oblique seam and a stock-axis
-    // staircase. Do not replace it by a rectangle, hull, or bounding quadrilateral.
+    // Keep the stock-axis staircase rule, also admitting a diagonal boundary
+    // actually owned by a proved convex chamfer. This uses the source edge and
+    // treatment evidence, rather than interpreting an arbitrary skew lip as a step.
     let seam_edges = part.shared_edges(principal, oblique);
     for e in part.outer_edges(principal) {
         if seam_edges.contains(&e) {
             continue;
         }
         let direction = normalized(sub(part.edges[e].end, part.edges[e].start))?;
-        if !(0..3)
+        let principal_edge = (0..3)
             .filter(|&a| a != axis)
-            .any(|a| 1.0 - direction[a].abs() <= SMOOTH_ARC_GAP)
-        {
+            .any(|a| 1.0 - direction[a].abs() <= SMOOTH_ARC_GAP);
+        let chamfer_edge = principal_supports.iter().any(|&support| {
+            part.shared_edges(principal, support).contains(&e)
+                && ctx
+                    .reported_chamfers()
+                    .iter()
+                    .any(|treatment| treatment.defining.contains(&support))
+        });
+        if !principal_edge && !chamfer_edge {
             return None;
         }
     }

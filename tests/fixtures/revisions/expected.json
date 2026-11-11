@@ -601,6 +601,21 @@
             -5.863912725989426e-17,
             0.2156840353986964
           ]
+        },
+        {
+          "label": "Accepted slot has no duplicate through-cut in either revision",
+          "family": "prismatic_through_cuts",
+          "class": "absent",
+          "old_at": [
+            30.206821,
+            0.0,
+            0.088045
+          ],
+          "new_at": [
+            28.206821,
+            0.0,
+            0.088045
+          ]
         }
       ]
     },
@@ -712,6 +727,21 @@
           "changes": [
             "neighbourhood",
             "position"
+          ]
+        },
+        {
+          "label": "Accepted slot has no duplicate through-cut in either revision",
+          "family": "prismatic_through_cuts",
+          "class": "absent",
+          "old_at": [
+            30.206821,
+            0.0,
+            0.088045
+          ],
+          "new_at": [
+            30.203994,
+            0.0,
+            0.13745
           ]
         }
       ]
