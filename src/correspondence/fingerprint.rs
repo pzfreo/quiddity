@@ -81,17 +81,6 @@ pub const VALUE_CHANGES: &[FingerprintValueChange] = &[
     },
     FingerprintValueChange {
         revision: 0,
-        families: &["v_channels"],
-        keys: &[
-            "sizes.trough_radius",
-            "sizes.depth",
-            "position",
-            "neighbourhood",
-        ],
-        evidence: "CHANGELOG 0.2.1-alpha.1 #100: rounded trough, depth from flank intersection, defining trough cylinder",
-    },
-    FingerprintValueChange {
-        revision: 0,
         families: &["holes"],
         keys: &[
             "traits.cbore",
