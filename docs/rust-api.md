@@ -29,8 +29,7 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `haecceity::removal`: `Blocker`, `Emptied`, `RemovalPlan`, `RemovalRefusal`, `RemovalReport`.
 - `haecceity::step`: `Assembly`, `Component`, `PartDefinition`, `PartPlacement`, `StepError`, `StepFile`.
 - `haecceity::step::manifest`: `Common`, `Instance`, `Manifest`, `Product`, `Ranges`, `ReaderVersion`, `Refusal`, `ScanOptions`, `Source`, `Unowned`.
-- `quiddity::correspondence::fingerprint`: `FaceFingerprint`, `FeatureFingerprint`, `Fingerprints`.
-- `quiddity::correspondence`: `Thresholds`, `Alignment`, `Change`, `Correspondence`, `Entry`, `Recognition`.
+- `quiddity::correspondence`: `Alignment`, `Change`, `Correspondence`, `Entry`, `FaceFingerprint`, `FeatureFingerprint`, `Fingerprints`, `Recognition`, `Thresholds`.
 - `quiddity::evidence_view`: `EvidenceCandidate`, `EvidenceDocument`, `EvidenceFeature`, `EvidenceRecord`.
 - `quiddity::features::angled_steps`: `AngledStep`.
 - `quiddity::features::annular_grooves`: `AnnularGroove`.
@@ -59,10 +58,9 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `quiddity::features::holes`: `CounterBore`, `ExitObstruction`, `HoleOptions`, `HoleRecord`, `MouthChamfer`.
 - `quiddity::features::interior_voids`: `InteriorVoid`, `InteriorVoidRefusal`.
 - `quiddity::features::internal_bevels`: `InternalBevel`.
-- `quiddity::features::isolation`: `FamilyFailure`.
 - `quiddity::features::levels`: `FaceLevel`, `FaceLevelOptions`, `RiserEvidence`, `RiserOptions`.
 - `quiddity::features::local_steps`: `LocalStep`, `LocalStepEnd`.
-- `quiddity::features`: `Features`, `Inventory`.
+- `quiddity::features`: `FamilyFailure`, `Features`, `Inventory`.
 - `quiddity::featureselled_threads`: `ModelledThread`, `ModelledThreadRefusal`, `ThreadAxis`.
 - `quiddity::features::oblique_through_steps`: `ObliqueThroughStep`.
 - `quiddity::features::oriented_chamfers`: `OrientedChamfer`, `OrientedChamferOptions`.
@@ -98,6 +96,9 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `quiddity::published_records`: `PublishedFeatures`.
 - `quiddity::recognition`: `BodyReason`, `FaceRefusal`, `RecognitionDocument`, `Record`.
 - `quiddity::serve`: `Failure`, `RecognitionOutput`.
+
+Types re-exported at the crate root retain those names too: for example,
+`quiddity::Fingerprints` is `quiddity::correspondence::Fingerprints`.
 
 ## Construction and migration
 
