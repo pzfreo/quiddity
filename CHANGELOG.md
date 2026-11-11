@@ -6,6 +6,13 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+### Changed
+
+- **Breaking (manifest format):** assembly manifests are `quiddity-manifest/2`, with one
+  `instances` entry per assembly occurrence. A product's solids and surface models are all
+  placed by that one entry; `/1` listed one entry per body, so a multi-solid part was placed
+  over itself several times. `/1` manifests are refused with "rescan the source". From #190.
+
 ### Documentation
 
 - haecceity states its scope: it reads, queries and writes B-reps and does not model them
