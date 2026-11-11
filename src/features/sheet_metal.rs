@@ -903,6 +903,17 @@ fn shape_area(shape: &[Vec<V2>]) -> f64 {
     contours.next().unwrap_or(0.) - contours.sum::<f64>()
 }
 
+fn shape_perimeter(shape: &[Vec<V2>]) -> f64 {
+    shape
+        .iter()
+        .map(|ring| {
+            (0..ring.len())
+                .map(|i| dist2(ring[i], ring[(i + 1) % ring.len()]).sqrt())
+                .sum::<f64>()
+        })
+        .sum()
+}
+
 #[cfg(test)]
 fn overlap_area(first: &[Vec<V2>], second: &[Vec<V2>]) -> f64 {
     intersection(first, second)
@@ -933,6 +944,18 @@ fn region_overlaps(regions: &[FlatRegion], thickness: f64) -> Vec<FlatOverlapWit
             for component in &common {
                 let component_area = shape_area(component);
                 area += component_area;
+                if proved {
+                    continue;
+                }
+                // Most genuine collisions are already proved by the requested area band.
+                // Count one copy of the opposing boundaries, plus local chord uncertainty.
+                let length = 0.5 * shape_perimeter(component);
+                let near = bounds(component.iter().flatten().copied());
+                let error = a.area_error(near, tol) + b.area_error(near, tol);
+                if component_area > (tol + 1e-7 * thickness) * length + error {
+                    proved = true;
+                    continue;
+                }
                 // Apply the tol * shared-boundary-length band geometrically: remove tol/2
                 // from each opposing collision boundary. Merely measuring the raw perimeter
                 // counts nearly zero-width branches from coincident exporter edges, and can
@@ -943,16 +966,7 @@ fn region_overlaps(regions: &[FlatRegion], thickness: f64) -> Vec<FlatOverlapWit
                     continue;
                 }
                 let bounds = bounds(core.iter().flatten().flatten().copied());
-                let length = 0.5
-                    * core
-                        .iter()
-                        .flatten()
-                        .map(|ring| {
-                            (0..ring.len())
-                                .map(|i| dist2(ring[i], ring[(i + 1) % ring.len()]).sqrt())
-                                .sum::<f64>()
-                        })
-                        .sum::<f64>();
+                let length = 0.5 * core.iter().map(|shape| shape_perimeter(shape)).sum::<f64>();
                 let roundoff = 1e-7 * thickness * length;
                 let uncertainty = roundoff + a.area_error(bounds, tol) + b.area_error(bounds, tol);
                 proved |= resolved_area > uncertainty;
