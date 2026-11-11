@@ -3040,6 +3040,9 @@
     "tests/fixtures/helical_springs/torus_chain.step.gz": "096d00d16baf5a79c8ec1c91b9021c7ce673fe934f831cb3a4c069c793d0dabc",
     "tests/fixtures/hemisphere_one_edge.step": "3c9c0db73bd7dd6b788f6809189317ecb83f39cd0a533b8db3f1c78096ea622d",
     "tests/fixtures/hlr.json.gz": "259ee2a81be31d0367185c2d6a145cba64fe755c2268cf2f71bd45fc04391b54",
+    "tests/fixtures/hole_mouth/README.md": "5a762c520de2edef8dc02470e14e4e8382e97ae08ac8d10209e7d4bbc3575887",
+    "tests/fixtures/hole_mouth/cbore_chamfer.step": "a6a3289744e2054f6892b4dd04cca5172eed365f1bdb8d0491b2e20162fa67a7",
+    "tests/fixtures/hole_mouth/make.py": "7c24fb2fdc7cc1e0cb184bc70d562a74ba9015577ca471a93f88ffda40a91e7c",
     "tests/fixtures/hyperbola_cut_cone.step": "67de49dd4278057e9277e4d8633a8fe49d879e589be224c8429b1d3371168673",
     "tests/fixtures/internal_bore_round.step": "f6657dbb53573bf24d7fdffd4de74438ea3021129cb4967335cb6cad5c807498",
     "tests/fixtures/interrupted_corner.step": "4677d32a9c655eddfa5ef7f4f8f153007fa5b14abdcd95758b0640605b1691da",
@@ -5917,5 +5920,5 @@
     "sections/test/parts/fc9cb0ef3d518aa4.step.gz.json.gz": "ad246bd3ca231dda3e7fe1fc54cd798984e7dcd9da376dcb609c3c42001086f8",
     "step_levels.json.gz": "6ff3ceadb33888e9d529a10b9a880babaf979f4f8d869962215d9d3193902f00"
   },
-  "source_commit": "c4577742fb7822e73235dc2f66dd000d1e50d8f0"
+  "source_commit": "0b9c04a2f4643499cb91608b9b1f85fd5f54d3a8"
 }
