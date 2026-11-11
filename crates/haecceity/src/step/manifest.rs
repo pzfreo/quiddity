@@ -19,9 +19,9 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::PathBuf;
 
-pub const FORMAT: &str = "quiddity-manifest/1";
-/// Independent of the per-product geometry limits. Counts definitions visited and solid or
-/// surface-model instances emitted; callers may raise it for large assembly manifests.
+pub const FORMAT: &str = "quiddity-manifest/2";
+/// Independent of the per-product geometry limits. Counts definitions visited and assembly
+/// occurrences with bodies emitted; callers may raise it for large assembly manifests.
 pub const INSTANCE_LIMIT: usize = 1_000_000;
 const CHUNK: usize = 8 * 1024 * 1024;
 /// Bound a manifest-controlled allocation before reading a source header.
@@ -97,6 +97,7 @@ pub struct Product {
     /// Number of distinct EDGE_CURVE entities; edge order is reader-owned.
     pub edge_count: u64,
 }
+/// One occurrence of a product, placing all its solids and surface models together.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Instance {
     pub product: String,

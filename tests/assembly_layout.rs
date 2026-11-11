@@ -397,7 +397,7 @@ fn contiguous_uses_source_definition_order() {
 }
 
 #[test]
-fn scale_counts_solid_instances_instead_of_occurrences() {
+fn scale_counts_occurrences_with_all_solids_together() {
     let bytes = std::fs::read(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/tests/fixtures/two_solids.step"
@@ -405,7 +405,7 @@ fn scale_counts_solid_instances_instead_of_occurrences() {
     .unwrap();
     let original = manifest::scan(Cursor::new(&bytes), &ScanOptions::default()).unwrap();
     assert_eq!(original.products.len(), 1);
-    assert_eq!(original.instances.len(), 2);
+    assert_eq!(original.instances.len(), 1);
     for layout in [Layout::Contiguous, Layout::Runs, Layout::Shuffled] {
         let mut out = Vec::new();
         let mut sidecar = Vec::new();
@@ -427,7 +427,7 @@ fn scale_counts_solid_instances_instead_of_occurrences() {
         let e: Expected = serde_json::from_slice(&sidecar).unwrap();
         let m = manifest::scan(Cursor::new(&out), &ScanOptions::default()).unwrap();
         assert_eq!(e.products, 3);
-        assert_eq!(e.instances, 8);
+        assert_eq!(e.instances, 7);
         assert_eq!(m.instances.len(), e.instances);
         assert_eq!(m.products.len(), e.products);
         assert_eq!(out.len() as u64, e.bytes);
@@ -437,15 +437,15 @@ fn scale_counts_solid_instances_instead_of_occurrences() {
         }
         let paths: std::collections::BTreeSet<_> =
             m.instances.iter().map(|i| i.path.clone()).collect();
-        assert_eq!(paths.len(), 4);
+        assert_eq!(paths.len(), 7);
         let placement = |i: usize| {
             let p = &m.instances[i].placement;
             (p[0][3], p[1][3])
         };
         assert_eq!(placement(0), (0., 0.));
-        assert_eq!(placement(2), (1000., 0.));
-        assert_eq!(placement(4), (2000., 0.));
-        assert_eq!(placement(6), (3000., 0.));
+        assert_eq!(placement(1), (1000., 0.));
+        assert_eq!(placement(2), (2000., 0.));
+        assert_eq!(placement(3), (3000., 0.));
     }
 }
 
