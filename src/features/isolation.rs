@@ -286,6 +286,60 @@ mod tests {
     }
 
     #[test]
+    fn shared_analysis_discovers_once_and_preserves_failure_boundaries() {
+        use crate::{correspondence, evidence_view, frames::RecordFrame, recognition};
+        let part = island_pocket();
+        TRACE.with(|trace| trace.replace(Some(Vec::new())));
+        let (_, evidence) = correspondence::recognise_with_evidence(&part);
+        assert!(evidence.is_ok());
+        let trace = TRACE.with(|trace| trace.replace(None)).unwrap();
+        assert_eq!(
+            trace
+                .iter()
+                .filter(|step| **step == ("countersinks", "discover"))
+                .count(),
+            1
+        );
+        assert_eq!(
+            trace
+                .iter()
+                .filter(|step| **step == ("section_recesses", "section_recess_projection"))
+                .count(),
+            1
+        );
+        for (family, stage) in [
+            ("pockets", "discover"),
+            ("section_recesses", "section_recess_projection"),
+            ("slots", "claim_rectangular_end_walls"),
+            ("pockets", "claim_floor_spheres"),
+            ("cylindrical_profiles", "append"),
+        ] {
+            let rec = injected(family, stage, || correspondence::recognise(&part));
+            let framed = matches!(rec.frame, RecordFrame::Inferred(_));
+            let evidence = injected(family, stage, || evidence_view::document(&part, framed))
+                .map(|value| serde_json::to_value(value).unwrap());
+            let (joint_rec, joint_evidence) = injected(family, stage, || {
+                correspondence::recognise_with_evidence(&part)
+            });
+            assert_eq!(
+                serde_json::to_value(&rec).unwrap(),
+                serde_json::to_value(&joint_rec).unwrap(),
+                "{family}/{stage}"
+            );
+            assert_eq!(
+                serde_json::to_value(recognition::document(&rec, part.faces.len())).unwrap(),
+                serde_json::to_value(recognition::document(&joint_rec, part.faces.len())).unwrap(),
+                "{family}/{stage}"
+            );
+            assert_eq!(
+                evidence,
+                joint_evidence.map(|value| serde_json::to_value(value).unwrap()),
+                "{family}/{stage}"
+            );
+        }
+    }
+
+    #[test]
     fn pocket_panic_preserves_independent_families_on_annular_island() {
         // The #805 construction: box stock, a box recess and a box island (16 faces).
         let part = island_pocket();

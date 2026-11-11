@@ -70,6 +70,8 @@ mod section_recess_publication;
 mod section_recesses;
 #[path = "sections.rs"]
 mod sections;
+#[path = "shared_analysis.rs"]
+mod shared_analysis;
 #[path = "step_levels.rs"]
 mod step_levels;
 #[path = "tie_breaks.rs"]

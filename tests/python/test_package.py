@@ -230,7 +230,10 @@ def test_helical_spring_record():
         "outer_bound", "edge_element", "face_surface",
     ]],
 ])
-@pytest.mark.parametrize("operation", [quiddity.recognise, quiddity.evidence, quiddity.fingerprints])
+@pytest.mark.parametrize("operation", [
+    quiddity.recognise, quiddity.evidence, quiddity.fingerprints,
+    quiddity.recognise_with_evidence,
+])
 def test_boundless_face_is_refused(fixture, operation):
     owner, slot = {
         "loop_edges": ("EDGE_LOOP", "edge_list"),

@@ -284,20 +284,41 @@ pub(crate) fn recognise_with<T>(part: &Part, then: impl FnOnce(&Context<'_>, Fea
     })
     .unwrap_or_else(|error| {
         let ctx = Context::new(part);
-        let features = Features {
-            discovery_refusals: BTreeMap::from([(
-                "reconciliation_refusals",
-                vec![discovery::DiscoveryRefusal::new(error, 0..part.faces.len())],
-            )]),
-            ..Features::default()
-        };
+        let features = reconciliation_refusal(part, error);
         then.take().unwrap()(&ctx, features)
     })
 }
 
+pub(crate) fn reconciliation_refusal(part: &Part, error: reconcile::ReconcileError) -> Features {
+    Features {
+        discovery_refusals: BTreeMap::from([(
+            "reconciliation_refusals",
+            vec![discovery::DiscoveryRefusal::new(error, 0..part.faces.len())],
+        )]),
+        ..Features::default()
+    }
+}
+
+pub(crate) type RecessProjection = Option<
+    Result<
+        section_recess_family::SectionRecessProjection,
+        section_recess_family::SectionRecessFamilyError,
+    >,
+>;
+
 /// `recognise` over one completed run.
 pub(crate) fn recognise_in(ctx: &Context<'_>, mut inventory: Inventory) -> Features {
     let projection = project_recesses(ctx, &mut inventory);
+    recognise_projected(ctx, inventory, projection)
+}
+
+/// Publish a run whose section recesses have already been projected. The inventory still
+/// precedes publication post-passes, so evidence can retain its independent face semantics.
+pub(crate) fn recognise_projected(
+    ctx: &Context<'_>,
+    inventory: Inventory,
+    projection: RecessProjection,
+) -> Features {
     let constituents = |family: &str| -> BTreeMap<Vec<usize>, Vec<usize>> {
         inventory.physical.defining[family]
             .iter()
@@ -511,15 +532,7 @@ pub(crate) fn floor_claims_occupied(defining: &Defining) -> BTreeSet<usize> {
 }
 
 /// Both consumers of the recess projection share the same boundary and failure ledger.
-pub(crate) fn project_recesses(
-    ctx: &Context<'_>,
-    inventory: &mut Inventory,
-) -> Option<
-    Result<
-        section_recess_family::SectionRecessProjection,
-        section_recess_family::SectionRecessFamilyError,
-    >,
-> {
+pub(crate) fn project_recesses(ctx: &Context<'_>, inventory: &mut Inventory) -> RecessProjection {
     let mut failures = std::mem::take(&mut inventory.physical.failures);
     let projection = isolation::guarded(
         &mut failures,
