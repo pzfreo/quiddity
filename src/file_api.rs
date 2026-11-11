@@ -111,3 +111,108 @@ pub fn capabilities() -> String {
         "pmi_json_import": cfg!(feature = "json-import"),
     })).expect("capabilities serialise")
 }
+
+/// Recognition of an already read part in its own coordinates, bound to the original source.
+/// Uses the same envelope and serialization as whole-file recognition.
+pub fn recognise_part(part: &Part, source_sha256: &str) -> Result<String, String> {
+    recognise_part_with_warnings(part, source_sha256, "<part>").map(|(json, _)| json)
+}
+
+/// The standard part envelope and the same diagnostics as whole-file recognition.
+pub fn recognise_part_with_warnings(
+    part: &Part,
+    source_sha256: &str,
+    label: &str,
+) -> Result<(String, Vec<String>), String> {
+    let mut recognition = crate::correspondence::recognise(part);
+    recognition.source_sha256 = Some(source_sha256.to_owned());
+    let document = crate::recognition::document(&recognition, part.faces.len());
+    let warnings = serve::recognition_warnings(label, part, &recognition, &document);
+    let output = serve::RecognitionOutput {
+        recognition,
+        document,
+    };
+    Ok((json(&output)?, warnings))
+}
+
+/// Scan a replayable STEP file (including gzip) without writing any sidecars.
+#[cfg(feature = "manifest")]
+pub fn manifest(
+    path: &str,
+    options: &step::manifest::ScanOptions,
+) -> Result<step::manifest::Manifest, String> {
+    let file = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
+    step::manifest::scan(file, options).map_err(|e| format!("{path}: {e}"))
+}
+
+/// Read just one product's ranges and recognise it using the whole-file JSON contract.
+/// Shared-geometry refusals are returned; this never silently parses the whole source.
+#[cfg(feature = "manifest")]
+pub fn recognise_product(
+    path: &str,
+    manifest: &step::manifest::Manifest,
+    id: &str,
+) -> Result<String, String> {
+    recognise_product_with_warnings(path, manifest, id).map(|(json, _)| json)
+}
+
+/// Product recognition and diagnostics, shared by the CLI and the dict-returning Python API.
+#[cfg(feature = "manifest")]
+pub fn recognise_product_with_warnings(
+    path: &str,
+    manifest: &step::manifest::Manifest,
+    id: &str,
+) -> Result<(String, Vec<String>), String> {
+    let file = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
+    let part = manifest
+        .read_product(&file, id)
+        .map_err(|e| format!("{path}: {e}"))?;
+    recognise_part_with_warnings(&part, &manifest.source.sha256, path)
+}
+
+/// Validate a worker's selection before any output is written. Results follow manifest order.
+#[cfg(feature = "manifest")]
+pub fn product_ids(
+    manifest: &step::manifest::Manifest,
+    parts: Option<&[String]>,
+) -> Result<Vec<String>, String> {
+    let mut known = std::collections::HashSet::with_capacity(manifest.products.len());
+    for p in &manifest.products {
+        if !p.id.starts_with('p')
+            || p.id.len() < 2
+            || !p.id[1..].bytes().all(|b| b.is_ascii_digit())
+            || !known.insert(p.id.as_str())
+        {
+            return Err(format!("invalid or duplicate manifest product id {}", p.id));
+        }
+    }
+    if let Some(parts) = parts {
+        let unknown: Vec<_> = parts
+            .iter()
+            .filter(|id| !known.contains(id.as_str()))
+            .map(String::as_str)
+            .collect();
+        if !unknown.is_empty() {
+            return Err(format!(
+                "unknown manifest product ids: {}",
+                unknown.join(", ")
+            ));
+        }
+    }
+    let selected = parts.map(|parts| {
+        parts
+            .iter()
+            .map(String::as_str)
+            .collect::<std::collections::HashSet<_>>()
+    });
+    Ok(manifest
+        .products
+        .iter()
+        .filter(|p| {
+            selected
+                .as_ref()
+                .is_none_or(|selected| selected.contains(p.id.as_str()))
+        })
+        .map(|p| p.id.clone())
+        .collect())
+}

@@ -85,6 +85,12 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Added
 
+- Product recognition over [assembly manifests](docs/assemblies.md): `manifest`
+  scans STEP (including gzip); `recognise --manifest --out-dir` reads selected
+  product ranges, checks hashes and writes product JSON, transforms and refusals.
+  Shared geometry has explicit whole-file fallback. Python exposes `manifest`,
+  `recognise_product` and a lazy `recognise_products` iterator.
+
 - CAx-IF geometric validation property parsing with dimensional unit conversion and
   product/occurrence associations, plus a local haecceity/GVP/OCCT accuracy tool
   and relative-tolerance CI coverage. See `docs/geometric-validation.md`.
