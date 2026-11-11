@@ -1,0 +1,226 @@
+# Reading assemblies by product
+
+A manifest lets quiddity recognise a large STEP assembly one distinct product at a
+time. The scan indexes the source; each recognition reads only the header, common
+records and selected product ranges. Repeated instances share one result in the
+product's own coordinates. Their placements are separate transforms.
+
+```sh
+quiddity manifest big.step -o big.manifest.json
+quiddity recognise big.step --manifest big.manifest.json --out-dir results/
+quiddity recognise big.step --manifest big.manifest.json --out-dir worker/ --parts p0,p7
+```
+
+The existing `quiddity big.step` command is unchanged. `recognise` requires a
+manifest and output directory; it does not replace that command.
+
+## Scan and manifest format
+
+`manifest` writes only `-o`. By default its entity index lives in memory. With
+`--index-dir DIR`, the extent/union index uses a temporary mapped file in that
+existing directory, deleted on success or error. Scanning makes two forward
+passes over a seekable source, retaining structure rather than all geometry
+text. Product and common hashes are included by default.
+
+Gzip sources can be scanned. `source.compressed: true` records that offsets and
+hashes refer to the **uncompressed** bytes. Product recognition refuses compressed
+sources, including gzip detected by its magic bytes. Explicitly decompress and
+scan the resulting file before using range reads; nothing is unpacked implicitly.
+
+The JSON format is `quiddity-manifest/1`. Ranges are half-open `[start, end)` byte
+offsets into the uncompressed source. Product ranges are sorted, non-overlapping
+and coalesced across whitespace and comments.
+
+| Field | Meaning |
+| --- | --- |
+| `format` | Manifest format identifier; incompatible formats are refused |
+| `source` | Whole uncompressed `size` and `sha256`, `header` range, DATA section `data` ranges, and optional `compressed` flag (absent means false) |
+| `reader.haecceity` | Reader version; another version is refused and requires a rescan |
+| `common` | Shared contexts, units and protocol records: `ranges`, `entities`, `sha256`; the hash also covers the header bytes |
+| `products` | Distinct geometric products in reader part order, with ids `p0`, `p1`, … |
+| `products[].product_definition`, `shape` | STEP entity numbers for the product definition and product definition shape |
+| `products[].name`, `product_id` | Product name and STEP PRODUCT identifier |
+| `products[].ranges`, `entities`, `bytes` | Records needed to read this product, their count and summed range lengths; includes the product definition chain |
+| `products[].sha256` | SHA-256 of product range bytes concatenated in ascending offset order |
+| `products[].faces` | Part face index → ADVANCED_FACE entity number |
+| `products[].edge_count` | Distinct EDGE_CURVE count; stage 1 does not publish an ordered edge map |
+| `assemblies` | Assembly `product_definition`, `name`, and `components` containing occurrence and child definition entity numbers |
+| `instances` | `product`, occurrence-chain `path`, and 3×4 `placement` matrix `[R \| t]`, translation in millimetres; one entry per placed solid/surface-model instance |
+| `unowned.presentation`, `unowned.other` | Unread presentation/PMI and other records, as ranges and entity counts |
+| `refusals` | Shared geometry: affected `products`, shared `entity` number and `reason` |
+
+Product ids are local to this source and reader. They are worker selection keys,
+not persistent identities across revisions. The manifest is metadata, not a STEP
+copy, and needs its bound source file.
+
+## Recognition outputs and staleness
+
+`recognise --manifest` writes beneath `--out-dir`:
+
+- `products/<id>.json`: the existing recognition JSON envelope for each successfully
+  read product, in its own coordinates, with part face indices. Its source digest
+  binds the original whole source. No placed copies are generated.
+- `assembly.json`: the manifest's `source` binding and **full** `instances` list,
+  retaining `path` and `placement`. Every worker writes identical bytes atomically.
+- `refusals/<id>.json`: `{product, reason, recovered}` for each refused product,
+  including a shared-geometry refusal recovered by explicit fallback. No record is
+  written for an ordinary success; `refusals/` is empty when none are refused.
+
+`--parts p0,p7` selects manifest ids; all unknown ids are reported before writing.
+Results follow manifest order. Omit `--parts` for every product. Workers with
+**disjoint selections from the same manifest** can share one output directory:
+product/refusal files are separate by id, and each worker atomically replaces the
+same full assembly metadata. Product and refusal records also use temporary files
+beside their destinations followed by rename. Temporary files are deleted on error.
+A selected product now refused loses its old result; an ordinary success clears
+its old refusal. Other products' files are left intact. Across different sources
+or manifests, use separate output directories.
+
+The default read checks file size, common/header hash, selected product hashes,
+face entity order and edge count. A changed byte in a selected product's ranges
+refuses that product. Changes outside the header/common/selected ranges can pass.
+`--verify-source` also reads and hashes the whole source, detecting changes to
+assembly, presentation, comments and unselected products. It fails before writing
+if the whole-source binding differs. Rescan after editing the source.
+
+`--no-product-hashes` disables both product and common/header hash comparisons;
+staleness checking then uses size only, unless `--verify-source` is also supplied.
+Structural validation still applies. This flag does not avoid the selected range
+reads needed for geometry. The lower-level reader also accepts manifests scanned
+without hashes; missing hashes have the same size-only limitation.
+
+Recognition warnings are printed on stderr with the product id, using the same
+diagnostics as `quiddity <file>`.
+
+A source/manifest/IO error exits 1 with `quiddity: …` on stderr. Per-product
+refusals are written to `refusals/<id>.json`, also reported on stderr, and exit 1 after
+other selected products have been attempted. Success exits 0 with no stdout;
+clap usage errors exit 2. Outputs may be partial after an IO failure.
+
+## Shared geometry and fallback
+
+When two products reach the same geometry entity, range reads refuse both and
+name the shared `#N`. The default CLI lists these refusals, with a retry instruction.
+For a complete result set, explicitly permit a whole-file parse:
+
+```sh
+quiddity recognise big.step --manifest big.manifest.json --out-dir results/ \
+  --fallback-whole-file
+```
+
+The flag parses the whole file once for the selected shared-geometry products,
+then reads each part in its own coordinates. With hashes enabled, it verifies the
+full source binding for that parse. `--no-product-hashes` uses size-only checking;
+`--verify-source` still requires the full hash. When combined with fallback, the
+verified snapshot is reused for parsing, so the full source is hashed once. Memory now grows with the entire
+source, so fallback is opt-in. Successfully recovered range refusals
+remain in `refusals/<id>.json` with `recovered: true`; they do not cause a failing exit.
+Hash mismatches and other read errors never trigger fallback.
+
+## Mapping results back to STEP
+
+Face index `i` in `products/p0.json` identifies
+`ADVANCED_FACE #manifest.products[0].faces[i]`. For each instance of `p0`, place
+that face using `instances[k].placement`. Positions transform as `R*x + t`;
+directions use `R` only. The path identifies the occurrence chain from the root.
+This mapping is exact within the bound file. Across revisions, use
+[`correspond`](correspondence.md) on product recognition results.
+
+## Python
+
+```python
+from pathlib import Path
+import quiddity
+
+m = quiddity.manifest(Path("big.step"))  # dict; no output file
+quiddity.manifest("big.step", out="big.manifest.json")
+p0 = quiddity.recognise_product("big.step", m, "p0")  # dict
+for product_id, result in quiddity.recognise_products(
+    "big.step", "big.manifest.json", parts=["p0", "p7"]
+):
+    print(product_id, result["document"]["face_count"])
+```
+
+All paths accept `str` or `os.PathLike`. A `manifest` argument accepts a dict or a
+JSON file path, not inline JSON text. Recognition returns the same envelope as
+`json.loads(quiddity.recognise(...))` for that part; existing `recognise` continues
+to return JSON text. `recognise_products` is a lazy iterator of `(id, result_dict)`
+in manifest order: it validates the selection before reading the first product,
+then reads and recognises one at each iteration. Path manifests are read through a
+Rust buffered reader; selections retain only requested products. The immutable
+handle is loaded once and reused for the whole iteration. Unknown ids and reader refusals
+raise `ValueError`; a refusal stops iteration at that product. Use individual
+calls to collect successes around refusals. These Python functions do not perform
+whole-file fallback. Scan, read and recognition run with the GIL released.
+
+## Limits and scope
+
+With `--parts`, recognition streams the manifest, validates every product id,
+retains only selected product metadata, and streams the full instance list into
+atomic `assembly.json` output. Python path manifests with a selection use the same
+loader. Memory grows with selected geometry and metadata, plus a temporary set of
+product ids; unselected face arrays and instances are not retained. Whole runs and
+Python dict manifests retain the full manifest. The scan's extent/union index uses 16 bytes per
+entity, with additional ownership, references, retained structure and range
+metadata; `--index-dir` maps that index, not all scan allocations. Many short
+ranges increase seek and metadata costs. The manifest scan defaults to one million
+visited definitions/emitted instances; the existing geometry reader's depth,
+instance and face limits still apply to each product read.
+
+Stage 1 records presentation/PMI ranges but does not read PMI or presentation per
+product. It does not split STEP, export placed copies, or provide cross-revision
+product identity. Existing whole-file PMI and B-rep commands remain available.
+
+## Generating test files
+
+The example uses the manifest scanner to group entities and preserves each
+statement's bytes and ids when changing layout:
+
+```sh
+cargo run --release -j 6 --example assembly_layout -- assembly.step \
+  --layout runs --runs 8 --seed 190 -o /tmp/runs.step
+cargo run --release -j 6 --example assembly_layout -- assembly.step \
+  --layout shuffled --seed 190 -o /tmp/shuffled.step
+cargo run --release -j 6 --example assembly_layout -- assembly.step \
+  --scale --distinct 20 --instances 40 --target-bytes 200000000 \
+  -o /tmp/scale.step
+```
+
+`contiguous` groups products in source definition order, with shared records in a prefix.
+`runs` cuts each product into `--runs` runs and interleaves them with a seeded product schedule. `shuffled`
+permutes all entity statements. Scale mode copies products with disjoint id
+blocks, suffixes `PRODUCT.id`, and places occurrences under a synthetic root on
+a grid (1,000 source length units). `--distinct` and `--instances` are minimum
+counts; instances count placed solids, so a multi-solid product contributes several
+per occurrence. Complete product copies, each with an occurrence, are added until
+`--target-bytes` is reached. It never fills the target with padding or unused
+entities. Extra requested instances reuse the generated products.
+
+The sidecar defaults to `OUTPUT.expected.json` (`--sidecar` overrides it) and
+records actual bytes, total entities, products and instances, plus each product's
+definition id, face count and entity count. Contiguous scale output and sidecar
+rows stream directly from source-sized templates. Runs and shuffled scale output
+use temporary statement, extent and group files, removed on completion; their
+indexes and schedules stay on disk. The scale shuffle is a seeded affine
+bijection over all entity positions. Memory depends on the source template,
+not the target size; temporary disk space can exceed twice the output size.
+Generated files belong in scratch, never in the repository.
+
+The fixture and optional gramil CLI tests compare every product in all three
+layouts against whole-file recognition, including face ids. Set
+`QUIDDITY_GRAMIL` to the gramil pack's STEP directory; as with the existing gramil
+tests, absent local data skips with a message, and `QUIDDITY_GRAMIL_REQUIRED=1`
+makes absence fail. CI currently checks out the optional corpus but not gramil.
+
+The approximately 200 MB memory/limits test runs in the ordinary Linux CI shards
+(and the full macOS suite). Run it separately with:
+
+```sh
+cargo test --release -j 6 --test assembly_layout scale_200mb -- --exact --nocapture
+```
+
+It checks both index backends, sidecar counts, selected reading past the aggregate
+whole-file face limit, a deliberately low manifest instance limit, and temporary
+index cleanup. The AP242 presentation regression checks complete reference
+closures and whole-file/product equivalence in all layouts. For memory comparisons,
+record both RSS and peak physical footprint: RSS includes clean mapped index pages.

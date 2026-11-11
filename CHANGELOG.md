@@ -85,9 +85,31 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Added
 
+- `assembly_layout` example generates contiguous, interleaved and seeded shuffled
+  assemblies, and streams scale fixtures with fresh product ids, grid placements
+  and expected-count sidecars. Copied reference closures include AP242 presentation
+  dependencies, and synthetic ids stay ordered within copy strides. Fixture/gramil CLI tests compare all three layouts
+  with whole-file recognition; a 200 MB acceptance checks memory/limits paths.
+
+- Product recognition over [assembly manifests](docs/assemblies.md): `manifest`
+  scans STEP (including gzip); `recognise --manifest --out-dir` reads selected
+  product ranges, checks hashes and writes product JSON, transforms and refusals.
+  Selected path manifests stream metadata and full assembly instances while retaining
+  only requested products; extracted geometry is parsed once.
+  Shared geometry has explicit whole-file fallback. Python exposes `manifest`,
+  `recognise_product` and a lazy `recognise_products` iterator.
+
 - CAx-IF geometric validation property parsing with dimensional unit conversion and
   product/occurrence associations, plus a local haecceity/GVP/OCCT accuracy tool
   and relative-tolerance CI coverage. See `docs/geometric-validation.md`.
+
+- haecceity’s `step::manifest` scans large STEP assemblies into serde manifests and reads
+  individual products through checked byte ranges, with source/product hashes, hierarchy and
+  placements, topology IDs, shared-geometry refusals, and an optional mapped index (#190, PR 1).
+  The optional structured Part 21 lexer reads bounded chunks across arbitrary boundaries,
+  while lossless editing retains its original extent scanner. Manifests store the ordered face
+  map; existing product reads supply edge numbering. Context ownership and all post-scan
+  placement/hash work use compact indexes and one forward replay, including gzip sources.
 
 - `internal_bevels` recognises bounded concave planar corner treatments with measured
   support legs, angle and run, backed by a complete material-filled wedge proof (#213).

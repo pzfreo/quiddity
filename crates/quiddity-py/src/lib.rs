@@ -126,6 +126,68 @@ fn step_entities(py: Python<'_>, step: &Bound<'_, PyAny>) -> PyResult<String> {
         .map_err(PyValueError::new_err)
 }
 
+/// JSON conversion belongs to the small Python facade; scanning/reading stays off the GIL.
+#[pyfunction]
+#[pyo3(signature = (path, out=None))]
+fn _manifest(py: Python<'_>, path: String, out: Option<String>) -> PyResult<String> {
+    py.detach(|| {
+        let manifest = file_api::manifest(&path, &Default::default())?;
+        let json = file_api::json(&manifest)?;
+        if let Some(out) = out {
+            std::fs::write(&out, &json).map_err(|e| format!("{out}: {e}"))?;
+        }
+        Ok::<_, String>(json)
+    })
+    .map_err(PyValueError::new_err)
+}
+
+/// One immutable parsed manifest, reused across a lazy Python iteration.
+#[pyclass(frozen)]
+struct ManifestHandle {
+    manifest: step::manifest::Manifest,
+}
+
+#[pymethods]
+impl ManifestHandle {
+    #[new]
+    fn new(py: Python<'_>, manifest_json: String) -> PyResult<Self> {
+        py.detach(|| {
+            serde_json::from_str(&manifest_json)
+                .map(|manifest| Self { manifest })
+                .map_err(|e| e.to_string())
+        })
+        .map_err(PyValueError::new_err)
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (path, parts=None))]
+    fn from_path(py: Python<'_>, path: String, parts: Option<Vec<String>>) -> PyResult<Self> {
+        py.detach(|| -> Result<Self, String> {
+            let input =
+                std::io::BufReader::new(std::fs::File::open(&path).map_err(|e| e.to_string())?);
+            let manifest = if let Some(parts) = parts {
+                step::manifest::Manifest::read_selected(input, &parts, |_| Ok(()))
+                    .map_err(|e| e.to_string())?
+            } else {
+                serde_json::from_reader(input).map_err(|e| e.to_string())?
+            };
+            Ok(Self { manifest })
+        })
+        .map_err(PyValueError::new_err)
+    }
+
+    #[pyo3(signature = (parts=None))]
+    fn product_ids(&self, py: Python<'_>, parts: Option<Vec<String>>) -> PyResult<Vec<String>> {
+        py.detach(|| file_api::product_ids(&self.manifest, parts.as_deref()))
+            .map_err(PyValueError::new_err)
+    }
+
+    fn recognise(&self, py: Python<'_>, path: String, product_id: String) -> PyResult<String> {
+        py.detach(|| file_api::recognise_product(&path, &self.manifest, &product_id))
+            .map_err(PyValueError::new_err)
+    }
+}
+
 #[pyfunction]
 fn capabilities() -> String {
     format!("{}\n", file_api::capabilities())
@@ -143,6 +205,8 @@ fn cli(py: Python<'_>, argv: Vec<String>) -> PyResult<u8> {
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_function(wrap_pyfunction!(recognise, m)?)?;
+    m.add_function(wrap_pyfunction!(_manifest, m)?)?;
+    m.add_class::<ManifestHandle>()?;
     m.add_function(wrap_pyfunction!(evidence, m)?)?;
     m.add_function(wrap_pyfunction!(anchor, m)?)?;
     m.add_function(wrap_pyfunction!(fingerprints, m)?)?;

@@ -33,9 +33,14 @@ latest one.
 
 Cargo features: `cli` (the command line) and `presentation` (drawing PMI callouts) are on by
 default. A library build that does not want clap (WASM, say) can use
-`default-features = false, features = ["presentation"]`. Off by default:
+`default-features = false, features = ["presentation"]`. `manifest` enables the range-based
+assembly APIs and is included by `cli`. Off by default:
 - `json-import`: the versioned PMI JSON interchange (`pmi json …` commands).
 - `f3d`: Autodesk Fusion `.f3d` input (visible solid geometry only, no PMI; see [Fusion input](docs/f3d.md)).
+
+Read large assemblies one product at a time with `quiddity manifest` and
+`quiddity recognise --manifest`; see [assembly manifests](docs/assemblies.md)
+for range checks, placements, fallback and Python APIs.
 
 ## Quick start
 
@@ -172,6 +177,9 @@ quiddity evidence <file.step> [--framed]              the recognition evidence f
 quiddity fingerprints <file.step>                     the features' fingerprints
 quiddity capabilities                                 this build's versioned capabilities
 quiddity parts <file.step>                            list an assembly's parts
+quiddity manifest <file.step> -o <manifest.json>       scan product ranges
+quiddity recognise <file.step> --manifest <manifest.json> --out-dir <dir> [--parts p0,p7]
+                                                       recognise products and write results
 quiddity pmi read <file.step> [--part N]              the file's PMI as JSON
 quiddity pmi check <file.step> <pmi.json>             validate a PMI document against the part
 quiddity pmi write <file.step> <pmi.json> -o <out.step> [--mode add|replace|remove]
@@ -184,8 +192,11 @@ quiddity --help
 
 `quiddity <command> --help` gives a command's arguments.
 
-Every command prints JSON. Files may be `.step`, `.stp` or gzipped. The exit code is 0 for
-success, 1 for an unreadable file or a refused operation, and 2 for wrong usage.
+Recognition and inspection commands print JSON; `manifest` and `recognise --manifest`
+write their requested files. `completions`, help and version print text. STEP inputs may be
+`.step`, `.stp` or gzipped; manifest product reads require an uncompressed source.
+The exit code is 0 for success, 1 for an unreadable file or a refused operation,
+and 2 for wrong usage.
 
 `quiddity serve` keeps one process open for applications: one JSON request per line on
 stdin, one response line per request on stdout, e.g. `{"id":1,"op":"recognise","step":"part.step"}`.

@@ -23,13 +23,16 @@ default = ["presentation", "cli"]
 # The `quiddity` command line (`quiddity::cli`, the binary and the Python console script) and
 # its shell completion scripts. Library consumers that build for WASM can turn it off
 # (`default-features = false`) so clap stays out of their build.
-cli = ["dep:clap", "dep:clap_complete"]
+cli = ["dep:clap", "dep:clap_complete", "dep:tempfile", "manifest"]
+# Range-based assembly scan/read APIs, also used by the CLI and Python wheel.
+manifest = ["haecceity/manifest"]
 presentation = ["haecceity/presentation"]
 json = ["haecceity/json"]
 json-import = ["json", "haecceity/json-import"]
 f3d = ["haecceity/f3d"]
 
 [dependencies]
+tempfile = { version = "3", optional = true }
 clap = { version = "4.6.1", features = ["derive"], optional = true }
 clap_complete = { version = "4.6", optional = true }
 flate2 = "1.1.10"
@@ -39,4 +42,7 @@ serde_json = { version = "1.0.151", features = ["float_roundtrip"] }
 sha2 = "0.11.0"
 
 [dev-dependencies]
+clap = { version = "4.6.1", features = ["derive"] }
+haecceity = { path = "crates/haecceity", version = "=0.4.9", default-features = false, features = ["manifest"] }
+tempfile = "3"
 libc = "0.2"

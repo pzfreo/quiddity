@@ -107,6 +107,36 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// scan STEP product ranges and write only the requested manifest
+    Manifest {
+        #[arg(value_name = "FILE.STEP")]
+        file: String,
+        #[arg(short = 'o', long = "output", value_name = "MANIFEST.JSON")]
+        out: String,
+        /// directory for a temporary mapped index (deleted after scanning)
+        #[arg(long, value_name = "DIR")]
+        index_dir: Option<PathBuf>,
+    },
+    /// recognise selected products in their own coordinates through a manifest
+    Recognise {
+        #[arg(value_name = "FILE.STEP")]
+        file: String,
+        #[arg(long, value_name = "MANIFEST.JSON")]
+        manifest: String,
+        #[arg(long, value_name = "DIR")]
+        out_dir: PathBuf,
+        #[arg(long, value_delimiter = ',', value_name = "p0,p7,…")]
+        parts: Option<Vec<String>>,
+        /// also read and hash the entire source
+        #[arg(long)]
+        verify_source: bool,
+        /// use size-only staleness checks (also skips common/header hashes)
+        #[arg(long)]
+        no_product_hashes: bool,
+        /// parse the whole source for shared geometry; memory grows with the entire file
+        #[arg(long)]
+        fallback_whole_file: bool,
+    },
     /// match two revisions' features and print the correspondence as JSON
     Correspond {
         /// the old revision: a recognition result written by `quiddity <file.step>`, or a STEP
@@ -216,6 +246,32 @@ pub fn main(args: &[String]) -> u8 {
         (None, None) => return usage_error(&[], "a STEP file or a command is needed"),
     };
     let result = match command {
+        Command::Manifest {
+            file,
+            out,
+            index_dir,
+        } => {
+            return finish(manifest_write(&file, &out, index_dir));
+        }
+        Command::Recognise {
+            file,
+            manifest,
+            out_dir,
+            parts,
+            verify_source,
+            no_product_hashes,
+            fallback_whole_file,
+        } => {
+            return finish(manifest_recognise(
+                &file,
+                &manifest,
+                &out_dir,
+                parts.as_deref(),
+                verify_source,
+                no_product_hashes,
+                fallback_whole_file,
+            ));
+        }
         Command::Serve => {
             return match serve::serve(std::io::stdin().lock(), std::io::stdout().lock()) {
                 Ok(()) => 0,
@@ -746,4 +802,319 @@ fn pmi_write(w: &WriteArgs, mode: Mode, policy: PresentationPolicy) -> Result<St
     let json =
         pmi_json::write_report_json(mode, policy, &parts, &input, &output, &report, &findings);
     Ok(serde_json::to_string_pretty(&json).expect("JSON serialises"))
+}
+
+/// File-producing commands have no stdout payload.
+fn finish(result: Result<(), String>) -> u8 {
+    match result {
+        Ok(()) => 0,
+        Err(error) => {
+            eprintln!("quiddity: {error}");
+            1
+        }
+    }
+}
+
+fn manifest_write(path: &str, out: &str, index_dir: Option<PathBuf>) -> Result<(), String> {
+    let options = crate::kernel::step::manifest::ScanOptions {
+        index_dir,
+        ..Default::default()
+    };
+    let manifest = crate::file_api::manifest(path, &options)?;
+    std::fs::write(out, crate::file_api::json(&manifest)?).map_err(|e| format!("{out}: {e}"))
+}
+
+#[derive(serde::Serialize)]
+struct ProductRefusal {
+    product: String,
+    reason: String,
+    /// True only when a shared-geometry range refusal was recovered by an explicit fallback.
+    recovered: bool,
+}
+
+/// Replace an output atomically; every temporary file stays inside the output directory.
+fn atomic_json(path: &Path, json: &str) -> Result<(), String> {
+    use std::io::Write;
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("{}: no parent directory", path.display()))?;
+    let mut temp = tempfile::Builder::new()
+        .prefix(".quiddity-")
+        .tempfile_in(parent)
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    temp.write_all(json.as_bytes())
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    temp.persist(path)
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    Ok(())
+}
+
+fn remove_output(path: &Path) -> Result<(), String> {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!("{}: {e}", path.display())),
+    }
+}
+
+/// Pretty output identical to the full assembly JSON, retaining one instance only.
+struct AssemblyStream<W: std::io::Write> {
+    out: W,
+    first: bool,
+}
+impl<W: std::io::Write> AssemblyStream<W> {
+    fn new(mut out: W) -> Result<Self, String> {
+        out.write_all(b"{\n  \"instances\": [")
+            .map_err(|e| e.to_string())?;
+        Ok(Self { out, first: true })
+    }
+    fn instance(&mut self, i: &crate::kernel::step::manifest::Instance) -> Result<(), String> {
+        if !self.first {
+            self.out.write_all(b",").map_err(|e| e.to_string())?;
+        }
+        self.out.write_all(b"\n").map_err(|e| e.to_string())?;
+        self.first = false;
+        let value = serde_json::to_value(i).map_err(|e| e.to_string())?;
+        for (n, line) in serde_json::to_string_pretty(&value)
+            .map_err(|e| e.to_string())?
+            .lines()
+            .enumerate()
+        {
+            if n > 0 {
+                self.out.write_all(b"\n").map_err(|e| e.to_string())?;
+            }
+            write!(self.out, "    {line}").map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+    fn finish(mut self, source: &crate::kernel::step::manifest::Source) -> Result<(), String> {
+        if !self.first {
+            self.out.write_all(b"\n  ").map_err(|e| e.to_string())?;
+        }
+        self.out
+            .write_all(b"],\n  \"source\": ")
+            .map_err(|e| e.to_string())?;
+        let value = serde_json::to_value(source).map_err(|e| e.to_string())?;
+        for (n, line) in serde_json::to_string_pretty(&value)
+            .map_err(|e| e.to_string())?
+            .lines()
+            .enumerate()
+        {
+            if n > 0 {
+                self.out.write_all(b"\n  ").map_err(|e| e.to_string())?;
+            }
+            self.out
+                .write_all(line.as_bytes())
+                .map_err(|e| e.to_string())?;
+        }
+        self.out.write_all(b"\n}\n").map_err(|e| e.to_string())?;
+        self.out.flush().map_err(|e| e.to_string())
+    }
+}
+
+fn manifest_recognise(
+    path: &str,
+    manifest_path: &str,
+    out: &Path,
+    parts: Option<&[String]>,
+    verify_source: bool,
+    no_product_hashes: bool,
+    fallback: bool,
+) -> Result<(), String> {
+    use crate::kernel::step::{StepFile, manifest::Manifest};
+    use std::collections::HashMap;
+    // Stage beside the nearest existing output ancestor, on the destination's
+    // filesystem, without creating an output directory for an invalid manifest.
+    let parent = out
+        .ancestors()
+        .find(|p| p.is_dir())
+        .unwrap_or_else(|| Path::new("."));
+    let mut assembly_temp = tempfile::Builder::new()
+        .prefix(".quiddity-assembly-")
+        .tempfile_in(parent)
+        .map_err(|e| e.to_string())?;
+    let mut assembly_stream = AssemblyStream::new(std::io::BufWriter::new(&mut assembly_temp))?;
+    let input = std::io::BufReader::new(
+        std::fs::File::open(manifest_path).map_err(|e| format!("{manifest_path}: {e}"))?,
+    );
+    let mut manifest: Manifest = if let Some(parts) = parts {
+        Manifest::read_selected(input, parts, |i| {
+            assembly_stream
+                .instance(&i)
+                .map_err(crate::kernel::step::StepError::Unsupported)
+        })
+        .map_err(|e| format!("{manifest_path}: {e}"))?
+    } else {
+        let m: Manifest =
+            serde_json::from_reader(input).map_err(|e| format!("{manifest_path}: {e}"))?;
+        for i in &m.instances {
+            assembly_stream.instance(i)?;
+        }
+        m
+    };
+    assembly_stream.finish(&manifest.source)?;
+    let ids = crate::file_api::product_ids(&manifest, parts)?;
+    let file = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
+    let mut magic = [0; 2];
+    let mut input = &file;
+    let n = std::io::Read::read(&mut input, &mut magic).map_err(|e| e.to_string())?;
+    if manifest.source.compressed || (n == 2 && magic == [31, 139]) {
+        return Err(format!(
+            "{path}: compressed source cannot be read by ranges; supply an uncompressed source and rescan"
+        ));
+    }
+    if file.metadata().map_err(|e| e.to_string())?.len() != manifest.source.size {
+        return Err(format!("{path}: source size mismatch"));
+    }
+    if no_product_hashes {
+        manifest.common.sha256 = None;
+        for p in &mut manifest.products {
+            p.sha256 = None;
+        }
+    }
+    let mut shared_by_product: HashMap<&str, Vec<_>> = HashMap::new();
+    for refusal in &manifest.refusals {
+        for id in &refusal.products {
+            shared_by_product
+                .entry(id.as_str())
+                .or_default()
+                .push(refusal);
+        }
+    }
+    let needs_fallback = fallback
+        && ids
+            .iter()
+            .any(|id| shared_by_product.contains_key(id.as_str()));
+    // When fallback needs the entire snapshot, hash those exact bytes once and reuse them.
+    // Without fallback the explicit verification remains a streaming whole-source read.
+    let mut verified_snapshot = if verify_source && needs_fallback {
+        let bytes = std::fs::read(path).map_err(|e| format!("{path}: {e}"))?;
+        manifest
+            .verify_source(std::io::Cursor::new(&bytes))
+            .map_err(|e| format!("{path}: {e}"))?;
+        Some(bytes)
+    } else {
+        if verify_source {
+            manifest
+                .verify_source(&file)
+                .map_err(|e| format!("{path}: {e}"))?;
+        }
+        None
+    };
+    for directory in ["products", "refusals"] {
+        std::fs::create_dir_all(out.join(directory))
+            .map_err(|e| format!("{}: {e}", out.display()))?;
+    }
+    assembly_temp
+        .persist(out.join("assembly.json"))
+        .map_err(|e| e.to_string())?;
+    let mut whole = None;
+    let mut failed = false;
+    for id in &ids {
+        let shared: Vec<_> = shared_by_product
+            .get(id.as_str())
+            .into_iter()
+            .flatten()
+            .map(|r| format!("{} (shared entity #{})", r.reason, r.entity))
+            .collect();
+        let mut recovered = false;
+        let result = if shared.is_empty() {
+            crate::file_api::recognise_product_with_warnings(path, &manifest, id)
+        } else if fallback {
+            if whole.is_none() {
+                whole = Some((|| -> Result<_, String> {
+                    let bytes = match verified_snapshot.take() {
+                        Some(bytes) => bytes,
+                        None => std::fs::read(path).map_err(|e| format!("{path}: {e}"))?,
+                    };
+                    if bytes.len() as u64 != manifest.source.size {
+                        return Err(format!("{path}: source size mismatch"));
+                    }
+                    if !no_product_hashes && !verify_source {
+                        manifest
+                            .verify_source(std::io::Cursor::new(&bytes))
+                            .map_err(|e| format!("{path}: {e}"))?;
+                    }
+                    let whole = StepFile::read(&bytes).map_err(|e| format!("{path}: {e}"))?;
+                    let indices: HashMap<_, _> = whole
+                        .parts
+                        .iter()
+                        .enumerate()
+                        .map(|(i, p)| (p.product_definition, i))
+                        .collect();
+                    Ok((whole, indices))
+                })());
+            }
+            let product = manifest.product(id).map_err(|e| e.to_string())?;
+            whole
+                .as_ref()
+                .expect("fallback attempted")
+                .as_ref()
+                .map_err(|e| format!("product {id}: whole-file fallback failed: {e}"))
+                .and_then(|(whole, indices)| {
+                    let index = *indices.get(&product.product_definition).ok_or_else(|| {
+                        format!("product {id}: definition missing from whole source")
+                    })?;
+                    let definition = &whole.parts[index];
+                    if definition.faces != product.faces
+                        || definition.edges.len() as u64 != product.edge_count
+                    {
+                        return Err(format!(
+                            "product {id}: face order or edge count differs from manifest"
+                        ));
+                    }
+                    whole.part(index).map_err(|e| format!("product {id}: {e}"))
+                })
+                .and_then(|part| {
+                    crate::file_api::recognise_part_with_warnings(
+                        &part,
+                        &manifest.source.sha256,
+                        path,
+                    )
+                })
+                .inspect(|_| recovered = true)
+        } else {
+            Err(format!(
+                "product {id}: {}; retry with --fallback-whole-file (parses the entire source)",
+                shared.join("; ")
+            ))
+        };
+        let dest = out.join("products").join(format!("{id}.json"));
+        let refusal = match result {
+            Ok((json, warnings)) => {
+                for warning in warnings {
+                    eprintln!("quiddity: product {id}: {warning}");
+                }
+                atomic_json(&dest, &json)?;
+                recovered.then(|| ProductRefusal {
+                    product: id.clone(),
+                    reason: shared.join("; "),
+                    recovered: true,
+                })
+            }
+            Err(reason) => {
+                remove_output(&dest)?;
+                eprintln!("quiddity: {reason}");
+                failed = true;
+                Some(ProductRefusal {
+                    product: id.clone(),
+                    reason,
+                    recovered: false,
+                })
+            }
+        };
+        let dest = out.join("refusals").join(format!("{id}.json"));
+        if let Some(refusal) = refusal {
+            atomic_json(&dest, &crate::file_api::json(&refusal)?)?;
+        } else {
+            remove_output(&dest)?;
+        }
+    }
+    if failed {
+        return Err(format!(
+            "product recognition refused; see {}",
+            out.join("refusals").display()
+        ));
+    }
+    Ok(())
 }
