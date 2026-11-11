@@ -1263,57 +1263,60 @@ does not acquire a new candidate family.
 (the cylindrical mouth diameter), radial `size`, axial `depth`, `angle` (degrees
 from the transverse top face, **not** included cone angle), and `faces` (cone face
 indices). Both exterior ends may carry entries; array order does not assert a
-machining entry end. Patterns and intrinsic fingerprints compare the sorted
-size specifications, excluding placement and face indices. Empty arrays are
-omitted, and old records deserialize with no treatments. Rust struct literals
-must supply the new field.
+machining entry end. Empty arrays are omitted, and old hole records deserialize
+with no treatments. Rust struct literals must supply the new field.
 
-The hole retains a machining detail and face references; the cone itself is a
-turned `chamfers` record. This follows the edge-treatment family: it is a convex
-axisymmetric edge break, whereas `internal_bevels` proves concave planar strips.
-The cone is consulted evidence on the hole (like a composed countersink), not a
-new defining cylindrical wall. Each chamfer independently proves its cylinder and
-exterior plane on one valid solid. This ownership also keeps conical edge breaks
-out of drilled-wall predictions in the independent label ratchet. No class mapping
-or score floor is changed.
+This is a composed hole detail, like a mouth attachment, rather than a separate
+correspondence feature. `internal_bevels` proves concave planar strips, whereas
+this is a convex axisymmetric edge break. Existing turned `chamfers` describes
+external-cylinder edges. Making every small hole-mouth trim another independent
+chamfer feature also adds indistinguishable features on symmetric hole patterns,
+expanding existing correspondence ambiguities. The nested record describes the
+machining note without introducing another feature identity. Hole patterns compare
+the sorted treatment sizes as part of their machining specifications.
 
-New mouth chamfers append after both existing plain/turned and oriented chamfers
-in the merged publication, preserving both pools' ranks. Their `axis` is an explicit file-coordinate vector; scalar legs and acute
-`angle` follow the existing chamfer convention. The hole's nested `angle` instead
-names the angle from its top face, so an unequal bevel has an unambiguous machining
-note. Rust `Chamfer.axis` now uses `ChamferAxis` (`Principal(char)` or
-`Direction([f64;3])`), an alias of the existing `FilletAxis` presentation type.
-Legacy principal-axis JSON stays unchanged.
+The cone and its support plane are consulted evidence on the hole and must share
+its valid solid. The cone is claimed through the nested treatment; the plane is
+only support. `Record.faces` remains the core defining face set used by the
+fingerprint and stable anchor. `Record.claimed_faces()` additionally iterates the
+proved `mouth_chamfers[*].faces` for holes, and complete face accounting uses that
+union. It does **not** claim arbitrary consulted faces, support planes, or nested
+exit-obstruction faces. Patterns retain their existing defining member-face union;
+the individual hole owns its treatment. Existing readers can keep using the core
+`faces` for saved IDs and inspect the sub-record for chamfer selection.
+
+Treatment annotations do not enter hole fingerprints: the bore's identity and
+all existing correspondence evidence stay unchanged. Consumers updating chamfer
+notes should compare the treatment parameters. The `face_claims`/`as_compare`
+benchmark scores defining-face unions; it does not score these nested treatment
+claims. Its unchanged scores therefore do not imply unchanged complete face
+accounting. No class mapping, score floor, or correspondence allowance is changed.
 
 Recognition requires a full circular cone, a coaxial internal cylinder sharing
 its minor end circle, and an outward-facing transverse plane sharing its major
 circle. Both joins must be convex. The cone must flare outward at an extreme of
-the **whole** cylinder stack, excluding the counterbore floor/step edge even if
-that edge has a small cone. A flare strictly below the countersink family's 1.5
+the **whole** cylinder stack, excluding a counterbore floor/step edge even if that
+edge has a small cone. A flare strictly below the countersink family's 1.5
 major/minor-radius boundary and an axial leg below half the mouth radius prove
 a small edge break. No boss, absolute size, file axis, or dataset identity is
-required. Large screw seats retain `csink` and `countersinks` recognition. Split
-or interrupted cones without a complete single-face circumference are not yet
-claimed by this rule.
+required. Large seats retain `csink`/`countersinks` recognition. Split or interrupted
+cones without a complete single-face circumference are not claimed by this rule.
 
 Depth semantics stay cylindrical, consistent with existing plain-hole/countersink
 handling: neither `HoleRecord.depth` nor `cbore.depth`, `spotface.depth`, or
-`outer_steps[*].depth` includes an entry cone. `location` remains the existing
-cylindrical opening/gauge; the treatment carries its own top-face location. In
-#244, `cbore` remains `{diameter:5, depth:2}`, and the mouth entry has
-`{diameter:5, size:0.25, depth:0.25, angle:45}`. A drawing using the boss top as its
-reference should read **⌴⌀5 ↧2.25**, plus **0.25 × 45° at counterbore mouth**:
-add the entry's axial depth to the cylinder's 2.0 mm span. Printing ↧2.0 from that
-top face would locate the floor incorrectly. This is callout guidance; the
-existing dimension-planning adapter is not changed to generate chamfer notes.
+`outer_steps[*].depth` includes an entry cone. `location` remains the cylindrical
+opening/gauge; the treatment carries its own top-face location. In #244, `cbore`
+remains `{diameter:5, depth:2}`, and the entry has
+`{diameter:5, size:0.25, depth:0.25, angle:45}`. A drawing referenced to the boss top
+should read **⌴⌀5 ↧2.25**, plus **0.25 × 45° at counterbore mouth**: add the entry's
+axial depth to the 2.0 mm cylinder span. Printing ↧2.0 from that top face would
+locate the floor incorrectly. This is callout guidance; the existing dimension
+planner is not changed to generate chamfer notes.
 
 ### Saved face anchors
 
-The hole's `faces` remain its cylindrical walls and any independently proved
-bottom. Cone indices live in `mouth_chamfers[*].faces` and in their own chamfer
-record; the hole consults them as constituent evidence. On #244, `holes/0` retains
-`[3,10]` and anchor **3**, while `chamfers/0` owns `[1]`. Adding the cone to the
-hole's main face set would shift the anchor **3 → 1**, and also shifts anchors in
-the corpus. Keeping it in the sub-record avoids that migration. Existing hole,
-hole-pattern and chamfer lowest-face anchors must remain unchanged. Consumers can
-select the nested cone faces for a chamfer note without replacing the bore anchor.
+On #244, `holes/0` retains faces `[3,10]` and anchor **3**. Its sub-record claims
+cone face `[1]`, so the cone is explained without shifting the hole's anchor to 1.
+No standalone feature is added, and existing hole, pattern and chamfer IDs and
+fingerprints stay unchanged. Consumers can select the nested cone faces for a
+chamfer note while preserving the cylinder as the saved feature reference.

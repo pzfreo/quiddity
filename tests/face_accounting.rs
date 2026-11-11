@@ -7,12 +7,32 @@ use quiddity::recognition::{FaceAccounting, RecognitionDocument};
 fn check(doc: &RecognitionDocument) -> [usize; 5] {
     let groups = doc.face_accounting.as_ref().unwrap();
     assert_eq!(groups.len(), doc.face_count);
+    // A nested cone must be claimed while preserving the parent's core face set.
+    // Check the published parameter references independently of claimed_faces().
+    for record in doc.records.iter().filter(|r| r.family == "holes") {
+        for treatment in record
+            .parameters
+            .get("mouth_chamfers")
+            .and_then(serde_json::Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            for face in treatment["faces"].as_array().unwrap() {
+                let face = usize::try_from(face.as_u64().unwrap()).unwrap();
+                assert!(!record.faces.contains(&face));
+                let FaceAccounting::Feature { record_ids } = &groups[face] else {
+                    panic!("nested treatment is not accounted as a feature")
+                };
+                assert!(record_ids.contains(&record.id));
+            }
+        }
+    }
     let mut counts = [0; 5]; // feature, body, refused, unexplained, unclaimed before
     for (face, group) in groups.iter().enumerate() {
         let records: Vec<_> = doc
             .records
             .iter()
-            .filter(|r| r.faces.contains(&face))
+            .filter(|r| r.claimed_faces().any(|claimed| claimed == face))
             .collect();
         let feature_ids: Vec<_> = records
             .iter()

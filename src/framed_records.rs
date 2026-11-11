@@ -954,10 +954,7 @@ fn chamfer(out: &mut Out, r: Chamfer) -> Chamfer {
         corner,
     } = r;
     Chamfer {
-        axis: match axis {
-            FilletAxis::Principal(axis) => FilletAxis::Principal(out.letter(axis, "axis")),
-            FilletAxis::Direction(direction) => FilletAxis::Direction(out.direction(direction)),
-        },
+        axis: out.letter(axis, "axis"),
         leg1,
         leg2,
         angle,

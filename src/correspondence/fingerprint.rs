@@ -320,7 +320,8 @@ pub const FAMILIES: &[FamilyFingerprint] = &[
             ("spotface.depth", Size),
             // Keep each diameter paired with its depth in canonical mouth-to-bore order.
             ("outer_steps", Derived),
-            ("mouth_chamfers", Derived),
+            // Edge-break annotations do not redefine the cylindrical hole's identity.
+            ("mouth_chamfers", Ignored),
             ("exit_obstructions", Derived),
             ("csink", Trait),
             ("csink.major_diameter", Size),
@@ -1541,23 +1542,6 @@ fn derived_sizes(family: &str, r: &Value, sizes: &mut BTreeMap<String, f64>) {
     };
     match family {
         "holes" => {
-            if let Some(chamfers) = r.get("mouth_chamfers").and_then(Value::as_array) {
-                let mut specs: Vec<_> = chamfers
-                    .iter()
-                    .map(|c| {
-                        ["diameter", "size", "depth", "angle"]
-                            .map(|key| c[key].as_f64().unwrap_or(0.))
-                    })
-                    .collect();
-                specs.sort_by(|a, b| crate::kernel::py::tuple_order(a, b));
-                put("mouth_chamfers.count", Some(specs.len() as f64));
-                for (i, spec) in specs.iter().enumerate() {
-                    for (key, value) in ["diameter", "size", "depth", "angle"].into_iter().zip(spec)
-                    {
-                        put(&format!("mouth_chamfers.{i}.{key}"), Some(*value));
-                    }
-                }
-            }
             if let Some(steps) = r.get("outer_steps").and_then(Value::as_array) {
                 put("outer_steps.count", Some(steps.len() as f64));
                 for (i, step) in steps.iter().enumerate() {

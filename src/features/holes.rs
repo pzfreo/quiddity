@@ -66,7 +66,8 @@ pub struct MouthChamfer {
     pub depth: f64,
     /// Angle to the exterior support plane, in degrees (not a full cone angle).
     pub angle: f64,
-    /// Cone faces, claimed by `chamfers` and consulted by the parent hole.
+    /// Cone faces, claimed by this nested treatment; excluded from the parent
+    /// hole's defining faces and fingerprint to preserve its cylindrical anchor.
     pub faces: Vec<usize>,
 }
 
@@ -882,36 +883,6 @@ pub(super) fn hole_stacks(ctx: &Context<'_>) -> Vec<Vec<Segment>> {
     merge_stacks(part, merge_runs(&segments(&internal), line_key))
 }
 
-/// Independent treatment occurrences: cones define chamfers; cylinder and top
-/// plane prove their attachment. The hole keeps these cones as consulted evidence.
-pub(super) fn discover_mouth_chamfers(ctx: &Context<'_>) -> Vec<Occurrence<MouthChamfer>> {
-    if !ctx
-        .part
-        .faces
-        .iter()
-        .any(|f| matches!(f.surface, Surface::Cone { .. }))
-    {
-        return Vec::new();
-    }
-    let mut out = Vec::new();
-    for stack in ctx.hole_stacks() {
-        for hi in [false, true] {
-            let i = end_segment(stack, |s| if hi { s.s_hi } else { -s.s_lo });
-            if let Some((record, support)) = mouth_chamfer(ctx.part, &stack[i], hi) {
-                let mut context = stack[i].faces.clone();
-                context.push(support);
-                out.push(Occurrence {
-                    defining: record.faces.clone(),
-                    record,
-                    context,
-                });
-            }
-        }
-    }
-    out.sort_by(|a, b| a.defining.cmp(&b.defining));
-    out
-}
-
 internal_entry! {
 /// Holes in stack order, each with its defining cylinder faces; *csinks* are composed onto the
 /// holes they flare.
@@ -920,7 +891,8 @@ pub fn discover(
     csinks: &[Occurrence<CounterSink>],
 ) -> Vec<Occurrence<HoleRecord>> {
     let part = ctx.part;
-    let stacks = ctx.hole_stacks();
+    let stacks = hole_stacks(ctx);
+    let has_cones = part.faces.iter().any(|f| matches!(f.surface, Surface::Cone { .. }));
     let mut out = Vec::new();
     for stack in stacks {
         let d = stack[0].direction;
@@ -932,8 +904,8 @@ pub fn discover(
             mut terminal,
             presentation,
             exit_obstructions,
-        } = drilled_from(part, stack);
-        let ordered = ordered_from(stack, from_hi);
+        } = drilled_from(part, &stack);
+        let ordered = ordered_from(&stack, from_hi);
         let bore_i = py::first_min(&ordered, |s| s.diameter);
         let bore = &ordered[bore_i];
         let NearSideSteps {
@@ -943,7 +915,7 @@ pub fn discover(
             faces: mut step_faces,
         } = near_side_steps(&ordered[..bore_i]);
         if presentation {
-            let opposite = ordered_from(stack, !from_hi);
+            let opposite = ordered_from(&stack, !from_hi);
             let other_bore_i = py::first_min(&opposite, |s| s.diameter);
             let other = near_side_steps(&opposite[..other_bore_i]);
             // An end gauge cannot choose between different published readings. Identical
@@ -960,7 +932,7 @@ pub fn discover(
             }
         }
         let (depth, mut defining) = bore_depth(
-            stack,
+            &stack,
             bore,
             bottom == Bottom::Through || presentation,
             from_hi,
@@ -1039,11 +1011,13 @@ pub fn discover(
                 terminal.extend(&cs.defining);
             }
         }
-        for treatment in ctx.hole_mouth_chamfers() {
-            if treatment.context.iter().any(|f| stack.iter().any(|s| s.faces.contains(f))) {
-                terminal.extend(&treatment.defining);
-                terminal.extend(treatment.context.iter().filter(|f| !defining.contains(f)));
-                record.mouth_chamfers.push(treatment.record.clone());
+        for hi in [false, true].into_iter().filter(|_| has_cones) {
+            let i = end_segment(&stack, |s| if hi { s.s_hi } else { -s.s_lo });
+            if let Some((treatment, support)) = mouth_chamfer(part, &stack[i], hi) {
+                terminal.extend(&treatment.faces);
+                terminal.push(support);
+                terminal.extend(stack[i].faces.iter().filter(|f| !defining.contains(f)));
+                record.mouth_chamfers.push(treatment);
             }
         }
         out.push(Occurrence {
@@ -1161,6 +1135,9 @@ pub(crate) fn claim_drill_point(
         .iter()
         .copied()
         .filter(|&f| {
+            if record.mouth_chamfers.iter().any(|c| c.faces.contains(&f)) {
+                return false;
+            }
             let Some(apex) = part.faces[f].surface.cone_apex() else {
                 return false;
             };
@@ -1488,14 +1465,19 @@ mod tests {
                     let hole = doc.records.iter().find(|r| r.family == "holes").unwrap();
                     assert!(ch.faces.iter().all(|f| !hole.faces.contains(f)));
                     for face in &ch.faces {
-                        let owner = doc
+                        assert!(hole.claimed_faces().any(|f| f == *face));
+                        // A whole turned-body record may already co-own this analytic
+                        // ring. Preserve every existing core owner and add the hole.
+                        let owners = doc
                             .records
                             .iter()
-                            .find(|r| r.family == "chamfers" && r.faces.contains(face))
-                            .unwrap();
-                        let axis: V3 =
-                            serde_json::from_value(owner.parameters["axis"].clone()).unwrap();
-                        assert!(geom::dot(axis, ch.axis) > 1. - 1e-7);
+                            .filter(|r| r.faces.contains(face) || r.id == hole.id)
+                            .map(|r| r.id.clone())
+                            .collect();
+                        assert_eq!(
+                            doc.face_accounting.as_ref().unwrap()[*face],
+                            crate::recognition::FaceAccounting::Feature { record_ids: owners }
+                        );
                     }
                     let position: V3 = serde_json::from_value(
                         hole.parameters["mouth_chamfers"][0]["location"].clone(),
@@ -1512,7 +1494,8 @@ mod tests {
                         .iter()
                         .find(|f| f.family == "holes")
                         .unwrap();
-                    assert_eq!(fp.sizes["mouth_chamfers.0.size"], 0.25 * scale);
+                    assert_eq!(fp.faces, hole.faces);
+                    assert!(!fp.sizes.keys().any(|key| key.starts_with("mouth_chamfers")));
                     let encoded = serde_json::to_value(h).unwrap();
                     assert_eq!(serde_json::from_value::<HoleRecord>(encoded).unwrap(), *h);
                 }

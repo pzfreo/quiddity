@@ -1,8 +1,7 @@
 //! Chamfer recognition (`quiddity.chamfers`).
 //!
 //! A prismatic chamfer is a small oblique planar face bevelling a convex edge between two
-//! axis-aligned walls; a turned chamfer is a conical band meeting a coaxial external cylinder,
-//! or a small convex edge break at an internal hole mouth.
+//! axis-aligned walls; a turned chamfer is a conical band meeting a coaxial external cylinder.
 
 use std::collections::BTreeMap;
 
@@ -12,7 +11,6 @@ use super::Context;
 use super::bevel::{classify_bevel, proved_bevel_planes, transverse_corner};
 use super::cylinders::CylinderEvidence;
 use super::evidence::{self, EvidenceError, Occurrence};
-pub use super::fillets::FilletAxis as ChamferAxis;
 use super::placed::{Grid, Placed};
 use super::policy::AXIS_ALIGNED_COS;
 use super::turned::{self, cone_rims};
@@ -23,7 +21,7 @@ use crate::kernel::py;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Chamfer {
-    pub axis: ChamferAxis,
+    pub axis: char,
     pub leg1: f64,
     pub leg2: f64,
     pub angle: f64,
@@ -90,7 +88,7 @@ fn chamfer(
     corner: Option<V3>,
 ) -> Chamfer {
     Chamfer {
-        axis: ChamferAxis::Principal(['x', 'y', 'z'][axis]),
+        axis: ['x', 'y', 'z'][axis],
         leg1: py::round_to3(leg_hi),
         leg2: py::round_to3(leg_lo),
         angle: py::round_to(leg_lo.atan2(leg_hi).to_degrees(), 2),
@@ -114,31 +112,19 @@ pub fn discover(ctx: &Context<'_>, opts: &ChamferOptions) -> Vec<Occurrence<Cham
     let external = turned::external_cylinders(ctx);
     out.extend((0..part.faces.len()).filter_map(|f| turned(part, f, tol, max_leg, &external)));
     for o in &mut out {
-        if let (Some(corner), ChamferAxis::Principal(axis)) = (o.record.corner, o.record.axis) {
+        if let Some(corner) = o.record.corner {
             let r = &o.record;
             o.record.corner = super::bevel::proved_published_corner(ctx, &o.defining,
-                match axis {'x'=>0,'y'=>1,_=>2}, *r.at.raw(), *corner.raw(),
+                match r.axis {'x'=>0,'y'=>1,_=>2}, *r.at.raw(), *corner.raw(),
                 [r.leg1,r.leg2], r.angle);
         }
     }
     out.sort_by(|a, b| {
         a.record
             .axis
-            .order(b.record.axis)
+            .cmp(&b.record.axis)
             .then_with(|| py::tuple_order(&a.record.at[..], &b.record.at[..]))
     });
-    // Append after every legacy chamfer: existing ranks and lowest-face anchors
-    // remain stable. The shared proof is independent of the principal frame.
-    out.extend(ctx.hole_mouth_chamfers().iter().filter_map(|o| {
-        let c = &o.record;
-        let (hi,lo)=(c.size.max(c.depth),c.size.min(c.depth));
-        if below_minimum(lo,tol) || hi>max_leg { return None; }
-        let face=*o.defining.first()?;
-        let mut record=chamfer(dominant_axis(c.axis.map(f64::abs)),hi,lo,
-            part.face_centre(face)?,true,None);
-        record.axis=ChamferAxis::Direction(c.axis);
-        Some(Occurrence { record, defining: o.defining.clone(), context: o.context.clone() })
-    }));
     out
 }
 }

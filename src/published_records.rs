@@ -109,7 +109,7 @@ impl PublishedFeatures {
                 }
             }
         }
-        merge_families(&mut families, self.legacy_chamfer_count());
+        merge_families(&mut families);
         for (family, records) in &mut families {
             if family != "slot_patterns" {
                 continue;
@@ -171,22 +171,11 @@ pub(crate) fn publication_family(family: &str) -> &str {
 }
 
 impl PublishedFeatures {
-    /// Mouth treatments are the direction-valued suffix of the plain pool. Publish
-    /// them after both legacy pools so adding one never renumbers an oriented bevel.
-    fn legacy_chamfer_count(&self) -> usize {
-        self.working.chamfers.partition_point(|c| {
-            matches!(c.axis, crate::features::chamfers::ChamferAxis::Principal(_))
-        })
-    }
-
     /// Translate a working record ID once, appending oriented records after plain records.
     pub(crate) fn published_id(&self, family: &str, n: usize) -> String {
-        if family == "chamfers" && n >= self.legacy_chamfer_count() {
-            return format!("chamfers/{}", n + self.working.oriented_chamfers.len());
-        }
         let offset = match family {
             "oriented_slots" => self.working.slots.len(),
-            "oriented_chamfers" => self.legacy_chamfer_count(),
+            "oriented_chamfers" => self.working.chamfers.len(),
             "oriented_slot_patterns" => self.working.slot_patterns.len(),
             _ => 0,
         };
@@ -194,19 +183,9 @@ impl PublishedFeatures {
     }
 
     pub(crate) fn working_record<'a>(&self, family: &'a str, n: usize) -> (&'a str, usize) {
-        if family == "chamfers" {
-            let legacy = self.legacy_chamfer_count();
-            let oriented = self.working.oriented_chamfers.len();
-            return if n < legacy {
-                (family, n)
-            } else if n < legacy + oriented {
-                ("oriented_chamfers", n - legacy)
-            } else {
-                (family, n - oriented)
-            };
-        }
         let (oriented, count) = match family {
             "slots" => ("oriented_slots", self.working.slots.len()),
+            "chamfers" => ("oriented_chamfers", self.working.chamfers.len()),
             "slot_patterns" => ("oriented_slot_patterns", self.working.slot_patterns.len()),
             _ => return (family, n),
         };
@@ -218,7 +197,7 @@ impl PublishedFeatures {
     }
 }
 
-fn merge_families(families: &mut Vec<(String, Vec<Value>)>, legacy_chamfers: usize) {
+fn merge_families(families: &mut Vec<(String, Vec<Value>)>) {
     for (old, new) in [
         ("oriented_slots", "slots"),
         ("oriented_chamfers", "chamfers"),
@@ -274,13 +253,7 @@ fn merge_families(families: &mut Vec<(String, Vec<Value>)>, legacy_chamfers: usi
                 _ => unreachable!(),
             }
         }
-        if new == "chamfers" {
-            let mouths = plain.split_off(legacy_chamfers);
-            plain.extend(oriented);
-            plain.extend(mouths);
-        } else {
-            plain.extend(oriented);
-        }
+        plain.extend(oriented);
         if new == "slot_patterns" {
             for pattern in plain {
                 grid_directions(pattern);
@@ -822,66 +795,5 @@ fn across_coordinates(v: &mut Value, signs: [f64; 2]) {
             }
         }
         _ => {}
-    }
-}
-
-#[cfg(test)]
-mod mouth_chamfer_order_tests {
-    use super::*;
-    use crate::features::chamfers::{Chamfer, ChamferAxis};
-    use crate::features::oriented_chamfers::OrientedChamfer;
-
-    #[test]
-    fn mouth_additions_preserve_both_legacy_chamfer_pools_and_inverse_ids() {
-        let plain = |axis, leg1| Chamfer {
-            axis,
-            leg1,
-            leg2: 0.5,
-            angle: 45.,
-            at: [0.; 3].into(),
-            turned: true,
-            corner: None,
-        };
-        let features = Features {
-            chamfers: vec![
-                plain(ChamferAxis::Principal('z'), 1.),
-                plain(ChamferAxis::Direction([0., 0., -1.]), 3.),
-            ],
-            oriented_chamfers: vec![OrientedChamfer {
-                run: [0.6, 0.8, 0.],
-                length: 5.,
-                at: [0.; 3].into(),
-                corner: [0.; 3].into(),
-                leg1: 2.,
-                leg2: 0.5,
-                leg1_direction: [0., 0., 1.],
-                leg2_direction: [0.8, -0.6, 0.],
-                support_spans: [[0., 5.]; 2],
-                angle: 45.,
-                body_key: None,
-            }],
-            ..Features::default()
-        };
-        let published: PublishedFeatures = features.into();
-        for (family, n, want) in [
-            ("chamfers", 0, 0),
-            ("oriented_chamfers", 0, 1),
-            ("chamfers", 1, 2),
-        ] {
-            assert_eq!(
-                published.published_id(family, n),
-                format!("chamfers/{want}")
-            );
-            assert_eq!(published.working_record("chamfers", want), (family, n));
-        }
-        let families = published.families();
-        let records = &families.iter().find(|(f, _)| f == "chamfers").unwrap().1;
-        assert_eq!(
-            records
-                .iter()
-                .map(|r| r["leg1"].as_f64().unwrap())
-                .collect::<Vec<_>>(),
-            [1., 2., 3.]
-        );
     }
 }
