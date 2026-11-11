@@ -32,7 +32,7 @@ jobs:
       - uses: taiki-e/install-action@7623a79cdfecb99d681017af368ca353d9f49bb5 # v2.87.19
         with:
           tool: nextest@0.9.146
-      - run: cargo nextest archive --workspace --release --archive-file tests-${{ inputs.os }}.tar.zst
+      - run: cargo nextest archive --workspace --release --locked --archive-file tests-${{ inputs.os }}.tar.zst
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: tests-${{ inputs.os }}
@@ -112,6 +112,6 @@ jobs:
       - run: |
           echo /quiddity-corpus/ >> .git/info/exclude
           echo /snapshot-verified/ >> .git/info/exclude
-      - run: cargo run -p snapshot-tool --release -- --check --coverage-only --verify-dir snapshot-verified
+      - run: cargo run -p snapshot-tool --release --locked -- --check --coverage-only --verify-dir snapshot-verified
         env:
           QUIDDITY_CORPUS: ${{ github.workspace }}/quiddity-corpus
