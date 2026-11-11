@@ -13,6 +13,10 @@ crate-type = ["cdylib", "rlib"]
 test = false
 doctest = false
 
+[features]
+# Fault injection for the Python exception regression; not enabled in shipped wheels.
+test-panic = []
+
 [dependencies]
 quiddity = { path = "../..", version = "=0.4.9", features = ["cli", "json-import"] }
 pyo3 = { version = "0.30.1", features = ["abi3-py311"] }

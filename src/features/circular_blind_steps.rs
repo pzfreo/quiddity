@@ -27,6 +27,7 @@ type Point2 = [f64; 2];
 type Point3 = [f64; 3];
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct CircularBlindStep {
     pub axis: char,
     pub radius: f64,

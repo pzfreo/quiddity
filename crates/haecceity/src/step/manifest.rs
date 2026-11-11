@@ -28,6 +28,7 @@ const CHUNK: usize = 8 * 1024 * 1024;
 pub const MAX_HEADER_BYTES: u64 = 16 * 1024 * 1024;
 
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct ScanOptions {
     pub chunk_size: usize,
     /// Size-only fallback (`--no-product-hashes` in the future CLI).
@@ -47,9 +48,29 @@ impl Default for ScanOptions {
     }
 }
 
+impl ScanOptions {
+    pub fn with_chunk_size(mut self, value: usize) -> Self {
+        self.chunk_size = value;
+        self
+    }
+    pub fn with_no_product_hashes(mut self, value: bool) -> Self {
+        self.no_product_hashes = value;
+        self
+    }
+    pub fn with_index_dir(mut self, value: Option<PathBuf>) -> Self {
+        self.index_dir = value;
+        self
+    }
+    pub fn with_instance_limit(mut self, value: usize) -> Self {
+        self.instance_limit = value;
+        self
+    }
+}
+
 /// Half-open `[start, end)` byte offsets into the uncompressed source.
 pub type ByteRange = [u64; 2];
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ReaderVersion {
     pub haecceity: String,
 }
@@ -61,6 +82,7 @@ impl Default for ReaderVersion {
     }
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Source {
     pub size: u64,
     pub sha256: String,
@@ -70,11 +92,13 @@ pub struct Source {
     pub compressed: bool,
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Ranges {
     pub ranges: Vec<ByteRange>,
     pub entities: u64,
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Common {
     pub ranges: Vec<ByteRange>,
     pub entities: u64,
@@ -82,6 +106,7 @@ pub struct Common {
     pub sha256: Option<String>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Product {
     pub id: String,
     pub product_definition: u64,
@@ -98,24 +123,38 @@ pub struct Product {
     pub edge_count: u64,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[non_exhaustive]
 pub struct Instance {
     pub product: String,
     pub path: Vec<u64>,
     pub placement: Placement,
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Unowned {
     pub presentation: Ranges,
     pub other: Ranges,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Refusal {
     pub products: Vec<String>,
     pub entity: u64,
     pub reason: String,
 }
+impl Refusal {
+    pub fn new(products: Vec<String>, entity: u64, reason: String) -> Self {
+        Self {
+            products,
+            entity,
+            reason,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(try_from = "WireManifest")]
+#[non_exhaustive]
 pub struct Manifest {
     #[serde(skip)]
     product_index: HashMap<String, (usize, Option<usize>)>,

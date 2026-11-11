@@ -38,6 +38,7 @@ const AXES: [(usize, &str); 3] = [(2, "z"), (0, "x"), (1, "y")];
 /// `across_flats`, the axial `base` and `top`, each side's outward heading in ring order and a
 /// point on each side face (its centroid).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct PolygonalPrism {
     pub axis: String,
     pub center: Placed<V3>,
@@ -65,6 +66,7 @@ impl PolygonalPrism {
 /// arguments.
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+#[non_exhaustive]
 pub struct PolygonalOptions {
     /// The span and fit threshold; 0.2 mm when `None`.
     pub tol: Option<f64>,

@@ -51,7 +51,7 @@ fn write_sfa_samples_from_json() {
         let geometry = haecceity::step::read_part(&input, &parts[selected]).unwrap();
         let (clean, geometry_report) = haecceity::brep_write::write_step(
             &geometry,
-            &haecceity::brep_write::WriteOptions { name, pmi: None },
+            &haecceity::brep_write::WriteOptions::new(name).with_pmi(None),
         )
         .unwrap();
         assert!(geometry_report.face_order_preserved);

@@ -6,6 +6,32 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+Pending version: 0.5.0
+
+### Breaking (Rust API)
+
+- **The next release must be 0.5.0, not a 0.4.x patch.** Recognition records,
+  evidence and fingerprint documents, reports, refusal/error types and defaultable
+  recognition options are now `#[non_exhaustive]`. Match extensible enums with a
+  fallback arm and destructure extensible structs with `..`. Construct options with
+  `Default::default()` then assign public fields; use the provided constructors for
+  caller-authored values. See [Rust API evolution](docs/rust-api.md) for the full list
+  and the closed value types deliberately kept exhaustive. Cargo versions remain
+  unchanged here: the release process performs the minor bump.
+- Presentation text placements, callout geometry, polyline roles, evidence statuses
+  and face-accounting groups are also non-exhaustive; use `TextPlacement::new` or
+  `presentation::Callout::default()` for construction and handle unknown variants.
+- Breaking public Rust API changes require a minor bump before 1.0. This includes
+  field/variant additions on exhaustive types and removing or feature-gating APIs.
+  CI checks both published crates against their latest stable crates.io release;
+  a non-empty Unreleased Breaking (Rust API) section sanctions a pending minor bump.
+
+### Changed
+
+- Face integration reuses complete cached moments, skips kink searches that cannot
+  affect refinement, and stops once an accepted leaf makes the existing refusal
+  inevitable. Integration nodes, error criteria and returned results are unchanged.
+
 ### Documentation
 
 - haecceity states its scope: it reads, queries and writes B-reps and does not model them
@@ -13,11 +39,20 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
+- Refuse incompatible complex targets in schema reference slots throughout shape
+  topology and geometry, and loops with neither edges nor a vertex. Empty programmatic faces no longer panic in loop placement.
+  Nine regression inputs and 256 time-bounded token mutations exercise this path;
+  the mutation harness also rejects caught family panics.
+- Python native entry points catch internal Rust panics as `quiddity.QuiddityError`
+  (a `RuntimeError`, caught by `except Exception`) with the panic message. Normal
+  input errors retain their existing `ValueError` / `PmiError` types.
+
+
 - PMI edition upgrades report R4 repairs for unset required `label`/`text` attributes,
   writing empty strings without inventing identifiers or other values. Ordinary AP242
   writes preserve those defects; Add refuses source-record repairs with their kinds and ids.
-  **Rust API:** `UpgradeRepairKind` gains `R4UnsetRequiredString`; the enum is not
-  `#[non_exhaustive]`, so exhaustive matches need an arm. **CLI and Python:** a write
+  **Rust API:** `UpgradeRepairKind` gains `R4UnsetRequiredString` and becomes
+  `#[non_exhaustive]`; matches need a fallback arm (see Breaking above). **CLI and Python:** a write
   report's `instances.replaced` counts distinct records, so a record with two repairs
   counts once.
 

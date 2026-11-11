@@ -18,6 +18,7 @@ pub struct Plane {
 #[derive(Clone, Debug, Serialize, PartialEq)]
 #[cfg_attr(feature = "json-import", derive(serde::Deserialize))]
 #[serde(deny_unknown_fields)]
+#[non_exhaustive]
 pub struct TextPlacement {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text_index: Option<usize>,
@@ -54,6 +55,21 @@ pub struct View {
 }
 
 impl TextPlacement {
+    /// Text aligned in a caller-supplied frame; optional layout metadata starts absent.
+    pub fn new(origin: [f64; 3], x_axis: [f64; 3], normal: [f64; 3]) -> Self {
+        Self {
+            origin,
+            x_axis,
+            normal,
+            text_index: None,
+            cell_box: None,
+            stroked: None,
+            height: None,
+            line_spacing: None,
+            alignment: None,
+        }
+    }
+
     fn at(frame: Transform, scale: f64) -> Option<Self> {
         Some(Self {
             text_index: None,

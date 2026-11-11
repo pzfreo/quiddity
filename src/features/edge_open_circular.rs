@@ -31,6 +31,7 @@ type Point = [f64; 2];
 
 /// One physical line or circular arc of an open section chain.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct OpenCircularSectionSegment {
     pub kind: &'static str,
     pub start: Placed<Point>,
@@ -42,6 +43,7 @@ pub struct OpenCircularSectionSegment {
 
 /// The alternating wall chain and the gap between its loose ends.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct OpenCircularSection {
     pub segments: Vec<OpenCircularSectionSegment>,
     pub opening: [Placed<Point>; 2],
@@ -50,6 +52,7 @@ pub struct OpenCircularSection {
 /// A blind constant-depth recess with an interrupted circular-end profile. `run_interval` is
 /// floor to mouth along `axis`, and `open_sign` the side of the mouth.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct EdgeOpenCircularPocket {
     pub axis: char,
     pub run_interval: Placed<[f64; 2]>,

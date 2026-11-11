@@ -16,6 +16,7 @@ use std::f64::consts::PI;
 /// the cap; `opening` points out of the lateral mouth. `at` is the section box's centre
 /// halfway along the run. Section width is 2r, depth is r + straight_height.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct SemicircularBlindSlot {
     pub axis: V3,
     pub opening: V3,

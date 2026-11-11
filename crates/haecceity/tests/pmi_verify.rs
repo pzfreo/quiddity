@@ -38,11 +38,7 @@ impl File {
     }
 
     fn snapshot(&self) -> Snapshot<'_> {
-        Snapshot {
-            doc: &self.doc,
-            defs: &self.defs,
-            read: &self.read,
-        }
+        Snapshot::new(&self.doc, &self.defs, &self.read)
     }
 
     /// The file with `pmi` written by `mode`, read back.
@@ -333,19 +329,15 @@ fn other_parts_and_findings_are_as_before() {
 
     // A finding the input did not have.
     let mut read = w.read.clone();
-    let finding = Finding {
-        kind: FindingKind::Unsupported,
-        part: Some(PartId(1)),
-        ids: vec![1],
-        entity: "shape_aspect".into(),
-        detail: "made up".into(),
-    };
+    let finding = Finding::new(
+        FindingKind::Unsupported,
+        Some(PartId(1)),
+        vec![1],
+        "shape_aspect".into(),
+        "made up".into(),
+    );
     read.findings.push(finding.clone());
-    let after = Snapshot {
-        doc: &w.doc,
-        defs: &w.defs,
-        read: &read,
-    };
+    let after = Snapshot::new(&w.doc, &w.defs, &read);
     let v = verify(f.snapshot(), &f.doc, &add, Mode::Add, after);
     assert_eq!(v.problems, [Problem::NewFinding(finding)]);
     assert_eq!(
@@ -354,11 +346,7 @@ fn other_parts_and_findings_are_as_before() {
     );
 
     // A part gone: only the count is reported.
-    let after = Snapshot {
-        doc: &w.doc,
-        defs: &w.defs[..1],
-        read: &w.read,
-    };
+    let after = Snapshot::new(&w.doc, &w.defs[..1], &w.read);
     let v = verify(f.snapshot(), &f.doc, &add, Mode::Add, after);
     assert_eq!(
         v.problems,

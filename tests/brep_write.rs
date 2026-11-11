@@ -97,10 +97,7 @@ fn recognition(part: &kernel::Part, without_repairs: bool) -> String {
         recognition.input_repairs.clear();
     }
     let document = quiddity::recognition::document(&recognition, part.faces.len());
-    let output = quiddity::serve::RecognitionOutput {
-        recognition,
-        document,
-    };
+    let output = quiddity::serve::RecognitionOutput::new(recognition, document);
     serde_json::to_string(&output).expect("records serialise")
 }
 
@@ -123,10 +120,7 @@ fn round_trip(path: &Path) -> Result<Outcome, Vec<String>> {
     let Ok(part) = kernel::read_step(&file_bytes(path)) else {
         return Ok(Outcome::Unreadable);
     };
-    let options = WriteOptions {
-        name: "round trip",
-        pmi: None,
-    };
+    let options = WriteOptions::new("round trip").with_pmi(None);
     let (bytes, report) = match write_step(&part, &options) {
         Ok(written) => written,
         Err(WriteError::Unsupported(why)) if !why.is_empty() => return Ok(Outcome::Refused),
@@ -370,10 +364,7 @@ fn unresolved_geometry_is_refused_by_name() {
         ("broken/unresolved_surface.step", "face 1"),
     ] {
         let part = kernel::read_step_file(&fixtures().join(file)).unwrap();
-        let options = WriteOptions {
-            name: "refused",
-            pmi: None,
-        };
+        let options = WriteOptions::new("refused").with_pmi(None);
         match write_step(&part, &options) {
             Err(WriteError::Unsupported(why)) => {
                 assert!(why.iter().any(|w| w.starts_with(named)), "{file}: {why:?}")
@@ -411,10 +402,7 @@ fn moved_round_trip(path: &Path, at: &kernel::step::Placement, recognise: bool) 
         return vec![format!("{name}: unreadable")];
     };
     let moved = part.transformed(at).unwrap();
-    let options = WriteOptions {
-        name: "moved",
-        pmi: None,
-    };
+    let options = WriteOptions::new("moved").with_pmi(None);
     let (bytes, report) = match write_step(&moved, &options) {
         Ok(w) => w,
         Err(e) => return vec![format!("{name}: {e}")],
@@ -525,10 +513,7 @@ fn pmi_check(files: &[PathBuf]) -> (usize, usize) {
         for (k, def) in defs.iter().enumerate() {
             let part = kernel::step::read_part(&bytes, def).unwrap();
             let source = &read.parts[k];
-            let options = WriteOptions {
-                name: &def.name,
-                pmi: Some(source),
-            };
+            let options = WriteOptions::new(&def.name).with_pmi(Some(source));
             let (written, report) = match write_step(&part, &options) {
                 Ok(w) => w,
                 Err(e) => {
@@ -611,10 +596,7 @@ fn product_names_are_kept() {
         let path = fixtures().join(file);
         let source = String::from_utf8_lossy(&file_bytes(&path)).into_owned();
         let part = kernel::read_step(&file_bytes(&path)).unwrap();
-        let options = WriteOptions {
-            name: "unused",
-            pmi: None,
-        };
+        let options = WriteOptions::new("unused").with_pmi(None);
         let (bytes, report) = write_step(&part, &options).unwrap();
         let text = String::from_utf8_lossy(&bytes);
         assert!(
@@ -635,4 +617,14 @@ fn product_names_are_kept() {
             assert!(source.contains(&format!("'{name}'")), "{file}: {name}");
         }
     }
+}
+
+#[test]
+fn programmatic_face_without_bounds_is_refused_by_name() {
+    let part = kernel::read_step_file(&fixtures().join("golden_simple_through_hole.step")).unwrap();
+    let mut faces = part.faces.clone();
+    faces[0].loops.clear();
+    let part = kernel::Part::new(faces, part.edges.clone(), part.solids.clone());
+    let error = write_step(&part, &WriteOptions::new("boundless").with_pmi(None)).unwrap_err();
+    assert!(error.to_string().contains("face 0: no bounds"), "{error}");
 }

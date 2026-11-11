@@ -27,8 +27,20 @@ pub struct Fingerprints {
     pub faces: Vec<FaceFingerprint>,
 }
 
+impl Fingerprints {
+    pub fn new(scale: f64) -> Self {
+        Self {
+            fingerprint_version: FINGERPRINT_VERSION.into(),
+            scale,
+            features: Vec::new(),
+            faces: Vec::new(),
+        }
+    }
+}
+
 /// A recognised feature.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct FeatureFingerprint {
     /// `<family>/<index>`: the record's place in the family's list, so stable within one result
     /// only.
@@ -58,6 +70,7 @@ pub struct FeatureFingerprint {
 
 /// A face of the part.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct FaceFingerprint {
     pub index: usize,
     /// `plane`, `cylinder`, `cone`, `sphere`, `torus`, or the file's name for a freeform surface

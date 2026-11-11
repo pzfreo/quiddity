@@ -23,6 +23,7 @@ const MIN_PAIRED_AREA_FRAC: f64 = 0.85;
 const MIN_CLASS_AREA_FRAC: f64 = 0.05;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct WallFacePair {
     pub first_face: usize,
     pub second_face: usize,
@@ -30,6 +31,7 @@ pub struct WallFacePair {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct UnpairedWallFace {
     pub face: usize,
     pub kind: &'static str,
@@ -37,6 +39,7 @@ pub struct UnpairedWallFace {
 
 /// An explicitly heuristic reading of how the shell was made; the finished B-rep cannot prove it.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct ShellHistoryHint {
     pub basis: &'static str,
     pub direction: Option<&'static str>,
@@ -48,6 +51,7 @@ pub struct ShellHistoryHint {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct ThinWallBody {
     pub body_index: usize,
     pub body_key: Option<BodyKey>,

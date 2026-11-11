@@ -21,6 +21,7 @@ use super::nurbs::{NurbsCurve, NurbsSurface};
 use super::sampling::sample_edge;
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum StepError {
     Parse(String),
     Unsupported(String),
@@ -1725,6 +1726,9 @@ impl<'a> FileIds<'a> {
             Some(Attribute::List(l)) if l.len() == bounds => {}
             _ => return Err(format!("its bound count is not {bounds}")),
         }
+        if face.bounds().count() != bounds {
+            return Err("its bound count differs from the readable scene bounds".into());
+        }
         let surface_id = self.reference(id, 2).ok_or("no surface reference")?;
         let surface_kind = self.kind(surface_id).unwrap_or("nothing");
         if surface_kind != step_name(surface) {
@@ -1747,7 +1751,7 @@ impl<'a> FileIds<'a> {
         // The EDGE_CURVEs of its EDGE_LOOPs, as written and as read.
         let mut written = Vec::new();
         if let Some(Attribute::List(list)) = self.attribute(id, 1) {
-            for bound in list {
+            for (bound, read_bound) in list.iter().zip(face.bounds()) {
                 let Attribute::EntityRef(bound) = bound else {
                     continue;
                 };
@@ -1763,6 +1767,11 @@ impl<'a> FileIds<'a> {
                 let Some(Attribute::List(oriented)) = self.attribute(lp, 1) else {
                     continue;
                 };
+                if oriented.len() != read_bound.oriented_edges().count() {
+                    return Err(format!(
+                        "loop #{lp}'s edge count differs from the readable scene edges"
+                    ));
+                }
                 for oe in oriented {
                     let Attribute::EntityRef(oe) = oe else {
                         continue;
@@ -1943,7 +1952,8 @@ impl Parsed {
         let parse_error = |e| StepError::Parse(crate::p21::parse_message(bytes, &e));
         let (model, report) = step_io::read(bytes).map_err(parse_error)?;
         let graph = step_io::parser::parse(bytes).map_err(parse_error)?;
-        refuse_dropped_shapes(&graph, &report)?;
+        let complex_drops = crate::express::complex_reference_drops(&graph);
+        refuse_dropped_shapes(&graph, &report, &complex_drops)?;
         check_curve_wrappers(&model)?;
         Ok(Parsed {
             model,
@@ -2177,6 +2187,17 @@ fn build(parsed: &Parsed, scope: Scope<'_>) -> Result<Read, StepError> {
         };
         let mut members = Vec::new();
         for (face, flipped) in faces {
+            // ADVANCED_FACE and FACE_SURFACE bounds are SET [1:?]. step-io can
+            // retain a typed reference to an incompatible complex instance while
+            // its scene iterator skips that bound. Refuse before building a Face.
+            if face.bounds().next().is_none() {
+                return Err(StepError::Incomplete(format!(
+                    "face #{} has no readable bounds (expected at least one face loop)",
+                    ids.id(face.key())?
+                )));
+            }
+            // Validate raw/scene cardinalities before building partial topology.
+            ids.face(&face)?;
             let mut loops = Vec::new();
             for bound in face.bounds() {
                 let mut edges = Vec::new();
@@ -2255,6 +2276,12 @@ fn build(parsed: &Parsed, scope: Scope<'_>) -> Result<Read, StepError> {
                 } else {
                     None
                 };
+                if edges.is_empty() && vertex.is_none() {
+                    return Err(StepError::Incomplete(format!(
+                        "face #{} has a loop with no edges or vertex",
+                        ids.id(face.key())?
+                    )));
+                }
                 loops.push(Loop { edges, vertex });
             }
             members.push(out_faces.len());
@@ -2373,6 +2400,7 @@ fn build(parsed: &Parsed, scope: Scope<'_>) -> Result<Read, StepError> {
 /// specify-core does not carry over; anchor edges by their `#N`
 /// (`tests/fixtures/references/face_sources.json` lists every file where the two differ).
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct PartDefinition {
     /// The `#N` of its `product_definition` (or `product_definition_with_associated_documents`).
     pub product_definition: u64,
@@ -2403,6 +2431,7 @@ pub struct PartDefinition {
 /// [`Part`] read with it ([`crate::brep::Source::instance`]): one per solid or surface model of
 /// the part.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct PartPlacement {
     pub placement: Placement,
     pub instances: Vec<usize>,
@@ -2424,6 +2453,7 @@ impl PartDefinition {
 /// `next_assembly_usage_occurrence`s.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "manifest", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct Assembly {
     /// The `#N` of its `product_definition`.
     pub product_definition: u64,
@@ -2436,6 +2466,7 @@ pub struct Assembly {
 /// One component of an [`Assembly`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "manifest", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct Component {
     /// The `#N` of the `next_assembly_usage_occurrence` that places it.
     pub occurrence: u64,
@@ -2446,6 +2477,7 @@ pub struct Component {
 /// A STEP file read once: its distinct parts and its assemblies, and each part's [`Part`] in
 /// its own coordinates ([`StepFile::part`]), or chosen placed bodies ([`StepFile::placed`]),
 /// on demand without parsing the file again.
+#[non_exhaustive]
 pub struct StepFile {
     parsed: Parsed,
     /// The distinct parts, as [`read_part_definitions`] gives them.
@@ -2760,6 +2792,7 @@ fn part_definitions(read: Read, assemblies: &[Assembly]) -> Result<Vec<PartDefin
 fn refuse_dropped_shapes(
     graph: &step_io::parser::Graph,
     report: &step_io::Report,
+    complex_drops: &[(u64, String)],
 ) -> Result<(), StepError> {
     use std::collections::{BTreeSet, HashSet};
     use step_io::parser::{Attribute, RawEntity};
@@ -2782,11 +2815,24 @@ fn refuse_dropped_shapes(
         }
     }
 
-    if report.dropped.is_empty() {
+    if report.dropped.is_empty() && complex_drops.is_empty() {
         return Ok(());
     }
-    let dropped: HashMap<u64, &step_io::DropReason> =
-        report.dropped.iter().map(|(id, r)| (*id, r)).collect();
+    let dropped: HashMap<u64, (step_io::DropKind, &str)> = complex_drops
+        .iter()
+        .map(|(id, detail)| {
+            (
+                *id,
+                (step_io::DropKind::NonstandardReference, detail.as_str()),
+            )
+        })
+        .chain(
+            report
+                .dropped
+                .iter()
+                .map(|(id, r)| (*id, (r.kind.clone(), r.detail.as_str()))),
+        )
+        .collect();
     let (mut lost, mut missing) = (BTreeSet::new(), BTreeSet::new());
     let mut stack = Vec::new();
     for (&id, entity) in &graph.entities {
@@ -2846,13 +2892,13 @@ fn refuse_dropped_shapes(
         .map(|id| format!("#{id} is referenced but not in the file"))
         .collect();
     causes.extend(lost.iter().filter_map(|id| {
-        let reason = dropped[id];
-        (reason.kind != step_io::DropKind::Cascade).then(|| {
+        let reason = &dropped[id];
+        (reason.0 != step_io::DropKind::Cascade).then(|| {
             format!(
                 "#{id} {} was dropped ({:?}: {})",
                 name(&graph.entities[id]),
-                reason.kind,
-                reason.detail
+                reason.0,
+                reason.1
             )
         })
     }));
@@ -2966,6 +3012,24 @@ pub fn decode_step_file_bytes(path: &std::path::Path, bytes: Vec<u8>) -> std::io
         Ok(out)
     } else {
         Ok(bytes)
+    }
+}
+
+impl Assembly {
+    pub fn new(product_definition: u64, name: String, components: Vec<Component>) -> Self {
+        Self {
+            product_definition,
+            name,
+            components,
+        }
+    }
+}
+impl Component {
+    pub fn new(occurrence: u64, definition: u64) -> Self {
+        Self {
+            occurrence,
+            definition,
+        }
     }
 }
 
@@ -3342,6 +3406,16 @@ mod tests {
     #[test]
     fn broken_files_are_refused() {
         let error = |name: &str| read_step_file(&fixture(name)).unwrap_err().to_string();
+        for name in [
+            "golden_simple_through_hole_no_bounds.step",
+            "kissing_cylinders_knife_no_bounds.step",
+        ] {
+            let err = error(&format!("broken/{name}"));
+            assert!(
+                err.contains("NonstandardReference: ADVANCED_FACE: 'bounds' references"),
+                "{name}: {err}"
+            );
+        }
         assert!(error("broken/empty_data.step").contains("no solid or shell"));
         assert!(error("broken/truncated.step").contains("parse error"));
         assert!(error("broken/truncated_closed.step").contains("#105 is referenced"));

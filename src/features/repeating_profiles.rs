@@ -39,6 +39,7 @@ pub type SectorCurve = (String, f64, Vec<(f64, f64)>);
 /// A complete physical profile proved invariant under one sector rotation.
 /// `sector_signature` is the traversal- and phase-neutral inventory of one sector's curves.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct RepeatingRadialProfile {
     pub axis: String,
     pub centre: V3,
@@ -70,6 +71,7 @@ impl RepeatingRadialProfile {
 /// `recognise_repeating_radial_profiles`' keyword arguments.
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+#[non_exhaustive]
 pub struct RepeatingRadialProfileOptions {
     pub tol: f64,
 }

@@ -215,10 +215,7 @@ fn scale_200mb() {
     .unwrap();
     let e: Expected = serde_json::from_slice(&sidecar).unwrap();
     for mapped in [false, true] {
-        let opts = ScanOptions {
-            index_dir: mapped.then(|| dir.path().to_owned()),
-            ..ScanOptions::default()
-        };
+        let opts = ScanOptions::default().with_index_dir(mapped.then(|| dir.path().to_owned()));
         let m = manifest::scan(File::open(&path).unwrap(), &opts).unwrap();
         assert_eq!(m.products.len(), e.products);
         assert_eq!(m.instances.len(), e.instances);
@@ -239,10 +236,7 @@ fn scale_200mb() {
         m.read_product(&File::open(&path).unwrap(), &m.products[0].id)
             .unwrap();
     }
-    let opts = ScanOptions {
-        instance_limit: 10,
-        ..ScanOptions::default()
-    };
+    let opts = ScanOptions::default().with_instance_limit(10);
     assert!(
         manifest::scan(File::open(&path).unwrap(), &opts)
             .unwrap_err()

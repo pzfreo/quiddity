@@ -19,6 +19,7 @@ use crate::kernel::py;
 /// includes the free end's treatment too. When geometry leaves the two ends interchangeable,
 /// axis/location represent an end gauge, not an asserted material base/free direction.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct BossRecord {
     /// Optional additive reference to the identical/superseding published feature.
     #[serde(default, skip_serializing_if = "Option::is_none")]

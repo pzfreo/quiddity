@@ -117,6 +117,7 @@ pub const GROUPS: &[(&str, &str)] = &[
 
 /// A kept instance that references removed ones.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
 pub struct Blocker {
     pub id: u64,
     /// Its type: the entity name, or `(a b c)` for a complex instance, lower case.
@@ -128,6 +129,7 @@ pub struct Blocker {
 
 /// A container whose aggregate a rewrite would empty although its lower bound is at least 1.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
 pub struct Emptied {
     pub id: u64,
     pub entity: String,
@@ -138,6 +140,7 @@ pub struct Emptied {
 
 /// Why a removal cannot be planned: everything found, each list in id order.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub struct RemovalRefusal {
     pub policy: PresentationPolicy,
     /// Seeds that name no DATA instance.
@@ -211,6 +214,7 @@ pub struct Rewrite {
 
 /// What a plan does, for the caller's report.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub struct RemovalReport {
     /// Removed instances, counted by type.
     pub removed_by_type: BTreeMap<String, usize>,
@@ -223,6 +227,7 @@ pub struct RemovalReport {
 
 /// The instances to remove and to rewrite.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct RemovalPlan {
     pub removed: BTreeSet<u64>,
     /// Kept instances replaced by a record without their removed members.
@@ -853,4 +858,25 @@ fn infrastructure(doc: &Document) -> BTreeSet<u64> {
         brep.extend(forward(e));
     }
     out
+}
+
+impl Blocker {
+    pub fn new(id: u64, entity: String, family: Family, references: Vec<u64>) -> Self {
+        Self {
+            id,
+            entity,
+            family,
+            references,
+        }
+    }
+}
+impl Emptied {
+    pub fn new(id: u64, entity: String, attribute: String, lower: u32) -> Self {
+        Self {
+            id,
+            entity,
+            attribute,
+            lower,
+        }
+    }
 }

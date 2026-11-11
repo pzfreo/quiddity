@@ -36,6 +36,7 @@ impl ProfileAxis {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct CylindricalProfile {
     pub radius: f64,
     pub axis: ProfileAxis,

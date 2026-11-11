@@ -43,6 +43,7 @@ type Checked<T> = Result<T, PassageError>;
 /// interval are the slot's depth direction and span. Directions to 6 decimals, sizes and centre
 /// to 3; `body_key` is `None` when the slot's body is ambiguous.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct OrientedSlot {
     pub source: SectionPassage,
     pub width_direction: V3,
@@ -96,6 +97,7 @@ impl Located for OrientedSlot {
 /// slots.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum OrientedSlotPattern {
     OrientedSlotGrid {
         slots: Vec<OrientedSlot>,

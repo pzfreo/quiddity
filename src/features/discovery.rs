@@ -4,6 +4,7 @@
 use serde::Serialize;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
 pub struct DiscoveryRefusal {
     pub reason: String,
     pub faces: Vec<usize>,
