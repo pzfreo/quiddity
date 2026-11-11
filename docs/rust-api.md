@@ -19,7 +19,8 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `haecceity::express`: `Violation`.
 - `haecceity::express_rules`: `RuleViolation`.
 - `haecceity::gvp`: `ValidationProperty`.
-- `haecceity::json::presentation`: `Graphic`, `Presentation`.
+- `haecceity::json::presentation`: `Graphic`, `Presentation`, `TextPlacement`, `PolylineRole`.
+- `haecceity::presentation`: `Callout`.
 - `haecceity::mesh`: `FaceMesh`, `MeshRefusal`.
 - `haecceity::overlap`: `OverlapRefusal`.
 - `haecceity::p21`: `P21Error`.
@@ -46,7 +47,7 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `quiddity::features::edge_open_circular`: `EdgeOpenCircularPocket`, `OpenCircularSection`, `OpenCircularSectionSegment`.
 - `quiddity::features::edge_open_prismatic`: `EdgeOpenPrismaticRecess`, `OpenPolygonalSection`, `OpenSectionOpening`.
 - `quiddity::features::effective_surfaces`: `MaterialSideRefusalReason`, `OrientedRefusal`, `SurfaceRefusalReason`.
-- `quiddity::features::evidence`: `EvidenceError`, `Occurrence`, `RunMode`.
+- `quiddity::features::evidence`: `EvidenceError`, `EvidenceStatus`, `Occurrence`, `RunMode`.
 - `quiddity::features::face_grooves`: `FaceGroove`.
 - `quiddity::features::fillets`: `Fillet`, `FilletOptions`.
 - `quiddity::features::flats`: `Flat`.
@@ -61,7 +62,7 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `quiddity::features::levels`: `FaceLevel`, `FaceLevelOptions`, `RiserEvidence`, `RiserOptions`.
 - `quiddity::features::local_steps`: `LocalStep`, `LocalStepEnd`.
 - `quiddity::features`: `FamilyFailure`, `Features`, `Inventory`.
-- `quiddity::featureselled_threads`: `ModelledThread`, `ModelledThreadRefusal`, `ThreadAxis`.
+- `quiddity::features::modelled_threads`: `ModelledThread`, `ModelledThreadRefusal`, `ThreadAxis`.
 - `quiddity::features::oblique_through_steps`: `ObliqueThroughStep`.
 - `quiddity::features::oriented_chamfers`: `OrientedChamfer`, `OrientedChamferOptions`.
 - `quiddity::features::oriented_slots`: `OrientedSlot`, `OrientedSlotPattern`.
@@ -94,7 +95,7 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `quiddity::features::v_channels`: `VChannel`.
 - `quiddity::frames`: `FrameRefusal`, `FramedError`, `FramedRecognition`, `PartFrame`.
 - `quiddity::published_records`: `PublishedFeatures`.
-- `quiddity::recognition`: `BodyReason`, `FaceRefusal`, `RecognitionDocument`, `Record`.
+- `quiddity::recognition`: `BodyReason`, `FaceAccounting`, `FaceRefusal`, `RecognitionDocument`, `Record`.
 - `quiddity::serve`: `Failure`, `RecognitionOutput`.
 
 Types re-exported at the crate root retain those names too: for example,
@@ -122,6 +123,9 @@ Use the reader/recogniser for output-only records. For authored values, use:
 - `ScanOptions::default()` also offers `with_chunk_size`, `with_index_dir`,
   `with_no_product_hashes` and `with_instance_limit` builders.
 - `Graphic::new(source, name)` for an initially empty presentation graphic.
+- `TextPlacement::new(origin, x_axis, normal)` for a caller-supplied text frame;
+  set optional public metadata afterward. `presentation::Callout::default()`
+  creates empty annotation geometry.
 - `Default::default()` followed by assignment for defaultable options and
   collections, including `Features`, `PublishedFeatures`, `Presentation`,
   `PartIdentifiers` and report types with defaults.
@@ -139,6 +143,11 @@ unknown evidence can return their normal refusal; tests that require a particula
 closed set should fail explicitly on an unknown variant. `UpgradeRepairKind::code()`
 provides its stable writer-report code without a cross-crate exhaustive match.
 
+`TextPlacement`, `presentation::Callout`, `PolylineRole`, `EvidenceStatus` and
+`FaceAccounting` have grown before and are extensible too. Unknown proof/accounting
+variants must fail closed in consumers; only `EvidenceStatus::Verified` grants
+verification. Rust extensibility does not loosen JSON schema validation.
+
 ## Deliberately closed values
 
 The survey also covers haecceity's geometry and semantic PMI APIs and quiddity's
@@ -147,9 +156,8 @@ planning/input values. Fixed mathematical representations (`V3`, `Bounds`, `Fram
 (`Edge`, `Loop`, `Face`, `Solid`, `Source`), identifier/quantity wrappers, EXPRESS
 syntax values, PMI model values and standard-defined enums remain constructible
 and exhaustive. Their fields and variants are a source compatibility commitment:
-adding one requires a minor release. So do changes to the closed accounting/proof
-states (`FaceAccounting`, `EvidenceStatus`), correspondence `Class`, and coordinate
-representations (`RecordFrame`, `FrameGauge`, `FilletAxis`, `ProfileAxis`, `Grid`).
+adding one requires a minor release. This also covers correspondence `Class` and
+coordinate representations (`RecordFrame`, `FrameGauge`, `FilletAxis`, `ProfileAxis`, `Grid`).
 Input tolerances without defaults remain explicit closed values; no tolerance or
 recognition policy changed in this migration. Opaque objects with private state
 already require their existing factory functions.
@@ -162,8 +170,11 @@ schema. Keep the existing schema and fingerprint version policies.
 
 `.github/check_semver.py` uses pinned cargo-semver-checks 0.51.0, the latest stable
 crates.io version of each published crate, and the default/JSON API
-configuration. The lint job separately compiles supported feature-off builds. Only current = baseline = 0.4.9 has a temporary breaking allowance
-for the approved 0.5.0 migration. The allowance expires on the manifest version
-bump or publication of a newer baseline. The `f3d` conversion dependency is
+configuration. The lint job separately compiles supported feature-off builds.
+Every run checks patch compatibility. Only a non-empty Unreleased
+`### Breaking (Rust API)` section with an explicit `Pending version: X.Y.Z`
+(at least the next minor before 1.0) sanctions detected breaks. Historical or
+empty sections do not qualify; tool failures always fail. See CONTRIBUTING.
+The `f3d` conversion dependency is
 excluded from this check to keep its cost bounded; its API changes remain subject
 to the same release rule. CI separately audits Cargo.lock with cargo-audit 0.22.2.

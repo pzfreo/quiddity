@@ -223,10 +223,25 @@ def test_helical_spring_record():
     assert not data["holes"] and not data["bosses"] and not data["fillets"]
 
 
-@pytest.mark.parametrize("fixture", ["golden_simple_through_hole_no_bounds.step", "kissing_cylinders_knife_no_bounds.step"])
+@pytest.mark.parametrize("fixture", [
+    "golden_simple_through_hole_no_bounds.step", "kissing_cylinders_knife_no_bounds.step",
+    *[f"golden_complex_{case}.step" for case in [
+        "loop_edges", "bound_loop", "oriented_edge", "inner_bound",
+        "outer_bound", "edge_element", "face_surface",
+    ]],
+])
 @pytest.mark.parametrize("operation", [quiddity.recognise, quiddity.evidence, quiddity.fingerprints])
 def test_boundless_face_is_refused(fixture, operation):
-    with pytest.raises(ValueError, match="face #17 has no readable bounds"):
+    owner, slot = {
+        "loop_edges": ("EDGE_LOOP", "edge_list"),
+        "bound_loop": ("FACE_BOUND", "bound"),
+        "oriented_edge": ("EDGE_LOOP", "edge_list"),
+        "inner_bound": ("ADVANCED_FACE", "bounds"),
+        "outer_bound": ("ADVANCED_FACE", "bounds"),
+        "edge_element": ("ORIENTED_EDGE", "edge_element"),
+        "face_surface": ("ADVANCED_FACE", "face_geometry"),
+    }.get(fixture.removeprefix("golden_complex_").removesuffix(".step"), ("ADVANCED_FACE", "bounds"))
+    with pytest.raises(ValueError, match=f"NonstandardReference: {owner}: '{slot}' references"):
         operation((FIXTURES / "broken" / fixture).read_bytes())
 
 

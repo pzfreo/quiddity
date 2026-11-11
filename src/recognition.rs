@@ -70,6 +70,7 @@ pub struct FaceRefusal {
 /// Exactly one group per face. Feature claims take precedence over refusals, then body.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "group", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum FaceAccounting {
     Feature { record_ids: Vec<String> },
     Body { reason: BodyReason },

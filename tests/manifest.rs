@@ -56,7 +56,35 @@ const REFUSAL_FIXTURES: &[(&str, &str)] = &[
     ),
     (
         "tests/fixtures/broken/golden_simple_through_hole_no_bounds.step",
-        "face #17 has no readable bounds",
+        "NonstandardReference: ADVANCED_FACE: 'bounds' references",
+    ),
+    (
+        "tests/fixtures/broken/golden_complex_loop_edges.step",
+        "NonstandardReference: EDGE_LOOP: 'edge_list' references",
+    ),
+    (
+        "tests/fixtures/broken/golden_complex_bound_loop.step",
+        "NonstandardReference: FACE_BOUND: 'bound' references",
+    ),
+    (
+        "tests/fixtures/broken/golden_complex_oriented_edge.step",
+        "NonstandardReference: EDGE_LOOP: 'edge_list' references",
+    ),
+    (
+        "tests/fixtures/broken/golden_complex_inner_bound.step",
+        "NonstandardReference: ADVANCED_FACE: 'bounds' references",
+    ),
+    (
+        "tests/fixtures/broken/golden_complex_outer_bound.step",
+        "NonstandardReference: ADVANCED_FACE: 'bounds' references",
+    ),
+    (
+        "tests/fixtures/broken/golden_complex_edge_element.step",
+        "NonstandardReference: ORIENTED_EDGE: 'edge_element' references",
+    ),
+    (
+        "tests/fixtures/broken/golden_complex_face_surface.step",
+        "NonstandardReference: ADVANCED_FACE: 'face_geometry' references",
     ),
     (
         "tests/fixtures/broken/header_only.step",
@@ -64,7 +92,7 @@ const REFUSAL_FIXTURES: &[(&str, &str)] = &[
     ),
     (
         "tests/fixtures/broken/kissing_cylinders_knife_no_bounds.step",
-        "face #17 has no readable bounds",
+        "NonstandardReference: ADVANCED_FACE: 'bounds' references",
     ),
     (
         "tests/fixtures/broken/truck_pub_shaft_hole.step.gz",

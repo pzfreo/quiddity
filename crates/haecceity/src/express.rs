@@ -465,6 +465,95 @@ pub fn validate_document(graph: &Graph) -> Vec<Violation> {
     TARGET.validate_document(graph)
 }
 
+/// Fill step-io 0.3's slot-wide `complex_ok` gap without imposing full AP242
+/// conformance on legacy input. Only incompatible complex references are reported;
+/// simple references, normalization, and unsupported entities remain step-io's policy.
+pub(crate) fn complex_reference_drops(graph: &Graph) -> Vec<(u64, String)> {
+    let complex: HashSet<u64> = graph
+        .entities
+        .iter()
+        .filter_map(|(&id, e)| matches!(e, RawEntity::Complex { .. }).then_some(id))
+        .collect();
+    if complex.is_empty() {
+        return Vec::new();
+    }
+    fn contains_complex(v: &Param, ids: &HashSet<u64>) -> bool {
+        match v {
+            Param::EntityRef(id) => ids.contains(id),
+            Param::List(items) => items.iter().any(|v| contains_complex(v, ids)),
+            Param::Typed { value, .. } => contains_complex(value, ids),
+            _ => false,
+        }
+    }
+    let lookup = |id| {
+        Some(if complex.contains(&id) {
+            record_names(&graph.entities[&id])
+        } else {
+            Vec::new()
+        })
+    };
+    let mut checker = Checker::new(TARGET, &lookup);
+    let mut slots = HashMap::new();
+    let mut drops = Vec::new();
+    for (&id, record) in &graph.entities {
+        let mut inspect = |name: &str, slots: &[Slot], values: &[Param]| {
+            for (slot, value) in slots.iter().zip(values) {
+                if !contains_complex(value, &complex) {
+                    continue;
+                }
+                let mut problems = Vec::new();
+                checker.value(value, slot.ty, "", &mut problems);
+                for &ty in &slot.redeclared {
+                    checker.narrowed(value, slot.ty, ty, &mut problems);
+                }
+                if let Some(problem) = problems.into_iter().find(|p| p.kind == Kind::Reference) {
+                    drops.push((
+                        id,
+                        format!(
+                            "{name}: '{}' references incompatible complex instance ({})",
+                            slot.name, problem.detail
+                        ),
+                    ));
+                    break;
+                }
+            }
+        };
+        match record {
+            RawEntity::Simple {
+                name, attributes, ..
+            } => {
+                if !attributes.iter().any(|v| contains_complex(v, &complex)) {
+                    continue;
+                }
+                let slots = slots
+                    .entry(name.as_str())
+                    .or_insert_with(|| TARGET.explicit_attributes(name).unwrap_or_default());
+                inspect(name, slots, attributes);
+            }
+            RawEntity::Complex { parts, .. } => {
+                if !parts
+                    .iter()
+                    .flat_map(|p| &p.attributes)
+                    .any(|v| contains_complex(v, &complex))
+                {
+                    continue;
+                }
+                let set = parts
+                    .iter()
+                    .filter_map(|p| TARGET.entity(&p.name))
+                    .flat_map(|e| TARGET.closure_of(e))
+                    .collect();
+                for part in parts {
+                    if let Some(e) = TARGET.entity(&part.name) {
+                        inspect(&part.name, &TARGET.own_slots(e, &set), &part.attributes);
+                    }
+                }
+            }
+        }
+    }
+    drops
+}
+
 impl Edition {
     /// The entity declaration of `name` (any case).
     pub fn entity(&self, name: &str) -> Option<&'static EntityDecl> {
@@ -1316,5 +1405,52 @@ fn ty_name(ty: Ty) -> String {
         Ty::Binary => "BINARY".into(),
         Ty::Named(n) => n.into(),
         Ty::Aggregate(a) => format!("{:?} OF {}", a.kind, ty_name(a.of)).to_ascii_uppercase(),
+    }
+}
+
+#[cfg(test)]
+mod complex_reference_tests {
+    use super::*;
+
+    #[test]
+    fn complex_targets_use_slot_types_including_complex_sources() {
+        let base = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/golden_simple_through_hole.step"),
+        )
+        .unwrap();
+        let valid = step_io::parser::parse(base.as_bytes()).unwrap();
+        assert!(complex_reference_drops(&valid).is_empty());
+        for (before, after, owner, attribute) in [
+            (
+                "#22 = VERTEX_POINT('',#23);",
+                "#22 = VERTEX_POINT('',#42);",
+                "VERTEX_POINT",
+                "vertex_geometry",
+            ),
+            (
+                "#32 = PLANE('',#33);",
+                "#32 = PLANE('',#42);",
+                "PLANE",
+                "position",
+            ),
+            (
+                "#17 = ADVANCED_FACE('',(#18),#32,.F.);",
+                "#17 = (ADVANCED_FACE() FACE((#18)) FACE_SURFACE(#42,.F.) REPRESENTATION_ITEM('') TOPOLOGICAL_REPRESENTATION_ITEM());",
+                "FACE_SURFACE",
+                "face_geometry",
+            ),
+        ] {
+            assert!(base.contains(before), "{before}");
+            let graph = step_io::parser::parse(base.replace(before, after).as_bytes()).unwrap();
+            let drops = complex_reference_drops(&graph);
+            assert_eq!(drops.len(), 1, "{drops:?}");
+            assert!(
+                drops[0]
+                    .1
+                    .starts_with(&format!("{owner}: '{attribute}' references")),
+                "{drops:?}"
+            );
+        }
     }
 }

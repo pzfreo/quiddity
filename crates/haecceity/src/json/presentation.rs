@@ -20,6 +20,7 @@ pub use layout::{Plane, TextPlacement, View};
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
 #[cfg_attr(feature = "json-import", derive(serde::Deserialize))]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum PolylineRole {
     Text,
     Frame,

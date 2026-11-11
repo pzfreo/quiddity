@@ -21,6 +21,7 @@ pub enum RunMode {
 /// Strict valid-solid evidence for a published record. Missing proof is never verification.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[non_exhaustive]
 pub enum EvidenceStatus {
     Verified,
     #[default]

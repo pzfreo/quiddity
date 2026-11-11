@@ -6,6 +6,8 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+Pending version: 0.5.0
+
 ### Breaking (Rust API)
 
 - **The next release must be 0.5.0, not a 0.4.x patch.** Recognition records,
@@ -16,10 +18,13 @@ in [docs/alpha1.md](docs/alpha1.md).
   caller-authored values. See [Rust API evolution](docs/rust-api.md) for the full list
   and the closed value types deliberately kept exhaustive. Cargo versions remain
   unchanged here: the release process performs the minor bump.
+- Presentation text placements, callout geometry, polyline roles, evidence statuses
+  and face-accounting groups are also non-exhaustive; use `TextPlacement::new` or
+  `presentation::Callout::default()` for construction and handle unknown variants.
 - Breaking public Rust API changes require a minor bump before 1.0. This includes
   field/variant additions on exhaustive types and removing or feature-gating APIs.
   CI checks both published crates against their latest stable crates.io release;
-  the documented 0.4.9 → 0.5.0 migration is the sole temporary allowance.
+  a non-empty Unreleased Breaking (Rust API) section sanctions a pending minor bump.
 
 
 ### Documentation
@@ -29,9 +34,10 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
-- Refuse STEP faces without readable bounds, including malformed references to
-  complex instances. Empty programmatic faces no longer panic in loop placement.
-  Two regression inputs and 256 time-bounded token mutations exercise this path.
+- Refuse incompatible complex targets in schema reference slots throughout shape
+  topology and geometry, and loops with neither edges nor a vertex. Empty programmatic faces no longer panic in loop placement.
+  Nine regression inputs and 256 time-bounded token mutations exercise this path;
+  the mutation harness also rejects caught family panics.
 - Python native entry points catch internal Rust panics as `quiddity.QuiddityError`
   (a `RuntimeError`, caught by `except Exception`) with the panic message. Normal
   input errors retain their existing `ValueError` / `PmiError` types.

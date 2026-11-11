@@ -51,9 +51,16 @@ feature surface and check supported feature-off builds too. See the maintained
 CI pins cargo-semver-checks 0.51.0 and compares haecceity and quiddity with each
 crate's latest stable crates.io version, with default features plus JSON. The lint
 job also compiles supported feature-off builds.
-The only temporary breaking allowance is current = published = 0.4.9, for this
-approved 0.5.0 migration; it expires on the version bump or a new published version.
-Do not extend that allowance. CI also runs cargo-audit against Cargo.lock.
+Every run uses patch lints, even when Cargo versions await release. A non-empty
+`### Breaking (Rust API)` subsection under `## Unreleased` is the sanctioned
+breaking override. It must be accompanied by `Pending version: X.Y.Z` under
+Unreleased, at least the next minor over each published baseline before 1.0
+(at least the next major after 1.0), and no lower than the manifest version.
+Document the actual break and caller migration there. Empty/commented sections
+and historical releases grant no override. Without that section, API breaks fail
+regardless of the manifest version. With it, completed API-lint failures are
+reported and accepted for the declared pending release; build/tool failures fail.
+This also applies while current = published, including the pending 0.5.0 release. CI also runs cargo-audit against Cargo.lock.
 
 ## Developer Certificate of Origin
 

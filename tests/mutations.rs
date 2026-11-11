@@ -14,8 +14,29 @@ fn mutation_case() {
     let bytes = std::fs::read(path).unwrap();
     // Call the library directly: serve::respond would catch and hide a panic.
     match quiddity::serve::recognise_bytes("mutation.step", bytes) {
-        Ok(_) => (),
-        Err(error) => assert_eq!(error.code, "broken_step", "{error:?}"),
+        Ok((output, _)) => assert!(
+            output
+                .document
+                .failures
+                .iter()
+                .all(|failure| failure.message.is_none()),
+            "family panic: {:?}",
+            output.document.failures
+        ),
+        Err(error) => assert!(
+            [
+                "bad_json",
+                "bad_request",
+                "missing_field",
+                "unknown_op",
+                "unreadable",
+                "broken_step",
+                "broken_f3d",
+                "bad_document"
+            ]
+            .contains(&error.code),
+            "not a documented input refusal: {error:?}"
+        ),
     }
 }
 
@@ -34,10 +55,70 @@ fn boundless_faces_are_refused() {
         let error = quiddity::serve::recognise_bytes(name, bytes).err().unwrap();
         assert_eq!(error.code, "broken_step");
         assert!(
-            error.message.contains("face #17 has no readable bounds"),
+            error
+                .message
+                .contains("NonstandardReference: ADVANCED_FACE: 'bounds' references"),
             "{error}"
         );
     }
+}
+
+#[test]
+fn incompatible_complex_references_are_refused() {
+    for (name, owner, attribute) in [
+        ("golden_complex_loop_edges.step", "EDGE_LOOP", "edge_list"),
+        ("golden_complex_bound_loop.step", "FACE_BOUND", "bound"),
+        (
+            "golden_complex_oriented_edge.step",
+            "EDGE_LOOP",
+            "edge_list",
+        ),
+        ("golden_complex_inner_bound.step", "ADVANCED_FACE", "bounds"),
+        ("golden_complex_outer_bound.step", "ADVANCED_FACE", "bounds"),
+        (
+            "golden_complex_edge_element.step",
+            "ORIENTED_EDGE",
+            "edge_element",
+        ),
+        (
+            "golden_complex_face_surface.step",
+            "ADVANCED_FACE",
+            "face_geometry",
+        ),
+    ] {
+        let bytes = std::fs::read(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/broken")
+                .join(name),
+        )
+        .unwrap();
+        let error = quiddity::serve::recognise_bytes(name, bytes)
+            .err()
+            .unwrap_or_else(|| panic!("accepted {name}"));
+        assert_eq!(error.code, "broken_step", "{error}");
+        assert!(
+            error.message.contains(&format!(
+                "NonstandardReference: {owner}: '{attribute}' references"
+            )),
+            "{name}: {error}"
+        );
+    }
+}
+
+#[test]
+fn empty_edge_loop_is_refused() {
+    let text = include_str!("fixtures/golden_simple_through_hole.step").replace(
+        "#19 = EDGE_LOOP('',(#20,#55,#83,#111));",
+        "#19 = EDGE_LOOP('',());",
+    );
+    let error = quiddity::serve::recognise_bytes("empty-loop.step", text.into_bytes())
+        .err()
+        .unwrap();
+    assert_eq!(error.code, "broken_step", "{error}");
+    assert!(
+        error.message.contains("no edges or vertex") || error.message.contains("NonstandardValue"),
+        "{error}"
+    );
 }
 
 /// Reference and numeric token spans, excluding entity declarations,
@@ -155,5 +236,31 @@ fn single_token_mutations_do_not_panic_or_hang() {
                 std::thread::sleep(Duration::from_millis(5));
             }
         }
+    }
+}
+
+#[test]
+fn compatible_but_unreadable_complex_topology_is_refused() {
+    let base = include_str!("fixtures/golden_simple_through_hole.step");
+    for (before, after) in [
+        (
+            "#262 = FACE_BOUND('',#263,.T.);",
+            "#262 = (FACE_BOUND(#263,.T.) REPRESENTATION_ITEM('') TOPOLOGICAL_REPRESENTATION_ITEM());",
+        ),
+        (
+            "#20 = ORIENTED_EDGE('',*,*,#21,.F.);",
+            "#20 = (EDGE(*,*) ORIENTED_EDGE(#21,.F.) REPRESENTATION_ITEM('') TOPOLOGICAL_REPRESENTATION_ITEM());",
+        ),
+    ] {
+        assert!(base.contains(before));
+        let bytes = base.replace(before, after).into_bytes();
+        let error = quiddity::serve::recognise_bytes("complex-topology.step", bytes)
+            .err()
+            .unwrap();
+        assert_eq!(error.code, "broken_step", "{error}");
+        assert!(
+            error.message.contains("count differs") || error.message.contains("was dropped"),
+            "{error}"
+        );
     }
 }
