@@ -485,6 +485,36 @@ pub(crate) fn complex_reference_drops(graph: &Graph) -> Vec<(u64, String)> {
             _ => false,
         }
     }
+    // step-io's reference slots flatten aggregates (including normalized lone
+    // values). Check each target against the leaf entity/SELECT type, independently
+    // of value-kind or cardinality normalization.
+    fn check_refs(
+        checker: &mut Checker<'_>,
+        value: &Param,
+        mut ty: Ty,
+        ids: &HashSet<u64>,
+        problems: &mut Vec<Problem>,
+    ) {
+        loop {
+            match ty {
+                Ty::Aggregate(a) => ty = a.of,
+                Ty::Named(n)
+                    if let Some(TypeDef::Defined(inner)) = TARGET.type_decl(n).map(|t| &t.def) =>
+                {
+                    ty = *inner
+                }
+                _ => break,
+            }
+        }
+        match value {
+            Param::EntityRef(id) if ids.contains(id) => checker.value(value, ty, "", problems),
+            Param::List(items) => items
+                .iter()
+                .for_each(|v| check_refs(checker, v, ty, ids, problems)),
+            Param::Typed { value, .. } => check_refs(checker, value, ty, ids, problems),
+            _ => {}
+        }
+    }
     let lookup = |id| {
         Some(if complex.contains(&id) {
             record_names(&graph.entities[&id])
@@ -502,9 +532,9 @@ pub(crate) fn complex_reference_drops(graph: &Graph) -> Vec<(u64, String)> {
                     continue;
                 }
                 let mut problems = Vec::new();
-                checker.value(value, slot.ty, "", &mut problems);
+                check_refs(&mut checker, value, slot.ty, &complex, &mut problems);
                 for &ty in &slot.redeclared {
-                    checker.narrowed(value, slot.ty, ty, &mut problems);
+                    check_refs(&mut checker, value, ty, &complex, &mut problems);
                 }
                 if let Some(problem) = problems.into_iter().find(|p| p.kind == Kind::Reference) {
                     drops.push((
@@ -1422,6 +1452,18 @@ mod complex_reference_tests {
         let valid = step_io::parser::parse(base.as_bytes()).unwrap();
         assert!(complex_reference_drops(&valid).is_empty());
         for (before, after, owner, attribute) in [
+            (
+                "#19 = EDGE_LOOP('',(#20,#55,#83,#111));",
+                "#19 = EDGE_LOOP('',#42);",
+                "EDGE_LOOP",
+                "edge_list",
+            ),
+            (
+                "#19 = EDGE_LOOP('',(#20,#55,#83,#111));",
+                "#19 = EDGE_LOOP('',(#42));",
+                "EDGE_LOOP",
+                "edge_list",
+            ),
             (
                 "#22 = VERTEX_POINT('',#23);",
                 "#22 = VERTEX_POINT('',#42);",

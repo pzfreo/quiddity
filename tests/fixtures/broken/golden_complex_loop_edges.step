@@ -27,7 +27,7 @@ DATA;
 #16 = CLOSED_SHELL('',(#17,#137,#213,#324,#373,#426,#433,#460,#515));
 #17 = ADVANCED_FACE('',(#18),#32,.F.);
 #18 = FACE_BOUND('',#19,.F.);
-#19 = EDGE_LOOP('',(#42));
+#19 = EDGE_LOOP('',#42);
 #20 = ORIENTED_EDGE('',*,*,#21,.F.);
 #21 = EDGE_CURVE('',#22,#24,#26,.T.);
 #22 = VERTEX_POINT('',#23);
