@@ -82,6 +82,7 @@ pub enum BoundaryPoint {
 
 /// One face's triangles, wound outward.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct FaceMesh {
     /// Vertices on the exact surface (boundary vertices at their edge's positions).
     pub points: Vec<V3>,
@@ -118,6 +119,7 @@ impl FaceMesh {
 
 /// Why a face was not triangulated.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct MeshRefusal {
     pub reason: String,
 }

@@ -113,6 +113,7 @@ fn max_of(values: &[f64]) -> f64 {
 
 /// One canonical physical closed line/arc boundary (`ClosedSectionProfile`).
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct ClosedSectionProfile {
     closure: &'static str,
     boundary: Vec<PassageSectionVertex>,
@@ -144,6 +145,7 @@ impl ClosedSectionProfile {
 /// remains solid. `None` exists only for schema version 1 callers; recognition always publishes
 /// the proved relation.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct OpenSectionProfile {
     closure: &'static str,
     boundary: Vec<PassageSectionVertex>,
@@ -241,6 +243,7 @@ pub fn open_profile_material_side(boundary: &[PassageSectionVertex]) -> Checked<
 /// A section recess's profile: closed (pocket, passage) or open (edge-open recess, channel).
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum SectionProfile {
     Closed(ClosedSectionProfile),
     Open(OpenSectionProfile),
@@ -262,6 +265,7 @@ impl SectionProfile {
 /// A plane through the centroid end coordinate, with local section gradients
 /// (`PlanarEndSurface`).
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct PlanarEndSurface {
     #[serde(rename = "type")]
     kind: &'static str,
@@ -292,6 +296,7 @@ impl PlanarEndSurface {
 
 /// One absolute local-run affine term of an observed plane envelope (`PlanarEndTerm`).
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct PlanarEndTerm {
     height: Placed<f64>,
     gradient: V2,
@@ -347,6 +352,7 @@ impl PlanarEndTerm {
 /// The minimum or maximum of two canonically ordered observed planes
 /// (`PlanarEnvelopeEndSurface`).
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct PlanarEnvelopeEndSurface {
     #[serde(rename = "type")]
     kind: &'static str,
@@ -401,6 +407,7 @@ impl PlanarEnvelopeEndSurface {
 /// A section end's explicitly discriminated analytic surface.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum EndSurface {
     Planar(PlanarEndSurface),
     Cylindrical(CylindricalEndSurface),
@@ -409,6 +416,7 @@ pub enum EndSurface {
 
 /// A physical end condition and its analytic surface (`SectionEnd`).
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct SectionEnd {
     condition: &'static str,
     surface: EndSurface,
@@ -447,6 +455,7 @@ impl SectionEnd {
 
 /// A section recess's low and high ends (`SectionRecessEnds`).
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct SectionRecessEnds {
     low: SectionEnd,
     high: SectionEnd,
@@ -470,6 +479,7 @@ impl SectionRecessEnds {
 /// The reconstructible constant-section geometry selected by ADR 0019
 /// (`SectionRecessGeometry`).
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct SectionRecessGeometry {
     #[serde(rename = "type")]
     kind: &'static str,
@@ -709,6 +719,7 @@ const SECTION_SHAPES: [&str; 7] = [
 
 /// A recess's authoritative feature kind and section shape (`SectionRecessClassification`).
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct SectionRecessClassification {
     feature_kind: &'static str,
     section_shape: &'static str,
@@ -740,6 +751,7 @@ impl SectionRecessClassification {
 /// A recess's defining (wall) faces and its complete constituent set
 /// (`SectionRecessEvidence`).
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct SectionRecessEvidence {
     defining_faces: Vec<usize>,
     constituent_faces: Vec<usize>,
@@ -779,6 +791,7 @@ impl SectionRecessEvidence {
 /// A body in the document's roster (`SectionRecessBodyRef`); Python's only check (a
 /// non-negative int) is the type's.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct SectionRecessBodyRef {
     pub index: usize,
 }
@@ -786,12 +799,14 @@ pub struct SectionRecessBodyRef {
 /// A face in the document's roster (`SectionRecessFaceRef`); Python's only check (a
 /// non-negative int) is the type's.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct SectionRecessFaceRef {
     pub index: usize,
 }
 
 /// One published constant-section recess (`SectionRecess`).
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct SectionRecess {
     /// Optional additive reference to the identical/superseding published feature.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -866,6 +881,7 @@ impl SectionRecess {
 /// Source evidence for an internal candidate that cannot issue truthful unified geometry
 /// (`SectionRecessRefusal`).
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct SectionRecessRefusal {
     body: usize,
     reason: &'static str,
@@ -909,6 +925,7 @@ fn unit_length(direction: V3) -> bool {
 /// A line of member section-centroid run midpoints, ordered along `direction`
 /// (`SectionRecessArray`).
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct SectionRecessArray {
     members: Vec<usize>,
     pitch: f64,
@@ -952,6 +969,7 @@ impl SectionRecessArray {
 /// `center` is their arithmetic mean in the recognition coordinate system; it is not an
 /// envelope centre or the centroid of removed volume.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct SectionRecessGrid {
     members: Vec<usize>,
     rows: usize,
@@ -1038,6 +1056,7 @@ impl SectionRecessGrid {
 /// A pattern among a document's occurrences.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum SectionRecessPattern {
     Array(SectionRecessArray),
     Grid(SectionRecessGrid),
@@ -1055,6 +1074,7 @@ impl SectionRecessPattern {
 /// The published section-recess document, schema version 4 (`SectionRecessDocument`): dense
 /// body, face and occurrence rosters, refusals and patterns, every reference inside them.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct SectionRecessDocument {
     schema_version: i64,
     reference_scope: &'static str,

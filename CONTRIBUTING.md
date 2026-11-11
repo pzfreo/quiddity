@@ -32,6 +32,29 @@ cargo clippy --workspace --all-targets --release -- -D warnings
 QUIDDITY_CORPUS_REQUIRED=1 cargo test --workspace --release
 ```
 
+## Public Rust API and releases
+
+Before 1.0, any breaking public API change requires a **minor** version bump
+(`0.4.x` → `0.5.0`); patch releases must remain source compatible. Adding fields
+or variants to exhaustive public types, changing signatures, removing exports,
+changing defaults, or moving an API behind a feature can break callers. State the
+break and migration in CHANGELOG's `Breaking (Rust API)` section. Release tooling
+changes the Cargo versions; do not disguise a break as a patch release.
+
+Use `#[non_exhaustive]` on extensible results, reports, errors and options. Keep
+construction possible through meaningful constructors/builders or `Default` plus
+public field assignment. Closed mathematical and interchange value types may stay
+exhaustive: extending them then requires a minor release. Preserve the default
+feature surface and check supported feature-off builds too. See the maintained
+[type inventory and migration examples](docs/rust-api.md).
+
+CI pins cargo-semver-checks 0.51.0 and compares haecceity and quiddity with each
+crate's latest stable crates.io version, with default features plus JSON. The lint
+job also compiles supported feature-off builds.
+The only temporary breaking allowance is current = published = 0.4.9, for this
+approved 0.5.0 migration; it expires on the version bump or a new published version.
+Do not extend that allowance. CI also runs cargo-audit against Cargo.lock.
+
 ## Developer Certificate of Origin
 
 Contributions are accepted under the project's licence, Apache-2.0 (its section 5 covers

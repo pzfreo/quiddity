@@ -382,10 +382,7 @@ fn staleness_versions_size_only_and_mapped_index() {
     assert!(incompatible.read_product(&temp_source(&b), &p.id).is_err());
     let size_only = manifest::scan(
         Cursor::new(&b),
-        &ScanOptions {
-            no_product_hashes: true,
-            ..ScanOptions::default()
-        },
+        &ScanOptions::default().with_no_product_hashes(true),
     )
     .unwrap();
     assert!(size_only.common.sha256.is_none());
@@ -394,21 +391,16 @@ fn staleness_versions_size_only_and_mapped_index() {
     let dir = tempfile::tempdir().unwrap();
     let mapped = manifest::scan(
         Cursor::new(&b),
-        &ScanOptions {
-            index_dir: Some(dir.path().into()),
-            chunk_size: 7,
-            ..ScanOptions::default()
-        },
+        &ScanOptions::default()
+            .with_index_dir(Some(dir.path().into()))
+            .with_chunk_size(7),
     )
     .unwrap();
     assert_eq!(mapped, m);
     assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
     let error = manifest::scan(
         Cursor::new(&b),
-        &ScanOptions {
-            instance_limit: 0,
-            ..ScanOptions::default()
-        },
+        &ScanOptions::default().with_instance_limit(0),
     )
     .unwrap_err()
     .to_string();

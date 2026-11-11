@@ -19,6 +19,7 @@ use crate::kernel::geom::{
 use crate::kernel::py;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct PolygonalObliqueThroughStep {
     pub run: V3,
     pub length: f64,

@@ -16,6 +16,7 @@ use crate::kernel::py;
 const RUN_DIRECTION_COS: f64 = 1.0 - SMOOTH_ARC_GAP;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct PairedRampStep {
     pub axis: char,
     pub angle: f64,

@@ -54,6 +54,7 @@ macro_rules! reasons {
         /// Why a candidate was decided (`ReasonCode`), with Python's values. The default
         /// acceptance (`default.accepted`) is never issued here.
         #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+        #[non_exhaustive]
         pub enum ReasonCode {
             $(#[serde(rename = $value)] $name,)*
         }
@@ -125,6 +126,7 @@ reasons! {
 /// The physical families a rule reads (`FamilyId`), with Python's values.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Family {
     AngledSteps,
     Blends,
@@ -188,6 +190,7 @@ impl Family {
 
 /// One candidate: its family, its index in that family's records, and its defining faces.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[non_exhaustive]
 pub struct Candidate {
     pub family: Family,
     pub index: usize,
@@ -197,6 +200,7 @@ pub struct Candidate {
 /// One decision on a candidate (`Disposition`): its outcome and reason, and the candidates it
 /// lost to (or, for a compatible pair, is related to), in their family's order.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
 pub struct Disposition {
     pub candidate: Candidate,
     pub outcome: Outcome,

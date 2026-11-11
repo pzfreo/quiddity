@@ -21,6 +21,7 @@ use crate::kernel::py;
 
 /// A perpendicular exterior boundary of the run, consulted rather than claimed.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct LocalStepEnd {
     /// `solid` at the envelope, `local` at an interior station.
     pub scope: &'static str,
@@ -31,6 +32,7 @@ pub struct LocalStepEnd {
 /// directions point from it towards the convex lips. Height is the first leg of the
 /// canonical section, depth the second, with no implication of world gravity.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct LocalStep {
     pub run_direction: V3,
     pub run_start: Placed<V3>,

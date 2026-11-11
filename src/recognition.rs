@@ -50,6 +50,7 @@ pub fn schema_version(_features: &Features) -> &'static str {
 /// Stable positive evidence codes; see docs/face-accounting.md.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum BodyReason {
     StockBoxSide,
     StockBoxNotched,
@@ -60,6 +61,7 @@ pub enum BodyReason {
 
 /// A named refusal record and its original reason code.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct FaceRefusal {
     pub record_id: String,
     pub reason: String,
@@ -77,6 +79,7 @@ pub enum FaceAccounting {
 
 /// One part's recognition, as draftwright reads it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct RecognitionDocument {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub failures: Vec<crate::features::FamilyFailure>,
@@ -117,6 +120,7 @@ pub struct Package {
 
 /// A recognised feature.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Record {
     /// `<family>/<index>`, the feature's fingerprint ID.
     pub id: String,
@@ -136,6 +140,24 @@ pub struct Record {
 }
 
 impl Record {
+    /// A caller-authored record starts unproved; attaching a record does not prove it.
+    pub fn new(
+        id: String,
+        family: String,
+        record_type: String,
+        faces: Vec<usize>,
+        parameters: Map<String, Value>,
+    ) -> Self {
+        Self {
+            id,
+            family,
+            record_type,
+            faces,
+            parameters,
+            evidence_status: EvidenceStatus::default(),
+        }
+    }
+
     /// All claimed faces, including proved hole-mouth treatments. The main `faces`
     /// remain the cylindrical feature's anchor; consulted support planes are not claims.
     pub fn claimed_faces(&self) -> impl Iterator<Item = usize> + '_ {

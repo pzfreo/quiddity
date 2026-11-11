@@ -126,6 +126,7 @@ use crate::kernel::brep::Part;
 /// (`_reconcile_existing`, `reconcile`) accepts, with patterns derived from accepted members
 /// only; `inventory` keeps every candidate and the decisions.
 #[derive(Clone, Debug, Default, Serialize)]
+#[non_exhaustive]
 pub struct Features {
     /// Panicking or blocked families; absent from legacy family-array serialization.
     #[serde(skip)]
@@ -537,6 +538,7 @@ pub(crate) fn project_recesses(
 /// One run's physical candidates and the aggregate's decisions on them (Python's
 /// `InventoryProduct.physical`, its evidence and its `reconciliation`).
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct Inventory {
     /// Every family's candidates before reconciliation, each with its defining faces. The
     /// derived pattern families are empty: Python derives them from accepted members only.

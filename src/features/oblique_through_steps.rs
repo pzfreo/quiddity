@@ -20,6 +20,7 @@ use crate::kernel::py;
 const END_EPS: f64 = COORD_FLOOR;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct ObliqueThroughStep {
     pub run: V3,
     pub length: f64,

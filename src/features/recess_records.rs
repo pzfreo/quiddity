@@ -30,6 +30,7 @@ pub fn third_axis(a: usize, b: usize) -> usize {
 /// extent on the third (depth) axis. `body_key` is the source solid's key (`None` when it is
 /// ambiguous); `end_radius` and `corner_radius` are `None` when unproved, never "square".
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Slot {
     pub width_axis: char,
     pub long_axis: char,
@@ -61,6 +62,7 @@ impl Slot {
 /// side it opens to along the depth axis (`open_sign`). `edge_anchored` marks a corner notch,
 /// located by the two envelope edges it touches.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Pocket {
     pub width_axis: char,
     pub long_axis: char,
@@ -93,6 +95,7 @@ pub struct Pocket {
 /// An analytic floor transition, identified by file face indices. The wall may be
 /// planar or a depth-axis corner cylinder; `face` is the transverse cylinder, torus or spherical floor corner.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct FloorFillet {
     pub face: usize,
     pub wall_face: usize,
@@ -102,6 +105,7 @@ pub struct FloorFillet {
 /// A floored rectangular channel open at both longitudinal ends of its solid: its one defining
 /// measurement is `width`; the rest is kept for identity.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct Channel {
     pub width_axis: char,
     pub long_axis: char,

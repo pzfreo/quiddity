@@ -549,8 +549,8 @@ fn brep(args: &BrepArgs) -> Result<String, String> {
         .map_or(file_name.as_str(), |s| {
             &file_name[..file_name.len() - s.len()]
         });
-    let (written, report) =
-        write_step(&part, &WriteOptions { name: stem, pmi }).map_err(|e| format!("{path}: {e}"))?;
+    let (written, report) = write_step(&part, &WriteOptions::new(stem).with_pmi(pmi))
+        .map_err(|e| format!("{path}: {e}"))?;
     let file_bytes = if gzipped(out) {
         let mut enc = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
         std::io::Write::write_all(&mut enc, &written).map_err(|e| e.to_string())?;
@@ -767,7 +767,7 @@ fn pmi_write(w: &WriteArgs, mode: Mode, policy: PresentationPolicy) -> Result<St
         let defs1 = read_part_definitions(&back).map_err(|e| e.to_string())?;
         let doc1 = p21::Document::parse(back).map_err(|e| e.to_string())?;
         let after = crate::kernel::pmi::read(&doc1, &defs1).map_err(|e| e.to_string())?;
-        let snapshot = |doc, defs, read| Snapshot { doc, defs, read };
+        let snapshot = Snapshot::new;
         pmi::verify(
             snapshot(&doc, &defs, &before),
             &doc,
@@ -816,10 +816,8 @@ fn finish(result: Result<(), String>) -> u8 {
 }
 
 fn manifest_write(path: &str, out: &str, index_dir: Option<PathBuf>) -> Result<(), String> {
-    let options = crate::kernel::step::manifest::ScanOptions {
-        index_dir,
-        ..Default::default()
-    };
+    let mut options = crate::kernel::step::manifest::ScanOptions::default();
+    options.index_dir = index_dir;
     let manifest = crate::file_api::manifest(path, &options)?;
     std::fs::write(out, crate::file_api::json(&manifest)?).map_err(|e| format!("{out}: {e}"))
 }

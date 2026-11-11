@@ -28,6 +28,7 @@ use crate::kernel::py;
 /// One straight rolling path: a point on the cylinder axis (the area centre projected onto
 /// it) and the canonical axis direction.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct StraightBlendPath {
     pub at: Placed<V3>,
     pub direction: V3,
@@ -35,6 +36,7 @@ pub struct StraightBlendPath {
 
 /// One complete circular rolling path: the torus centre-line.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct CircularBlendPath {
     pub center: Placed<V3>,
     pub normal: V3,
@@ -44,6 +46,7 @@ pub struct CircularBlendPath {
 /// `BlendPath`: serialised untagged, as the Python dataclasses are.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum BlendPath {
     Straight(StraightBlendPath),
     Circular(CircularBlendPath),
@@ -51,6 +54,7 @@ pub enum BlendPath {
 
 /// `Blend`: one complete rolling-ball occurrence.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Blend {
     pub radius: f64,
     pub side: String,

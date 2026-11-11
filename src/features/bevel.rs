@@ -14,6 +14,7 @@ const RUN_AXIS_COS: f64 = 0.05;
 
 /// Why a face is not a single-axis oblique planar bevel (`BevelReject`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum BevelReject {
     Nonplanar,
     /// Axis-aligned, or a shallow draft: a real face, not a bevel.

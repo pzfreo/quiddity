@@ -17,6 +17,7 @@ use crate::kernel::geom::{self, Curve, Surface, V3};
 /// virtual trough to the lip plane. `trough_radius` is the radius of a concave round between
 /// the flanks, and absent for a sharp trough.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct VChannel {
     pub axis: V3,
     pub opening: V3,

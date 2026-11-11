@@ -18,6 +18,7 @@ use crate::kernel::geom::{
 use crate::kernel::py;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct OrientedChamfer {
     pub run: V3,
     pub length: f64,
@@ -53,6 +54,7 @@ impl OrientedChamfer {
 /// Options named as `recognise_oriented_chamfers`' keyword arguments.
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+#[non_exhaustive]
 pub struct OrientedChamferOptions {
     /// The largest leg, as a fraction of the owning solid's largest box extent.
     pub max_leg_frac: f64,

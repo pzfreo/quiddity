@@ -36,6 +36,7 @@ const HOLE_MOUTH_FRAC: f64 = 0.0833;
 /// `axis` points from the wide opening into the part; `location` is the opening (major
 /// circle) centre; `included_angle` is the full cone angle in degrees.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct CounterSink {
     pub axis: V3,
     pub location: Placed<V3>,

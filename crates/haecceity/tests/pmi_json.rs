@@ -912,10 +912,8 @@ fn a_new_true_twin_can_follow_an_existing_content_id_from_step() {
     let previous = json::identify(model.clone(), None).unwrap();
     let old = previous.ids["dimensions"][0].clone();
     model.dimensions.push(model.dimensions[0].clone());
-    let identifiers = PartIdentifiers {
-        dimensions: vec![Some(old.clone()), None],
-        ..Default::default()
-    };
+    let mut identifiers = PartIdentifiers::default();
+    identifiers.dimensions = vec![Some(old.clone()), None];
     let identified = json::identify(model, Some(&identifiers)).unwrap();
     assert_eq!(
         identified.ids["dimensions"],

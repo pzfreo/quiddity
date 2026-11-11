@@ -116,11 +116,11 @@ fn refuses_unknown_ids_versions_trailing_data_and_callback_errors() {
 fn full_and_selected_loads_validate_instance_and_refusal_references() {
     let mut m = manifest();
     let ids = vec![m.products[0].id.clone()];
-    m.refusals.push(manifest::Refusal {
-        products: m.products.iter().map(|p| p.id.clone()).collect(),
-        entity: m.products[1].shape,
-        reason: "valid references, including an unselected product".into(),
-    });
+    m.refusals.push(manifest::Refusal::new(
+        m.products.iter().map(|p| p.id.clone()).collect(),
+        m.products[1].shape,
+        "valid references, including an unselected product".into(),
+    ));
     m.reindex_products().unwrap();
     let bytes = serde_json::to_vec(&m).unwrap();
     assert_eq!(serde_json::from_slice::<Manifest>(&bytes).unwrap(), m);

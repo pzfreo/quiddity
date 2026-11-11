@@ -31,6 +31,16 @@ env:
 # merged tests reuse the measured motion/quality work plus their small extra assertions.
 # Lint (fmt, clippy, doc-tests) runs alongside each platform's build.
 jobs:
+  advisories:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: cargo install cargo-audit --version 0.22.2 --locked
+      - run: cargo audit --file Cargo.lock
+
   lint:
     strategy:
       fail-fast: false

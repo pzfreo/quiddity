@@ -21,6 +21,7 @@ use super::nurbs::{NurbsCurve, NurbsSurface};
 use super::sampling::sample_edge;
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum StepError {
     Parse(String),
     Unsupported(String),
@@ -2382,6 +2383,7 @@ fn build(parsed: &Parsed, scope: Scope<'_>) -> Result<Read, StepError> {
 /// specify-core does not carry over; anchor edges by their `#N`
 /// (`tests/fixtures/references/face_sources.json` lists every file where the two differ).
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct PartDefinition {
     /// The `#N` of its `product_definition` (or `product_definition_with_associated_documents`).
     pub product_definition: u64,
@@ -2412,6 +2414,7 @@ pub struct PartDefinition {
 /// [`Part`] read with it ([`crate::brep::Source::instance`]): one per solid or surface model of
 /// the part.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct PartPlacement {
     pub placement: Placement,
     pub instances: Vec<usize>,
@@ -2433,6 +2436,7 @@ impl PartDefinition {
 /// `next_assembly_usage_occurrence`s.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "manifest", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct Assembly {
     /// The `#N` of its `product_definition`.
     pub product_definition: u64,
@@ -2445,6 +2449,7 @@ pub struct Assembly {
 /// One component of an [`Assembly`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "manifest", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub struct Component {
     /// The `#N` of the `next_assembly_usage_occurrence` that places it.
     pub occurrence: u64,
@@ -2455,6 +2460,7 @@ pub struct Component {
 /// A STEP file read once: its distinct parts and its assemblies, and each part's [`Part`] in
 /// its own coordinates ([`StepFile::part`]), or chosen placed bodies ([`StepFile::placed`]),
 /// on demand without parsing the file again.
+#[non_exhaustive]
 pub struct StepFile {
     parsed: Parsed,
     /// The distinct parts, as [`read_part_definitions`] gives them.
@@ -2975,6 +2981,24 @@ pub fn decode_step_file_bytes(path: &std::path::Path, bytes: Vec<u8>) -> std::io
         Ok(out)
     } else {
         Ok(bytes)
+    }
+}
+
+impl Assembly {
+    pub fn new(product_definition: u64, name: String, components: Vec<Component>) -> Self {
+        Self {
+            product_definition,
+            name,
+            components,
+        }
+    }
+}
+impl Component {
+    pub fn new(occurrence: u64, definition: u64) -> Self {
+        Self {
+            occurrence,
+            definition,
+        }
     }
 }
 

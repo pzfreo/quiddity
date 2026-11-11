@@ -29,6 +29,7 @@ const CENTRAL_CENTRE_FRAC: f64 = 0.01;
 const AXIS_LINE_FRAC: f64 = 0.0001;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct CircularFacePattern {
     pub axis_origin: Placed<V3>,
     pub axis_direction: V3,

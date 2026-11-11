@@ -27,6 +27,7 @@ fn finite(values: &[f64]) -> bool {
 /// normalized on interpretation after six-decimal serialization. Python also refuses a boolean
 /// radius by type; the port's types cannot carry one.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct CylindricalEndSurface {
     #[serde(rename = "type")]
     kind: &'static str,

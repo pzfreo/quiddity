@@ -378,6 +378,7 @@ impl Kind {
 
 /// One violation of the schema by one instance.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
 pub struct Violation {
     pub id: u64,
     /// The instance's type: its entity name, or `(a b c)` for a complex instance, lower case.

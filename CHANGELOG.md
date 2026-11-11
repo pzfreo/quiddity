@@ -6,6 +6,22 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+### Breaking (Rust API)
+
+- **The next release must be 0.5.0, not a 0.4.x patch.** Recognition records,
+  evidence and fingerprint documents, reports, refusal/error types and defaultable
+  recognition options are now `#[non_exhaustive]`. Match extensible enums with a
+  fallback arm and destructure extensible structs with `..`. Construct options with
+  `Default::default()` then assign public fields; use the provided constructors for
+  caller-authored values. See [Rust API evolution](docs/rust-api.md) for the full list
+  and the closed value types deliberately kept exhaustive. Cargo versions remain
+  unchanged here: the release process performs the minor bump.
+- Breaking public Rust API changes require a minor bump before 1.0. This includes
+  field/variant additions on exhaustive types and removing or feature-gating APIs.
+  CI checks both published crates against their latest stable crates.io release;
+  the documented 0.4.9 → 0.5.0 migration is the sole temporary allowance.
+
+
 ### Documentation
 
 - haecceity states its scope: it reads, queries and writes B-reps and does not model them
@@ -13,11 +29,19 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
+- Refuse STEP faces without readable bounds, including malformed references to
+  complex instances. Empty programmatic faces no longer panic in loop placement.
+  Two regression inputs and 256 time-bounded token mutations exercise this path.
+- Python native entry points catch internal Rust panics as `quiddity.QuiddityError`
+  (a `RuntimeError`, caught by `except Exception`) with the panic message. Normal
+  input errors retain their existing `ValueError` / `PmiError` types.
+
+
 - PMI edition upgrades report R4 repairs for unset required `label`/`text` attributes,
   writing empty strings without inventing identifiers or other values. Ordinary AP242
   writes preserve those defects; Add refuses source-record repairs with their kinds and ids.
-  **Rust API:** `UpgradeRepairKind` gains `R4UnsetRequiredString`; the enum is not
-  `#[non_exhaustive]`, so exhaustive matches need an arm. **CLI and Python:** a write
+  **Rust API:** `UpgradeRepairKind` gains `R4UnsetRequiredString` and becomes
+  `#[non_exhaustive]`; matches need a fallback arm (see Breaking above). **CLI and Python:** a write
   report's `instances.replaced` counts distinct records, so a record with two repairs
   counts once.
 

@@ -50,6 +50,7 @@ const MATERIAL_VOL_FRAC: f64 = 1e-9;
 /// to the floor, `open_sign` +1 when the opening is at the high end of `axis`, `at` the void's
 /// centre, and `section` its corners in the two other axes, walked canonically.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct PrismaticPocket {
     pub axis: String,
     pub sides: usize,

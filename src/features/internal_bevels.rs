@@ -16,6 +16,7 @@ use crate::kernel::rays::RayCaster;
 use crate::kernel::volume::{Probe, common_volume, probe_volume};
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct InternalBevel {
     pub run: V3,
     pub length: f64,

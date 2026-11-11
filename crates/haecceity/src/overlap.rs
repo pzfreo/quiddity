@@ -32,6 +32,7 @@ const PARALLEL: f64 = 1e-6;
 
 /// Why the common area of two faces was not measured.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct OverlapRefusal {
     pub reason: String,
 }

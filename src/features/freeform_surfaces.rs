@@ -23,6 +23,7 @@ const CONFUSION: f64 = 1e-7;
 
 /// `BSplineSurfaceSupport`: the full native tensor-product support, before trimming.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct BSplineSurfaceSupport {
     pub u_degree: usize,
     pub v_degree: usize,
@@ -38,6 +39,7 @@ pub struct BSplineSurfaceSupport {
 
 /// `SurfaceContinuityLink`: a direct shared-edge relation to another native freeform face.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct SurfaceContinuityLink {
     pub other_face: usize,
     /// `same_support` or `G1`.
@@ -46,6 +48,7 @@ pub struct SurfaceContinuityLink {
 
 /// `FreeformSurface`: one native B-spline face and only the relations its geometry establishes.
 #[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
 pub struct FreeformSurface {
     pub face: usize,
     pub support_kind: &'static str,

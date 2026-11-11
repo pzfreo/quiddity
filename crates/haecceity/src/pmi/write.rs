@@ -153,6 +153,7 @@ pub enum ItemRef {
 
 /// One item the writer will not write, and why.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
 pub struct Refusal {
     pub part: PartId,
     pub item: ItemRef,
@@ -167,6 +168,7 @@ impl std::fmt::Display for Refusal {
 
 /// Why nothing was written.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum WriteError {
     /// The parts named are not the document's, are named twice, or (remove) carry PMI.
     Parts(String),
@@ -305,6 +307,7 @@ pub enum SchemaChange {
 
 /// The closed list of repairs allowed only on an edition upgrade that adds PMI.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum UpgradeRepairKind {
     /// R1: retain an approval's items using AP242's broader approval assignment.
     R1ApprovalAssignment,
@@ -314,6 +317,18 @@ pub enum UpgradeRepairKind {
     R3IntegerLiteral,
     /// R4: an unset required label/text string becomes the empty string.
     R4UnsetRequiredString,
+}
+
+impl UpgradeRepairKind {
+    /// Stable repair code used in writer reports.
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::R1ApprovalAssignment => "R1",
+            Self::R2ConversionUnitDimensions => "R2",
+            Self::R3IntegerLiteral => "R3",
+            Self::R4UnsetRequiredString => "R4",
+        }
+    }
 }
 
 impl std::fmt::Display for UpgradeRepairKind {
@@ -330,6 +345,7 @@ impl std::fmt::Display for UpgradeRepairKind {
 /// One repaired record, including its exact text (`#N` through `;`) before and after.
 /// Recovering the original bytes of this record requires keeping this report.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct UpgradeRepair {
     pub id: u64,
     pub repair: UpgradeRepairKind,
@@ -339,6 +355,7 @@ pub struct UpgradeRepair {
 
 /// An edition upgrade's keyword-only rewrite; all other record bytes are preserved.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct EditionRewrite {
     pub id: u64,
     pub from: &'static str,
@@ -358,6 +375,7 @@ impl std::fmt::Display for UpgradeRepair {
 /// A carried string exceeding the writer's interoperability bound. This is not
 /// an ISO string-length violation and never makes an otherwise lossless write fail.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct LongStringWarning {
     /// STEP instance (`#N`) or header record (`FILE_NAME`, etc.).
     pub record: String,
@@ -379,6 +397,7 @@ impl std::fmt::Display for LongStringWarning {
 /// A narrow PMI §5.1 carrier-sharing exception, either an independent datum feature
 /// preserving a kept carrier or a private endpoint disambiguating a functional SAR.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct GeometryCarrierExemption {
     pub part: PartId,
     /// Preservation: `kept-carrier-datum-feature`, `kept-carrier-datum-member`,
@@ -9238,6 +9257,12 @@ fn presented_type(kind: &str) -> &str {
         "feature note" | "placed note" => "note",
         "thread" => "label",
         other => other,
+    }
+}
+
+impl EditionRewrite {
+    pub fn new(id: u64, from: &'static str, to: &'static str) -> Self {
+        Self { id, from, to }
     }
 }
 

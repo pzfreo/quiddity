@@ -33,6 +33,7 @@ const ORIENTED_ANGLE_DIGITS: usize = 9;
 /// along it, and `u`/`v` the area-weighted centre of its two supporting skins (including
 /// projected convex edge treatments) on the other two axes.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Plate {
     pub axis: char,
     pub lo: Placed<f64>,
@@ -51,6 +52,7 @@ impl Plate {
 /// Options named as `recognise_plates`' keyword arguments.
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+#[non_exhaustive]
 pub struct PlateOptions {
     /// Each face group covers at least this fraction of the body's cross-section.
     pub min_area_frac: f64,
