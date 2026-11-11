@@ -9,6 +9,14 @@ It works from the B-rep geometry alone, with no CAD system, feature tree or Open
 It is pure Rust, and the same input always gives the same output. It is available as a
 command line, a Rust library and a Python package.
 
+![Eight public parts turning while quiddity's recognised features light up family by family: holes and counterbores, teeth, grooves, sheet-metal bends and flanges, pockets, slots, chamfers, fillets and V-channels](docs/images/showcase.gif)
+
+*Features recognised by quiddity on eight public parts. Colours and counts are quiddity's own
+output. Parts: NIST MBE PMI test cases; FreeCAD library parts by Rbgo Web, Francisco and
+hasecilu ([CC BY 3.0](https://creativecommons.org/licenses/by/3.0), renders adapted); text-to-cad
+(© Thompson Labs LLC, MIT); build123d / Gumyr / Too Tall Toby (Apache-2.0). Rendered with
+draftwright-editor's `npm run showcase:render`.*
+
 ![Automatically recognised features of NIST CTC-01: two views, each face coloured by the feature quiddity recognises it as: holes, slots, notches, V-channels, the hexagonal boss, chamfers and fillets](docs/images/ctc01-features.png)
 
 *Each face of NIST CTC-01 (AP242) coloured by the feature it belongs to; grey faces belong
