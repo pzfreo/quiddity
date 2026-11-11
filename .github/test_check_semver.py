@@ -2,6 +2,7 @@
 from pathlib import Path
 import subprocess
 import unittest
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 from check_semver import check_package, release_override
 
@@ -11,6 +12,18 @@ def changelog(pending="0.5.0", body="- Open result types."):
 
 
 class BreakingOverride(unittest.TestCase):
+    def setUp(self):
+        temporary = TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.manifest = Path(temporary.name) / "Cargo.toml"
+        self.manifest.write_text('[package]\nname = "fixture"\nversion = "0.4.9"\n')
+
+    def test_compatible_patch_passes_without_override(self):
+        success = subprocess.CompletedProcess([], 0, "", "")
+        with patch("check_semver.subprocess.run", return_value=success) as run:
+            check_package(self.manifest, "0.4.9", "## Unreleased\n")
+            self.assertEqual(run.call_args.args[0][-2:], ["--release-type", "patch"])
+
     def test_empty_or_historical_sections_never_override(self):
         for text in ["", changelog(body=""), changelog(body="<!-- TODO -->"), "## Unreleased\n### Fixed\n- Fix\n## 0.4.9\n### Breaking (Rust API)\n- Old break"]:
             self.assertIsNone(release_override("0.4.9", "0.4.9", text))
@@ -37,9 +50,9 @@ class BreakingOverride(unittest.TestCase):
         failure = subprocess.CompletedProcess([], 100, "", "Summary semver requires new major version: 2 major and 0 minor checks failed\n")
         with patch("check_semver.subprocess.run", return_value=failure) as run:
             with self.assertRaises(subprocess.CalledProcessError):
-                check_package(Path("Cargo.toml"), "0.4.9", "## Unreleased\n")
+                check_package(self.manifest, "0.4.9", "## Unreleased\n")
             negative = run.call_args.args[0]
-            check_package(Path("Cargo.toml"), "0.4.9", changelog())
+            check_package(self.manifest, "0.4.9", changelog())
             self.assertEqual(negative, run.call_args.args[0])
             self.assertEqual(negative[-2:], ["--release-type", "patch"])
 
@@ -47,4 +60,4 @@ class BreakingOverride(unittest.TestCase):
         for code in [1, 100, 101]:
             with patch("check_semver.subprocess.run", return_value=subprocess.CompletedProcess([], code, "", "build failed")):
                 with self.assertRaises(subprocess.CalledProcessError):
-                    check_package(Path("Cargo.toml"), "0.4.9", changelog())
+                    check_package(self.manifest, "0.4.9", changelog())
