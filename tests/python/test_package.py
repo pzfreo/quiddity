@@ -221,3 +221,27 @@ def test_helical_spring_record():
     assert record["faces"] == spring["faces"]
     assert record["evidence_status"] == "verified"
     assert not data["holes"] and not data["bosses"] and not data["fillets"]
+
+
+@pytest.mark.parametrize("fixture", ["golden_simple_through_hole_no_bounds.step", "kissing_cylinders_knife_no_bounds.step"])
+@pytest.mark.parametrize("operation", [quiddity.recognise, quiddity.evidence, quiddity.fingerprints])
+def test_boundless_face_is_refused(fixture, operation):
+    with pytest.raises(ValueError, match="face #17 has no readable bounds"):
+        operation((FIXTURES / "broken" / fixture).read_bytes())
+
+
+def test_internal_panic_is_an_exception():
+    # CI also builds a dedicated fault-injection extension. Release wheels do
+    # not contain the hook; the required test build must not silently skip it.
+    from quiddity import _native
+    if not hasattr(_native, "_test_panic"):
+        assert os.environ.get("QUIDDITY_TEST_PANIC") != "1", "build with --features test-panic"
+        return
+    for kind, message in enumerate(["forced internal panic", "forced owned panic", "non-string panic payload"]):
+        try:
+            _native._test_panic(kind)
+        except Exception as error:
+            assert type(error) is quiddity.QuiddityError
+            assert str(error) == f"internal: {message}"
+        else:
+            pytest.fail("internal panic did not raise QuiddityError")
