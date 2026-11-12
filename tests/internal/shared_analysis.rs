@@ -121,7 +121,7 @@ fn shared_analysis_retains_local_degradation_retry() {
     // Reuse the pinned corpus inputs without duplicating or changing snapshot inputs.
     for name in ["13975.step.gz", "14052.step.gz"] {
         let part = step::read_step_file(&corpus.join("inventory_refusal").join(name)).unwrap();
-        let (rec, _) = correspondence::recognise_with_evidence(&part);
+        let rec = correspondence::recognise_with_evidence(&part).recognition;
         assert_eq!(
             recognition::document(&rec, part.faces.len()).run_mode,
             recognition::RunMode::LocallyDegraded,
