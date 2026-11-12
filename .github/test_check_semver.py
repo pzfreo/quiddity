@@ -35,6 +35,16 @@ class BreakingOverride(unittest.TestCase):
         ]:
             self.assertEqual(release_override(current, baseline, changelog(pending)), pending)
 
+    def test_release_section_of_an_unpublished_version_overrides(self):
+        released = "## 0.5.0 (2026-11-12)\n\n### Breaking (Rust API)\n\n- Open result types.\n\n## 0.4.9\n"
+        self.assertEqual(release_override("0.5.0", "0.4.9", released), "0.5.0")
+        # Once published, or for a patch, or with an empty section, the release grants nothing.
+        self.assertIsNone(release_override("0.5.0", "0.5.0", released))
+        self.assertIsNone(release_override("0.4.9", "0.4.9", released))
+        self.assertIsNone(release_override("0.5.0", "0.4.9", released.replace("- Open result types.", "")))
+        with self.assertRaises(ValueError):
+            release_override("0.4.10", "0.4.9", released.replace("0.5.0", "0.4.10"))
+
     def test_pending_patch_or_missing_version_is_rejected(self):
         for current, baseline, text in [
             ("0.4.9", "0.4.9", changelog("0.4.10")),

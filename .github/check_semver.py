@@ -8,29 +8,40 @@ import tomllib
 import urllib.request
 
 
-def unreleased(changelog):
-    """Ignore historical releases and commented-out template text."""
+def section(changelog, heading):
+    """Ignore other releases and commented-out template text."""
     changelog = re.sub(r"<!--.*?-->", "", changelog, flags=re.S)
-    match = re.search(r"^## Unreleased\s*$([\s\S]*?)(?=^## |\Z)", changelog, re.M)
+    match = re.search(rf"^## {heading}\b[^\n]*$([\s\S]*?)(?=^## |\Z)", changelog, re.M)
     return match.group(1) if match else ""
 
 
+def unreleased(changelog):
+    return section(changelog, "Unreleased")
+
+
+def breaks(text):
+    breaking = re.search(r"^### Breaking \(Rust API\)\s*$([\s\S]*?)(?=^### |\Z)", text, re.M)
+    return bool(breaking and re.sub(r"[\s*`#_\-]", "", breaking.group(1)))
+
+
 def release_override(current, baseline, changelog):
-    section = unreleased(changelog)
-    breaking = re.search(
-        r"^### Breaking \(Rust API\)\s*$([\s\S]*?)(?=^### |\Z)", section, re.M
-    )
-    if not breaking or not re.sub(r"[\s*`#_\-]", "", breaking.group(1)):
-        return None
-    pending = re.search(r"^Pending version: (\d+\.\d+\.\d+)\s*$", section, re.M)
-    if not pending:
-        raise ValueError("Breaking (Rust API) requires 'Pending version: X.Y.Z' under Unreleased")
     version = lambda text: tuple(map(int, text.split(".")))
-    published, planned, manifest = map(version, (baseline, pending.group(1), current))
+    text = unreleased(changelog)
+    if breaks(text):
+        pending = re.search(r"^Pending version: (\d+\.\d+\.\d+)\s*$", text, re.M)
+        if not pending:
+            raise ValueError("Breaking (Rust API) requires 'Pending version: X.Y.Z' under Unreleased")
+        pending = pending.group(1)
+    elif version(current) > version(baseline) and breaks(section(changelog, re.escape(current))):
+        # The release PR itself: the manifest's own, not yet published, release section.
+        pending = current
+    else:
+        return None
+    published, planned, manifest = map(version, (baseline, pending, current))
     minimum = (0, published[1] + 1, 0) if published[0] == 0 else (published[0] + 1, 0, 0)
     if planned < minimum or planned < manifest:
         raise ValueError(f"breaking API requires pending version >= {minimum}, and >= manifest {current}")
-    return pending.group(1)
+    return pending
 
 
 def check_package(manifest, baseline, changelog):
@@ -57,7 +68,7 @@ def check_package(manifest, baseline, changelog):
     )
     if not pending or not api_break:
         raise subprocess.CalledProcessError(result.returncode, command)
-    print(f"{name}: reported API breaks approved by Unreleased Breaking (Rust API); pending {pending}", flush=True)
+    print(f"{name}: reported API breaks approved by the Breaking (Rust API) section for {pending}", flush=True)
 
 
 def main():

@@ -60,7 +60,9 @@ Document the actual break and caller migration there. Empty/commented sections
 and historical releases grant no override. Without that section, API breaks fail
 regardless of the manifest version. With it, completed API-lint failures are
 reported and accepted for the declared pending release; build/tool failures fail.
-This also applies while current = published, including the pending 0.5.0 release. CI also runs cargo-audit against Cargo.lock.
+This also applies while current = published. The release PR moves those entries under
+`## X.Y.Z (date)`; while X.Y.Z is the manifest version and is not yet published, that
+section's Breaking (Rust API) subsection is the override. CI also runs cargo-audit against Cargo.lock.
 
 ## Test files and data
 
