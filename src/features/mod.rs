@@ -531,6 +531,21 @@ pub(crate) fn project_recesses(
             ))
         },
     );
+    match &projection {
+        Some(Ok(p)) if !p.source_refusals.is_empty() => {
+            inventory
+                .physical
+                .discovery_refusals
+                .insert("section_recess_source_refusals", p.source_refusals.clone());
+        }
+        Some(Err(error)) => failures.push(FamilyFailure {
+            family: "section_recesses".into(),
+            stage: "section_recess_projection".into(),
+            message: Some(error.to_string()),
+            blocked_by: Vec::new(),
+        }),
+        _ => {}
+    }
     inventory.physical.failures = failures;
     projection
 }

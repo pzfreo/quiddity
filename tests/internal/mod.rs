@@ -76,6 +76,8 @@ mod step_levels;
 mod tie_breaks;
 #[path = "trust_contract.rs"]
 mod trust_contract;
+#[path = "unowned_recesses.rs"]
+mod unowned_recesses;
 #[path = "volume_probe.rs"]
 mod volume_probe;
 #[path = "wiring.rs"]
