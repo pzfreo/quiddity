@@ -90,6 +90,7 @@ impl From<reconcile::ReconcileError> for SectionRecessFamilyError {
 /// The aggregate's section-recess fields (`RecognitionResult.section_recesses`,
 /// `section_recess_refusals`, `section_recess_patterns`).
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct SectionRecessProjection {
     pub section_recesses: Vec<SectionRecess>,
     pub refusals: Vec<SectionRecessRefusal>,

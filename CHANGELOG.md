@@ -35,6 +35,13 @@ Pending version: 0.5.0
   `instances` entry per assembly occurrence. A product's solids and surface models are all
   placed by that one entry; `/1` listed one entry per body, so a multi-solid part was placed
   over itself several times. `/1` manifests are refused with "rescan the source". From #190.
+- Section-recess candidates whose faces have no solid owner (open shells, or faces dropped
+  in a degraded run) no longer fail evidence for the whole file. recognition/6 gains a
+  `section_recess_source_refusals` family naming those sources; a returned projection error
+  now gives a partial result (`complete: false`) instead of an evidence error. Eligibility
+  checks the defining and consulted faces, so a candidate consulting a face on another solid
+  is refused ([evidence](docs/evidence.md)). `SectionRecessProjection` gains
+  `source_refusals` and is `#[non_exhaustive]`. From #234 (Emon Zhang).
 
 ### Documentation
 
