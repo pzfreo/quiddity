@@ -268,11 +268,7 @@ fn check_bytes(label: &str, b: &[u8]) -> usize {
             .filter(|i| i.product == p.id)
             .map(|i| i.placement)
             .collect();
-        let want: Vec<_> = d
-            .placements
-            .iter()
-            .flat_map(|p| p.instances.iter().map(|_| p.placement))
-            .collect();
+        let want: Vec<_> = d.placements.iter().map(|p| p.placement).collect();
         assert_eq!(got, want, "{} {} placements", label, p.id);
         let cut = m
             .read_product(&temp, &p.id)
@@ -945,4 +941,60 @@ fn product_lookup_survives_serde_and_explicit_membership_changes() {
             .contains("duplicate")
     );
     assert!(serde_json::from_value::<Manifest>(serde_json::to_value(&round).unwrap()).is_err());
+}
+
+#[path = "common/manifest_occurrences.rs"]
+mod occurrences;
+
+#[test]
+fn multi_solid_occurrence_places_every_product_face_once() {
+    let b = include_bytes!("fixtures/two_solids.step");
+    let whole = StepFile::read(b).unwrap();
+    assert_eq!(whole.parts[0].placements[0].instances.len(), 2);
+    let m = manifest::scan(Cursor::new(b), &ScanOptions::default()).unwrap();
+    assert_eq!(m.products.len(), 1);
+    assert_eq!(m.instances.len(), 1);
+    assert!(m.instances[0].path.is_empty());
+    assert_eq!(m.products[0].faces, whole.parts[0].faces);
+    let part = m.read_product(&temp_source(b), "p0").unwrap();
+    assert_eq!(part.faces.len(), whole.parts[0].faces.len());
+    check_bytes("two-solid occurrence", b);
+}
+
+#[test]
+fn nested_multi_solid_instances_count_leaf_occurrences() {
+    let b = occurrences::nested();
+    let m = manifest::scan(Cursor::new(&b), &ScanOptions::default()).unwrap();
+    assert_eq!(m.products.len(), 2);
+    assert_eq!(m.assemblies.len(), 3);
+    assert_eq!(m.instances.len(), 5);
+    assert!(m.instances.iter().all(|i| i.path.len() == 2));
+    let multi = m.products.iter().find(|p| p.faces.len() == 3).unwrap();
+    assert_eq!(
+        m.instances.iter().filter(|i| i.product == multi.id).count(),
+        2
+    );
+    check_bytes("nested multi-solid occurrences", &b);
+    let error = manifest::scan(
+        Cursor::new(&b),
+        &ScanOptions::default().with_instance_limit(7),
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("manifest instance limit 7"));
+}
+
+#[test]
+fn old_manifest_format_requires_rescan() {
+    let m = manifest::scan(Cursor::new(torus()), &ScanOptions::default()).unwrap();
+    let mut old = serde_json::to_value(&m).unwrap();
+    old["format"] = "quiddity-manifest/1".into();
+    let bytes = serde_json::to_vec(&old).unwrap();
+    let error = serde_json::from_slice::<Manifest>(&bytes)
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("rescan the source"), "{error}");
+    let error = Manifest::read_selected(Cursor::new(bytes), &["p0".into()], |_| Ok(()))
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("rescan the source"), "{error}");
 }

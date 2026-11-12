@@ -83,11 +83,7 @@ fn check(path: &Path) -> usize {
         assert_eq!(definition.product_definition, product.product_definition);
         assert_eq!(definition.faces, product.faces);
         assert_eq!(definition.edges.len() as u64, product.edge_count);
-        let placements: Vec<_> = definition
-            .placements
-            .iter()
-            .flat_map(|p| p.instances.iter().map(|_| p.placement))
-            .collect();
+        let placements: Vec<_> = definition.placements.iter().map(|p| p.placement).collect();
         let got: Vec<_> = m
             .instances
             .iter()
@@ -591,5 +587,27 @@ fn selective_loader_validates_unselected_ids_and_streams_exact_assembly() {
         );
         assert!(!isolated.path().join("results").exists());
         assert_eq!(std::fs::read_dir(isolated.path()).unwrap().count(), 1);
+    }
+}
+
+#[path = "common/manifest_occurrences.rs"]
+mod occurrences;
+
+#[test]
+fn multi_solid_whole_and_selected_write_identical_occurrence_assembly() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("nested.step");
+    std::fs::write(&path, occurrences::nested()).unwrap();
+    assert_eq!(check(&path), 2);
+    let m = scan(dir.path(), &path);
+    assert_eq!(m.instances.len(), 5);
+    success(recognise(dir.path(), &path, &[]));
+    let whole = std::fs::read(dir.path().join("results/assembly.json")).unwrap();
+    for p in &m.products {
+        success(recognise(dir.path(), &path, &["--parts", &p.id]));
+        assert_eq!(
+            std::fs::read(dir.path().join("results/assembly.json")).unwrap(),
+            whole
+        );
     }
 }

@@ -44,3 +44,11 @@ created by Dr. A. V. Hershey at the U. S. National Bureau of Standards; James Hu
 Cognition, Inc., created the data format. These acknowledgements also accompany the data
 in crates/haecceity/src/stroke_font.rs. The former Plex outline renderer, its font-specific
 oracle, font binaries and ttf-parser dependency have been removed.
+
+Polygon Boolean operations use i_overlay 8.1.2 by Nail Sharipov
+(https://github.com/iShape-Rust/iOverlay), licensed MIT OR Apache-2.0.
+Its supporting crates by the same author are i_float 4.1.0
+(https://github.com/iShape-Rust/iFloat), i_shape 4.0.0
+(https://github.com/iShape-Rust/i_shape), i_tree 0.19.0
+(https://github.com/iShape-Rust/iTree), and i_key_sort 0.11.0
+(https://github.com/iShape-Rust/iKeySort), each licensed MIT.

@@ -258,7 +258,7 @@ links. Retained structure contains assembly records, shape/solid roots and shell
 not faces, bounds, loops or oriented edges; neither index stores entity text. The lexer keeps its
 current statement and chunk buffers. There is no automatic RAM/disk threshold.
 The independent `instance_limit` defaults to 1,000,000, counting visited definitions and emitted
-solid/surface-model instances separately; hierarchy depth remains bounded at 64. Per-product
+assembly occurrences with bodies separately (one placement for all bodies of the product); hierarchy depth remains bounded at 64. Per-product
 reads retain the existing reader's limits.
 
 Classification uses type names, including every leaf of complex entities, in this order:
