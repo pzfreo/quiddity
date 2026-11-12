@@ -4,20 +4,33 @@ All notable changes to quiddity-rust and haecceity. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Alpha 1's gates and their evidence are
 in [docs/alpha1.md](docs/alpha1.md).
 
-## Unreleased
+## 0.5.0 (2026-11-12)
 
-Pending version: 0.5.0
+Upgrading from 0.4.9:
+
+- **Rust API.** Recognition records, evidence and fingerprint documents, reports,
+  refusal/error types and options are `#[non_exhaustive]`: add fallback match arms,
+  destructure with `..`, and build values with `Default::default()` or the provided
+  constructors ([Rust API evolution](docs/rust-api.md)).
+- **Fingerprints are `quiddity-rust/fingerprint/4`.** `correspond` refuses stored `/3`
+  fingerprints; re-fingerprint each part from its own geometry with this release.
+- **Assembly manifests are `quiddity-manifest/2`,** one instance per assembly occurrence.
+  `/1` manifests are refused; rescan the source.
+- **Recognition schema stays `quiddity-rust/recognition/6`.** New families and fields are
+  additive.
+- Thanks to Emon Zhang for shared recognition/evidence analysis (#227), recess evidence
+  without solid ownership (#234), Windows snapshot provenance paths (#237) and faster
+  face integration (#246).
 
 ### Breaking (Rust API)
 
-- **The next release must be 0.5.0, not a 0.4.x patch.** Recognition records,
+- Recognition records,
   evidence and fingerprint documents, reports, refusal/error types and defaultable
   recognition options are now `#[non_exhaustive]`. Match extensible enums with a
   fallback arm and destructure extensible structs with `..`. Construct options with
   `Default::default()` then assign public fields; use the provided constructors for
   caller-authored values. See [Rust API evolution](docs/rust-api.md) for the full list
-  and the closed value types deliberately kept exhaustive. Cargo versions remain
-  unchanged here: the release process performs the minor bump.
+  and the closed value types deliberately kept exhaustive.
 - Presentation text placements, callout geometry, polyline roles, evidence statuses
   and face-accounting groups are also non-exhaustive; use `TextPlacement::new` or
   `presentation::Callout::default()` for construction and handle unknown variants.
@@ -38,6 +51,7 @@ Pending version: 0.5.0
 - Face integration reuses complete cached moments, skips kink searches that cannot
   affect refinement, and stops once an accepted leaf makes the existing refusal
   inevitable. Integration nodes, error criteria and returned results are unchanged.
+  From #246 (Emon Zhang).
 - **Breaking (manifest format):** assembly manifests are `quiddity-manifest/2`, with one
   `instances` entry per assembly occurrence. A product's solids and surface models are all
   placed by that one entry; `/1` listed one entry per body, so a multi-solid part was placed
@@ -99,7 +113,8 @@ Pending version: 0.5.0
     wires without closing the gaps. OCCT's own mesh agrees with ours, and `tools/gvp.py`
     counts it as `KNOWN-REFERENCE` while ours stays within the band of that mesh.
 - The snapshot tool uses `/` in manifest-relative paths so Windows input digests
-  and nested snapshots can be checked against the same provenance manifest.
+  and nested snapshots can be checked against the same provenance manifest. From #237
+  (Emon Zhang).
 
 - Mass integrals wrap closed spline tangents with their points and use consistent
   containment and integration domains for seamless torus bands. This restores the

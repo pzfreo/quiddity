@@ -176,7 +176,8 @@ crates.io version of each published crate, and the default/JSON API
 configuration. The lint job separately compiles supported feature-off builds.
 Every run checks patch compatibility. Only a non-empty Unreleased
 `### Breaking (Rust API)` section with an explicit `Pending version: X.Y.Z`
-(at least the next minor before 1.0) sanctions detected breaks. Historical or
+(at least the next minor before 1.0) sanctions detected breaks; on the release PR, the
+manifest version's own, not yet published, `## X.Y.Z` section does. Historical or
 empty sections do not qualify; tool failures always fail. See CONTRIBUTING.
 The `f3d` conversion dependency is
 excluded from this check to keep its cost bounded; its API changes remain subject
