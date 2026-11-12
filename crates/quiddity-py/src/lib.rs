@@ -85,6 +85,24 @@ fn recognise(py: Python<'_>, step: &Bound<'_, PyAny>) -> PyResult<String> {
     detached(py, || input.recognise())?.map_err(PyValueError::new_err)
 }
 
+/// Return complete recognition and evidence as JSON from shared analysis.
+///
+/// Evidence uses part coordinates whenever a frame is inferred, and file coordinates
+/// otherwise. This choice is automatic; there is no independent ``framed`` argument.
+/// Use ``evidence(step, framed=False)`` for fixed file coordinates, or the existing
+/// ``evidence`` API with its explicit ``framed`` option for caller-selected framing.
+/// Recognition document parameters remain in file coordinates. An evidence refusal
+/// preserves recognition and is reported in ``evidence_error`` with ``evidence: null``.
+#[pyfunction]
+fn recognise_with_evidence(py: Python<'_>, step: &Bound<'_, PyAny>) -> PyResult<String> {
+    let input = Input::extract(step)?;
+    detached(py, || match input {
+        Input::Path(path) => file_api::recognise_with_evidence_file(&path),
+        Input::Bytes(bytes) => file_api::recognise_with_evidence_bytes(bytes),
+    })?
+    .map_err(PyValueError::new_err)
+}
+
 #[pyfunction]
 #[pyo3(signature = (step, framed=false))]
 fn evidence(py: Python<'_>, step: &Bound<'_, PyAny>, framed: bool) -> PyResult<String> {
@@ -233,6 +251,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(recognise, m)?)?;
     m.add_function(wrap_pyfunction!(_manifest, m)?)?;
     m.add_class::<ManifestHandle>()?;
+    m.add_function(wrap_pyfunction!(recognise_with_evidence, m)?)?;
     m.add_function(wrap_pyfunction!(evidence, m)?)?;
     m.add_function(wrap_pyfunction!(anchor, m)?)?;
     m.add_function(wrap_pyfunction!(fingerprints, m)?)?;

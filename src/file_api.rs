@@ -1,6 +1,7 @@
 //! File/byte entry points shared by the Python wheel and additive CLI commands.
 use serde::Serialize;
 use serde_json::json;
+use sha2::{Digest, Sha256};
 
 use crate::{
     Part, evidence_view,
@@ -28,6 +29,55 @@ pub fn recognise_bytes(bytes: Vec<u8>) -> Result<String, String> {
 pub fn recognise_file(path: &str) -> Result<String, String> {
     let (output, _) = serve::recognise_file(path).map_err(|e| e.to_string())?;
     json(&output)
+}
+
+/// A single STEP snapshot, inventory and recess projection, with both existing documents.
+///
+/// Evidence automatically uses part coordinates when a frame is inferred, and file
+/// coordinates otherwise. There is no independent `framed` argument; use [`evidence`]
+/// to select a fixed coordinate mode. Recognition document parameters remain in file
+/// coordinates. A refused evidence view is retained as an explicit error beside the
+/// recognition; it must never be mistaken for an empty view.
+pub fn recognise_with_evidence_bytes(bytes: Vec<u8>) -> Result<String, String> {
+    recognise_with_evidence_snapshot("<bytes>", bytes)
+}
+
+/// Read a STEP file once, including gzip inputs, before analysing both views.
+///
+/// Evidence automatically uses inferred part coordinates, falling back to file
+/// coordinates when the frame is refused. Like [`recognise_with_evidence_bytes`],
+/// this function has no independent `framed` argument; use [`evidence`] for an explicit
+/// coordinate mode. Recognition document parameters remain in file coordinates.
+pub fn recognise_with_evidence_file(path: &str) -> Result<String, String> {
+    let bytes = std::fs::read(path).map_err(|e| format!("{path}: {e}"))?;
+    recognise_with_evidence_snapshot(path, bytes)
+}
+
+fn recognise_with_evidence_snapshot(path: &str, bytes: Vec<u8>) -> Result<String, String> {
+    let digest = Sha256::digest(&bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<String>();
+    let step_bytes = step::decode_step_file_bytes(std::path::Path::new(path), bytes)
+        .map_err(|e| format!("{path}: {e}"))?;
+    let part = step::read_step(&step_bytes).map_err(|e| format!("{path}: {e}"))?;
+    let crate::correspondence::RecognitionWithEvidence {
+        mut recognition,
+        evidence,
+        ..
+    } = crate::correspondence::recognise_with_evidence(&part);
+    recognition.source_sha256 = Some(digest);
+    let document = crate::recognition::document(&recognition, part.faces.len());
+    let (evidence, evidence_error) = match evidence {
+        Ok(document) => (Some(document), None),
+        Err(error) => (None, Some(error.to_string())),
+    };
+    json(&json!({
+        "schema_version": "quiddity-rust/analysis/1",
+        "recognition": serve::RecognitionOutput { recognition, document },
+        "evidence": evidence,
+        "evidence_error": evidence_error,
+    }))
 }
 
 /// The evidence of a loaded part.
@@ -105,9 +155,10 @@ pub fn capabilities() -> String {
         "package": {"name": "quiddity-rust", "version": env!("CARGO_PKG_VERSION")},
         "recognition": crate::recognition::SCHEMA_VERSION,
         "evidence": "quiddity-rust/evidence/1",
+        "analysis": "quiddity-rust/analysis/1",
         "fingerprints": crate::correspondence::fingerprint::FINGERPRINT_VERSION,
         "inputs": ["step-path", "step-bytes"],
-        "functions": ["recognise", "evidence", "anchor", "fingerprints", "correspond", "capabilities"],
+        "functions": ["recognise", "evidence", "recognise_with_evidence", "anchor", "fingerprints", "correspond", "capabilities"],
         "pmi_json_import": cfg!(feature = "json-import"),
     })).expect("capabilities serialise")
 }

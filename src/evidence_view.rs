@@ -198,6 +198,9 @@ impl RecognitionEvidence<'_> {
         let feature = &self.features[position];
         let recesses = &self.section_recesses;
         let record = match feature.family {
+            "section_recess_source_refusals" => {
+                serde_json::to_value(&recesses.source_refusals[feature.index])
+            }
             "section_recesses" => match recesses.section_recesses.get(feature.index) {
                 Some(recess) => serde_json::to_value(recess),
                 None => serde_json::to_value(
@@ -237,19 +240,26 @@ fn sorted(faces: &[usize]) -> Vec<usize> {
 
 internal_entry! {
 /// Recognise *part* and project the outcome onto its faces (`build_recognition_evidence`), or
-/// the reconciliation's or the section-recess projection's refusal. The projection
-/// (`section_recess_projection`) recognises the part again, on its own run context: the same
-/// deterministic run Python's single one is. Where Python's aggregate retries locally degraded,
-/// all of it runs in that mode (`features::take_inventory`).
+/// a whole-run reconciliation/identity error. Local section-projection failures are recorded
+/// in the failure ledger. Where the aggregate retries locally degraded, all of it runs in
+/// that mode (`features::take_inventory`).
 pub fn build_recognition_evidence(
     part: &Part,
 ) -> Result<RecognitionEvidence<'_>, EvidenceViewError> {
-    features::take_inventory(part, |ctx, mut inventory| {
-        let projection = features::project_recesses(ctx, &mut inventory).transpose()?
-            .unwrap_or(SectionRecessProjection { section_recesses: Vec::new(), refusals: Vec::new(), patterns: Vec::new() });
-        project(part, inventory, projection)
-    })?
+    features::take_inventory(part, project_inventory)?
 }
+}
+
+pub(crate) fn project_inventory<'p>(
+    ctx: &Context<'p>,
+    mut inventory: Inventory,
+) -> Result<RecognitionEvidence<'p>, EvidenceViewError> {
+    // The shared boundary records returned errors as well as panics in the ledger.
+    // A failed recess projection must not discard independent families' evidence.
+    let projection = features::project_recesses(ctx, &mut inventory)
+        .and_then(Result::ok)
+        .unwrap_or_default();
+    project(ctx.part, inventory, projection)
 }
 
 /// Each physical family's candidates' defining and constituent faces (sorted), by Python family.
@@ -449,7 +459,7 @@ fn faces(part: &Part, inventory: &Inventory) -> Result<Faces, EvidenceViewError>
 }
 
 /// Project one completed inventory (`_project_recognition_evidence`).
-fn project(
+pub(crate) fn project(
     part: &Part,
     inventory: Inventory,
     section_recesses: SectionRecessProjection,
@@ -508,6 +518,17 @@ fn project(
             index,
             defining: evidence.defining_faces().to_vec(),
             constituent: evidence.constituent_faces().to_vec(),
+            groups: Vec::new(),
+            hosts: Vec::new(),
+            members: Vec::new(),
+        });
+    }
+    for (index, refusal) in section_recesses.source_refusals.iter().enumerate() {
+        out.push(EvidenceFeature {
+            family: "section_recess_source_refusals",
+            index,
+            defining: refusal.faces.clone(),
+            constituent: refusal.faces.clone(),
             groups: Vec::new(),
             hosts: Vec::new(),
             members: Vec::new(),
@@ -789,6 +810,15 @@ pub fn document(part: &Part, framed: bool) -> Result<EvidenceDocument, EvidenceV
         .transpose()
         .map_err(|e| EvidenceViewError(e.to_string()))?;
     let view = build_recognition_evidence(working.as_ref().unwrap_or(part))?;
+    Ok(document_from_view(part, frame, view))
+}
+
+/// Own an already projected view, retaining the original STEP face identities.
+pub(crate) fn document_from_view(
+    part: &Part,
+    frame: Option<crate::frames::PartFrame>,
+    view: RecognitionEvidence<'_>,
+) -> EvidenceDocument {
     let features = view
         .features
         .iter()
@@ -804,11 +834,11 @@ pub fn document(part: &Part, framed: bool) -> Result<EvidenceDocument, EvidenceV
             members: feature.members.clone(),
         })
         .collect();
-    Ok(EvidenceDocument {
+    EvidenceDocument {
         complete: (!view.result.failures.is_empty()).then_some(false),
         failures: view.result.failures.clone(),
         schema_version: "quiddity-rust/evidence/1",
-        coordinate_space: if framed { "part" } else { "file" },
+        coordinate_space: if frame.is_some() { "part" } else { "file" },
         frame,
         face_count: part.faces.len(),
         face_sources: (0..part.faces.len())
@@ -830,5 +860,5 @@ pub fn document(part: &Part, framed: bool) -> Result<EvidenceDocument, EvidenceV
         features,
         candidates: view.candidates,
         rejected_candidates: view.rejected_candidates,
-    })
+    }
 }

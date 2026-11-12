@@ -66,6 +66,10 @@ for feature in document["records"]:
     print(feature["family"], feature["parameters"], feature["faces"])
 ```
 
+When both complete recognition and face evidence are needed,
+[`recognise_with_evidence`](docs/shared-analysis.md) shares their analysis while
+preserving each document's categories, coordinates and error semantics.
+
 ```rust
 let part = quiddity::read_step_file(std::path::Path::new("part.step"))?;
 let recognised = quiddity::correspondence::recognise(&part);

@@ -66,16 +66,7 @@ pub fn recognise(part: &Part) -> Recognition {
         Ok(frame) => frame,
         Err(reason) => {
             return features::recognise_with(part, |ctx, features| {
-                let features: PublishedFeatures = features.into();
-                let fingerprints = fingerprint::published_fingerprint_in(part, &features, ctx);
-                Recognition {
-                    features,
-                    fingerprints,
-                    frame: RecordFrame::Refused { reason },
-                    source_sha256: None,
-                    input_repairs: part.input_repairs().to_vec(),
-                    body_evidence: BTreeMap::new(),
-                }
+                publish(part, ctx, features, RecordFrame::Refused { reason })
             });
         }
     };
@@ -87,26 +78,42 @@ fn recognise_in_frame(part: &Part, frame: PartFrame) -> Recognition {
         Ok(working) => working,
         Err(_) => {
             // A failed normalisation must never silently publish caller-space features.
-            let features = Features::default();
-            return Recognition {
-                fingerprints: fingerprint(part, &features),
-                features: features.into(),
-                frame: RecordFrame::Refused {
-                    reason: frames::FrameRefusal::NonrigidFrame,
-                },
-                source_sha256: None,
-                input_repairs: part.input_repairs().to_vec(),
-                body_evidence: BTreeMap::new(),
-            };
+            return normalisation_refused(part);
         }
     };
     features::recognise_with(&working, |ctx, features| {
-        let body_evidence = crate::body::evidence(&working, &features);
+        publish(part, ctx, features, RecordFrame::Inferred(frame))
+    })
+}
+
+fn normalisation_refused(part: &Part) -> Recognition {
+    let features = Features::default();
+    Recognition {
+        fingerprints: fingerprint(part, &features),
+        features: features.into(),
+        frame: RecordFrame::Refused {
+            reason: frames::FrameRefusal::NonrigidFrame,
+        },
+        source_sha256: None,
+        input_repairs: part.input_repairs().to_vec(),
+        body_evidence: BTreeMap::new(),
+    }
+}
+
+fn publish(
+    part: &Part,
+    ctx: &features::Context<'_>,
+    features: Features,
+    frame: RecordFrame,
+) -> Recognition {
+    if let RecordFrame::Inferred(inferred) = &frame {
+        let working = ctx.part;
+        let body_evidence = crate::body::evidence(working, &features);
         let Mapped {
             features,
             fingerprinted,
             motion,
-        } = framed_records::to_file(features, &frame, &working);
+        } = framed_records::to_file(features, inferred, working);
         let _ = motion;
         // Fingerprints read the published values as found in the frame, carried through the exact
         // motion, so they stay intrinsic to the part: publishing on the file's grid would make a
@@ -116,11 +123,103 @@ fn recognise_in_frame(part: &Part, frame: PartFrame) -> Recognition {
         Recognition {
             features,
             fingerprints,
-            frame: RecordFrame::Inferred(frame),
+            frame,
             source_sha256: None,
             input_repairs: part.input_repairs().to_vec(),
             body_evidence,
         }
+    } else {
+        let features: PublishedFeatures = features.into();
+        let fingerprints = fingerprint::published_fingerprint_in(part, &features, ctx);
+        Recognition {
+            features,
+            fingerprints,
+            frame,
+            source_sha256: None,
+            input_repairs: part.input_repairs().to_vec(),
+            body_evidence: BTreeMap::new(),
+        }
+    }
+}
+
+/// Recognise and project evidence from one inventory.
+///
+/// Evidence uses part coordinates whenever recognition infers a frame, and file
+/// coordinates otherwise. This choice is automatic: unlike
+/// [`crate::evidence_view::document`], this function has no independent `framed`
+/// argument. Call that evidence API directly when a fixed coordinate mode is required.
+/// Recognition document parameters remain in file coordinates.
+///
+/// Evidence failure does not erase recognition.
+/// Strict/local-degradation retries and publication post-pass retries remain intact.
+pub fn recognise_with_evidence(part: &Part) -> RecognitionWithEvidence {
+    let (recognition, evidence) = joint_analysis(part);
+    RecognitionWithEvidence {
+        recognition,
+        evidence,
+    }
+}
+
+/// [`recognise_with_evidence`]'s result: one recognition, and the evidence projected from the
+/// same inventory or the reason it could not be.
+#[non_exhaustive]
+pub struct RecognitionWithEvidence {
+    pub recognition: Recognition,
+    pub evidence:
+        Result<crate::evidence_view::EvidenceDocument, crate::evidence_view::EvidenceViewError>,
+}
+
+fn joint_analysis(
+    part: &Part,
+) -> (
+    Recognition,
+    Result<crate::evidence_view::EvidenceDocument, crate::evidence_view::EvidenceViewError>,
+) {
+    use crate::evidence_view::{self, EvidenceViewError};
+
+    let (frame, working) = match frames::infer_part_frame(part) {
+        Ok(frame) => match part.transformed(&frame.normalisation()) {
+            Ok(working) => (RecordFrame::Inferred(frame), Some(working)),
+            Err(_) => {
+                return (
+                    normalisation_refused(part),
+                    evidence_view::document(part, false),
+                );
+            }
+        },
+        Err(reason) => (RecordFrame::Refused { reason }, None),
+    };
+    let geometry = working.as_ref().unwrap_or(part);
+    let result = features::take_inventory(geometry, |ctx, mut inventory| {
+        let projection = features::project_recesses(ctx, &mut inventory);
+        // Clone before publication: post-passes expand face claims and can revoke families.
+        // The evidence API has always projected the pre-publication physical inventory.
+        let recognised = features::recognise_projected(ctx, inventory.clone(), projection.clone());
+        let recognition = publish(part, ctx, recognised, frame.clone());
+        // The shared boundary records returned projection errors in the inventory.
+        // Keep the same incomplete evidence as the separate evidence call.
+        let evidence = evidence_view::project(
+            geometry,
+            inventory,
+            projection.and_then(Result::ok).unwrap_or_default(),
+        )
+        .map(|view| {
+            let evidence_frame = match &frame {
+                RecordFrame::Inferred(frame) => Some(*frame),
+                _ => None,
+            };
+            evidence_view::document_from_view(part, evidence_frame, view)
+        });
+        (recognition, evidence)
+    });
+    result.unwrap_or_else(|error| {
+        let message = error.to_string();
+        let ctx = features::Context::new(geometry);
+        let refused = features::reconciliation_refusal(geometry, error);
+        (
+            publish(part, &ctx, refused, frame),
+            Err(EvidenceViewError(message)),
+        )
     })
 }
 
