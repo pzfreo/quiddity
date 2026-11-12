@@ -99,8 +99,8 @@ Drawing clients can use these public functions without constructing `PartPmi`:
 ```rust
 use haecceity::presentation::{self, gdt, notes, tolerance};
 let plex_width = |text: &str, height: f64| text.chars().count() as f64 * height * 0.6;
-let frame = gdt::control_frame("position", "0.05", Some("diameter"), Some("M"),
-    &["A".into(), "B-C".into()], &plex_width);
+let frame = gdt::cad_control_frame("position", "0.05", Some("diameter"), Some("M"),
+    &["A".into(), "B-C".into()]);
 assert_eq!(frame.cells, ["⌖", "⌀0.05Ⓜ", "A", "B-C"]);
 let label = presentation::label_with_width("⌀10 H7", &plex_width);
 let lines = presentation::label_lines_with_width(&["⌀10 H7", "Ra 10.4"], &plex_width);
@@ -109,10 +109,12 @@ assert_eq!(gdt::symbol("profile_surface"), "⌓");
 assert_eq!(tolerance::HOLE_CLASSES, ["H", "G", "F"]);
 ```
 
-`gdt::control_frame(name: &str, tolerance: &str, zone: Option<&str>,
-material: Option<&str>, datums: &[String], width: &dyn Fn(&str, f64) -> f64) -> Callout`
-accepts already formatted cells. The width function measures ink at the supplied capital
-height in the same drawing units as the returned geometry. `gdt::symbol(name: &str) ->
+`gdt::cad_control_frame(name: &str, tolerance: &str, zone: Option<&str>,
+material: Option<&str>, datums: &[String]) -> Callout` accepts already formatted cells and
+lays the frame out as CAD draws a native TOLERANCE: 2.5 mm text (`gdt::TEXT_HEIGHT`, intended
+pen `gdt::TEXT_PEN`), a box twice as tall, each cell its ink plus the text height, with the
+text as strokes and arcs from QCAD's public-domain `gdt` and `Standard` fonts. The older
+`gdt::control_frame`, which measures with a caller's font, is deprecated. `gdt::symbol(name: &str) ->
 &'static str` uses model names (`profile_line`, `profile_surface`, `circular_runout`,
 `total_runout`, etc.; see its rustdoc). `gdt::characteristic(name, centre, &mut Callout)`
 adds just the characteristic geometry. `label_with_width(value, width)` and

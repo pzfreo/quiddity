@@ -607,6 +607,7 @@ fn multiline_general_notes_keep_their_lines_and_clear_neighboring_rows() {
 }
 
 #[test]
+#[allow(deprecated)]
 fn public_frames_use_the_sheet_font_without_a_part_model() {
     use presentation::gdt;
     let datums = vec!["A".into(), "B-C".into()];
@@ -632,6 +633,27 @@ fn public_frames_use_the_sheet_font_without_a_part_model() {
             (wider.letters.last().unwrap().at[0] - frame.letters.last().unwrap().at[0] - 10.).abs()
                 < 1e-12
         );
+    }
+}
+
+#[test]
+fn public_frames_use_the_cad_fonts_without_a_part_model() {
+    use presentation::gdt;
+    let datums = vec!["A".into(), "B-C".into()];
+    for (tolerance, zone) in [
+        ("0.05", None),
+        ("0.0254", Some("diameter")),
+        ("0.25", Some("spherical_diameter")),
+    ] {
+        let frame = gdt::cad_control_frame("position", tolerance, zone, Some("M"), &datums);
+        // The frame measures itself: no caller font, text as geometry, CAD's box height.
+        assert!(frame.letters.is_empty());
+        assert_eq!(frame.size[1], 2. * gdt::TEXT_HEIGHT);
+        assert_eq!(frame.cells.len(), 4);
+        assert_eq!(frame.cell_boxes.len(), 4);
+        assert!(frame.strokes.len() > frame.frame_strokes);
+        let widths: f64 = frame.cell_boxes.iter().map(|b| b[1][0] - b[0][0]).sum();
+        assert!((widths - frame.size[0]).abs() < 1e-9);
     }
 }
 
