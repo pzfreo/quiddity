@@ -157,6 +157,10 @@ Pending version: 0.5.0
   map; existing product reads supply edge numbering. Context ownership and all post-scan
   placement/hash work use compact indexes and one forward replay, including gzip sources.
 
+- `recognise_with_evidence` shares recognition and evidence analysis, preserving both
+  complete outputs and evidence refusal reasons. See [shared analysis](docs/shared-analysis.md)
+  for the Rust file/bytes APIs, Python binding and type declaration.
+
 - `internal_bevels` recognises bounded concave planar corner treatments with measured
   support legs, angle and run, backed by a complete material-filled wedge proof (#213).
   The optional sibling family preserves existing chamfer ranks and saved Spec references;

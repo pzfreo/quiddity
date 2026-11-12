@@ -459,7 +459,7 @@ fn faces(part: &Part, inventory: &Inventory) -> Result<Faces, EvidenceViewError>
 }
 
 /// Project one completed inventory (`_project_recognition_evidence`).
-fn project(
+pub(crate) fn project(
     part: &Part,
     inventory: Inventory,
     section_recesses: SectionRecessProjection,
@@ -810,6 +810,15 @@ pub fn document(part: &Part, framed: bool) -> Result<EvidenceDocument, EvidenceV
         .transpose()
         .map_err(|e| EvidenceViewError(e.to_string()))?;
     let view = build_recognition_evidence(working.as_ref().unwrap_or(part))?;
+    Ok(document_from_view(part, frame, view))
+}
+
+/// Own an already projected view, retaining the original STEP face identities.
+pub(crate) fn document_from_view(
+    part: &Part,
+    frame: Option<crate::frames::PartFrame>,
+    view: RecognitionEvidence<'_>,
+) -> EvidenceDocument {
     let features = view
         .features
         .iter()
@@ -825,11 +834,11 @@ pub fn document(part: &Part, framed: bool) -> Result<EvidenceDocument, EvidenceV
             members: feature.members.clone(),
         })
         .collect();
-    Ok(EvidenceDocument {
+    EvidenceDocument {
         complete: (!view.result.failures.is_empty()).then_some(false),
         failures: view.result.failures.clone(),
         schema_version: "quiddity-rust/evidence/1",
-        coordinate_space: if framed { "part" } else { "file" },
+        coordinate_space: if frame.is_some() { "part" } else { "file" },
         frame,
         face_count: part.faces.len(),
         face_sources: (0..part.faces.len())
@@ -851,5 +860,5 @@ pub fn document(part: &Part, framed: bool) -> Result<EvidenceDocument, EvidenceV
         features,
         candidates: view.candidates,
         rejected_candidates: view.rejected_candidates,
-    })
+    }
 }

@@ -1,7 +1,7 @@
 """Rust STEP recognition. Recognition returns JSON text; PMI interchange is available in quiddity.pmi."""
-from ._native import QuiddityError, PmiError, __version__, anchor, capabilities, correspond, evidence, fingerprints, parts, recognise, step_entities
+from ._native import QuiddityError, PmiError, __version__, anchor, capabilities, correspond, evidence, fingerprints, parts, recognise, recognise_with_evidence, step_entities
 
-__all__ = ["QuiddityError", "PmiError", "__version__", "anchor", "capabilities", "correspond", "evidence", "fingerprints", "parts", "recognise", "step_entities"]
+__all__ = ["QuiddityError", "PmiError", "__version__", "anchor", "capabilities", "correspond", "evidence", "fingerprints", "parts", "recognise", "recognise_with_evidence", "step_entities"]
 
 
 def manifest(path, out=None):
