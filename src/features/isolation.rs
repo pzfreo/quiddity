@@ -290,7 +290,7 @@ mod tests {
         use crate::{correspondence, evidence_view, frames::RecordFrame, recognition};
         let part = island_pocket();
         TRACE.with(|trace| trace.replace(Some(Vec::new())));
-        let (_, evidence) = correspondence::recognise_with_evidence(&part);
+        let evidence = correspondence::recognise_with_evidence(&part).evidence;
         assert!(evidence.is_ok());
         let trace = TRACE.with(|trace| trace.replace(None)).unwrap();
         assert_eq!(
@@ -318,9 +318,10 @@ mod tests {
             let framed = matches!(rec.frame, RecordFrame::Inferred(_));
             let evidence = injected(family, stage, || evidence_view::document(&part, framed))
                 .map(|value| serde_json::to_value(value).unwrap());
-            let (joint_rec, joint_evidence) = injected(family, stage, || {
+            let joint = injected(family, stage, || {
                 correspondence::recognise_with_evidence(&part)
             });
+            let (joint_rec, joint_evidence) = (joint.recognition, joint.evidence);
             assert_eq!(
                 serde_json::to_value(&rec).unwrap(),
                 serde_json::to_value(&joint_rec).unwrap(),
@@ -355,9 +356,10 @@ mod tests {
             evidence_view::document(&part, framed)
         })
         .unwrap();
-        let (joint, joint_evidence) = injected("section_recesses", "returned_error", || {
+        let shared = injected("section_recesses", "returned_error", || {
             correspondence::recognise_with_evidence(&part)
         });
+        let (joint, joint_evidence) = (shared.recognition, shared.evidence);
         let joint_evidence = joint_evidence.expect("a projection error preserves partial evidence");
         let separate_doc = recognition::document(&separate, part.faces.len());
         let joint_doc = recognition::document(&joint, part.faces.len());

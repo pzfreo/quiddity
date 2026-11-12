@@ -11,7 +11,8 @@ fn compare(part: &quiddity::Part) {
     let separate_evidence = evidence_view::document(part, framed)
         .map(|doc| serde_json::to_value(doc).unwrap())
         .map_err(|error| error.to_string());
-    let (shared, shared_evidence) = correspondence::recognise_with_evidence(part);
+    let joint = correspondence::recognise_with_evidence(part);
+    let (shared, shared_evidence) = (joint.recognition, joint.evidence);
     assert_eq!(
         serde_json::to_value(&shared).unwrap(),
         serde_json::to_value(&separate).unwrap()
@@ -99,7 +100,8 @@ fn shared_analysis_keeps_digest_and_bytes_file_equivalence() {
 fn shared_analysis_refused_frame_stays_in_file_coordinates() {
     let part =
         step::read_step_file(&common::fixtures().join("captured/frames/sphere.step")).unwrap();
-    let (rec, evidence) = correspondence::recognise_with_evidence(&part);
+    let joint = correspondence::recognise_with_evidence(&part);
+    let (rec, evidence) = (joint.recognition, joint.evidence);
     assert!(matches!(rec.frame, RecordFrame::Refused { .. }));
     let evidence = serde_json::to_value(evidence.unwrap()).unwrap();
     assert_eq!(evidence["coordinate_space"], json!("file"));

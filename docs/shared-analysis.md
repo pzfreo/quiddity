@@ -72,8 +72,9 @@ call does not mean that discovery runs only once for every possible input.
 
 ## Rust APIs and regression tests
 
-- `correspondence::recognise_with_evidence(&Part)` returns
-  `(Recognition, Result<EvidenceDocument, EvidenceViewError>)`.
+- `correspondence::recognise_with_evidence(&Part)` returns a `#[non_exhaustive]`
+  `RecognitionWithEvidence { recognition, evidence }`, where `evidence` is a
+  `Result<EvidenceDocument, EvidenceViewError>`.
 - `file_api::recognise_with_evidence_file(&str)` and
   `file_api::recognise_with_evidence_bytes(Vec<u8>)` return the JSON envelope above.
 - `capabilities()` lists the new API in `functions` and declares the envelope version in `analysis`.

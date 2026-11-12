@@ -30,7 +30,7 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `haecceity::removal`: `Blocker`, `Emptied`, `RemovalPlan`, `RemovalRefusal`, `RemovalReport`.
 - `haecceity::step`: `Assembly`, `Component`, `PartDefinition`, `PartPlacement`, `StepError`, `StepFile`.
 - `haecceity::step::manifest`: `Common`, `Instance`, `Manifest`, `Product`, `Ranges`, `ReaderVersion`, `Refusal`, `ScanOptions`, `Source`, `Unowned`.
-- `quiddity::correspondence`: `Change`, `Entry`, `FaceFingerprint`, `FeatureFingerprint`, `Recognition`, `Thresholds`.
+- `quiddity::correspondence`: `Change`, `Entry`, `FaceFingerprint`, `FeatureFingerprint`, `Recognition`, `RecognitionWithEvidence`, `Thresholds`.
 - `quiddity::evidence_view`: `EvidenceCandidate`, `EvidenceDocument`, `EvidenceFeature`, `EvidenceRecord`.
 - `quiddity::features::angled_steps`: `AngledStep`.
 - `quiddity::features::annular_grooves`: `AnnularGroove`.

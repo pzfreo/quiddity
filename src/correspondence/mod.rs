@@ -152,7 +152,24 @@ fn publish(
 ///
 /// Evidence failure does not erase recognition.
 /// Strict/local-degradation retries and publication post-pass retries remain intact.
-pub fn recognise_with_evidence(
+pub fn recognise_with_evidence(part: &Part) -> RecognitionWithEvidence {
+    let (recognition, evidence) = joint_analysis(part);
+    RecognitionWithEvidence {
+        recognition,
+        evidence,
+    }
+}
+
+/// [`recognise_with_evidence`]'s result: one recognition, and the evidence projected from the
+/// same inventory or the reason it could not be.
+#[non_exhaustive]
+pub struct RecognitionWithEvidence {
+    pub recognition: Recognition,
+    pub evidence:
+        Result<crate::evidence_view::EvidenceDocument, crate::evidence_view::EvidenceViewError>,
+}
+
+fn joint_analysis(
     part: &Part,
 ) -> (
     Recognition,

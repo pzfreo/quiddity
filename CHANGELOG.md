@@ -158,7 +158,7 @@ Pending version: 0.5.0
   placement/hash work use compact indexes and one forward replay, including gzip sources.
 
 - `recognise_with_evidence` shares recognition and evidence analysis, preserving both
-  complete outputs and evidence refusal reasons. See [shared analysis](docs/shared-analysis.md)
+  complete outputs and evidence refusal reasons. From #227 (Emon Zhang). See [shared analysis](docs/shared-analysis.md)
   for the Rust file/bytes APIs, Python binding and type declaration.
 
 - `internal_bevels` recognises bounded concave planar corner treatments with measured

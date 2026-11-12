@@ -61,7 +61,11 @@ fn recognise_with_evidence_snapshot(path: &str, bytes: Vec<u8>) -> Result<String
     let step_bytes = step::decode_step_file_bytes(std::path::Path::new(path), bytes)
         .map_err(|e| format!("{path}: {e}"))?;
     let part = step::read_step(&step_bytes).map_err(|e| format!("{path}: {e}"))?;
-    let (mut recognition, evidence) = crate::correspondence::recognise_with_evidence(&part);
+    let crate::correspondence::RecognitionWithEvidence {
+        mut recognition,
+        evidence,
+        ..
+    } = crate::correspondence::recognise_with_evidence(&part);
     recognition.source_sha256 = Some(digest);
     let document = crate::recognition::document(&recognition, part.faces.len());
     let (evidence, evidence_error) = match evidence {
