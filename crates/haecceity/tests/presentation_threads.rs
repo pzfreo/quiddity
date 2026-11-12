@@ -631,12 +631,9 @@ fn glyph_placements(name: &str, scene: &Presentation) {
             let Some(i) = placed.text_index else {
                 continue;
             };
-            if g.id
-                .as_deref()
-                .is_some_and(|id| {
-                    id.starts_with("generated:tolerances:") || id.starts_with("generated:datums:")
-                })
-            {
+            if g.id.as_deref().is_some_and(|id| {
+                id.starts_with("generated:tolerances:") || id.starts_with("generated:datums:")
+            }) {
                 continue;
             }
             if notation::font().text(&g.text[i], 3.).lines.is_empty() {
