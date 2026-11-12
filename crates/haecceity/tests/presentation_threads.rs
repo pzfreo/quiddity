@@ -610,8 +610,8 @@ fn optional_roles_and_boxes_validate_without_breaking_old_documents() {
 
 // Match every ordinary generated run to its actual vertices and placement,
 // including GENERAL NOTES, material-only unlinked blocks and face finishes.
-// Control cells combine explicit geometric symbols with separately sized font
-// letters; their individual letter runs are checked above against the same plane.
+// Control and datum frames draw all their text as CAD-font geometry (not the sheet font
+// these runs are fitted against); their cell boxes and glyphs are checked in gdt's tests.
 fn glyph_placements(name: &str, scene: &Presentation) {
     let mut seen = BTreeSet::new();
     for g in scene.items.values().flatten().chain(&scene.unlinked) {
@@ -633,7 +633,9 @@ fn glyph_placements(name: &str, scene: &Presentation) {
             };
             if g.id
                 .as_deref()
-                .is_some_and(|id| id.starts_with("generated:tolerances:"))
+                .is_some_and(|id| {
+                    id.starts_with("generated:tolerances:") || id.starts_with("generated:datums:")
+                })
             {
                 continue;
             }
