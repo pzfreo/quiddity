@@ -27,7 +27,7 @@ hashes refer to the **uncompressed** bytes. Product recognition refuses compress
 sources, including gzip detected by its magic bytes. Explicitly decompress and
 scan the resulting file before using range reads; nothing is unpacked implicitly.
 
-The JSON format is `quiddity-manifest/1`. Ranges are half-open `[start, end)` byte
+The JSON format is `quiddity-manifest/2`. Ranges are half-open `[start, end)` byte
 offsets into the uncompressed source. Product ranges are sorted, non-overlapping
 and coalesced across whitespace and comments.
 
@@ -45,7 +45,7 @@ and coalesced across whitespace and comments.
 | `products[].faces` | Part face index → ADVANCED_FACE entity number |
 | `products[].edge_count` | Distinct EDGE_CURVE count; stage 1 does not publish an ordered edge map |
 | `assemblies` | Assembly `product_definition`, `name`, and `components` containing occurrence and child definition entity numbers |
-| `instances` | `product`, occurrence-chain `path`, and 3×4 `placement` matrix `[R \| t]`, translation in millimetres; one entry per placed solid/surface-model instance |
+| `instances` | `product`, occurrence-chain `path`, and 3×4 `placement` matrix `[R \| t]`, translation in millimetres; one entry per assembly occurrence, placing all solids/surface models in the product |
 | `unowned.presentation`, `unowned.other` | Unread presentation/PMI and other records, as ranges and entity counts |
 | `refusals` | Shared geometry: affected `products`, shared `entity` number and `reason` |
 
@@ -121,7 +121,7 @@ Hash mismatches and other read errors never trigger fallback.
 
 Face index `i` in `products/p0.json` identifies
 `ADVANCED_FACE #manifest.products[0].faces[i]`. For each instance of `p0`, place
-that face using `instances[k].placement`. Positions transform as `R*x + t`;
+all of its faces, across every solid, using that one `instances[k].placement`. Positions transform as `R*x + t`;
 directions use `R` only. The path identifies the occurrence chain from the root.
 This mapping is exact within the bound file. Across revisions, use
 [`correspond`](correspondence.md) on product recognition results.
@@ -191,8 +191,8 @@ cargo run --release -j 6 --example assembly_layout -- assembly.step \
 permutes all entity statements. Scale mode copies products with disjoint id
 blocks, suffixes `PRODUCT.id`, and places occurrences under a synthetic root on
 a grid (1,000 source length units). `--distinct` and `--instances` are minimum
-counts; instances count placed solids, so a multi-solid product contributes several
-per occurrence. Complete product copies, each with an occurrence, are added until
+counts; instances count assembly occurrences, with all solids of a multi-solid
+product placed together by one occurrence. Complete product copies, each with an occurrence, are added until
 `--target-bytes` is reached. It never fills the target with padding or unused
 entities. Extra requested instances reuse the generated products.
 

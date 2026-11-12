@@ -31,6 +31,10 @@ Pending version: 0.5.0
 - Face integration reuses complete cached moments, skips kink searches that cannot
   affect refinement, and stops once an accepted leaf makes the existing refusal
   inevitable. Integration nodes, error criteria and returned results are unchanged.
+- **Breaking (manifest format):** assembly manifests are `quiddity-manifest/2`, with one
+  `instances` entry per assembly occurrence. A product's solids and surface models are all
+  placed by that one entry; `/1` listed one entry per body, so a multi-solid part was placed
+  over itself several times. `/1` manifests are refused with "rescan the source". From #190.
 
 ### Documentation
 

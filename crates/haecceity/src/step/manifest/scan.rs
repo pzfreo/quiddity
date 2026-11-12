@@ -895,19 +895,17 @@ impl PlacementWalk<'_, '_> {
                 self.seen[p] = true;
                 self.order.push(p);
             }
-            for _ in 0..bodies {
-                if self.instances.len() >= self.limit {
-                    return Err(StepError::Limit(format!(
-                        "manifest instance limit {}",
-                        self.limit
-                    )));
-                }
-                self.instances.push(Instance {
-                    product: format!("p{p}"),
-                    path: path.clone(),
-                    placement,
-                });
+            if self.instances.len() >= self.limit {
+                return Err(StepError::Limit(format!(
+                    "manifest instance limit {}",
+                    self.limit
+                )));
             }
+            self.instances.push(Instance {
+                product: format!("p{p}"),
+                path: path.clone(),
+                placement,
+            });
         }
         for occurrence in def.occurrences() {
             let Some(child) = occurrence.definition() else {

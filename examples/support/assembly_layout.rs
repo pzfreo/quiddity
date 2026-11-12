@@ -218,7 +218,6 @@ struct Template {
     rep: u64,
     faces: usize,
     entities: u64,
-    solid_instances: usize,
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExpectedProduct {
@@ -370,18 +369,7 @@ fn scale_contiguous(
                 }
             })
             .ok_or("product has no shape representation")?;
-        let first = m
-            .instances
-            .iter()
-            .find(|i| i.product == p.id)
-            .ok_or("product has no instance")?;
-        let solid_instances = m
-            .instances
-            .iter()
-            .filter(|i| i.product == p.id && i.path == first.path)
-            .count();
         templates.push(Template {
-            solid_instances,
             owned,
             rows,
             pd: p.product_definition,
@@ -536,7 +524,7 @@ fn scale_contiguous(
             occurrences,
         )?;
         entities += 7;
-        instances += t.solid_instances;
+        instances += 1;
         occurrences += 1;
         products += 1;
     }
@@ -557,7 +545,7 @@ fn scale_contiguous(
         )?;
         group(&mut groups, entities, 7)?;
         entities += 7;
-        instances += t.solid_instances;
+        instances += 1;
         occurrences += 1;
     }
     out.write_all(b"ENDSEC;\nEND-ISO-10303-21;\n")?;
