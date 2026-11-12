@@ -376,9 +376,15 @@ fn ctc01_e1_accounting_records_and_main_correspondence() {
     )
     .read_to_string(&mut old)
     .unwrap();
-    let old: Fingerprints = serde_json::from_str(&old).unwrap();
+    let mut old: Fingerprints = serde_json::from_str(&old).unwrap();
+    // This recorded output from an older recogniser is tagged fingerprint/3, which
+    // `correspond` now refuses. Its differences from today's values are what this test
+    // checks, so retag it to serve as the old revision for the matcher; real callers
+    // re-fingerprint stored /3 data from its geometry instead (#254).
+    assert_eq!(old.fingerprint_version, "quiddity-rust/fingerprint/3");
+    old.fingerprint_version = "quiddity-rust/fingerprint/4".into();
     let new = &output.recognition.fingerprints;
-    assert_eq!(new.fingerprint_version, "quiddity-rust/fingerprint/3");
+    assert_eq!(new.fingerprint_version, "quiddity-rust/fingerprint/4");
     let by_id = |id: &str| new.features.iter().find(|f| f.id == id);
     // For #127, every old blend is an audited, fully proved concave-fillet move,
     // not an ordinal shift. Pin the exact old/new ids, face and radius against the

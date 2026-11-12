@@ -1,7 +1,7 @@
 # Correspondence between revisions
 
 **Status:** design accepted with draftwright-rust's ADR R3 (2026-10-07); implemented in
-`src/correspondence/` (fingerprint version `quiddity-rust/fingerprint/3`). See
+`src/correspondence/` (fingerprint version `quiddity-rust/fingerprint/4`). See
 [Implementation](#implementation) for what was built, the thresholds and how they were tuned, and
 what is not done.
 
@@ -203,7 +203,7 @@ discovery and inventory are implementation details; tests exercise them internal
 snapshots own the regression record; see [development](development.md#regression-snapshots) for regeneration and review.
 
 
-### Fingerprints (`fingerprint.rs`, version `quiddity-rust/fingerprint/3`)
+### Fingerprints (`fingerprint.rs`, version `quiddity-rust/fingerprint/4`)
 
 - **Features** are read from each family's serialised records through an explicit table,
   `FAMILIES` in `fingerprint.rs`, keyed by the family's field in `Features`. It lists every field
@@ -272,8 +272,18 @@ Version 3 retains the complete size catalogue and changes recognition measuremen
 - Plate face bands use their extreme-plane midpoint and retain unrounded coordinates,
   so thickness is a difference of intrinsic measurements rather than published grid positions.
 
-Version 2 files must be recognised again before correspondence. The version check refuses
-mixing either revision with an older fingerprint. The Rust snapshot owns the regression record; independent geometry and motion references
+Version 4 (quiddity 0.5.0, #254) carries the values that changed within version 3 after
+it was introduced: the measurement and claim changes of #71, #92 (merged families),
+#84/#85, #100, #118, #134 and the interior-void changes of #189 (see the changelog). It adds no
+fields. Stored version 3 fingerprints recorded those values at different times and do
+not say which, so they are not comparable with version 4 and are not migrated.
+
+**Rule.** Any change to a fingerprint value bumps the version. Correspondence refuses
+fingerprints of another version with an error asking for the part to be re-fingerprinted.
+A consumer that stores fingerprints (Specify) keeps the geometry they came from and
+re-fingerprints it with the current quiddity; there is no migration path. Earlier
+versions were handled the same way: version 2 files must be recognised again before
+correspondence. The Rust snapshot owns the regression record; independent geometry and motion references
 remain mandatory. Python-written fingerprints remain readable test inputs.
 
 ### Correspond

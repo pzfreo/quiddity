@@ -394,7 +394,8 @@ pub fn correspond_with(
 fn validate(f: &Fingerprints) -> Result<(), String> {
     if f.fingerprint_version != FINGERPRINT_VERSION {
         return Err(format!(
-            "are version {:?}, not {FINGERPRINT_VERSION:?}; recognise the file again",
+            "are version {:?}, not {FINGERPRINT_VERSION:?}; fingerprints are not migrated \
+             between versions: re-fingerprint the part from its geometry with this quiddity",
             f.fingerprint_version
         ));
     }
@@ -869,7 +870,7 @@ mod tests {
         assert!(!good.features.is_empty());
         assert!(correspond(&good, &good).is_ok());
         type Mutation = fn(&mut Fingerprints);
-        let bad: [(&str, Mutation); 7] = [
+        let bad: [(&str, Mutation); 8] = [
             ("face 999, beyond", |f| f.features[0].faces = vec![999]),
             ("neighbour 999", |f| {
                 f.faces[0].neighbours.push((999, "convex".into()))
@@ -880,6 +881,9 @@ mod tests {
             ("version", |f| f.fingerprint_version = "other".into()),
             ("fingerprint/2", |f| {
                 f.fingerprint_version = "quiddity-rust/fingerprint/2".into()
+            }),
+            ("re-fingerprint the part", |f| {
+                f.fingerprint_version = "quiddity-rust/fingerprint/3".into()
             }),
         ];
         for (expected, mutate) in bad {

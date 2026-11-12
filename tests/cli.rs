@@ -575,9 +575,10 @@ fn brep_writes_the_pmi_document_given_in_place_of_the_files() {
 }
 
 /// Genuine schema-5/v3 captures from v0.1.1 (a27b706): default golden recognition
-/// and caller-space 10252 recognition. All five oriented features must follow the merge.
+/// and caller-space 10252 recognition. Since fingerprint/4 they are refused with a
+/// re-fingerprint instruction instead of being migrated.
 #[test]
-fn v011_oriented_fingerprints_correspond_to_merged_step() {
+fn v011_fingerprint3_captures_are_refused() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let bytes = include_bytes!("fixtures/recognition011_oriented.json.gz");
     let capture: serde_json::Value =
@@ -613,114 +614,31 @@ fn v011_oriented_fingerprints_correspond_to_merged_step() {
         captured_oriented, 5,
         "three slots, one pattern, one chamfer"
     );
-    let has_corpus = std::env::var_os("QUIDDITY_CORPUS").is_some_and(|v| v != "off");
+    // fingerprint/4 (#254): stored /3 fingerprints are refused, not migrated; the caller
+    // re-fingerprints the part from its geometry. The fixture case needs no corpus.
     let temporary = std::env::temp_dir().join(format!("quiddity-v011-{}", std::process::id()));
     std::fs::create_dir_all(&temporary).unwrap();
-    let mut formerly_oriented = 0;
+    let mut refused = 0;
     for case in capture["cases"].as_array().unwrap() {
-        let path = case["path"].as_str().unwrap();
-        let step = if case["kind"] == "fixture" {
-            root.join("tests/fixtures").join(path)
-        } else if let Some(corpus) = std::env::var_os("QUIDDITY_CORPUS").filter(|v| v != "off") {
-            PathBuf::from(corpus).join(path)
-        } else {
-            assert!(std::env::var_os("QUIDDITY_CORPUS_REQUIRED").is_none());
+        if case["kind"] != "fixture" {
             continue;
-        };
+        }
+        let step = root
+            .join("tests/fixtures")
+            .join(case["path"].as_str().unwrap());
         let old = temporary.join("v011.json");
         std::fs::write(&old, serde_json::to_vec(case).unwrap()).unwrap();
         let output = quiddity(&["correspond", old.to_str().unwrap(), step.to_str().unwrap()]);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(!output.status.success(), "{stderr}");
         assert!(
-            output.status.success(),
-            "{}",
-            String::from_utf8_lossy(&output.stderr)
+            stderr.contains("\"quiddity-rust/fingerprint/3\"")
+                && stderr.contains("re-fingerprint the part from its geometry"),
+            "{stderr}"
         );
-        let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-        let recognised = quiddity(&[step.to_str().unwrap()]);
-        assert!(recognised.status.success());
-        let recognised: serde_json::Value = serde_json::from_slice(&recognised.stdout).unwrap();
-        assert_eq!(
-            recognised["document"]["schema_version"],
-            "quiddity-rust/recognition/6"
-        );
-        assert_eq!(
-            recognised["document"]["source_sha256"],
-            case["input_sha256"]
-        );
-        assert_eq!(
-            recognised["fingerprints"]["fingerprint_version"],
-            "quiddity-rust/fingerprint/3"
-        );
-        assert_eq!(result["fingerprint_version"], "quiddity-rust/fingerprint/3");
-        for old in case["fingerprints"]["features"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .filter(|f| f["family"].as_str().unwrap().starts_with("oriented_"))
-        {
-            let captured = case["document"]["records"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .find(|r| r["id"] == old["id"])
-                .expect("captured schema-5 record");
-            assert_eq!(captured["family"], old["family"]);
-            assert_eq!(captured["faces"], old["faces"]);
-            formerly_oriented += 1;
-            let pair = result["features"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .find(|p| p["old"] == old["id"])
-                .unwrap();
-            // #91: inferred-frame recognition now keeps the golden plate on its file axes, so
-            // it proves the same four walls per slot as file-axis recognition and every
-            // cross-frame pair is carried (it was adapted while the frame turned 30 degrees).
-            assert_eq!(pair["class"], "carried", "{path}: {pair}");
-            let new = recognised["document"]["records"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .find(|r| r["id"] == pair["new"])
-                .expect("merged record");
-            assert_eq!(
-                new["family"],
-                old["family"]
-                    .as_str()
-                    .unwrap()
-                    .strip_prefix("oriented_")
-                    .unwrap()
-            );
-            if case["kind"] == "fixture" {
-                // #91: the captured oriented records claimed each slot's two side walls; on
-                // the plate's file axes each slot also claims its two end walls, so the merged
-                // record holds every captured face and as many again.
-                let faces = new["faces"].as_array().unwrap();
-                assert_eq!(
-                    faces.len(),
-                    if old["family"] == "oriented_slot_patterns" {
-                        12
-                    } else {
-                        4
-                    }
-                );
-                assert!(
-                    old["faces"]
-                        .as_array()
-                        .unwrap()
-                        .iter()
-                        .all(|f| faces.contains(f))
-                );
-            } else {
-                assert_eq!(new["faces"], old["faces"]);
-            }
-        }
+        refused += 1;
     }
-    assert_eq!(
-        formerly_oriented,
-        if has_corpus { 5 } else { 4 },
-        "every available captured oriented feature must pair"
-    );
+    assert!(refused > 0, "the capture has a fixture case");
     std::fs::remove_dir_all(temporary).unwrap();
 }
 

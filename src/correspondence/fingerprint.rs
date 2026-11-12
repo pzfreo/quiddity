@@ -13,8 +13,9 @@ use crate::kernel::geom::{self, Surface, V3};
 use crate::kernel::py;
 
 /// Fingerprint format version: correspondence refuses different formats.
-/// Intentional value changes within v3 are recorded in the changelog (#71, #92, #134).
-pub const FINGERPRINT_VERSION: &str = "quiddity-rust/fingerprint/3";
+/// Any change to a fingerprint value bumps this version; stored fingerprints of another
+/// version are re-fingerprinted from their geometry, never migrated (#254).
+pub const FINGERPRINT_VERSION: &str = "quiddity-rust/fingerprint/4";
 
 /// The fingerprints of one recognition result.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1243,7 +1244,7 @@ pub(crate) fn merge_fingerprint(f: &mut FeatureFingerprint) {
     f.family = crate::published_records::publication_family(&f.family).into();
 }
 
-/// Match 0.1.1's oriented namespaces against the merged families within v3.
+/// Match the oriented namespaces of raw (unpublished) fingerprints against the merged families.
 /// Keep old IDs so saved references can follow the resulting correspondence pairs.
 pub(crate) fn merge_legacy_families(fingerprints: &mut Fingerprints) {
     if fingerprints.fingerprint_version == FINGERPRINT_VERSION {

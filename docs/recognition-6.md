@@ -6,7 +6,9 @@ provenance. There is no `local` key, including on nested records. Schema 6 publi
 family per feature kind: oriented slots, chamfers and slot patterns join their plain
 families. Recognition predicates, proofs, frame voting and accepted counts are unchanged.
 The crate version and fingerprint format `quiddity-rust/fingerprint/3` are unchanged;
-merged records' fingerprint values change within v3, as described below.
+merged records' fingerprint values change within v3, as described below. (Since 0.5.0
+fingerprints are `quiddity-rust/fingerprint/4` and stored `/3` fingerprints are
+re-fingerprinted from their geometry; see [correspondence](correspondence.md#fingerprints).)
 
 An axis-valued field can be a file-axis letter (`"x"`, `"y"`, `"z"`) or a unit vector
 `[x,y,z]` in file coordinates. This applies to `axis`, `long_axis`, `width_axis`,
@@ -87,6 +89,9 @@ records because they include family and ID; oriented chamfers acquire the common
 `turned:false` trait and oriented slots drop source-end proof traits. Optional detailed
 geometry is not a new feature kind or a semantic trait. The slot-pattern precision
 correction below also uses measured axes and pitches in intrinsic fingerprints.
+
+Since 0.5.0, `quiddity correspond` refuses these `/3` fingerprints; re-fingerprint the
+saved part's geometry instead (fingerprint/4, #254).
 
 For references saved from 0.1.1's schema-5 `oriented_*` records, use the merged family
 and sorted defining faces, or run `quiddity correspond old.json new.json` on the saved
