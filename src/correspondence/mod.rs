@@ -159,7 +159,6 @@ pub fn recognise_with_evidence(
     Result<crate::evidence_view::EvidenceDocument, crate::evidence_view::EvidenceViewError>,
 ) {
     use crate::evidence_view::{self, EvidenceViewError};
-    use crate::features::section_recess_family::SectionRecessProjection;
 
     let (frame, working) = match frames::infer_part_frame(part) {
         Ok(frame) => match part.transformed(&frame.normalisation()) {
@@ -180,27 +179,20 @@ pub fn recognise_with_evidence(
         // The evidence API has always projected the pre-publication physical inventory.
         let recognised = features::recognise_projected(ctx, inventory.clone(), projection.clone());
         let recognition = publish(part, ctx, recognised, frame.clone());
-        let evidence = projection
-            .transpose()
-            .map_err(EvidenceViewError::from)
-            .and_then(|projection| {
-                evidence_view::project(
-                    geometry,
-                    inventory,
-                    projection.unwrap_or(SectionRecessProjection {
-                        section_recesses: Vec::new(),
-                        refusals: Vec::new(),
-                        patterns: Vec::new(),
-                    }),
-                )
-            })
-            .map(|view| {
-                let evidence_frame = match &frame {
-                    RecordFrame::Inferred(frame) => Some(*frame),
-                    _ => None,
-                };
-                evidence_view::document_from_view(part, evidence_frame, view)
-            });
+        // The shared boundary records returned projection errors in the inventory.
+        // Keep the same incomplete evidence as the separate evidence call.
+        let evidence = evidence_view::project(
+            geometry,
+            inventory,
+            projection.and_then(Result::ok).unwrap_or_default(),
+        )
+        .map(|view| {
+            let evidence_frame = match &frame {
+                RecordFrame::Inferred(frame) => Some(*frame),
+                _ => None,
+            };
+            evidence_view::document_from_view(part, evidence_frame, view)
+        });
         (recognition, evidence)
     });
     result.unwrap_or_else(|error| {

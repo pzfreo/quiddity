@@ -533,6 +533,14 @@ pub(crate) fn floor_claims_occupied(defining: &Defining) -> BTreeSet<usize> {
 
 /// Both consumers of the recess projection share the same boundary and failure ledger.
 pub(crate) fn project_recesses(ctx: &Context<'_>, inventory: &mut Inventory) -> RecessProjection {
+    #[cfg(test)]
+    if isolation::INJECT.get() == Some(("section_recesses", "returned_error")) {
+        // Break an actual projection contract, rather than injecting a panic or
+        // replacing the result. Each consumer must observe and record the same Err.
+        let walls = inventory.physical.defining["prismatic_pockets"][0].clone();
+        inventory.constituent.get_mut("prismatic_pockets").unwrap()[0]
+            .retain(|face| !walls.contains(face));
+    }
     let mut failures = std::mem::take(&mut inventory.physical.failures);
     let projection = isolation::guarded(
         &mut failures,

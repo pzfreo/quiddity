@@ -340,6 +340,61 @@ mod tests {
     }
 
     #[test]
+    fn shared_analysis_preserves_returned_projection_failure_ledger() {
+        use crate::{correspondence, evidence_view, frames::RecordFrame, recognition};
+        let part = crate::read_step_file(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/unowned_recess_solid.step.gz"),
+        )
+        .unwrap();
+        let separate = injected("section_recesses", "returned_error", || {
+            correspondence::recognise(&part)
+        });
+        let framed = matches!(separate.frame, RecordFrame::Inferred(_));
+        let evidence = injected("section_recesses", "returned_error", || {
+            evidence_view::document(&part, framed)
+        })
+        .unwrap();
+        let (joint, joint_evidence) = injected("section_recesses", "returned_error", || {
+            correspondence::recognise_with_evidence(&part)
+        });
+        let joint_evidence = joint_evidence.expect("a projection error preserves partial evidence");
+        let separate_doc = recognition::document(&separate, part.faces.len());
+        let joint_doc = recognition::document(&joint, part.faces.len());
+        assert_eq!(joint_doc.complete, Some(false));
+        assert_eq!(joint_evidence.complete, Some(false));
+        for failures in [&joint_doc.failures, &joint_evidence.failures] {
+            let failure = failed(failures, "section_recesses");
+            assert_eq!(failure.stage, "section_recess_projection");
+            assert_eq!(
+                failure.message.as_deref(),
+                Some("defining faces must be constituent faces")
+            );
+        }
+        // Automatic framing can change the incidental families exposed by this
+        // control. Require retained non-recess evidence and compare every field.
+        let retained: Vec<_> = joint_evidence
+            .features
+            .iter()
+            .map(|feature| feature.family)
+            .collect();
+        eprintln!("projection error retained evidence families: {retained:?}");
+        assert!(retained.iter().any(|family| *family != "section_recesses"));
+        assert_eq!(
+            serde_json::to_value(&joint).unwrap(),
+            serde_json::to_value(&separate).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_value(&joint_doc).unwrap(),
+            serde_json::to_value(&separate_doc).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_value(joint_evidence).unwrap(),
+            serde_json::to_value(evidence).unwrap()
+        );
+    }
+
+    #[test]
     fn pocket_panic_preserves_independent_families_on_annular_island() {
         // The #805 construction: box stock, a box recess and a box island (16 faces).
         let part = island_pocket();

@@ -55,7 +55,7 @@ def test_shared_analysis_gzip_preserves_file_digest(tmp_path):
 
 
 @pytest.mark.parametrize("as_bytes", [False, True])
-def test_shared_analysis_retains_recognition_when_evidence_refuses(tmp_path, as_bytes):
+def test_shared_analysis_keeps_local_refusal_and_independent_evidence(tmp_path, as_bytes):
     # A public pocket fixture presented as an open shell has no authoritative owner solid.
     # Only this in-memory negative input is changed; the committed fixture stays intact.
     payload = (FIXTURES / "golden_blind_pockets_and_pocket_patterns.step").read_bytes()
@@ -66,18 +66,32 @@ def test_shared_analysis_retains_recognition_when_evidence_refuses(tmp_path, as_
     )
     assert changed == 1
     payload = payload.replace(b"CLOSED_SHELL", b"OPEN_SHELL")
-    path = tmp_path / "unsupported-open-pocket.step"
+    path = tmp_path / "unowned-open-pocket.step"
     path.write_bytes(payload)
     step = payload if as_bytes else str(path)
     recognition = json.loads(quiddity.recognise(step))
     assert recognition["document"]["frame"]["status"] == "refused"
     assert recognition["document"]["records"]
-    with pytest.raises(ValueError, match="body authority") as error:
-        quiddity.evidence(step, framed=False)
+    evidence = json.loads(quiddity.evidence(step, framed=False))
     result = json.loads(quiddity.recognise_with_evidence(step))
     assert result["recognition"] == recognition
-    assert result["evidence"] is None
-    assert result["evidence_error"] == str(error.value)
+    assert result["evidence"] == evidence
+    assert result["evidence_error"] is None
+    refusals = [
+        feature for feature in evidence["features"]
+        if feature["family"] == "section_recess_source_refusals"
+    ]
+    assert refusals
+    for refusal in refusals:
+        assert refusal["record"]["reason"] == "missing_common_valid_solid"
+        assert "body" not in refusal["record"]
+    raw_candidates = [
+        record for record in recognition["document"]["records"]
+        if record["family"] == "prismatic_pockets"
+    ]
+    assert raw_candidates
+    assert all(record["evidence_status"] == "unproved" for record in raw_candidates)
+    assert any(feature["family"] == "step_levels" for feature in evidence["features"])
 
 
 @pytest.mark.parametrize("payload", [b"", b"not STEP", str(FIXTURES / "missing-shared-analysis.step")])

@@ -60,6 +60,12 @@ with `evidence_error`. Callers must check this error and continue to respect eac
 `complete`, `failures` and proof status. A successful API return alone does not establish
 solid evidence for every geometric conclusion.
 
+A returned section-recess projection error is recorded in the shared failure ledger.
+Both calls retain independent evidence with `complete: false`, just as the separate
+recognition and evidence APIs do. The joint envelope keeps that partial evidence and
+does not turn this family-local failure into an `evidence: null` refusal. Input,
+reconciliation and document-identity errors retain their existing fatal boundaries.
+
 The normal path builds one candidate inventory. Strict-to-local-degradation retries and
 rediscovery required after recognition publication failures remain intact. One shared
 call does not mean that discovery runs only once for every possible input.

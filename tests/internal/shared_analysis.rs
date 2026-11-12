@@ -42,6 +42,9 @@ fn shared_analysis_matches_complete_documents() {
         "pocket_floor_island.step.gz",
         "open_shell.step",
         "broken/unresolved_surface.step",
+        "unowned_recess_solid.step.gz",
+        "unowned_recess_shell.step.gz",
+        "unowned_recess_mixed.step.gz",
     ] {
         eprintln!("shared analysis: {file}");
         let part = step::read_step_file(&common::fixtures().join(file)).unwrap();
