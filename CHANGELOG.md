@@ -25,6 +25,13 @@ Pending version: 0.5.0
   field/variant additions on exhaustive types and removing or feature-gating APIs.
   CI checks both published crates against their latest stable crates.io release;
   a non-empty Unreleased Breaking (Rust API) section sanctions a pending minor bump.
+- **Breaking (fingerprint format):** fingerprints are `quiddity-rust/fingerprint/4`
+  (`FINGERPRINT_VERSION`). Values changed several times within `/3` (#71, #84/#85, #92,
+  #100, #118, #134, #189) without a way to tell which vintage a stored fingerprint has, so
+  `correspond` now refuses `/3` with an error asking for the part to be re-fingerprinted.
+  Consumers that store fingerprints must re-fingerprint each part from its own geometry
+  with this quiddity; there is no migration. The `/4` values are this release's values;
+  the structure and fields are unchanged. Recognition schema stays `/6`. For #254.
 
 ### Changed
 

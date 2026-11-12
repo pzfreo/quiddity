@@ -647,7 +647,7 @@ fn merged_publication_preserves_each_proof_and_oriented_correspondence() {
         // the CLI test separately checks genuine captured v0.1.1 recognition output.
         let working = quiddity::features::recognise(&part);
         let legacy = correspondence::fingerprint(&part, &working);
-        assert_eq!(legacy.fingerprint_version, "quiddity-rust/fingerprint/3");
+        assert_eq!(legacy.fingerprint_version, "quiddity-rust/fingerprint/4");
         let published = quiddity::published_records::PublishedFeatures::from(working.clone());
         let families: std::collections::BTreeMap<_, _> = published.families().into_iter().collect();
         for (old, plain) in [

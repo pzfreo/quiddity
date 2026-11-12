@@ -143,7 +143,7 @@ def test_anchor_and_fingerprints():
     assert anchor["face"] == 0
     assert len(anchor["point"]) == 3 and len(anchor["uv"]) == 2
     fp = json.loads(quiddity.fingerprints(str(PLATE)))
-    assert fp["fingerprint_version"] == "quiddity-rust/fingerprint/3"
+    assert fp["fingerprint_version"] == "quiddity-rust/fingerprint/4"
     assert fp == json.loads(quiddity.fingerprints(PLATE.read_bytes()))
     assert fp == json.loads(quiddity.recognise(str(PLATE)))["fingerprints"]
     assert fp == json.loads(cli("fingerprints", PLATE).stdout)
@@ -167,7 +167,7 @@ def test_capabilities_version_and_console_script():
     assert importlib.metadata.metadata("quiddity")["Requires-Python"] == ">=3.11"
     caps = json.loads(quiddity.capabilities())
     assert caps["evidence"] == "quiddity-rust/evidence/1"
-    assert caps["fingerprints"] == "quiddity-rust/fingerprint/3"
+    assert caps["fingerprints"] == "quiddity-rust/fingerprint/4"
     assert caps["pmi_json_import"] is True
     assert caps == json.loads(cli("capabilities").stdout)
     executable = Path(sys.executable).parent / ("quiddity.exe" if os.name == "nt" else "quiddity")
