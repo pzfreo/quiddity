@@ -3222,6 +3222,10 @@
     "tests/fixtures/two_solids.step": "6517033d96780ae13db686352fc4f5e505737dc837f0411970e5cd935ef7ae29",
     "tests/fixtures/two_solids_reversed.step": "2621b8f6fe05bb0c2fe6b8d0f03af22a3fc55ffa11f336821330bf6e465812a1",
     "tests/fixtures/unequal_radii.step": "b12f071210e9bf5d7e7d573071eb1ef4aee2c615cfe5e655bd43ffd74ceb3cf8",
+    "tests/fixtures/unowned_recess_mixed.step.gz": "8cabe512b4401214e0f7f661418ac21ada0f1229d5ebef40b55b520b1d5a8ba7",
+    "tests/fixtures/unowned_recess_shell.step.gz": "9c621ec8bd1931bec011f7ef38800b5db733f41edbb758f43c90795af43a529a",
+    "tests/fixtures/unowned_recess_solid.step.gz": "45694f3de1715546e9cc734ffe25b17a5f5ab99cedd4e8afd4bb31b94450e1d2",
+    "tests/fixtures/unowned_recesses.README.md": "726d7ea362aa978b33ddcb8c3b0b05563e9eb4c3d97d75d0ed49e8fcdb0e8057",
     "tests/fixtures/v_channel.step": "0a0a6c99a17b6084a4247e90c70e16e6757d12fd19d885261d0ac6262e03924a",
     "tests/fixtures/whistle_frame_reference.step.gz": "dffb437b2618ddac7f9f5578c16b015624b5c02193c399165117397f90c40909"
   },
@@ -5927,7 +5931,8 @@
     "sections/test/parts/f98a04ceb4cf86c7.step.gz.json.gz": "aeafea9c06fbbc2aed34f9534475455ee824466c2419269b487f164c44ba3638",
     "sections/test/parts/fa49b36bce6eef83.step.gz.json.gz": "8191a508ab43bcd9f12bfb19af6347bb346cd8530e812088d4331122fba1dfa7",
     "sections/test/parts/fc9cb0ef3d518aa4.step.gz.json.gz": "ad246bd3ca231dda3e7fe1fc54cd798984e7dcd9da376dcb609c3c42001086f8",
-    "step_levels.json.gz": "6ff3ceadb33888e9d529a10b9a880babaf979f4f8d869962215d9d3193902f00"
+    "step_levels.json.gz": "6ff3ceadb33888e9d529a10b9a880babaf979f4f8d869962215d9d3193902f00",
+    "unowned_recesses.json.gz": "fdf3a0bc103da55cbeeba19310f2a06fd99cdf07ef75900f0605f71312c69584"
   },
-  "source_commit": "6b908e0282296ff0e402fbaa5759265c4b5dc7ea"
+  "source_commit": "9c2f6ad1669f36e857caca98b0cce11df994bb71"
 }
