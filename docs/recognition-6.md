@@ -743,6 +743,15 @@ reconciliation/publication. A failed mutating post-pass discards its result and 
 reconciliation with that family revoked before any later post-pass runs. Existing ordinary geometry refusals retain their
 contract; they are distinct from panics.
 
+Returned section-recess projection errors also enter this failure ledger, with
+`stage: "section_recess_projection"`; the evidence API uses the same boundary.
+An unowned recess source is an ordinary candidate refusal instead: the additive
+`section_recess_source_refusals` family carries `SectionRecessSourceRefusal` records
+with `reason: "missing_common_valid_solid"` and the original sorted face union.
+These records have no body or fingerprint and remain `unproved`. They do not remove
+physical candidates or independent proved recesses. See [evidence](evidence.md#recess-sources-without-body-authority)
+for the corresponding evidence and standalone section-document payloads.
+
 STEP reading, context construction, reconciliation, document assembly and output validation
 remain fatal/outside the family boundary. The library installs one panic-hook dispatcher:
 a thread-local scope silences only caught family panics, while other threads and uncaught

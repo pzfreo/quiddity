@@ -18,7 +18,7 @@ The top-level fields are:
 | `features` | Accepted evidence features and section-recess refusal records |
 | `candidates` | Rejected candidates and the transitive closure of their reconciliation links |
 | `rejected_candidates` | Positions in `candidates` |
-| `failures` | Optional failed/blocked family entries, present only after a family panic |
+| `failures` | Optional failed/blocked family entries, including returned section-projection errors |
 | `complete` | `false` only when `failures` is present; otherwise omitted |
 
 Each feature has `index` (within its family), `family`, `record` (the Rust
@@ -69,3 +69,34 @@ The dependency, payload, retryable-cache and panic-hook policies are described i
 [recognition/6](recognition-6.md#incomplete-recognition-for-161). STEP reading, context
 construction, reconciliation, evidence document assembly and validation remain fatal.
 WASM builds abort on panic, so this has no effect in the browser.
+
+## Recess sources without body authority
+
+A STEP file may contain both solids and open surface shells. A prismatic candidate
+on such a shell can be retained as `unproved` in recognition/6, but cannot authorize
+a material section recess. All eight recess source families check the union of their
+defining and consulted faces before projection. A candidate without a common valid
+solid produces a `section_recess_source_refusals` record. This intentionally also
+refuses a solid-owned candidate that consults a face on another solid, or a face
+excluded by local degradation, even when its defining faces alone have valid ownership:
+
+```json
+{"reason": "missing_common_valid_solid", "faces": [10, 11, 12, 13]}
+```
+
+The refusal has no invented body index. Its sorted face union is carried in both
+evidence face lists and resolves through the unchanged `face_sources` roster.
+Recognition publishes the same payload as `SectionRecessSourceRefusal`, with
+`unproved` status; existing physical candidates keep their measurements and status.
+The standalone section-recess document includes optional `source_refusals` when
+nonempty. Independent recesses, including others from the same source family, remain
+available. A completed evaluation with an explicit candidate refusal is not a failed
+family and does not set `complete: false`.
+
+If the section projection itself returns an error, both recognition and evidence
+instead record `section_recesses / section_recess_projection` in `failures` and mark
+the result incomplete, including `complete: false` in recognition/6. This is a
+deliberate partial-result contract, not a successful empty evaluation. Independent
+families survive. Input parsing, source identity
+and document validation errors still fail the call. No sewing, solidification, input
+repair or change to the recognition/6, evidence/1 or section-recess/4 schema is involved.

@@ -1083,6 +1083,8 @@ pub struct SectionRecessDocument {
     occurrences: Vec<SectionRecess>,
     refusals: Vec<SectionRecessRefusal>,
     patterns: Vec<SectionRecessPattern>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    source_refusals: Vec<super::discovery::DiscoveryRefusal>,
 }
 
 impl SectionRecessDocument {
@@ -1138,7 +1140,27 @@ impl SectionRecessDocument {
             occurrences,
             refusals,
             patterns,
+            source_refusals: Vec::new(),
         })
+    }
+
+    pub(crate) fn with_source_refusals(
+        mut self,
+        refusals: Vec<super::discovery::DiscoveryRefusal>,
+    ) -> Checked<Self> {
+        if refusals
+            .iter()
+            .flat_map(|r| &r.faces)
+            .any(|&f| f >= self.faces.len())
+        {
+            return refuse("source refusal face index is outside the document roster");
+        }
+        self.source_refusals = refusals;
+        Ok(self)
+    }
+
+    pub fn source_refusals(&self) -> &[super::discovery::DiscoveryRefusal] {
+        &self.source_refusals
     }
 
     pub fn occurrences(&self) -> &[SectionRecess] {
