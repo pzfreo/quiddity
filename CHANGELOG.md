@@ -18,7 +18,7 @@ Upgrading from 0.4.9:
   `/1` manifests are refused; rescan the source.
 - **Recognition schema stays `quiddity-rust/recognition/6`.** New families and fields are
   additive.
-- Thanks to Emon Zhang for shared recognition/evidence analysis (#227), recess evidence
+- Thanks to @xu9299 for shared recognition/evidence analysis (#227), recess evidence
   without solid ownership (#234), Windows snapshot provenance paths (#237) and faster
   face integration (#246).
 
@@ -51,7 +51,7 @@ Upgrading from 0.4.9:
 - Face integration reuses complete cached moments, skips kink searches that cannot
   affect refinement, and stops once an accepted leaf makes the existing refusal
   inevitable. Integration nodes, error criteria and returned results are unchanged.
-  From #246 (Emon Zhang).
+  From #246 (@xu9299).
 - **Breaking (manifest format):** assembly manifests are `quiddity-manifest/2`, with one
   `instances` entry per assembly occurrence. A product's solids and surface models are all
   placed by that one entry; `/1` listed one entry per body, so a multi-solid part was placed
@@ -62,7 +62,7 @@ Upgrading from 0.4.9:
   now gives a partial result (`complete: false`) instead of an evidence error. Eligibility
   checks the defining and consulted faces, so a candidate consulting a face on another solid
   is refused ([evidence](docs/evidence.md)). `SectionRecessProjection` gains
-  `source_refusals` and is `#[non_exhaustive]`. From #234 (Emon Zhang).
+  `source_refusals` and is `#[non_exhaustive]`. From #234 (@xu9299).
 
 ### Documentation
 
@@ -114,7 +114,7 @@ Upgrading from 0.4.9:
     counts it as `KNOWN-REFERENCE` while ours stays within the band of that mesh.
 - The snapshot tool uses `/` in manifest-relative paths so Windows input digests
   and nested snapshots can be checked against the same provenance manifest. From #237
-  (Emon Zhang).
+  (@xu9299).
 
 - Mass integrals wrap closed spline tangents with their points and use consistent
   containment and integration domains for seamless torus bands. This restores the
@@ -180,7 +180,7 @@ Upgrading from 0.4.9:
   placement/hash work use compact indexes and one forward replay, including gzip sources.
 
 - `recognise_with_evidence` shares recognition and evidence analysis, preserving both
-  complete outputs and evidence refusal reasons. From #227 (Emon Zhang). See [shared analysis](docs/shared-analysis.md)
+  complete outputs and evidence refusal reasons. From #227 (@xu9299). See [shared analysis](docs/shared-analysis.md)
   for the Rust file/bytes APIs, Python binding and type declaration.
 
 - `internal_bevels` recognises bounded concave planar corner treatments with measured
