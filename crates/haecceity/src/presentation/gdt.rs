@@ -510,6 +510,15 @@ mod tests {
 mod cad_tests {
     use super::*;
 
+    type Case = (
+        &'static str,
+        &'static str,
+        Option<&'static str>,
+        Option<&'static str>,
+        Vec<String>,
+        f64,
+        &'static [f64],
+    );
     fn strings(v: &[&str]) -> Vec<String> {
         v.iter().map(|s| s.to_string()).collect()
     }
@@ -606,15 +615,7 @@ mod cad_tests {
     #[test]
     fn frame_widths_equal_those_a_cad_system_draws() {
         let ds = |d: &[&str]| strings(d);
-        let cases: [(
-            &str,
-            &str,
-            Option<&str>,
-            Option<&str>,
-            Vec<String>,
-            f64,
-            &[f64],
-        ); 5] = [
+        let cases: [Case; 5] = [
             (
                 "position",
                 "1.016",
