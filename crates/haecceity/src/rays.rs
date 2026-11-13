@@ -66,6 +66,7 @@ enum Node {
 }
 
 /// Geometry-only edge queries shared by all ray casters borrowing the same part.
+/// Cracks use every adjacent face in the part, independent of selected faces or edge tolerance.
 #[derive(Debug)]
 pub(super) struct RayEdges {
     boxes: Vec<Bounds>,
@@ -105,6 +106,8 @@ impl<'a> RayCaster<'a> {
     }
 
     pub fn for_faces(part: &'a Part, faces: Vec<usize>) -> Self {
+        // Shared boxes only prune candidates; intersections, trim tests and parity still
+        // decide crossings. Keep bound construction and polyline sample order unchanged.
         let face_boxes = part.ray_face_boxes.get_or_init(|| {
             (0..part.faces.len())
                 .map(|i| match &part.faces[i].surface {
@@ -128,6 +131,8 @@ impl<'a> RayCaster<'a> {
 
     /// Rays against *faces*, each pruned by its box in *face_boxes* (one per part face), which
     /// must certainly contain the face.
+    /// Retain these supplied boxes without initializing the default box cache: orientation
+    /// proofs rely on that lazy path. Membership, hierarchy and tolerance stay caster-local.
     pub(crate) fn with_face_boxes(
         part: &'a Part,
         faces: Vec<usize>,

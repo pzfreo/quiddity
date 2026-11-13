@@ -11,6 +11,13 @@ from elapsed time, face size, spline degree or a large parent-panel error.
 geometry caches, and sense repairs also replace the face caches. The mass
 cache introduced by the existing shared moment/mass integration retains its own rule.
 
+Within one face integral, the NURBS evaluator borrows one immutable surface and
+retains each axis's last basis and derivative by the exact bits of its clamped
+parameter. A changed span pair rebuilds the homogeneous control block; non-finite
+parameters use the uncached path. Reuse preserves u/v/component accumulation order,
+quadrature nodes, convergence criteria and refusal conditions. These operands are
+discarded with the integral.
+
 An adaptive panel requests kink locations only if there is a refinement floor, its
 depth is below `MAX_DEPTH`, and its interval still has kink budget. Otherwise the
 location cannot affect the next step. All quadrature nodes and the walking state are
@@ -53,6 +60,21 @@ does not enter `E`. Equality with `F` is not refusal. With an infinite or NaN fl
 ordered `E > F` guard cannot trigger. Once it does trigger, Rust's `f64::max` cannot
 reduce the non-NaN `E`, even if a later estimate is NaN. Evaluation failures remain
 failures; no new numerical answer is invented.
+
+## Settled volume queries
+
+A volume pass refuses as soon as a sampled line is unresolved. Later samples
+cannot restore an answer; placeholder zeros only finish discarded integration
+work and must never be published as material or air. Successful passes retain
+their sampling and accumulation order.
+
+For `fills_at_most`, a material prefix can stop the inset pass when `limit < 1`,
+even before air is found; otherwise both material and air are needed. The exact
+pass can reject once `material / whole > limit`: lengths are nonnegative and
+quadrature weights positive, so its running total cannot decrease. Equality does
+not reject. Acceptance requires finishing any shortened inset pass, preserving
+the empty/full conventions and refusing unanswered lines. An unknown or
+nonpositive whole volume also refuses the at-most query.
 
 ## Verification obligations
 

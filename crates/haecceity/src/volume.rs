@@ -227,7 +227,8 @@ pub fn fills_at_most(solid: &Classifier<'_>, probe: &Probe<'_>, limit: f64) -> b
             }
             true
         }
-        // Unanswered, or more material than *limit* already.
+        // Unanswered, or the exact-pass prefix strictly exceeds *limit*. Nonnegative
+        // lengths and positive weights cannot reduce it; equality does not reject.
         _ => false,
     }
 }
@@ -510,7 +511,8 @@ fn shared(
     let unresolved = std::cell::Cell::new(false);
     let length = |h: f64, s: f64| {
         // One unanswered line already refuses this whole pass. Later samples
-        // cannot restore an answer, and the accumulated numbers will be discarded.
+        // cannot restore an answer, and the accumulated numbers will be discarded:
+        // these placeholder zeros must never become a published air/material result.
         if unresolved.get() {
             return [0.0, 0.0];
         }
