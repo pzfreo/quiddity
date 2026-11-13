@@ -28,6 +28,13 @@ record serialized as JSON), `defining_faces`, `constituent_faces`,
 are sorted and unique. Empty instance/host/member lists mean no such evidence
 is available. A face is an integer, never an OCP or build123d object.
 
+During one document build, physical records share a lazily serialized JSON tree of
+the immutable `Features` value. Each record is cloned from the same family field and
+index as the individual accessor, in evidence-feature order, preserving numeric
+serialization and member references. The tree is released after the build and is
+never initialized without a physical record. Section recesses and source refusals
+retain their separate projection and accessor.
+
 Each candidate has `family`, family-local `index`, `outcome`, optional `reason`,
 `defining`, `constituent`, and `related` (positions in `candidates`). A null
 reason denotes default acceptance. These candidate field names follow the

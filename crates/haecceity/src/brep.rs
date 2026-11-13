@@ -326,7 +326,10 @@ pub struct Part {
     pub edges: Vec<Edge>,
     pub solids: Vec<Solid>,
     pub(super) cache: Vec<FaceCache>,
+    /// Default ray boxes, indexed by face of this immutable part. Transforms start fresh;
+    /// orientation repairs clear these and the edge queries with the affected face caches.
     pub(super) ray_face_boxes: OnceLock<Vec<Bounds>>,
+    /// Edge boxes, polyline run boxes and lazy cracks, indexed by edge of this part.
     pub(super) ray_edges: OnceLock<super::rays::RayEdges>,
     edge_faces: OnceLock<Vec<Vec<usize>>>,
     valid_solids: OnceLock<Vec<bool>>,

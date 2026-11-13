@@ -152,6 +152,8 @@ pub fn section_recess_projection(
 /// The section-recess projection of a run the caller keeps: the native records discovered on
 /// *ctx* and the projection of *inventory*, that run's recognition and reconciliation
 /// (`super::recognise` reads its section recesses so, from its one inventory run).
+/// Only native discovery is cached: clone its records in order, then recompute sources,
+/// duplicate regions, refusals and patterns for this inventory on every call.
 pub(crate) fn section_recess_projection_in(
     ctx: &Context<'_>,
     inventory: &Inventory,
