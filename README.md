@@ -18,7 +18,7 @@ draftwright-editor's `npm run showcase:render`.*
 **Contents:** [Results](#results) · [Install](#install) · [Command line](#command-line) ·
 [Output](#output) · [Read and write PMI](#read-and-write-pmi) · [Compare two revisions](#compare-two-revisions) ·
 [Python and Rust](#python-and-rust) · [Limits](#limits) · [Packages](#packages) ·
-[Contributing](#contributing) · [History](#history)
+[How it's built](#how-its-built) · [Contributing](#contributing) · [History](#history)
 
 Status: **0.5.1** (2026-11-13). See [CHANGELOG.md](CHANGELOG.md).
 
@@ -225,6 +225,17 @@ for record in document.records.iter().filter(|r| r.family == "holes") {
 | `quiddity` (crate) | recognition, fingerprints, correspondence, the PMI JSON and the command line |
 | `haecceity` (crate, `crates/haecceity`) | the geometry: STEP reading, the B-rep, measurement and queries, and semantic PMI reading and writing (it does not model; see its README); re-exported as `quiddity::kernel` |
 | `quiddity` (Python, `crates/quiddity-py`) | the Python wheel over both |
+
+## How it's built
+
+quiddity is written with AI coding agents (Anthropic's Claude and OpenAI's Codex), directed and
+reviewed by its maintainer. Each change starts from a written brief, gets an independent review
+before it merges, and must pass CI. The checks are what make its claims trustworthy, not who typed
+the code:
+- 1,406 tests and 2,703 regression snapshots;
+- the measurements above, against public datasets, with their commands and raw data committed;
+- one rule throughout: tests are never loosened to make a change pass, and recognition refuses a
+  feature rather than guess it.
 
 ## Contributing
 
