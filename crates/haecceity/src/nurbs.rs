@@ -1073,6 +1073,10 @@ struct PreparedAxis {
 }
 
 /// Integral-local reuse of exact operands; nodes, arithmetic order and refusal stay unchanged.
+/// Each axis retains only its last basis and derivative, keyed by the clamped parameter's
+/// exact bits; non-finite parameters use the uncached evaluator. Homogeneous controls are
+/// rebuilt when the span pair changes. All slots belong to this one immutable surface and
+/// end with the integral; accumulation must keep the u/v/component order below.
 pub(crate) struct SurfaceEvaluation<'a> {
     surface: &'a NurbsSurface,
     u: Option<PreparedAxis>,

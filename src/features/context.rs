@@ -219,7 +219,9 @@ internal_entry! {
 
     /// Geometry-only records shared by reconciliation and publication. Strict and locally
     /// degraded ownership proofs occupy separate slots; neither the accepted inventory nor
-    /// its projection is cached. A complete discovery refusal is retained unchanged.
+    /// its projection is cached. Each context borrows one immutable part; a new run or
+    /// transformed part starts fresh. Discovery order and complete errors are retained;
+    /// a panicking initializer leaves the slot empty for retry.
     pub(crate) fn native_section_recesses(
         &self,
         surfaces: &super::effective_surfaces::EffectiveFaces<'_, '_>,

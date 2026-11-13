@@ -70,6 +70,14 @@ The normal path builds one candidate inventory. Strict-to-local-degradation retr
 rediscovery required after recognition publication failures remain intact. One shared
 call does not mean that discovery runs only once for every possible input.
 
+Native section-recess discovery retains its complete result, including errors, in
+the context for one immutable part, with separate strict and locally degraded
+ownership slots. A new run or transformed part starts fresh; a panic leaves the
+slot empty. Records are cloned in discovery order without changing proofs,
+tolerances, rounding or numbering. The inventory-dependent projection must still
+run for each caller: accepted sources, duplicate regions, source refusals and
+patterns can change after reconciliation.
+
 ## Rust APIs and regression tests
 
 - `correspondence::recognise_with_evidence(&Part)` returns a `#[non_exhaustive]`
