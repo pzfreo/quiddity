@@ -647,6 +647,13 @@ fn valid_mass(m: [f64; 5]) -> Option<[f64; 5]> {
     (m[0] > 0. && m.iter().all(|x| x.is_finite())).then_some(m)
 }
 
+/// A completed but invalid mass sum must retain standalone mass's refusal;
+/// only failure to resolve the legacy quadrature permits a master-trim retry.
+enum MassPass {
+    Refused,
+    Evaluated(Option<[f64; 5]>),
+}
+
 /// Canonical mass and its boundary authority are published together. A concurrent
 /// first moment query cannot publish a legacy region after mass selected the master trim.
 #[derive(Debug)]
@@ -785,8 +792,8 @@ impl Part {
                 &mut observed,
             );
             match observed {
-                Some(Some(terms)) => FaceMass::legacy(Some(terms)),
-                Some(None) => self.recover_face_mass(face),
+                Some(MassPass::Evaluated(terms)) => FaceMass::legacy(terms),
+                Some(MassPass::Refused) => self.recover_face_mass(face),
                 // An early failure in additional fields did not evaluate canonical
                 // mass. Determine it independently rather than poisoning its cache.
                 None => self.compute_face_mass(face),
@@ -825,7 +832,7 @@ impl Part {
         face: usize,
         f: impl Fn(V3, V3, V3) -> [f64; N],
         rule: IntegralRule,
-        observed: &mut Option<Option<[f64; 5]>>,
+        observed: &mut Option<MassPass>,
     ) -> Option<[f64; N]> {
         let fc = &self.faces[face];
         let surface = &fc.surface;
@@ -933,7 +940,7 @@ impl Part {
                         u_ref,
                     )?;
                     if refined.1 > mass_floor {
-                        *observed = Some(None);
+                        *observed = Some(MassPass::Refused);
                         return None;
                     }
                     (refined.0, refined.3)
@@ -947,7 +954,7 @@ impl Part {
                 }
             }
             let mass = (mass[0] > 0.0 && mass.iter().all(|x| x.is_finite())).then_some(mass);
-            *observed = Some(mass);
+            *observed = Some(MassPass::Evaluated(mass));
             mass?;
         }
         let floor = 1e-11 * passes.iter().map(|p| p.0.2).sum::<f64>();

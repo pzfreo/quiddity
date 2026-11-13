@@ -97,8 +97,9 @@ outer panel's estimate. Unresolved integrals still refuse. These are numerical
 error estimates, as in the legacy walk, rather than rigorous true-error bounds.
 
 Canonical mass and boundary choice are published under one once-cell before any
-moments escape, including concurrent first queries. A known canonical legacy
-refusal retries only the eligible master boundary, without repeating legacy mass.
+moments escape, including concurrent first queries. An unresolved canonical legacy
+quadrature retries only the eligible master boundary, without repeating legacy mass.
+A completed but invalid canonical sum stays refused, as in a standalone mass query.
 A failure evaluating additional moment fields before canonical mass was determined
 still needs an independent canonical query; it cannot poison a valid mass cache.
 Export copies the retained source master flags directly, without integrating or
