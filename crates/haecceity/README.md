@@ -17,7 +17,7 @@ recognises manufacturing features. Use haecceity directly when you need the geom
 
 ```toml
 [dependencies]
-haecceity = "0.4"
+haecceity = "0.5"
 ```
 
 ## Scope

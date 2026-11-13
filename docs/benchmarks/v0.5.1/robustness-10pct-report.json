@@ -1,0 +1,216 @@
+{
+  "dataset": {
+    "models": 6250,
+    "name": "mfinstseg",
+    "selection": "every model, lexical order"
+  },
+  "failures": [],
+  "families": {
+    "angled_step": 1596,
+    "blend": 892,
+    "boss": 2014,
+    "chamfer": 1193,
+    "circular_blind_step": 1648,
+    "countersink": 13,
+    "fillet": 918,
+    "flat": 14,
+    "groove": 0,
+    "hole": 6182,
+    "hole_pattern": 1,
+    "oriented_slot": 95,
+    "paired_ramp_step": 1691,
+    "plate": 2626,
+    "section_recess": 14356,
+    "slot": 400,
+    "step": 0,
+    "through_step": 1195
+  },
+  "families_outside_f1b02ab_census": {
+    "annular_grooves": 1770,
+    "cylindrical_profiles": 846,
+    "freeform_surfaces": 82,
+    "interior_voids": 19,
+    "internal_bevels": 20,
+    "local_steps": 191,
+    "oblique_through_steps": 881,
+    "oriented_chamfers": 250,
+    "pads": 132,
+    "polygonal_oblique_through_steps": 124,
+    "prismatic_through_cuts": 590,
+    "rectangular_through_notches": 11,
+    "semicircular_blind_slots": 344,
+    "v_channels": 205
+  },
+  "format": "quiddity-coverage-sweep",
+  "format_version": 1,
+  "kind": "coverage-sweep",
+  "not_an_effectiveness_baseline": true,
+  "package": {
+    "name": "quiddity-rust"
+  },
+  "per_class": {
+    "0": {
+      "models": 1737,
+      "name": "Chamfer",
+      "silent": 3,
+      "status": "supported"
+    },
+    "1": {
+      "models": 1776,
+      "name": "Through hole",
+      "silent": 0,
+      "status": "supported"
+    },
+    "10": {
+      "models": 1731,
+      "name": "Slanted through step",
+      "silent": 8,
+      "status": "unsupported"
+    },
+    "11": {
+      "models": 1755,
+      "name": "O-ring",
+      "silent": 0,
+      "status": "supported"
+    },
+    "12": {
+      "models": 1727,
+      "name": "Blind hole",
+      "silent": 0,
+      "status": "supported"
+    },
+    "13": {
+      "models": 1713,
+      "name": "Triangular pocket",
+      "silent": 0,
+      "status": "supported"
+    },
+    "14": {
+      "models": 1767,
+      "name": "Rectangular pocket",
+      "silent": 0,
+      "status": "supported"
+    },
+    "15": {
+      "models": 1715,
+      "name": "6-sided pocket",
+      "silent": 3,
+      "status": "supported"
+    },
+    "16": {
+      "models": 1757,
+      "name": "Circular end pocket",
+      "silent": 2,
+      "status": "supported"
+    },
+    "17": {
+      "models": 417,
+      "name": "Rectangular blind slot",
+      "silent": 0,
+      "status": "supported"
+    },
+    "18": {
+      "models": 426,
+      "name": "Vertical circular end blind slot",
+      "silent": 0,
+      "status": "supported"
+    },
+    "19": {
+      "models": 431,
+      "name": "Horizontal circular end blind slot",
+      "silent": 1,
+      "status": "supported"
+    },
+    "2": {
+      "models": 1777,
+      "name": "Triangular passage",
+      "silent": 0,
+      "status": "supported"
+    },
+    "20": {
+      "models": 1778,
+      "name": "Triangular blind step",
+      "silent": 4,
+      "status": "supported"
+    },
+    "21": {
+      "models": 1764,
+      "name": "Circular blind step",
+      "silent": 1,
+      "status": "supported"
+    },
+    "22": {
+      "models": 1762,
+      "name": "Rectangular blind step",
+      "silent": 1,
+      "status": "supported"
+    },
+    "23": {
+      "models": 1700,
+      "name": "Round",
+      "silent": 1,
+      "status": "supported"
+    },
+    "24": {
+      "models": 6250,
+      "name": "Stock",
+      "silent": 11,
+      "status": "incomparable"
+    },
+    "3": {
+      "models": 1781,
+      "name": "Rectangular passage",
+      "silent": 1,
+      "status": "supported"
+    },
+    "4": {
+      "models": 1731,
+      "name": "6-sided passage",
+      "silent": 1,
+      "status": "supported"
+    },
+    "5": {
+      "models": 376,
+      "name": "Triangular through slot",
+      "silent": 0,
+      "status": "unsupported"
+    },
+    "6": {
+      "models": 353,
+      "name": "Rectangular through slot",
+      "silent": 0,
+      "status": "partial"
+    },
+    "7": {
+      "models": 363,
+      "name": "Circular through slot",
+      "silent": 0,
+      "status": "unsupported"
+    },
+    "8": {
+      "models": 1745,
+      "name": "Rectangular through step",
+      "silent": 3,
+      "status": "supported"
+    },
+    "9": {
+      "models": 1818,
+      "name": "2-sided through step",
+      "silent": 0,
+      "status": "supported"
+    }
+  },
+  "summary": {
+    "failed": 0,
+    "failed_by_status": {},
+    "median_seconds": 0.0851,
+    "models": 6250,
+    "models_below_one": 3374,
+    "ok": 6250,
+    "ratio_denominator": 6250,
+    "records_per_instance_median": 0.875,
+    "section_recess_refusals": 0,
+    "silent": 11,
+    "total_records": 34834
+  }
+}
