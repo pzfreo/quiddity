@@ -92,7 +92,8 @@ The HTML can be regenerated from the committed aggregate:
 
 ```sh
 python3 -I tools/as_compare/build_report.py \
-  docs/benchmarks/mfinstseg-v0.5.1-3a20dceb.json docs/benchmarks/mfinstseg-v0.5.1-3a20dceb.html
+  docs/benchmarks/mfinstseg-v0.5.1-3a20dceb.json docs/benchmarks/mfinstseg-v0.5.1-3a20dceb.html \
+  tools/as_compare/runs/v0.5.1-3a20dceb-test-qr.jsonl.gz
 ```
 
 Small **synthetic** inputs exercise the current scorer without redistributing dataset files:
