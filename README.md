@@ -31,13 +31,17 @@ Measured with 0.5.1; full report, commands and raw data in
 test split (no failures). Recall: share of labelled features found. FP: share of reported features
 that match nothing labelled.
 
-| Feature | Recall | FP | | Feature | Recall | FP |
-|---|---:|---:|---|---|---:|---:|
-| Holes | 96% | 11% | | Passages | 74% | 11% |
-| Pockets | 85% | 23% | | Chamfers | 54% | 26% |
-| Slots | 63% | 17% | | Fillets | 87% | 6% |
-| Steps | 71% | 10% | | O-ring grooves | 85% | 0% |
-| **All features** | **77%** | **14%** | | | | |
+| Feature | Recall | FP |
+|---|---:|---:|
+| Holes | 96% | 11% |
+| Fillets | 87% | 6% |
+| Pockets | 85% | 23% |
+| O-ring grooves | 85% | 0% |
+| Passages | 74% | 11% |
+| Steps | 71% | 10% |
+| Slots | 63% | 17% |
+| Chamfers | 54% | 26% |
+| **All features** | **77%** | **14%** |
 
 - **Robust:** a fixed 10% sample of all 62,495 MFInstSeg models runs with no read or recognition
   failures and no crashes.
