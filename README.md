@@ -229,8 +229,8 @@ for record in document.records.iter().filter(|r| r.family == "holes") {
 ## How it's built
 
 quiddity is written with AI coding agents (Anthropic's Claude and OpenAI's Codex), directed and
-reviewed by its maintainer. Each change starts from a written brief, gets an independent review
-before it merges, and must pass CI. The checks are what make its claims trustworthy, not who typed
+reviewed by its maintainer. Each change starts from a written brief and must pass CI; large
+changes also get an independent review before they merge. The checks are what make its claims trustworthy, not who typed
 the code:
 - 1,406 tests and 2,703 regression snapshots;
 - the measurements above, against public datasets, with their commands and raw data committed;
