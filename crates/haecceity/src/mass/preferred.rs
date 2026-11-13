@@ -152,10 +152,37 @@ fn variation(curve: &Curve, a: f64, b: f64, k: usize) -> f64 {
     }
 }
 
+/// Deterministic samples on the union of both curves' knot spans. This bounds
+/// sampled representation disagreement, separately from quadrature certification.
+fn master_deviation(surface: &Surface, pc: &Curve, edge: &Curve, a: f64, b: f64) -> Option<f64> {
+    let mut knots = Vec::new();
+    for c in [pc, edge] {
+        if let Curve::Nurbs(c) = c {
+            knots.extend(c.breaks());
+        }
+    }
+    let spans = cuts(a, b, 1, &knots)?;
+    let mut maximum: f64 = 0.;
+    for span in spans.windows(2) {
+        // 33 samples per span (including endpoints), independent of quadrature nodes.
+        for j in 0..=32 {
+            let t = span[0] + (span[1] - span[0]) * (j as f64 / 32.);
+            let p = pc.value(t);
+            let distance = geom::dist(surface.value(p[0], p[1]), edge.value(t));
+            if !distance.is_finite() {
+                return None;
+            }
+            maximum = maximum.max(distance);
+        }
+    }
+    Some(maximum)
+}
+
 impl Part {
     /// Only explicitly preferred, complete trims on open spline patches may replace
     /// an unresolved 3D projection. Unselected approximations are not an authority.
     fn integration_pcurves(&self, face: usize) -> Option<Vec<(usize, Curve)>> {
+        self.primary_pcurves(face).next()?;
         let fc = &self.faces[face];
         let Surface::Freeform { surface, kind } = &fc.surface else {
             return None;
@@ -176,6 +203,12 @@ impl Part {
         let inside = |p: V3| {
             p.iter().all(|x| x.is_finite()) && p[0] >= u0 && p[0] <= u1 && p[1] >= v0 && p[1] <= v1
         };
+        // Use the same face bounding-box diagonal as centroid evidence (mm),
+        // with no unit-size floor; inertia evidence uses its trace separately.
+        let length = self.face_bounds(face).diagonal();
+        if !length.is_finite() || length <= 0. {
+            return None;
+        }
         let mut out = Vec::new();
         for &(e, _) in &fc.loops[0].edges {
             if out.iter().any(|(pe, _)| *pe == e) {
@@ -219,6 +252,9 @@ impl Part {
                 fc.surface.value(q[0], q[1])
             };
             if geom::dist(at(a), ed.start) > noise || geom::dist(at(b), ed.end) > noise {
+                return None;
+            }
+            if master_deviation(&fc.surface, &pc, &ed.curve, a, b)? / length > 0.001 {
                 return None;
             }
             out.push((e, pc));
@@ -345,28 +381,36 @@ impl Part {
         let walk = |floor| {
             let (mut total, mut magnitude, mut swept) = ([0.; N], 0., 0.);
             for (curve, a, b) in &paths {
-                let mut eval = |state: f64, a, b, locate| {
+                let mut eval = |state: f64, a: f64, b: f64, locate| {
                     let mut met = Vec::new();
+                    let (half, centre) = (0.5 * (b - a), 0.5 * (b + a));
+                    let (mut sum, mut gauss, mut size) = ([0.; N], [0.; N], [0.; N]);
+                    let mut swept = state;
                     let mut inner_error = 0.;
-                    let mut weights = kronrod_nodes().iter().map(|n| 0.5 * (b - a) * n.1);
-                    let (mut panel, _) = kronrod_rule(
-                        state,
-                        a,
-                        b,
-                        |swept, t| {
-                            let p = curve.value(t);
-                            let d = curve.derivative(t);
-                            let weight = weights.next()?;
-                            *swept += weight * (p[0] - reference) * d[1];
-                            if locate {
-                                met.push((t, p));
-                            }
-                            let (y, error) = term(p[0], p[1], d[1])?;
-                            inner_error += weight.abs() * error;
-                            Some(y)
-                        },
-                        rule,
-                    )?;
+                    // Pair each node with its weights explicitly. Error transport
+                    // must not depend on another evaluator's callback order.
+                    for &(x, wk, wg) in kronrod_nodes() {
+                        let t = centre + half * x;
+                        let weight = wk * half;
+                        let p = curve.value(t);
+                        let d = curve.derivative(t);
+                        swept += weight * (p[0] - reference) * d[1];
+                        if locate {
+                            met.push((t, p));
+                        }
+                        let (y, error) = term(p[0], p[1], d[1])?;
+                        if y.iter().any(|x| !x.is_finite()) {
+                            return None;
+                        }
+                        inner_error += weight.abs() * error;
+                        for k in 0..N {
+                            sum[k] += wk * half * y[k];
+                            gauss[k] += wg * half * y[k];
+                            size[k] += (wk * half * y[k]).abs();
+                        }
+                    }
+                    let (error, magnitude) = estimate(&sum, &gauss, &size, components);
+                    let mut panel = (sum, error, magnitude, swept);
                     panel.1 += inner_error;
                     let corner = |(ta, pa): (f64, V3), tb| {
                         let (mut lo, mut hi) = (ta, tb);
@@ -436,6 +480,12 @@ mod tests {
         nurbs::{NurbsCurve, NurbsSurface},
     };
     fn narrow_parabola() -> Part {
+        // The original width-one geometry remains a refusal regression below:
+        // its representation disagreement exceeds the new interior band.
+        narrow_parabola_with_width(2.)
+    }
+
+    fn narrow_parabola_with_width(width: f64) -> Part {
         let eps = 0.001;
         let h = 0.0001;
         let points = (0..2)
@@ -443,7 +493,7 @@ mod tests {
                 (0..3)
                     .map(|j| {
                         [
-                            i as f64 + j as f64 / 2.,
+                            width * i as f64 + j as f64 / 2.,
                             eps * j as f64 / 2.,
                             if j == 2 { 1. } else { 0. },
                         ]
@@ -465,7 +515,7 @@ mod tests {
                 .unwrap(),
             ),
         };
-        let point = |u: f64, v: f64| [u + v, (eps + 2. * h / eps) * v, v * v - h];
+        let point = |u: f64, v: f64| [width * u + v, (eps + 2. * h / eps) * v, v * v - h];
         let (ua, ub, va, vb) = (0.2, 0.8, 0.001, 0.005);
         let line = |v: f64| Curve::Line {
             origin: point(ua, v),
@@ -535,7 +585,7 @@ mod tests {
                         RawCurve2d::Line {
                             point: [ua, va],
                             direction: [1., 0.],
-                            magnitude: 1.,
+                            magnitude: 1. / width,
                         },
                     ),
                     (
@@ -553,7 +603,7 @@ mod tests {
                         RawCurve2d::Line {
                             point: [ua, vb],
                             direction: [1., 0.],
-                            magnitude: 1.,
+                            magnitude: 1. / width,
                         },
                     ),
                     (
@@ -581,8 +631,8 @@ mod tests {
         let primitive = |v: f64| {
             0.5 * v * (eps * eps + 4. * v * v).sqrt() + eps * eps / 4. * (2. * v / eps).asinh()
         };
-        let area = 0.6 * (primitive(b) - primitive(a));
-        let flux = -0.6 * eps * (b * b * b - a * a * a) / 3.;
+        let area = 1.2 * (primitive(b) - primitive(a));
+        let flux = -1.2 * eps * (b * b * b - a * a * a) / 3.;
         let n = 8192;
         let h = (b - a) / n as f64;
         let integrate = |power: i32| {
@@ -604,9 +654,9 @@ mod tests {
         let [v, v2, v3, v4] = means;
         let var = v2 - v * v;
         let cross = v3 - v * v2;
-        let centre = [0.5 + v, eps * v, v2];
+        let centre = [1. + v, eps * v, v2];
         let q = [
-            [area * (0.03 + var), area * eps * var, area * cross],
+            [area * (0.12 + var), area * eps * var, area * cross],
             [area * eps * var, area * eps * eps * var, area * eps * cross],
             [area * cross, area * eps * cross, area * (v4 - v2 * v2)],
         ];
@@ -656,6 +706,73 @@ mod tests {
             Some(0.002),
         );
         assert!(p.face_mass(0).is_none());
+    }
+
+    #[test]
+    fn master_trim_interior_disagreement_refuses_recovery() {
+        // Retain the original regression's geometry: its 0.001005 mm
+        // disagreement / ~0.604 mm box diagonal now correctly exceeds the band.
+        let original = narrow_parabola_with_width(1.);
+        assert!(original.integration_pcurves(0).is_none());
+        assert!(original.face_mass(0).is_none());
+
+        let p = narrow_parabola();
+        assert!(p.integration_pcurves(0).is_some());
+        let mut raw = p.file_pcurves(0).to_vec();
+        // Same endpoints and knot domain as the lower horizontal edge, but a
+        // quadratic interior bulge into the surface. Endpoint checks alone pass.
+        raw[0].1 = RawCurve2d::BSpline {
+            degree: 2,
+            points: vec![[0.2, 0.001], [0.5, 0.5], [0.8, 0.001]],
+            multiplicities: vec![3, 3],
+            knots: vec![0., 1.2],
+            weights: None,
+        };
+        let p = p.with_file_pcurves(
+            std::collections::BTreeMap::from([(0, raw)]),
+            std::collections::BTreeMap::from([(0, vec![0, 1, 2, 3])]),
+            (1., 1.),
+            Some(0.002),
+        );
+        let pc = raw_param_curve(&p.file_pcurves(0)[0].1).unwrap();
+        for (t, end) in [(0., p.edges[0].start), (1.2, p.edges[0].end)] {
+            let uv = pc.value(t);
+            assert!(geom::dist(p.faces[0].surface.value(uv[0], uv[1]), end) < 0.002);
+        }
+        assert!(
+            master_deviation(&p.faces[0].surface, &pc, &p.edges[0].curve, 0., 1.2).unwrap()
+                / p.face_bounds(0).diagonal()
+                > 0.001
+        );
+        assert!(p.integration_pcurves(0).is_none());
+        assert!(p.face_mass(0).is_none());
+        assert!(p.face_moments(0).is_none());
+    }
+
+    #[test]
+    fn concurrent_first_queries_share_the_boundary_choice() {
+        let expected = narrow_parabola().face_moments(0).unwrap();
+        for _ in 0..8 {
+            let p = narrow_parabola();
+            let barrier = std::sync::Barrier::new(2);
+            std::thread::scope(|scope| {
+                let mass = scope.spawn(|| {
+                    barrier.wait();
+                    p.face_mass(0).unwrap()
+                });
+                let moments = scope.spawn(|| {
+                    barrier.wait();
+                    p.face_moments(0).unwrap()
+                });
+                let mass = mass.join().unwrap();
+                let moments = moments.join().unwrap();
+                assert_eq!(mass[0], moments.area);
+                assert_eq!(moments.area, expected.area);
+                assert_eq!(moments.centroid, expected.centroid);
+                assert_eq!(moments.second_moments, expected.second_moments);
+                assert!(p.cache[0].mass.get().unwrap().preferred);
+            });
+        }
     }
 
     #[test]
@@ -710,6 +827,10 @@ mod tests {
             &crate::brep_write::WriteOptions::new("recovered trim"),
         )
         .unwrap();
+        assert!(
+            fresh.cache[0].mass.get().is_none(),
+            "writing must not integrate"
+        );
         assert_eq!(
             bytes, fresh_bytes,
             "written output must not depend on prior mass queries"

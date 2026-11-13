@@ -4,15 +4,17 @@ All notable changes to quiddity-rust and haecceity. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Alpha 1's gates and their evidence are
 in [docs/alpha1.md](docs/alpha1.md).
 
+## Unreleased
+
+### Fixed
+
+- Recover refused trimmed spline face integrals using the file's explicit master trim curves, with sampled 2D/3D agreement checks and bounded inner and outer quadrature errors; preserve master flags on export without integration (#245).
+
 ## 0.5.2 (2026-11-13)
 
 A patch release: faster recognition with byte-identical output, contributed by xu9299. No API
 change. Measured against 0.5.1: about 18% less CPU on per-product assemblies, about 48%
 less memory when writing evidence, about 8% less CPU on large freeform parts.
-
-### Fixed
-
-- Recover refused trimmed spline face integrals from complete, explicitly preferred STEP pcurves, with bounded inner and outer error checks (#245).
 
 ### Changed
 

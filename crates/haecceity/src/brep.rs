@@ -226,10 +226,7 @@ pub(super) struct FaceCache {
     pub(super) uv_loops: OnceLock<Option<Vec<UvLoop>>>,
     pub(super) domain: OnceLock<Option<FaceDomain>>,
     pub(super) bounds: OnceLock<Bounds>,
-    pub(super) mass: OnceLock<Option<[f64; 5]>>,
-    // Set before publishing canonical mass recovered from an explicit master trim.
-    // Moments must integrate that same region, even if their own 3D walk settles.
-    pub(super) preferred_mass: OnceLock<()>,
+    pub(super) mass: OnceLock<super::mass::FaceMass>,
     pub(super) moments: OnceLock<Option<super::mass::FaceMoments>>,
     pub(super) edge_deviation: OnceLock<Vec<(usize, f64)>>,
     pub(super) uv_bounds: OnceLock<Option<(f64, f64, f64, f64)>>,
@@ -666,15 +663,12 @@ impl Part {
         self.file_uncertainty
     }
 
-    /// The writer preserves a master choice only where the recovered integral
-    /// depends on it. Resolve canonical mass first so output never depends on
-    /// whether a caller happened to query the cache before writing.
-    pub(crate) fn recovered_master_pcurve(&self, face: usize, slot: usize) -> bool {
+    /// Preserve the file's explicit authority without asking an integral to choose it.
+    /// This is metadata, so writing never depends on a prior mass/moment query.
+    pub(crate) fn master_pcurve(&self, face: usize, slot: usize) -> bool {
         self.primary_pcurves
             .get(&face)
             .is_some_and(|slots| slots.contains(&slot))
-            && self.face_mass(face).is_some()
-            && self.cache[face].preferred_mass.get().is_some()
     }
 
     pub(crate) fn primary_pcurves(

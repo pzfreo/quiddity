@@ -1522,7 +1522,7 @@ impl<'p> Writer<'p> {
                 }
                 match self.pcurve(f, slot, raw, &surfaces[f])? {
                     Ok(p) => {
-                        if raw && self.part.recovered_master_pcurve(f, slot) {
+                        if raw && self.part.master_pcurve(f, slot) {
                             master = if pcurves.is_empty() {
                                 m::PreferredSurfaceCurveRepresentation::PcurveS1
                             } else {
