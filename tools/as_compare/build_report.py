@@ -7,6 +7,8 @@ from pathlib import Path
 import sys
 
 scores, out = sys.argv[1:3]
+# The committed raw sweep the scores came from, named in the report (optional).
+sweep = sys.argv[3] if len(sys.argv) > 3 else None
 e = html.escape
 metrics = ['recognition_pct', 'claimed_face_pct', 'false_positive_pct', 'false_negative_pct']
 names = {'qr': 'quiddity', 'as': 'Analysis Situs'}
@@ -46,10 +48,8 @@ table{{border-collapse:collapse;font-size:0.85rem}}td,th{{padding:.4rem;border:1
 td:first-child,th:first-child{{text-align:left}}.scroll{{overflow:auto}}pre{{white-space:pre-wrap}}h2{{margin-top:2rem}}</style>
 </head><body><h1>MFInstSeg face coverage: quiddity {e(revision[:8])}</h1>
 <p>Generated from <code>{e(Path(scores).name)}</code>: {data['models']:,} models from the MFInstSeg
-test split. Health: <code>{e(json.dumps(data['health']))}</code>. The raw sweep is committed as
-<code>tools/as_compare/runs/main-1b7dee67-test-qr.jsonl.gz</code>; its SHA-256, the scorer's
-SHA-256 and the external-label fingerprint are in the provenance below. No Analysis Situs result
-is reported: none can be reproduced from this repository.</p>
+test split. Health: <code>{e(json.dumps(data['health']))}</code>. {f'The raw sweep is committed as <code>{e(sweep)}</code>; its' if sweep else 'The raw sweep&#39;s'} SHA-256, the scorer's
+SHA-256 and the external-label fingerprint are in the provenance below.</p>
 <p>Recognition here means a labelled instance has at least half its faces in a tool's union
 of claimed faces, regardless of predicted instance identity. No-face instances have no face claimed.
 Claimed faces measures target-face recall; false positives are claims outside the target classes

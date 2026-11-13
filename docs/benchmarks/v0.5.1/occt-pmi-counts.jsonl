@@ -1,0 +1,16 @@
+{"file": "nist_ctc_01_asme1_ap242.stp", "dimensions": 21, "tolerances": 6, "datums": 11, "transfer_ok": true}
+{"file": "nist_ctc_02_asme1_ap242.stp", "dimensions": 15, "tolerances": 22, "datums": 87, "transfer_ok": true}
+{"file": "nist_ctc_03_asme1_ap242.stp", "dimensions": 18, "tolerances": 12, "datums": 26, "transfer_ok": true}
+{"file": "nist_ctc_04_asme1_ap242.stp", "dimensions": 13, "tolerances": 6, "datums": 15, "transfer_ok": true}
+{"file": "nist_ctc_05_asme1_ap242.stp", "dimensions": 28, "tolerances": 10, "datums": 11, "transfer_ok": true}
+{"file": "nist_ftc_06_asme1_ap242-e2.stp", "dimensions": 47, "tolerances": 27, "datums": 59, "transfer_ok": true}
+{"file": "nist_ftc_07_asme1_ap242-e2.stp", "dimensions": 27, "tolerances": 25, "datums": 59, "transfer_ok": true}
+{"file": "nist_ftc_08_asme1_ap242-e2.stp", "dimensions": 17, "tolerances": 23, "datums": 49, "transfer_ok": true}
+{"file": "nist_ftc_10_asme1_ap242-e2.stp", "dimensions": 36, "tolerances": 35, "datums": 77, "transfer_ok": true}
+{"file": "nist_ftc_11_asme1_ap242-e3.stp", "dimensions": 8, "tolerances": 4, "datums": 4, "transfer_ok": true}
+{"file": "nist_stc_06_asme1_ap242-e3.stp", "dimensions": 19, "tolerances": 25, "datums": 51, "transfer_ok": true}
+{"file": "nist_stc_07_asme1_ap242-e3.stp", "dimensions": 78, "tolerances": 10, "datums": 22, "transfer_ok": true}
+{"file": "nist_stc_08_asme1_ap242-e3.stp", "dimensions": 18, "tolerances": 29, "datums": 63, "transfer_ok": true}
+{"file": "nist_stc_09_asme1_ap242-e4.stp", "dimensions": 23, "tolerances": 27, "datums": 64, "transfer_ok": true}
+{"file": "nist_stc_10_asme1_ap242-e2.stp", "dimensions": 36, "tolerances": 36, "datums": 80, "transfer_ok": true}
+[32;1m*** ERR StepReaderData : Unresolved Reference : Fails Count : 1 ***[0m
