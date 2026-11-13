@@ -84,6 +84,8 @@ mod trust_contract;
 mod unowned_recesses;
 #[path = "volume_probe.rs"]
 mod volume_probe;
+#[path = "wire_seed.rs"]
+mod wire_seed;
 #[path = "wiring.rs"]
 mod wiring;
 

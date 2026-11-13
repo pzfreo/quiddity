@@ -15,6 +15,12 @@ in [docs/alpha1.md](docs/alpha1.md).
   mass query, while retaining source `CURVE_3D` flags. This changes 1,126 faces across the 11
   flagged corpus files versus the previous writer on main.
 
+### Changed
+
+- Wire-seeded recess discovery follows the queried edges' face ownership instead of
+  repeatedly comparing every neighbour of a many-loop opening. Unique opposite-use
+  pairing and the resulting seed face sets are unchanged.
+
 ## 0.5.2 (2026-11-13)
 
 A patch release: faster recognition with byte-identical output, contributed by xu9299. No API
