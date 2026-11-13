@@ -20,7 +20,7 @@ draftwright-editor's `npm run showcase:render`.*
 [Python and Rust](#python-and-rust) · [Limits](#limits) · [Packages](#packages) ·
 [How it's built](#how-its-built) · [Contributing](#contributing) · [History](#history)
 
-Status: **0.5.1** (2026-11-13). See [CHANGELOG.md](CHANGELOG.md).
+Status: **0.5.2** (2026-11-13). See [CHANGELOG.md](CHANGELOG.md).
 
 ## Results
 
