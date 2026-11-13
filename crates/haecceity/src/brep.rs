@@ -326,6 +326,8 @@ pub struct Part {
     pub edges: Vec<Edge>,
     pub solids: Vec<Solid>,
     pub(super) cache: Vec<FaceCache>,
+    pub(super) ray_face_boxes: OnceLock<Vec<Bounds>>,
+    pub(super) ray_edges: OnceLock<super::rays::RayEdges>,
     edge_faces: OnceLock<Vec<Vec<usize>>>,
     valid_solids: OnceLock<Vec<bool>>,
     bad_faces: OnceLock<Vec<Vec<usize>>>,
@@ -365,6 +367,8 @@ impl Part {
             edges,
             solids,
             cache,
+            ray_face_boxes: OnceLock::new(),
+            ray_edges: OnceLock::new(),
             edge_faces: OnceLock::new(),
             valid_solids: OnceLock::new(),
             bad_faces: OnceLock::new(),
@@ -859,6 +863,8 @@ impl Part {
             self.cache[f] = FaceCache::default();
         }
         self.bad_faces = OnceLock::new();
+        self.ray_face_boxes = OnceLock::new();
+        self.ray_edges = OnceLock::new();
     }
 
     pub(super) fn record_mixed_normal_repair(&mut self, solid: usize, flips: &[usize]) {
@@ -873,6 +879,8 @@ impl Part {
             self.cache[f] = FaceCache::default();
         }
         self.bad_faces = OnceLock::new();
+        self.ray_face_boxes = OnceLock::new();
+        self.ray_edges = OnceLock::new();
     }
 
     /// The face's axis-aligned box: its boundary plus any interior axis extremes.
