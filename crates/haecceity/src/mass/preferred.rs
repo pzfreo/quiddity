@@ -178,10 +178,62 @@ fn master_deviation(surface: &Surface, pc: &Curve, edge: &Curve, a: f64, b: f64)
     Some(maximum)
 }
 
+struct MasterTrim {
+    curves: Vec<(usize, Curve)>,
+    maximum_deviation: f64,
+}
+
+/// Physical length of the same master boundary used by the area integral,
+/// including its short UV closing segments. Use bounded adaptive quadrature;
+/// retain the summed length error on the conservative side of the strip guard.
+fn master_boundary_length(
+    surface: &Surface,
+    local: &crate::nurbs::NurbsSurface,
+    paths: &[(Curve, f64, f64)],
+) -> Option<f64> {
+    let evaluator = std::cell::RefCell::new(crate::nurbs::SurfaceEvaluation::new(local));
+    let speed = |curve: &Curve, t| {
+        let p = curve.value(t);
+        let d = curve.derivative(t);
+        let (_, su, sv) = evaluator.borrow_mut().value_and_partials(p[0], p[1]);
+        [geom::norm(geom::add(
+            geom::scale(su, d[0]),
+            geom::scale(sv, d[1]),
+        ))]
+    };
+    let cuts = paths
+        .iter()
+        .map(|(c, a, b)| curve_cuts(surface, c, a.min(*b), a.max(*b)))
+        .collect::<Option<Vec<_>>>()?;
+    let coarse = paths
+        .iter()
+        .zip(&cuts)
+        .map(|((c, _, _), cut)| integrate(cut, |t| speed(c, t))[0])
+        .sum::<f64>();
+    let budget = 1e-11 * coarse / paths.len() as f64;
+    if !budget.is_finite() || budget <= 0. {
+        return None;
+    }
+    let mut length = 0.;
+    for ((c, _, _), cut) in paths.iter().zip(cuts) {
+        let (sum, error) = integrate_inner(
+            &cut,
+            budget,
+            |t| speed(c, t),
+            IntegralRule {
+                components: Components::Prefix(1),
+                observe_mass: None,
+            },
+        )?;
+        length += sum[0] + error;
+    }
+    (length.is_finite() && length > 0.).then_some(length)
+}
+
 impl Part {
     /// Only explicitly preferred, complete trims on open spline patches may replace
     /// an unresolved 3D projection. Unselected approximations are not an authority.
-    fn integration_pcurves(&self, face: usize) -> Option<Vec<(usize, Curve)>> {
+    fn integration_pcurves(&self, face: usize) -> Option<MasterTrim> {
         self.primary_pcurves(face).next()?;
         let fc = &self.faces[face];
         let Surface::Freeform { surface, kind } = &fc.surface else {
@@ -210,6 +262,7 @@ impl Part {
             return None;
         }
         let mut out = Vec::new();
+        let mut maximum_deviation: f64 = 0.;
         for &(e, _) in &fc.loops[0].edges {
             if out.iter().any(|(pe, _)| *pe == e) {
                 return None;
@@ -254,24 +307,32 @@ impl Part {
             if geom::dist(at(a), ed.start) > noise || geom::dist(at(b), ed.end) > noise {
                 return None;
             }
-            if master_deviation(&fc.surface, &pc, &ed.curve, a, b)? / length > 0.001 {
+            let deviation = master_deviation(&fc.surface, &pc, &ed.curve, a, b)?;
+            maximum_deviation = maximum_deviation.max(deviation);
+            if deviation / length > 0.001 {
                 return None;
             }
             out.push((e, pc));
         }
-        (!out.is_empty()).then_some(out)
+        (!out.is_empty()).then_some(MasterTrim {
+            curves: out,
+            maximum_deviation,
+        })
     }
 
     /// Integrate the explicit STEP trim after projection has refused. The outer
     /// criterion is unchanged. Half its fixed floor budgets all inner primitives;
     /// their measured errors also enter each outer panel's error estimate.
+    /// The first density component must be area; its certified result also
+    /// normalizes the representation-disagreement guard for thin faces.
     pub(super) fn integrate_preferred_face<const N: usize>(
         &self,
         face: usize,
         density: impl Fn(V3, V3, V3) -> [f64; N],
         components: Components,
     ) -> Option<[f64; N]> {
-        let curves = self.integration_pcurves(face)?;
+        let trim = self.integration_pcurves(face)?;
+        let curves = &trim.curves;
         let fc = &self.faces[face];
         let Surface::Freeform { surface, .. } = &fc.surface else {
             return None;
@@ -464,7 +525,15 @@ impl Part {
         if !swept.is_finite() || swept == 0. {
             return None;
         }
-        Some(total.map(|y| y * swept.signum()))
+        let total = total.map(|y| y * swept.signum());
+        if trim.maximum_deviation > 0. {
+            let length = master_boundary_length(&fc.surface, &local, &paths)?;
+            let strip_ratio = trim.maximum_deviation * length / total[0];
+            if total[0] <= 0. || !strip_ratio.is_finite() || strip_ratio > 0.001 {
+                return None;
+            }
+        }
+        Some(total)
     }
 }
 
@@ -480,14 +549,17 @@ mod tests {
         nurbs::{NurbsCurve, NurbsSurface},
     };
     fn narrow_parabola() -> Part {
-        // The original width-one geometry remains a refusal regression below:
-        // its representation disagreement exceeds the new interior band.
-        narrow_parabola_with_width(2.)
+        // A broad patch with a localized ill-conditioned projection near v=0.
+        // Its normal offset satisfies both representation-disagreement guards.
+        // The Gauss–Newton local error multiplier is 2h/(eps²+4va²)=5.
+        parameter_parabola(2., 0.00002, 2e-9, 0.00001, 1.)
     }
 
     fn narrow_parabola_with_width(width: f64) -> Part {
-        let eps = 0.001;
-        let h = 0.0001;
+        parameter_parabola(width, 0.001, 0.0001, 0.001, 0.005)
+    }
+
+    fn parameter_parabola(width: f64, eps: f64, h: f64, va: f64, vb: f64) -> Part {
         let points = (0..2)
             .map(|i| {
                 (0..3)
@@ -516,7 +588,7 @@ mod tests {
             ),
         };
         let point = |u: f64, v: f64| [width * u + v, (eps + 2. * h / eps) * v, v * v - h];
-        let (ua, ub, va, vb) = (0.2, 0.8, 0.001, 0.005);
+        let (ua, ub) = (0.2, 0.8);
         let line = |v: f64| Curve::Line {
             origin: point(ua, v),
             dir: [1., 0., 0.],
@@ -626,14 +698,15 @@ mod tests {
 
     #[test]
     fn preferred_trim_rescues_a_nearly_singular_projection() {
-        let eps: f64 = 0.001;
-        let (a, b) = (0.001, 0.005);
+        let eps: f64 = 0.00002;
+        let (a, b) = (0.00001, 1.);
         let primitive = |v: f64| {
             0.5 * v * (eps * eps + 4. * v * v).sqrt() + eps * eps / 4. * (2. * v / eps).asinh()
         };
         let area = 1.2 * (primitive(b) - primitive(a));
         let flux = -1.2 * eps * (b * b * b - a * a * a) / 3.;
-        let n = 8192;
+        // Resolve the reference integrand near v=0, independently of GK.
+        let n = 131072;
         let h = (b - a) / n as f64;
         let integrate = |power: i32| {
             let mut s = 0.;
@@ -663,6 +736,10 @@ mod tests {
         let p = narrow_parabola();
         assert!(p.integration_pcurves(0).is_some(), "eligible primary trim");
         let mass = p.face_mass(0).expect("preferred trim has area");
+        assert!(
+            p.cache[0].mass.get().unwrap().preferred,
+            "legacy must refuse"
+        );
         assert!((mass[0] - area).abs() < 1e-9 * area, "{mass:?} {area}");
         assert!(
             (mass[1] - flux).abs() < 1e-9 * flux.abs(),
@@ -716,7 +793,7 @@ mod tests {
         assert!(original.integration_pcurves(0).is_none());
         assert!(original.face_mass(0).is_none());
 
-        let p = narrow_parabola();
+        let p = narrow_parabola_with_width(2.);
         assert!(p.integration_pcurves(0).is_some());
         let mut raw = p.file_pcurves(0).to_vec();
         // Same endpoints and knot domain as the lower horizontal edge, but a
@@ -762,6 +839,39 @@ mod tests {
     }
 
     #[test]
+    fn long_thin_master_trim_passes_diagonal_but_fails_area_guard() {
+        // Retain the previous recovery regression's exact width-two geometry.
+        // Its box is long, but the ~2.4e-5 mm strip is narrower than its offset.
+        let p = narrow_parabola_with_width(2.);
+        let trim = p
+            .integration_pcurves(0)
+            .expect("diagonal and endpoint checks pass");
+        assert!(trim.maximum_deviation / p.face_bounds(0).diagonal() < 0.001);
+        let paths: Vec<_> = trim
+            .curves
+            .iter()
+            .map(|(e, c)| {
+                let ed = &p.edges[*e];
+                let (a, b) =
+                    edge_interval(&ed.curve, ed.start, ed.end, ed.same_sense, ed.is_closed());
+                (c.clone(), a, b)
+            })
+            .collect();
+        let Surface::Freeform { surface, .. } = &p.faces[0].surface else {
+            unreachable!()
+        };
+        let perimeter = master_boundary_length(&p.faces[0].surface, surface, &paths).unwrap();
+        let eps: f64 = 0.001;
+        let primitive = |v: f64| {
+            0.5 * v * (eps * eps + 4. * v * v).sqrt() + eps * eps / 4. * (2. * v / eps).asinh()
+        };
+        let area = 1.2 * (primitive(0.005) - primitive(0.001));
+        assert!(trim.maximum_deviation * perimeter / area > 0.001);
+        assert!(p.face_mass(0).is_none(), "thin trim must not recover");
+        assert!(p.face_moments(0).is_none());
+    }
+
+    #[test]
     fn concurrent_first_queries_share_the_boundary_choice() {
         let expected = narrow_parabola().face_moments(0).unwrap();
         for _ in 0..8 {
@@ -801,6 +911,74 @@ mod tests {
         let (got, error) = integrate_inner(&[0., 1.], 1e-12, |t| [t.exp()], rule).unwrap();
         assert!((got[0] - (1f64.exp() - 1.)).abs() < 1e-12 && error <= 1e-12);
     }
+    #[test]
+    fn writing_preserves_source_master_slots_without_any_mass_query() {
+        let p = narrow_parabola();
+        // Two distinct raw slots on each edge let both S1 and S2 be exercised.
+        let raw = p
+            .file_pcurves(0)
+            .iter()
+            .flat_map(|pc| [pc.clone(), pc.clone()])
+            .collect();
+        let p = p.with_file_pcurves(
+            std::collections::BTreeMap::from([(0, raw)]),
+            Default::default(),
+            (1., 1.),
+            Some(0.002),
+        );
+        let options = crate::brep_write::WriteOptions::new("source master slots");
+        let (bytes, report) = crate::brep_write::write_step(&p, &options).unwrap();
+        assert!(report.pcurves_not_written.is_empty());
+        assert!(p.cache[0].mass.get().is_none());
+        let text = String::from_utf8(bytes).unwrap();
+        assert_eq!(text.matches(".CURVE_3D.").count(), 4);
+        for master in [".CURVE_3D.", ".PCURVE_S1.", ".PCURVE_S2."] {
+            let source = text.replace(".CURVE_3D.", master);
+            let part = crate::step::read_step(source.as_bytes()).unwrap();
+            assert!(part.cache[0].mass.get().is_none(), "no prior recovery");
+            for kind in ["BSPLINE", "BEZIER"] {
+                // This single-span polynomial is also an exact Bézier patch.
+                // Build the same retained source metadata for either native kind.
+                let mut faces = part.faces.clone();
+                let Surface::Freeform { kind: native, .. } = &mut faces[0].surface else {
+                    unreachable!()
+                };
+                *native = kind;
+                let expected_slots = match master {
+                    ".PCURVE_S1." => vec![0, 2, 4, 6],
+                    ".PCURVE_S2." => vec![1, 3, 5, 7],
+                    _ => vec![],
+                };
+                let slots: Vec<_> = (0..part.file_pcurves(0).len())
+                    .filter(|&slot| part.master_pcurve(0, slot))
+                    .collect();
+                assert_eq!(slots, expected_slots, "reader retains the source choice");
+                let raw = std::collections::BTreeMap::from([(0, part.file_pcurves(0).to_vec())]);
+                let part = Part::new(faces, part.edges.clone(), vec![]).with_file_pcurves(
+                    raw,
+                    std::collections::BTreeMap::from([(0, slots)]),
+                    (1., 1.),
+                    Some(0.002),
+                );
+                assert!(part.cache[0].mass.get().is_none());
+                let (written, report) = crate::brep_write::write_step(&part, &options).unwrap();
+                assert!(report.pcurves_not_written.is_empty());
+                assert!(
+                    part.cache[0].mass.get().is_none(),
+                    "writing must not query mass"
+                );
+                let written = String::from_utf8(written).unwrap();
+                for flag in [".CURVE_3D.", ".PCURVE_S1.", ".PCURVE_S2."] {
+                    assert_eq!(
+                        written.matches(flag).count(),
+                        if flag == master { 4 } else { 0 },
+                        "source {master}, written {flag}"
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn step_master_selection_and_rigid_motion_survive_the_retry() {
         let p = narrow_parabola();

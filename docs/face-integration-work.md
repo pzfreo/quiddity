@@ -85,6 +85,15 @@ check bounds sampled disagreement, not an unsampled mathematical supremum. It
 uses the existing GVP band, not STEP's usually much tighter declared precision.
 Endpoint and small-gap connectivity checks retain their original precision band.
 
+Recovery also requires `maximum_deviation * P / A <= 0.001`, using that **same
+sampled maximum**, the physical length `P` of the master trim on the surface
+(including the short UV closing segments), and its integrated area `A`. This
+rejects long thin strips whose disagreement is small against the diagonal but
+large against their width. Length uses bounded adaptive Gauss–Kronrod with a
+face-relative error budget; its summed estimated length error is added to `P`.
+The area already passes the recovery integrator's numerical criteria before
+this guard runs, and neither mass nor moments are published before it passes.
+
 A known recall limit is that a NURBS pcurve's **whole knot domain must equal the
 edge interval**: a valid subinterval trim is still ineligible. Unsupported,
 missing, ambiguous or unresolved master trims remain unavailable.
@@ -102,15 +111,21 @@ quadrature retries only the eligible master boundary, without repeating legacy m
 A completed but invalid canonical sum stays refused, as in a standalone mass query.
 A failure evaluating additional moment fields before canonical mass was determined
 still needs an independent canonical query; it cannot poison a valid mass cache.
-Export copies the retained source master flags directly, without integrating or
-consulting query-populated caches. Thus writing retains the authority recovery
-needs and produces identical bytes with and without prior mass queries.
+### Export of source master flags
+
+STEP export preserves the source `PCURVE_S1`/`PCURVE_S2` flag on raw master slots
+of native B-spline and Bézier faces, even when no mass query or recovery has taken
+place. A source `CURVE_3D` designation stays `CURVE_3D`. This deliberately changes
+1,126 faces across the 11 flagged corpus files relative to the previous writer
+on main, which always emitted `CURVE_3D` for them. Export copies retained source
+metadata without integrating or consulting query-populated caches, preserving
+identical bytes with and without prior mass queries.
 
 The synthetic regression uses polynomial normal-offset edges on
 `S(u,v)=(w*u+v, epsilon*v, v²)`, with independent one-dimensional references for
-area, flux, centroid and central moments. The original narrow case is now rejected
-by the interior band; a wider case retains the ill-conditioned projection inside
-the band. Endpoint-matching interior bulges also refuse. Neither reference bands
+area, flux, centroid and central moments. The original narrow cases are rejected by the representation guards; a broad
+patch retains a localized ill-conditioned projection near its boundary while
+satisfying both bands. Endpoint-matching interior bulges also refuse. Neither reference bands
 nor quadrature tolerances are enlarged (ADR 0008).
 
 ## Settled volume queries

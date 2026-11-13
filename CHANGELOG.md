@@ -8,7 +8,12 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
-- Recover refused trimmed spline face integrals using the file's explicit master trim curves, with sampled 2D/3D agreement checks and bounded inner and outer quadrature errors; preserve master flags on export without integration (#245).
+- Recover refused trimmed spline face integrals using the file's explicit master trim curves,
+  with sampled 2D/3D agreement checks against both face diagonal and area/perimeter scales,
+  and bounded inner and outer quadrature errors (#245). STEP export now preserves source
+  `PCURVE_S1`/`PCURVE_S2` flags on raw B-spline/Bézier master slots even without recovery or a
+  mass query, while retaining source `CURVE_3D` flags. This changes 1,126 faces across the 11
+  flagged corpus files versus the previous writer on main.
 
 ## 0.5.2 (2026-11-13)
 
