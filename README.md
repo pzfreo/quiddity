@@ -27,16 +27,25 @@ Status: **0.5.1** (2026-11-13). See [CHANGELOG.md](CHANGELOG.md).
 The [geometric validation accuracy tool](docs/geometric-validation.md) compares exact
 volume, area and centroid against STEP validation properties and independent OCCT measurements.
 
+## Runs on
+
+| Target | Get it | Tested in CI |
+|---|---|---|
+| Python 3.11+ | `pip install quiddity`: one abi3 wheel, no Python dependencies | Wheels for Linux x86_64 and aarch64 (manylinux 2_28), macOS arm64 and x86_64, and Windows x64 are built and their Python tests run on each, with Python 3.11; also on Linux x86_64 with 3.15 |
+| Command line | `uv tool install quiddity`, `pipx install quiddity` or `cargo install quiddity` | Run by the Python tests on all five wheel platforms, and by the Rust tests on Linux and macOS |
+| Rust library | `quiddity = "0.5"` or `haecceity = "0.5"` | Full Rust test suite on Linux and macOS (no Rust test run on Windows) |
+| Browser (WebAssembly) | `haecceity` and `quiddity` (`default-features = false, features = ["presentation"]`) build for `wasm32-unknown-unknown`; the draftwright-editor engines built on this kernel run in the browser | Not built for WebAssembly in CI; CI checks the library without its command line on Linux. Both crates were built for `wasm32-unknown-unknown` by hand at 0.5.1 |
+
 ## Install
 
 | | |
 |---|---|
 | Command line | `uv tool install quiddity` (or `pipx install quiddity`): the Python package's `quiddity` command, with no Rust toolchain needed; upgrade with `uv tool upgrade quiddity`. Or `cargo install quiddity`. |
-| Rust library | `quiddity = "0.4"` in `[dependencies]` (the geometry is the `haecceity` crate, a B-rep reader and query library) |
+| Rust library | `quiddity = "0.5"` in `[dependencies]` (the geometry is the `haecceity` crate, a B-rep reader and query library) |
 | Python 3.11+ | `pip install quiddity` (an abi3 wheel with no Python dependencies; see [Python](docs/python.md)) |
 
 Every [release](https://github.com/pzfreo/quiddity/releases) is published to PyPI and
-crates.io, so `uv tool`, `pipx`, `pip`, `cargo install` and `quiddity = "0.4"` all get the
+crates.io, so `uv tool`, `pipx`, `pip`, `cargo install` and `quiddity = "0.5"` all get the
 latest one.
 
 Cargo features: `cli` (the command line) and `presentation` (drawing PMI callouts) are on by
@@ -129,6 +138,42 @@ doesn't promise.
 | Springs | `helical_springs` |
 | Body | `plates`, `polygonal_stock`, `sheet_metal_bodies`, `thin_wall_bodies`, `flats`, `interior_voids`, `cylindrical_profiles`, `freeform_surfaces` |
 | Sections | `section_passages`, `section_recesses` |
+
+## Accuracy and speed
+
+Measured with quiddity 0.5.1 on a 4-vCPU Ubuntu 24.04 x86_64 cloud VM, 13 November 2026. The full report is
+[`docs/benchmarks/mfinstseg-v0.5.1-3a20dceb.html`](docs/benchmarks/mfinstseg-v0.5.1-3a20dceb.html); commands,
+provenance and the raw data are in [`docs/benchmarks/v0.5.1-measurements.md`](docs/benchmarks/v0.5.1-measurements.md).
+
+**MFInstSeg test split (9,375 models).** All 9,375 read and recognised without error. Scored as face coverage
+against the dataset's labels (a labelled instance is recognised when at least half its faces are claimed):
+
+| Class | Recognition | Claimed faces | False positives |
+|---|---:|---:|---:|
+| Holes | 98.5% | 95.0% | 6.2% |
+| Rounds | 89.3% | 79.5% | 0.2% |
+| Any feature | 84.3% | 83.1% | 0.4% |
+
+Per model, read takes a median 13 ms (95th percentile 23 ms) and recognition 73 ms (95th percentile 242 ms),
+as calling-thread CPU time. The report also has the stricter one-to-one matching (instance IoU of at least 0.5)
+that the repository's regression baseline uses, per class: precision and recall are 0.86 and 0.77 over the 24
+mapped classes.
+
+**Robustness.** On a fixed 10% sample of all 62,495 MFInstSeg models (every tenth in lexical order, 6,250 models):
+0 read failures, 0 recognition failures and 0 panics.
+
+**Geometry accuracy on known parts.** haecceity's volume, area and centroid, with tolerance 0.1% (the centroid
+distance is relative to the bounding-box diagonal). Against the validation properties stored in 18 NIST STEP
+files, 103 of 106 checks are within tolerance, the largest in-tolerance error being 0.009%; the other three are
+one file (NIST STC-06) whose stored properties are zero, where we agree with OpenCascade. Against OpenCascade
+over 2,868 files (9,120 checks), 9,110 are within tolerance, 8 are known OpenCascade reference problems, and 2
+differ (one part: 0.35% volume, 0.16% area).
+
+**From Python.** Compared with the last pure-Python quiddity (0.3.12, built on OpenCascade) on the same machine,
+on 10 NIST parts and 200 MFInstSeg models, 0.5.1 recognises a part a median 10.7 times faster (median 0.096 s
+against 1.085 s per part), imports in 0.02 s instead of about 6 s, peaks at a median 32 MB instead of 418 MB, and
+installs as one 25 MB package instead of 59 packages and 876 MB. The two recognise different feature sets, so the
+speed-up is between the two products, not between two implementations of one algorithm.
 
 ## Compare two revisions
 
