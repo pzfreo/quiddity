@@ -1,13 +1,11 @@
 # quiddity
 
-Find the manufacturing features in a STEP model: holes, pockets, slots, bosses, steps,
-fillets, patterns, springs and turned profiles, with their measured sizes and positions.
-quiddity also matches the features of two revisions of a part, and reads and writes AP242
-PMI (dimensions, tolerances, datums, notes and their callouts).
-
-It works from the B-rep geometry alone, with no CAD system, feature tree or OpenCascade.
-It is pure Rust, and the same input always gives the same output. It is available as a
-command line, a Rust library and a Python package.
+quiddity reads a STEP model and finds its manufacturing features (holes, pockets, slots, bosses,
+steps, fillets, chamfers, patterns, springs and turned profiles) with their measured sizes and
+positions. It reads and writes AP242 PMI (dimensions, tolerances, datums, notes and their callouts),
+and matches features between two revisions of a part. It works from the B-rep geometry alone, with no
+CAD system, feature tree or OpenCascade: pure Rust, the same output for the same input, on Windows,
+macOS, Linux and in the browser, as a Python package, a command line or a Rust library.
 
 ![Eight public parts turning while quiddity's recognised features light up family by family: holes and counterbores, teeth, grooves, sheet-metal bends and flanges, pockets, slots, chamfers, fillets and V-channels](docs/images/showcase.gif)
 
@@ -17,40 +15,55 @@ hasecilu ([CC BY 3.0](https://creativecommons.org/licenses/by/3.0), renders adap
 (© Thompson Labs LLC, MIT); build123d / Gumyr / Too Tall Toby (Apache-2.0). Rendered with
 draftwright-editor's `npm run showcase:render`.*
 
-![Automatically recognised features of NIST CTC-01: two views, each face coloured by the feature quiddity recognises it as: holes, slots, notches, V-channels, the hexagonal boss, chamfers and fillets](docs/images/ctc01-features.png)
-
-*Each face of NIST CTC-01 (AP242) coloured by the feature it belongs to; grey faces belong
-to no feature shown here.*
+**Contents:** [Results](#results) · [Install](#install) · [Command line](#command-line) ·
+[Output](#output) · [Read and write PMI](#read-and-write-pmi) · [Compare two revisions](#compare-two-revisions) ·
+[Python and Rust](#python-and-rust) · [Limits](#limits) · [Packages](#packages) ·
+[How it's built](#how-its-built) · [Contributing](#contributing) · [History](#history)
 
 Status: **0.5.1** (2026-11-13). See [CHANGELOG.md](CHANGELOG.md).
 
-The [geometric validation accuracy tool](docs/geometric-validation.md) compares exact
-volume, area and centroid against STEP validation properties and independent OCCT measurements.
+## Results
+
+Measured with 0.5.1; full report, commands and raw data in
+[docs/benchmarks/v0.5.1-measurements.md](docs/benchmarks/v0.5.1-measurements.md).
+
+**Feature recognition** on all 9,375 models of the public [MFInstSeg](https://github.com/whjdark/AAGNet)
+test split (no failures). Recall: share of labelled features found. FP: share of reported features
+that match nothing labelled.
+
+| Feature | Recall | FP |
+|---|---:|---:|
+| Holes | 96% | 11% |
+| Fillets | 87% | 6% |
+| Pockets | 85% | 23% |
+| O-ring grooves | 85% | 0% |
+| Passages | 74% | 11% |
+| Steps | 71% | 10% |
+| Slots | 63% | 17% |
+| Chamfers | 54% | 26% |
+| **All features** | **77%** | **14%** |
+
+- **Robust:** a fixed 10% sample of all 62,495 MFInstSeg models runs with no read or recognition
+  failures and no crashes.
+- **Accurate geometry:** volume, area and centre of mass agree with the values stored in NIST STEP
+  files (103 of 106 checks within 0.1%) and with OpenCascade (9,110 of 9,120 checks), using the
+  [geometric validation tool](docs/geometric-validation.md).
+- **Fast:** a median 13 ms to read a part and 73 ms to recognise it.
+- **From Python:** 10.7× faster than the last pure-Python quiddity (0.3.12), in 32 MB of memory
+  instead of 418 MB, installed as one 25 MB package instead of 59 packages and 876 MB.
 
 ## Install
 
-| | |
-|---|---|
-| Command line | `uv tool install quiddity` (or `pipx install quiddity`): the Python package's `quiddity` command, with no Rust toolchain needed; upgrade with `uv tool upgrade quiddity`. Or `cargo install quiddity`. |
-| Rust library | `quiddity = "0.4"` in `[dependencies]` (the geometry is the `haecceity` crate, a B-rep reader and query library) |
-| Python 3.11+ | `pip install quiddity` (an abi3 wheel with no Python dependencies; see [Python](docs/python.md)) |
+| You use | Install | Platforms (tested in CI) |
+|---|---|---|
+| **Python 3.11+** | `pip install quiddity`: one wheel, no other dependencies ([Python guide](docs/python.md)) | Windows x64, macOS arm64 and x86_64, Linux x86_64 and aarch64 |
+| **Command line** | `uv tool install quiddity` or `pipx install quiddity` (no Rust needed), or `cargo install quiddity` | the same five |
+| **Rust** | `quiddity = "0.5"` in `[dependencies]` ([crates and features](docs/rust.md)) | Linux, macOS |
+| **Browser** | the library builds for WebAssembly (`wasm32-unknown-unknown`, see [WebAssembly](docs/rust.md#webassembly)); [draftwright's editor](https://draftwright.io) runs it | built on Linux in CI |
 
-Every [release](https://github.com/pzfreo/quiddity/releases) is published to PyPI and
-crates.io, so `uv tool`, `pipx`, `pip`, `cargo install` and `quiddity = "0.4"` all get the
-latest one.
+Every [release](https://github.com/pzfreo/quiddity/releases) is published to PyPI and crates.io.
 
-Cargo features: `cli` (the command line) and `presentation` (drawing PMI callouts) are on by
-default. A library build that does not want clap (WASM, say) can use
-`default-features = false, features = ["presentation"]`. `manifest` enables the range-based
-assembly APIs and is included by `cli`. Off by default:
-- `json-import`: the versioned PMI JSON interchange (`pmi json …` commands).
-- `f3d`: Autodesk Fusion `.f3d` input (visible solid geometry only, no PMI; see [Fusion input](docs/f3d.md)).
-
-Read large assemblies one product at a time with `quiddity manifest` and
-`quiddity recognise --manifest`; see [assembly manifests](docs/assemblies.md)
-for range checks, placements, fallback and Python APIs.
-
-## Quick start
+## Command line
 
 ```sh
 quiddity part.step                      # the part's features, as JSON
@@ -58,30 +71,20 @@ quiddity correspond old.step new.step   # what changed between two revisions
 quiddity pmi read part.step             # the file's PMI, as JSON
 ```
 
-```python
-import json, quiddity
+STEP inputs may be `.step`, `.stp` or gzipped. Commands print JSON; the exit code is 0 for success,
+1 for an unreadable file or a refused operation, and 2 for wrong usage. Every command, the
+`serve` mode for applications and shell completion: [docs/cli.md](docs/cli.md).
 
-document = json.loads(quiddity.recognise("part.step"))["document"]
-for feature in document["records"]:
-    print(feature["family"], feature["parameters"], feature["faces"])
-```
+Read large assemblies one product at a time with `quiddity manifest` and
+`quiddity recognise --manifest`; see [assembly manifests](docs/assemblies.md)
+for range checks, placements, fallback and Python APIs.
 
-When both complete recognition and face evidence are needed,
-[`recognise_with_evidence`](docs/shared-analysis.md) shares their analysis while
-preserving each document's categories, coordinates and error semantics.
+## Output
 
-```rust
-let part = quiddity::read_step_file(std::path::Path::new("part.step"))?;
-let recognised = quiddity::correspondence::recognise(&part);
-let document = quiddity::recognition::document(&recognised, part.faces.len());
+![Automatically recognised features of NIST CTC-01: two views, each face coloured by the feature quiddity recognises it as: holes, slots, notches, V-channels, the hexagonal boss, chamfers and fillets](docs/images/ctc01-features.png)
 
-for record in document.records.iter().filter(|r| r.family == "holes") {
-    let p = &record.parameters;
-    println!("{}: Ø{} × {} on faces {:?}", record.id, p["diameter"], p["depth"], record.faces);
-}
-```
-
-## Recognise a part
+*Each face of NIST CTC-01 (AP242) coloured by the feature it belongs to; grey faces belong
+to no feature shown here.*
 
 For a part with a counterbored hole, `quiddity part.step` includes:
 
@@ -130,22 +133,6 @@ doesn't promise.
 | Body | `plates`, `polygonal_stock`, `sheet_metal_bodies`, `thin_wall_bodies`, `flats`, `interior_voids`, `cylindrical_profiles`, `freeform_surfaces` |
 | Sections | `section_passages`, `section_recesses` |
 
-## Compare two revisions
-
-`quiddity correspond old.step new.step` says what happened to each feature between two
-revisions: `carried` (unchanged), `adapted` (with what changed), `orphaned` (gone in the
-new revision) or `ambiguous` (more than one candidate, so none is guessed), and which
-features are new. It works when the part is moved or re-modelled, because it matches
-revision-independent fingerprints rather than face numbers. If a hole moves:
-
-```json
-{ "old": "holes/2", "new": "holes/2", "class": "adapted",
-  "changes": { "position": { "old": [40.0, 45.0, 5.0], "new": [25.0, 45.0, 5.0] } } }
-```
-
-Either side can also be saved recognition JSON. In Rust, use
-`quiddity::correspond(&old.fingerprints, &new.fingerprints)`. See [correspondence](docs/correspondence.md).
-
 ## Read and write PMI
 
 quiddity reads semantic AP242 PMI and writes it back into the same file. PMI JSON is bound
@@ -180,48 +167,45 @@ quiddity pmi json presentation part.step > part.presentation.json
 The schemas ship in haecceity's `schema/` directory. From Python, `quiddity.pmi` does the
 same in process (`pmi.validate`, `pmi.write`); see [Python](docs/python.md).
 
-## Command line
+## Compare two revisions
 
-```text
-quiddity <file.step>                                  recognise the part's features
-quiddity correspond <old.json|old.step> <new.json|new.step>   match features across revisions
-quiddity evidence <file.step> [--framed]              the recognition evidence for each feature
-quiddity fingerprints <file.step>                     the features' fingerprints
-quiddity capabilities                                 this build's versioned capabilities
-quiddity parts <file.step>                            list an assembly's parts
-quiddity manifest <file.step> -o <manifest.json>       scan product ranges
-quiddity recognise <file.step> --manifest <manifest.json> --out-dir <dir> [--parts p0,p7]
-                                                       recognise products and write results
-quiddity pmi read <file.step> [--part N]              the file's PMI as JSON
-quiddity pmi check <file.step> <pmi.json>             validate a PMI document against the part
-quiddity pmi write <file.step> <pmi.json> -o <out.step> [--mode add|replace|remove]
-                   [--presentation refuse|remove]     write PMI into the file
-quiddity brep <file.step> -o <out.step> [--pmi <pmi.json>]   the B-rep and PMI as a new AP242 file
-quiddity serve                                        JSON-lines requests on stdin
-quiddity completions <SHELL>                          a shell completion script
-quiddity --help
+`quiddity correspond old.step new.step` says what happened to each feature between two
+revisions: `carried` (unchanged), `adapted` (with what changed), `orphaned` (gone in the
+new revision) or `ambiguous` (more than one candidate, so none is guessed), and which
+features are new. It works when the part is moved or re-modelled, because it matches
+revision-independent fingerprints rather than face numbers. If a hole moves:
+
+```json
+{ "old": "holes/2", "new": "holes/2", "class": "adapted",
+  "changes": { "position": { "old": [40.0, 45.0, 5.0], "new": [25.0, 45.0, 5.0] } } }
 ```
 
-`quiddity <command> --help` gives a command's arguments.
+Either side can also be saved recognition JSON. In Rust, use
+`quiddity::correspond(&old.fingerprints, &new.fingerprints)`. See [correspondence](docs/correspondence.md).
 
-Recognition and inspection commands print JSON; `manifest` and `recognise --manifest`
-write their requested files. `completions`, help and version print text. STEP inputs may be
-`.step`, `.stp` or gzipped; manifest product reads require an uncompressed source.
-The exit code is 0 for success, 1 for an unreadable file or a refused operation,
-and 2 for wrong usage.
+## Python and Rust
 
-`quiddity serve` keeps one process open for applications: one JSON request per line on
-stdin, one response line per request on stdout, e.g. `{"id":1,"op":"recognise","step":"part.step"}`.
-The operations are `recognise` and `correspond`.
+```python
+import json, quiddity
 
-**Shell completion.** `quiddity completions SHELL` prints a completion script for `bash`,
-`zsh`, `fish`, `powershell` or `elvish`:
+document = json.loads(quiddity.recognise("part.step"))["document"]
+for feature in document["records"]:
+    print(feature["family"], feature["parameters"], feature["faces"])
+```
 
-```sh
-mkdir -p ~/.local/share/bash-completion/completions && quiddity completions bash > ~/.local/share/bash-completion/completions/quiddity
-mkdir -p ~/.zfunc && quiddity completions zsh > ~/.zfunc/_quiddity
-# zsh: add `fpath=(~/.zfunc $fpath)` before `compinit` in ~/.zshrc, then restart zsh
-mkdir -p ~/.config/fish/completions && quiddity completions fish > ~/.config/fish/completions/quiddity.fish
+When both complete recognition and face evidence are needed,
+[`recognise_with_evidence`](docs/shared-analysis.md) shares their analysis while
+preserving each document's categories, coordinates and error semantics.
+
+```rust
+let part = quiddity::read_step_file(std::path::Path::new("part.step"))?;
+let recognised = quiddity::correspondence::recognise(&part);
+let document = quiddity::recognition::document(&recognised, part.faces.len());
+
+for record in document.records.iter().filter(|r| r.family == "holes") {
+    let p = &record.parameters;
+    println!("{}: Ø{} × {} on faces {:?}", record.id, p["diameter"], p["depth"], record.faces);
+}
 ```
 
 ## Limits
@@ -241,6 +225,17 @@ mkdir -p ~/.config/fish/completions && quiddity completions fish > ~/.config/fis
 | `quiddity` (crate) | recognition, fingerprints, correspondence, the PMI JSON and the command line |
 | `haecceity` (crate, `crates/haecceity`) | the geometry: STEP reading, the B-rep, measurement and queries, and semantic PMI reading and writing (it does not model; see its README); re-exported as `quiddity::kernel` |
 | `quiddity` (Python, `crates/quiddity-py`) | the Python wheel over both |
+
+## How it's built
+
+quiddity is written with AI coding agents (Anthropic's Claude and OpenAI's Codex), directed and
+reviewed by its maintainer. Each change starts from a written brief and must pass CI; large
+changes also get an independent review before they merge. The checks are what make its claims trustworthy, not who typed
+the code:
+- 1,406 tests and 2,703 regression snapshots;
+- the measurements above, against public datasets, with their commands and raw data committed;
+- one rule throughout: tests are never loosened to make a change pass, and recognition refuses a
+  feature rather than guess it.
 
 ## Contributing
 
