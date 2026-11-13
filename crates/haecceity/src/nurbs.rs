@@ -1064,9 +1064,184 @@ fn line_segment(o: V3, d: V3, p: V3, e: V3) -> (f64, f64, f64) {
     (gap, t, s)
 }
 
+/// Values for one exact, clamped parameter of an immutable surface.
+struct PreparedAxis {
+    parameter: u64,
+    span: usize,
+    basis: Basis,
+    derivative: Basis,
+}
+
+/// Integral-local reuse of exact operands; nodes, arithmetic order and refusal stay unchanged.
+pub(crate) struct SurfaceEvaluation<'a> {
+    surface: &'a NurbsSurface,
+    u: Option<PreparedAxis>,
+    v: Option<PreparedAxis>,
+    spans: Option<(usize, usize)>,
+    controls: Vec<[f64; 4]>,
+}
+
+impl<'a> SurfaceEvaluation<'a> {
+    pub(crate) fn new(surface: &'a NurbsSurface) -> Self {
+        Self {
+            surface,
+            u: None,
+            v: None,
+            spans: None,
+            controls: Vec::with_capacity((surface.degree_u + 1) * (surface.degree_v + 1)),
+        }
+    }
+
+    pub(crate) fn value_and_partials(&mut self, u: f64, v: f64) -> (V3, V3, V3) {
+        let surface = self.surface;
+        let (u0, u1, v0, v1) = surface.domain();
+        let (u, v) = (u.clamp(u0, u1), v.clamp(v0, v1));
+        if !(u.is_finite() && v.is_finite()) {
+            return surface.value_and_partials(u, v);
+        }
+        let prepare = |slot: &mut Option<PreparedAxis>, t: f64, knots: &[f64], degree, count| {
+            if slot
+                .as_ref()
+                .is_none_or(|entry| entry.parameter != t.to_bits())
+            {
+                let span = find_span(knots, degree, count, t);
+                let (basis, derivative) = basis_and_derivative(knots, degree, span, t);
+                *slot = Some(PreparedAxis {
+                    parameter: t.to_bits(),
+                    span,
+                    basis,
+                    derivative,
+                });
+            }
+        };
+        prepare(
+            &mut self.u,
+            u,
+            &surface.knots_u,
+            surface.degree_u,
+            surface.control_points.len(),
+        );
+        prepare(
+            &mut self.v,
+            v,
+            &surface.knots_v,
+            surface.degree_v,
+            surface.control_points[0].len(),
+        );
+        let (Some(pu), Some(pv)) = (self.u.as_ref(), self.v.as_ref()) else {
+            return surface.value_and_partials(u, v);
+        };
+        if self.spans != Some((pu.span, pv.span)) {
+            self.controls.clear();
+            for ci in pu.span - surface.degree_u..=pu.span {
+                for cj in pv.span - surface.degree_v..=pv.span {
+                    let c = surface.control_points[ci][cj];
+                    let w = surface.weights[ci][cj];
+                    self.controls.push([c[0] * w, c[1] * w, c[2] * w, w]);
+                }
+            }
+            self.spans = Some((pu.span, pv.span));
+        }
+        let (bu, du, bv, dv) = (&pu.basis, &pu.derivative, &pv.basis, &pv.derivative);
+        let (mut a, mut a_u, mut a_v) = ([0.0; 4], [0.0; 4], [0.0; 4]);
+        // Keep the original u/v/component order, proving slice bounds once per row.
+        for ((&bu, &du), row) in bu
+            .iter()
+            .zip(du.iter())
+            .zip(self.controls.chunks_exact(bv.len()))
+        {
+            for ((&bv, &dv), h) in bv.iter().zip(dv.iter()).zip(row) {
+                let (b, d_u, d_v) = (bu * bv, du * bv, bu * dv);
+                for k in 0..4 {
+                    a[k] += b * h[k];
+                    a_u[k] += d_u * h[k];
+                    a_v[k] += d_v * h[k];
+                }
+            }
+        }
+        let point = [a[0] / a[3], a[1] / a[3], a[2] / a[3]];
+        let derive = |d: [f64; 4]| [0, 1, 2].map(|k| (d[k] - d[3] * point[k]) / a[3]);
+        (point, derive(a_u), derive(a_v))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn integral_evaluator_preserves_bits_across_spans_and_clamps() {
+        let bits = |(p, u, v): (V3, V3, V3)| [p, u, v].map(|v| v.map(f64::to_bits));
+        for (degree_u, degree_v) in [(0, 1), (1, 3), (3, 2), (3, 3), (7, 8), (25, 25)] {
+            for inner in [[0.2, 0.4, 0.7], [0.2, 0.4, 0.4]] {
+                let knots = |degree| {
+                    std::iter::repeat_n(0.0, degree + 1)
+                        .chain(inner)
+                        .chain(std::iter::repeat_n(1.0, degree + 1))
+                        .collect()
+                };
+                let points = (0..degree_u + 4)
+                    .map(|i| {
+                        (0..degree_v + 4)
+                            .map(|j| [i as f64 - 2.0, j as f64 - 3.0, (i * j) as f64 * 0.003])
+                            .collect()
+                    })
+                    .collect();
+                let weights = (0..degree_u + 4)
+                    .map(|i| {
+                        (0..degree_v + 4)
+                            .map(|j| 0.5 + ((i + 2 * j) % 7) as f64 * 0.125)
+                            .collect()
+                    })
+                    .collect();
+                let surface = NurbsSurface::new(
+                    degree_u,
+                    degree_v,
+                    points,
+                    weights,
+                    knots(degree_u),
+                    knots(degree_v),
+                )
+                .expect("valid rational test surface");
+                let mut evaluator = SurfaceEvaluation::new(&surface);
+                let coordinates: Vec<f64> = [
+                    -1.0,
+                    -0.0,
+                    0.0,
+                    0.2,
+                    0.399999999,
+                    0.4,
+                    0.400000001,
+                    0.7,
+                    1.0,
+                    2.0,
+                    f64::INFINITY,
+                    f64::NEG_INFINITY,
+                    f64::NAN,
+                ]
+                .into_iter()
+                .chain((0..80).map(|k| k as f64 / 79.0))
+                .collect();
+                for reverse in [false, true] {
+                    for &u in &coordinates {
+                        for &v in &coordinates {
+                            let (u, v) = if reverse { (v, u) } else { (u, v) };
+                            assert_eq!(
+                                bits(evaluator.value_and_partials(u, v)),
+                                bits(surface.value_and_partials(u, v)),
+                                "degrees {degree_u}/{degree_v}, ({u}, {v})"
+                            );
+                        }
+                    }
+                }
+                assert_eq!(evaluator.controls.len(), (degree_u + 1) * (degree_v + 1));
+                assert_eq!(
+                    evaluator.controls.capacity(),
+                    (degree_u + 1) * (degree_v + 1)
+                );
+            }
+        }
+    }
 
     /// A rational biquadratic quarter-cylinder patch: exact circle in u, line in v.
     fn quarter_cylinder() -> NurbsSurface {
