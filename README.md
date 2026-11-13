@@ -155,9 +155,9 @@ against the dataset's labels (a labelled instance is recognised when at least ha
 | Any feature | 84.3% | 83.1% | 0.4% |
 
 Per model, read takes a median 13 ms (95th percentile 23 ms) and recognition 73 ms (95th percentile 242 ms),
-as calling-thread CPU time. The report also has the stricter one-to-one matching (instance IoU of at least 0.5)
-that the repository's regression baseline uses, per class: precision and recall are 0.86 and 0.77 over the 24
-mapped classes.
+as calling-thread CPU time. Under the stricter one-to-one matching (instance IoU of at least 0.5) that the repository's regression
+baseline uses, precision and recall are 0.86 and 0.77 over the 24 mapped classes; the measurements file has them
+per class.
 
 **Robustness.** On a fixed 10% sample of all 62,495 MFInstSeg models (every tenth in lexical order, 6,250 models):
 0 read failures, 0 recognition failures and 0 panics.
