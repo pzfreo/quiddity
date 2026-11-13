@@ -29,12 +29,122 @@ impl ThreadAxis {
         })
     }
 
-    fn polar(self, point: V3) -> (f64, f64, f64) {
+    #[cfg(test)]
+    fn reference_polar(self, point: V3) -> (f64, f64, f64) {
         let q = geom::sub(point, self.point);
         let x = geom::default_x_axis(self.direction);
         let y = geom::cross(self.direction, x);
         let (u, v) = (geom::dot(q, x), geom::dot(q, y));
         (u.hypot(v), v.atan2(u), geom::dot(q, self.direction))
+    }
+
+    fn polar(self, point: V3) -> (f64, f64, f64) {
+        ThreadProjection::from(self).polar(point)
+    }
+}
+
+/// Fixed coordinates for one candidate axis. Each dot product keeps its original
+/// operands and order; radius-only filters do not need an angle or axial height.
+#[derive(Clone, Copy)]
+struct ThreadProjection {
+    axis: ThreadAxis,
+    x: V3,
+    y: V3,
+}
+
+/// Bounds of the existing edge samples, not a replacement for the source curve.
+#[derive(Clone, Copy)]
+struct SampleBounds {
+    lo: V3,
+    hi: V3,
+}
+
+impl SampleBounds {
+    fn of(points: &[V3]) -> Option<Self> {
+        let &first = points.first()?;
+        let mut bounds = Self {
+            lo: first,
+            hi: first,
+        };
+        for &point in points {
+            if !point.iter().all(|x| x.is_finite()) {
+                return None;
+            }
+            for (k, &value) in point.iter().enumerate() {
+                bounds.lo[k] = bounds.lo[k].min(value);
+                bounds.hi[k] = bounds.hi[k].max(value);
+            }
+        }
+        Some(bounds)
+    }
+}
+
+impl From<ThreadAxis> for ThreadProjection {
+    fn from(axis: ThreadAxis) -> Self {
+        let x = geom::default_x_axis(axis.direction);
+        Self {
+            axis,
+            x,
+            y: geom::cross(axis.direction, x),
+        }
+    }
+}
+
+impl ThreadProjection {
+    /// Enclose the *rounded* coordinates using the same subtraction and dot product.
+    /// Each operation is monotone in its operands; negative coefficients reverse
+    /// the selected endpoints. Non-finite endpoints cannot establish a quadrant.
+    fn coordinate_ranges(self, bounds: SampleBounds) -> Option<[(f64, f64); 2]> {
+        let lo = geom::sub(bounds.lo, self.axis.point);
+        let hi = geom::sub(bounds.hi, self.axis.point);
+        if !lo.iter().chain(&hi).all(|x| x.is_finite()) {
+            return None;
+        }
+        let ranges = [self.x, self.y].map(|direction| {
+            let low = std::array::from_fn(|k| if direction[k] < 0.0 { hi[k] } else { lo[k] });
+            let high = std::array::from_fn(|k| if direction[k] < 0.0 { lo[k] } else { hi[k] });
+            (geom::dot(low, direction), geom::dot(high, direction))
+        });
+        ranges
+            .iter()
+            .all(|&(lo, hi)| lo.is_finite() && hi.is_finite())
+            .then_some(ranges)
+    }
+
+    /// A single strict quadrant cannot wind. Its nearest-turn steps all subtract
+    /// zero, so the original fit's endpoint-angle rejection can be evaluated now.
+    /// The strict comparison retains the complete path at the quarter-turn boundary.
+    fn short_quadrant(self, bounds: SampleBounds, points: &[V3]) -> bool {
+        let Some(ranges) = self.coordinate_ranges(bounds) else {
+            return false;
+        };
+        if !ranges.iter().all(|&(lo, hi)| lo > 0.0 || hi < 0.0) {
+            return false;
+        }
+        let (_, u0, v0) = self.coordinates(points[0]);
+        let (_, u1, v1) = self.coordinates(*points.last().unwrap());
+        let first = v0.atan2(u0);
+        let last = geom::nearest_turn(v1.atan2(u1), first);
+        (last - first).abs() < PI * 0.5
+    }
+
+    fn coordinates(self, point: V3) -> (V3, f64, f64) {
+        let q = geom::sub(point, self.axis.point);
+        (q, geom::dot(q, self.x), geom::dot(q, self.y))
+    }
+
+    fn radius(self, point: V3) -> f64 {
+        let (_, u, v) = self.coordinates(point);
+        u.hypot(v)
+    }
+
+    fn height(self, point: V3) -> f64 {
+        geom::dot(geom::sub(point, self.axis.point), self.axis.direction)
+    }
+
+    fn polar(self, point: V3) -> (f64, f64, f64) {
+        let (q, u, v) = self.coordinates(point);
+        (u.hypot(v), v.atan2(u), geom::dot(q, self.axis.direction))
     }
 }
 
@@ -100,10 +210,11 @@ struct Helix {
 
 /// Unwrap the samples in traversal order and fit z = intercept + lead * theta / 2π.
 /// Both radius and every axial residual must agree, including the middle of the curve.
-fn fit_helix(axis: ThreadAxis, edge: usize, points: &[V3]) -> Option<Helix> {
+fn fit_helix(axis: impl Into<ThreadProjection>, edge: usize, points: &[V3]) -> Option<Helix> {
     if points.len() < 9 {
         return None;
     }
+    let axis = axis.into();
     let mut polar = Vec::with_capacity(points.len());
     let mut previous = None;
     for &p in points {
@@ -149,15 +260,18 @@ fn fit_helix(axis: ThreadAxis, edge: usize, points: &[V3]) -> Option<Helix> {
 /// must then be established by helical geometry; an analytic surface alone is never a thread.
 fn axes(part: &Part) -> Vec<(Option<usize>, ThreadAxis)> {
     let mut result: Vec<(Option<usize>, ThreadAxis)> = Vec::new();
+    let mut by_solid: BTreeMap<Option<usize>, Vec<usize>> = BTreeMap::new();
     let mut add = |solid, point, direction| {
         let Some(axis) = ThreadAxis::new(point, direction) else {
             return;
         };
-        if !result.iter().any(|(s, a)| {
-            *s == solid
-                && geom::dist(a.point, axis.point) <= 1e-6
+        let indices = by_solid.entry(solid).or_default();
+        if !indices.iter().any(|&i| {
+            let a = &result[i].1;
+            geom::dist(a.point, axis.point) <= 1e-6
                 && geom::dist(a.direction, axis.direction) <= 1e-8
         }) {
+            indices.push(result.len());
             result.push((solid, axis));
         }
     };
@@ -177,29 +291,54 @@ fn axes(part: &Part) -> Vec<(Option<usize>, ThreadAxis)> {
     result
 }
 
+/// Preserve the original edge order and eligibility predicate for every owner,
+/// including unowned faces and edges incident to faces with different owners.
+fn eligible_edges(part: &Part) -> BTreeMap<Option<usize>, Vec<usize>> {
+    let mut result: BTreeMap<Option<usize>, Vec<usize>> = BTreeMap::new();
+    for (e, edge) in part.edges.iter().enumerate() {
+        if edge.samples.len() < 9 || !matches!(edge.curve, Curve::Nurbs(_)) {
+            continue;
+        }
+        let owners: BTreeSet<_> = part.edge_faces()[e]
+            .iter()
+            .map(|&f| part.faces[f].solid)
+            .collect();
+        for owner in owners {
+            result.entry(owner).or_default().push(e);
+        }
+    }
+    result
+}
+
 /// A failed fit is reportable when a cylindrical winding itself is unambiguous: two
 /// complete turns, monotone advance, and no more than 10% radial drift. Short blend edges
 /// never enter this refusal path.
-fn sustained_winding(axis: ThreadAxis, points: &[V3]) -> bool {
+fn sustained_winding(axis: impl Into<ThreadProjection>, points: &[V3]) -> bool {
     if points.len() < 17 {
         return false;
     }
+    let axis = axis.into();
     let (radius, mut angle, z0) = axis.polar(points[0]);
     if radius <= 0.0 {
         return false;
     }
     let first = angle;
     let mut previous_z = z0;
-    let dz = axis.polar(*points.last().unwrap()).2 - z0;
+    let dz = axis.height(*points.last().unwrap()) - z0;
     if dz.abs() < 0.1 {
         return false;
     }
     for &p in &points[1..] {
-        let (r, a, z) = axis.polar(p);
-        if (r - radius).abs() > 0.1 * radius || (z - previous_z) * dz < -1e-7 {
+        let (q, u, v) = axis.coordinates(p);
+        let r = u.hypot(v);
+        if (r - radius).abs() > 0.1 * radius {
             return false;
         }
-        angle = geom::nearest_turn(a, angle);
+        let z = geom::dot(q, axis.axis.direction);
+        if (z - previous_z) * dz < -1e-7 {
+            return false;
+        }
+        angle = geom::nearest_turn(v.atan2(u), angle);
         previous_z = z;
     }
     (angle - first).abs() >= TAU * 1.99
@@ -216,33 +355,44 @@ pub fn analyse_modelled_threads(part: &Part) -> ThreadAnalysis {
     {
         return result;
     }
+    let candidate_axes = {
+        axes(part)
+    };
+    let edges_by_solid = {
+        eligible_edges(part)
+    };
+    let edge_bounds = {
+        let mut bounds = vec![None; part.edges.len()];
+        let eligible: BTreeSet<_> = edges_by_solid.values().flatten().copied().collect();
+        for e in eligible {
+            bounds[e] = SampleBounds::of(&part.edges[e].samples);
+        }
+        bounds
+    };
     let mut claimed = BTreeSet::new();
-    for (solid, axis) in axes(part) {
+    for (solid, axis) in candidate_axes {
+        let projection = ThreadProjection::from(axis);
         let mut helices = BTreeMap::new();
         let mut varying = BTreeSet::new();
-        for (e, edge) in part.edges.iter().enumerate() {
-            if edge.samples.len() < 9
-                || !matches!(edge.curve, Curve::Nurbs(_))
-                || !part.edge_faces()[e]
-                    .iter()
-                    .any(|&f| part.faces[f].solid == solid)
-            {
+        for &e in edges_by_solid.get(&solid).into_iter().flatten() {
+            let edge = &part.edges[e];
+            if edge_bounds[e].is_some_and(|bounds| projection.short_quadrant(bounds, &edge.samples)) {
                 continue;
             }
             // Cheap radius rejection before unwrapping a potentially long edge.
-            let r = axis.polar(edge.start).0;
+            let r = projection.radius(edge.start);
             if [edge.end, edge.samples[edge.samples.len() / 2]]
                 .iter()
-                .any(|&p| (axis.polar(p).0 - r).abs() > 2.0 * tolerance(r))
+                .any(|&p| (projection.radius(p) - r).abs() > 2.0 * tolerance(r))
             {
-                if sustained_winding(axis, &edge.samples) {
+                if sustained_winding(projection, &edge.samples) {
                     varying.extend(part.edge_faces()[e].iter().copied());
                 }
                 continue;
             }
-            if let Some(helix) = fit_helix(axis, e, &edge.samples) {
+            if let Some(helix) = fit_helix(projection, e, &edge.samples) {
                 helices.insert(e, helix);
-            } else if sustained_winding(axis, &edge.samples) {
+            } else if sustained_winding(projection, &edge.samples) {
                 varying.extend(part.edge_faces()[e].iter().copied());
             }
         }
@@ -754,6 +904,239 @@ fn count_starts(flanks: &[Flank], lead: f64) -> Result<usize, &'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn quadrant_bounds_enclose_coordinates_and_only_reject_failed_fits() {
+        let axes = [
+            axis(),
+            ThreadAxis::new([1.0, -2.0, 3.0], [1.0, 2.0, 3.0]).unwrap(),
+            ThreadAxis::new([1e12, -2e12, 3e12], [1e-9, -2e-9, 1.0]).unwrap(),
+        ];
+        let mut rejected = 0;
+        for lead in [-2.0, 0.0, 2.0] {
+            for turns in [0.0, 0.1, 0.25, 0.5, 1.0, 2.0, 4.0] {
+                for offset in [0.0, 20.0, -20.0, 1e12, -1e12] {
+                    for axis in axes {
+                        let mut points = helix_points(lead, turns);
+                        for p in &mut points {
+                            p[0] += offset;
+                            p[1] += offset;
+                        }
+                        let bounds = SampleBounds::of(&points).unwrap();
+                        let projection = ThreadProjection::from(axis);
+                        if let Some(ranges) = projection.coordinate_ranges(bounds) {
+                            for &point in &points {
+                                let (_, u, v) = projection.coordinates(point);
+                                for (value, (lo, hi)) in [u, v].into_iter().zip(ranges) {
+                                    assert!(lo <= value && value <= hi, "{lo} <= {value} <= {hi}");
+                                }
+                            }
+                        }
+                        for samples in [&points, &points.iter().rev().copied().collect::<Vec<_>>()]
+                        {
+                            if projection.short_quadrant(bounds, samples) {
+                                rejected += 1;
+                                // Both complete original checks remain independent of the gate.
+                                assert!(fit_helix(projection, 0, samples).is_none());
+                                assert!(!sustained_winding(projection, samples));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(rejected > 100);
+    }
+
+    #[test]
+    fn quadrant_gate_retains_full_turns_boundaries_and_nonfinite_inputs() {
+        let projection = ThreadProjection::from(axis());
+        let full = helix_points(2.0, 4.0);
+        assert!(!projection.short_quadrant(SampleBounds::of(&full).unwrap(), &full));
+        assert!(fit_helix(projection, 0, &full).is_some());
+        assert!(sustained_winding(projection, &full));
+        let boundary = [
+            [f64::MIN_POSITIVE, 1e300, 0.0],
+            [1e300, f64::MIN_POSITIVE, 1.0],
+        ];
+        assert!(!projection.short_quadrant(SampleBounds::of(&boundary).unwrap(), &boundary));
+        assert!(SampleBounds::of(&[[f64::NAN, 1.0, 0.0]]).is_none());
+        assert!(SampleBounds::of(&[[f64::INFINITY, 1.0, 0.0]]).is_none());
+        assert!(SampleBounds::of(&[]).is_none());
+        let crosses_zero = [[-0.0, 1.0, 0.0], [0.0, 2.0, 1.0]];
+        assert!(
+            !projection.short_quadrant(SampleBounds::of(&crosses_zero).unwrap(), &crosses_zero)
+        );
+        let overflow = ThreadProjection::from(ThreadAxis {
+            point: [-f64::MAX, 0.0, 0.0],
+            direction: [0.0, 0.0, 1.0],
+        });
+        let points = [[f64::MAX, 1.0, 0.0], [f64::MAX, 2.0, 1.0]];
+        assert!(
+            overflow
+                .coordinate_ranges(SampleBounds::of(&points).unwrap())
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn prepared_projection_preserves_coordinate_bits() {
+        let axes = [
+            axis(),
+            ThreadAxis::new([1.0, -2.0, 3.0], [1.0, 2.0, 3.0]).unwrap(),
+            ThreadAxis::new([1e12, -2e12, 3e12], [1e-9, -2e-9, 1.0]).unwrap(),
+            ThreadAxis {
+                point: [-0.0, 0.0, 1.0],
+                direction: [0.0, 0.0, -1.0],
+            },
+            ThreadAxis {
+                point: [0.0; 3],
+                direction: [0.0; 3],
+            },
+        ];
+        let mut points = helix_points(2.0, 4.0);
+        points.extend([
+            [0.0, -0.0, 0.0],
+            [f64::MIN_POSITIVE, -f64::MIN_POSITIVE, 0.0],
+            [1e12, -2e12, 3e12],
+            [1e150, -2e150, 3e150],
+        ]);
+        for axis in axes {
+            let projection = ThreadProjection::from(axis);
+            for &point in &points {
+                let expected = axis.reference_polar(point);
+                let actual = projection.polar(point);
+                assert_eq!(
+                    [actual.0, actual.1, actual.2].map(f64::to_bits),
+                    [expected.0, expected.1, expected.2].map(f64::to_bits)
+                );
+                assert_eq!(projection.radius(point).to_bits(), expected.0.to_bits());
+                assert_eq!(projection.height(point).to_bits(), expected.2.to_bits());
+            }
+        }
+    }
+
+    #[test]
+    fn delayed_angles_preserve_winding_acceptance() {
+        fn reference(axis: ThreadAxis, points: &[V3]) -> bool {
+            if points.len() < 17 {
+                return false;
+            }
+            let (radius, mut angle, z0) = axis.reference_polar(points[0]);
+            if radius <= 0.0 {
+                return false;
+            }
+            let first = angle;
+            let mut previous_z = z0;
+            let dz = axis.reference_polar(*points.last().unwrap()).2 - z0;
+            if dz.abs() < 0.1 {
+                return false;
+            }
+            for &point in &points[1..] {
+                let (r, a, z) = axis.reference_polar(point);
+                if (r - radius).abs() > 0.1 * radius || (z - previous_z) * dz < -1e-7 {
+                    return false;
+                }
+                angle = geom::nearest_turn(a, angle);
+                previous_z = z;
+            }
+            (angle - first).abs() >= TAU * 1.99
+        }
+        for lead in [-2.0, 0.0, 0.001, 2.0] {
+            for turns in [0.2, 0.5, 1.98, 1.99, 2.0, 4.0] {
+                for drift in [0.0, 0.002, 0.2] {
+                    let mut points = helix_points(lead, turns);
+                    for p in &mut points {
+                        p[0] *= 1.0 + drift * p[2];
+                        p[1] *= 1.0 + drift * p[2];
+                    }
+                    for length in [0, 1, 16, 17, 200, 401] {
+                        let samples = &points[..length];
+                        assert_eq!(
+                            sustained_winding(axis(), samples),
+                            reference(axis(), samples)
+                        );
+                    }
+                    points.reverse();
+                    assert_eq!(
+                        sustained_winding(axis(), &points),
+                        reference(axis(), &points)
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn owner_indices_preserve_global_scan_membership_and_order() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/modelled_threads/left_two_start.step.gz");
+        let mut part = crate::read_step_file(&path).unwrap();
+        for synthetic_owners in [false, true] {
+            if synthetic_owners {
+                // Exercise index membership for unowned and shared edges. Geometry
+                // and adjacency stay fixed; these labels are not a recognition input.
+                for (i, face) in part.faces.iter_mut().enumerate() {
+                    face.solid = [None, Some(0), Some(1)][i % 3];
+                }
+            }
+            let indexed = eligible_edges(&part);
+            assert!(!indexed.is_empty());
+            for solid in [None, Some(0), Some(1), Some(usize::MAX)] {
+                let expected: Vec<_> = part
+                    .edges
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(e, edge)| {
+                        (edge.samples.len() >= 9
+                            && matches!(edge.curve, Curve::Nurbs(_))
+                            && part.edge_faces()[e]
+                                .iter()
+                                .any(|&f| part.faces[f].solid == solid))
+                        .then_some(e)
+                    })
+                    .collect();
+                assert_eq!(
+                    indexed.get(&solid).map(Vec::as_slice).unwrap_or(&[]),
+                    expected
+                );
+            }
+
+            // Keep the previous global deduplication as an independent reference:
+            // approximate equality is not transitive, so order must also match.
+            let mut expected: Vec<(Option<usize>, ThreadAxis)> = Vec::new();
+            let mut add = |solid, point, direction| {
+                let Some(axis) = ThreadAxis::new(point, direction) else {
+                    return;
+                };
+                if !expected.iter().any(|(s, a)| {
+                    *s == solid
+                        && geom::dist(a.point, axis.point) <= 1e-6
+                        && geom::dist(a.direction, axis.direction) <= 1e-8
+                }) {
+                    expected.push((solid, axis));
+                }
+            };
+            for face in &part.faces {
+                match &face.surface {
+                    Surface::Cylinder { frame, .. }
+                    | Surface::Cone { frame, .. }
+                    | Surface::Torus { frame, .. } => add(face.solid, frame.origin, frame.z),
+                    _ => {}
+                }
+                for &(edge, _) in face.loops.iter().flat_map(|l| &l.edges) {
+                    if let Curve::Circle { frame, .. } = &part.edges[edge].curve {
+                        add(face.solid, frame.origin, frame.z);
+                    }
+                }
+            }
+            assert!(!expected.is_empty());
+            assert_eq!(
+                serde_json::to_string(&axes(&part)).unwrap(),
+                serde_json::to_string(&expected).unwrap()
+            );
+        }
+    }
 
     fn axis() -> ThreadAxis {
         ThreadAxis::new([0.0; 3], [0.0, 0.0, 1.0]).unwrap()
