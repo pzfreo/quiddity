@@ -12,6 +12,7 @@ in [docs/alpha1.md](docs/alpha1.md).
 - Reuse native recess discovery within one context and ownership mode; existing output and refusal contracts are retained.
 - Share immutable ray-query geometry within a part; existing output and refusal contracts are retained.
 - Reuse exact NURBS operands within a face integral; existing output and refusal contracts are retained.
+- Stop volume queries when their existing answer is already settled; existing output and refusal contracts are retained.
 
 ## 0.5.1 (2026-11-13)
 

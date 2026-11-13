@@ -188,29 +188,44 @@ pub fn common_volume(solid: &Classifier<'_>, probe: &Probe<'_>) -> Option<f64> {
 /// over the probe's own (positive) volume at most *limit*, an unanswered volume never.
 ///
 /// The same answer, measured only as far as it needs: each pass stops once the volume measured
-/// so far settles it (both kinds found where only emptiness and fullness are asked, more
-/// material than *limit* allows), since a running total only grows. A pass stopped short has
-/// not met every line, and a line unresolved further on would have left the volume unanswered:
+/// so far settles it (material found where fullness would already exceed *limit*, both kinds
+/// otherwise, or more exact material than *limit* allows), since a running total only grows.
+/// A pass stopped short has not met every line, and a line unresolved further on would have
+/// left the volume unanswered:
 /// the first pass is finished before an at-most answer stands on it.
 pub fn fills_at_most(solid: &Classifier<'_>, probe: &Probe<'_>, limit: f64) -> bool {
     let Some(whole) = probe_volume(probe).filter(|&v| v > 0.0) else {
         return false;
     };
     let at_most = |volume: Option<f64>| volume.is_some_and(|v| v / whole <= limit);
-    let Some(([material, air], short)) =
-        shared(solid, probe, COORD_FLOOR, &|[m, a]| m > 0.0 && a > 0.0)
-    else {
+    let Some(([material, air], short)) = shared(solid, probe, COORD_FLOOR, &|[m, a]| {
+        m > 0.0 && (limit < 1.0 || a > 0.0)
+    }) else {
         return false;
     };
     if material == 0.0 {
         return at_most(Some(0.0));
     }
-    if air == 0.0 {
+    if air == 0.0 && !short {
         return at_most(probe_volume(probe));
     }
     match shared(solid, probe, 0.0, &|[m, _]| m / whole > limit) {
         Some(([m, _], false)) => {
-            (!short || shared(solid, probe, COORD_FLOOR, &|_| false).is_some()) && at_most(Some(m))
+            if !at_most(Some(m)) {
+                return false;
+            }
+            if short {
+                // A prefix containing material cannot be empty, but it need not
+                // have reached air or an unanswered line. Before accepting, finish
+                // the inset pass and retain its exact empty/full conventions.
+                match shared(solid, probe, COORD_FLOOR, &|_| false) {
+                    Some(([0.0, _], _)) => return at_most(Some(0.0)),
+                    Some(([_, 0.0], _)) => return at_most(probe_volume(probe)),
+                    Some(_) => {}
+                    None => return false,
+                }
+            }
+            true
         }
         // Unanswered, or more material than *limit* already.
         _ => false,
@@ -494,6 +509,13 @@ fn shared(
     // the whole answer refused.
     let unresolved = std::cell::Cell::new(false);
     let length = |h: f64, s: f64| {
+        // One unanswered line already refuses this whole pass. Later samples
+        // cannot restore an answer, and the accumulated numbers will be discarded.
+        if unresolved.get() {
+            return [0.0, 0.0];
+        }
+        #[cfg(test)]
+        tests::SHARED_LINES.with(|count| count.set(count.get() + 1));
         let origin = geom::add(
             geom::add(geom::scale(frame.z, h), geom::scale(frame.x, s)),
             geom::scale(frame.y, start),
@@ -549,6 +571,9 @@ fn shared(
     // a sliver of material between such a curve and the nearest edge can be narrower than the
     // spacing of the Gauss points and be missed by both rules.
     let area = |h: f64| {
+        if unresolved.get() {
+            return [0.0, 0.0];
+        }
         let mut ss: Vec<f64> = Vec::new();
         for e in mine.edges.iter().chain(&theirs.edges) {
             ss.extend(crossings(e, frame.z, h, frame.x));
@@ -567,7 +592,9 @@ fn shared(
         }
         integrate(&|s| length(h, s), across, ss, rule.per(h1 - h0))
     };
-    let total = integrate_until(&area, (h0, h1), hs, rule, stop);
+    let total = integrate_until(&area, (h0, h1), hs, rule, &|total| {
+        unresolved.get() || stop(total)
+    });
     (!unresolved.get()).then_some(total)
 }
 
@@ -893,6 +920,42 @@ fn adapt(f: &dyn Fn(f64) -> Pair, x0: f64, x1: f64, whole: Pair, tol: f64, depth
 mod tests {
     use super::*;
 
+    thread_local! {
+        pub(super) static SHARED_LINES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
+    #[test]
+    fn an_unanswered_line_refuses_the_probe_without_sampling_later_lines() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/rejected_bored_box.step");
+        let mut part = crate::read_step_file(&path).unwrap();
+        // The probe edges stay outside the block. Its interior integration lines,
+        // along x, reach the side whose surface will become unanswerable.
+        let probe = Probe::Box(Bounds {
+            min: [-16.0, -16.0, 2.0],
+            max: [16.0, 16.0, 3.0],
+        });
+        assert!(common_volume(&Classifier::new(&part), &probe).is_some_and(|v| v > 0.0));
+        let side = RayCaster::for_faces(&part, (0..part.faces.len()).collect())
+            .hits([20.0, 10.0, 2.5], [-1.0, 0.0, 0.0], 10.0)
+            .unwrap()[0];
+        assert!((side.t - 5.0).abs() < 1e-9);
+        part.faces[side.face].surface = Surface::Other { kind: "TEST" };
+        let solid = Classifier::new(&part);
+        SHARED_LINES.set(0);
+        assert_eq!(common_volume(&solid, &probe), None);
+        assert_eq!(
+            SHARED_LINES.get(),
+            1,
+            "the first unanswered line settles refusal"
+        );
+        for limit in [0.0, 0.5, 1.0] {
+            SHARED_LINES.set(0);
+            assert!(!fills_at_most(&solid, &probe, limit));
+            assert_eq!(SHARED_LINES.get(), 1);
+        }
+    }
+
     #[test]
     fn a_sliver_where_a_probe_face_cuts_a_curved_face_is_measured() {
         // Box(30, 30, 20) - Cylinder(5, 20): x, y in [-15, 15], z in [-10, 10], bored along z.
@@ -946,5 +1009,111 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn a_material_prefix_can_reject_without_waiting_to_find_air() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/two_solids.step");
+        let part = crate::read_step_file(&path).unwrap();
+        assert_eq!(part.solids.len(), 2);
+        let boxes = [0, 1].map(|i| RayCaster::for_solid(&part, i).bounds());
+        let axis = (0..3)
+            .find(|&a| boxes[0].max[a] < boxes[1].min[a] || boxes[1].max[a] < boxes[0].min[a])
+            .expect("separate solids along a coordinate axis");
+        let (first, last) = if boxes[0].min[axis] < boxes[1].min[axis] {
+            (boxes[0], boxes[1])
+        } else {
+            (boxes[1], boxes[0])
+        };
+        let mut bounds = Bounds::empty();
+        for a in 0..3 {
+            if a == axis {
+                bounds.min[a] = first.centre()[a];
+                bounds.max[a] = last.centre()[a];
+            } else {
+                let lo = first.min[a].max(last.min[a]);
+                let hi = first.max[a].min(last.max[a]);
+                assert!(lo < hi);
+                // A narrow column through material, away from the central bores.
+                bounds.min[a] = lo + 0.70 * (hi - lo);
+                bounds.max[a] = lo + 0.72 * (hi - lo);
+            }
+        }
+        let probe = Probe::Box(bounds);
+        let solid = Classifier::new(&part);
+        let Some(([material, air], short)) = shared(&solid, &probe, COORD_FLOOR, &|[m, _]| m > 0.0)
+        else {
+            panic!("the first material slab must be answerable");
+        };
+        assert!(short && material > 0.0 && air == 0.0);
+        SHARED_LINES.set(0);
+        let fraction = common_volume(&solid, &probe).unwrap() / probe_volume(&probe).unwrap();
+        let full_queries = SHARED_LINES.get();
+        assert!(fraction > 1e-9 && fraction < 1.0);
+        SHARED_LINES.set(0);
+        assert!(!fills_at_most(&solid, &probe, 1e-9));
+        assert!(SHARED_LINES.get() < full_queries);
+        for limit in [
+            0.0,
+            fraction / 2.0,
+            fraction,
+            fraction.next_up(),
+            1.0,
+            f64::NAN,
+        ] {
+            assert_eq!(fills_at_most(&solid, &probe, limit), fraction <= limit);
+        }
+
+        // An unknown crossing in the later solid must still prevent acceptance,
+        // even though the known material prefix can settle an earlier rejection.
+        let ray_axis = (axis + 2) % 3;
+        let mut origin = bounds.centre();
+        origin[axis] = last.min[axis] + 0.25 * (last.max[axis] - last.min[axis]);
+        origin[ray_axis] = last.max[ray_axis] + 1.0;
+        let direction = [0, 1, 2].map(|a| if a == ray_axis { -1.0 } else { 0.0 });
+        let face = solid
+            .rays()
+            .hits(origin, direction, last.diagonal() + 2.0)
+            .unwrap()[0]
+            .face;
+        let mut unresolved_part = crate::read_step_file(&path).unwrap();
+        unresolved_part.faces[face].surface = Surface::Other { kind: "TEST" };
+        let unresolved = Classifier::new(&unresolved_part);
+        assert!(
+            shared(&unresolved, &probe, COORD_FLOOR, &|[m, _]| m > 0.0)
+                .is_some_and(|([m, a], short)| short && m > 0.0 && a == 0.0)
+        );
+        assert_eq!(common_volume(&unresolved, &probe), None);
+        for limit in [1e-9, fraction, 1.0] {
+            assert!(!fills_at_most(&unresolved, &probe, limit));
+        }
+    }
+
+    #[test]
+    fn a_full_inset_prefix_keeps_the_original_full_volume_convention() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/rejected_bored_box.step");
+        let part = crate::read_step_file(&path).unwrap();
+        let solid = Classifier::new(&part);
+        // This box is outside the radius-five bore but overlaps its face box.
+        // The bore's x extreme splits a wholly material probe into two slabs.
+        let probe = Probe::Box(Bounds {
+            min: [4.0, 4.0, 1.0],
+            max: [6.0, 4.2, 1.1],
+        });
+        let ([material, air], short) =
+            shared(&solid, &probe, COORD_FLOOR, &|[m, _]| m > 0.0).unwrap();
+        assert!(short && material > 0.0 && air == 0.0);
+        let whole = probe_volume(&probe).unwrap();
+        assert_eq!(common_volume(&solid, &probe), Some(whole));
+        // Ray parameters are measured from outside the solid. Their subtraction
+        // rounds this short axial span below the box's own length: the exact pass
+        // alone would wrongly accept its fraction as an upper limit on fullness.
+        let measured = shared(&solid, &probe, 0.0, &|_| false).unwrap().0[0] / whole;
+        assert!(measured > 0.0 && measured < 1.0, "{measured}");
+        assert!(!fills_at_most(&solid, &probe, measured));
+        assert!(!fills_at_most(&solid, &probe, 1.0f64.next_down()));
+        assert!(fills_at_most(&solid, &probe, 1.0));
     }
 }
