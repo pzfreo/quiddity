@@ -708,8 +708,7 @@ impl Part {
                 0.0,
             ]);
         }
-        self.face_integral(face, |u, v| {
-            let (p, su, sv) = point_and_partials(surface, u, v);
+        self.face_integral(face, |p, su, sv| {
             let n = geom::cross(su, sv);
             [geom::norm(n), geom::dot(p, n), n[0], n[1], n[2]]
         })
@@ -720,7 +719,7 @@ impl Part {
     fn face_integral<const N: usize>(
         &self,
         face: usize,
-        f: impl Fn(f64, f64) -> [f64; N],
+        f: impl Fn(V3, V3, V3) -> [f64; N],
     ) -> Option<[f64; N]> {
         self.integrate_face(
             face,
@@ -740,12 +739,12 @@ impl Part {
         &self,
         face: usize,
         mass: [usize; 5],
-        f: impl Fn(f64, f64) -> [f64; N],
+        f: impl Fn(V3, V3, V3) -> [f64; N],
     ) -> Option<[f64; M]> {
         match self.cache[face].mass.get() {
             Some(None) => None,
-            Some(Some(_)) => self.face_integral(face, |u, v| {
-                let y = f(u, v);
+            Some(Some(_)) => self.face_integral(face, |p, su, sv| {
+                let y = f(p, su, sv);
                 std::array::from_fn(|k| y[k])
             }),
             None => self
@@ -764,7 +763,7 @@ impl Part {
     fn integrate_face<const N: usize>(
         &self,
         face: usize,
-        f: impl Fn(f64, f64) -> [f64; N],
+        f: impl Fn(V3, V3, V3) -> [f64; N],
         rule: IntegralRule,
     ) -> Option<[f64; N]> {
         let fc = &self.faces[face];
@@ -798,9 +797,19 @@ impl Part {
         // seam (a face's own seam need not lie on it), so the integrands read the surface a
         // whole span round.
         let spans = closed_spans(surface);
+        let evaluator = match surface {
+            Surface::Freeform { surface, .. } => Some(std::cell::RefCell::new(
+                crate::nurbs::SurfaceEvaluation::new(surface),
+            )),
+            _ => None,
+        };
         let f = |u: f64, v: f64| {
             let (u, v) = wrap_closed(surface, spans, (u, v));
-            f(u, v)
+            let (p, su, sv) = match &evaluator {
+                Some(evaluator) => evaluator.borrow_mut().value_and_partials(u, v),
+                None => point_and_partials(surface, u, v),
+            };
+            f(p, su, sv)
         };
         let first = (0..fc.loops.len()).find(|&i| fc.loops[i].vertex.is_none())?;
         let start = uv[first].points.first().copied()?;
@@ -1429,8 +1438,7 @@ impl Part {
             lp.vertex
                 .or_else(|| lp.edges.first().map(|&(e, _)| self.edges[e].start))
         })?;
-        let [area, x, y, z] = self.moment_integral(face, [4, 5, 6, 7, 8], |u, v| {
-            let (p, su, sv) = point_and_partials(&fc.surface, u, v);
+        let [area, x, y, z] = self.moment_integral(face, [4, 5, 6, 7, 8], |p, su, sv| {
             let n = geom::cross(su, sv);
             let w = geom::dot(n, direction);
             let q = geom::sub(p, origin);
@@ -1516,8 +1524,7 @@ impl Part {
             return None;
         }
         let [area, mx, my, mz, nx, ny, nz, xx, yy, zz, xy, xz, yz] =
-            self.moment_integral(face, [0, 13, 4, 5, 6], |u, v| {
-                let (p, su, sv) = point_and_partials(surface, u, v);
+            self.moment_integral(face, [0, 13, 4, 5, 6], |p, su, sv| {
                 let n = geom::cross(su, sv);
                 let w = geom::norm(n);
                 let [x, y, z] = geom::scale(geom::sub(p, origin), 1.0 / scale);
@@ -1609,8 +1616,7 @@ impl Part {
                 // amplify projection round-off on tiny faces far from c0: cgb242 face 483
                 // was refused only after translation, although its area was resolved.
                 // Restore physical units after quadrature; the fixed point below uses mm.
-                let f = self.moment_integral::<18, 17>(face, [0, 17, 2, 3, 4], |u, v| {
-                    let (p, su, sv) = point_and_partials(surface, u, v);
+                let f = self.moment_integral::<18, 17>(face, [0, 17, 2, 3, 4], |p, su, sv| {
                     let n = geom::cross(su, sv);
                     let q = geom::scale(geom::sub(p, c0), 1.0 / length);
                     let qn = geom::dot(q, n);
