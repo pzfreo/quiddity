@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "quiddity"
-version = "0.5.1"
+version = "0.5.2"
 description = "Rust-built manufacturing feature recognition from STEP paths or bytes"
 readme = "README.md"
 license = "Apache-2.0"
