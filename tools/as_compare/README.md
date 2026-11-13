@@ -1,13 +1,14 @@
 # MFInstSeg face coverage (quiddity, optionally Analysis Situs)
 
-This comparison scores defining-face unions against MFInstSeg labels. The committed result is a quiddity rerun on the 9,375-model test split: main `1b7dee670475531b7bd7d6d0bedefd096328815d` plus the `face_claims` exporter at `1ebfcef7` on this branch (macOS, six workers, 8 November 2026). All 9,375 models returned `ok`. Its raw sweep, scorer and label fingerprints are recorded, so the scores can be recomputed from the repository plus the external labels.
+This comparison scores defining-face unions against MFInstSeg labels. The committed result is a quiddity run of release `v0.5.1` (`3a20dceb099f9780a5c18e1429d673ab6d5bca29`) on the 9,375-model test split: the `face_claims` exporter from that tag, release build, four workers, on a 4-vCPU Ubuntu 24.04 x86_64 DigitalOcean droplet with nothing else running, with rustc 1.99.1, on 13 November 2026. All 9,375 models returned `ok`. Its raw sweep, scorer and label fingerprints are recorded, so the scores can be recomputed from the repository plus the external labels. The earlier macOS run at `1b7dee67` stays in the repository for history.
 
 No Analysis Situs numbers are reported. The Analysis Situs sweep on the same test split is committed, though, as `runs/as-246e2ab-test.jsonl.gz`. It came from Analysis Situs `246e2ab` with OCCT 7.6.3, run on Linux on 6 November 2026, and all 9,375 models returned `ok`. A later quiddity sweep can therefore be scored against it without rebuilding or rerunning Analysis Situs; see Reproducibility below. The tooling to rerun Analysis Situs is also kept below.
 
 | File in `docs/benchmarks/` | Contents |
 |---|---|
-| `mfinstseg-main-1b7dee67.json` | Aggregate scores for the current quiddity test-split rerun |
-| `mfinstseg-main-1b7dee67.html` | Report generated from that JSON |
+| `mfinstseg-v0.5.1-3a20dceb.json` | Aggregate scores for the current quiddity test-split run (v0.5.1) |
+| `mfinstseg-v0.5.1-3a20dceb.html` | Report generated from that JSON |
+| `mfinstseg-main-1b7dee67.json`, `.html` | The earlier macOS run, kept for history |
 
 ## Metrics and limits
 
@@ -66,14 +67,14 @@ Failed or face-count-misaligned models count as claiming nothing. A refused reco
 
 ## Reproducibility
 
-The current test-split raw sweep is committed as `runs/main-1b7dee67-test-qr.jsonl.gz` (about 1 MB). It contains 2,637 superseded hole records and 2,637 superseded boss records; the scorer skips them. The current `turned_steps` shaft proxy claims zero faces. These observations can be checked in the compressed JSONL.
+The current test-split raw sweep is committed as `runs/v0.5.1-3a20dceb-test-qr.jsonl.gz` (about 1.7 MB). It contains 2,637 superseded hole records and 2,637 superseded boss records; the scorer skips them. The current `turned_steps` shaft proxy claims zero faces. These observations can be checked in the compressed JSONL.
 
 Rescore the current run using that committed input and external labels:
 
 ```sh
 python3 -I tools/as_compare/score.py /path/to/MFInstSeg/labels \
-  tools/as_compare/runs/main-1b7dee67-test-qr.jsonl.gz - /tmp/current-score.json \
-  --quiddity-revision 1b7dee670475531b7bd7d6d0bedefd096328815d --exporter-revision 1ebfcef7
+  tools/as_compare/runs/v0.5.1-3a20dceb-test-qr.jsonl.gz - /tmp/current-score.json \
+  --quiddity-revision 3a20dceb099f9780a5c18e1429d673ab6d5bca29 --exporter-revision 3a20dceb
 ```
 
 To score quiddity against the committed Analysis Situs sweep, pass that sweep in place of `-`. The sweep is gzip-compressed JSONL, about 0.7 MB:
@@ -91,7 +92,7 @@ The HTML can be regenerated from the committed aggregate:
 
 ```sh
 python3 -I tools/as_compare/build_report.py \
-  docs/benchmarks/mfinstseg-main-1b7dee67.json docs/benchmarks/mfinstseg-main-1b7dee67.html
+  docs/benchmarks/mfinstseg-v0.5.1-3a20dceb.json docs/benchmarks/mfinstseg-v0.5.1-3a20dceb.html
 ```
 
 Small **synthetic** inputs exercise the current scorer without redistributing dataset files:

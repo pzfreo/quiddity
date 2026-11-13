@@ -1,0 +1,68 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MFInstSeg face coverage</title>
+<style>body{font:16px/1.5 system-ui;margin:2rem auto;padding:0 1rem;max-width:75rem}
+table{border-collapse:collapse;font-size:0.85rem}td,th{padding:.4rem;border:1px solid #aaa;text-align:right}
+td:first-child,th:first-child{text-align:left}.scroll{overflow:auto}pre{white-space:pre-wrap}h2{margin-top:2rem}</style>
+</head><body><h1>MFInstSeg face coverage: quiddity 3a20dceb</h1>
+<p>Generated from <code>mfinstseg-v0.5.1-3a20dceb.json</code>: 9,375 models from the MFInstSeg
+test split. Health: <code>{&quot;qr&quot;: {&quot;ok&quot;: 9375}}</code>. The raw sweep is committed as
+<code>tools/as_compare/runs/main-1b7dee67-test-qr.jsonl.gz</code>; its SHA-256, the scorer's
+SHA-256 and the external-label fingerprint are in the provenance below. No Analysis Situs result
+is reported: none can be reproduced from this repository.</p>
+<p>Recognition here means a labelled instance has at least half its faces in a tool's union
+of claimed faces, regardless of predicted instance identity. No-face instances have no face claimed.
+Claimed faces measures target-face recall; false positives are claims outside the target classes
+as a share of all claims. Dimensions and feature typing are not evaluated by this union metric.</p>
+<p><strong>These numbers are not comparable with <code>mfinstseg_baseline.json</code>.</strong>
+The repo scorer matches instances one to one at IoU ≥ 0.5; its <code>any_feature</code> excludes
+only <code>step_levels</code> and <code>risers</code>. This comparison's Any feature excludes twelve
+families: flats, freeform_surfaces, plates, risers, step_levels, thin_wall_bodies, sheet_metal_bodies,
+polygonal_stock, circular_face_patterns, repeating_radial_profiles, cylindrical_profiles, turned_steps.</p>
+<p>Scoring skips <code>superseded_by</code> records, retains <code>source</code> records,
+and selects class-1 holes with <code>bottom == through</code>; class 12 selects flat, drill_point
+or unknown bottoms. Pooled Holes takes their union. Stock uses quiddity's unclaimed faces (the
+complement of the selected union) as a proxy. Shafts uses only <code>turned_steps</code>; MFInstSeg
+has no shaft target class, so that row counts claims outside the target taxonomy, not geometric errors.</p>
+<details><summary>Provenance</summary><pre>{
+  &quot;quiddity_revision&quot;: &quot;3a20dceb099f9780a5c18e1429d673ab6d5bca29&quot;,
+  &quot;exporter_revision&quot;: &quot;3a20dceb&quot;,
+  &quot;labels_sha256&quot;: &quot;cd1ff9695c2597ff0afaeae5a4a60b6cada810d24ff01adbf09417fbf130ccb6&quot;,
+  &quot;sweep_sha256&quot;: {
+    &quot;qr&quot;: &quot;0b0f923b6dad4ad88b69fdc2a4a9ab02c70ac472b3c2e7118c81815afaaecce7&quot;
+  },
+  &quot;scorer_sha256&quot;: &quot;cf10b7b46a5ba621fda4208fe694d030cc873ea4109c4d40e9140863f3ef22a9&quot;,
+  &quot;status&quot;: &quot;current rerun&quot;,
+  &quot;scorer&quot;: &quot;tools/as_compare/score.py; superseded records skipped; class-1/12 bottom selectors&quot;,
+  &quot;metric&quot;: &quot;Union face coverage: recognition &gt;= half of instance faces; no one-to-one IoU matching. Not comparable with mfinstseg_baseline.json.&quot;,
+  &quot;any_feature_excludes&quot;: [
+    &quot;circular_face_patterns&quot;,
+    &quot;cylindrical_profiles&quot;,
+    &quot;flats&quot;,
+    &quot;freeform_surfaces&quot;,
+    &quot;plates&quot;,
+    &quot;polygonal_stock&quot;,
+    &quot;repeating_radial_profiles&quot;,
+    &quot;risers&quot;,
+    &quot;sheet_metal_bodies&quot;,
+    &quot;step_levels&quot;,
+    &quot;thin_wall_bodies&quot;,
+    &quot;turned_steps&quot;
+  ],
+  &quot;timing&quot;: &quot;quiddity: calling-thread CPU time from one run, read and recognition separately; JSON serialization excluded. Thread CPU time is weaker than instructions retired and is not a speed comparison.&quot;,
+  &quot;shafts&quot;: &quot;quiddity proxy is turned_steps only, never the union of feature families; no target shaft class in MFInstSeg.&quot;
+}</pre></details>
+<div class="scroll"><table><tr><th>Comparison</th><th>Tool</th><th>Recognition %</th>
+<th>Claimed faces %</th><th>False positives %</th><th>No-face instances %</th><th>Claimed faces</th></tr>
+<tr><td>Holes</td><td>quiddity</td><td>98.49</td><td>95.03</td><td>6.24</td><td>1.38</td><td>9883</td></tr><tr><td>Through holes (class 1)</td><td>quiddity</td><td>94.02</td><td>91.13</td><td>0.25</td><td>5.78</td><td>3143</td></tr><tr><td>Blind holes (class 12)</td><td>quiddity</td><td>98.15</td><td>93.31</td><td>12.63</td><td>1.69</td><td>6740</td></tr><tr><td>Rounds</td><td>quiddity</td><td>89.30</td><td>79.47</td><td>0.22</td><td>10.26</td><td>2720</td></tr><tr><td>Any feature</td><td>quiddity</td><td>84.26</td><td>83.07</td><td>0.39</td><td>14.56</td><td>161592</td></tr><tr><td>Stock (convex hull)</td><td>quiddity</td><td>99.94</td><td>98.96</td><td>35.18</td><td>0.00</td><td>93258</td></tr><tr><td>Shafts</td><td>quiddity</td><td>—</td><td>—</td><td>—</td><td>—</td><td>0</td></tr><tr><td>Overall: holes+blends+cavities</td><td>quiddity</td><td>84.26</td><td>83.07</td><td>0.39</td><td>14.56</td><td>161592</td></tr><tr><td>Overall: + off-hull faces</td><td>quiddity</td><td>84.26</td><td>83.07</td><td>0.39</td><td>14.56</td><td>161592</td></tr></table></div>
+<h2>Any feature: claimed faces by class</h2><div class="scroll"><table>
+<tr><th>Class</th><th>Labelled faces</th><th>quiddity %</th></tr>
+<tr><td>Chamfer</td><td>3567</td><td>64.37</td></tr><tr><td>Through hole</td><td>3440</td><td>98.58</td></tr><tr><td>Triangular passage</td><td>10406</td><td>90.67</td></tr><tr><td>Rectangular passage</td><td>13615</td><td>84.53</td></tr><tr><td>6-sided passage</td><td>20172</td><td>87.66</td></tr><tr><td>Triangular through slot</td><td>1428</td><td>55.18</td></tr><tr><td>Rectangular through slot</td><td>2168</td><td>59.78</td></tr><tr><td>Circular through slot</td><td>700</td><td>58.00</td></tr><tr><td>Rectangular through step</td><td>6859</td><td>67.82</td></tr><tr><td>2-sided through step</td><td>10051</td><td>74.51</td></tr><tr><td>Slanted through step</td><td>6613</td><td>47.09</td></tr><tr><td>O-ring</td><td>9723</td><td>92.51</td></tr><tr><td>Blind hole</td><td>6311</td><td>93.42</td></tr><tr><td>Triangular pocket</td><td>12108</td><td>92.37</td></tr><tr><td>Rectangular pocket</td><td>16099</td><td>87.80</td></tr><tr><td>6-sided pocket</td><td>21050</td><td>90.47</td></tr><tr><td>Circular end pocket</td><td>15526</td><td>89.55</td></tr><tr><td>Rectangular blind slot</td><td>2454</td><td>64.38</td></tr><tr><td>Vertical circular end blind slot</td><td>2464</td><td>82.51</td></tr><tr><td>Horizontal circular end blind slot</td><td>2561</td><td>72.71</td></tr><tr><td>Triangular blind step</td><td>6670</td><td>71.12</td></tr><tr><td>Circular blind step</td><td>6487</td><td>77.22</td></tr><tr><td>Rectangular blind step</td><td>9875</td><td>78.44</td></tr><tr><td>Round</td><td>3415</td><td>80.97</td></tr></table></div>
+<h2>Thread CPU time</h2>
+<p>Calling-thread CPU time per model, read and recognition measured separately; JSON
+serialization is excluded. Thread CPU time is a weaker measure than instructions retired: it
+varies with the machine, its load and the run. These figures describe this run only and are not
+a speed comparison with any other tool.</p>
+<div class="scroll"><table><tr><th>Tool</th><th>Stage</th><th>Models</th>
+<th>Mean ms</th><th>Median ms</th><th>p99 ms</th><th>Max s</th></tr><tr><td>quiddity</td><td>read</td><td>9375</td><td>13.49</td><td>12.62</td><td>29.7</td><td>0.14</td></tr><tr><td>quiddity</td><td>recognise</td><td>9375</td><td>122.41</td><td>73.1</td><td>756.2</td><td>39.5</td></tr></table></div>
+</body></html>
