@@ -31,10 +31,10 @@ volume, area and centroid against STEP validation properties and independent OCC
 
 | Target | Get it | Tested in CI |
 |---|---|---|
-| Python 3.11+ | `pip install quiddity`: one abi3 wheel, no Python dependencies | Wheels for Linux x86_64 and aarch64 (manylinux 2_28), macOS arm64 and x86_64, and Windows x64 are built and their Python tests run on each, with Python 3.11; also on Linux x86_64 with 3.15 |
-| Command line | `uv tool install quiddity`, `pipx install quiddity` or `cargo install quiddity` | Run by the Python tests on all five wheel platforms, and by the Rust tests on Linux and macOS |
-| Rust library | `quiddity = "0.5"` or `haecceity = "0.5"` | Full Rust test suite on Linux and macOS (no Rust test run on Windows) |
-| Browser (WebAssembly) | `haecceity` and `quiddity` (`default-features = false, features = ["presentation"]`) build for `wasm32-unknown-unknown`; the draftwright-editor engines built on this kernel run in the browser | Not built for WebAssembly in CI; CI checks the library without its command line on Linux. Both crates were built for `wasm32-unknown-unknown` by hand at 0.5.1 |
+| Python 3.11+ | `pip install quiddity`: one wheel, no Python dependencies | Linux x86_64 and aarch64, macOS arm64 and x86_64, Windows x64 |
+| Command line | `uv tool install quiddity`, `pipx install quiddity` or `cargo install quiddity` | the same five platforms |
+| Rust library | `quiddity = "0.5"`, `haecceity = "0.5"` | Linux, macOS |
+| Browser | the library builds for WebAssembly (`wasm32-unknown-unknown`, without the command line); [draftwright's editor](https://draftwright.io) runs it in the browser | built by hand for 0.5.1, not yet in CI |
 
 ## Install
 
@@ -141,39 +141,45 @@ doesn't promise.
 
 ## Accuracy and speed
 
-Measured with quiddity 0.5.1 on a 4-vCPU Ubuntu 24.04 x86_64 cloud VM, 13 November 2026. The full report is
-[`docs/benchmarks/mfinstseg-v0.5.1-3a20dceb.html`](docs/benchmarks/mfinstseg-v0.5.1-3a20dceb.html); commands,
-provenance and the raw data are in [`docs/benchmarks/v0.5.1-measurements.md`](docs/benchmarks/v0.5.1-measurements.md).
+Measured with quiddity 0.5.1 on a 4-core Linux x86_64 cloud VM, 13 November 2026. Commands, provenance and
+raw data: [`docs/benchmarks/v0.5.1-measurements.md`](docs/benchmarks/v0.5.1-measurements.md).
 
-**MFInstSeg test split (9,375 models).** All 9,375 read and recognised without error. Scored as face coverage
-against the dataset's labels (a labelled instance is recognised when at least half its faces are claimed):
+**Feature recognition.** All 9,375 models of the public [MFInstSeg](https://github.com/whjdark/AAGNet) test
+split read and analysed without error. A feature counts as found when quiddity's feature shares at least half
+its faces with the labelled one. Recall is the share of labelled features found; FP is the share of
+reported features that match nothing labelled.
 
-| Class | Recognition | Claimed faces | False positives |
+| Feature | In test set | Recall | FP |
 |---|---:|---:|---:|
-| Holes | 98.5% | 95.0% | 6.2% |
-| Rounds | 89.3% | 79.5% | 0.2% |
-| Any feature | 84.3% | 83.1% | 0.4% |
+| Holes | 6,075 | 96% | 11% |
+| Pockets | 12,278 | 85% | 23% |
+| Slots | 3,700 | 63% | 17% |
+| Steps | 18,913 | 71% | 10% |
+| Passages (through cut-outs) | 9,246 | 74% | 11% |
+| Chamfers | 3,014 | 54% | 26% |
+| Fillets | 2,922 | 87% | 6% |
+| O-ring grooves | 3,101 | 85% | 0% |
+| **All features** | 59,249 | 77% | 14% |
 
-Per model, read takes a median 13 ms (95th percentile 23 ms) and recognition 73 ms (95th percentile 242 ms),
-as calling-thread CPU time. Under the stricter one-to-one matching (instance IoU of at least 0.5) that the repository's regression
-baseline uses, precision and recall are 0.86 and 0.77 over the 24 mapped classes; the measurements file has them
-per class.
+The measurements file breaks these down into MFInstSeg's 24 classes, with the reasons for the weakest.
+Most of the pocket false alarms come from the scoring map, not the geometry: one quiddity family is scored
+against three MFInstSeg classes.
 
-**Robustness.** On a fixed 10% sample of all 62,495 MFInstSeg models (every tenth in lexical order, 6,250 models):
-0 read failures, 0 recognition failures and 0 panics.
+**Speed.** Per model, reading takes a median 13 ms and recognition 73 ms (95th percentile 242 ms), as CPU time.
 
-**Geometry accuracy on known parts.** haecceity's volume, area and centroid, with tolerance 0.1% (the centroid
-distance is relative to the bounding-box diagonal). Against the validation properties stored in 18 NIST STEP
-files, 103 of 106 checks are within tolerance, the largest in-tolerance error being 0.009%; the other three are
-one file (NIST STC-06) whose stored properties are zero, where we agree with OpenCascade. Against OpenCascade
-over 2,868 files (9,120 checks), 9,110 are within tolerance, 8 are known OpenCascade reference problems, and 2
-differ (one part: 0.35% volume, 0.16% area).
+**Robustness.** On a fixed 10% sample of all 62,495 MFInstSeg models: no read failures, no recognition
+failures, no crashes.
 
-**From Python.** Compared with the last pure-Python quiddity (0.3.12, built on OpenCascade) on the same machine,
-on 10 NIST parts and 200 MFInstSeg models, 0.5.1 recognises a part a median 10.7 times faster (median 0.096 s
-against 1.085 s per part), imports in 0.02 s instead of about 6 s, peaks at a median 32 MB instead of 418 MB, and
-installs as one 25 MB package instead of 59 packages and 876 MB. The two recognise different feature sets, so the
-speed-up is between the two products, not between two implementations of one algorithm.
+**Geometry accuracy.** Volume, area and centre of mass, to within 0.1%:
+- against the values stored in 18 NIST STEP files, 103 of 106 checks agree; the other 3 are one file whose
+  stored values are zero;
+- against OpenCascade on 2,868 files, 9,110 of 9,120 checks agree; 8 are known OpenCascade problems and 2 are
+  on one part (0.35% volume, 0.16% area).
+
+**From Python.** Against the last pure-Python quiddity (0.3.12, on OpenCascade), on the same machine and 210
+parts, 0.5.1 is a median 10.7× faster per part (0.096 s against 1.085 s), uses 32 MB of memory instead of
+418 MB, imports in 0.02 s instead of about 6 s, and installs as one 25 MB package instead of 59 packages and
+876 MB. The two find different feature sets, so this compares the products, not one algorithm.
 
 ## Compare two revisions
 
