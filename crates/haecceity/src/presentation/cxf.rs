@@ -24,7 +24,8 @@ pub(super) enum Face {
     Gdt,
 }
 
-/// Strokes and arcs (centre x/y, radius, start/end degrees counter-clockwise).
+/// Strokes, and whole circles as arcs (centre x/y, radius, 0, 360). Every other font arc is
+/// already straight strokes.
 #[derive(Default, Clone, Debug)]
 pub(super) struct Ink {
     pub lines: Vec<[P2; 2]>,
@@ -46,83 +47,119 @@ fn grow(b: &mut Option<[f64; 4]>, p: P2) {
     b[3] = b[3].max(p[1]);
 }
 
-fn arc_bounds(b: &mut Option<[f64; 4]>, [cx, cy, r, a1, a2]: [f64; 5]) {
-    for a in [a1, a2] {
-        let t = a.to_radians();
-        grow(b, [cx + r * t.cos(), cy + r * t.sin()]);
+/// A counter-clockwise arc: centre, radius, start angle and sweep in radians.
+#[derive(Clone, Copy)]
+struct Arc {
+    c: P2,
+    r: f64,
+    start: f64,
+    sweep: f64,
+}
+
+impl Arc {
+    fn at(&self, t: f64) -> P2 {
+        let a = self.start + self.sweep * t;
+        [
+            self.c[0] + self.r * libm::cos(a),
+            self.c[1] + self.r * libm::sin(a),
+        ]
     }
-    // Axis extremes inside the sweep.
-    for (k, p) in [[r, 0.], [0., r], [-r, 0.], [0., -r]]
-        .into_iter()
-        .enumerate()
-    {
-        let axis = 90. * k as f64;
-        let n = ((a1 - axis) / 360.).ceil();
-        if axis + 360. * n <= a2 {
-            grow(b, [cx + p[0], cy + p[1]]);
+
+    /// Exact extent: the end points and the axis extremes the sweep passes through.
+    fn bounds(&self, b: &mut Option<[f64; 4]>) {
+        grow(b, self.at(0.));
+        grow(b, self.at(1.));
+        let (c, r) = (self.c, self.r);
+        for (k, p) in [[r, 0.], [0., r], [-r, 0.], [0., -r]]
+            .into_iter()
+            .enumerate()
+        {
+            let axis = k as f64 * std::f64::consts::FRAC_PI_2;
+            let turns = libm::ceil((self.start - axis) / std::f64::consts::TAU);
+            if axis + std::f64::consts::TAU * turns <= self.start + self.sweep {
+                grow(b, [c[0] + p[0], c[1] + p[1]]);
+            }
+        }
+    }
+
+    /// Straight strokes, 32 to a full turn: the font's arcs reach callers as lines, so no
+    /// platform trigonometry decides a written coordinate.
+    fn strokes(&self, out: &mut Vec<[P2; 2]>) {
+        let n = (libm::ceil(32. * self.sweep.abs() / std::f64::consts::TAU) as usize).max(2);
+        let mut prev = self.at(0.);
+        for i in 1..=n {
+            let next = self.at(i as f64 / n as f64);
+            out.push([prev, next]);
+            prev = next;
         }
     }
 }
 
 /// The arc a CAD polyline draws between two vertices. The bulge is the tangent of a quarter of
 /// the included angle; positive runs counter-clockwise.
-fn bulge_arc(p: P2, q: P2, bulge: f64) -> [f64; 5] {
-    let sweep = 4. * bulge.atan();
+fn bulge_arc(p: P2, q: P2, bulge: f64) -> Arc {
+    let sweep = 4. * libm::atan(bulge);
+    let half = sweep.abs() / 2.;
     let (dx, dy) = (q[0] - p[0], q[1] - p[1]);
-    let d = dx.hypot(dy);
-    let r = d / (2. * (sweep.abs() / 2.).sin());
-    let off = r * (sweep.abs() / 2.).cos() * bulge.signum();
+    let d = libm::sqrt(dx * dx + dy * dy);
+    let r = d / (2. * libm::sin(half));
+    let off = r * libm::cos(half) * bulge.signum();
     let c = [
         (p[0] + q[0]) / 2. - off * dy / d,
         (p[1] + q[1]) / 2. + off * dx / d,
     ];
-    let a1 = (p[1] - c[1]).atan2(p[0] - c[0]).to_degrees();
-    let (s, e) = if sweep > 0. {
-        (a1, a1 + sweep.to_degrees())
-    } else {
-        (a1 + sweep.to_degrees(), a1)
-    };
-    let shift = 360. * (s / 360.).floor();
-    [c[0], c[1], r, s - shift, e - shift]
+    let a1 = libm::atan2(p[1] - c[1], p[0] - c[0]);
+    Arc {
+        c,
+        r,
+        start: if sweep > 0. { a1 } else { a1 + sweep },
+        sweep: sweep.abs(),
+    }
 }
 
-fn finish(mut g: Glyph) -> Glyph {
-    // A closed pair of half-turns about one centre is the circle it draws.
-    if let [a, b] = g.ink.arcs[..]
-        && (a[..3].iter().zip(&b[..3])).all(|(x, y)| (x - y).abs() < 1e-9)
-        && ((a[4] - a[3]) + (b[4] - b[3]) - 360.).abs() < 1e-9
-        // Complementary: each half starts where the other ends.
-        && (a[3] - b[4]).rem_euclid(360.).min((b[4] - a[3]).rem_euclid(360.)) < 1e-9
-        && (b[3] - a[4]).rem_euclid(360.).min((a[4] - b[3]).rem_euclid(360.)) < 1e-9
-    {
-        g.ink.arcs = vec![[a[0], a[1], a[2], 0., 360.]];
+#[derive(Default)]
+struct Builder {
+    glyph: Glyph,
+    bounds: Option<[f64; 4]>,
+}
+
+impl Builder {
+    fn line(&mut self, a: P2, b: P2) {
+        grow(&mut self.bounds, a);
+        grow(&mut self.bounds, b);
+        self.glyph.ink.lines.push([a, b]);
     }
-    let mut bounds = None;
-    for l in &g.ink.lines {
-        l.iter().for_each(|&p| grow(&mut bounds, p));
+    fn arc(&mut self, arc: Arc) {
+        arc.bounds(&mut self.bounds);
+        arc.strokes(&mut self.glyph.ink.lines);
     }
-    for &a in &g.ink.arcs {
-        arc_bounds(&mut bounds, a);
+    /// A whole circle stays an arc, from the font's own numbers.
+    fn circle(&mut self, c: P2, r: f64) {
+        grow(&mut self.bounds, [c[0] - r, c[1] - r]);
+        grow(&mut self.bounds, [c[0] + r, c[1] + r]);
+        self.glyph.ink.arcs.push([c[0], c[1], r, 0., 360.]);
     }
-    g.bounds = bounds;
-    g
+    fn finish(mut self) -> Glyph {
+        self.glyph.bounds = self.bounds;
+        self.glyph
+    }
 }
 
 fn parse(src: &str) -> HashMap<char, Glyph> {
     let mut glyphs = HashMap::new();
-    let mut current: Option<(char, Glyph)> = None;
+    let mut current: Option<(char, Builder)> = None;
     for line in src.lines().map(str::trim) {
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
         if let Some(rest) = line.strip_prefix('[') {
             if let Some((c, g)) = current.take() {
-                glyphs.insert(c, finish(g));
+                glyphs.insert(c, g.finish());
             }
             current = u32::from_str_radix(rest.split(']').next().unwrap_or(""), 16)
                 .ok()
                 .and_then(char::from_u32)
-                .map(|c| (c, Glyph::default()));
+                .map(|c| (c, Builder::default()));
             continue;
         }
         let Some((_, g)) = current.as_mut() else {
@@ -134,7 +171,7 @@ fn parse(src: &str) -> HashMap<char, Glyph> {
             .filter_map(|v| v.trim().parse().ok())
             .collect();
         match (cmd, n.len()) {
-            ("L", 4) => g.ink.lines.push([[n[0], n[1]], [n[2], n[3]]]),
+            ("L", 4) => g.line([n[0], n[1]], [n[2], n[3]]),
             ("A" | "AR", 5) => {
                 // AR runs clockwise from the first angle to the second.
                 let (a1, a2) = if cmd == "AR" {
@@ -143,19 +180,37 @@ fn parse(src: &str) -> HashMap<char, Glyph> {
                     (n[3], n[4])
                 };
                 let a2 = if a2 < a1 { a2 + 360. } else { a2 };
-                g.ink.arcs.push([n[0], n[1], n[2], a1, a2]);
+                if a2 - a1 == 360. {
+                    g.circle([n[0], n[1]], n[2]);
+                } else {
+                    g.arc(Arc {
+                        c: [n[0], n[1]],
+                        r: n[2],
+                        start: a1.to_radians(),
+                        sweep: (a2 - a1).to_radians(),
+                    });
+                }
             }
             ("PL" | "PLC", len) if len % 3 == 0 && len >= 6 => {
                 let v: Vec<[f64; 3]> = n.chunks(3).map(|c| [c[0], c[1], c[2]]).collect();
+                // Two vertices closed by half-turns the same way round are a circle.
+                if cmd == "PLC" && v.len() == 2 && v[0][2].abs() == 1. && v[0][2] == v[1][2] {
+                    let (dx, dy) = (v[1][0] - v[0][0], v[1][1] - v[0][1]);
+                    g.circle(
+                        [(v[0][0] + v[1][0]) / 2., (v[0][1] + v[1][1]) / 2.],
+                        libm::sqrt(dx * dx + dy * dy) / 2.,
+                    );
+                    continue;
+                }
                 let mut pairs: Vec<_> = v.windows(2).map(|w| (w[0], w[1])).collect();
                 if cmd == "PLC" {
                     pairs.push((v[v.len() - 1], v[0]));
                 }
                 for (a, b) in pairs {
                     if a[2].abs() < 1e-9 {
-                        g.ink.lines.push([[a[0], a[1]], [b[0], b[1]]]);
+                        g.line([a[0], a[1]], [b[0], b[1]]);
                     } else {
-                        g.ink.arcs.push(bulge_arc([a[0], a[1]], [b[0], b[1]], a[2]));
+                        g.arc(bulge_arc([a[0], a[1]], [b[0], b[1]], a[2]));
                     }
                 }
             }
@@ -163,7 +218,7 @@ fn parse(src: &str) -> HashMap<char, Glyph> {
         }
     }
     if let Some((c, g)) = current {
-        glyphs.insert(c, finish(g));
+        glyphs.insert(c, g.finish());
     }
     glyphs
 }
@@ -262,4 +317,59 @@ pub(super) fn lay(parts: &[(Face, &str)]) -> Laid {
 pub(super) fn symbol(letter: char) -> Option<(&'static Ink, [f64; 4])> {
     let g = lookup(Face::Gdt, letter)?;
     Some((&g.ink, g.bounds?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Font arcs are straight strokes computed with the pure-Rust `libm`, so these coordinates
+    // are the same on every platform to the last bit. A platform `sin`, `cos`, `atan` or
+    // `atan2` slipping back in would show here (and in the written reals) on another target.
+    #[test]
+    fn font_arc_points_are_bit_exact_on_every_platform() {
+        let line = |face, text: &str, k: usize| lay(&[(face, text)]).ink.lines[k];
+        assert_eq!(
+            line(Face::Standard, "0", 1),
+            [
+                [0.6914539784081484, 7.8835767333813225],
+                [0.39722755313694424, 7.211539120784248]
+            ]
+        );
+        assert_eq!(
+            line(Face::Standard, "0", 17),
+            [
+                [2.29165471322968, 0.03888030207627913],
+                [2.4763128767583167, 0.10874644817924584]
+            ]
+        );
+        assert_eq!(
+            line(Face::Standard, "B", 5),
+            [
+                [4.297040000000001, 4.29704],
+                [3.9333554144363427, 4.595509987346404]
+            ]
+        );
+        assert_eq!(
+            line(Face::Gdt, "d", 5),
+            [
+                [15.36396103067893, 6.363961030678928],
+                [14.00013209717642, 7.483226510722907]
+            ]
+        );
+    }
+
+    #[test]
+    fn only_whole_circles_stay_arcs_and_are_exact() {
+        // The gdt `n` and `e` circles come from the font's numbers with no trigonometry.
+        let n = lay(&[(Face::Gdt, "n")]);
+        assert_eq!(n.ink.arcs, [[4.5, 4.5, 4.5, 0., 360.]]);
+        let e = lay(&[(Face::Gdt, "e")]);
+        assert_eq!(e.ink.arcs, [[7., 4.5, 7., 0., 360.]]);
+        // A partial arc (the profile symbol's half circle) is strokes only.
+        let d = lay(&[(Face::Gdt, "d")]);
+        assert!(d.ink.arcs.is_empty() && d.ink.lines.len() > 2);
+        // Segments scale with the sweep: 32 to a turn, so half a turn is 16.
+        assert_eq!(d.ink.lines.len(), 1 + 16);
+    }
 }

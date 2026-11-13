@@ -447,7 +447,7 @@ pub(super) fn glyph(c: char) -> Option<(f64, Vec<Vec<P2>>)> {
             (0..=32)
                 .map(|i| {
                     let t = (a + (b - a) * i as f64 / 32.).to_radians();
-                    at([x + r * t.cos(), y + r * t.sin()])
+                    at([x + r * libm::cos(t), y + r * libm::sin(t)])
                 })
                 .collect(),
         );
