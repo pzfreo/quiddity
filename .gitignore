@@ -1,2 +1,5 @@
 /target
 __pycache__/
+
+# Local maturin builds (`maturin develop`) write the native module here.
+crates/quiddity-py/python/quiddity/_native*.so

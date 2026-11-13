@@ -1,6 +1,6 @@
 [package]
 name = "quiddity-py"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2024"
 license = "Apache-2.0"
 description = "Dependency-free Python bindings for quiddity's Rust STEP recognition engine"
@@ -18,7 +18,7 @@ doctest = false
 test-panic = []
 
 [dependencies]
-quiddity = { path = "../..", version = "=0.5.0", features = ["cli", "json-import"] }
+quiddity = { path = "../..", version = "=0.5.1", features = ["cli", "json-import"] }
 pyo3 = { version = "0.30.1", features = ["abi3-py311"] }
 serde_json = "1.0.151"
 

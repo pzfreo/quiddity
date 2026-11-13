@@ -4,7 +4,9 @@ All notable changes to quiddity-rust and haecceity. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Alpha 1's gates and their evidence are
 in [docs/alpha1.md](docs/alpha1.md).
 
-## Unreleased
+## 0.5.1 (2026-11-13)
+
+A patch release: additive API, no breaking change.
 
 - **GD&T frames match CAD's native TOLERANCE.** New `haecceity::presentation::gdt::cad_control_frame`
   and `cad_datum_frame` lay frames out as CAD does: 2.5 mm text (`gdt::TEXT_HEIGHT`, intended
