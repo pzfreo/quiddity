@@ -58,21 +58,10 @@ that match nothing labelled.
 |---|---|---|
 | **Python 3.11+** | `pip install quiddity`: one wheel, no other dependencies ([Python guide](docs/python.md)) | Windows x64, macOS arm64 and x86_64, Linux x86_64 and aarch64 |
 | **Command line** | `uv tool install quiddity` or `pipx install quiddity` (no Rust needed), or `cargo install quiddity` | the same five |
-| **Rust** | `quiddity = "0.5"` in `[dependencies]` (the geometry is the [`haecceity`](crates/haecceity) crate) | Linux, macOS |
-| **Browser** | the library builds for WebAssembly (`wasm32-unknown-unknown`, `default-features = false, features = ["presentation"]`); [draftwright's editor](https://draftwright.io) runs it | built by hand for 0.5.1, not yet in CI |
+| **Rust** | `quiddity = "0.5"` in `[dependencies]` ([crates and features](docs/rust.md)) | Linux, macOS |
+| **Browser** | the library builds for WebAssembly (`wasm32-unknown-unknown`, see [WebAssembly](docs/rust.md#webassembly)); [draftwright's editor](https://draftwright.io) runs it | built on Linux in CI |
 
 Every [release](https://github.com/pzfreo/quiddity/releases) is published to PyPI and crates.io.
-
-Cargo features: `cli` (the command line) and `presentation` (drawing PMI callouts) are on by
-default. A library build that does not want clap (WASM, say) can use
-`default-features = false, features = ["presentation"]`. `manifest` enables the range-based
-assembly APIs and is included by `cli`. Off by default:
-- `json-import`: the versioned PMI JSON interchange (`pmi json …` commands).
-- `f3d`: Autodesk Fusion `.f3d` input (visible solid geometry only, no PMI; see [Fusion input](docs/f3d.md)).
-
-Read large assemblies one product at a time with `quiddity manifest` and
-`quiddity recognise --manifest`; see [assembly manifests](docs/assemblies.md)
-for range checks, placements, fallback and Python APIs.
 
 ## Command line
 
@@ -85,6 +74,10 @@ quiddity pmi read part.step             # the file's PMI, as JSON
 STEP inputs may be `.step`, `.stp` or gzipped. Commands print JSON; the exit code is 0 for success,
 1 for an unreadable file or a refused operation, and 2 for wrong usage. Every command, the
 `serve` mode for applications and shell completion: [docs/cli.md](docs/cli.md).
+
+Read large assemblies one product at a time with `quiddity manifest` and
+`quiddity recognise --manifest`; see [assembly manifests](docs/assemblies.md)
+for range checks, placements, fallback and Python APIs.
 
 ## Output
 
