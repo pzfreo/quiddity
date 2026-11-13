@@ -120,9 +120,11 @@ text as strokes and arcs from QCAD's public-domain `gdt` and `Standard` fonts. T
 adds just the characteristic geometry. `label_with_width(value, width)` and
 `notes::surface_texture_with_width(&SurfaceTexture, width)` size labels and ISO 1302
 symbols with the same convention. `notes::removal_marks(MaterialRemoval, short_height)`
-returns strokes and arcs about the symbol tip. Existing `label`, `surface_texture`,
-`dimension` and `tolerance` use `text_width(value, height)` (Hershey ink width).
-`Callout::letters` is the font-drawn layer; `runs` also includes geometrically drawn symbols.
+returns strokes and arcs about the symbol tip. Existing `label`, `surface_texture`
+and `dimension` use `text_width(value, height)` (Hershey ink width); `tolerance` and `datum`
+need no measuring function (their text is CAD-font geometry).
+`Callout::letters` is the sheet-font layer (empty in GD&T frames); `runs` also includes
+geometrically drawn symbols. `gdt::cad_frame_missing` lists characters a frame cannot draw.
 
 `label_lines_with_width(lines: &[&str], width: &dyn Fn(&str, f64) -> f64) -> Vec<Callout>`
 returns one independent callout per input line, in order. Each uses capital height 3,

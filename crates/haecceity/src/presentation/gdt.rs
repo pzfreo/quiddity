@@ -155,6 +155,24 @@ fn gdt_letter(symbol: char) -> Option<char> {
     })
 }
 
+/// Characters of a frame's tolerance value or datum letters that neither CAD font has. They are
+/// left out of the frame's ink (nothing is substituted), so a caller that must not drop text
+/// checks this first, as it checks `Font::text(..).missing` for sheet-font text. In order of
+/// appearance, without repeats.
+pub fn cad_frame_missing(tolerance: &str, datums: &[String]) -> Vec<char> {
+    let mut missing = cxf::lay(&[(Face::Standard, tolerance)]).missing;
+    for d in datums {
+        missing.extend(cxf::lay(&[(Face::Standard, d)]).missing);
+    }
+    let mut seen = Vec::new();
+    missing.retain(|c| {
+        let new = !seen.contains(c);
+        seen.push(*c);
+        new
+    });
+    missing
+}
+
 /// A local ISO 1101 frame from plain cells, independent of `PartPmi`.
 /// `zone` is `diameter` or `spherical_diameter`; `material` is `M` or `L`.
 /// Datums are already formatted compartments (for example `A-B`).
@@ -179,14 +197,12 @@ pub fn cad_control_frame(
 ) -> Laid {
     let mut laid = Laid::default();
     let sym = symbol(name);
-    let letter = |s: &str| {
-        s.chars()
-            .next()
-            .and_then(gdt_letter)
-            .unwrap_or('t')
-            .to_string()
-    };
-    let sym_letter = letter(sym);
+    let sym_letter = sym
+        .chars()
+        .next()
+        .and_then(gdt_letter)
+        .map(String::from)
+        .unwrap_or_default(); // `symbol()` only returns gdt symbols.
     let zone_letter = 'n'.to_string();
     let mut tolerance_parts = Vec::new();
     match zone {
@@ -292,12 +308,13 @@ pub fn cad_datum_frame(letter: &str) -> Laid {
 }
 
 /// A local ISO 1101 frame from plain cells, independent of `PartPmi`.
+///
+/// Superseded by [`cad_control_frame`], which lays the frame out as CAD does and needs no
+/// measuring function; this one will be deprecated in the next minor release.
+///
 /// `width` measures text ink at the supplied capital height in drawing units.
 /// `zone` is `diameter` or `spherical_diameter`; `material` is `M` or `L`.
 /// Datums are already formatted compartments (for example `A-B`).
-#[deprecated(
-    note = "lays out with the caller's font and fixed 6 mm cells, which differ from CAD's; use `cad_control_frame`"
-)]
 pub fn control_frame(
     name: &str,
     tolerance: &str,
@@ -390,7 +407,8 @@ pub fn control_frame(
 }
 
 /// A datum's frame laid out about its centre.
-#[deprecated(note = "use `cad_datum_frame`")]
+///
+/// Superseded by [`cad_datum_frame`]; this one will be deprecated in the next minor release.
 pub fn datum_frame(letter: &str) -> Laid {
     let h = TEXT;
     let corners = [[-h, -h], [h, -h], [h, h], [-h, h]];
@@ -438,7 +456,6 @@ pub(super) fn glyph(c: char) -> Option<(f64, Vec<Vec<P2>>)> {
 }
 
 #[cfg(test)]
-#[allow(deprecated)]
 mod tests {
     use super::*;
 
@@ -560,8 +577,7 @@ mod cad_tests {
         })
     }
 
-    // Content assertions ported from Draftwright tests/spec_gdt.rs. Authoring and placement
-    // checks stay there; the same requirements here are already semantic PMI.
+    // The cells and readable text layer are those the older frames state.
     #[test]
     fn position_frame_and_datum_state_the_same_cells_as_draftwright() {
         let frame = cad_control_frame("position", "0.1", Some("diameter"), None, &["A".into()]);
@@ -777,6 +793,19 @@ mod cad_tests {
             .iter()
             .fold((f64::MAX, f64::MIN), |(l, h), p| (l.min(p[1]), h.max(p[1])));
         assert!((lo + 1.25).abs() < 0.01 && (hi - 1.25).abs() < 0.01);
+    }
+    #[test]
+    fn characters_neither_font_has_are_reported_not_substituted() {
+        assert_eq!(cad_frame_missing("0.1", &["A".into()]), Vec::<char>::new());
+        assert_eq!(
+            cad_frame_missing("0.1字字", &["B".into(), "字X".into(), "あ".into()]),
+            ['字', 'あ']
+        );
+        // The frame keeps the supported characters' ink and invents none for the others.
+        let with = cad_control_frame("flatness", "0.1字", None, None, &[]);
+        let without = cad_control_frame("flatness", "0.1", None, None, &[]);
+        assert_eq!(with.strokes.len(), without.strokes.len());
+        assert_eq!(with.size, without.size);
     }
     #[test]
     fn text_height_and_pen_are_the_iso_3098_values() {

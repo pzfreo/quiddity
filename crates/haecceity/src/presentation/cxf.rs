@@ -91,6 +91,9 @@ fn finish(mut g: Glyph) -> Glyph {
     if let [a, b] = g.ink.arcs[..]
         && (a[..3].iter().zip(&b[..3])).all(|(x, y)| (x - y).abs() < 1e-9)
         && ((a[4] - a[3]) + (b[4] - b[3]) - 360.).abs() < 1e-9
+        // Complementary: each half starts where the other ends.
+        && (a[3] - b[4]).rem_euclid(360.).min((b[4] - a[3]).rem_euclid(360.)) < 1e-9
+        && (b[3] - a[4]).rem_euclid(360.).min((a[4] - b[3]).rem_euclid(360.)) < 1e-9
     {
         g.ink.arcs = vec![[a[0], a[1], a[2], 0., 360.]];
     }
@@ -190,6 +193,8 @@ pub(super) struct Laid {
     pub ink: Ink,
     /// Leftmost and rightmost ink x; both zero for a string with no ink.
     pub x: [f64; 2],
+    /// Characters the face lacks, in order. They add no ink and no advance.
+    pub missing: Vec<char>,
 }
 
 impl Laid {
@@ -217,7 +222,8 @@ impl Laid {
     }
 }
 
-/// Lay out the parts glyph by glyph as CAD does. Characters a face lacks are skipped.
+/// Lay out the parts glyph by glyph as CAD does. Characters a face lacks are recorded in
+/// `missing`, never substituted.
 pub(super) fn lay(parts: &[(Face, &str)]) -> Laid {
     let mut out = Laid::default();
     let (mut pen, mut lo, mut hi) = (0.0_f64, f64::INFINITY, f64::NEG_INFINITY);
@@ -227,7 +233,10 @@ pub(super) fn lay(parts: &[(Face, &str)]) -> Laid {
                 pen += WORD_SPACING;
                 continue;
             }
-            let Some(g) = lookup(face, c) else { continue };
+            let Some(g) = lookup(face, c) else {
+                out.missing.push(c);
+                continue;
+            };
             let b = g.bounds.unwrap_or_default();
             lo = lo.min(pen + b[0]);
             hi = hi.max(pen + b[2]);

@@ -607,7 +607,6 @@ fn multiline_general_notes_keep_their_lines_and_clear_neighboring_rows() {
 }
 
 #[test]
-#[allow(deprecated)]
 fn public_frames_use_the_sheet_font_without_a_part_model() {
     use presentation::gdt;
     let datums = vec!["A".into(), "B-C".into()];

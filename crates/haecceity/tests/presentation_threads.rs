@@ -168,12 +168,20 @@ fn coverage(name: &str, semantic: &json::Semantic, scene: &Presentation) {
 // detects reversed advance/up independently; it is not an axes-only assertion.
 fn stroke_fit(g: &Graphic, plane: &presentation::Plane, text: &str) -> Option<(f64, f64, V3)> {
     let ink = notation::font().text(text, 3.);
-    let local = &ink.lines;
+    fit_lines(g, plane, &ink.lines).map(|(_, x, y, o)| (x, y, o))
+}
+/// The first run of consecutive polylines of `g` that is `local` under an orthonormal fit
+/// (equal scales) in the plane: `(index, advance scale, up scale, origin of local (0, 0))`.
+fn fit_lines(
+    g: &Graphic,
+    plane: &presentation::Plane,
+    local: &[Vec<[f64; 2]>],
+) -> Option<(usize, f64, f64, V3)> {
     if local.is_empty() {
         return None;
     }
     let up = geom::cross(plane.normal, plane.x_axis);
-    for lines in g.polylines.windows(local.len()) {
+    for (start, lines) in g.polylines.windows(local.len()).enumerate() {
         if lines.iter().zip(local).any(|(a, b)| a.len() != b.len()) {
             continue;
         }
@@ -225,10 +233,80 @@ fn stroke_fit(g: &Graphic, plane: &presentation::Plane, text: &str) -> Option<(f
                 ),
             ) < 3e-6
         }) {
-            return Some((scales[0], scales[1], origin));
+            return Some((start, scales[0], scales[1], origin));
         }
     }
     None
+}
+
+/// A tolerance or datum frame draws its text as geometry (`letters` is empty), so check the
+/// frame lines and the text ink of the expected callout, fitted separately to the graphic:
+/// neither mirrored, one scale, text roles on the text, and each text placement and height
+/// where the callout's runs put them. Returns whether the graphic held the callout.
+fn check_frame_ink(
+    label: &str,
+    g: &Graphic,
+    plane: &presentation::Plane,
+    c: &notation::Callout,
+) -> bool {
+    let all = c.polylines();
+    let (frame, ink) = all.split_at(c.frame_strokes);
+    let (Some((fi, fx, fy, _)), Some((ti, tx, ty, origin))) =
+        (fit_lines(g, plane, frame), fit_lines(g, plane, ink))
+    else {
+        return false;
+    };
+    assert!(
+        fx > 0. && fy > 0. && tx > 0. && ty > 0.,
+        "{label}: mirrored frame or text"
+    );
+    assert!(
+        (fx - tx).abs() < 1e-4 * fx && (fy - ty).abs() < 1e-4 * fy,
+        "{label}: text scale differs from the frame's: frame {fx} {fy} text {tx} {ty} at {ti} frame at {fi}"
+    );
+    assert_eq!(
+        ti,
+        fi + frame.len(),
+        "{label}: text does not follow the frame"
+    );
+    if let Some(roles) = &g.polyline_roles {
+        assert!(
+            roles[fi..ti]
+                .iter()
+                .all(|r| *r == presentation::PolylineRole::Frame),
+            "{label}"
+        );
+        assert!(
+            roles[ti..ti + ink.len()]
+                .iter()
+                .all(|r| *r == presentation::PolylineRole::Text),
+            "{label}"
+        );
+    }
+    let up = geom::cross(plane.normal, plane.x_axis);
+    for p in &g.text_placements {
+        let Some(i) = p.text_index else { continue };
+        let run = &c.runs[i];
+        let expected = geom::add(
+            origin,
+            geom::add(
+                geom::scale(plane.x_axis, run.at[0] * tx),
+                geom::scale(up, run.at[1] * ty),
+            ),
+        );
+        assert!(
+            geom::dist(expected, p.origin) < 3e-6,
+            "{label}: placement of {:?} is off the text ink",
+            run.text
+        );
+        assert_eq!(run.size, notation::gdt::TEXT_HEIGHT);
+        assert!(
+            (p.height.unwrap() - run.size * tx).abs() < 3e-6,
+            "{label}: height of {:?}",
+            run.text
+        );
+    }
+    true
 }
 fn callout(kind: &str, i: usize, p: &pmi::PartPmi) -> Option<notation::Callout> {
     match kind {
@@ -276,6 +354,7 @@ fn all_drawing_forms_have_graphics_and_glyphs_agree_with_planes() {
         let saved = presentation::read(&doc, &read, PartId(0), &semantic).unwrap();
         let mut checked = BTreeSet::new();
         let mut file_checked = BTreeSet::new();
+        let (mut frames, mut saved_frames) = (0, 0);
         for (kind, ids) in &semantic.ids {
             for (i, id) in ids.iter().enumerate() {
                 for g in generated.items.get(id).into_iter().flatten() {
@@ -322,6 +401,19 @@ fn all_drawing_forms_have_graphics_and_glyphs_agree_with_planes() {
                         assert!(b[0][0] <= 0. && b[1][0] >= 0. && b[0][1] <= 0. && b[1][1] >= 0.);
                     }
                     if let Some(c) = callout(kind, i, &semantic.pmi) {
+                        if c.frame_strokes > 0 && matches!(kind.as_str(), "tolerances" | "datums") {
+                            assert!(
+                                check_frame_ink(
+                                    &format!("{name}: generated {}", g.name),
+                                    g,
+                                    plane,
+                                    &c
+                                ),
+                                "{name}: generated {} does not hold its frame and text",
+                                g.name
+                            );
+                            frames += 1;
+                        }
                         for t in &c.letters {
                             if notation::text_width(&t.text, 3.) == 0. {
                                 continue;
@@ -342,6 +434,18 @@ fn all_drawing_forms_have_graphics_and_glyphs_agree_with_planes() {
                         else {
                             continue;
                         };
+                        if c.frame_strokes > 0
+                            && matches!(kind.as_str(), "tolerances" | "datums")
+                            && check_frame_ink(
+                                &format!("FILE DATA MISMATCH {name} {:?} {}", g.id, g.name),
+                                g,
+                                plane,
+                                &c,
+                            )
+                        {
+                            file_checked.insert(g.id.clone());
+                            saved_frames += 1;
+                        }
                         for t in &c.letters {
                             if let Some((x, y, _)) = stroke_fit(g, plane, &t.text) {
                                 file_checked.insert(g.id.clone());
@@ -380,6 +484,62 @@ fn all_drawing_forms_have_graphics_and_glyphs_agree_with_planes() {
                 }
             }
         }
+        let drawn = semantic.ids.get("tolerances").map_or(0, Vec::len)
+            + semantic.ids.get("datums").map_or(0, Vec::len);
+        println!("{name}: {frames} generated and {saved_frames} saved frames fitted of {drawn}");
+        assert!(
+            frames > 0 || drawn == 0,
+            "{name}: no generated frame was fitted"
+        );
+        // The written STEP's own presentation, read back: frames and text as stored.
+        let (edit, _) = pmi::write(
+            &doc,
+            &defs,
+            &[(PartId(0), semantic.pmi.clone())],
+            pmi::write::Mode::Replace,
+            pmi::write::PresentationPolicy::RemovePresentation,
+        )
+        .unwrap_or_else(|e| panic!("{name}: {e}"));
+        let written = Document::parse(doc.apply(&edit).unwrap().bytes).unwrap();
+        let written_defs = step::read_part_definitions(written.bytes()).unwrap();
+        let written_read = pmi::read(&written, &written_defs).unwrap();
+        let written_semantic = json::identify(
+            written_read.parts[0].clone(),
+            Some(&written_read.identifiers.parts[0]),
+        )
+        .unwrap();
+        let file =
+            presentation::read(&written, &written_read, PartId(0), &written_semantic).unwrap();
+        let mut written_frames = 0;
+        for kind in ["tolerances", "datums"] {
+            for (i, id) in written_semantic
+                .ids
+                .get(kind)
+                .into_iter()
+                .flatten()
+                .enumerate()
+            {
+                let c = callout(kind, i, &written_semantic.pmi).unwrap();
+                for g in file.items.get(id).into_iter().flatten() {
+                    let plane = file
+                        .planes
+                        .iter()
+                        .find(|p| Some(&p.id) == g.plane_id.as_ref())
+                        .unwrap();
+                    assert!(
+                        check_frame_ink(&format!("{name}: written {}", g.name), g, plane, &c),
+                        "{name}: the written file does not hold {} as its frame and text",
+                        g.name
+                    );
+                    written_frames += 1;
+                }
+            }
+        }
+        println!("{name}: {written_frames} written frames fitted");
+        assert!(
+            written_frames > 0 || drawn == 0,
+            "{name}: no written frame was fitted"
+        );
         println!(
             "{name}: glyph direction checked on {} saved graphics",
             file_checked.len()
