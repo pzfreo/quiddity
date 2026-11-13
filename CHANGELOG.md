@@ -4,7 +4,11 @@ All notable changes to quiddity-rust and haecceity. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Alpha 1's gates and their evidence are
 in [docs/alpha1.md](docs/alpha1.md).
 
-## Unreleased
+## 0.5.2 (2026-11-13)
+
+A patch release: faster recognition with byte-identical output, contributed by xu9299. No API
+change. Measured against 0.5.1: about 18% less CPU on per-product assemblies, about 48%
+less memory when writing evidence, about 8% less CPU on large freeform parts.
 
 ### Changed
 
