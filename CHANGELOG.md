@@ -4,6 +4,22 @@ All notable changes to quiddity-rust and haecceity. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Alpha 1's gates and their evidence are
 in [docs/alpha1.md](docs/alpha1.md).
 
+## Unreleased
+
+- **GD&T frames match CAD's native TOLERANCE.** New `haecceity::presentation::gdt::cad_control_frame`
+  and `cad_datum_frame` lay frames out as CAD does: 2.5 mm text (`gdt::TEXT_HEIGHT`, intended
+  pen `gdt::TEXT_PEN` 0.25 mm), a box twice the text height (5 mm, was 6 mm), each cell its ink
+  plus the text height. The symbols and text are strokes and arcs from QCAD's public-domain
+  `gdt` and `Standard` fonts (credited in `NOTICE`), so `Callout::letters` is empty for frames
+  and `strokes`/`arcs` after `frame_strokes` carry all the ink; `runs`, `cells` and `cell_boxes`
+  are unchanged in meaning. `gdt::cad_frame_missing` reports characters neither font has.
+  `presentation::tolerance` and `presentation::datum` now use them, so written presentations
+  change (the committed written fixtures were regenerated).
+- `control_frame` and `datum_frame` are unchanged and are superseded by the new functions;
+  they will be deprecated in the next minor release.
+- The text layer's coverage of the characteristic symbols (the private `glyph`) now draws
+  from the `gdt` font instead of the hand-made strokes.
+
 ## 0.5.0 (2026-11-12)
 
 Upgrading from 0.4.9:

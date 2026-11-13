@@ -52,3 +52,8 @@ Its supporting crates by the same author are i_float 4.1.0
 (https://github.com/iShape-Rust/i_shape), i_tree 0.19.0
 (https://github.com/iShape-Rust/iTree), and i_key_sort 0.11.0
 (https://github.com/iShape-Rust/iKeySort), each licensed MIT.
+
+crates/haecceity/src/presentation/fonts/Standard.cxf and gdt.cxf are QCAD 3 stroke fonts by
+Andrew Mustun (RibbonSoft), copied unchanged. QCAD's licence file states that its CXF fonts
+in the fonts directory are released as public domain, all copyright waived. They draw the
+text and symbols of GD&T frames, matching the sizes CAD systems give a native TOLERANCE.

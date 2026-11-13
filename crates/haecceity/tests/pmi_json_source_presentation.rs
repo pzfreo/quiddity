@@ -481,8 +481,20 @@ fn asymmetric_gdt_ink_honours_the_supplied_alignment() {
         let callout =
             haecceity::presentation::tolerance(&semantic.pmi.tolerances[0], &semantic.pmi);
         assert_eq!(lines.len(), callout.polylines().len());
-        // The profile characteristic is the first arc, after frame/other straight strokes.
-        let bounds = ink_bounds(&lines[callout.strokes.len()..callout.strokes.len() + 1]);
+        // The profile characteristic is the ink in the first cell after the frame lines (its
+        // half circle is pre-tessellated into strokes, so it is no longer the first arc).
+        let local = callout.polylines();
+        let cell = callout.cell_boxes[0];
+        let symbol: Vec<_> = (callout.frame_strokes..local.len())
+            .filter(|&i| {
+                local[i]
+                    .iter()
+                    .all(|p| (0..2).all(|k| p[k] >= cell[0][k] - 1e-9 && p[k] <= cell[1][k] + 1e-9))
+            })
+            .map(|i| lines[i].clone())
+            .collect();
+        assert!(!symbol.is_empty());
+        let bounds = ink_bounds(&symbol);
         assert_point(
             [
                 bounds.min[0] + fraction * (bounds.max[0] - bounds.min[0]),

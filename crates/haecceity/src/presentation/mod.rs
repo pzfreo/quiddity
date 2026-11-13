@@ -8,6 +8,7 @@
 
 use crate::pmi::*;
 
+mod cxf;
 pub mod gdt;
 pub mod linear;
 pub mod notes;
@@ -28,14 +29,18 @@ pub struct Text {
 #[non_exhaustive]
 pub struct Callout {
     pub strokes: Vec<[[f64; 2]; 2]>,
-    /// Initial straight strokes which form frames (remaining strokes are symbols).
+    /// Initial straight strokes which form frames (remaining strokes are symbols or, in
+    /// GD&T frames, the text itself).
     pub frame_strokes: usize,
-    /// Explicit symbol strokes/arcs also represented in readable text cells.
+    /// Strokes and arcs after the frame are text ink also represented in readable text cells
+    /// (`gdt` frames draw every glyph, symbols and characters alike, from the CAD fonts).
     pub text_symbols: bool,
     /// Local lower-left / upper-right corners, parallel to readable cells.
     pub cell_boxes: Vec<[[f64; 2]; 2]>,
     /// Centre x/y, radius, start/end angle in degrees.
     pub arcs: Vec<[f64; 5]>,
+    /// Text the renderer draws with the sheet font. Empty in GD&T frames, whose text is
+    /// geometry in `strokes` and `arcs`.
     pub letters: Vec<Text>,
     /// Text layer including symbols drawn geometrically rather than by the font.
     pub runs: Vec<Text>,
@@ -347,13 +352,12 @@ pub fn tolerance(t: &GeometricTolerance, p: &PartPmi) -> Callout {
                 .join("-")
         })
         .collect();
-    let mut c = gdt::control_frame(
+    let mut c = gdt::cad_control_frame(
         name,
         &t.magnitude.as_ref().map_or(String::new(), decimal),
         zone,
         material,
         &datums,
-        &text_width,
     );
     // Draftwright pmi.rs support()/tolerance() and dims/gdt.rs leader scope rings.
     fn around(p: &PartPmi, f: FeatureId, depth: usize) -> bool {
@@ -394,7 +398,7 @@ pub fn tolerance(t: &GeometricTolerance, p: &PartPmi) -> Callout {
 
 /// A boxed datum letter about the local origin (Draftwright's datum frame).
 pub fn datum(letter: &str) -> Callout {
-    gdt::datum_frame(letter)
+    gdt::cad_datum_frame(letter)
 }
 
 /// A thread's stated designation, class and manufacturing depth. Never infer a
