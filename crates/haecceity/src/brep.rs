@@ -663,6 +663,17 @@ impl Part {
         self.file_uncertainty
     }
 
+    /// The writer preserves a master choice only where the recovered integral
+    /// depends on it. Resolve canonical mass first so output never depends on
+    /// whether a caller happened to query the cache before writing.
+    pub(crate) fn recovered_master_pcurve(&self, face: usize, slot: usize) -> bool {
+        self.primary_pcurves
+            .get(&face)
+            .is_some_and(|slots| slots.contains(&slot))
+            && self.face_mass(face).is_some()
+            && self.cache[face].preferred_mass.get().is_some()
+    }
+
     pub(crate) fn primary_pcurves(
         &self,
         face: usize,

@@ -1512,6 +1512,7 @@ impl<'p> Writer<'p> {
             let end = vertex(&mut self.b, e.vertices.1, e.end)?;
             let curve = self.curve(i)?;
             let mut pcurves = Vec::new();
+            let mut master = m::PreferredSurfaceCurveRepresentation::Curve3d;
             for &(f, slot, raw) in &uses[i] {
                 if pcurves.len() == 2 {
                     report.pcurves_not_written.push(format!(
@@ -1520,7 +1521,16 @@ impl<'p> Writer<'p> {
                     continue;
                 }
                 match self.pcurve(f, slot, raw, &surfaces[f])? {
-                    Ok(p) => pcurves.push(m::PcurveOrSurfaceRef::Pcurve(p)),
+                    Ok(p) => {
+                        if raw && self.part.recovered_master_pcurve(f, slot) {
+                            master = if pcurves.is_empty() {
+                                m::PreferredSurfaceCurveRepresentation::PcurveS1
+                            } else {
+                                m::PreferredSurfaceCurveRepresentation::PcurveS2
+                            };
+                        }
+                        pcurves.push(m::PcurveOrSurfaceRef::Pcurve(p));
+                    }
                     Err(why) => report
                         .pcurves_not_written
                         .push(format!("face {f} edge {i}: {why}")),
@@ -1531,19 +1541,9 @@ impl<'p> Writer<'p> {
             let geometry = if pcurves.is_empty() {
                 curve
             } else if seam[i] && pcurves.len() == 2 {
-                m::CurveRef::SeamCurve(a.add_seam_curve(
-                    "",
-                    curve,
-                    pcurves,
-                    m::PreferredSurfaceCurveRepresentation::Curve3d,
-                )?)
+                m::CurveRef::SeamCurve(a.add_seam_curve("", curve, pcurves, master)?)
             } else {
-                m::CurveRef::SurfaceCurve(a.add_surface_curve(
-                    "",
-                    curve,
-                    pcurves,
-                    m::PreferredSurfaceCurveRepresentation::Curve3d,
-                )?)
+                m::CurveRef::SurfaceCurve(a.add_surface_curve("", curve, pcurves, master)?)
             };
             edge_ids.push(a.add_edge_curve(
                 "",

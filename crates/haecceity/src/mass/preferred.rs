@@ -675,6 +675,8 @@ mod tests {
     #[test]
     fn step_master_selection_and_rigid_motion_survive_the_retry() {
         let p = narrow_parabola();
+        let raw = std::collections::BTreeMap::from([(0, p.file_pcurves(0).to_vec())]);
+        let p = p.with_file_pcurves(raw, Default::default(), (1., 1.), Some(0.002));
         let (bytes, report) = crate::brep_write::write_step(
             &p,
             &crate::brep_write::WriteOptions::new("synthetic near-parallel tangents"),
@@ -692,6 +694,26 @@ mod tests {
         let m = selected
             .face_moments(0)
             .expect("reader retains explicit master");
+        let (bytes, _) = crate::brep_write::write_step(
+            &selected,
+            &crate::brep_write::WriteOptions::new("recovered trim"),
+        )
+        .unwrap();
+        let back = crate::step::read_step(&bytes).unwrap();
+        let again = back
+            .face_moments(0)
+            .expect("writing preserves recovered master");
+        assert!((again.area - m.area).abs() < 1e-9 * m.area);
+        let fresh = crate::step::read_step(text.as_bytes()).unwrap();
+        let (fresh_bytes, _) = crate::brep_write::write_step(
+            &fresh,
+            &crate::brep_write::WriteOptions::new("recovered trim"),
+        )
+        .unwrap();
+        assert_eq!(
+            bytes, fresh_bytes,
+            "written output must not depend on prior mass queries"
+        );
         let at = [
             [0., -1., 0., 123.456],
             [1., 0., 0., -78.9],

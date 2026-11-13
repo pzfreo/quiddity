@@ -478,6 +478,7 @@ impl Reader<'_> {
         &self,
         face: &StepFace<'_>,
         edge_index: &HashMap<m::EntityKey, usize>,
+        collect_preferred: bool,
     ) -> (Vec<(usize, RawCurve2d)>, Vec<usize>) {
         let basis = face.surface().key();
         let mut out = Vec::new();
@@ -517,11 +518,13 @@ impl Reader<'_> {
                         .items
                     {
                         if let Some(curve) = self.raw_curve_2d(item) {
-                            if matches!(
-                                (master, slot),
-                                (m::PreferredSurfaceCurveRepresentation::PcurveS1, 0)
-                                    | (m::PreferredSurfaceCurveRepresentation::PcurveS2, 1)
-                            ) {
+                            if collect_preferred
+                                && matches!(
+                                    (master, slot),
+                                    (m::PreferredSurfaceCurveRepresentation::PcurveS1, 0)
+                                        | (m::PreferredSurfaceCurveRepresentation::PcurveS2, 1)
+                                )
+                            {
                                 primary.push(out.len());
                             }
                             out.push((index, curve));
@@ -2309,7 +2312,9 @@ fn build(parsed: &Parsed, scope: Scope<'_>) -> Result<Read, StepError> {
             {
                 swept.insert(out_faces.len(), source);
             }
-            let (raw, primary) = reader.file_pcurves(&face, &edge_index);
+            let collect_preferred =
+                matches!(&surface,Surface::Freeform{kind,..} if matches!(*kind,"BSPLINE"|"BEZIER"));
+            let (raw, primary) = reader.file_pcurves(&face, &edge_index, collect_preferred);
             if !primary.is_empty() {
                 primary_pcurves.insert(out_faces.len(), primary);
             }

@@ -32,7 +32,11 @@ pcurve variation bound allocates half of F to those primitives. Their weighted
 errors are added to the outer estimates; no unresolved prefix is published.
 Both levels use numerical estimates, as the ordinary integrator does, rather than
 rigorous mathematical true-error bounds. Canonical mass is recovered independently
-before a failed shared moment pass can publish or cache a mass result.
+before a failed shared moment pass can publish or cache a mass result. Its cache
+records which boundary supplied mass so later moments use the same region. The
+B-rep writer preserves that master choice for recovered faces; it resolves mass
+before choosing the flag, keeping its output independent of query order. Other
+written faces retain their existing representation choices.
 
 ADR 0008's tolerance distinction is retained: endpoint connectivity uses a modelling
 noise band; numerical publication still uses the face-relative quadrature policy.
