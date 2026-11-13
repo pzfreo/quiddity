@@ -6,6 +6,10 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+### Fixed
+
+- Recover refused trimmed spline face integrals from complete, explicitly preferred STEP pcurves, with bounded inner and outer error checks (#245).
+
 ### Changed
 
 - Serialize physical evidence records once per document; existing output and refusal contracts are retained.

@@ -3,7 +3,8 @@
 //! their foot points on the surface bound, which is where OpenCascade's own answer lands once
 //! a face's pcurves are projected from those curves) and evaluated by Gauss quadrature to near
 //! machine precision (the body signatures families publish round them to twelve significant
-//! figures). `tests/face_areas.rs` checks every corpus face against OpenCascade.
+//! figures). A refused projection may retry a complete explicitly preferred STEP pcurve trim
+//! with bounded inner and outer error checks (`docs/face-integral-recovery.md`). `tests/face_areas.rs` checks every corpus face against OpenCascade.
 //!
 //! ∬_D f du dv = −∮ H du with H(u, v) = ∫ f(u, s) ds from a fixed v, or ∮ G dv with
 //! G(u, v) = ∫ f(s, v) ds from a fixed u. The first ignores boundary pieces of constant u
@@ -15,6 +16,8 @@
 //! adaptive (Gauss–Kronrod), split where the foot point turns a corner onto or off the
 //! surface's boundary or crosses a knot line. Each loop's direction is read from the geometry
 //! (which side of it the face lies on), not from the file's orientation flags.
+
+mod preferred;
 
 use std::sync::OnceLock;
 
@@ -708,11 +711,23 @@ impl Part {
                 0.0,
             ]);
         }
-        self.face_integral(face, |p, su, sv| {
+        let density = |p, su, sv| {
             let n = geom::cross(su, sv);
             [geom::norm(n), geom::dot(p, n), n[0], n[1], n[2]]
-        })
-        .filter(|m| m[0] > 0.0 && m.iter().all(|x| x.is_finite()))
+        };
+        let valid = |m: &[f64; 5]| m[0] > 0. && m.iter().all(|x| x.is_finite());
+        let rule = IntegralRule {
+            components: Components::Prefix(5),
+            observe_mass: None,
+        };
+        if let Some(value) = self.integrate_face_legacy(face, density, rule) {
+            return valid(&value).then_some(value);
+        }
+        let value = self
+            .integrate_preferred_face(face, density, rule.components)
+            .filter(valid)?;
+        let _ = self.cache[face].preferred_mass.set(());
+        Some(value)
     }
 
     /// ∬ f du dv over the face's trimmed parameter domain.
@@ -761,6 +776,29 @@ impl Part {
     }
 
     fn integrate_face<const N: usize>(
+        &self,
+        face: usize,
+        f: impl Fn(V3, V3, V3) -> [f64; N],
+        rule: IntegralRule,
+    ) -> Option<[f64; N]> {
+        if self.cache[face].preferred_mass.get().is_none()
+            && let Some(value) = self.integrate_face_legacy(face, &f, rule)
+        {
+            return Some(value);
+        }
+        // A failed shared mass pass must not poison the cache before its own retry.
+        // Retry canonical mass independently; additional fields never rescue mass.
+        if rule.observe_mass.is_some() && self.cache[face].mass.get().is_none() {
+            let mass = self.compute_face_mass(face);
+            let _ = self.cache[face].mass.set(mass);
+            mass?;
+        }
+        // Do not mix a successful 3D mass region with moments of a different trim.
+        self.cache[face].preferred_mass.get()?;
+        self.integrate_preferred_face(face, f, rule.components)
+    }
+
+    fn integrate_face_legacy<const N: usize>(
         &self,
         face: usize,
         f: impl Fn(V3, V3, V3) -> [f64; N],
@@ -872,7 +910,6 @@ impl Part {
                         u_ref,
                     )?;
                     if refined.1 > mass_floor {
-                        let _ = self.cache[face].mass.set(None);
                         return None;
                     }
                     (refined.0, refined.3)
@@ -886,7 +923,9 @@ impl Part {
                 }
             }
             let mass = (mass[0] > 0.0 && mass.iter().all(|x| x.is_finite())).then_some(mass);
-            let _ = self.cache[face].mass.set(mass);
+            if mass.is_some() {
+                let _ = self.cache[face].mass.set(mass);
+            }
             mass?;
         }
         let floor = 1e-11 * passes.iter().map(|p| p.0.2).sum::<f64>();
