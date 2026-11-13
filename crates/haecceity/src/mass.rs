@@ -3,7 +3,7 @@
 //! foot points on the surface. A refused projection may recover using the file's
 //! explicit master pcurves, measuring the region they bound. That region can differ
 //! from a 3D-edge answer by the file's own 2D/3D disagreement, bounded by a sampled
-//! interior check. Both walks retain bounded inner and outer numerical error checks;
+//! interior check. Recovery uses bounded inner and outer numerical error checks;
 //! see `docs/face-integration-work.md`, "Recovery from an explicit master trim".
 //! `tests/face_areas.rs` checks every corpus face against OpenCascade.
 //!
