@@ -49,7 +49,6 @@ use super::section_recess::{
     SectionRecessEvidence, SectionRecessFaceRef, SectionRecessGeometry, SectionRecessGrid,
     SectionRecessPattern, SectionRecessRefusal, open_profile_material_side,
 };
-use super::section_recess_discovery::discover_section_recesses;
 use super::section_recess_geometry::{
     cylindrical_channel_geometry, has_physical_planar_floor, polygonal_shape,
 };
@@ -158,10 +157,7 @@ pub(crate) fn section_recess_projection_in(
     inventory: &Inventory,
 ) -> Result<SectionRecessProjection, SectionRecessFamilyError> {
     let surfaces = EffectiveFaces::new(ctx);
-    let native = discover_section_recesses(ctx, &surfaces)?
-        .into_iter()
-        .map(|o| o.record)
-        .collect();
+    let native = ctx.native_section_recesses(&surfaces).clone()?;
     project(ctx, &surfaces, inventory, native)
 }
 

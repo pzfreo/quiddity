@@ -12,6 +12,7 @@ use super::body::{BodyKey, body_signature, unambiguous_body_keys};
 use super::cylinders::{CylinderEvidence, analyse_cylinders};
 use super::modelled_threads::{ThreadAnalysis, analyse_modelled_threads};
 use super::passages::{Found, PassageError, find_section_passages};
+use super::section_recess::{SectionRecess, SectionRecessError};
 use crate::kernel::brep::Part;
 use crate::kernel::classify::Classifier;
 use crate::kernel::geom::{Bounds, V3};
@@ -62,6 +63,7 @@ pub struct Context<'a> {
     surface_moments: Vec<OnceLock<Option<crate::kernel::mass::FaceMoments>>>,
     signatures: OnceLock<Vec<Option<BodyKey>>>,
     section_passages: OnceLock<Result<Vec<Found>, PassageError>>,
+    native_section_recesses: [OnceLock<Result<Vec<SectionRecess>, SectionRecessError>>; 2],
 }
 
 impl<'a> Context<'a> {
@@ -85,6 +87,7 @@ internal_entry! {
             surface_moments: part.faces.iter().map(|_| OnceLock::new()).collect(),
             signatures: OnceLock::new(),
             section_passages: OnceLock::new(),
+            native_section_recesses: std::array::from_fn(|_| OnceLock::new()),
         }
     }
 }
@@ -212,6 +215,20 @@ internal_entry! {
     pub(super) fn section_passages(&self) -> &Result<Vec<Found>, PassageError> {
         self.section_passages
             .get_or_init(|| find_section_passages(self))
+    }
+
+    /// Geometry-only records shared by reconciliation and publication. Strict and locally
+    /// degraded ownership proofs occupy separate slots; neither the accepted inventory nor
+    /// its projection is cached. A complete discovery refusal is retained unchanged.
+    pub(crate) fn native_section_recesses(
+        &self,
+        surfaces: &super::effective_surfaces::EffectiveFaces<'_, '_>,
+    ) -> &Result<Vec<SectionRecess>, SectionRecessError> {
+        let mode = usize::from(super::evidence::local_degradation());
+        self.native_section_recesses[mode].get_or_init(|| {
+            super::section_recess_discovery::discover_section_recesses(self, surfaces)
+                .map(|found| found.into_iter().map(|occurrence| occurrence.record).collect())
+        })
     }
 
     /// The volume *face* moved by *offset* and swept along *sweep* shares with one solid

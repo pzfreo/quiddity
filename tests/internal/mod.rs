@@ -60,6 +60,8 @@ mod sealed_voids;
 mod section_geometry;
 #[path = "section_recess.rs"]
 mod section_recess;
+#[path = "section_recess_cache.rs"]
+mod section_recess_cache;
 #[path = "section_recess_geometry.rs"]
 mod section_recess_geometry;
 #[path = "section_recess_helpers.rs"]
