@@ -728,7 +728,19 @@ mod tests {
             knots: vec![0., 1.2],
             weights: None,
         };
-        let p = p.with_file_pcurves(
+        let mut edges = p.edges.clone();
+        // Make the tested edge agree exactly at both ends, not merely within
+        // STEP's connectivity precision. The other offset edges still require recovery.
+        let start = p.faces[0].surface.value(0.2, 0.001);
+        let end = p.faces[0].surface.value(0.8, 0.001);
+        edges[0].start = start;
+        edges[0].end = end;
+        edges[0].curve = Curve::Line {
+            origin: start,
+            dir: [1., 0., 0.],
+        };
+        edges[0].samples = vec![start, end];
+        let p = Part::new(p.faces.clone(), edges, vec![]).with_file_pcurves(
             std::collections::BTreeMap::from([(0, raw)]),
             std::collections::BTreeMap::from([(0, vec![0, 1, 2, 3])]),
             (1., 1.),
@@ -737,7 +749,7 @@ mod tests {
         let pc = raw_param_curve(&p.file_pcurves(0)[0].1).unwrap();
         for (t, end) in [(0., p.edges[0].start), (1.2, p.edges[0].end)] {
             let uv = pc.value(t);
-            assert!(geom::dist(p.faces[0].surface.value(uv[0], uv[1]), end) < 0.002);
+            assert!(geom::dist(p.faces[0].surface.value(uv[0], uv[1]), end) < 1e-14);
         }
         assert!(
             master_deviation(&p.faces[0].surface, &pc, &p.edges[0].curve, 0., 1.2).unwrap()
