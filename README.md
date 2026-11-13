@@ -22,7 +22,7 @@ draftwright-editor's `npm run showcase:render`.*
 *Each face of NIST CTC-01 (AP242) coloured by the feature it belongs to; grey faces belong
 to no feature shown here.*
 
-Status: **0.5.0** (2026-11-12). See [CHANGELOG.md](CHANGELOG.md).
+Status: **0.5.1** (2026-11-13). See [CHANGELOG.md](CHANGELOG.md).
 
 The [geometric validation accuracy tool](docs/geometric-validation.md) compares exact
 volume, area and centroid against STEP validation properties and independent OCCT measurements.
