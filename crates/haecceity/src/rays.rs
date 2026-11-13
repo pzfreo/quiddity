@@ -65,17 +65,25 @@ enum Node {
     Split(Box<Bounds>, Box<Node>, Box<Bounds>, Box<Node>),
 }
 
+/// Geometry-only edge queries shared by all ray casters borrowing the same part.
+#[derive(Debug)]
+pub(super) struct RayEdges {
+    boxes: Vec<Bounds>,
+    runs: Vec<Vec<Bounds>>,
+    cracks: Vec<std::sync::OnceLock<f64>>,
+}
+
 pub struct RayCaster<'a> {
     pub(super) part: &'a Part,
     /// The faces rays meet.
     pub(super) faces: Vec<usize>,
     /// Per part face: a box that certainly contains it (freeform faces use their control points).
-    pub(super) face_boxes: Vec<Bounds>,
-    pub(super) edge_boxes: Vec<Bounds>,
+    pub(super) face_boxes: std::borrow::Cow<'a, [Bounds]>,
+    pub(super) edge_boxes: &'a [Bounds],
     /// Per part edge: the box of each run of [`RUN`] polyline segments, padded by
     /// [`run_slack`], so that a search near an edge skips the runs out of reach
     /// ([`Self::polyline_within`]).
-    edge_runs: Vec<Vec<Bounds>>,
+    edge_runs: &'a [Vec<Bounds>],
     root: Node,
     pub(super) root_box: Bounds,
     /// A hit this close to a face's boundary is on the boundary. It exceeds the edges' polyline
@@ -83,7 +91,7 @@ pub struct RayCaster<'a> {
     pub(super) edge_tol: f64,
     /// Per part edge, once asked: the furthest it strays from any face's surface it bounds
     /// ([`Self::crack`]).
-    cracks: Vec<std::sync::OnceLock<f64>>,
+    cracks: &'a [std::sync::OnceLock<f64>],
     /// Per part face: whether rays meet it (it is one of `faces`).
     member: Vec<bool>,
     /// Whether every face rays meet can be intersected, so that [`Self::hits`] never gives up.
@@ -97,23 +105,25 @@ impl<'a> RayCaster<'a> {
     }
 
     pub fn for_faces(part: &'a Part, faces: Vec<usize>) -> Self {
-        let face_boxes: Vec<Bounds> = (0..part.faces.len())
-            .map(|i| match &part.faces[i].surface {
-                // A freeform face's box is sampled, so padded to be sure of it: its control
-                // net's box is certain but can be far larger (a helix's spans its cylinder).
-                Surface::Freeform { surface, .. } => {
-                    let b = part.face_bounds(i);
-                    let pad = 0.02 * b.diagonal() + 1e-3;
-                    let (min, max) = surface.control_bounds();
-                    Bounds {
-                        min: [0, 1, 2].map(|k| (b.min[k] - pad).max(min[k])),
-                        max: [0, 1, 2].map(|k| (b.max[k] + pad).min(max[k])),
+        let face_boxes = part.ray_face_boxes.get_or_init(|| {
+            (0..part.faces.len())
+                .map(|i| match &part.faces[i].surface {
+                    // A freeform face's box is sampled, so padded to be sure of it: its control
+                    // net's box is certain but can be far larger (a helix's spans its cylinder).
+                    Surface::Freeform { surface, .. } => {
+                        let b = part.face_bounds(i);
+                        let pad = 0.02 * b.diagonal() + 1e-3;
+                        let (min, max) = surface.control_bounds();
+                        Bounds {
+                            min: [0, 1, 2].map(|k| (b.min[k] - pad).max(min[k])),
+                            max: [0, 1, 2].map(|k| (b.max[k] + pad).min(max[k])),
+                        }
                     }
-                }
-                _ => part.face_bounds(i),
-            })
-            .collect();
-        Self::with_face_boxes(part, faces, face_boxes)
+                    _ => part.face_bounds(i),
+                })
+                .collect()
+        });
+        Self::with_geometry(part, faces, std::borrow::Cow::Borrowed(face_boxes))
     }
 
     /// Rays against *faces*, each pruned by its box in *face_boxes* (one per part face), which
@@ -123,16 +133,29 @@ impl<'a> RayCaster<'a> {
         faces: Vec<usize>,
         face_boxes: Vec<Bounds>,
     ) -> Self {
-        let edge_boxes = part
-            .edges
-            .iter()
-            .map(|e| {
-                let mut b = Bounds::empty();
-                e.samples.iter().for_each(|p| b.add(*p));
-                b
-            })
-            .collect();
-        let edge_runs = part.edges.iter().map(|e| runs(&e.samples)).collect();
+        Self::with_geometry(part, faces, std::borrow::Cow::Owned(face_boxes))
+    }
+
+    fn with_geometry(
+        part: &'a Part,
+        faces: Vec<usize>,
+        face_boxes: std::borrow::Cow<'a, [Bounds]>,
+    ) -> Self {
+        let edges = part.ray_edges.get_or_init(|| RayEdges {
+            boxes: part
+                .edges
+                .iter()
+                .map(|e| {
+                    let mut b = Bounds::empty();
+                    e.samples.iter().for_each(|p| b.add(*p));
+                    b
+                })
+                .collect(),
+            runs: part.edges.iter().map(|e| runs(&e.samples)).collect(),
+            cracks: (0..part.edges.len())
+                .map(|_| std::sync::OnceLock::new())
+                .collect(),
+        });
         let mut root_box = Bounds::empty();
         for &f in &faces {
             root_box.merge(&face_boxes[f]);
@@ -148,14 +171,12 @@ impl<'a> RayCaster<'a> {
             part,
             faces,
             face_boxes,
-            edge_boxes,
-            edge_runs,
+            edge_boxes: &edges.boxes,
+            edge_runs: &edges.runs,
             root,
             root_box,
             edge_tol,
-            cracks: (0..part.edges.len())
-                .map(|_| std::sync::OnceLock::new())
-                .collect(),
+            cracks: &edges.cracks,
             member,
             intersectable,
         }
@@ -1040,6 +1061,136 @@ fn ray_box_entry(p: V3, dir: V3, t_max: f64, b: &Bounds, pad: f64) -> Option<f64
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ray_geometry_is_shared_but_membership_and_custom_boxes_are_not() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/two_solids.step");
+        let loaded = crate::read_step_file(&path).unwrap();
+        let part = Part::new(
+            loaded.faces.clone(),
+            loaded.edges.clone(),
+            loaded.solids.clone(),
+        );
+        let custom_boxes: Vec<_> = (0..part.faces.len()).map(|f| part.face_bounds(f)).collect();
+        let custom = RayCaster::with_face_boxes(&part, vec![0], custom_boxes.clone());
+        assert!(part.ray_face_boxes.get().is_none());
+        assert!(matches!(custom.face_boxes, std::borrow::Cow::Owned(_)));
+        assert_eq!(&*custom.face_boxes, custom_boxes);
+        let first = RayCaster::for_solid(&part, 0);
+        let second = RayCaster::for_solid(&part, 1);
+        assert!(std::ptr::eq(
+            first.face_boxes.as_ptr(),
+            second.face_boxes.as_ptr()
+        ));
+        assert!(std::ptr::eq(
+            first.edge_boxes.as_ptr(),
+            second.edge_boxes.as_ptr()
+        ));
+        assert!(std::ptr::eq(
+            first.edge_runs.as_ptr(),
+            second.edge_runs.as_ptr()
+        ));
+        assert!(std::ptr::eq(first.cracks.as_ptr(), second.cracks.as_ptr()));
+        assert!(std::ptr::eq(
+            first.edge_boxes.as_ptr(),
+            custom.edge_boxes.as_ptr()
+        ));
+        assert_ne!(first.faces, second.faces);
+        assert_ne!(first.member, second.member);
+        assert_ne!(first.root_box, second.root_box);
+    }
+
+    #[test]
+    fn shared_ray_queries_keep_hits_and_classification_from_fresh_parts() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures");
+        for name in [
+            "two_solids.step",
+            "rejected_bored_box.step",
+            "held_side_knot.step",
+        ] {
+            let part = crate::read_step_file(&dir.join(name)).unwrap();
+            let bounds = part.bounds();
+            let span = bounds.diagonal() + 1.0;
+            for solid in 0..part.solids.len() {
+                let shared = crate::classify::Classifier::for_solid(&part, solid);
+                let independent =
+                    Part::new(part.faces.clone(), part.edges.clone(), part.solids.clone());
+                let fresh = crate::classify::Classifier::for_solid(&independent, solid);
+                for point in [bounds.centre(), bounds.min, bounds.max, [0.0; 3]] {
+                    assert_eq!(shared.classify(point), fresh.classify(point), "{name}");
+                    for direction in [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]] {
+                        let bits = |hits: Option<Vec<Hit>>| {
+                            hits.map(|v| {
+                                v.into_iter()
+                                    .map(|h| (h.face, h.t.to_bits()))
+                                    .collect::<Vec<_>>()
+                            })
+                        };
+                        assert_eq!(
+                            bits(shared.rays().hits(point, direction, span)),
+                            bits(fresh.rays().hits(point, direction, span)),
+                            "{name} solid {solid}"
+                        );
+                    }
+                }
+                for edge in part.solids[solid]
+                    .faces
+                    .iter()
+                    .flat_map(|&f| part.face_edges(f))
+                {
+                    assert_eq!(
+                        shared.rays().crack(edge).to_bits(),
+                        fresh.rays().crack(edge).to_bits()
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn ray_geometry_is_invalidated_by_transform_and_orientation_repair() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/two_solids.step");
+        let mut part = crate::read_step_file(&path).unwrap();
+        let before = RayCaster::for_solid(&part, 0);
+        let moved = part
+            .transformed(&[
+                [1.0, 0.0, 0.0, 10.0],
+                [0.0, 1.0, 0.0, -7.0],
+                [0.0, 0.0, 1.0, 4.0],
+            ])
+            .unwrap();
+        assert!(moved.ray_face_boxes.get().is_none());
+        assert!(moved.ray_edges.get().is_none());
+        let after = RayCaster::for_solid(&moved, 0);
+        assert!(!std::ptr::eq(
+            before.edge_boxes.as_ptr(),
+            after.edge_boxes.as_ptr()
+        ));
+        assert_ne!(before.root_box, after.root_box);
+        drop(before);
+        part.record_inverted_shell_repair(0, true);
+        assert!(part.ray_face_boxes.get().is_none());
+        assert!(part.ray_edges.get().is_none());
+        let independent = Part::new(part.faces.clone(), part.edges.clone(), part.solids.clone());
+        let repaired = RayCaster::for_solid(&part, 0);
+        let fresh = RayCaster::for_solid(&independent, 0);
+        assert_eq!(repaired.face_boxes, fresh.face_boxes);
+        assert_eq!(repaired.edge_boxes, fresh.edge_boxes);
+        assert_eq!(repaired.edge_runs, fresh.edge_runs);
+        drop(repaired);
+        let flipped = part.solids[0].faces[0];
+        part.record_mixed_normal_repair(0, &[flipped]);
+        assert!(part.ray_face_boxes.get().is_none());
+        assert!(part.ray_edges.get().is_none());
+        let independent = Part::new(part.faces.clone(), part.edges.clone(), part.solids.clone());
+        let repaired = RayCaster::for_solid(&part, 0);
+        let fresh = RayCaster::for_solid(&independent, 0);
+        assert_eq!(repaired.face_boxes, fresh.face_boxes);
+        assert_eq!(repaired.edge_boxes, fresh.edge_boxes);
+        assert_eq!(repaired.edge_runs, fresh.edge_runs);
+    }
 
     #[test]
     fn any_hit_is_unknown_where_only_an_unintersectable_face_is_reached() {
