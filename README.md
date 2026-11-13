@@ -27,6 +27,12 @@ Status: **0.5.1** (2026-11-13). See [CHANGELOG.md](CHANGELOG.md).
 The [geometric validation accuracy tool](docs/geometric-validation.md) compares exact
 volume, area and centroid against STEP validation properties and independent OCCT measurements.
 
+**Contents:** [Runs on](#runs-on) · [Install](#install) · [Quick start](#quick-start) ·
+[Recognise a part](#recognise-a-part) · [Accuracy and speed](#accuracy-and-speed) ·
+[Compare two revisions](#compare-two-revisions) · [Read and write PMI](#read-and-write-pmi) ·
+[Command line](#command-line) · [Limits](#limits) · [Packages](#packages) ·
+[Contributing](#contributing) · [History](#history)
+
 ## Runs on
 
 | Target | Get it | Tested in CI |
