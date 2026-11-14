@@ -118,22 +118,24 @@ pub fn shared_occurrences(part: &Part, a: usize, b: usize) -> Vec<usize> {
     let mut out = Vec::new();
     for edge in part.shared_edges(a, b) {
         let (left, right) = (uses(a, edge), uses(b, edge));
-        if left.len() != right.len() {
-            continue;
-        }
-        let unique = left
-            .iter()
-            .all(|l| right.iter().filter(|r| *r != l).count() == 1)
-            && right
-                .iter()
-                .all(|r| left.iter().filter(|l| *l != r).count() == 1);
-        if unique {
+        if uniquely_paired_uses(&left, &right) {
             // One occurrence per pair: as many as the edge has uses on either side.
             out.extend(std::iter::repeat_n(edge, left.len()));
         }
     }
     out
 }
+}
+
+/// Whether every use has exactly one opposite partner on the other face, in both directions.
+pub(super) fn uniquely_paired_uses(left: &[bool], right: &[bool]) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .all(|l| right.iter().filter(|r| *r != l).count() == 1)
+        && right
+            .iter()
+            .all(|r| left.iter().filter(|l| *l != r).count() == 1)
 }
 
 internal_entry! {
