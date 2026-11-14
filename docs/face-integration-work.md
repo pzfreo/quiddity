@@ -51,7 +51,8 @@ finishes with excess still greater than `F` (the original also returns `None`).
 No continuation can produce a successful face result. The optimized walk may return
 that rejected prefix; the boundary propagates it immediately, and the unchanged
 caller applies the same rejection. In particular, the canonical mass-refinement
-caller still stores its `None` result before returning.
+caller records the canonical legacy refusal before considering an explicitly
+selected master trim. No rejected prefix is published.
 
 This does not reject a parent that can still be subdivided. With ordinary finite
 values, an accepted leaf that fails both the relative criterion and `F` was accepted
@@ -60,6 +61,72 @@ does not enter `E`. Equality with `F` is not refusal. With an infinite or NaN fl
 ordered `E > F` guard cannot trigger. Once it does trigger, Rust's `f64::max` cannot
 reduce the non-NaN `E`, even if a later estimate is NaN. Evaluation failures remain
 failures; no new numerical answer is invented.
+
+## Recovery from an explicit master trim
+
+A refused 3D projection may retry one complete, explicit STEP master-pcurve loop
+on a native, nonperiodic, noncollapsed B-spline or Bézier surface. Successful legacy
+integrals retain their operation order and values. Near parallel surface tangents
+can make Gauss–Newton oscillate even with small position residuals; using the file's
+selected trim supplies positions and derivatives without that ill-conditioned solve.
+Recovered faces measure the region bounded by the **file's master pcurves**. This
+can differ from a 3D-edge answer by the file's own representation disagreement.
+
+Each edge needs exactly one master pcurve, finite controls within the surface
+domain, and matching endpoints within the file's stated precision plus the kernel
+coordinate floor. Recovery additionally samples `|S(pc(t)) - C3d(t)|` at 33 equally
+spaced parameters (including endpoints) on **every span in the union of the 2D and
+3D curves' knot breaks**. Nonfinite distances or a sampled maximum greater than
+`0.001 * L` refuse recovery. Here `L` is the diagonal of this trimmed face's
+`Part::face_bounds` axis-aligned box, in millimetres, with no unit-size floor. This
+is the bounding-box length normalization used for GVP centroid evidence; tensor
+comparisons separately normalize by the reference inertia trace. The interior
+check bounds sampled disagreement, not an unsampled mathematical supremum. It
+uses the existing GVP band, not STEP's usually much tighter declared precision.
+Endpoint and small-gap connectivity checks retain their original precision band.
+
+Recovery also requires `maximum_deviation * P / A <= 0.001`, using that **same
+sampled maximum**, the physical length `P` of the master trim on the surface
+(including the short UV closing segments), and its integrated area `A`. This
+rejects long thin strips whose disagreement is small against the diagonal but
+large against their width. Length uses bounded adaptive Gauss–Kronrod with a
+face-relative error budget; its summed estimated length error is added to `P`.
+The area already passes the recovery integrator's numerical criteria before
+this guard runs, and neither mass nor moments are published before it passes.
+
+A known recall limit is that a NURBS pcurve's **whole knot domain must equal the
+edge interval**: a valid subinterval trim is still ineligible. Unsupported,
+missing, ambiguous or unresolved master trims remain unavailable.
+
+The outer rule retains its coarse `F = 1e-11 * magnitude`, `1e-9` local criterion,
+`MAX_DEPTH = 12`, and kink budget. Inner adaptive primitives sum their error
+estimates, use the same depth bound, and receive half of F through a conservative
+pcurve variation bound. Their explicitly node-paired weighted errors enter each
+outer panel's estimate. Unresolved integrals still refuse. These are numerical
+error estimates, as in the legacy walk, rather than rigorous true-error bounds.
+
+Canonical mass and boundary choice are published under one once-cell before any
+moments escape, including concurrent first queries. An unresolved canonical legacy
+quadrature retries only the eligible master boundary, without repeating legacy mass.
+A completed but invalid canonical sum stays refused, as in a standalone mass query.
+A failure evaluating additional moment fields before canonical mass was determined
+still needs an independent canonical query; it cannot poison a valid mass cache.
+### Export of source master flags
+
+STEP export preserves the source `PCURVE_S1`/`PCURVE_S2` flag on raw master slots
+of native B-spline and Bézier faces, even when no mass query or recovery has taken
+place. A source `CURVE_3D` designation stays `CURVE_3D`. This deliberately changes
+1,126 faces across the 11 flagged corpus files relative to the previous writer
+on main, which always emitted `CURVE_3D` for them. Export copies retained source
+metadata without integrating or consulting query-populated caches, preserving
+identical bytes with and without prior mass queries.
+
+The synthetic regression uses polynomial normal-offset edges on
+`S(u,v)=(w*u+v, epsilon*v, v²)`, with independent one-dimensional references for
+area, flux, centroid and central moments. The original narrow cases are rejected by the representation guards; a broad
+patch retains a localized ill-conditioned projection near its boundary while
+satisfying both bands. Endpoint-matching interior bulges also refuse. Neither reference bands
+nor quadrature tolerances are enlarged (ADR 0008).
 
 ## Settled volume queries
 

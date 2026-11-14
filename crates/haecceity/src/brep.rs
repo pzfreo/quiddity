@@ -226,7 +226,7 @@ pub(super) struct FaceCache {
     pub(super) uv_loops: OnceLock<Option<Vec<UvLoop>>>,
     pub(super) domain: OnceLock<Option<FaceDomain>>,
     pub(super) bounds: OnceLock<Bounds>,
-    pub(super) mass: OnceLock<Option<[f64; 5]>>,
+    pub(super) mass: OnceLock<super::mass::FaceMass>,
     pub(super) moments: OnceLock<Option<super::mass::FaceMoments>>,
     pub(super) edge_deviation: OnceLock<Vec<(usize, f64)>>,
     pub(super) uv_bounds: OnceLock<Option<(f64, f64, f64, f64)>>,
@@ -351,6 +351,8 @@ pub struct Part {
     // Every face's pcurves as the file states them, by edge (unscaled; the reader holds a
     // reduced form of an analytic face's, and none of a freeform face's).
     file_pcurves: std::collections::BTreeMap<usize, Vec<(usize, RawCurve2d)>>,
+    // Slots in file_pcurves explicitly selected as the master representation by STEP.
+    primary_pcurves: std::collections::BTreeMap<usize, Vec<usize>>,
     // The file's length and plane angle units in millimetres and radians.
     file_units: Option<(f64, f64)>,
     // The file's length uncertainty, in millimetres.
@@ -387,6 +389,7 @@ impl Part {
             edge_frames: Default::default(),
             swept: Default::default(),
             file_pcurves: Default::default(),
+            primary_pcurves: Default::default(),
             file_units: None,
             file_uncertainty: None,
             native_faces: Vec::new(),
@@ -589,6 +592,7 @@ impl Part {
         part.edge_frames = self.edge_frames.clone();
         part.swept = self.swept.clone();
         part.file_pcurves = self.file_pcurves.clone();
+        part.primary_pcurves = self.primary_pcurves.clone();
         part.file_units = self.file_units;
         part.file_uncertainty = self.file_uncertainty;
         part.native_faces = native_faces;
@@ -642,10 +646,12 @@ impl Part {
     pub(super) fn with_file_pcurves(
         mut self,
         pcurves: std::collections::BTreeMap<usize, Vec<(usize, RawCurve2d)>>,
+        primary: std::collections::BTreeMap<usize, Vec<usize>>,
         units: (f64, f64),
         uncertainty: Option<f64>,
     ) -> Self {
         self.file_pcurves = pcurves;
+        self.primary_pcurves = primary;
         self.file_units = Some(units);
         self.file_uncertainty = uncertainty;
         self
@@ -655,6 +661,25 @@ impl Part {
     /// millimetres.
     pub fn file_uncertainty(&self) -> Option<f64> {
         self.file_uncertainty
+    }
+
+    /// Preserve the file's explicit authority without asking an integral to choose it.
+    /// This is metadata, so writing never depends on a prior mass/moment query.
+    pub(crate) fn master_pcurve(&self, face: usize, slot: usize) -> bool {
+        self.primary_pcurves
+            .get(&face)
+            .is_some_and(|slots| slots.contains(&slot))
+    }
+
+    pub(crate) fn primary_pcurves(
+        &self,
+        face: usize,
+    ) -> impl Iterator<Item = &(usize, RawCurve2d)> {
+        self.primary_pcurves
+            .get(&face)
+            .into_iter()
+            .flatten()
+            .filter_map(move |&slot| self.file_pcurves(face).get(slot))
     }
 
     /// The pcurves the file gives on face *face*'s surface, by edge, as it states them.

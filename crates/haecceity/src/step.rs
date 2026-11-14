@@ -478,27 +478,28 @@ impl Reader<'_> {
         &self,
         face: &StepFace<'_>,
         edge_index: &HashMap<m::EntityKey, usize>,
-    ) -> Vec<(usize, RawCurve2d)> {
+        collect_preferred: bool,
+    ) -> (Vec<(usize, RawCurve2d)>, Vec<usize>) {
         let basis = face.surface().key();
         let mut out = Vec::new();
+        let mut primary = Vec::new();
         for bound in face.bounds() {
             for edge in bound.edges() {
                 let Some(&index) = edge_index.get(&edge.key()) else {
                     continue;
                 };
-                let associated = match &raw_edge_curve(self.model, &edge) {
+                let (associated, master) = match &raw_edge_curve(self.model, &edge) {
                     m::CurveRef::SurfaceCurve(i) => {
-                        &self
-                            .model
-                            .resolved(m::SurfaceCurveId(i.0))
-                            .associated_geometry
+                        let curve = self.model.resolved(m::SurfaceCurveId(i.0));
+                        (&curve.associated_geometry, curve.master_representation)
                     }
                     m::CurveRef::SeamCurve(i) => {
-                        &self.model.resolved(m::SeamCurveId(i.0)).associated_geometry
+                        let curve = self.model.resolved(m::SeamCurveId(i.0));
+                        (&curve.associated_geometry, curve.master_representation)
                     }
                     _ => continue,
                 };
-                for g in associated {
+                for (slot, g) in associated.iter().enumerate() {
                     let m::PcurveOrSurfaceRef::Pcurve(p) = g else {
                         continue;
                     };
@@ -517,13 +518,22 @@ impl Reader<'_> {
                         .items
                     {
                         if let Some(curve) = self.raw_curve_2d(item) {
+                            if collect_preferred
+                                && matches!(
+                                    (master, slot),
+                                    (m::PreferredSurfaceCurveRepresentation::PcurveS1, 0)
+                                        | (m::PreferredSurfaceCurveRepresentation::PcurveS2, 1)
+                                )
+                            {
+                                primary.push(out.len());
+                            }
                             out.push((index, curve));
                         }
                     }
                 }
             }
         }
-        out
+        (out, primary)
     }
 
     /// The file's frame ratios of an analytic surface.
@@ -2140,6 +2150,7 @@ fn build(parsed: &Parsed, scope: Scope<'_>) -> Result<Read, StepError> {
     );
     let mut swept = std::collections::BTreeMap::new();
     let mut file_pcurves = std::collections::BTreeMap::new();
+    let mut primary_pcurves = std::collections::BTreeMap::new();
     let (mut native_faces, mut native_edges) = (Vec::new(), Vec::new());
     let mut vertex_count = 0;
     for (is_solid, placement, faces, instance) in shells {
@@ -2301,7 +2312,12 @@ fn build(parsed: &Parsed, scope: Scope<'_>) -> Result<Read, StepError> {
             {
                 swept.insert(out_faces.len(), source);
             }
-            let raw = reader.file_pcurves(&face, &edge_index);
+            let collect_preferred =
+                matches!(&surface,Surface::Freeform{kind,..} if matches!(*kind,"BSPLINE"|"BEZIER"));
+            let (raw, primary) = reader.file_pcurves(&face, &edge_index, collect_preferred);
+            if !primary.is_empty() {
+                primary_pcurves.insert(out_faces.len(), primary);
+            }
             if !raw.is_empty() {
                 file_pcurves.insert(out_faces.len(), raw);
             }
@@ -2379,6 +2395,7 @@ fn build(parsed: &Parsed, scope: Scope<'_>) -> Result<Read, StepError> {
         .with_swept(swept)
         .with_file_pcurves(
             file_pcurves,
+            primary_pcurves,
             (reader.to_mm, reader.to_rad),
             units.precision.map(|p| p * reader.to_mm),
         )

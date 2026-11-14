@@ -1,9 +1,11 @@
 //! Areas and volumes (`BRepGProp`): surface integrals over each face's trimmed parameter
-//! domain, reduced by Green's theorem to integrals along the exact edge curves (the region
-//! their foot points on the surface bound, which is where OpenCascade's own answer lands once
-//! a face's pcurves are projected from those curves) and evaluated by Gauss quadrature to near
-//! machine precision (the body signatures families publish round them to twelve significant
-//! figures). `tests/face_areas.rs` checks every corpus face against OpenCascade.
+//! domain, reduced by Green's theorem to integrals along the exact edge curves'
+//! foot points on the surface. A refused projection may recover using the file's
+//! explicit master pcurves, measuring the region they bound. That region can differ
+//! from a 3D-edge answer by the file's own 2D/3D disagreement, bounded by a sampled
+//! interior check. Recovery uses bounded inner and outer numerical error checks;
+//! see `docs/face-integration-work.md`, "Recovery from an explicit master trim".
+//! `tests/face_areas.rs` checks every corpus face against OpenCascade.
 //!
 //! ∬_D f du dv = −∮ H du with H(u, v) = ∫ f(u, s) ds from a fixed v, or ∮ G dv with
 //! G(u, v) = ∫ f(s, v) ds from a fixed u. The first ignores boundary pieces of constant u
@@ -15,6 +17,8 @@
 //! adaptive (Gauss–Kronrod), split where the foot point turns a corner onto or off the
 //! surface's boundary or crosses a knot line. Each loop's direction is read from the geometry
 //! (which side of it the face lies on), not from the file's orientation flags.
+
+mod preferred;
 
 use std::sync::OnceLock;
 
@@ -634,6 +638,39 @@ fn uv_velocity(surface: &Surface, spans: (f64, f64), u: f64, v: f64, p: V3, c: V
     ((d * p - b * q) / det, (a * q - b * p) / det)
 }
 
+fn mass_density(p: V3, su: V3, sv: V3) -> [f64; 5] {
+    let n = geom::cross(su, sv);
+    [geom::norm(n), geom::dot(p, n), n[0], n[1], n[2]]
+}
+
+fn valid_mass(m: [f64; 5]) -> Option<[f64; 5]> {
+    (m[0] > 0. && m.iter().all(|x| x.is_finite())).then_some(m)
+}
+
+/// A completed but invalid mass sum must retain standalone mass's refusal;
+/// only failure to resolve the legacy quadrature permits a master-trim retry.
+enum MassPass {
+    Refused,
+    Evaluated(Option<[f64; 5]>),
+}
+
+/// Canonical mass and its boundary authority are published together. A concurrent
+/// first moment query cannot publish a legacy region after mass selected the master trim.
+#[derive(Debug)]
+pub(super) struct FaceMass {
+    terms: Option<[f64; 5]>,
+    preferred: bool,
+}
+
+impl FaceMass {
+    fn legacy(terms: Option<[f64; 5]>) -> Self {
+        Self {
+            terms,
+            preferred: false,
+        }
+    }
+}
+
 impl Part {
     /// The solid's volume and area (`solid.volume`, `solid.area`). The volume is a third of the
     /// flux of the position vector out through its faces (a void's faces subtract), measured
@@ -687,12 +724,13 @@ impl Part {
     /// The face's area, the flux of the position vector through it and its area vector ∬ n dA,
     /// along the surface's natural normal.
     fn face_terms(&self, face: usize) -> Option<[f64; 5]> {
-        *self.cache[face]
+        self.cache[face]
             .mass
             .get_or_init(|| self.compute_face_mass(face))
+            .terms
     }
 
-    fn compute_face_mass(&self, face: usize) -> Option<[f64; 5]> {
+    fn compute_face_mass(&self, face: usize) -> FaceMass {
         let surface = &self.faces[face].surface;
         // A whole sphere has no boundary to integrate along; its area and flux (3V) are exact,
         // and its area vector vanishes.
@@ -700,71 +738,101 @@ impl Part {
             && self.whole_sphere(face)
         {
             let sense = if frame.direct() { 1.0 } else { -1.0 };
-            return Some([
+            return FaceMass::legacy(Some([
                 4.0 * std::f64::consts::PI * radius * radius,
                 sense * 4.0 * std::f64::consts::PI * radius.powi(3),
                 0.0,
                 0.0,
                 0.0,
-            ]);
+            ]));
         }
-        self.face_integral(face, |p, su, sv| {
-            let n = geom::cross(su, sv);
-            [geom::norm(n), geom::dot(p, n), n[0], n[1], n[2]]
-        })
-        .filter(|m| m[0] > 0.0 && m.iter().all(|x| x.is_finite()))
+        let density = mass_density;
+        let rule = IntegralRule {
+            components: Components::Prefix(5),
+            observe_mass: None,
+        };
+        if let Some(value) = self.integrate_face_legacy(face, density, rule, &mut None) {
+            return FaceMass::legacy(valid_mass(value));
+        }
+        self.recover_face_mass(face)
     }
 
-    /// ∬ f du dv over the face's trimmed parameter domain.
-    fn face_integral<const N: usize>(
-        &self,
-        face: usize,
-        f: impl Fn(V3, V3, V3) -> [f64; N],
-    ) -> Option<[f64; N]> {
-        self.integrate_face(
-            face,
-            f,
-            IntegralRule {
-                components: Components::Prefix(N),
-                observe_mass: None,
-            },
-        )
+    /// Only a known legacy refusal reaches here. Ineligible trims do no further
+    /// integration; eligible trims certify canonical mass on their own boundary.
+    fn recover_face_mass(&self, face: usize) -> FaceMass {
+        let terms = self
+            .integrate_preferred_face(face, mass_density, Components::Prefix(5))
+            .and_then(valid_mass);
+        FaceMass {
+            preferred: terms.is_some(),
+            terms,
+        }
     }
 
-    /// The moments' coarse pass also evaluates the five mass fields. Refine those fields
-    /// independently if needed, and publish exactly the standalone mass result to the
-    /// existing OnceLock. Later moment calls only read that cache. A failed moment pass
-    /// never poisons it, and extra moment refinement cannot rescue a refused mass integral.
+    /// Share the cold coarse pass, but choose and publish canonical mass and its
+    /// boundary under one OnceLock before any moment result can escape.
     fn moment_integral<const N: usize, const M: usize>(
         &self,
         face: usize,
         mass: [usize; 5],
         f: impl Fn(V3, V3, V3) -> [f64; N],
     ) -> Option<[f64; M]> {
-        match self.cache[face].mass.get() {
-            Some(None) => None,
-            Some(Some(_)) => self.face_integral(face, |p, su, sv| {
+        let mut shared = None;
+        let mut attempted = false;
+        let choice = self.cache[face].mass.get_or_init(|| {
+            attempted = true;
+            let mut observed = None;
+            shared = self.integrate_face_legacy(
+                face,
+                &f,
+                IntegralRule {
+                    components: Components::Prefix(M),
+                    observe_mass: Some(mass),
+                },
+                &mut observed,
+            );
+            match observed {
+                Some(MassPass::Evaluated(terms)) => FaceMass::legacy(terms),
+                Some(MassPass::Refused) => self.recover_face_mass(face),
+                // An early failure in additional fields did not evaluate canonical
+                // mass. Determine it independently rather than poisoning its cache.
+                None => self.compute_face_mass(face),
+            }
+        });
+        choice.terms?;
+        if choice.preferred {
+            return self.integrate_preferred_face(
+                face,
+                |p, su, sv| {
+                    let y = f(p, su, sv);
+                    std::array::from_fn(|k| y[k])
+                },
+                Components::Prefix(M),
+            );
+        }
+        if attempted {
+            return shared.map(|y| std::array::from_fn(|k| y[k]));
+        }
+        self.integrate_face_legacy(
+            face,
+            |p, su, sv| {
                 let y = f(p, su, sv);
                 std::array::from_fn(|k| y[k])
-            }),
-            None => self
-                .integrate_face(
-                    face,
-                    f,
-                    IntegralRule {
-                        components: Components::Prefix(M),
-                        observe_mass: Some(mass),
-                    },
-                )
-                .map(|y| std::array::from_fn(|k| y[k])),
-        }
+            },
+            IntegralRule {
+                components: Components::Prefix(M),
+                observe_mass: None,
+            },
+            &mut None,
+        )
     }
 
-    fn integrate_face<const N: usize>(
+    fn integrate_face_legacy<const N: usize>(
         &self,
         face: usize,
         f: impl Fn(V3, V3, V3) -> [f64; N],
         rule: IntegralRule,
+        observed: &mut Option<MassPass>,
     ) -> Option<[f64; N]> {
         let fc = &self.faces[face];
         let surface = &fc.surface;
@@ -872,7 +940,7 @@ impl Part {
                         u_ref,
                     )?;
                     if refined.1 > mass_floor {
-                        let _ = self.cache[face].mass.set(None);
+                        *observed = Some(MassPass::Refused);
                         return None;
                     }
                     (refined.0, refined.3)
@@ -886,7 +954,7 @@ impl Part {
                 }
             }
             let mass = (mass[0] > 0.0 && mass.iter().all(|x| x.is_finite())).then_some(mass);
-            let _ = self.cache[face].mass.set(mass);
+            *observed = Some(MassPass::Evaluated(mass));
             mass?;
         }
         let floor = 1e-11 * passes.iter().map(|p| p.0.2).sum::<f64>();

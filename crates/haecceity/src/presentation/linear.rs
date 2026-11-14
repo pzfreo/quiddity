@@ -919,6 +919,7 @@ mod tests {
     fn supplemental_points_respect_context_units_and_explicit_overrides() {
         let part = Part::new(vec![], vec![], vec![]).with_file_pcurves(
             std::collections::BTreeMap::new(),
+            std::collections::BTreeMap::new(),
             (25.4, 1.),
             None,
         );
