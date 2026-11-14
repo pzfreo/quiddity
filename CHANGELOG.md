@@ -19,7 +19,8 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 - Wire-seeded recess discovery follows the queried edges' face ownership instead of
   repeatedly comparing every neighbour of a many-loop opening. Unique opposite-use
-  pairing and the resulting seed face sets are unchanged.
+  pairing and the resulting seed face sets are unchanged. From #282 (@xu9299); section
+  passage mouths now use the same query instead of a private copy of the old scan.
 
 ## 0.5.2 (2026-11-13)
 

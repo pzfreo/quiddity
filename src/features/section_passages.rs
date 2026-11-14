@@ -21,12 +21,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use super::Context;
 use super::entry_treatments::{material_at_most, prove_entry_treatments};
 use super::evidence::common_valid_solid;
-use super::graph::{face_vertices, is_planar, normal, shared_occurrences};
+use super::graph::{face_vertices, is_planar, normal};
 use super::sections::{
     BodyRef, BodyRefIssuer, LocalFrame, PlanarSection, SectionEnds, SectionError,
     SectionOccurrence, V2, validate_occurrence,
 };
 use super::support_patches::ruled_prism;
+use super::wire_seed::wire_seed;
 use crate::kernel::brep::{Arc, Part};
 use crate::kernel::geom::{Curve, V3};
 use crate::kernel::py;
@@ -205,18 +206,6 @@ struct Mouth {
     seed: BTreeSet<usize>,
 }
 
-/// The neighbours of *opening* sharing an exactly paired edge with *wire* (`_wire_seed`).
-fn wire_seed(part: &Part, opening: usize, wire: &[(usize, bool)]) -> BTreeSet<usize> {
-    part.neighbours(opening)
-        .into_iter()
-        .filter(|&n| {
-            shared_occurrences(part, opening, n)
-                .iter()
-                .any(|e| wire.iter().any(|w| w.0 == *e))
-        })
-        .collect()
-}
-
 /// Every planar mouth whose walls are at least three planes turning convex from the opening,
 /// grouped by the inner region they bound (`_mouth_regions`), regions by their sorted faces,
 /// mouths by opening.
@@ -237,7 +226,8 @@ fn mouth_regions(part: &Part) -> Vec<(BTreeSet<usize>, Vec<Mouth>)> {
                     wire.push((e, forward));
                 }
             }
-            let seed = wire_seed(part, opening, &wire);
+            let edges: Vec<usize> = wire.iter().map(|w| w.0).collect();
+            let seed = wire_seed(part, opening, &edges);
             if seed.len() < 3
                 || seed.iter().any(|&n| !is_planar(part, n))
                 || !seed
