@@ -6,6 +6,18 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+### Added
+
+- `Part::declared_length_unit() -> Option<pmi::LengthUnit>` and
+  `step::PartDefinition::declared_length_unit` expose the length unit declared by each
+  part's own shape-representation contexts, using the semantic PMI reader's exact unit
+  resolver. Missing, invalid or conflicting declarations return `None`; unrelated file
+  contexts do not choose a unit. Plain shape-equivalence links are followed conservatively
+  in both directions. Metadata is read best-effort from the importer's existing graph;
+  metadata errors discard the declarations without changing geometry import or its errors.
+  Semantic PMI retains its lenient first-resolvable-unit policy. Geometry remains in
+  millimetres and output is unchanged.
+
 ### Fixed
 
 - Boss heights include convex tangent top rounds even when shortening leaves less than
