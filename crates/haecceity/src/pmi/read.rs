@@ -6965,7 +6965,10 @@ mod tests {
             ("ft", "304.8", Some(LengthUnit::Foot)),
             ("inch", "2.54", None),
         ] {
-            let text = format!("ISO-10303-21; HEADER; FILE_SCHEMA(('AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF')); ENDSEC; DATA;
+            let text = format!("ISO-10303-21; HEADER;
+FILE_DESCRIPTION(('Synthetic declared length unit regression'),'2;1');
+FILE_NAME('units.step','2026-11-15T00:00:00',('quiddity'),('quiddity'),'quiddity','quiddity','');
+FILE_SCHEMA(('AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF')); ENDSEC; DATA;
 #1 = SHAPE_REPRESENTATION('',(),#2);
 #2 = ( GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#3)) REPRESENTATION_CONTEXT('','') );
 #3 = ( CONVERSION_BASED_UNIT('{name}',#4) LENGTH_UNIT() NAMED_UNIT(#6) );
