@@ -938,6 +938,11 @@ fn integrate_witness_slabs(
     let breaks = integration_breaks(range, breaks);
     let count = breaks.len() - 1;
     let work = |index: usize| slab(breaks[index], breaks[index + 1]);
+    // One original slab already completes the pass. Keep that fact so an
+    // accepting fraction check does not repeat a completed inset integral.
+    if count == 1 {
+        return work(0).map(|value| (value, false));
+    }
     let Some(widest) = (0..count).max_by(|&a, &b| {
         (breaks[a + 1] - breaks[a])
             .total_cmp(&(breaks[b + 1] - breaks[b]))

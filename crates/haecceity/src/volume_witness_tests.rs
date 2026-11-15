@@ -3,6 +3,20 @@ use super::*;
 use std::cell::RefCell;
 
 #[test]
+fn a_single_original_slab_is_complete_even_if_its_material_would_stop_a_prefix() {
+    let calls = RefCell::new(Vec::new());
+    let slab = |lo: f64, hi: f64| {
+        calls.borrow_mut().push((lo, hi));
+        Some([0.25 * (hi - lo), 0.75 * (hi - lo)])
+    };
+    assert_eq!(
+        integrate_witness_slabs(&slab, (0.0, 1.0), vec![], &|v| v[0] > 0.0),
+        Some(([0.25, 0.75], false))
+    );
+    assert_eq!(*calls.borrow(), vec![(0.0, 1.0)]);
+}
+
+#[test]
 fn broad_original_slab_finds_material_beside_clustered_breaks() {
     // Unit cross-section, material only in z in [1/2, 1]. Thin lower slabs are air.
     let calls = RefCell::new(Vec::new());
