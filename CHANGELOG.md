@@ -4,7 +4,13 @@ All notable changes to quiddity-rust and haecceity. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Alpha 1's gates and their evidence are
 in [docs/alpha1.md](docs/alpha1.md).
 
-## Unreleased
+## 0.5.3 (2026-11-15)
+
+A patch release for draftwright, Specify and build123d-mcp: each part's declared length unit
+(for drawing inch designs in inches), boss heights with short filleted tops (specify-core#181),
+hole depths from sloping entry faces, recovered spline face integrals, and faster wire-seeded
+recess discovery. The public API gains two additive items; existing output is unchanged except
+where the fixes below say.
 
 ### Added
 
