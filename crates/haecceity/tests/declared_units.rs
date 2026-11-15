@@ -207,3 +207,27 @@ fn corpus_millimetre_part() {
         Some(LengthUnit::Millimetre),
     );
 }
+
+#[test]
+fn metadata_does_not_impose_the_p21_editors_reserved_id_range() {
+    let source = assembly();
+    let mut changed = String::new();
+    let mut chars = source.chars().peekable();
+    while let Some(c) = chars.next() {
+        changed.push(c);
+        if c == '#' && chars.peek().is_some_and(char::is_ascii_digit) {
+            let mut id = String::new();
+            while chars.peek().is_some_and(char::is_ascii_digit) {
+                id.push(chars.next().unwrap());
+            }
+            changed.push_str(&((1_u64 << 63) + id.parse::<u64>().unwrap()).to_string());
+        }
+    }
+    // These ids are valid for geometry import, although the lossless editor reserves
+    // them for provisional references. Metadata import cannot narrow accepted geometry.
+    check_all(changed.as_bytes(), Some(LengthUnit::Millimetre));
+    assert_eq!(
+        read_step(changed.as_bytes()).unwrap().bounds(),
+        read_step(source.as_bytes()).unwrap().bounds()
+    );
+}
