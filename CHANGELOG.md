@@ -6,6 +6,13 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+### Added
+
+- A hole's nested `cbore`, `spotface`, `outer_steps` items and `csink` publish an optional,
+  sorted `faces` listing the faces the recogniser located for that sub-record, omitted
+  when unknown. The parent hole's `faces` is unchanged. Additive within recognition/6;
+  fingerprints are unchanged. For specify-core #180.
+
 ### Fixed
 
 - A convex end round tangent to a boss is part of the boss height and location

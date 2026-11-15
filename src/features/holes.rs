@@ -49,6 +49,17 @@ const SPOTFACE_MAX_DEPTH_MM: f64 = 1.0;
 pub struct CounterBore {
     pub diameter: f64,
     pub depth: f64,
+    /// Sorted cylinder faces of this step, also among the parent hole's defining faces;
+    /// with interchangeable mouths, both mouths' faces. Omitted when not located.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub faces: Vec<usize>,
+}
+
+impl CounterBore {
+    /// Published dimensions only: the faces locate the step, they do not specify it.
+    fn same_size(&self, other: &Self) -> bool {
+        (self.diameter, self.depth) == (other.diameter, other.depth)
+    }
 }
 
 /// A small conical edge break at an exterior end of the hole stack.
@@ -627,6 +638,44 @@ struct NearSideSteps {
     faces: Vec<usize>,
 }
 
+impl NearSideSteps {
+    /// Identical published readings, whatever faces locate them.
+    fn same_reading(&self, other: &Self) -> bool {
+        let same = |a: &Option<CounterBore>, b: &Option<CounterBore>| match (a, b) {
+            (Some(a), Some(b)) => a.same_size(b),
+            (a, b) => a.is_none() && b.is_none(),
+        };
+        same(&self.cbore, &other.cbore)
+            && same(&self.spotface, &other.spotface)
+            && self.outer_steps.len() == other.outer_steps.len()
+            && self
+                .outer_steps
+                .iter()
+                .zip(&other.outer_steps)
+                .all(|(a, b)| a.same_size(b))
+    }
+
+    /// Claim both interchangeable mouths' faces on each identical step.
+    fn absorb(&mut self, other: Self) {
+        let join = |a: &mut CounterBore, b: CounterBore| {
+            a.faces.extend(b.faces);
+            a.faces.sort_unstable();
+            a.faces.dedup();
+        };
+        if let (Some(a), Some(b)) = (&mut self.cbore, other.cbore) {
+            join(a, b);
+        }
+        if let (Some(a), Some(b)) = (&mut self.spotface, other.spotface) {
+            join(a, b);
+        }
+        for (a, b) in self.outer_steps.iter_mut().zip(other.outer_steps) {
+            join(a, b);
+        }
+        self.faces.extend(other.faces);
+        self.faces.sort_unstable();
+    }
+}
+
 fn near_side_steps(steps: &[Segment]) -> NearSideSteps {
     let mut spans: Vec<(f64, f64, f64, Vec<usize>)> = Vec::new(); // key, lo, hi, faces
     let mut min_d = f64::INFINITY;
@@ -647,9 +696,13 @@ fn near_side_steps(steps: &[Segment]) -> NearSideSteps {
     }
     let mut found = NearSideSteps::default();
     for (key, lo, hi, step_faces) in spans {
+        let mut sorted = step_faces.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
         let spec = CounterBore {
             diameter: key,
             depth: policy::round_measurement(hi - lo, 2),
+            faces: sorted,
         };
         if spec.depth <= SPOTFACE_MAX_DEPTH_MM && spec.depth < SPOTFACE_MAX_RATIO * spec.diameter {
             if found.spotface.is_none() {
@@ -917,12 +970,7 @@ pub fn discover(
         let ordered = ordered_from(&stack, from_hi);
         let bore_i = py::first_min(&ordered, |s| s.diameter);
         let bore = &ordered[bore_i];
-        let NearSideSteps {
-            mut cbore,
-            mut spotface,
-            mut outer_steps,
-            faces: mut step_faces,
-        } = near_side_steps(&ordered[..bore_i]);
+        let mut steps = near_side_steps(&ordered[..bore_i]);
         if presentation {
             let opposite = ordered_from(&stack, !from_hi);
             let other_bore_i = py::first_min(&opposite, |s| s.diameter);
@@ -930,16 +978,18 @@ pub fn discover(
             // An end gauge cannot choose between different published readings. Identical
             // readings retain their dimensions and claim both mouths, so reversal changes
             // only the representative end, never an attachment or its supporting evidence.
-            if cbore == other.cbore && spotface == other.spotface && outer_steps == other.outer_steps {
-                step_faces.extend(other.faces);
-                step_faces.sort_unstable();
+            if steps.same_reading(&other) {
+                steps.absorb(other);
             } else {
-                cbore = None;
-                spotface = None;
-                outer_steps.clear();
-                step_faces.clear();
+                steps = NearSideSteps::default();
             }
         }
+        let NearSideSteps {
+            cbore,
+            spotface,
+            outer_steps,
+            faces: step_faces,
+        } = steps;
         let (depth, mut defining) = bore_depth(
             &stack,
             bore,
@@ -1014,7 +1064,11 @@ pub fn discover(
         }
         // Ambiguous attribution cannot remove the independently established bore.
         if let Some(cs) = matching.first().filter(|_| !ambiguous_seat || symmetric) {
-            record.csink = Some(cs.record.clone());
+            let mut seat = cs.record.clone();
+            seat.faces.clone_from(&cs.defining);
+            seat.faces.sort_unstable();
+            seat.faces.dedup();
+            record.csink = Some(seat);
             // The seat's face is consulted evidence: it must share the hole's solid.
             if !symmetric {
                 terminal.extend(&cs.defining);
@@ -1217,6 +1271,7 @@ mod tests {
             let spec = Some(CounterBore {
                 diameter,
                 depth: published_depth,
+                faces: vec![7],
             });
             assert_eq!(spotface, if is_spotface { spec.clone() } else { None });
             assert_eq!(cbore, if is_spotface { None } else { spec });
@@ -1837,11 +1892,8 @@ mod tests {
                 (10., 27.6, Bottom::Through)
             );
             assert_eq!(
-                hole.cbore,
-                Some(CounterBore {
-                    diameter: 16.4,
-                    depth: 1.4
-                })
+                hole.cbore.as_ref().map(|c| (c.diameter, c.depth)),
+                Some((16.4, 1.4))
             );
             assert!(hole.spotface.is_none());
             let mut faces = found[0].defining.clone();
@@ -1853,7 +1905,7 @@ mod tests {
             assert_eq!(holes.len(), 1);
             assert_eq!(
                 holes[0].parameters["cbore"],
-                serde_json::json!({"diameter":16.4,"depth":1.4})
+                serde_json::json!({"diameter":16.4,"depth":1.4,"faces":[2,10]})
             );
             assert!(holes[0].parameters["spotface"].is_null());
             let collars: Vec<_> = doc
@@ -1893,22 +1945,20 @@ mod tests {
                 assert_eq!(found.len(), 1);
                 let hole = &found[0].record;
                 assert_eq!(
-                    hole.cbore,
-                    Some(CounterBore {
-                        diameter: 18.,
-                        depth: 6.
-                    })
+                    hole.cbore.as_ref().map(|c| (c.diameter, c.depth)),
+                    Some((18., 6.))
                 );
-                let outer = CounterBore {
-                    diameter: 60.,
-                    depth: outer_depth,
-                };
+                let outer = (60., outer_depth);
+                let size = |c: &CounterBore| (c.diameter, c.depth);
                 if outer_depth == 5. {
-                    assert_eq!(hole.outer_steps, [outer]);
+                    assert_eq!(
+                        hole.outer_steps.iter().map(size).collect::<Vec<_>>(),
+                        [outer]
+                    );
                     assert!(hole.spotface.is_none());
                 } else {
                     assert!(hole.outer_steps.is_empty());
-                    assert_eq!(hole.spotface, Some(outer));
+                    assert_eq!(hole.spotface.as_ref().map(size), Some(outer));
                 }
                 let mut faces = found[0].defining.clone();
                 faces.sort_unstable();
@@ -1922,7 +1972,7 @@ mod tests {
                 let record = doc.records.iter().find(|r| r.id == "holes/0").unwrap();
                 assert_eq!(
                     record.parameters["cbore"],
-                    serde_json::json!({"diameter":18.,"depth":6.})
+                    serde_json::json!({"diameter":18.,"depth":6.,"faces":[4]})
                 );
                 assert_eq!(record.faces, [2, 4, 6]);
                 let fp = recognition
@@ -1936,7 +1986,7 @@ mod tests {
                 if outer_depth == 5. {
                     assert_eq!(
                         record.parameters["outer_steps"],
-                        serde_json::json!([{"diameter":60.,"depth":5.}])
+                        serde_json::json!([{"diameter":60.,"depth":5.,"faces":[2]}])
                     );
                     assert_eq!(fp.sizes["outer_steps.count"], 1.);
                     assert_eq!(fp.sizes["outer_steps.0.diameter"], 60.);
@@ -1983,24 +2033,21 @@ mod tests {
         let found = discover(&Context::new(&part), &[]);
         assert_eq!(found.len(), 1);
         assert_eq!(
-            found[0].record.cbore,
-            Some(CounterBore {
-                diameter: 18.,
-                depth: 6.
-            })
+            found[0]
+                .record
+                .cbore
+                .as_ref()
+                .map(|c| (c.diameter, c.depth)),
+            Some((18., 6.))
         );
         assert_eq!(
-            found[0].record.outer_steps,
-            [
-                CounterBore {
-                    diameter: 70.,
-                    depth: 5.
-                },
-                CounterBore {
-                    diameter: 50.,
-                    depth: 3.
-                }
-            ]
+            found[0]
+                .record
+                .outer_steps
+                .iter()
+                .map(|c| (c.diameter, c.depth))
+                .collect::<Vec<_>>(),
+            [(70., 5.), (50., 3.)]
         );
         let recognition = crate::correspondence::recognise(&part);
         let fp = recognition
@@ -2033,7 +2080,7 @@ mod tests {
         assert_eq!(
             published["holes"][0]["outer_steps"],
             serde_json::json!([
-                {"diameter":70.,"depth":5.}, {"diameter":50.,"depth":3.}
+                {"diameter":70.,"depth":5.,"faces":[2]}, {"diameter":50.,"depth":3.,"faces":[4]}
             ])
         );
         holes[1].outer_steps[0].depth = 4.;

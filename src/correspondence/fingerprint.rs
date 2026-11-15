@@ -329,11 +329,15 @@ pub const FAMILIES: &[FamilyFingerprint] = &[
             ("cbore", Trait),
             ("cbore.diameter", Size),
             ("cbore.depth", Size),
+            // Nested treatments' face indices locate them; they are not design properties.
+            ("cbore.faces", Ignored),
             ("spotface", Trait),
             ("spotface.diameter", Size),
             ("spotface.depth", Size),
+            ("spotface.faces", Ignored),
             // Keep each diameter paired with its depth in canonical mouth-to-bore order.
             ("outer_steps", Derived),
+            ("outer_steps[].faces", Ignored),
             // Edge-break annotations do not redefine the cylindrical hole's identity.
             ("mouth_chamfers", Ignored),
             ("exit_obstructions", Derived),
@@ -344,6 +348,7 @@ pub const FAMILIES: &[FamilyFingerprint] = &[
             ("csink.depth", Size),
             ("csink.axis", Placement),
             ("csink.location", Placement),
+            ("csink.faces", Ignored),
             ("location", Placement),
         ],
     },
