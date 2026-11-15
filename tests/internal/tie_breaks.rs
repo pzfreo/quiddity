@@ -958,6 +958,7 @@ fn symmetric_countersink_seats_survive_motion_and_seat_permutation() {
             expected.sort_unstable();
             expected.dedup();
             assert_eq!(context, expected);
+            assert_eq!(seat.faces, expected, "csink.faces claims both seats");
             assert_eq!(claims.get_or_insert_with(|| context.clone()), &context);
             seats.reverse();
         }
@@ -1005,5 +1006,14 @@ fn nested_hole_sub_records_publish_their_located_faces() {
     let found = features::holes::discover_verified(&ctx, &seats).unwrap();
     let seat = found[0].record.csink.as_ref().unwrap();
     assert!(!seat.faces.is_empty());
-    assert!(seats.iter().any(|s| seat.faces == s.defining));
+    let mut all: Vec<usize> = seats
+        .iter()
+        .flat_map(|s| s.defining.iter().copied())
+        .collect();
+    all.sort_unstable();
+    all.dedup();
+    assert_eq!(
+        seat.faces, all,
+        "identical seats at both mouths are all claimed"
+    );
 }

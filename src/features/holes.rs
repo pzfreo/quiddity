@@ -1065,7 +1065,10 @@ pub fn discover(
         // Ambiguous attribution cannot remove the independently established bore.
         if let Some(cs) = matching.first().filter(|_| !ambiguous_seat || symmetric) {
             let mut seat = cs.record.clone();
-            seat.faces.clone_from(&cs.defining);
+            // Identical seats at both mouths are all claimed, as for the steps, so the
+            // faces do not depend on which end is presented.
+            let seats = if symmetric { &matching[..] } else { std::slice::from_ref(cs) };
+            seat.faces = seats.iter().flat_map(|s| s.defining.iter().copied()).collect();
             seat.faces.sort_unstable();
             seat.faces.dedup();
             record.csink = Some(seat);

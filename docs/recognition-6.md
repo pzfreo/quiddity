@@ -191,9 +191,13 @@ readings, a step lists both mouths' faces. The parent hole's `faces` is unchange
 and still includes the step faces, so the faces of the defining bore are the parent
 `faces` not listed in a sub-record. A `csink` seat is consulted evidence, not one
 of the parent's defining faces, so its `faces` are extra. Standalone `countersinks`
-records omit `faces` (their own faces are the cone). Hole-pattern grouping and
-fingerprints read only sizes, so they are unchanged. Recognition schema 6 and
-fingerprint format 3 stay; Rust callers constructing these structs supply `faces`
+records omit `faces` (their own faces are the cone). Identical seats at both mouths
+of an interchangeable-mouth hole are all claimed, as the steps are: `csink.faces` is
+then every such seat's cone faces, so it does not depend on which end is presented.
+Hole-pattern grouping and fingerprints read only sizes, so they are unchanged.
+Recognition schema 6 and fingerprint format `quiddity-rust/fingerprint/4` stay.
+These structs are `#[non_exhaustive]`: external Rust code cannot build them with
+literals and only reads the new field; in-crate literals supply `faces`
 (normally `Vec::new()`).
 
 ## Closed blind-recess floor claims (#205, #207)

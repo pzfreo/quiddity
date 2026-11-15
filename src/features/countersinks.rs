@@ -45,7 +45,7 @@ pub struct CounterSink {
     pub included_angle: f64,
     pub depth: f64,
     /// Sorted cone faces of this seat when nested as a hole's `csink` (consulted, not
-    /// among the hole's defining faces). Omitted on standalone `countersinks` records,
+    /// among the hole's defining faces); identical seats at both mouths are all listed. Omitted on standalone `countersinks` records,
     /// whose own faces are these.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub faces: Vec<usize>,
