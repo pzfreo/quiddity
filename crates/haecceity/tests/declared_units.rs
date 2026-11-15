@@ -231,3 +231,67 @@ fn metadata_does_not_impose_the_p21_editors_reserved_id_range() {
         read_step(source.as_bytes()).unwrap().bounds()
     );
 }
+
+fn same_geometry(original: &[u8], changed: &[u8]) {
+    let a = read_step(original).unwrap();
+    let b = read_step(changed).unwrap();
+    assert_eq!(a.bounds(), b.bounds());
+    assert_eq!(
+        (a.faces.len(), a.edges.len(), a.solids.len()),
+        (b.faces.len(), b.edges.len(), b.solids.len())
+    );
+    for face in 0..a.faces.len() {
+        assert_eq!(a.face_source(face), b.face_source(face));
+        assert_eq!(
+            a.face_moments(face).map(|m| m.area),
+            b.face_moments(face).map(|m| m.area)
+        );
+    }
+}
+
+#[test]
+fn signature_sections_accepted_by_geometry_do_not_require_the_document_scanner() {
+    let source = assembly();
+    let changed = source.replacen("DATA;", "SIGNATURE;\nENDSEC;\nDATA;", 1);
+    assert!(
+        Document::parse(changed.as_bytes().to_vec())
+            .unwrap_err()
+            .to_string()
+            .contains("SIGNATURE")
+    );
+    check_all(changed.as_bytes(), Some(LengthUnit::Millimetre));
+    same_geometry(source.as_bytes(), changed.as_bytes());
+}
+
+#[test]
+fn scanner_graph_mismatch_does_not_change_import() {
+    // step-io recovers missing HEADER semicolons at the next keyword. The editor's
+    // scanner merges the two headers and refuses its count mismatch instead.
+    let source = assembly();
+    let record = "FILE_DESCRIPTION(('Open CASCADE Model'),'2;1');";
+    assert!(source.contains(record));
+    let changed = source.replace(record, record.trim_end_matches(';'));
+    assert!(matches!(
+        Document::parse(changed.as_bytes().to_vec()),
+        Err(haecceity::p21::P21Error::Mismatch(_))
+    ));
+    check_all(changed.as_bytes(), Some(LengthUnit::Millimetre));
+    same_geometry(source.as_bytes(), changed.as_bytes());
+}
+
+#[test]
+fn a_metadata_record_error_discards_all_declarations_without_refusing_geometry() {
+    let source = assembly().replace(
+        "#960 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );",
+        "#960 = ( CONVERSION_BASED_UNIT('INCH',#20001) LENGTH_UNIT() NAMED_UNIT(#20002) );\n\
+         #20001 = LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#28);\n\
+         #20002 = DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.);",
+    );
+    let changed = source.replace(
+        "#20001 = LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#28);",
+        "#20001 = LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.),#28);",
+    );
+    assert_ne!(source, changed);
+    check_all(changed.as_bytes(), None);
+    same_geometry(source.as_bytes(), changed.as_bytes());
+}

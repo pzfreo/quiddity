@@ -18,6 +18,8 @@
 //! bytes, and their own unit entity's unit.
 
 mod derived;
+mod units;
+use units::{Source as UnitSource, UnitReader};
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -111,19 +113,108 @@ fn read_impl(
 }
 
 /// Metadata keyed by product definition; face declarations are a fallback for orphan shapes.
+#[derive(Default)]
 pub(crate) struct DeclaredUnits {
     pub(crate) definitions: HashMap<u64, Option<LengthUnit>>,
     pub(crate) faces: HashMap<u64, Option<LengthUnit>>,
 }
 
-/// Resolve metadata with the same schema access and exact unit arithmetic as semantic PMI.
-pub(crate) fn declared_length_units(doc: &Document) -> DeclaredUnits {
-    let mut reader = Reader::new(doc, &[]);
+/// Unit metadata is optional. Graph/record errors discard the entire metadata pass and
+/// never enter the geometry reader's error path. No lossless-document scanner is involved.
+pub(crate) fn declared_length_units(graph: &step_io::parser::Graph, bytes: &[u8]) -> DeclaredUnits {
+    declared_units_impl(graph, bytes).unwrap_or_default()
+}
+
+#[derive(Default)]
+struct ReachedItems {
+    faces: Vec<u64>,
+    representations: Vec<u64>,
+}
+
+/// Postorder memoisation visits each item once across all representations. In particular,
+/// shared solids and shells are not walked afresh for each representation that names them.
+/// Cycles and dangling references are metadata errors, not geometry-import refusals.
+fn reached_items(
+    root: u64,
+    graph: &step_io::parser::Graph,
+    reader: &UnitReader<'_>,
+    memo: &mut HashMap<u64, ReachedItems>,
+) -> Option<()> {
+    enum Visit {
+        Enter(u64),
+        Exit(u64, Vec<u64>),
+    }
+    let mut pending = vec![Visit::Enter(root)];
+    let mut active = BTreeSet::new();
+    while let Some(visit) = pending.pop() {
+        match visit {
+            Visit::Enter(id) => {
+                if memo.contains_key(&id) {
+                    continue;
+                }
+                if !active.insert(id) {
+                    return None;
+                }
+                let mut reached = ReachedItems::default();
+                if reader.is(id, "representation") {
+                    reached.representations.push(id);
+                } else if reader.is(id, "face_surface") {
+                    reached.faces.push(id);
+                } else {
+                    let mut children = Vec::new();
+                    visit_attributes(graph.entities.get(&id)?, &mut |a| {
+                        if let Attribute::EntityRef(child) = a {
+                            children.push(*child);
+                        }
+                    });
+                    let visits: Vec<_> = children.iter().copied().map(Visit::Enter).collect();
+                    pending.push(Visit::Exit(id, children));
+                    pending.extend(visits);
+                    continue;
+                }
+                memo.insert(id, reached);
+                active.remove(&id);
+            }
+            Visit::Exit(id, children) => {
+                let mut reached = ReachedItems::default();
+                for child in children {
+                    let child = memo.get(&child)?;
+                    reached.faces.extend_from_slice(&child.faces);
+                    reached
+                        .representations
+                        .extend_from_slice(&child.representations);
+                }
+                reached.faces.sort_unstable();
+                reached.faces.dedup();
+                reached.representations.sort_unstable();
+                reached.representations.dedup();
+                memo.insert(id, reached);
+                active.remove(&id);
+            }
+        }
+    }
+    Some(())
+}
+
+fn declared_units_impl(graph: &step_io::parser::Graph, bytes: &[u8]) -> Option<DeclaredUnits> {
+    let mut reader = UnitReader::new(UnitSource::Graph { graph, bytes });
     let mut representations = HashMap::new();
     let mut faces = HashMap::new();
     let mut links: HashMap<u64, Vec<u64>> = HashMap::new();
     let mut roots: HashMap<u64, Vec<u64>> = HashMap::new();
-    for &id in doc.graph().entities.keys() {
+    let mut memo = HashMap::new();
+    for (&id, entity) in &graph.entities {
+        // Avoid schema ancestry walks for the many points, curves and surfaces. All shape
+        // representation kinds the geometry importer supports have these external leaves.
+        let candidate = |name: &str| {
+            name.contains("SHAPE_REPRESENTATION") || name == "SHAPE_DEFINITION_REPRESENTATION"
+        };
+        if !match entity {
+            RawEntity::Simple { name, .. } => candidate(name),
+            RawEntity::Complex { parts, .. } => parts.iter().any(|p| candidate(&p.name)),
+        } {
+            continue;
+        }
         if reader.is(id, "shape_representation_relationship")
             && !reader.is(id, "representation_relationship_with_transformation")
             && let (Some(a), Some(b)) = (
@@ -131,6 +222,8 @@ pub(crate) fn declared_length_units(doc: &Document) -> DeclaredUnits {
                 reader.get_ref(id, "representation_relationship", "rep_2"),
             )
         {
+            // Plain SRR is a conservative equivalence: follow BOTH directions. If its
+            // geometry-bearing contexts disagree, report None instead of picking a side.
             links.entry(a).or_default().push(b);
             links.entry(b).or_default().push(a);
         }
@@ -150,41 +243,33 @@ pub(crate) fn declared_length_units(doc: &Document) -> DeclaredUnits {
         if !reader.is(id, "shape_representation") {
             continue;
         }
-        let unit = reader.context_length_unit(id);
-        let mut pending = reader.get_refs(id, "representation", "items");
-        let mut visited = BTreeSet::new();
-        let mut members = Vec::new();
-        while let Some(item) = pending.pop() {
-            if !visited.insert(item) {
-                continue;
-            }
-            // Mapped sources have their own representation and context. Follow their
-            // ownership in one direction; a source never inherits a wrapper's context.
-            if reader.is(item, "representation") {
-                links.entry(id).or_default().push(item);
-                continue;
-            }
-            if reader.is(item, "face_surface") {
+        let unit = reader.declared_context_length_unit(id);
+        let mut has_faces = false;
+        for item in reader.get_refs(id, "representation", "items") {
+            reached_items(item, graph, &reader, &mut memo)?;
+            let reached = memo.get(&item)?;
+            for &face in &reached.faces {
+                has_faces = true;
                 faces
-                    .entry(item)
+                    .entry(face)
                     .and_modify(|known| {
                         if *known != unit {
                             *known = None;
                         }
                     })
                     .or_insert_with(|| unit.clone());
-                members.push(item);
-                continue;
             }
-            if let Some(entity) = doc.get(item) {
-                visit_attributes(entity, &mut |a| {
-                    if let Attribute::EntityRef(target) = a {
-                        pending.push(*target);
-                    }
-                });
-            }
+            // Mapped sources have their own contexts; ownership is one-way, so the
+            // source never inherits its wrapper's unit.
+            links
+                .entry(id)
+                .or_default()
+                .extend(&reached.representations);
         }
-        representations.insert(id, (unit, members));
+        representations.insert(id, (unit, has_faces));
+    }
+    if reader.metadata_failed {
+        return None;
     }
     let mut definitions = HashMap::new();
     for (definition, mut pending) in roots {
@@ -194,9 +279,7 @@ pub(crate) fn declared_length_units(doc: &Document) -> DeclaredUnits {
             if !seen.insert(rep) {
                 continue;
             }
-            if let Some((unit, members)) = representations.get(&rep)
-                && !members.is_empty()
-            {
+            if let Some((unit, true)) = representations.get(&rep) {
                 declarations.push(unit.as_ref());
             }
             if let Some(others) = links.get(&rep) {
@@ -205,7 +288,7 @@ pub(crate) fn declared_length_units(doc: &Document) -> DeclaredUnits {
         }
         definitions.insert(definition, agreed_length_unit(declarations));
     }
-    DeclaredUnits { definitions, faces }
+    Some(DeclaredUnits { definitions, faces })
 }
 
 /// Missing and conflicting declarations cannot be replaced by a file-wide default.
@@ -284,8 +367,7 @@ struct Reader<'a> {
     /// `product_definition_shape` → part index.
     shape_part: HashMap<u64, usize>,
     findings: Vec<Finding>,
-    units: HashMap<u64, Result<Unit, MeasureError>>,
-    slots: HashMap<String, Vec<(&'static str, &'static str)>>,
+    unit_reader: UnitReader<'a>,
 }
 
 /// One part's reading.
@@ -387,6 +469,7 @@ pub(super) fn real_tokens(text: &[u8]) -> Vec<String> {
     while i < n {
         let c = text[i];
         match c {
+            b';' => break,
             b'\'' => {
                 i += 1;
                 while i < n {
@@ -484,11 +567,8 @@ fn leaf_names(e: &RawEntity) -> Vec<String> {
 
 impl<'a> Reader<'a> {
     fn new(doc: &'a Document, parts: &'a [PartDefinition]) -> Self {
-        let edition = doc
-            .file_schema()
-            .ok()
-            .and_then(|s| s.first().and_then(|s| express::edition(s)))
-            .unwrap_or(express::TARGET);
+        let unit_reader = UnitReader::new(UnitSource::Document(doc));
+        let edition = unit_reader.edition;
         let shape_part = parts
             .iter()
             .enumerate()
@@ -505,95 +585,35 @@ impl<'a> Reader<'a> {
             edition,
             shape_part,
             findings: Vec::new(),
-            units: HashMap::new(),
-            slots: HashMap::new(),
+            unit_reader,
         }
     }
 
     // --- types and attributes -------------------------------------------------------------
 
     fn names(&self, id: u64) -> Vec<String> {
-        self.doc.get(id).map(leaf_names).unwrap_or_default()
+        self.unit_reader.names(id)
     }
-
     fn entity_label(&self, id: u64) -> String {
-        let mut n = self.names(id);
-        n.sort();
-        if n.is_empty() {
-            "missing".to_string()
-        } else {
-            n.join("+")
-        }
+        self.unit_reader.entity_label(id)
     }
-
     fn is_a_name(&self, name: &str, ancestor: &str) -> bool {
-        self.edition.is_a(name, ancestor)
-            || (!self.edition.is_declared(name) && express::TARGET.is_a(name, ancestor))
-            || (!self.edition.is_declared(name)
-                && !express::TARGET.is_declared(name)
-                && express::AP242_ED1.is_a(name, ancestor))
+        self.unit_reader.is_a_name(name, ancestor)
     }
-
     fn is(&self, id: u64, ancestor: &str) -> bool {
-        self.names(id).iter().any(|n| self.is_a_name(n, ancestor))
+        self.unit_reader.is(id, ancestor)
     }
-
-    /// The (declaring entity, attribute) of each explicit attribute of a simple instance.
-    fn slots_of(&mut self, name: &str) -> &Vec<(&'static str, &'static str)> {
-        if !self.slots.contains_key(name) {
-            let slots = self
-                .edition
-                .explicit_attributes(name)
-                .or_else(|| express::TARGET.explicit_attributes(name))
-                .or_else(|| express::AP242_ED1.explicit_attributes(name))
-                .unwrap_or_default();
-            let v = slots.into_iter().map(|s| (s.entity, s.name)).collect();
-            self.slots.insert(name.to_string(), v);
-        }
-        &self.slots[name]
-    }
-
-    /// Attribute `attr` declared by `entity` (both lower case) of instance `id`.
     fn get(&mut self, id: u64, entity: &str, attr: &str) -> Option<&'a Attribute> {
-        let e = self.doc.get(id)?;
-        match e {
-            RawEntity::Simple {
-                name, attributes, ..
-            } => {
-                let lname = name.to_ascii_lowercase();
-                let i = self
-                    .slots_of(&lname)
-                    .iter()
-                    .position(|&(en, an)| en == entity && an == attr)?;
-                attributes.get(i)
-            }
-            RawEntity::Complex { parts, .. } => {
-                let leaf = parts.iter().find(|p| p.name.eq_ignore_ascii_case(entity))?;
-                let decl = self
-                    .edition
-                    .entity(entity)
-                    .or_else(|| express::TARGET.entity(entity))
-                    .or_else(|| express::AP242_ED1.entity(entity))?;
-                let i = decl.attributes.iter().position(|a| a.name == attr)?;
-                leaf.attributes.get(i)
-            }
-        }
+        self.unit_reader.get(id, entity, attr)
     }
-
     fn get_ref(&mut self, id: u64, entity: &str, attr: &str) -> Option<u64> {
-        ref1(self.get(id, entity, attr))
+        self.unit_reader.get_ref(id, entity, attr)
     }
-
     fn get_refs(&mut self, id: u64, entity: &str, attr: &str) -> Vec<u64> {
-        refs(self.get(id, entity, attr))
+        self.unit_reader.get_refs(id, entity, attr)
     }
-
-    /// A string attribute, decoded; `None` when unset.
     fn get_str(&mut self, id: u64, entity: &str, attr: &str) -> Option<String> {
-        match self.get(id, entity, attr)? {
-            Attribute::String(s) => Some(s.clone()),
-            _ => None,
-        }
+        self.unit_reader.get_str(id, entity, attr)
     }
 
     // A chunked descriptive value remains a compound in EXPRESS; only text consumers
@@ -803,231 +823,14 @@ impl<'a> Reader<'a> {
 
     // --- values ---------------------------------------------------------------------------
 
-    /// The text of the REAL `target` (an attribute of instance `id`) as the file writes it.
     fn real_text(&self, id: u64, target: &Attribute) -> Option<String> {
-        if let Attribute::Integer(i) = target {
-            return Some(i.to_string());
-        }
-        let e = self.doc.get(id)?;
-        let mut n = 0usize;
-        let mut found = None;
-        let mut count = 0usize;
-        visit_attributes(e, &mut |a| {
-            if let Attribute::Real(_) = a {
-                if std::ptr::eq(a, target) {
-                    found = Some(n);
-                }
-                n += 1;
-                count += 1;
-            }
-        });
-        let span = self.doc.span(id)?;
-        let tokens = real_tokens(&self.doc.bytes()[span]);
-        if tokens.len() != count {
-            return None;
-        }
-        tokens.get(found?).cloned()
+        self.unit_reader.real_text(id, target)
     }
-
     fn unit(&mut self, id: u64) -> Result<Unit, MeasureError> {
-        if let Some(u) = self.units.get(&id) {
-            return u.clone();
-        }
-        self.units.insert(
-            id,
-            Err(MeasureError::unitless(format!(
-                "unit #{id} refers to itself"
-            ))),
-        );
-        let u = self.resolve_unit(id);
-        self.units.insert(id, u.clone());
-        u
+        self.unit_reader.unit(id)
     }
-
-    fn resolve_unit(&mut self, id: u64) -> Result<Unit, MeasureError> {
-        let names = self.names(id);
-        if names.is_empty() {
-            return Err(MeasureError::unitless(format!("unit #{id} does not exist")));
-        }
-        let has = |n: &str| names.iter().any(|x| x == n);
-        if has("si_unit") {
-            let prefix = enum_value(self.get(id, "si_unit", "prefix")).map(str::to_ascii_uppercase);
-            let name = enum_value(self.get(id, "si_unit", "name"))
-                .map(str::to_ascii_uppercase)
-                .ok_or_else(|| MeasureError::unitless(format!("si_unit #{id} has no name")))?;
-            let power = match prefix.as_deref() {
-                None => 0,
-                Some(p) => match si_prefix(p) {
-                    Some(e) => e,
-                    None => {
-                        return Err(MeasureError::nonconformance(format!(
-                            "si_unit #{id} has unknown prefix {p}"
-                        )));
-                    }
-                },
-            };
-            let full = format!(
-                "{}{}",
-                prefix
-                    .as_deref()
-                    .map_or(String::new(), str::to_ascii_lowercase),
-                name.to_ascii_lowercase()
-            );
-            let one = Decimal::parse("1.")
-                .map_err(|e| MeasureError::nonconformance(format!("unit scale: {e:?}")))?;
-            return Ok(match name.as_str() {
-                "METRE" => Unit::Length(LengthUnit::from_metres(&full, one.scaled(power))),
-                "RADIAN" if power == 0 => Unit::Angle(AngleUnit::Radian),
-                "RADIAN" => Unit::Angle(AngleUnit::Other {
-                    name: full,
-                    radians: one.scaled(power),
-                }),
-                _ => Unit::Other(full),
-            });
-        }
-        if has("conversion_based_unit") {
-            let name = self
-                .get_str(id, "conversion_based_unit", "name")
-                .unwrap_or_default();
-            let factor = self
-                .get_ref(id, "conversion_based_unit", "conversion_factor")
-                .ok_or_else(|| {
-                    MeasureError::unitless(format!(
-                        "conversion_based_unit #{id} has no conversion factor"
-                    ))
-                })?;
-            let m = self.measure(factor)?;
-            let lname = name.to_ascii_lowercase();
-            return match m {
-                Measured::Length(l) => {
-                    let unit = LengthUnit::from_metres(&name, l.value.times(&l.unit.metres()));
-                    let expected = match lname.as_str() {
-                        "inch" => Some(LengthUnit::Inch),
-                        "millimetre" | "millimeter" => Some(LengthUnit::Millimetre),
-                        "foot" => Some(LengthUnit::Foot),
-                        "metre" | "meter" => Some(LengthUnit::Metre),
-                        _ => None,
-                    };
-                    if let Some(e) = expected
-                        && e != unit
-                    {
-                        return Err(MeasureError::nonconformance(format!(
-                            "conversion_based_unit #{id} is named {name:?} but its factor is {} {:?}",
-                            l.value, l.unit
-                        )));
-                    }
-                    Ok(Unit::Length(unit))
-                }
-                Measured::Angle(a) => {
-                    let radians = a.rad();
-                    let degree = std::f64::consts::PI / 180.0;
-                    let unit = if (radians / degree - 1.0).abs() < 1e-9 {
-                        AngleUnit::Degree
-                    } else if a.unit == AngleUnit::Radian {
-                        AngleUnit::Other {
-                            name: name.clone(),
-                            radians: a.value.clone(),
-                        }
-                    } else {
-                        return Err(MeasureError::nonconformance(format!(
-                            "conversion_based_unit #{id}: an angle factor in a unit other than radian"
-                        )));
-                    };
-                    if lname == "degree" && unit != AngleUnit::Degree {
-                        return Err(MeasureError::nonconformance(format!(
-                            "conversion_based_unit #{id} is named {name:?} but its factor is {} rad",
-                            a.value
-                        )));
-                    }
-                    Ok(Unit::Angle(unit))
-                }
-                _ => Ok(Unit::Other(name)),
-            };
-        }
-        if has("derived_unit") || has("context_dependent_unit") || has("named_unit") {
-            let name = if has("context_dependent_unit") {
-                self.get_str(id, "context_dependent_unit", "name")
-                    .unwrap_or_default()
-            } else {
-                super::unit_identity::identity(self.doc, id).ok_or_else(|| {
-                    MeasureError::unitless(format!("unit #{id} has no portable content identity"))
-                })?
-            };
-            return Ok(Unit::Other(name));
-        }
-        Err(MeasureError::unitless(format!(
-            "#{id} ({}) is not a unit",
-            names.join("+")
-        )))
-    }
-
-    /// The measure of a `measure_with_unit` instance (simple or a complex with that leaf).
     fn measure(&mut self, id: u64) -> Result<Measured, MeasureError> {
-        if !self.is(id, "measure_with_unit") {
-            return Err(MeasureError::nonconformance(format!(
-                "#{id} ({}) is not a measure",
-                self.entity_label(id)
-            )));
-        }
-        let value = self
-            .get(id, "measure_with_unit", "value_component")
-            .ok_or_else(|| MeasureError::nonconformance(format!("measure #{id} has no value")))?;
-        let (type_name, inner) = match value {
-            Attribute::Typed { type_name, value } => {
-                (Some(type_name.to_ascii_lowercase()), &**value)
-            }
-            v => (None, v),
-        };
-        let text = match inner {
-            Attribute::Real(_) | Attribute::Integer(_) => {
-                self.real_text(id, inner).ok_or_else(|| {
-                    MeasureError::nonconformance(format!(
-                        "measure #{id}: the value's text could not be read"
-                    ))
-                })?
-            }
-            other => {
-                return Err(MeasureError::nonconformance(format!(
-                    "measure #{id}: value {other:?} is not a number"
-                )));
-            }
-        };
-        let decimal = Decimal::parse(&text)
-            .map_err(|e| MeasureError::nonconformance(format!("measure #{id}: {e}")))?;
-        let unit_id = self
-            .get_ref(id, "measure_with_unit", "unit_component")
-            .ok_or_else(|| MeasureError::unitless(format!("measure #{id} has no unit instance")))?;
-        let unit = self.unit(unit_id)?;
-        let tn = type_name.as_deref().unwrap_or("");
-        match tn {
-            "ratio_measure" | "positive_ratio_measure" => return Ok(Measured::Ratio(decimal)),
-            "count_measure" => return Ok(Measured::Count(decimal)),
-            _ => {}
-        }
-        let length_type = matches!(
-            tn,
-            "length_measure" | "positive_length_measure" | "non_negative_length_measure"
-        );
-        let angle_type = matches!(tn, "plane_angle_measure" | "positive_plane_angle_measure");
-        match unit {
-            Unit::Length(u) if length_type || tn.is_empty() => Ok(Measured::Length(Length {
-                value: decimal,
-                unit: u,
-            })),
-            Unit::Angle(u) if angle_type || tn.is_empty() => Ok(Measured::Angle(Angle {
-                value: decimal,
-                unit: u,
-            })),
-            Unit::Other(u) if !length_type && !angle_type => Ok(Measured::Other {
-                measure: tn.to_string(),
-                value: decimal,
-                unit: u,
-            }),
-            u => Err(MeasureError::nonconformance(format!(
-                "measure #{id}: a {} value in unit {u:?}",
-                if tn.is_empty() { "untyped" } else { tn }
-            ))),
-        }
+        self.unit_reader.measure(id)
     }
 
     /// Whether a measure's value is written untyped (a nonconformance: the schema's SELECT
@@ -2987,23 +2790,9 @@ impl<'a> Reader<'a> {
         None
     }
 
-    /// The length unit of a representation's context (`global_unit_assigned_context`).
+    /// PMI retains its historical lenient context policy.
     fn context_length_unit(&mut self, rep: u64) -> Option<LengthUnit> {
-        let ctx = self.get_ref(rep, "representation", "context_of_items")?;
-        let mut length = None;
-        for u in self.get_refs(ctx, "global_unit_assigned_context", "units") {
-            if !self.is(u, "length_unit") {
-                continue;
-            }
-            let Unit::Length(unit) = self.unit(u).ok()? else {
-                return None;
-            };
-            if length.as_ref().is_some_and(|known| *known != unit) {
-                return None;
-            }
-            length = Some(unit);
-        }
-        length
+        self.unit_reader.context_length_unit(rep)
     }
 
     fn placement(&mut self, id: u64, unit: Option<LengthUnit>) -> Result<Placement, String> {
@@ -6978,7 +6767,7 @@ FILE_SCHEMA(('AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF')); ENDSEC; DATA;
 ENDSEC; END-ISO-10303-21;");
             let doc = Document::parse(text.as_bytes().to_vec()).unwrap();
             assert_eq!(
-                Reader::new(&doc, &[]).context_length_unit(1),
+                UnitReader::new(UnitSource::Document(&doc)).declared_context_length_unit(1),
                 expected,
                 "{name}"
             );
@@ -6987,7 +6776,10 @@ ENDSEC; END-ISO-10303-21;");
             for units in ["(#3,#5)", "(#5,#3)"] {
                 let conflicting = text.replace("((#3))", &format!("({units})"));
                 let doc = Document::parse(conflicting.into_bytes()).unwrap();
-                assert_eq!(Reader::new(&doc, &[]).context_length_unit(1), None);
+                assert_eq!(
+                    UnitReader::new(UnitSource::Document(&doc)).declared_context_length_unit(1),
+                    None
+                );
             }
         }
     }

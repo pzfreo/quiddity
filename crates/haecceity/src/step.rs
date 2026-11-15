@@ -1962,10 +1962,8 @@ impl Parsed {
         GEOMETRY_PARSES.with(|n| n.set(n.get() + 1));
         let parse_error = |e| StepError::Parse(crate::p21::parse_message(bytes, &e));
         let (model, report) = step_io::read(bytes).map_err(parse_error)?;
-        let doc = crate::p21::Document::parse_metadata(bytes.to_vec())
-            .map_err(|e| StepError::Parse(e.to_string()))?;
-        let declared_units = crate::pmi::declared_length_units(&doc);
-        let graph = doc.into_graph();
+        let graph = step_io::parser::parse(bytes).map_err(parse_error)?;
+        let declared_units = crate::pmi::declared_length_units(&graph, bytes);
         let complex_drops = crate::express::complex_reference_drops(&graph);
         refuse_dropped_shapes(&graph, &report, &complex_drops)?;
         check_curve_wrappers(&model)?;

@@ -670,18 +670,20 @@ impl Part {
 
     /// The length unit declared by this part's shape-representation context(s).
     ///
-    /// Uses the product definition's shape representations and their plain shape-equivalence
-    /// links and mapped sources, considering only representations whose own items contain
-    /// faces. Placement
-    /// relationships, unrelated PMI contexts and assembly wrappers do not choose the unit.
-    /// For shapes without a product definition, uses the representations containing their
-    /// faces. Every contributing context must declare a resolvable length unit and all must
-    /// agree; otherwise this returns `None`, including absent, invalid or conflicting declarations. A combined
-    /// assembly read follows the same rule across its retained parts. Use
+    /// Uses the product definition's shape representations, mapped sources and plain
+    /// shape-equivalence links (conservatively followed in both directions). Only
+    /// representations whose own items contain faces contribute. Placement relationships,
+    /// unrelated PMI contexts and assembly wrappers do not choose the unit. For shapes
+    /// without a product definition, uses the representations containing their faces.
+    /// Every contributing context must declare a resolvable length unit and all must agree;
+    /// otherwise this returns `None`, including absent, invalid or conflicting declarations.
+    /// A combined assembly read follows the same rule across its retained parts. Use
     /// [`crate::step::StepFile::part`] for each part's own declaration.
     ///
-    /// Caller-built parts have no declaration. Rigid transforms preserve it. This is
-    /// metadata only: geometry and geometry queries remain in millimetres.
+    /// Metadata is best-effort: a metadata read error returns `None` for every part without
+    /// changing geometry import or its errors. Caller-built parts have no declaration.
+    /// Rigid transforms preserve it. This is metadata only: geometry and geometry queries
+    /// remain in millimetres.
     #[must_use]
     pub fn declared_length_unit(&self) -> Option<crate::pmi::LengthUnit> {
         self.declared_length_unit.clone()

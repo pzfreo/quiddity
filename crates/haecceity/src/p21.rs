@@ -389,16 +389,6 @@ impl Document {
     /// Reads a file: step-io's records, this module's extents, and the check that both see the
     /// same instances.
     pub fn parse(bytes: Vec<u8>) -> Result<Document, P21Error> {
-        Self::parse_impl(bytes, true)
-    }
-
-    /// Read-only metadata import must not impose the editor's provisional-id reservation
-    /// on STEP geometry import. This document is consumed without applying edits.
-    pub(crate) fn parse_metadata(bytes: Vec<u8>) -> Result<Document, P21Error> {
-        Self::parse_impl(bytes, false)
-    }
-
-    fn parse_impl(bytes: Vec<u8>, reserve_ids: bool) -> Result<Document, P21Error> {
         let graph = step_io::parser::parse(bytes.as_slice())
             .map_err(|e| P21Error::Parse(parse_message(&bytes, &e)))?;
         let scan = scan(&bytes)?;
@@ -446,7 +436,7 @@ impl Document {
             .copied()
             .max()
             .unwrap_or(0);
-        if reserve_ids && max_id >= PROVISIONAL {
+        if max_id >= PROVISIONAL {
             return Err(P21Error::Parse(format!(
                 "instance id #{max_id} is in the range reserved for provisional ids"
             )));
@@ -492,11 +482,6 @@ impl Document {
     #[must_use]
     pub fn graph(&self) -> &Graph {
         &self.graph
-    }
-
-    /// Retain parsed records after metadata has been resolved, without cloning the graph.
-    pub(crate) fn into_graph(self) -> Graph {
-        self.graph
     }
 
     /// Instance `#id`'s record.
