@@ -1175,7 +1175,7 @@ fn oblique_counterbore_depth_starts_at_the_axis_entry_plane_intersection() {
             kind: SizeKind::Length,
         }
     );
-    assert_eq!(required.covers, [hole.support.feature.clone()]);
+    assert_eq!(required.covers, std::slice::from_ref(&hole.support.feature));
     assert_eq!(required.count, 1);
     assert_eq!(required.nominal, depth.nominal);
 
