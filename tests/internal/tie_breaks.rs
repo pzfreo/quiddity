@@ -51,11 +51,8 @@ fn symmetric_double_mouth_keeps_the_bore_and_both_counterbores_under_motion() {
             (6., 18., features::holes::Bottom::Through)
         );
         assert_eq!(
-            h.cbore,
-            Some(features::holes::CounterBore {
-                diameter: 12.,
-                depth: 6.
-            })
+            h.cbore.as_ref().map(|c| (c.diameter, c.depth)),
+            Some((12., 6.))
         );
         assert!(h.spotface.is_none() && h.csink.is_none());
         let mut faces = found[0].defining.clone();
@@ -392,6 +389,7 @@ fn tied_countersink_attribution_keeps_the_bore_under_motion_and_seat_permutation
             drill_diameter: hole.diameter,
             included_angle: 90.,
             depth: 1.,
+            faces: Vec::new(),
         };
         let mut seats = vec![
             Occurrence {
@@ -758,11 +756,8 @@ fn symmetric_double_counterbores_preserve_ftc10_and_captured_inventory() {
                 (&b.cbore, &b.spotface, &b.csink)
             );
             assert_eq!(
-                a.cbore,
-                Some(features::holes::CounterBore {
-                    diameter: 10.,
-                    depth: 10.
-                })
+                a.cbore.as_ref().map(|c| (c.diameter, c.depth)),
+                Some((10., 10.))
             );
             assert_eq!(got.defining["holes"][i].len(), 3, "bore and both mouths");
             assert!(bore_ends(a).iter().all(|p| {
@@ -792,11 +787,8 @@ fn symmetric_double_counterbores_preserve_ftc10_and_captured_inventory() {
             (10., 8., features::holes::Bottom::Through)
         );
         assert_eq!(
-            h.cbore,
-            Some(features::holes::CounterBore {
-                diameter: 18.,
-                depth: 6.
-            })
+            h.cbore.as_ref().map(|c| (c.diameter, c.depth)),
+            Some((18., 6.))
         );
         assert!(h.spotface.is_none() && h.csink.is_none());
         let mut faces = found[0].defining.clone();
@@ -966,8 +958,62 @@ fn symmetric_countersink_seats_survive_motion_and_seat_permutation() {
             expected.sort_unstable();
             expected.dedup();
             assert_eq!(context, expected);
+            assert_eq!(seat.faces, expected, "csink.faces claims both seats");
             assert_eq!(claims.get_or_insert_with(|| context.clone()), &context);
             seats.reverse();
         }
     }
+}
+
+/// For specify-core #180: nested sub-records name the faces the recogniser located for them,
+/// without removing those faces from the hole's own.
+#[test]
+fn nested_hole_sub_records_publish_their_located_faces() {
+    let part = read_step_file_placed(
+        &common::fixtures().join("spotface_outer_steps.step"),
+        &IDENTITY,
+    )
+    .unwrap();
+    let found = features::holes::discover(&Context::new(&part), &[]);
+    assert_eq!(found.len(), 1);
+    let (hole, defining) = (&found[0].record, &found[0].defining);
+    let steps = [
+        hole.spotface.as_ref().unwrap(),
+        hole.cbore.as_ref().unwrap(),
+        &hole.outer_steps[0],
+    ];
+    let mut seen: Vec<usize> = Vec::new();
+    for step in steps {
+        assert!(!step.faces.is_empty() && step.faces.windows(2).all(|w| w[0] < w[1]));
+        assert!(step.faces.iter().all(|f| defining.contains(f)));
+        seen.extend(step.faces.iter().copied());
+    }
+    seen.sort_unstable();
+    seen.dedup();
+    assert_eq!(
+        seen.len(),
+        steps.iter().map(|s| s.faces.len()).sum::<usize>()
+    );
+    assert!(defining.len() > seen.len(), "the bore's faces remain");
+
+    let part = read_step_file_placed(
+        &common::fixtures().join("countersink_two_face.step.gz"),
+        &IDENTITY,
+    )
+    .unwrap();
+    let ctx = Context::new(&part);
+    let seats = features::countersinks::discover_verified(&ctx).unwrap();
+    let found = features::holes::discover_verified(&ctx, &seats).unwrap();
+    let seat = found[0].record.csink.as_ref().unwrap();
+    assert!(!seat.faces.is_empty());
+    let mut all: Vec<usize> = seats
+        .iter()
+        .flat_map(|s| s.defining.iter().copied())
+        .collect();
+    all.sort_unstable();
+    all.dedup();
+    assert_eq!(
+        seat.faces, all,
+        "identical seats at both mouths are all claimed"
+    );
 }

@@ -4,6 +4,15 @@ All notable changes to quiddity-rust and haecceity. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Alpha 1's gates and their evidence are
 in [docs/alpha1.md](docs/alpha1.md).
 
+## Unreleased
+
+### Added
+
+- A hole's nested `cbore`, `spotface`, `outer_steps` items and `csink` publish an optional,
+  sorted `faces` listing the faces the recogniser located for that sub-record, omitted
+  when unknown. The parent hole's `faces` is unchanged. Additive within recognition/6;
+  fingerprints are unchanged. For specify-core #180.
+
 ## 0.5.3 (2026-11-15)
 
 A patch release for draftwright, Specify and build123d-mcp: each part's declared length unit

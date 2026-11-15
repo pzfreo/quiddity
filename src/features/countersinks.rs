@@ -44,6 +44,11 @@ pub struct CounterSink {
     pub drill_diameter: f64,
     pub included_angle: f64,
     pub depth: f64,
+    /// Sorted cone faces of this seat when nested as a hole's `csink` (consulted, not
+    /// among the hole's defining faces); identical seats at both mouths are all listed. Omitted on standalone `countersinks` records,
+    /// whose own faces are these.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub faces: Vec<usize>,
 }
 
 /// What `countersink_matches_hole` reads of a hole.
@@ -219,6 +224,7 @@ pub fn discover(ctx: &Context<'_>) -> Vec<Occurrence<CounterSink>> {
                 drill_diameter: r4(2.0 * minor_r),
                 included_angle,
                 depth: r4(length),
+                faces: Vec::new(),
             },
             defining: vec![face],
             context: vec![],
