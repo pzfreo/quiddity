@@ -24,11 +24,10 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
-- A convex end round tangent to a boss is part of the boss height and location
-  however short the straight wall: its legs are bounded by the boss radius only.
-  An R3 round and cap on a Ø65 boss gave height 13 at 13 mm tall but 5 at 8 mm
-  tall; it is now 8. Cones and non-tangent rounds keep the half-straight-length
-  bound that rejects long tapers. For specify-core #181.
+- Boss heights include convex tangent top rounds even when shortening leaves less than
+  twice the fillet radius in straight shaft. Torus legs are bounded by their own radius
+  and the boss radius; non-tangent junctions are excluded and the long-cone guard remains
+  in place (specify-core#181).
 - Dimensioning measures straight hole depths from the axis intersection with a sloping
   planar entry face, including counterbores, spotfaces and outer steps. Perpendicular
   and nonplanar entries, recognition measurements and through traversal lengths are unchanged.
