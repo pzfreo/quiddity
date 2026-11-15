@@ -355,6 +355,7 @@ pub struct Part {
     primary_pcurves: std::collections::BTreeMap<usize, Vec<usize>>,
     // The file's length and plane angle units in millimetres and radians.
     file_units: Option<(f64, f64)>,
+    declared_length_unit: Option<crate::pmi::LengthUnit>,
     // The file's length uncertainty, in millimetres.
     file_uncertainty: Option<f64>,
     native_faces: Vec<Native<Face>>,
@@ -391,6 +392,7 @@ impl Part {
             file_pcurves: Default::default(),
             primary_pcurves: Default::default(),
             file_units: None,
+            declared_length_unit: None,
             file_uncertainty: None,
             native_faces: Vec::new(),
             native_edges: Vec::new(),
@@ -594,6 +596,7 @@ impl Part {
         part.file_pcurves = self.file_pcurves.clone();
         part.primary_pcurves = self.primary_pcurves.clone();
         part.file_units = self.file_units;
+        part.declared_length_unit = self.declared_length_unit.clone();
         part.file_uncertainty = self.file_uncertainty;
         part.native_faces = native_faces;
         part.native_edges = native_edges;
@@ -655,6 +658,33 @@ impl Part {
         self.file_units = Some(units);
         self.file_uncertainty = uncertainty;
         self
+    }
+
+    pub(crate) fn with_declared_length_unit(
+        mut self,
+        unit: Option<crate::pmi::LengthUnit>,
+    ) -> Self {
+        self.declared_length_unit = unit;
+        self
+    }
+
+    /// The length unit declared by this part's shape-representation context(s).
+    ///
+    /// Uses the product definition's shape representations and their plain shape-equivalence
+    /// links and mapped sources, considering only representations whose own items contain
+    /// faces. Placement
+    /// relationships, unrelated PMI contexts and assembly wrappers do not choose the unit.
+    /// For shapes without a product definition, uses the representations containing their
+    /// faces. Every contributing context must declare a resolvable length unit and all must
+    /// agree; otherwise this returns `None`, including absent, invalid or conflicting declarations. A combined
+    /// assembly read follows the same rule across its retained parts. Use
+    /// [`crate::step::StepFile::part`] for each part's own declaration.
+    ///
+    /// Caller-built parts have no declaration. Rigid transforms preserve it. This is
+    /// metadata only: geometry and geometry queries remain in millimetres.
+    #[must_use]
+    pub fn declared_length_unit(&self) -> Option<crate::pmi::LengthUnit> {
+        self.declared_length_unit.clone()
     }
 
     /// The length uncertainty (modelling precision) of the file the part was read from, in

@@ -484,6 +484,11 @@ impl Document {
         &self.graph
     }
 
+    /// Retain parsed records after metadata has been resolved, without cloning the graph.
+    pub(crate) fn into_graph(self) -> Graph {
+        self.graph
+    }
+
     /// Instance `#id`'s record.
     #[must_use]
     pub fn get(&self, id: u64) -> Option<&RawEntity> {

@@ -1948,6 +1948,7 @@ struct Parsed {
     model: m::StepModel,
     report: step_io::Report,
     graph: step_io::parser::Graph,
+    declared_units: crate::pmi::DeclaredUnits,
 }
 
 #[cfg(test)]
@@ -1961,7 +1962,10 @@ impl Parsed {
         GEOMETRY_PARSES.with(|n| n.set(n.get() + 1));
         let parse_error = |e| StepError::Parse(crate::p21::parse_message(bytes, &e));
         let (model, report) = step_io::read(bytes).map_err(parse_error)?;
-        let graph = step_io::parser::parse(bytes).map_err(parse_error)?;
+        let doc = crate::p21::Document::parse(bytes.to_vec())
+            .map_err(|e| StepError::Parse(e.to_string()))?;
+        let declared_units = crate::pmi::declared_length_units(&doc);
+        let graph = doc.into_graph();
         let complex_drops = crate::express::complex_reference_drops(&graph);
         refuse_dropped_shapes(&graph, &report, &complex_drops)?;
         check_curve_wrappers(&model)?;
@@ -1969,6 +1973,7 @@ impl Parsed {
             model,
             report,
             graph,
+            declared_units,
         })
     }
 }
@@ -1990,6 +1995,7 @@ fn build(parsed: &Parsed, scope: Scope<'_>) -> Result<Read, StepError> {
         model,
         report,
         graph,
+        declared_units,
     } = parsed;
     let outer = match scope {
         Scope::Placed(outer) => outer,
@@ -2372,7 +2378,7 @@ fn build(parsed: &Parsed, scope: Scope<'_>) -> Result<Read, StepError> {
     if out_faces.is_empty() {
         return Err(StepError::Incomplete("no solid or shell with faces".into()));
     }
-    let placed = placed
+    let placed: Vec<PlacedDefinition> = placed
         .into_iter()
         .map(|(def, placement)| {
             let definition = ids.id(def.key())?;
@@ -2385,7 +2391,15 @@ fn build(parsed: &Parsed, scope: Scope<'_>) -> Result<Read, StepError> {
             })
         })
         .collect::<Result<_, StepError>>()?;
+    let declared_length_unit = crate::pmi::agreed_length_unit(face_sources.iter().map(|source| {
+        match instance_of[source.instance] {
+            Some(index) => declared_units.definitions.get(&placed[index].definition),
+            None => declared_units.faces.get(&source.entity),
+        }
+        .and_then(Option::as_ref)
+    }));
     let part = Part::new(out_faces, edges_out, solids)
+        .with_declared_length_unit(declared_length_unit)
         .with_unresolved(unresolved_faces, unresolved_edges)
         .with_sources(face_sources, edge_sources)
         .with_line_directions(line_directions)
@@ -2434,6 +2448,9 @@ pub struct PartDefinition {
     /// which is how a part is identified; it need not be unique (exporters often repeat the
     /// name).
     pub product_id: String,
+    /// The declaration of this part's own shape-representation context(s), using the same
+    /// agreement rule as [`Part::declared_length_unit`], independently of other parts.
+    pub declared_length_unit: Option<crate::pmi::LengthUnit>,
     /// Face index → the `#N` of the `ADVANCED_FACE` (or `FACE_SURFACE`) it was read from.
     pub faces: Vec<u64>,
     /// Edge index → the `#N` of its `EDGE_CURVE`.
@@ -2510,7 +2527,11 @@ impl StepFile {
     pub fn read(bytes: &[u8]) -> Result<StepFile, StepError> {
         let parsed = Parsed::new(bytes)?;
         let assemblies = assemblies(&parsed.graph.entities);
-        let parts = part_definitions(build(&parsed, Scope::Placed(IDENTITY))?, &assemblies)?;
+        let parts = part_definitions(
+            build(&parsed, Scope::Placed(IDENTITY))?,
+            &assemblies,
+            &parsed.declared_units,
+        )?;
         Ok(StepFile {
             parsed,
             parts,
@@ -2708,7 +2729,11 @@ pub fn read_part_definitions(bytes: &[u8]) -> Result<Vec<PartDefinition>, StepEr
 
 /// The distinct parts of a whole file's read (see [`read_part_definitions`]), each named after
 /// an assembly of `assemblies` that holds it alone, if one does.
-fn part_definitions(read: Read, assemblies: &[Assembly]) -> Result<Vec<PartDefinition>, StepError> {
+fn part_definitions(
+    read: Read,
+    assemblies: &[Assembly],
+    declared_units: &crate::pmi::DeclaredUnits,
+) -> Result<Vec<PartDefinition>, StepError> {
     let Read {
         part,
         instances,
@@ -2792,6 +2817,11 @@ fn part_definitions(read: Read, assemblies: &[Assembly]) -> Result<Vec<PartDefin
             shape,
             name,
             product_id: def.product_id.clone(),
+            declared_length_unit: declared_units
+                .definitions
+                .get(&def.definition)
+                .cloned()
+                .flatten(),
             faces,
             edges,
             placements: vec![placement],

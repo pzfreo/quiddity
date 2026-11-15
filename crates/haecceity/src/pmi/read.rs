@@ -110,6 +110,113 @@ fn read_impl(
     Ok(result)
 }
 
+/// Metadata keyed by product definition; face declarations are a fallback for orphan shapes.
+pub(crate) struct DeclaredUnits {
+    pub(crate) definitions: HashMap<u64, Option<LengthUnit>>,
+    pub(crate) faces: HashMap<u64, Option<LengthUnit>>,
+}
+
+/// Resolve metadata with the same schema access and exact unit arithmetic as semantic PMI.
+pub(crate) fn declared_length_units(doc: &Document) -> DeclaredUnits {
+    let mut reader = Reader::new(doc, &[]);
+    let mut representations = HashMap::new();
+    let mut faces = HashMap::new();
+    let mut links: HashMap<u64, Vec<u64>> = HashMap::new();
+    let mut roots: HashMap<u64, Vec<u64>> = HashMap::new();
+    for &id in doc.graph().entities.keys() {
+        if reader.is(id, "shape_representation_relationship")
+            && !reader.is(id, "representation_relationship_with_transformation")
+            && let (Some(a), Some(b)) = (
+                reader.get_ref(id, "representation_relationship", "rep_1"),
+                reader.get_ref(id, "representation_relationship", "rep_2"),
+            )
+        {
+            links.entry(a).or_default().push(b);
+            links.entry(b).or_default().push(a);
+        }
+        if reader.is(id, "shape_definition_representation")
+            && let Some(shape) =
+                reader.get_ref(id, "property_definition_representation", "definition")
+            && let Some(definition) = reader.get_ref(shape, "property_definition", "definition")
+            && reader.is(definition, "product_definition")
+            && let Some(rep) = reader.get_ref(
+                id,
+                "property_definition_representation",
+                "used_representation",
+            )
+        {
+            roots.entry(definition).or_default().push(rep);
+        }
+        if !reader.is(id, "shape_representation") {
+            continue;
+        }
+        let unit = reader.context_length_unit(id);
+        let mut pending = reader.get_refs(id, "representation", "items");
+        let mut visited = BTreeSet::new();
+        let mut members = Vec::new();
+        while let Some(item) = pending.pop() {
+            if !visited.insert(item) {
+                continue;
+            }
+            // Mapped sources have their own representation and context. Follow their
+            // ownership in one direction; a source never inherits a wrapper's context.
+            if reader.is(item, "representation") {
+                links.entry(id).or_default().push(item);
+                continue;
+            }
+            if reader.is(item, "face_surface") {
+                faces
+                    .entry(item)
+                    .and_modify(|known| {
+                        if *known != unit {
+                            *known = None;
+                        }
+                    })
+                    .or_insert_with(|| unit.clone());
+                members.push(item);
+                continue;
+            }
+            if let Some(entity) = doc.get(item) {
+                visit_attributes(entity, &mut |a| {
+                    if let Attribute::EntityRef(target) = a {
+                        pending.push(*target);
+                    }
+                });
+            }
+        }
+        representations.insert(id, (unit, members));
+    }
+    let mut definitions = HashMap::new();
+    for (definition, mut pending) in roots {
+        let mut seen = BTreeSet::new();
+        let mut declarations = Vec::new();
+        while let Some(rep) = pending.pop() {
+            if !seen.insert(rep) {
+                continue;
+            }
+            if let Some((unit, members)) = representations.get(&rep)
+                && !members.is_empty()
+            {
+                declarations.push(unit.as_ref());
+            }
+            if let Some(others) = links.get(&rep) {
+                pending.extend(others);
+            }
+        }
+        definitions.insert(definition, agreed_length_unit(declarations));
+    }
+    DeclaredUnits { definitions, faces }
+}
+
+/// Missing and conflicting declarations cannot be replaced by a file-wide default.
+pub(crate) fn agreed_length_unit<'a>(
+    units: impl IntoIterator<Item = Option<&'a LengthUnit>>,
+) -> Option<LengthUnit> {
+    let mut units = units.into_iter();
+    let first = units.next()??;
+    units.all(|unit| unit == Some(first)).then(|| first.clone())
+}
+
 // ---------------------------------------------------------------------------------------------
 // Instance access
 // ---------------------------------------------------------------------------------------------
@@ -2883,12 +2990,20 @@ impl<'a> Reader<'a> {
     /// The length unit of a representation's context (`global_unit_assigned_context`).
     fn context_length_unit(&mut self, rep: u64) -> Option<LengthUnit> {
         let ctx = self.get_ref(rep, "representation", "context_of_items")?;
+        let mut length = None;
         for u in self.get_refs(ctx, "global_unit_assigned_context", "units") {
-            if let Ok(Unit::Length(l)) = self.unit(u) {
-                return Some(l);
+            if !self.is(u, "length_unit") {
+                continue;
             }
+            let Unit::Length(unit) = self.unit(u).ok()? else {
+                return None;
+            };
+            if length.as_ref().is_some_and(|known| *known != unit) {
+                return None;
+            }
+            length = Some(unit);
         }
-        None
+        length
     }
 
     fn placement(&mut self, id: u64, unit: Option<LengthUnit>) -> Result<Placement, String> {
@@ -6838,6 +6953,151 @@ fn knurl_of(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn context_length_units_use_exact_factors_and_reject_conflicts() {
+        for (name, factor, expected) in [
+            ("INCH", "25.4", Some(LengthUnit::Inch)),
+            ("inch", "25.4", Some(LengthUnit::Inch)),
+            ("in", "25.4", Some(LengthUnit::Inch)),
+            ("exporter-specific name", "25.4", Some(LengthUnit::Inch)),
+            ("FOOT", "304.8", Some(LengthUnit::Foot)),
+            ("ft", "304.8", Some(LengthUnit::Foot)),
+            ("inch", "2.54", None),
+        ] {
+            let text = format!("ISO-10303-21; HEADER; FILE_SCHEMA(('AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF')); ENDSEC; DATA;
+#1 = SHAPE_REPRESENTATION('',(),#2);
+#2 = ( GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#3)) REPRESENTATION_CONTEXT('','') );
+#3 = ( CONVERSION_BASED_UNIT('{name}',#4) LENGTH_UNIT() NAMED_UNIT(#6) );
+#4 = LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE({factor}),#5);
+#5 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );
+#6 = DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.);
+ENDSEC; END-ISO-10303-21;");
+            let doc = Document::parse(text.as_bytes().to_vec()).unwrap();
+            assert_eq!(
+                Reader::new(&doc, &[]).context_length_unit(1),
+                expected,
+                "{name}"
+            );
+            // Even two individually valid LENGTH_UNIT declarations cannot pick an arbitrary
+            // first unit from the context's SET. The result is independent of SET order.
+            for units in ["(#3,#5)", "(#5,#3)"] {
+                let conflicting = text.replace("((#3))", &format!("({units})"));
+                let doc = Document::parse(conflicting.into_bytes()).unwrap();
+                assert_eq!(Reader::new(&doc, &[]).context_length_unit(1), None);
+            }
+        }
+    }
+
+    /// Independently walk upward from each part's faces to the contexts used by PMI.
+    /// This covers per-part selection as well as the public metadata over the pinned corpus.
+    #[test]
+    fn declared_units_agree_with_pmi_over_the_corpus() {
+        use crate::step::StepFile;
+        use std::io::Read;
+        let Some(root) = std::env::var_os("QUIDDITY_CORPUS")
+            .map(std::path::PathBuf::from)
+            .filter(|p| p.is_dir())
+        else {
+            assert_ne!(
+                std::env::var("QUIDDITY_CORPUS_REQUIRED").as_deref(),
+                Ok("1"),
+                "corpus required"
+            );
+            return;
+        };
+        let fixtures =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures");
+        let corpus: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(fixtures.join("corpus.json")).unwrap()).unwrap();
+        let mut file_counts = BTreeMap::<String, usize>::new();
+        let mut part_counts = BTreeMap::<String, usize>::new();
+        let mut assemblies = Vec::new();
+        for entry in corpus["files"].as_array().unwrap() {
+            let name = entry["file"].as_str().unwrap();
+            let raw = std::fs::read(root.join(name)).unwrap();
+            let bytes = if name.ends_with(".gz") {
+                let mut bytes = Vec::new();
+                flate2::read::GzDecoder::new(raw.as_slice())
+                    .read_to_end(&mut bytes)
+                    .unwrap();
+                bytes
+            } else {
+                raw
+            };
+            let file = StepFile::read(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
+            let doc = Document::parse(bytes).unwrap();
+            let mut reader = Reader::new(&doc, &file.parts);
+            let mut file_unit = None;
+            let mut same = true;
+            for (index, part) in file.parts.iter().enumerate() {
+                let mut pending = part.faces.clone();
+                let mut seen = BTreeSet::new();
+                let mut contexts = BTreeSet::new();
+                while let Some(id) = pending.pop() {
+                    if !seen.insert(id) {
+                        continue;
+                    }
+                    for &parent in doc.referrers(id) {
+                        if reader.is(parent, "shape_representation") {
+                            contexts.insert(parent);
+                        } else if [
+                            "connected_face_set",
+                            "oriented_closed_shell",
+                            "solid_model",
+                            "shell_based_surface_model",
+                            "oriented_face",
+                        ]
+                        .iter()
+                        .any(|kind| reader.is(parent, kind))
+                        {
+                            pending.push(parent);
+                        }
+                    }
+                }
+                assert!(
+                    !contexts.is_empty(),
+                    "{name}: {} has no owning representation",
+                    part.name
+                );
+                let resolved: Vec<_> = contexts
+                    .iter()
+                    .map(|&rep| reader.context_length_unit(rep))
+                    .collect();
+                let expected = resolved
+                    .first()
+                    .cloned()
+                    .flatten()
+                    .filter(|first| resolved.iter().all(|unit| unit.as_ref() == Some(first)));
+                assert_eq!(
+                    part.declared_length_unit, expected,
+                    "{name}: {} disagrees with PMI contexts {contexts:?}",
+                    part.name
+                );
+                *part_counts
+                    .entry(format!("{:?}", part.declared_length_unit))
+                    .or_default() += 1;
+                if index == 0 {
+                    file_unit = part.declared_length_unit.clone();
+                } else if file_unit != part.declared_length_unit {
+                    same = false;
+                }
+            }
+            *file_counts
+                .entry(if same {
+                    format!("{file_unit:?}")
+                } else {
+                    "Mixed".into()
+                })
+                .or_default() += 1;
+            if file.parts.len() > 1 {
+                assemblies.push((name.to_owned(), file.parts.len()));
+            }
+        }
+        println!(
+            "Declared unit survey: files={file_counts:?}; parts={part_counts:?}; multi-part={assemblies:?}; PMI disagreements=0"
+        );
+    }
 
     #[test]
     fn real_tokens_skip_strings_names_and_refs() {
