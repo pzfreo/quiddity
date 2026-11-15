@@ -3206,6 +3206,13 @@
     "tests/fixtures/ties/square_pocket.step": "6b7f58bfb988eb08665d5dfd61f18301cf3564c15f1683a06d05724ea631a885",
     "tests/fixtures/ties/symmetric_cylinder.step": "e9bd7db7c6edc4fae20254b70734406fa51914f91cda444ecf594bc9c43fef9d",
     "tests/fixtures/ties/symmetric_double_mouth.step": "304e65c1b95eb907422fbdd5a4410201b9811015abfd43111c664c6f6ed6611b",
+    "tests/fixtures/top_round_boss.README.md": "775e615563c76a3b9e7eef9323c8f3fddcadd34dbd8b0d9592f3299b56571863",
+    "tests/fixtures/top_round_boss13.step.gz": "dea6d562d0d4b4d6fc5e28389b74f59eb673e18b4dadfaf0250fa157492a4d7f",
+    "tests/fixtures/top_round_boss4.step.gz": "9470aab806cf46e958009e4bd65e2eb64bf8132ebfe8f932efd141172a6d26d9",
+    "tests/fixtures/top_round_boss6.step.gz": "77b05693d890a8a1181351bd27014451be8d7d8f9f62b7347177d5e79c0a3d2a",
+    "tests/fixtures/top_round_boss8.step.gz": "ddbb075b5ea5e50b62d28f29ca89e95ff1514c471ced9913bdd3aa5a9463dee4",
+    "tests/fixtures/top_round_boss8_chamfer.step.gz": "962412b66716ff1e48be1f4f4558dd5ddeebffab5b27e390ef2450889d368d00",
+    "tests/fixtures/top_round_non_tangent.step.gz": "b92d6fa0f5f1d22d7ab1f057bfdd3fef7fc8b0c7091e17f370efca9d903781be",
     "tests/fixtures/toroidal_bead.step": "60a2afc370ef92b813ff6cc5b971409c847212cde75e8c2ad0c2b977da32472b",
     "tests/fixtures/torus_elbow_seamless.step": "c4ce13968ea1d5abbfd9de34c4d6b51e8425dc7ae78e95a2cecf3cf9192e26d1",
     "tests/fixtures/torus_elbow_seamless_reversed_bound.step": "9e0d5b63e705fc99cf1fc41e7af334517ffc7142a828d0c0685276ff07754a59",
@@ -5934,5 +5941,5 @@
     "step_levels.json.gz": "6ff3ceadb33888e9d529a10b9a880babaf979f4f8d869962215d9d3193902f00",
     "unowned_recesses.json.gz": "aa0e60fc74b1229fe0317c2c8635f52c299a8c2a705875f852f9cba6dfb5130c"
   },
-  "source_commit": "1535272ad139197e0327b6729c11bc68edbaee05"
+  "source_commit": "c8b2fdc4a5cb5a96144eee4ed0cc668966ed3430"
 }
