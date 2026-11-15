@@ -660,7 +660,11 @@ have convex material curvature; a concave root fillet into the host never length
 a boss. Each treatment's axial and radial legs must be no larger than the smaller
 of the boss radius and half its straight cylindrical length. This makes the end
 break subordinate to its own boss in both directions, independent of the whole
-part's size, and excludes long tapers. A treatment eligible for two cylindrical
+part's size, and excludes long tapers. A convex torus round tangent to the
+cylinder at every junction cannot be a taper: its legs are bounded by the boss
+radius only, so the same round and cap stay in the height however short the
+straight wall (specify-core #181: an R3 round on a 5 mm wall gives height 8, not 5).
+Cones and non-tangent tori keep both bounds. A treatment eligible for two cylindrical
 segments extends neither: no treatment span is counted into two bosses. A tangent
 spherical end round contributes only when its equator meets the cylinder end.
 The cylinder faces remain defining evidence; treatments are consulted context and
