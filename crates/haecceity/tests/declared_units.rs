@@ -295,3 +295,38 @@ fn a_metadata_record_error_discards_all_declarations_without_refusing_geometry()
     check_all(changed.as_bytes(), None);
     same_geometry(source.as_bytes(), changed.as_bytes());
 }
+
+#[test]
+fn deep_conversion_chains_keep_main_geometry_import_without_using_the_stack() {
+    // Main accepts this unused-by-geometry chain because the file's geometric scale comes
+    // from its first context. Metadata must also read it without recursively using the stack.
+    let source = assembly();
+    let mut records = String::from("#20002=DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.);\n");
+    let mut last = 28;
+    for i in 0..60_000 {
+        let factor = 50_000 + 2 * i;
+        let unit = factor + 1;
+        records.push_str(&format!("#{factor}=LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.),#{last});\n#{unit}=(CONVERSION_BASED_UNIT('unit',#{factor})LENGTH_UNIT()NAMED_UNIT(#20002));\n"));
+        last = unit;
+    }
+    records.push_str(&format!(
+        "#20001=LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.),#{last});\n"
+    ));
+    let changed = source.replace(
+        "#1257 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );",
+        "#1257=(CONVERSION_BASED_UNIT('unit',#20001)LENGTH_UNIT()NAMED_UNIT(#20002));",
+    );
+    let at = changed.rfind("ENDSEC;").unwrap();
+    let changed = format!("{}{records}{}", &changed[..at], &changed[at..]);
+    let file = StepFile::read(changed.as_bytes()).unwrap();
+    assert!(
+        file.parts
+            .iter()
+            .all(|p| p.declared_length_unit == Some(LengthUnit::Millimetre))
+    );
+    assert_eq!(
+        file.part(1).unwrap().declared_length_unit(),
+        Some(LengthUnit::Millimetre)
+    );
+    same_geometry(source.as_bytes(), changed.as_bytes());
+}

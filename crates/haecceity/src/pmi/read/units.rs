@@ -182,6 +182,9 @@ impl<'a> UnitReader<'a> {
         if let Some(u) = self.units.get(&id) {
             return u.clone();
         }
+        if matches!(self.source, Source::Graph { .. }) {
+            return self.graph_unit(id);
+        }
         self.units.insert(
             id,
             Err(MeasureError::unitless(format!(
@@ -191,6 +194,44 @@ impl<'a> UnitReader<'a> {
         let u = self.resolve_unit(id);
         self.units.insert(id, u.clone());
         u
+    }
+
+    /// Geometry import can encounter factor chains that semantic PMI never reaches.
+    /// Schedule their unit dependencies in postorder, then use the SAME factor resolver;
+    /// every nested `unit()` lookup is already cached. A cycle sees the in-progress error.
+    fn graph_unit(&mut self, root: u64) -> Result<Unit, MeasureError> {
+        let mut pending = vec![(root, false)];
+        while let Some((id, resolve)) = pending.pop() {
+            if resolve {
+                let unit = self.resolve_unit(id);
+                self.units.insert(id, unit);
+                continue;
+            }
+            if self.units.contains_key(&id) {
+                continue;
+            }
+            self.units.insert(
+                id,
+                Err(MeasureError::unitless(format!(
+                    "unit #{id} refers to itself"
+                ))),
+            );
+            pending.push((id, true));
+            // Preserve resolve_unit's SI-before-conversion precedence for complex units.
+            let names = self.names(id);
+            if !names.iter().any(|n| n == "si_unit")
+                && names.iter().any(|n| n == "conversion_based_unit")
+                && let Some(factor) = self.get_ref(id, "conversion_based_unit", "conversion_factor")
+                && let Some(child) = self.get_ref(factor, "measure_with_unit", "unit_component")
+            {
+                pending.push((child, false));
+            }
+        }
+        self.units.get(&root).cloned().unwrap_or_else(|| {
+            Err(MeasureError::unitless(format!(
+                "unit #{root} does not exist"
+            )))
+        })
     }
 
     fn resolve_unit(&mut self, id: u64) -> Result<Unit, MeasureError> {
