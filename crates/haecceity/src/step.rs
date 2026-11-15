@@ -8,6 +8,11 @@ pub mod manifest;
 
 use std::collections::HashMap;
 
+mod raw_graph;
+pub(crate) use raw_graph::RecordGraph;
+#[cfg(test)]
+mod memory_tests;
+
 use step_io::model as m;
 use step_io::parser::{Attribute, RawEntity};
 use step_io::scene::{Edge as StepEdge, Face as StepFace, SurfaceKind};
@@ -1407,8 +1412,8 @@ fn raw_edge_curve(model: &m::StepModel, edge: &StepEdge<'_>) -> m::CurveRef {
 /// raw graph on that basis and every face and edge is checked against its record before its id
 /// is given out (see [`FileIds::face`], [`FileIds::edge`]); a disagreement is an error, never a
 /// guess.
-struct FileIds<'a> {
-    graph: &'a std::collections::BTreeMap<u64, step_io::parser::RawEntity>,
+struct FileIds<'a, G: RecordGraph = step_io::parser::Graph> {
+    graph: &'a G,
     model: &'a m::StepModel,
     /// Kept instances of each simple type below, in ascending id order: arena index → `#N`.
     by_type: HashMap<&'static str, Vec<u64>>,
@@ -1426,17 +1431,13 @@ const ID_TYPES: [&str; 6] = [
     "PRODUCT_DEFINITION_SHAPE",
 ];
 
-impl<'a> FileIds<'a> {
-    fn new(
-        graph: &'a step_io::parser::Graph,
-        model: &'a m::StepModel,
-        report: &step_io::Report,
-    ) -> Self {
+impl<'a, G: RecordGraph> FileIds<'a, G> {
+    fn new(graph: &'a G, model: &'a m::StepModel, report: &step_io::Report) -> Self {
         let dropped: std::collections::HashSet<u64> =
             report.dropped.iter().map(|(id, _)| *id).collect();
         let mut by_type: HashMap<&'static str, Vec<u64>> = HashMap::new();
-        for (&id, entity) in &graph.entities {
-            if let step_io::parser::RawEntity::Simple { name, .. } = entity
+        for id in graph.ids() {
+            if let Some(name) = graph.kind(id)
                 && let Some(&kind) = ID_TYPES.iter().find(|&&t| t == name)
                 && !dropped.contains(&id)
             {
@@ -1444,7 +1445,7 @@ impl<'a> FileIds<'a> {
             }
         }
         FileIds {
-            graph: &graph.entities,
+            graph,
             model,
             by_type,
             checked: HashMap::new(),
@@ -1564,33 +1565,27 @@ impl<'a> FileIds<'a> {
             self.id(me).map_err(|e| e.to_string())?,
         );
         match self.attribute(id, 2) {
-            Some(Attribute::EntityRef(d)) if *d == definition => Ok(id),
+            Some(Attribute::EntityRef(d)) if d == definition => Ok(id),
             _ => Err(format!(
                 "#{id} read as the shape of #{definition} does not name it"
             )),
         }
     }
 
-    /// Attribute *index* of simple instance *id*.
-    fn attribute(&self, id: u64, index: usize) -> Option<&'a Attribute> {
-        match self.graph.get(&id)? {
-            RawEntity::Simple { attributes, .. } => attributes.get(index),
-            RawEntity::Complex { .. } => None,
-        }
+    /// Attribute *index* of simple instance *id*, scoped to this query.
+    fn attribute(&self, id: u64, index: usize) -> Option<Attribute> {
+        self.graph.attribute_at(id, None, &[index])
     }
 
     /// The entity type of instance *id*, `COMPLEX` for a complex instance.
-    fn kind(&self, id: u64) -> Option<&'a str> {
-        Some(match self.graph.get(&id)? {
-            RawEntity::Simple { name, .. } => name,
-            RawEntity::Complex { .. } => "COMPLEX",
-        })
+    fn kind(&self, id: u64) -> Option<&str> {
+        self.graph.kind(id)
     }
 
     /// The instance attribute *index* of *id* refers to.
     fn reference(&self, id: u64, index: usize) -> Option<u64> {
         match self.attribute(id, index)? {
-            Attribute::EntityRef(r) => Some(*r),
+            Attribute::EntityRef(r) => Some(r),
             _ => None,
         }
     }
@@ -1615,42 +1610,31 @@ impl<'a> FileIds<'a> {
 
     /// The location point of surface instance *id* as written (see [`FileIds::face`]).
     fn raw_location(&self, id: u64) -> Option<Vec<f64>> {
-        let first_pole = |list: &Attribute| match list {
-            Attribute::List(rows) => match rows.first()? {
-                Attribute::List(row) => match row.first()? {
-                    Attribute::EntityRef(p) => self.raw_point(*p),
-                    _ => None,
-                },
-                _ => None,
-            },
+        let first_pole = |part, index| match self.graph.attribute_at(id, part, &[index, 0, 0])? {
+            Attribute::EntityRef(p) => self.raw_point(p),
             _ => None,
         };
-        match self.graph.get(&id)? {
-            RawEntity::Simple { name, .. } => match name.as_str() {
-                "PLANE"
-                | "CYLINDRICAL_SURFACE"
-                | "CONICAL_SURFACE"
-                | "SPHERICAL_SURFACE"
-                | "TOROIDAL_SURFACE"
-                | "DEGENERATE_TOROIDAL_SURFACE" => {
-                    let axis = self.reference(id, 1)?;
-                    self.raw_point(self.reference(axis, 1)?)
-                }
-                "SURFACE_OF_REVOLUTION" => {
-                    let axis = self.reference(id, 2)?;
-                    self.raw_point(self.reference(axis, 1)?)
-                }
-                "B_SPLINE_SURFACE"
-                | "B_SPLINE_SURFACE_WITH_KNOTS"
-                | "BEZIER_SURFACE"
-                | "UNIFORM_SURFACE"
-                | "QUASI_UNIFORM_SURFACE" => first_pole(self.attribute(id, 3)?),
-                _ => None,
-            },
-            RawEntity::Complex { parts, .. } => {
-                let part = parts.iter().find(|p| p.name == "B_SPLINE_SURFACE")?;
-                first_pole(part.attributes.get(2)?)
+        match self.kind(id)? {
+            "PLANE"
+            | "CYLINDRICAL_SURFACE"
+            | "CONICAL_SURFACE"
+            | "SPHERICAL_SURFACE"
+            | "TOROIDAL_SURFACE"
+            | "DEGENERATE_TOROIDAL_SURFACE" => {
+                let axis = self.reference(id, 1)?;
+                self.raw_point(self.reference(axis, 1)?)
             }
+            "SURFACE_OF_REVOLUTION" => {
+                let axis = self.reference(id, 2)?;
+                self.raw_point(self.reference(axis, 1)?)
+            }
+            "B_SPLINE_SURFACE"
+            | "B_SPLINE_SURFACE_WITH_KNOTS"
+            | "BEZIER_SURFACE"
+            | "UNIFORM_SURFACE"
+            | "QUASI_UNIFORM_SURFACE" => first_pole(None, 3),
+            "COMPLEX" => first_pole(Some("B_SPLINE_SURFACE"), 2),
+            _ => None,
         }
     }
 
@@ -1747,7 +1731,7 @@ impl<'a> FileIds<'a> {
                 step_name(surface)
             ));
         }
-        if logical(self.attribute(id, 3)) != Some(same_sense) {
+        if logical(self.attribute(id, 3).as_ref()) != Some(same_sense) {
             return Err(format!("its same_sense is not {same_sense}"));
         }
         if !same_point(
@@ -1782,7 +1766,7 @@ impl<'a> FileIds<'a> {
                         "loop #{lp}'s edge count differs from the readable scene edges"
                     ));
                 }
-                for oe in oriented {
+                for oe in &oriented {
                     let Attribute::EntityRef(oe) = oe else {
                         continue;
                     };
@@ -1858,7 +1842,7 @@ impl<'a> FileIds<'a> {
         if self.kind(curve) != Some(&step_name(typed)) {
             return Err(format!("curve #{curve} is not {}", step_name(typed)));
         }
-        if logical(self.attribute(id, 4)) != Some(e.same_sense) {
+        if logical(self.attribute(id, 4).as_ref()) != Some(e.same_sense) {
             return Err(format!("its same_sense is not {}", e.same_sense));
         }
         Ok(())
@@ -1915,6 +1899,19 @@ pub fn read_step_placed(bytes: &[u8], outer: &Placement) -> Result<Part, StepErr
     read_placed(bytes, outer).map(|read| read.part)
 }
 
+/// Read an owned STEP byte snapshot, releasing its bytes after provenance
+/// validation and before allocating the resulting B-rep. Geometry and parse
+/// diagnostics are the same as [`read_step`].
+pub fn read_step_owned(bytes: Vec<u8>) -> Result<Part, StepError> {
+    read_step_placed_owned(bytes, &IDENTITY)
+}
+
+/// [`read_step_owned`] moved by *outer*, as [`read_step_placed`] places it.
+pub fn read_step_placed_owned(bytes: Vec<u8>, outer: &Placement) -> Result<Part, StepError> {
+    validate_placement(outer)?;
+    build(&Parsed::owned(bytes)?, Scope::Placed(*outer)).map(|read| read.part)
+}
+
 /// A product definition the reader placed (an assembly or a part), as file instances.
 struct PlacedDefinition {
     /// The `#N` of its `product_definition` (or the `_with_associated_documents` subtype).
@@ -1944,10 +1941,10 @@ fn read_placed(bytes: &[u8], outer: &Placement) -> Result<Read, StepError> {
 }
 
 /// A STEP file parsed, its shapes checked complete, before any geometry is built.
-struct Parsed {
+struct Parsed<G = step_io::parser::CompactGraph> {
     model: m::StepModel,
     report: step_io::Report,
-    graph: step_io::parser::Graph,
+    graph: G,
     declared_units: crate::pmi::DeclaredUnits,
 }
 
@@ -1957,13 +1954,19 @@ thread_local! {
 }
 
 impl Parsed {
+    fn owned(bytes: Vec<u8>) -> Result<Parsed, StepError> {
+        let parsed = Self::new(&bytes)?;
+        drop(bytes);
+        Ok(parsed)
+    }
+
     fn new(bytes: &[u8]) -> Result<Parsed, StepError> {
         #[cfg(test)]
         GEOMETRY_PARSES.with(|n| n.set(n.get() + 1));
         let parse_error = |e| StepError::Parse(crate::p21::parse_message(bytes, &e));
         let (model, report) = step_io::read(bytes).map_err(parse_error)?;
-        let graph = step_io::parser::parse(bytes).map_err(parse_error)?;
-        let declared_units = crate::pmi::declared_length_units(&graph, bytes);
+        let graph = step_io::parser::parse_compact(bytes).map_err(parse_error)?;
+        let declared_units = crate::pmi::declared_length_units(&graph, &graph.header, bytes);
         let complex_drops = crate::express::complex_reference_drops(&graph);
         refuse_dropped_shapes(&graph, &report, &complex_drops)?;
         check_curve_wrappers(&model)?;
@@ -1988,7 +1991,7 @@ enum Scope<'a> {
     Own(u64),
 }
 
-fn build(parsed: &Parsed, scope: Scope<'_>) -> Result<Read, StepError> {
+fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, StepError> {
     let Parsed {
         model,
         report,
@@ -2383,8 +2386,8 @@ fn build(parsed: &Parsed, scope: Scope<'_>) -> Result<Read, StepError> {
             Ok(PlacedDefinition {
                 definition,
                 shape: ids.definition_shape(&def, &rg),
-                name: product_name(&graph.entities, definition),
-                product_id: product_id(&graph.entities, definition),
+                name: product_name(graph, definition),
+                product_id: product_id(graph, definition),
                 placement,
             })
         })
@@ -2524,7 +2527,7 @@ impl StepFile {
     /// Reads `bytes`; refused as [`read_part_definitions`] refuses.
     pub fn read(bytes: &[u8]) -> Result<StepFile, StepError> {
         let parsed = Parsed::new(bytes)?;
-        let assemblies = assemblies(&parsed.graph.entities);
+        let assemblies = assemblies(&parsed.graph);
         let parts = part_definitions(
             build(&parsed, Scope::Placed(IDENTITY))?,
             &assemblies,
@@ -2586,7 +2589,7 @@ impl PartReader {
     }
 }
 
-fn own_part(parsed: &Parsed, def: &PartDefinition) -> Result<Part, StepError> {
+fn own_part(parsed: &Parsed<impl RecordGraph>, def: &PartDefinition) -> Result<Part, StepError> {
     let refuse = |why: String| {
         StepError::Unsupported(format!(
             "part #{} ({}): {why}",
@@ -2629,29 +2632,23 @@ fn own_part(parsed: &Parsed, def: &PartDefinition) -> Result<Part, StepError> {
 /// title as the id), with escapes decoded by step-io. Malformed escapes are retained
 /// by the parser (a name is never refused for that); empty when the
 /// chain does not resolve.
-fn product_name(graph: &std::collections::BTreeMap<u64, RawEntity>, definition: u64) -> String {
+fn product_name(graph: &impl RecordGraph, definition: u64) -> String {
     let [id, name] = product_texts(graph, definition);
     if name.is_empty() { id } else { name }
 }
 
 /// A product definition's `PRODUCT.id`, through the same chain as [`product_name`] and decoded
 /// the same way; empty when the chain does not resolve.
-fn product_id(graph: &std::collections::BTreeMap<u64, RawEntity>, definition: u64) -> String {
+fn product_id(graph: &impl RecordGraph, definition: u64) -> String {
     let [id, _] = product_texts(graph, definition);
     id
 }
 
 /// `[PRODUCT.id, PRODUCT.name]` of a product definition (see [`product_name`]).
-fn product_texts(
-    graph: &std::collections::BTreeMap<u64, RawEntity>,
-    definition: u64,
-) -> [String; 2] {
-    let attribute = |id: u64, index: usize| match graph.get(&id)? {
-        RawEntity::Simple { attributes, .. } => attributes.get(index),
-        RawEntity::Complex { .. } => None,
-    };
+fn product_texts(graph: &impl RecordGraph, definition: u64) -> [String; 2] {
+    let attribute = |id: u64, index: usize| graph.attribute_at(id, None, &[index]);
     let reference = |id: u64, index: usize| match attribute(id, index)? {
-        Attribute::EntityRef(r) => Some(*r),
+        Attribute::EntityRef(r) => Some(r),
         _ => None,
     };
     let Some(product) = reference(definition, 2).and_then(|formation| reference(formation, 2))
@@ -2659,14 +2656,14 @@ fn product_texts(
         return [String::new(), String::new()];
     };
     let text = |index: usize| match attribute(product, index) {
-        Some(Attribute::String(raw)) => raw.clone(),
+        Some(Attribute::String(raw)) => raw,
         _ => String::new(),
     };
     [text(0), text(1)]
 }
 
 /// The file's assemblies (see [`StepFile::assemblies`]).
-fn assemblies(graph: &std::collections::BTreeMap<u64, RawEntity>) -> Vec<Assembly> {
+fn assemblies(graph: &impl RecordGraph) -> Vec<Assembly> {
     use std::collections::{BTreeMap, HashSet};
     let reference = |a: Option<&Attribute>| match a {
         Some(Attribute::EntityRef(n)) => Some(*n),
@@ -2675,10 +2672,14 @@ fn assemblies(graph: &std::collections::BTreeMap<u64, RawEntity>) -> Vec<Assembl
     // Assembly → its components, in file order (the graph iterates ids ascending).
     let mut components: BTreeMap<u64, Vec<Component>> = BTreeMap::new();
     let mut placed = HashSet::new();
-    for (&occurrence, entity) in graph {
+    for occurrence in graph.ids() {
+        if graph.kind(occurrence) != Some("NEXT_ASSEMBLY_USAGE_OCCURRENCE") {
+            continue;
+        }
+        let entity = graph.indexed_record(occurrence);
         if let RawEntity::Simple {
             name, attributes, ..
-        } = entity
+        } = entity.as_ref()
             && name == "NEXT_ASSEMBLY_USAGE_OCCURRENCE"
             && let (Some(relating), Some(definition)) =
                 (reference(attributes.get(3)), reference(attributes.get(4)))
@@ -2835,7 +2836,7 @@ fn part_definitions(
 /// (malformed, or of a type step-io does not model), or a shape representation dropped itself.
 /// Entities no shape reaches (presentation, PMI) may be dropped without harm.
 fn refuse_dropped_shapes(
-    graph: &step_io::parser::Graph,
+    graph: &impl RecordGraph,
     report: &step_io::Report,
     complex_drops: &[(u64, String)],
 ) -> Result<(), StepError> {
@@ -2880,9 +2881,10 @@ fn refuse_dropped_shapes(
         .collect();
     let (mut lost, mut missing) = (BTreeSet::new(), BTreeSet::new());
     let mut stack = Vec::new();
-    for (&id, entity) in &graph.entities {
+    for id in graph.ids() {
+        let entity = graph.indexed_record(id);
         // A representation's items, not its context: units and tolerances are not shapes.
-        let items = match entity {
+        let items = match entity.as_ref() {
             RawEntity::Simple {
                 name, attributes, ..
             } if name.ends_with("SHAPE_REPRESENTATION") => attributes.get(1),
@@ -2910,14 +2912,14 @@ fn refuse_dropped_shapes(
         if !seen.insert(id) {
             continue;
         }
-        let Some(entity) = graph.entities.get(&id) else {
+        let Some(entity) = graph.record(id) else {
             missing.insert(id);
             continue;
         };
         if dropped.contains_key(&id) {
             lost.insert(id);
         }
-        match entity {
+        match entity.as_ref() {
             RawEntity::Simple { attributes, .. } => {
                 attributes.iter().for_each(|a| refs(a, &mut stack))
             }
@@ -2941,7 +2943,7 @@ fn refuse_dropped_shapes(
         (reason.0 != step_io::DropKind::Cascade).then(|| {
             format!(
                 "#{id} {} was dropped ({:?}: {})",
-                name(&graph.entities[id]),
+                name(&graph.indexed_record(*id)),
                 reason.0,
                 reason.1
             )
@@ -2950,7 +2952,7 @@ fn refuse_dropped_shapes(
     if causes.is_empty() {
         causes.extend(
             lost.iter()
-                .map(|id| format!("#{id} {} was dropped", name(&graph.entities[id]))),
+                .map(|id| format!("#{id} {} was dropped", name(&graph.indexed_record(*id)))),
         );
     }
     let shown = causes.len().min(5);
@@ -3031,7 +3033,7 @@ fn close_cone_at_apex(surface: &Surface, loops: &mut Vec<Loop>, edges: &[Edge]) 
 
 /// Read a STEP file from disk, transparently gunzipping `*.gz`.
 pub fn read_step_file(path: &std::path::Path) -> Result<Part, Box<dyn std::error::Error>> {
-    Ok(read_step(&step_file_bytes(path)?)?)
+    Ok(read_step_owned(step_file_bytes(path)?)?)
 }
 
 /// [`read_step_file`] moved by *outer* (see [`read_step_placed`]).
@@ -3039,7 +3041,7 @@ pub fn read_step_file_placed(
     path: &std::path::Path,
     outer: &Placement,
 ) -> Result<Part, Box<dyn std::error::Error>> {
-    Ok(read_step_placed(&step_file_bytes(path)?, outer)?)
+    Ok(read_step_placed_owned(step_file_bytes(path)?, outer)?)
 }
 
 /// A STEP file's bytes, gunzipped when the name ends in `.gz`.
@@ -3350,7 +3352,9 @@ mod tests {
     /// (F*u², 2F*u). There is no geometric evidence for an OCCT-specific rescaling.
     #[test]
     fn a_parameter_only_parabola_uses_the_standard_convention() {
-        let text = std::fs::read_to_string(fixture("occt_trimmed_parabola.step")).unwrap();
+        let text = std::fs::read_to_string(fixture("occt_trimmed_parabola.step"))
+            .unwrap()
+            .replace("\r\n", "\n");
         let text = text
             .replace("(#22,PARAMETER_VALUE(-4.))", "(PARAMETER_VALUE(-4.))")
             .replace("(#23,\n    PARAMETER_VALUE(4.))", "(PARAMETER_VALUE(4.))");
@@ -3379,6 +3383,16 @@ mod tests {
         let bytes = std::fs::read(fixture("prismatic.step")).unwrap();
         let (model, report) = step_io::read(bytes.as_slice()).unwrap();
         let graph = step_io::parser::parse(bytes.as_slice()).unwrap();
+        let packed = step_io::parser::parse_compact(bytes.as_slice()).unwrap();
+        check_permuted_instance_map(&graph, &model, &report);
+        check_permuted_instance_map(&packed, &model, &report);
+    }
+
+    fn check_permuted_instance_map(
+        graph: &impl RecordGraph,
+        model: &m::StepModel,
+        report: &step_io::Report,
+    ) {
         let scene = model.scene();
         let faces: Vec<StepFace<'_>> = scene.all_faces().collect();
         let edges: Vec<StepEdge<'_>> = faces
@@ -3389,7 +3403,7 @@ mod tests {
                     .collect::<Vec<_>>()
             })
             .collect();
-        let mut ids = FileIds::new(&graph, &model, &report);
+        let mut ids = FileIds::new(graph, model, report);
         for f in &faces {
             ids.face(f).unwrap();
         }
@@ -3416,7 +3430,7 @@ mod tests {
             .flat_map(|a| faces.iter().filter(planar).map(move |b| (a, b)))
             .find(|(a, b)| a.orientation() == b.orientation() && location(a) != location(b))
             .expect("two planar one-loop faces of one sense");
-        let mut permuted = FileIds::new(&graph, &model, &report);
+        let mut permuted = FileIds::new(graph, model, report);
         permuted
             .by_type
             .get_mut("ADVANCED_FACE")
@@ -3430,7 +3444,7 @@ mod tests {
         let error = permuted.face(a).unwrap_err().to_string();
         assert!(error.contains("is not where it was read"), "{error}");
 
-        let curve = |e: &StepEdge<'_>| step_name(raw_edge_curve(&model, e).entity_key());
+        let curve = |e: &StepEdge<'_>| step_name(raw_edge_curve(model, e).entity_key());
         let (c, d) = edges
             .iter()
             .flat_map(|c| edges.iter().map(move |d| (c, d)))
@@ -3438,7 +3452,7 @@ mod tests {
                 c.key() != d.key() && c.same_sense() == d.same_sense() && curve(c) == curve(d)
             })
             .expect("two edges on one kind of curve, of one sense");
-        let mut permuted = FileIds::new(&graph, &model, &report);
+        let mut permuted = FileIds::new(graph, model, report);
         permuted
             .by_type
             .get_mut("EDGE_CURVE")

@@ -468,12 +468,8 @@ pub fn validate_document(graph: &Graph) -> Vec<Violation> {
 /// Fill step-io 0.3's slot-wide `complex_ok` gap without imposing full AP242
 /// conformance on legacy input. Only incompatible complex references are reported;
 /// simple references, normalization, and unsupported entities remain step-io's policy.
-pub(crate) fn complex_reference_drops(graph: &Graph) -> Vec<(u64, String)> {
-    let complex: HashSet<u64> = graph
-        .entities
-        .iter()
-        .filter_map(|(&id, e)| matches!(e, RawEntity::Complex { .. }).then_some(id))
-        .collect();
+pub(crate) fn complex_reference_drops(graph: &impl crate::step::RecordGraph) -> Vec<(u64, String)> {
+    let complex: HashSet<u64> = graph.ids().filter(|&id| graph.is_complex(id)).collect();
     if complex.is_empty() {
         return Vec::new();
     }
@@ -517,7 +513,7 @@ pub(crate) fn complex_reference_drops(graph: &Graph) -> Vec<(u64, String)> {
     }
     let lookup = |id| {
         Some(if complex.contains(&id) {
-            record_names(&graph.entities[&id])
+            record_names(&graph.indexed_record(id))
         } else {
             Vec::new()
         })
@@ -525,7 +521,8 @@ pub(crate) fn complex_reference_drops(graph: &Graph) -> Vec<(u64, String)> {
     let mut checker = Checker::new(TARGET, &lookup);
     let mut slots = HashMap::new();
     let mut drops = Vec::new();
-    for (&id, record) in &graph.entities {
+    for id in graph.ids() {
+        let record = graph.indexed_record(id);
         let mut inspect = |name: &str, slots: &[Slot], values: &[Param]| {
             for (slot, value) in slots.iter().zip(values) {
                 if !contains_complex(value, &complex) {
@@ -548,17 +545,20 @@ pub(crate) fn complex_reference_drops(graph: &Graph) -> Vec<(u64, String)> {
                 }
             }
         };
-        match record {
+        match record.as_ref() {
             RawEntity::Simple {
                 name, attributes, ..
             } => {
                 if !attributes.iter().any(|v| contains_complex(v, &complex)) {
                     continue;
                 }
-                let slots = slots
-                    .entry(name.as_str())
-                    .or_insert_with(|| TARGET.explicit_attributes(name).unwrap_or_default());
-                inspect(name, slots, attributes);
+                if !slots.contains_key(name) {
+                    slots.insert(
+                        name.clone(),
+                        TARGET.explicit_attributes(name).unwrap_or_default(),
+                    );
+                }
+                inspect(name, &slots[name], attributes);
             }
             RawEntity::Complex { parts, .. } => {
                 if !parts
@@ -1484,8 +1484,11 @@ mod complex_reference_tests {
             ),
         ] {
             assert!(base.contains(before), "{before}");
-            let graph = step_io::parser::parse(base.replace(before, after).as_bytes()).unwrap();
+            let modified = base.replace(before, after);
+            let graph = step_io::parser::parse(modified.as_bytes()).unwrap();
+            let packed = step_io::parser::parse_compact(modified.as_bytes()).unwrap();
             let drops = complex_reference_drops(&graph);
+            assert_eq!(complex_reference_drops(&packed), drops);
             assert_eq!(drops.len(), 1, "{drops:?}");
             assert!(
                 drops[0]

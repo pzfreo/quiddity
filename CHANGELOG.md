@@ -8,10 +8,20 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Added
 
+- Owned-snapshot STEP geometry entry points release parsed input bytes before B-rep
+  construction; file and recognition snapshot readers preserve the original source digest.
+
 - A hole's nested `cbore`, `spotface`, `outer_steps` items and `csink` publish an optional,
   sorted `faces` listing the faces the recogniser located for that sub-record, omitted
   when unknown. The parent hole's `faces` is unchanged. Additive within recognition/6;
   fingerprints are unchanged. For specify-core #180.
+
+### Changed
+
+- Geometry provenance and declared-unit metadata use lossless packed STEP records,
+  decoding selected attributes or the current record without retaining a second
+  owned graph. Face and edge identity, reference validation, refusals and assemblies
+  are unchanged.
 
 ## 0.5.3 (2026-11-15)
 

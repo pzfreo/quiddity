@@ -47,3 +47,6 @@ clap = { version = "4.6.1", features = ["derive"] }
 haecceity = { path = "crates/haecceity", version = "=0.5.3", default-features = false, features = ["manifest"] }
 tempfile = "3"
 libc = "0.2"
+
+[patch.crates-io]
+step-io = { git = "https://github.com/xu9299/step-io.git", rev = "2800c9ab1b69ee184a1c4cb25a794f342677122d" }
