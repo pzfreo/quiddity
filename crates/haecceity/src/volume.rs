@@ -938,13 +938,13 @@ fn integrate_witness_slabs(
     let breaks = integration_breaks(range, breaks);
     let count = breaks.len() - 1;
     let work = |index: usize| slab(breaks[index], breaks[index + 1]);
-    let widest = (0..count)
-        .max_by(|&a, &b| {
-            (breaks[a + 1] - breaks[a])
-                .total_cmp(&(breaks[b + 1] - breaks[b]))
-                .then_with(|| b.cmp(&a))
-        })
-        .unwrap();
+    let Some(widest) = (0..count).max_by(|&a, &b| {
+        (breaks[a + 1] - breaks[a])
+            .total_cmp(&(breaks[b + 1] - breaks[b]))
+            .then_with(|| b.cmp(&a))
+    }) else {
+        return Some(([0.0, 0.0], false));
+    };
     let mut cache = vec![None; count];
     let mut seeds = Vec::new();
     for index in [
