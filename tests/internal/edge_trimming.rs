@@ -75,6 +75,26 @@ fn boss_rounds_include_their_axial_extent_even_below_the_fillet_reporting_floor(
 }
 
 #[test]
+fn a_tangent_end_round_belongs_to_its_boss_however_short_the_straight_wall() {
+    // For specify-core #181: an R3 top round and cap stay in the Ø65 boss height whether the
+    // straight wall (10, 5 or 3 mm) is longer or shorter than twice the round.
+    for height in [13., 8., 6.] {
+        let p = part(&format!("boss_top_round_h{height}.step.gz"));
+        let b = bosses::discover_verified(&Context::new(&p)).unwrap();
+        assert_eq!(b.len(), 1, "h{height}");
+        near(b[0].record.diameter, 65.);
+        near(b[0].record.height, height);
+        near(geom::dist(b[0].record.location, [0., 0., height]), 0.);
+        assert!(
+            b[0].context
+                .iter()
+                .any(|&f| matches!(p.faces[f].surface, Surface::Torus { .. })),
+            "h{height}: the round is the boss's end treatment"
+        );
+    }
+}
+
+#[test]
 fn projected_round_strips_restore_plate_coverage_and_centres() {
     let p = part("revisions/q134_plate.old.step.gz");
     let rounded = part("plate_edge_round.step.gz");

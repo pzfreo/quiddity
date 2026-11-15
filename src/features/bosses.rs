@@ -98,16 +98,21 @@ struct Treatment {
 
 /// An end break is subordinate to its own boss: neither leg may exceed the radius or
 /// half the straight cylindrical length. This rejects a long taper even on a large part.
+/// A convex torus round tangent to the cylinder at every junction cannot be a taper, so
+/// its legs are bounded by the radius only: the same round and cap stay in the boss
+/// however short its straight wall (specify-core #181). Cones keep both bounds.
 /// At a smooth round, convexity is the tube/sphere material side, not tangency alone.
 fn end_treatments(ctx: &Context<'_>, seg: &Segment) -> Vec<Treatment> {
     use crate::kernel::brep::Arc;
     let part = ctx.part;
-    let limit = (seg.diameter / 2.).min((seg.s_hi - seg.s_lo) / 2.);
+    let radius = seg.diameter / 2.;
+    let limit = radius.min((seg.s_hi - seg.s_lo) / 2.);
     let neighbours: std::collections::BTreeSet<_> =
         seg.faces.iter().flat_map(|&f| part.neighbours(f)).collect();
     let mut out = Vec::new();
     for face in neighbours {
         let surface = &part.faces[face].surface;
+        let mut torus_leg = None;
         let smooth_convex = match *surface {
             Surface::Cone { frame, .. } | Surface::Torus { frame, .. } => {
                 if !coaxial_axis_lines(
@@ -131,11 +136,12 @@ fn end_treatments(ctx: &Context<'_>, seg: &Segment) -> Vec<Treatment> {
                     }
                     let leg = radii.iter().copied().fold(f64::NEG_INFINITY, f64::max)
                         - radii.iter().copied().fold(f64::INFINITY, f64::min);
-                    if leg > limit + COORD_FLOOR
+                    if leg > radius + COORD_FLOOR
                         || super::fillets::torus_side(part, face) != Some("convex")
                     {
                         continue;
                     }
+                    torus_leg = Some(leg);
                     true
                 } else {
                     false
@@ -166,6 +172,14 @@ fn end_treatments(ctx: &Context<'_>, seg: &Segment) -> Vec<Treatment> {
         {
             continue;
         }
+        let bound = if torus_leg.is_some() && junctions.iter().all(|a| *a == Some(Arc::Smooth)) {
+            radius
+        } else {
+            limit
+        };
+        if torus_leg.is_some_and(|leg| leg > bound + COORD_FLOOR) {
+            continue;
+        }
         let (lo, hi) = part.extent_along(&[face], seg.direction);
         let extension = if lo >= seg.s_hi - COORD_FLOOR {
             hi - seg.s_hi
@@ -174,7 +188,7 @@ fn end_treatments(ctx: &Context<'_>, seg: &Segment) -> Vec<Treatment> {
         } else {
             continue;
         };
-        if extension <= COORD_FLOOR || extension > limit + COORD_FLOOR {
+        if extension <= COORD_FLOOR || extension > bound + COORD_FLOOR {
             continue;
         }
         let mut context = vec![face];
