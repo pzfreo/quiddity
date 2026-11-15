@@ -96,18 +96,24 @@ struct Treatment {
     context: Vec<usize>,
 }
 
-/// An end break is subordinate to its own boss: neither leg may exceed the radius or
-/// half the straight cylindrical length. This rejects a long taper even on a large part.
-/// At a smooth round, convexity is the tube/sphere material side, not tangency alone.
+/// Cone legs may not exceed the boss radius or half its straight length: a long taper
+/// is not an end break. A tangent torus instead bounds each leg by its own minor radius
+/// and the boss radius, independently of shaft length. Convexity still needs material-side
+/// evidence; tangency alone does not distinguish a top round from a root round.
 fn end_treatments(ctx: &Context<'_>, seg: &Segment) -> Vec<Treatment> {
     use crate::kernel::brep::Arc;
     let part = ctx.part;
-    let limit = (seg.diameter / 2.).min((seg.s_hi - seg.s_lo) / 2.);
+    let taper_limit = (seg.diameter / 2.).min((seg.s_hi - seg.s_lo) / 2.);
     let neighbours: std::collections::BTreeSet<_> =
         seg.faces.iter().flat_map(|&f| part.neighbours(f)).collect();
     let mut out = Vec::new();
     for face in neighbours {
         let surface = &part.faces[face].surface;
+        let limit = if let Surface::Torus { minor, .. } = *surface {
+            minor.min(seg.diameter / 2.)
+        } else {
+            taper_limit
+        };
         let smooth_convex = match *surface {
             Surface::Cone { frame, .. } | Surface::Torus { frame, .. } => {
                 if !coaxial_axis_lines(
@@ -131,7 +137,9 @@ fn end_treatments(ctx: &Context<'_>, seg: &Segment) -> Vec<Treatment> {
                     }
                     let leg = radii.iter().copied().fold(f64::NEG_INFINITY, f64::max)
                         - radii.iter().copied().fold(f64::INFINITY, f64::min);
-                    if leg > limit + COORD_FLOOR
+                    // Imported trims can overshoot a quarter circle slightly (cgb242).
+                    // Use the same geometric tolerance as the coaxial proof above.
+                    if leg > limit + super::policy::length_tol(seg.diameter, 1e-4)
                         || super::fillets::torus_side(part, face) != Some("convex")
                     {
                         continue;
@@ -160,9 +168,13 @@ fn end_treatments(ctx: &Context<'_>, seg: &Segment) -> Vec<Treatment> {
             .map(|&f| part.arc(f, face))
             .collect();
         if junctions.is_empty()
-            || !junctions
-                .iter()
-                .all(|a| *a == Some(Arc::Convex) || (smooth_convex && *a == Some(Arc::Smooth)))
+            || !junctions.iter().all(|a| {
+                if matches!(surface, Surface::Torus { .. }) {
+                    *a == Some(Arc::Smooth)
+                } else {
+                    *a == Some(Arc::Convex) || (smooth_convex && *a == Some(Arc::Smooth))
+                }
+            })
         {
             continue;
         }

@@ -75,6 +75,76 @@ fn boss_rounds_include_their_axial_extent_even_below_the_fillet_reporting_floor(
 }
 
 #[test]
+fn tangent_top_round_height_is_independent_of_the_remaining_shaft_length() {
+    use quiddity::kernel::brep::Arc;
+    for height in [13, 8, 6, 4] {
+        let p = part(&format!("top_round_boss{height}.step.gz"));
+        for motion in [
+            [[1., 0., 0., 0.], [0., 1., 0., 0.], [0., 0., 1., 0.]],
+            [[0., 0., -1., 17.], [1., 0., 0., -23.], [0., -1., 0., 9.]],
+        ] {
+            let p = p.transformed(&motion).unwrap();
+            let ctx = Context::new(&p);
+            let found = bosses::discover_verified(&ctx).unwrap();
+            assert_eq!(found.len(), 1);
+            let boss = &found[0];
+            near(boss.record.diameter, 65.);
+            near(boss.record.height, f64::from(height));
+            let end = motion.map(|r| r[2] * f64::from(height) + r[3]);
+            near(geom::dist(boss.record.location, end), 0.);
+            let torus = p
+                .faces
+                .iter()
+                .position(|f| matches!(f.surface, Surface::Torus { .. }))
+                .unwrap();
+            assert!(boss.context.contains(&torus));
+            assert!(
+                boss.defining
+                    .iter()
+                    .all(|&f| p.arc(f, torus) == Some(Arc::Smooth))
+            );
+            assert!(boss.context.iter().any(|&f| {
+                matches!(p.faces[f].surface, Surface::Plane { .. })
+                    && p.neighbours(torus).contains(&f)
+            }));
+            // Fingerprint placement must include the round even with only 1 mm of shaft.
+            let middle = motion.map(|r| r[2] * f64::from(height) / 2. + r[3]);
+            near(
+                geom::dist(bosses::midpoint(&ctx, &boss.record, &boss.defining), middle),
+                0.,
+            );
+        }
+    }
+}
+
+#[test]
+fn top_chamfer_keeps_its_taper_bound_and_a_non_tangent_torus_is_not_absorbed() {
+    use quiddity::kernel::brep::Arc;
+    let p = part("top_round_boss8_chamfer.step.gz");
+    let found = bosses::discover_verified(&Context::new(&p)).unwrap();
+    assert_eq!(found.len(), 1);
+    near(found[0].record.height, 8.);
+    assert!(
+        found[0]
+            .context
+            .iter()
+            .any(|&f| matches!(p.faces[f].surface, Surface::Cone { .. }))
+    );
+
+    let p = part("top_round_non_tangent.step.gz");
+    let found = bosses::discover_verified(&Context::new(&p)).unwrap();
+    assert_eq!(found.len(), 1);
+    near(found[0].record.height, 5.);
+    let torus = p
+        .faces
+        .iter()
+        .position(|f| matches!(f.surface, Surface::Torus { .. }))
+        .unwrap();
+    assert_eq!(p.arc(found[0].defining[0], torus), Some(Arc::Convex));
+    assert!(!found[0].context.contains(&torus));
+}
+
+#[test]
 fn projected_round_strips_restore_plate_coverage_and_centres() {
     let p = part("revisions/q134_plate.old.step.gz");
     let rounded = part("plate_edge_round.step.gz");
@@ -126,6 +196,19 @@ fn audited_boss_ends_exclude_root_fillets_long_tapers_and_concave_shoulders() {
         assert!(std::env::var_os("QUIDDITY_CORPUS_REQUIRED").is_none());
         return;
     };
+    // These imported R0.5 trims slightly overrun the analytic quarter circle. Keep
+    // their constituent faces and measured end positions rather than dropping a patch.
+    let p = quiddity::read_step_file(&root.join("cadgenbench_inputs/cgb242.step.gz")).unwrap();
+    let found = bosses::discover_verified(&Context::new(&p)).unwrap();
+    for (index, rounds, z) in [
+        (0, vec![10, 11], 2.693086292598496),
+        (1, vec![33, 426], 2.6930866426818474),
+        (2, vec![45, 46], 2.6930862925984735),
+    ] {
+        assert!(rounds.iter().all(|f| found[index].context.contains(f)));
+        assert!((found[index].record.location[2] - z).abs() < 1e-10);
+        near(found[index].record.height, 13.);
+    }
     // For #134: fingerprint face order must retrieve the same treated midpoint as
     // discovery's patch order, including a boss split into several cylinder patches.
     let p = quiddity::read_step_file(&root.join("cadgenbench_inputs/cgb243.step.gz")).unwrap();
