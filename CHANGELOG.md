@@ -17,6 +17,9 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Changed
 
+- Volume-fraction checks try the widest original height slab first when looking for a
+  sufficient rejection witness. Complete sums retain their original order, integration
+  rules and refusal checks; partial values cannot establish acceptance.
 - Wire-seeded recess discovery follows the queried edges' face ownership instead of
   repeatedly comparing every neighbour of a many-loop opening. Unique opposite-use
   pairing and the resulting seed face sets are unchanged. From #282 (@xu9299).
