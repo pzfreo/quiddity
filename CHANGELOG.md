@@ -8,6 +8,9 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
+- Dimensioning measures straight hole depths from the axis intersection with a sloping
+  planar entry face, including counterbores, spotfaces and outer steps. Perpendicular
+  and nonplanar entries, recognition measurements and through traversal lengths are unchanged.
 - Recover refused trimmed spline face integrals using the file's explicit master trim curves,
   with sampled 2D/3D agreement checks against both face diagonal and area/perimeter scales,
   and bounded inner and outer quadrature errors (#245). STEP export now preserves source
