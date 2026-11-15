@@ -20,6 +20,10 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
+- Boss heights include convex tangent top rounds even when shortening leaves less than
+  twice the fillet radius in straight shaft. Torus legs are bounded by their own radius
+  and the boss radius; non-tangent junctions are excluded and the long-cone guard remains
+  in place (specify-core#181).
 - Dimensioning measures straight hole depths from the axis intersection with a sloping
   planar entry face, including counterbores, spotfaces and outer steps. Perpendicular
   and nonplanar entries, recognition measurements and through traversal lengths are unchanged.
