@@ -37,6 +37,12 @@ its input; this is a lifetime change, not a streaming file implementation.
 The lossless Part 21 editing document retains its separate ordinary raw graph
 and original bytes.
 
+The review branch pins the step-io implementation in haecceity's own dependency
+declaration, so isolated downstream builds resolve the same packed API. A patch
+in the repository workspace alone would not apply to such consumers. Replace
+the review Git pin with a released step-io version containing these APIs before
+merging and releasing this integration.
+
 Directed tests compare full imported `Part` debug fields, assemblies and refusal
 messages against the ordinary representation. The opt-in real-file test streams
 those fields into a same-toolchain hash rather than allocating a whole-part
