@@ -28,6 +28,15 @@ proper representative. Face indices remain those of the caller. Coordinates are
 in **that part frame**, in mm; `input.frame.to_world(point)` recovers file coordinates.
 Frame refusal is an error. Recognition and its normal frame API remain unchanged.
 
+Planned straight hole depths (blind bore, counterbore, spotface and outer steps) start
+where the hole axis intersects a sloping planar entry face. They use that axial
+distance to the existing deep station, rounded to six decimal places. Perpendicular
+entries retain their recognised readings. Nonplanar entries retain the trimmed
+cylinder extent because no entry plane defines a unique intersection. Hole location,
+through traversal lengths and recognition measurements keep their existing meaning.
+The Python bindings expose recognition, not dimensioning plans, so their depths
+continue to match the Rust recognition API.
+
 The adapter supplies `holes`, `patterns`, all principal `planes` (including later-slice
 planes for datum lookup), `steps`, `cartesian_envelope`, `deferred`, `round_axes`,
 `bounds`, `datums`, `specified` and `policy`. `StepLevels` contains the ladder axis,
