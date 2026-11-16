@@ -9,6 +9,7 @@
 //! View selection, labels, layout and editor schemes are deliberately absent.
 //! See `docs/dimensioning.md` for the input contract and slice boundary.
 
+mod depth;
 mod levels;
 mod recognition;
 mod rules;
@@ -40,6 +41,7 @@ pub struct Hole {
     pub direction: Point,
     pub diameter: f64,
     /// None for through holes: their material traversal length is not a size requirement.
+    /// Sloping planar entries are measured from the axis/entry-plane intersection.
     pub depth: Option<f64>,
     /// Through material segment length, used only to count drilling across narrow slits.
     pub traversal: Option<f64>,

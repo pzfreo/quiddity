@@ -318,27 +318,23 @@ fn original_spotface_fixture_proves_optional_hole_fingerprint_fields() {
     assert_eq!(features.holes.len(), 1);
     let hole = &features.holes[0];
     use features::holes::CounterBore;
+    let size = |c: &CounterBore| (c.diameter, c.depth);
+    assert_eq!(hole.spotface.as_ref().map(size), Some((30., 0.5)));
+    assert_eq!(hole.cbore.as_ref().map(size), Some((12., 3.)));
     assert_eq!(
-        hole.spotface,
-        Some(CounterBore {
-            diameter: 30.,
-            depth: 0.5
-        })
+        hole.outer_steps.iter().map(size).collect::<Vec<_>>(),
+        [(20., 2.)]
     );
-    assert_eq!(
-        hole.cbore,
-        Some(CounterBore {
-            diameter: 12.,
-            depth: 3.
-        })
-    );
-    assert_eq!(
-        hole.outer_steps,
-        [CounterBore {
-            diameter: 20.,
-            depth: 2.
-        }]
-    );
+    // For specify-core #180: each step names its own located cylinder faces.
+    let steps = [
+        hole.spotface.as_ref().unwrap(),
+        hole.cbore.as_ref().unwrap(),
+        &hole.outer_steps[0],
+    ];
+    for step in steps {
+        assert!(!step.faces.is_empty());
+        assert!(step.faces.windows(2).all(|w| w[0] < w[1]));
+    }
     let fingerprints = fingerprint(&part, &features);
     let fp = fingerprints
         .features

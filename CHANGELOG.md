@@ -6,8 +6,48 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+### Added
+
+- A hole's nested `cbore`, `spotface`, `outer_steps` items and `csink` publish an optional,
+  sorted `faces` listing the faces the recogniser located for that sub-record, omitted
+  when unknown. The parent hole's `faces` is unchanged. Additive within recognition/6;
+  fingerprints are unchanged. For specify-core #180.
+
+### Changed
+
+- Volume-fraction checks try the widest original height slab first when looking for a
+  sufficient rejection witness. Complete sums retain their original order, integration
+  rules and refusal checks; partial values cannot establish acceptance.
+
+## 0.5.3 (2026-11-15)
+
+A patch release for draftwright, Specify and build123d-mcp: each part's declared length unit
+(for drawing inch designs in inches), boss heights with short filleted tops (specify-core#181),
+hole depths from sloping entry faces, recovered spline face integrals, and faster wire-seeded
+recess discovery. The public API gains two additive items; existing output is unchanged except
+where the fixes below say.
+
+### Added
+
+- `Part::declared_length_unit() -> Option<pmi::LengthUnit>` and
+  `step::PartDefinition::declared_length_unit` expose the length unit declared by each
+  part's own shape-representation contexts, using the semantic PMI reader's exact unit
+  resolver. Missing, invalid or conflicting declarations return `None`; unrelated file
+  contexts do not choose a unit. Plain shape-equivalence links are followed conservatively
+  in both directions. Metadata is read best-effort from the importer's existing graph;
+  metadata errors discard the declarations without changing geometry import or its errors.
+  Semantic PMI retains its lenient first-resolvable-unit policy. Geometry remains in
+  millimetres and output is unchanged.
+
 ### Fixed
 
+- Boss heights include convex tangent top rounds even when shortening leaves less than
+  twice the fillet radius in straight shaft. Torus legs are bounded by their own radius
+  and the boss radius; non-tangent junctions are excluded and the long-cone guard remains
+  in place (specify-core#181).
+- Dimensioning measures straight hole depths from the axis intersection with a sloping
+  planar entry face, including counterbores, spotfaces and outer steps. Perpendicular
+  and nonplanar entries, recognition measurements and through traversal lengths are unchanged.
 - Recover refused trimmed spline face integrals using the file's explicit master trim curves,
   with sampled 2D/3D agreement checks against both face diagonal and area/perimeter scales,
   and bounded inner and outer quadrature errors (#245). STEP export now preserves source
@@ -17,9 +57,6 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Changed
 
-- Volume-fraction checks try the widest original height slab first when looking for a
-  sufficient rejection witness. Complete sums retain their original order, integration
-  rules and refusal checks; partial values cannot establish acceptance.
 - Wire-seeded recess discovery follows the queried edges' face ownership instead of
   repeatedly comparing every neighbour of a many-loop opening. Unique opposite-use
   pairing and the resulting seed face sets are unchanged. From #282 (@xu9299).

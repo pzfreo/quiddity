@@ -1247,6 +1247,7 @@ fn countersink(out: &mut Out, r: CounterSink) -> CounterSink {
         drill_diameter,
         included_angle,
         depth,
+        faces,
     } = r;
     CounterSink {
         axis: out.direction(axis),
@@ -1255,6 +1256,7 @@ fn countersink(out: &mut Out, r: CounterSink) -> CounterSink {
         drill_diameter,
         included_angle,
         depth,
+        faces,
     }
 }
 
@@ -2854,8 +2856,16 @@ fn riser(out: &mut Out, r: RiserEvidence) -> RiserEvidence {
 // fails to compile until mapped.
 
 fn counterbore(c: CounterBore) -> CounterBore {
-    let CounterBore { diameter, depth } = c;
-    CounterBore { diameter, depth }
+    let CounterBore {
+        diameter,
+        depth,
+        faces,
+    } = c;
+    CounterBore {
+        diameter,
+        depth,
+        faces,
+    }
 }
 
 fn wall_pair(p: WallFacePair) -> WallFacePair {

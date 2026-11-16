@@ -1548,7 +1548,11 @@ fn a_two_face_countersink_is_attached_to_its_bore() {
     assert_eq!(features.countersinks.len(), 2);
     let hole = features.holes.iter().find(|h| h.diameter == 6.).unwrap();
     let seat = hole.csink.as_ref().expect("the 6 mm bore has a seat");
-    assert!(features.countersinks.contains(seat));
+    // The nested seat is the standalone record plus the cone faces it was recognised on.
+    let mut bare = seat.clone();
+    assert!(!bare.faces.is_empty());
+    bare.faces.clear();
+    assert!(features.countersinks.contains(&bare));
     assert_eq!(
         (
             seat.drill_diameter,

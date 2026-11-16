@@ -102,10 +102,14 @@ struct HoleSpec {
     diameter: f64,
     depth: Option<f64>,
     bottom: Bottom,
-    cbore: Option<CounterBore>,
-    spotface: Option<CounterBore>,
-    outer_steps: Vec<CounterBore>,
+    cbore: Option<(f64, f64)>,
+    spotface: Option<(f64, f64)>,
+    outer_steps: Vec<(f64, f64)>,
     csink: Option<(f64, f64)>,
+}
+
+fn size(c: &CounterBore) -> (f64, f64) {
+    (c.diameter, c.depth)
 }
 
 impl HoleSpec {
@@ -121,9 +125,10 @@ impl HoleSpec {
             diameter: h.diameter,
             depth: (h.bottom != Bottom::Through).then_some(h.depth),
             bottom: h.bottom,
-            cbore: h.cbore.clone(),
-            spotface: h.spotface.clone(),
-            outer_steps: h.outer_steps.clone(),
+            // Member faces locate a step; only its size is the shared specification.
+            cbore: h.cbore.as_ref().map(size),
+            spotface: h.spotface.as_ref().map(size),
+            outer_steps: h.outer_steps.iter().map(size).collect(),
             csink: h
                 .csink
                 .as_ref()

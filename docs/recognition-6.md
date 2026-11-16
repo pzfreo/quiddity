@@ -181,6 +181,25 @@ Affected fingerprints change within v3 through these sizes and the existing
 spotface/counterbore traits. Rust callers constructing `HoleRecord` literals must
 supply `outer_steps` (normally `Vec::new()`).
 
+## Faces of nested hole sub-records (specify-core #180)
+
+`cbore`, `spotface`, each `outer_steps` item and `csink` on a hole carry an optional
+`faces`: the sorted face indices the recogniser located for that sub-record (the
+step's cylinder faces; the seat's cone faces). It is omitted when empty and old
+records deserialize without it. For interchangeable mouths with identical
+readings, a step lists both mouths' faces. The parent hole's `faces` is unchanged
+and still includes the step faces, so the faces of the defining bore are the parent
+`faces` not listed in a sub-record. A `csink` seat is consulted evidence, not one
+of the parent's defining faces, so its `faces` are extra. Standalone `countersinks`
+records omit `faces` (their own faces are the cone). Identical seats at both mouths
+of an interchangeable-mouth hole are all claimed, as the steps are: `csink.faces` is
+then every such seat's cone faces, so it does not depend on which end is presented.
+Hole-pattern grouping and fingerprints read only sizes, so they are unchanged.
+Recognition schema 6 and fingerprint format `quiddity-rust/fingerprint/4` stay.
+These structs are `#[non_exhaustive]`: external Rust code cannot build them with
+literals and only reads the new field; in-crate literals supply `faces`
+(normally `Vec::new()`).
+
 ## Closed blind-recess floor claims (#205, #207)
 
 Accepted flat-bottomed blind holes and blind `pockets`/`prismatic_pockets` also

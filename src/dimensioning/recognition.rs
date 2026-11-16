@@ -33,21 +33,26 @@ impl Input {
             .map_err(|e| format!("dimensioning frame transform: {e:?}"))?;
         // Keep the accepted run's constituent faces: pocket floors are consulted evidence,
         // not defining walls, so the public record projection alone cannot assign ownership.
-        let (found, constituents) = crate::features::take_inventory(&local, |ctx, inventory| {
-            let constituents: std::collections::BTreeMap<_, _> = inventory
-                .physical
-                .defining
-                .iter()
-                .flat_map(|(family, records)| {
-                    records
-                        .iter()
-                        .zip(&inventory.constituent[family])
-                        .map(|(faces, all)| (face_id(family, faces), all.clone()))
-                })
-                .collect();
-            (crate::features::recognise_in(ctx, inventory), constituents)
-        })
-        .map_err(|e| format!("dimensioning recognition: {e}"))?;
+        let (found, constituents, cylinders) =
+            crate::features::take_inventory(&local, |ctx, inventory| {
+                let constituents: std::collections::BTreeMap<_, _> = inventory
+                    .physical
+                    .defining
+                    .iter()
+                    .flat_map(|(family, records)| {
+                        records
+                            .iter()
+                            .zip(&inventory.constituent[family])
+                            .map(|(faces, all)| (face_id(family, faces), all.clone()))
+                    })
+                    .collect();
+                (
+                    crate::features::recognise_in(ctx, inventory),
+                    constituents,
+                    ctx.cylinders().to_vec(),
+                )
+            })
+            .map_err(|e| format!("dimensioning recognition: {e}"))?;
         let bounds = local.bounds();
         let bounds = [bounds.min, bounds.max];
         let holes: Vec<_> = found
@@ -55,6 +60,7 @@ impl Input {
             .iter()
             .zip(found.defining.get("holes").map_or(&[][..], Vec::as_slice))
             .map(|(h, faces)| {
+                let depths = super::depth::Depths::new(&local, h, faces, &cylinders);
                 let mut details = Vec::new();
                 for (role, r) in [
                     ("counterbore".to_owned(), h.cbore.as_ref()),
@@ -75,7 +81,7 @@ impl Input {
                         });
                         details.push(Size {
                             role: format!("{role}.depth"),
-                            nominal: r.depth,
+                            nominal: depths.enlargement(r.diameter, r.depth),
                             kind: SizeKind::Length,
                         });
                     }
@@ -102,7 +108,7 @@ impl Input {
                     },
                     direction: h.axis,
                     diameter: h.diameter,
-                    depth: (h.bottom != Bottom::Through).then_some(h.depth),
+                    depth: (h.bottom != Bottom::Through).then(|| depths.bore()),
                     traversal: (h.bottom == Bottom::Through).then_some(h.depth),
                     bottom: h.bottom,
                     details,

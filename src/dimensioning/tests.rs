@@ -1144,6 +1144,130 @@ fn annular_counterbore_floor_is_owned_by_the_hole_depth_not_the_ladder() {
 }
 
 #[test]
+fn oblique_counterbore_depth_starts_at_the_axis_entry_plane_intersection() {
+    use crate::kernel::geom::{Surface, dot, sub};
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/ap242/nist/nist_ctc_02_asme1_ap242-e2.stp.gz");
+    let part = crate::read_step_file(&path).unwrap();
+    let i = Input::from_recognition(&part, vec![], Policy::default()).unwrap();
+    let hole = i
+        .holes
+        .iter()
+        .find(|h| h.support.feature == "hole:98.99.101.102")
+        .unwrap();
+    let depth = hole
+        .details
+        .iter()
+        .find(|s| s.role == "counterbore.depth")
+        .unwrap();
+    assert_eq!(depth.nominal, 21.484724);
+    assert_eq!(depth.kind, SizeKind::Length);
+    let required = plan(&i)
+        .0
+        .into_iter()
+        .find(|r| r.id == "dim:hole:98.99.101.102/counterbore.depth")
+        .unwrap();
+    assert_eq!(
+        required.kind,
+        Kind::Size {
+            feature: hole.support.feature.clone(),
+            role: "counterbore.depth".into(),
+            kind: SizeKind::Length,
+        }
+    );
+    assert_eq!(required.covers, std::slice::from_ref(&hole.support.feature));
+    assert_eq!(required.count, 1);
+    assert_eq!(required.nominal, depth.nominal);
+
+    // Independent geometric construction in file coordinates: the entry is on
+    // plane 619 and on the counterbore axis; its deep station is the wall's end.
+    let Surface::Plane { frame: entry } = part.faces[619].surface else {
+        panic!("entry plane")
+    };
+    let Surface::Cylinder {
+        frame: wall,
+        radius,
+    } = part.faces[98].surface
+    else {
+        panic!("counterbore wall")
+    };
+    assert_eq!(radius, 57.5);
+    let axis = sub(
+        i.frame.to_world(std::array::from_fn(|k| {
+            hole.support.at[k] + hole.direction[k]
+        })),
+        i.frame.to_world(hole.support.at),
+    );
+    let cos = dot(entry.z, axis);
+    assert!(cos.abs() > 1e-9 && cos.abs() < 0.999999);
+    assert!(
+        part.face_edges(98)
+            .iter()
+            .any(|e| part.face_edges(619).contains(e))
+    );
+    let travel = dot(sub(entry.origin, wall.origin), entry.z) / cos;
+    let point = std::array::from_fn(|k| wall.origin[k] + travel * axis[k]);
+    assert!(dot(sub(point, entry.origin), entry.z).abs() < 1e-8);
+    assert!((point[0] + 203.515275872).abs() < 1e-7);
+    assert!((point[1] - 200.).abs() < 1e-7);
+    assert!((point[2] + 185.).abs() < 1e-7);
+    let end = [98, 99]
+        .into_iter()
+        .map(|f| part.face_projection_bounds(f, axis).unwrap().1)
+        .max_by(f64::total_cmp)
+        .unwrap();
+    assert!((end - dot(point, axis) - required.nominal).abs() < 0.0000005);
+}
+
+#[test]
+fn perpendicular_entries_keep_their_recognised_depths() {
+    for fixture in [
+        "golden_counterbored_and_countersunk_holes.step",
+        "flat_floor_controls.step.gz",
+    ] {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures")
+            .join(fixture);
+        let part = crate::read_step_file(&path).unwrap();
+        let i = Input::from_recognition(&part, vec![], Policy::default()).unwrap();
+        let local = part.transformed(&i.frame.normalisation()).unwrap();
+        let found = crate::features::recognise(&local);
+        assert!(!i.holes.is_empty());
+        assert_eq!(i.holes.len(), found.holes.len());
+        for (hole, recognised) in i.holes.iter().zip(&found.holes) {
+            assert_eq!(
+                hole.depth,
+                (recognised.bottom != crate::features::holes::Bottom::Through)
+                    .then_some(recognised.depth)
+            );
+            if let Some(cbore) = &recognised.cbore {
+                let depth = hole
+                    .details
+                    .iter()
+                    .find(|s| s.role == "counterbore.depth")
+                    .unwrap();
+                assert_eq!(depth.nominal, 6.);
+                assert_eq!(depth.nominal, cbore.depth);
+            }
+        }
+        let depths: Vec<_> = plan(&i)
+            .0
+            .into_iter()
+            .filter(|r| matches!(&r.kind, Kind::Size { role, .. } if role.ends_with(".depth")))
+            .map(|r| r.nominal)
+            .collect();
+        assert_eq!(
+            depths,
+            if fixture.starts_with("golden_") {
+                vec![6.]
+            } else {
+                vec![8., 8.]
+            }
+        );
+    }
+}
+
+#[test]
 fn counted_repeats_are_not_exact_station_edges_in_draftwright_lint() {
     let mut repeat = loc("a-repeat", 0., 10., true);
     repeat.count = 4;
