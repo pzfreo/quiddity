@@ -13,6 +13,12 @@ in [docs/alpha1.md](docs/alpha1.md).
   when unknown. The parent hole's `faces` is unchanged. Additive within recognition/6;
   fingerprints are unchanged. For specify-core #180.
 
+### Changed
+
+- Volume-fraction checks try the widest original height slab first when looking for a
+  sufficient rejection witness. Complete sums retain their original order, integration
+  rules and refusal checks; partial values cannot establish acceptance.
+
 ## 0.5.3 (2026-11-15)
 
 A patch release for draftwright, Specify and build123d-mcp: each part's declared length unit

@@ -198,9 +198,17 @@ pub fn fills_at_most(solid: &Classifier<'_>, probe: &Probe<'_>, limit: f64) -> b
         return false;
     };
     let at_most = |volume: Option<f64>| volume.is_some_and(|v| v / whole <= limit);
-    let Some(([material, air], short)) = shared(solid, probe, COORD_FLOOR, &|[m, a]| {
-        m > 0.0 && (limit < 1.0 || a > 0.0)
-    }) else {
+    // Only rejection may use an original slab out of order. A positive inset
+    // witness rules out emptiness; a raw witness above the limit rules out the
+    // nonnegative full integral. Acceptance still completes every required pass.
+    let witness = (0.0..1.0).contains(&limit);
+    let Some(([material, air], short)) = shared_with_witness(
+        solid,
+        probe,
+        COORD_FLOOR,
+        &|[m, a]| m > 0.0 && (limit < 1.0 || a > 0.0),
+        witness,
+    ) else {
         return false;
     };
     if material == 0.0 {
@@ -209,7 +217,7 @@ pub fn fills_at_most(solid: &Classifier<'_>, probe: &Probe<'_>, limit: f64) -> b
     if air == 0.0 && !short {
         return at_most(probe_volume(probe));
     }
-    match shared(solid, probe, 0.0, &|[m, _]| m / whole > limit) {
+    match shared_with_witness(solid, probe, 0.0, &|[m, _]| m / whole > limit, witness) {
         Some(([m, _], false)) => {
             if !at_most(Some(m)) {
                 return false;
@@ -227,8 +235,8 @@ pub fn fills_at_most(solid: &Classifier<'_>, probe: &Probe<'_>, limit: f64) -> b
             }
             true
         }
-        // Unanswered, or the exact-pass prefix strictly exceeds *limit*. Nonnegative
-        // lengths and positive weights cannot reduce it; equality does not reject.
+        // Unanswered, or an original raw slab or prefix strictly exceeds *limit*.
+        // Nonnegative lengths and positive weights cannot reduce it; equality does not reject.
         _ => false,
     }
 }
@@ -462,6 +470,18 @@ fn shared(
     inset: f64,
     stop: &dyn Fn(Pair) -> bool,
 ) -> Option<(Pair, bool)> {
+    shared_with_witness(solid, probe, inset, stop, false)
+}
+
+/// As [`shared`], optionally visiting original slabs for a sufficient rejection
+/// before the ordered prefix. A partial witness is never a complete volume.
+fn shared_with_witness(
+    solid: &Classifier<'_>,
+    probe: &Probe<'_>,
+    inset: f64,
+    stop: &dyn Fn(Pair) -> bool,
+    witness: bool,
+) -> Option<(Pair, bool)> {
     let rays = solid.rays();
     let (sb, pb) = (rays.bounds(), probe.bounds());
     let whole = probe_volume(probe)?;
@@ -594,9 +614,17 @@ fn shared(
         }
         integrate(&|s| length(h, s), across, ss, rule.per(h1 - h0))
     };
-    let total = integrate_until(&area, (h0, h1), hs, rule, &|total| {
-        unresolved.get() || stop(total)
-    });
+    let total = if witness {
+        let slab = |lo, hi| {
+            let value = rule.interval(&area, lo, hi, h1 - h0);
+            (!unresolved.get()).then_some(value)
+        };
+        integrate_witness_slabs(&slab, (h0, h1), hs, stop)?
+    } else {
+        integrate_until(&area, (h0, h1), hs, rule, &|total| {
+            unresolved.get() || stop(total)
+        })
+    };
     (!unresolved.get()).then_some(total)
 }
 
@@ -818,6 +846,22 @@ enum Rule {
 }
 
 impl Rule {
+    /// One original interval, retaining its tolerance share and arithmetic.
+    fn interval(self, f: &dyn Fn(f64) -> Pair, lo: f64, hi: f64, extent: f64) -> Pair {
+        match self {
+            Rule::Exact => gauss2(f, lo, hi),
+            Rule::Adaptive(tol) => {
+                let share = tol * (hi - lo) / extent;
+                let (coarse, fine) = (gauss2(f, lo, hi), gauss4(f, lo, hi));
+                if (0..2).all(|i| (fine[i] - coarse[i]).abs() <= share) {
+                    fine
+                } else {
+                    adapt(f, lo, hi, fine, share, 0)
+                }
+            }
+        }
+    }
+
     /// The rule for an inner integral, its tolerance shared over an outer extent.
     fn per(self, extent: f64) -> Rule {
         match self {
@@ -853,24 +897,10 @@ fn integrate_until(
     if hi <= lo {
         return ([0.0, 0.0], false);
     }
-    let mut breaks: Vec<f64> = breaks.into_iter().filter(|&x| lo < x && x < hi).collect();
-    breaks.extend([lo, hi]);
-    breaks.sort_by(f64::total_cmp);
-    breaks.dedup_by(|x, y| *x - *y <= 1e-9 * (hi - lo));
+    let breaks = integration_breaks((lo, hi), breaks);
     let mut total = [0.0, 0.0];
     for (at, w) in breaks.windows(2).enumerate() {
-        let part = match rule {
-            Rule::Exact => gauss2(f, w[0], w[1]),
-            Rule::Adaptive(tol) => {
-                let share = tol * (w[1] - w[0]) / (hi - lo);
-                let (coarse, fine) = (gauss2(f, w[0], w[1]), gauss4(f, w[0], w[1]));
-                if (0..2).all(|i| (fine[i] - coarse[i]).abs() <= share) {
-                    fine
-                } else {
-                    adapt(f, w[0], w[1], fine, share, 0)
-                }
-            }
-        };
+        let part = rule.interval(f, w[0], w[1], hi - lo);
         total = add(total, part);
         if at + 2 < breaks.len() && stop(total) {
             return (total, true);
@@ -879,8 +909,98 @@ fn integrate_until(
     (total, false)
 }
 
+/// The same geometric intervals used by the complete and prefix integrators.
+fn integration_breaks((lo, hi): (f64, f64), breaks: Vec<f64>) -> Vec<f64> {
+    let mut breaks: Vec<f64> = breaks.into_iter().filter(|&x| lo < x && x < hi).collect();
+    breaks.extend([lo, hi]);
+    breaks.sort_by(f64::total_cmp);
+    breaks.dedup_by(|x, y| *x - *y <= 1e-9 * (hi - lo));
+    breaks
+}
+
+/// A completed original slab can prove rejection because all material lengths
+/// and quadrature weights are nonnegative. Width only orders work; it is not a
+/// geometric proof. No new samples, tolerance or parallel reduction is introduced.
+///
+/// Cache the visited values by their original index. If no witness rejects, add
+/// them in the original order, preserving the complete sum's floating-point bits.
+/// Every required unanswered slab still refuses the pass. Only a sufficient
+/// rejection can skip a later refusal; partial values never establish acceptance.
+fn integrate_witness_slabs(
+    slab: &impl Fn(f64, f64) -> Option<Pair>,
+    range: (f64, f64),
+    breaks: Vec<f64>,
+    stop: &dyn Fn(Pair) -> bool,
+) -> Option<(Pair, bool)> {
+    if range.1 <= range.0 {
+        return Some(([0.0, 0.0], false));
+    }
+    let breaks = integration_breaks(range, breaks);
+    let count = breaks.len() - 1;
+    let work = |index: usize| slab(breaks[index], breaks[index + 1]);
+    // One original slab already completes the pass. Keep that fact so an
+    // accepting fraction check does not repeat a completed inset integral.
+    if count == 1 {
+        return work(0).map(|value| (value, false));
+    }
+    let Some(widest) = (0..count).max_by(|&a, &b| {
+        (breaks[a + 1] - breaks[a])
+            .total_cmp(&(breaks[b + 1] - breaks[b]))
+            .then_with(|| b.cmp(&a))
+    }) else {
+        return Some(([0.0, 0.0], false));
+    };
+    let mut cache = vec![None; count];
+    let mut seeds = Vec::new();
+    for index in [
+        widest,
+        count / 2,
+        0,
+        count - 1,
+        count / 4,
+        3 * count / 4,
+        count / 8,
+        3 * count / 8,
+        5 * count / 8,
+        7 * count / 8,
+    ] {
+        if index < count && !seeds.contains(&index) && seeds.len() < 8 {
+            seeds.push(index);
+        }
+    }
+    for index in seeds {
+        let value = work(index)?;
+        if stop(value) {
+            return Some((value, true));
+        }
+        cache[index] = Some(value);
+    }
+    let mut total = [0.0, 0.0];
+    for (index, cached) in cache.into_iter().enumerate() {
+        let value = match cached {
+            Some(value) => value,
+            None => {
+                let value = work(index)?;
+                if stop(value) {
+                    return Some((value, true));
+                }
+                value
+            }
+        };
+        total = add(total, value);
+        if index + 1 < count && stop(total) {
+            return Some((total, true));
+        }
+    }
+    Some((total, false))
+}
+
 /// Material and air, integrated together from the same lines.
 type Pair = [f64; 2];
+
+#[cfg(test)]
+#[path = "volume_witness_tests.rs"]
+mod witness_tests;
 
 fn add(a: Pair, b: Pair) -> Pair {
     [a[0] + b[0], a[1] + b[1]]
