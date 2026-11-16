@@ -4,7 +4,12 @@ All notable changes to quiddity-rust and haecceity. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Alpha 1's gates and their evidence are
 in [docs/alpha1.md](docs/alpha1.md).
 
-## Unreleased
+## 0.5.4 (2026-11-16)
+
+A patch release for Specify and draftwright 0.6.0-alpha.4: a hole's counterbore, spotface,
+outer-step and countersink sub-records list their own faces (specify-core#180), and
+volume-fraction checks look for an early rejection in the widest slab first (#291). The
+change is additive; recognition output is unchanged.
 
 ### Added
 
