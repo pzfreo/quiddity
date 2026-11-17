@@ -74,12 +74,38 @@ pub(super) struct RayEdges {
     cracks: Vec<std::sync::OnceLock<f64>>,
 }
 
+/// The boxes of the faces rays meet, indexed by part face number.
+#[derive(Debug, PartialEq)]
+pub(super) enum FaceBoxes<'a> {
+    /// One per part face, shared by every caster of the part.
+    Part(&'a [Bounds]),
+    /// Only the faces of one caster: ascending face numbers, each with its box, so the
+    /// storage and the work to build it follow the solid, not the part.
+    Local(Vec<(usize, Bounds)>),
+}
+
+impl std::ops::Index<usize> for FaceBoxes<'_> {
+    type Output = Bounds;
+
+    fn index(&self, f: usize) -> &Bounds {
+        match self {
+            FaceBoxes::Part(boxes) => &boxes[f],
+            FaceBoxes::Local(boxes) => {
+                let i = boxes
+                    .binary_search_by_key(&f, |&(face, _)| face)
+                    .expect("a box for every face rays meet");
+                &boxes[i].1
+            }
+        }
+    }
+}
+
 pub struct RayCaster<'a> {
     pub(super) part: &'a Part,
     /// The faces rays meet.
     pub(super) faces: Vec<usize>,
-    /// Per part face: a box that certainly contains it (freeform faces use their control points).
-    pub(super) face_boxes: std::borrow::Cow<'a, [Bounds]>,
+    /// A box that certainly contains each face (freeform faces use their control points).
+    pub(super) face_boxes: FaceBoxes<'a>,
     pub(super) edge_boxes: &'a [Bounds],
     /// Per part edge: the box of each run of [`RUN`] polyline segments, padded by
     /// [`run_slack`], so that a search near an edge skips the runs out of reach
@@ -93,8 +119,8 @@ pub struct RayCaster<'a> {
     /// Per part edge, once asked: the furthest it strays from any face's surface it bounds
     /// ([`Self::crack`]).
     cracks: &'a [std::sync::OnceLock<f64>],
-    /// Per part face: whether rays meet it (it is one of `faces`).
-    member: Vec<bool>,
+    /// The faces rays meet, ascending and without repeats (sized by the solid, not the part).
+    member: Vec<usize>,
     /// Whether every face rays meet can be intersected, so that [`Self::hits`] never gives up.
     intersectable: bool,
 }
@@ -126,11 +152,11 @@ impl<'a> RayCaster<'a> {
                 })
                 .collect()
         });
-        Self::with_geometry(part, faces, std::borrow::Cow::Borrowed(face_boxes))
+        Self::with_geometry(part, faces, FaceBoxes::Part(face_boxes))
     }
 
-    /// Rays against *faces*, each pruned by its box in *face_boxes* (one per part face), which
-    /// must certainly contain the face.
+    /// Rays against *faces*, each pruned by its box in *face_boxes* (one per entry of *faces*,
+    /// in that order), which must certainly contain the face.
     /// Retain these supplied boxes without initializing the default box cache: orientation
     /// proofs rely on that lazy path. Membership, hierarchy and tolerance stay caster-local.
     pub(crate) fn with_face_boxes(
@@ -138,14 +164,13 @@ impl<'a> RayCaster<'a> {
         faces: Vec<usize>,
         face_boxes: Vec<Bounds>,
     ) -> Self {
-        Self::with_geometry(part, faces, std::borrow::Cow::Owned(face_boxes))
+        let mut local: Vec<(usize, Bounds)> = faces.iter().copied().zip(face_boxes).collect();
+        local.sort_by_key(|&(f, _)| f);
+        local.dedup_by_key(|&mut (f, _)| f);
+        Self::with_geometry(part, faces, FaceBoxes::Local(local))
     }
 
-    fn with_geometry(
-        part: &'a Part,
-        faces: Vec<usize>,
-        face_boxes: std::borrow::Cow<'a, [Bounds]>,
-    ) -> Self {
+    fn with_geometry(part: &'a Part, faces: Vec<usize>, face_boxes: FaceBoxes<'a>) -> Self {
         let edges = part.ray_edges.get_or_init(|| RayEdges {
             boxes: part
                 .edges
@@ -167,8 +192,9 @@ impl<'a> RayCaster<'a> {
         }
         let edge_tol = (4.0 * CHORD_TOLERANCE).max(root_box.diagonal() * 1e-9);
         let root = build(faces.clone(), &face_boxes);
-        let mut member = vec![false; part.faces.len()];
-        faces.iter().for_each(|&f| member[f] = true);
+        let mut member = faces.clone();
+        member.sort_unstable();
+        member.dedup();
         let intersectable = faces
             .iter()
             .all(|&f| !matches!(part.faces[f].surface, Surface::Other { .. }));
@@ -219,7 +245,11 @@ impl<'a> RayCaster<'a> {
         }
         let mut out = Vec::new();
         let mut in_surface = false;
-        let mut asked: Vec<usize> = faces.iter().copied().filter(|&f| self.member[f]).collect();
+        let mut asked: Vec<usize> = faces
+            .iter()
+            .copied()
+            .filter(|f| self.member.binary_search(f).is_ok())
+            .collect();
         asked.sort_unstable();
         asked.dedup();
         for i in asked {
@@ -994,7 +1024,7 @@ impl Part {
 
 const LEAF: usize = 4;
 
-fn build(mut faces: Vec<usize>, boxes: &[Bounds]) -> Node {
+fn build(mut faces: Vec<usize>, boxes: &FaceBoxes) -> Node {
     if faces.len() <= LEAF {
         return Node::Leaf(faces);
     }
@@ -1077,17 +1107,20 @@ mod tests {
             loaded.edges.clone(),
             loaded.solids.clone(),
         );
-        let custom_boxes: Vec<_> = (0..part.faces.len()).map(|f| part.face_bounds(f)).collect();
+        let custom_boxes = vec![part.face_bounds(0)];
         let custom = RayCaster::with_face_boxes(&part, vec![0], custom_boxes.clone());
         assert!(part.ray_face_boxes.get().is_none());
-        assert!(matches!(custom.face_boxes, std::borrow::Cow::Owned(_)));
-        assert_eq!(&*custom.face_boxes, custom_boxes);
+        assert_eq!(
+            custom.face_boxes,
+            FaceBoxes::Local(vec![(0, custom_boxes[0])])
+        );
         let first = RayCaster::for_solid(&part, 0);
         let second = RayCaster::for_solid(&part, 1);
-        assert!(std::ptr::eq(
-            first.face_boxes.as_ptr(),
-            second.face_boxes.as_ptr()
-        ));
+        let (FaceBoxes::Part(a), FaceBoxes::Part(b)) = (&first.face_boxes, &second.face_boxes)
+        else {
+            panic!("solid casters share the part's boxes");
+        };
+        assert!(std::ptr::eq(a.as_ptr(), b.as_ptr()));
         assert!(std::ptr::eq(
             first.edge_boxes.as_ptr(),
             second.edge_boxes.as_ptr()
@@ -1104,6 +1137,35 @@ mod tests {
         assert_ne!(first.faces, second.faces);
         assert_ne!(first.member, second.member);
         assert_ne!(first.root_box, second.root_box);
+    }
+
+    /// A caster's membership and supplied boxes are sized by its solid, so building one does
+    /// not cost more for the other solids of the file.
+    #[test]
+    fn caster_storage_is_sized_by_the_solid_not_the_part() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/two_solids.step");
+        let loaded = crate::read_step_file(&path).unwrap();
+        let part = Part::new(
+            loaded.faces.clone(),
+            loaded.edges.clone(),
+            loaded.solids.clone(),
+        );
+        for solid in 0..part.solids.len() {
+            let faces = part.solids[solid].faces.clone();
+            assert!(faces.len() < part.faces.len());
+            let boxes: Vec<_> = faces.iter().map(|&f| part.face_bounds(f)).collect();
+            let custom = RayCaster::with_face_boxes(&part, faces.clone(), boxes.clone());
+            let FaceBoxes::Local(local) = &custom.face_boxes else {
+                panic!("supplied boxes are kept locally");
+            };
+            assert_eq!(local.len(), faces.len());
+            assert_eq!(custom.member.len(), faces.len());
+            for (&f, b) in faces.iter().zip(&boxes) {
+                assert_eq!(&custom.face_boxes[f], b);
+            }
+            assert_eq!(RayCaster::for_solid(&part, solid).member.len(), faces.len());
+        }
     }
 
     #[test]

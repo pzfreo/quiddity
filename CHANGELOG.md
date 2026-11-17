@@ -4,6 +4,15 @@ All notable changes to quiddity-rust and haecceity. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Alpha 1's gates and their evidence are
 in [docs/alpha1.md](docs/alpha1.md).
 
+## Unreleased
+
+### Fixed
+
+- Reading a STEP file no longer sizes per-solid work by every face in the file: the import's
+  outward-shell proof and the ray casters keep their face boxes and membership for the
+  solid's own faces, and the unresolved-face and unresolved-edge lookups search a sorted list.
+  Output is unchanged. For #293.
+
 ## 0.5.4 (2026-11-16)
 
 A patch release for Specify and draftwright 0.6.0-alpha.4: a hole's counterbore, spotface,

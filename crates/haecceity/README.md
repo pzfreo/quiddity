@@ -222,7 +222,7 @@ for Annex C-conformant gram/milligram definitions.
 ### Large STEP assemblies: the manifest reader
 
 The default `manifest` feature provides `step::manifest::scan(reader, &ScanOptions::default())`
-and serde `quiddity-manifest/1`. Disable default features for WASM consumers that do not need
+and serde `quiddity-manifest/2`. Disable default features for WASM consumers that do not need
 filesystem manifests; serde, SHA-256, tempfile and mmap dependencies are optional. The source
 implements `Read + Seek` solely for replay: the scan uses 8 MiB chunks and one rewind, followed
 by one forward pass combining all placement fetches with range hashes. A gzip source is decoded
