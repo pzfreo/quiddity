@@ -14,6 +14,11 @@ in [docs/alpha1.md](docs/alpha1.md).
   the part list built from a file's instances, faces and assemblies is looked up once for the
   file, not searched per part (it grew faster than the number of parts). Output is unchanged.
   For #293.
+- `StepFile::part(index)` no longer rebuilds against the whole file for every part. It reads the
+  part from a document of that part's own entities (its product chain, shape representations
+  and what they reach, with the file's unit context), so reading every part costs in proportion
+  to the parts, not parts times file size; a part that document cannot reproduce exactly is
+  read from the whole file as before. Output is unchanged. For #293.
 
 ## 0.5.4 (2026-11-16)
 

@@ -1948,7 +1948,7 @@ struct Parsed {
     model: m::StepModel,
     report: step_io::Report,
     graph: step_io::parser::Graph,
-    declared_units: crate::pmi::DeclaredUnits,
+    declared_units: std::sync::Arc<crate::pmi::DeclaredUnits>,
 }
 
 #[cfg(test)]
@@ -1971,7 +1971,7 @@ impl Parsed {
             model,
             report,
             graph,
-            declared_units,
+            declared_units: declared_units.into(),
         })
     }
 }
@@ -1986,6 +1986,9 @@ enum Scope<'a> {
     /// Only the instances of product definition `#N` where it is first placed, in its own
     /// coordinates (as its shape representation states them, no placement applied).
     Own(u64),
+    /// As `Own`, in a document holding only that product (see [`StepFile::part`]): every
+    /// instance number is translated to the whole file's by this table.
+    Sub(u64, &'a [usize]),
 }
 
 fn build(parsed: &Parsed, scope: Scope<'_>) -> Result<Read, StepError> {
@@ -1997,7 +2000,7 @@ fn build(parsed: &Parsed, scope: Scope<'_>) -> Result<Read, StepError> {
     } = parsed;
     let outer = match scope {
         Scope::Placed(outer) => outer,
-        Scope::Own(_) | Scope::Selected(_) => IDENTITY,
+        Scope::Own(_) | Scope::Sub(..) | Scope::Selected(_) => IDENTITY,
     };
     let outer = &outer;
     let mut ids = FileIds::new(graph, model, report);
@@ -2126,7 +2129,7 @@ fn build(parsed: &Parsed, scope: Scope<'_>) -> Result<Read, StepError> {
     // instance keeps the number the whole file's read gives it.
     let own = match scope {
         Scope::Placed(_) | Scope::Selected(_) => None,
-        Scope::Own(definition) => {
+        Scope::Own(definition) | Scope::Sub(definition, _) => {
             let mut first = None;
             for (index, (def, _)) in placed.iter().enumerate() {
                 if ids.id(def.key())? == definition {
@@ -2396,6 +2399,13 @@ fn build(parsed: &Parsed, scope: Scope<'_>) -> Result<Read, StepError> {
         }
         .and_then(Option::as_ref)
     }));
+    if let Scope::Sub(_, whole) = scope {
+        for s in face_sources.iter_mut().chain(edge_sources.iter_mut()) {
+            s.instance = *whole
+                .get(s.instance)
+                .ok_or_else(|| StepError::Unsupported("instance numbering differs".into()))?;
+        }
+    }
     let part = Part::new(out_faces, edges_out, solids)
         .with_declared_length_unit(declared_length_unit)
         .with_unresolved(unresolved_faces, unresolved_edges)
@@ -2512,6 +2522,7 @@ pub struct Component {
 #[non_exhaustive]
 pub struct StepFile {
     parsed: Parsed,
+    index: std::sync::OnceLock<PartIndex>,
     /// The distinct parts, as [`read_part_definitions`] gives them.
     pub parts: Vec<PartDefinition>,
     /// The assemblies, depth first from the roots (the assemblies no occurrence places,
@@ -2532,6 +2543,7 @@ impl StepFile {
         )?;
         Ok(StepFile {
             parsed,
+            index: std::sync::OnceLock::new(),
             parts,
             assemblies,
         })
@@ -2540,7 +2552,84 @@ impl StepFile {
     /// Part *index* of [`StepFile::parts`] in its own coordinates, as [`read_part`] reads it.
     /// Panics if there is no such part, as indexing does.
     pub fn part(&self, index: usize) -> Result<Part, StepError> {
-        own_part(&self.parsed, &self.parts[index])
+        let def = &self.parts[index];
+        // Read from a document of just this part's entities, so the cost follows the part and
+        // not the file. Whatever that cannot reproduce exactly is read from the whole file.
+        if let Some(part) = self.own_document(def).and_then(|doc| {
+            let whole = def.placements.first()?.instances.as_slice();
+            let part = build(&doc, Scope::Sub(def.product_definition, whole))
+                .ok()?
+                .part;
+            check_own(&part, def).ok()?;
+            // The edges are as the whole file's read found them (as a set: a repair of
+            // inverted shells can reorder them).
+            let mut edges: Vec<u64> = (0..part.edges.len())
+                .filter_map(|e| part.edge_source(e).map(|s| s.entity))
+                .collect();
+            edges.sort_unstable();
+            edges.dedup();
+            let mut want = def.edges.clone();
+            want.sort_unstable();
+            (edges == want).then_some(())?;
+            Some(part)
+        }) {
+            return Ok(part);
+        }
+        own_part(&self.parsed, def)
+    }
+
+    /// The entities that make `def` readable on its own, parsed as a file: its product
+    /// definition chain, its shape representations (with those they relate to) and everything
+    /// they reach, and the file's own unit context, which sets the units of every read.
+    fn own_document(&self, def: &PartDefinition) -> Option<Parsed> {
+        let graph = &self.parsed.graph;
+        let index = self.index.get_or_init(|| PartIndex::new(&graph.entities));
+        let mut seen = std::collections::BTreeSet::new();
+        let mut stack: Vec<u64> = index.units.clone();
+        stack.push(def.product_definition);
+        for pds in index.pds_of_pd.get(&def.product_definition)? {
+            stack.push(*pds);
+            stack.extend(index.sdr_of_pds.get(pds).into_iter().flatten());
+        }
+        while let Some(id) = stack.pop() {
+            let Some(e) = graph.entities.get(&id) else {
+                continue;
+            };
+            if !seen.insert(id) {
+                continue;
+            }
+            let mut refs = Vec::new();
+            raw_references(e, &mut refs);
+            for r in refs {
+                // A representation's relationships bring in the representation they relate it to.
+                if let Some(links) = index.srr_of_rep.get(&r) {
+                    stack.extend(links);
+                }
+                stack.push(r);
+            }
+            if let Some(links) = index.srr_of_rep.get(&id) {
+                stack.extend(links);
+            }
+        }
+        let mut text = b"ISO-10303-21;\nHEADER;\n".to_vec();
+        for h in &graph.header {
+            text.extend_from_slice(crate::p21::encode(h).ok()?.as_bytes());
+            text.extend_from_slice(b";\n");
+        }
+        text.extend_from_slice(b"ENDSEC;\nDATA;\n");
+        for id in seen {
+            let e = graph.entities.get(&id)?;
+            text.extend_from_slice(format!("#{id}={};\n", crate::p21::encode(e).ok()?).as_bytes());
+        }
+        text.extend_from_slice(b"ENDSEC;\nEND-ISO-10303-21;\n");
+        let (model, report) = step_io::read(text.as_slice()).ok()?;
+        let graph = step_io::parser::parse(text.as_slice()).ok()?;
+        Some(Parsed {
+            model,
+            report,
+            graph,
+            declared_units: self.parsed.declared_units.clone(),
+        })
     }
 
     /// Read the placed bodies selected by their whole-file [`Source::instance`] numbers,
@@ -2586,16 +2675,114 @@ impl PartReader {
     }
 }
 
+/// The reverse links [`StepFile::part`] needs to find one product's entities, built once per file.
+struct PartIndex {
+    /// `PRODUCT_DEFINITION_SHAPE`s of each product definition.
+    pds_of_pd: HashMap<u64, Vec<u64>>,
+    /// `SHAPE_DEFINITION_REPRESENTATION`s of each `PRODUCT_DEFINITION_SHAPE`.
+    sdr_of_pds: HashMap<u64, Vec<u64>>,
+    /// `SHAPE_REPRESENTATION_RELATIONSHIP`s naming each representation.
+    srr_of_rep: HashMap<u64, Vec<u64>>,
+    /// The first unit contexts of each kind, which step-io takes for the file's units.
+    units: Vec<u64>,
+}
+
+impl PartIndex {
+    fn new(entities: &std::collections::BTreeMap<u64, RawEntity>) -> Self {
+        let reference = |a: Option<&Attribute>| match a {
+            Some(Attribute::EntityRef(n)) => Some(*n),
+            _ => None,
+        };
+        let mut index = PartIndex {
+            pds_of_pd: HashMap::new(),
+            sdr_of_pds: HashMap::new(),
+            srr_of_rep: HashMap::new(),
+            units: Vec::new(),
+        };
+        let (mut complex, mut simple) = (None, None);
+        for (&id, e) in entities {
+            match e {
+                RawEntity::Simple {
+                    name, attributes, ..
+                } => match name.as_str() {
+                    "PRODUCT_DEFINITION_SHAPE" => {
+                        if let Some(pd) = reference(attributes.get(2)) {
+                            index.pds_of_pd.entry(pd).or_default().push(id);
+                        }
+                    }
+                    "SHAPE_DEFINITION_REPRESENTATION" => {
+                        if let Some(pds) = reference(attributes.first()) {
+                            index.sdr_of_pds.entry(pds).or_default().push(id);
+                        }
+                    }
+                    "SHAPE_REPRESENTATION_RELATIONSHIP" => {
+                        for rep in [2, 3]
+                            .into_iter()
+                            .filter_map(|i| reference(attributes.get(i)))
+                        {
+                            index.srr_of_rep.entry(rep).or_default().push(id);
+                        }
+                    }
+                    "GLOBAL_UNIT_ASSIGNED_CONTEXT" => {
+                        simple.get_or_insert(id);
+                    }
+                    _ => {}
+                },
+                RawEntity::Complex { parts, .. } => {
+                    if parts
+                        .iter()
+                        .any(|p| p.name == "GLOBAL_UNIT_ASSIGNED_CONTEXT")
+                    {
+                        complex.get_or_insert(id);
+                    }
+                }
+            }
+        }
+        index.units = complex.into_iter().chain(simple).collect();
+        index
+    }
+}
+
+/// Every entity `e` names.
+fn raw_references(e: &RawEntity, out: &mut Vec<u64>) {
+    fn walk(a: &Attribute, out: &mut Vec<u64>) {
+        match a {
+            Attribute::EntityRef(n) => out.push(*n),
+            Attribute::List(v) => v.iter().for_each(|a| walk(a, out)),
+            Attribute::Typed { value, .. } => walk(value, out),
+            _ => {}
+        }
+    }
+    match e {
+        RawEntity::Simple { attributes, .. } => attributes.iter().for_each(|a| walk(a, out)),
+        RawEntity::Complex { parts, .. } => parts
+            .iter()
+            .flat_map(|p| &p.attributes)
+            .for_each(|a| walk(a, out)),
+    }
+}
+
 fn own_part(parsed: &Parsed, def: &PartDefinition) -> Result<Part, StepError> {
+    let part = build(parsed, Scope::Own(def.product_definition))
+        .map_err(|e| {
+            StepError::Unsupported(format!(
+                "part #{} ({}): {e}",
+                def.product_definition, def.name
+            ))
+        })?
+        .part;
+    check_own(&part, def)?;
+    Ok(part)
+}
+
+/// Checks a part read in its own frame against its definition: each face once, in order.
+fn check_own(part: &Part, def: &PartDefinition) -> Result<(), StepError> {
     let refuse = |why: String| {
         StepError::Unsupported(format!(
             "part #{} ({}): {why}",
             def.product_definition, def.name
         ))
     };
-    let part = build(parsed, Scope::Own(def.product_definition))
-        .map_err(|e| refuse(e.to_string()))?
-        .part;
     let mut read: HashMap<u64, usize> = HashMap::new();
     for f in 0..part.faces.len() {
         if let Some(s) = part.face_source(f) {
@@ -2620,7 +2807,7 @@ fn own_part(parsed: &Parsed, def: &PartDefinition) -> Result<Part, StepError> {
             def.faces.len()
         )));
     }
-    Ok(part)
+    Ok(())
 }
 
 /// A product definition's product name as OpenCascade's XCAF names its label:
@@ -3152,6 +3339,61 @@ mod tests {
         file.placed(&[1]).unwrap();
         file.part(1).unwrap();
         assert_eq!(GEOMETRY_PARSES.with(std::cell::Cell::get) - before, 1);
+    }
+
+    /// Every part of `bytes` read by `StepFile::part` comes from its own document (the
+    /// fast path, not the whole-file fallback) and equals the part the whole file's read gives.
+    fn assert_parts_from_own_documents(label: &str, bytes: &[u8]) {
+        let file = StepFile::read(bytes).unwrap();
+        for (index, def) in file.parts.iter().enumerate() {
+            let doc = file
+                .own_document(def)
+                .unwrap_or_else(|| panic!("{label} part {index}: no own document"));
+            let whole = def.placements[0].instances.as_slice();
+            let fast = build(&doc, Scope::Sub(def.product_definition, whole))
+                .unwrap_or_else(|e| panic!("{label} part {index}: {e}"))
+                .part;
+            let slow = own_part(&file.parsed, def).unwrap();
+            let again = file.part(index).unwrap();
+            for part in [&fast, &again] {
+                assert_eq!(
+                    format!("{:?}", part.faces),
+                    format!("{:?}", slow.faces),
+                    "{label} part {index} faces"
+                );
+                assert_eq!(
+                    format!("{:?}", part.edges),
+                    format!("{:?}", slow.edges),
+                    "{label} part {index} edges"
+                );
+                assert_eq!(
+                    format!("{:?}", part.solids),
+                    format!("{:?}", slow.solids),
+                    "{label} part {index} solids"
+                );
+                assert_eq!(part.unresolved_faces(), slow.unresolved_faces());
+                assert_eq!(part.unresolved_edges(), slow.unresolved_edges());
+                assert_eq!(part.input_repairs(), slow.input_repairs());
+                assert_eq!(part.declared_length_unit(), slow.declared_length_unit());
+                for f in 0..slow.faces.len() {
+                    assert_eq!(part.face_source(f), slow.face_source(f), "{label} face {f}");
+                }
+                for e in 0..slow.edges.len() {
+                    assert_eq!(part.edge_source(e), slow.edge_source(e), "{label} edge {e}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_part_is_read_from_its_own_document_with_the_whole_files_result() {
+        for path in [
+            "ap242/assembly/assembly.step",
+            "ap242/assembly/wrapped.step",
+        ] {
+            let bytes = std::fs::read(fixture(path)).unwrap();
+            assert_parts_from_own_documents(path, &bytes);
+        }
     }
 
     #[test]
