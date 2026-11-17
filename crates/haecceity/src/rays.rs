@@ -91,9 +91,10 @@ impl std::ops::Index<usize> for FaceBoxes<'_> {
         match self {
             FaceBoxes::Part(boxes) => &boxes[f],
             FaceBoxes::Local(boxes) => {
+                // A face rays do not meet has no box: out of range, as indexing a part's would be.
                 let i = boxes
                     .binary_search_by_key(&f, |&(face, _)| face)
-                    .expect("a box for every face rays meet");
+                    .unwrap_or(boxes.len());
                 &boxes[i].1
             }
         }
