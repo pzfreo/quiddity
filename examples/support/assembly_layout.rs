@@ -392,8 +392,25 @@ fn scale_contiguous(
             .find_map(|(id, e)| named(e, n).then_some(*id))
             .ok_or_else(|| format!("missing {n}"))
     };
-    let pc = context("PRODUCT_CONTEXT")?;
-    let dc = context("PRODUCT_DEFINITION_CONTEXT")?;
+    let mut occurrence_start = base + 11;
+    // Products that each own their product contexts (flat sources) leave none in common: the
+    // synthetic root then gets contexts of its own, after its other records.
+    let mut root_contexts = String::new();
+    let (pc, dc) = match (
+        context("PRODUCT_CONTEXT"),
+        context("PRODUCT_DEFINITION_CONTEXT"),
+    ) {
+        (Ok(pc), Ok(dc)) => (pc, dc),
+        _ => {
+            let app = context("APPLICATION_CONTEXT")?;
+            let (pc, dc) = (occurrence_start, occurrence_start + 1);
+            root_contexts = format!(
+                "#{pc}=PRODUCT_CONTEXT('',#{app},'mechanical');\n#{dc}=PRODUCT_DEFINITION_CONTEXT('part definition',#{app},'design');\n"
+            );
+            occurrence_start += 2;
+            (pc, dc)
+        }
+    };
     let mut rc = doc
         .graph()
         .entities
@@ -410,7 +427,6 @@ fn scale_contiguous(
         })
         .ok_or("missing geometry context")?;
     let mut root_context = Vec::new();
-    let mut occurrence_start = base + 11;
     let shared: HashSet<_> = common.iter().map(|(id, _)| *id).collect();
     if !shared.contains(&rc) {
         // A standalone product can own its context/units. The synthetic root
@@ -470,13 +486,15 @@ fn scale_contiguous(
         writeln!(out, "#{id}={};", p21::encode(e)?)?;
     }
     out.write_all(root.as_bytes())?;
+    out.write_all(root_contexts.as_bytes())?;
     for (id, e) in &root_context {
         writeln!(out, "#{id}={};", p21::encode(e)?)?;
     }
     let mut products = 0usize;
     let mut instances = 0usize;
     let mut occurrences = 0usize;
-    let mut entities = (common.len() + root_context.len()) as u64 + 10;
+    let mut entities =
+        (common.len() + root_context.len()) as u64 + 10 + 2 * u64::from(!root_contexts.is_empty());
     group(&mut groups, 0, entities)?;
     sidecar.write_all(b"{\"per_product\":[")?;
     // Each product is emitted before the next is constructed. Runs/shuffled scale

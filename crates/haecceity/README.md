@@ -244,9 +244,12 @@ The common hash includes the original header bytes followed by the common range 
 Incompatible manifests report both reader versions; haecceity records only its own version.
 Gzip sources can be scanned, but range reads refuse them.
 
-Only contexts/units reached by product or assembly chains, or their shape representations,
-go to `common`. Geometry-only contexts (including per-pcurve contexts) go into their product's
-ranges, and a context used by several products is copied into each without unioning them.
+Only contexts/units the assembly chain uses, or that several products' definitions or shape
+representations share, go to `common`; it does not grow with the number of products. A
+context and its units (and a product's own product and definition contexts) that only one
+product reaches go into that product's ranges, as geometry-only contexts (including per-pcurve
+contexts) do, and a geometry-only context used by several products is copied into each without
+unioning them.
 Unreached contexts remain unowned. Frames and their point/direction dependencies are also copied
 by indexed dependency links, without retaining parsed geometry frames. Only actual assembly
 transform frames are fetched into the small placement document after scanning.

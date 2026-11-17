@@ -1,6 +1,8 @@
 //! Reader-only #190 acceptance: no CLI, Python, layouts or recognition changes.
 #[path = "common/parallel.rs"]
 mod parallel;
+#[path = "common/torus_products.rs"]
+mod torus_products;
 use haecceity::p21::streaming::{self, Event};
 use haecceity::step::{
     StepFile,
@@ -9,6 +11,7 @@ use haecceity::step::{
 use std::fs::File;
 use std::io::{Cursor, Read, Write};
 use std::path::{Path, PathBuf};
+use torus_products::torus_products;
 
 fn files(dir: &Path, out: &mut Vec<PathBuf>) {
     if !dir.is_dir() {
@@ -854,6 +857,80 @@ fn occurrence_representation_contexts_are_reached_from_assembly_chains() {
             .any(|r| r[0] <= context.offset && context.offset < r[1])
     );
     check_bytes("occurrence-only representation context", &out);
+}
+
+#[test]
+fn common_does_not_grow_with_products_that_have_their_own_contexts() {
+    // Each product's shape representation, product context and definition context are its
+    // own (#73 with its units and uncertainty, #8, #9 in the torus), so they belong to that
+    // product's ranges. Only what every product shares may stay in common.
+    let mut entities = Vec::new();
+    for copies in [2, 4, 8] {
+        let (text, stride) = torus_products(copies);
+        let m = manifest::scan(Cursor::new(&text), &ScanOptions::default()).unwrap();
+        assert_eq!(m.products.len() as u64, copies);
+        assert!(m.refusals.is_empty());
+        entities.push(m.common.entities);
+        let rows = statements(&text, 4096).unwrap();
+        let contains = |ranges: &[manifest::ByteRange], id: u64| {
+            let row = rows.iter().find(|r| r.id == id).unwrap();
+            ranges
+                .iter()
+                .any(|r| r[0] <= row.offset && row.offset < r[1])
+        };
+        for copy in 0..copies {
+            let own = copy * stride;
+            // #5 is the torus's product definition.
+            let product = m
+                .products
+                .iter()
+                .find(|p| p.product_definition == 5 + own)
+                .unwrap();
+            // The shape representation's context with its units and uncertainty, and the
+            // product's context and definition context, in each copy.
+            for id in [8, 9, 73, 74, 75, 76, 77] {
+                assert!(
+                    contains(&product.ranges, id + own),
+                    "{} lacks #{}",
+                    product.id,
+                    id + own
+                );
+                assert!(!contains(&m.common.ranges, id + own));
+            }
+        }
+        assert!(
+            contains(&m.common.ranges, 2),
+            "the shared application context"
+        );
+        check_bytes("products with their own contexts", &text);
+    }
+    assert!(
+        entities.windows(2).all(|w| w[0] == w[1]),
+        "common grew with the product count: {entities:?}"
+    );
+}
+
+#[test]
+fn assembly_product_contexts_stay_with_their_products() {
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ap242/assembly/assembly.step");
+    let b = bytes(&path);
+    let m = manifest::scan(Cursor::new(&b), &ScanOptions::default()).unwrap();
+    let rows = statements(&b, 4096).unwrap();
+    let contains = |ranges: &[manifest::ByteRange], id: u64| {
+        let row = rows.iter().find(|r| r.id == id).unwrap();
+        ranges
+            .iter()
+            .any(|r| r[0] <= row.offset && row.offset < r[1])
+    };
+    // #27 is the assembly's own context. #959 (plate) and #1256 (pin) are the parts'.
+    assert!(contains(&m.common.ranges, 27));
+    for (name, context) in [("plate", 959), ("pin", 1256)] {
+        let product = m.products.iter().find(|p| p.name == name).unwrap();
+        assert!(contains(&product.ranges, context), "{name}");
+        assert!(!contains(&m.common.ranges, context), "{name}");
+    }
+    check_bytes("assembly with per-part contexts", &b);
 }
 
 #[test]
