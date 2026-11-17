@@ -911,6 +911,38 @@ fn common_does_not_grow_with_products_that_have_their_own_contexts() {
 }
 
 #[test]
+fn threads_share_one_file_to_read_products() {
+    let (text, _) = torus_products(6);
+    let m = manifest::scan(Cursor::new(&text), &ScanOptions::default()).unwrap();
+    let file = temp_source(&text);
+    let faces = |id: &str| {
+        let part = m.read_product(&file, id).unwrap();
+        (0..part.faces.len())
+            .map(|f| part.face_source(f).unwrap().entity)
+            .collect::<Vec<_>>()
+    };
+    let expected: Vec<_> = m.products.iter().map(|p| faces(&p.id)).collect();
+    #[cfg(unix)]
+    let cursor = std::io::Seek::stream_position(&mut &file).unwrap();
+    std::thread::scope(|scope| {
+        for thread in 0..4 {
+            let (m, expected, faces) = (&m, &expected, &faces);
+            scope.spawn(move || {
+                for round in 0..10 {
+                    for step in 0..m.products.len() {
+                        let i = (step + thread + round) % m.products.len();
+                        assert_eq!(&faces(&m.products[i].id), &expected[i]);
+                    }
+                }
+            });
+        }
+    });
+    // Positional reads leave the shared cursor where it was.
+    #[cfg(unix)]
+    assert_eq!(std::io::Seek::stream_position(&mut &file).unwrap(), cursor);
+}
+
+#[test]
 fn assembly_product_contexts_stay_with_their_products() {
     let path =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ap242/assembly/assembly.step");

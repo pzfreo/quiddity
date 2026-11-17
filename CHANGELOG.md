@@ -17,6 +17,9 @@ in [docs/alpha1.md](docs/alpha1.md).
   `quiddity-manifest/2`: the reader version check already refuses a manifest from another
   haecceity version, and a product read joins `common` and the product's ranges whatever they
   hold. For #293.
+- `Manifest::read_product` reads its ranges by position on Unix and Windows (`read_at`,
+  `seek_read`), without using or moving the `File`'s cursor, so one `&File` can be shared by
+  threads reading different products. The signature is unchanged. For #293.
 
 ## 0.5.4 (2026-11-16)
 

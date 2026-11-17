@@ -238,7 +238,8 @@ shell repair can change edge traversal order, so equivalence compares edge count
 The manifest also carries assemblies, occurrence paths and placements in millimetres, unowned
 presentation/other ranges, and shared-geometry refusals. `read_product(&file, "p0")` reads the
 header and common/product ranges in one forward pass, checks size and hashes, and uses the
-existing part readers with exact ordered face checks. Headers are bounded to 16 MiB before a
+existing part readers with exact ordered face checks. On Unix and Windows the ranges are read
+by position, so threads can read different products through one shared `&File`. Headers are bounded to 16 MiB before a
 manifest-controlled allocation. `verify_source(reader)` explicitly checks the whole source.
 The common hash includes the original header bytes followed by the common range bytes.
 Incompatible manifests report both reader versions; haecceity records only its own version.
