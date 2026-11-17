@@ -10,8 +10,10 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 - Reading a STEP file no longer sizes per-solid work by every face in the file: the import's
   outward-shell proof and the ray casters keep their face boxes and membership for the
-  solid's own faces, and the unresolved-face and unresolved-edge lookups search a sorted list.
-  Output is unchanged. For #293.
+  solid's own faces, the unresolved-face and unresolved-edge lookups search a sorted list, and
+  the part list built from a file's instances, faces and assemblies is looked up once for the
+  file, not searched per part (it grew faster than the number of parts). Output is unchanged.
+  For #293.
 
 ## 0.5.4 (2026-11-16)
 

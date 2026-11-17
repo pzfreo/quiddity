@@ -125,10 +125,9 @@ const PROOF_FACES: usize = 8;
 /// global inversion. `outward_proved_excludes_global_inversion` checks this.
 fn outward_proved(part: &Part, solid: usize) -> bool {
     let faces = &part.solids[solid].faces;
-    let Some(boxes) = certain_boxes(part, faces) else {
+    let Some(classifier) = proof_classifier(part, solid) else {
         return false;
     };
-    let classifier = Classifier::with_face_boxes(part, faces.clone(), boxes);
     for &f in faces.iter().take(PROOF_FACES) {
         match face_side(part, &classifier, f) {
             Side::Outward => return true,
@@ -139,10 +138,16 @@ fn outward_proved(part: &Part, solid: usize) -> bool {
     false
 }
 
-/// The [`certain_box`] of each of *faces*, in that order: one per face of the solid, so the
-/// work and storage follow the solid, not the faces of every other solid in the file.
-fn certain_boxes(part: &Part, faces: &[usize]) -> Option<Vec<crate::geom::Bounds>> {
-    faces.iter().map(|&f| certain_box(part, f)).collect()
+/// The classifier [`outward_proved`] casts rays with: against the solid's faces, pruned by their
+/// [`certain_box`]es, one per face of the solid (so the work and storage follow the solid, not
+/// the faces of every other solid in the file). `None` when a face has no certain box.
+fn proof_classifier(part: &Part, solid: usize) -> Option<Classifier<'_>> {
+    let faces = &part.solids[solid].faces;
+    let boxes = faces
+        .iter()
+        .map(|&f| certain_box(part, f))
+        .collect::<Option<Vec<_>>>()?;
+    Some(Classifier::with_face_boxes(part, faces.clone(), boxes))
 }
 
 /// A box that certainly holds face *f* and the bands of its edges, without sampling its
@@ -414,17 +419,27 @@ mod tests {
         assert!(checked >= 36 && proved > 0, "{proved} proved of {checked}");
     }
 
-    /// The proof's boxes follow the solid, not the part: another solid's faces add none.
+    /// The proof's classifier holds each face's certain box, for the solid's faces alone:
+    /// another solid's faces add none.
     #[test]
     fn outward_proof_boxes_are_sized_by_the_solid() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../tests/fixtures/two_solids.step");
         let part = crate::read_step_file(&path).unwrap();
         assert!(part.solids.len() > 1);
-        for solid in &part.solids {
-            assert!(solid.faces.len() < part.faces.len());
-            let boxes = certain_boxes(&part, &solid.faces).unwrap();
-            assert_eq!(boxes.len(), solid.faces.len());
+        for (solid, s) in part.solids.iter().enumerate() {
+            assert!(s.faces.len() < part.faces.len());
+            let classifier = proof_classifier(&part, solid).unwrap();
+            let crate::rays::FaceBoxes::Local(local) = &classifier.rays().face_boxes else {
+                panic!("the proof keeps its boxes for the solid alone");
+            };
+            assert_eq!(local.len(), s.faces.len());
+            for &f in &s.faces {
+                assert_eq!(
+                    classifier.rays().face_boxes[f],
+                    certain_box(&part, f).unwrap()
+                );
+            }
         }
     }
 }

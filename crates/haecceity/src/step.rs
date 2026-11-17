@@ -2742,11 +2742,34 @@ fn part_definitions(
             "instance {orphan} of the file's shapes belongs to no product definition"
         )));
     }
+    // Each lookup below is built once for the file, not searched per part: a file of many
+    // parts would otherwise cost every part a pass over every instance, face, part and assembly.
+    let mut instances_of: Vec<Vec<usize>> = vec![Vec::new(); placed.len()];
+    for (i, owner) in instances.iter().enumerate() {
+        if let Some(&index) = owner.as_ref() {
+            instances_of[index].push(i);
+        }
+    }
+    let mut faces_of_instance: Vec<Vec<usize>> = vec![Vec::new(); instances.len()];
+    for f in 0..part.faces.len() {
+        if let Some(s) = part.face_source(f)
+            && let Some(faces) = faces_of_instance.get_mut(s.instance)
+        {
+            faces.push(f);
+        }
+    }
+    let mut sole_component_name: HashMap<u64, &str> = HashMap::new();
+    for a in assemblies {
+        if let [c] = a.components[..]
+            && !a.name.is_empty()
+        {
+            sole_component_name.entry(c.definition).or_insert(&a.name);
+        }
+    }
+    let mut part_of_definition: HashMap<u64, usize> = HashMap::new();
     let mut parts: Vec<PartDefinition> = Vec::new();
     for (index, def) in placed.iter().enumerate() {
-        let mine: Vec<usize> = (0..instances.len())
-            .filter(|&i| instances[i] == Some(index))
-            .collect();
+        let mine = std::mem::take(&mut instances_of[index]);
         if mine.is_empty() {
             continue;
         }
@@ -2754,22 +2777,18 @@ fn part_definitions(
             placement: def.placement,
             instances: mine.clone(),
         };
-        if let Some(known) = parts
-            .iter_mut()
-            .find(|p| p.product_definition == def.definition)
-        {
-            known.placements.push(placement);
+        if let Some(&known) = part_of_definition.get(&def.definition) {
+            parts[known].placements.push(placement);
             continue;
         }
         let shape = def.shape.clone().map_err(|why| {
             StepError::Unsupported(format!("part #{} ({}): {why}", def.definition, def.name))
         })?;
-        let ours: Vec<usize> = (0..part.faces.len())
-            .filter(|&f| {
-                part.face_source(f)
-                    .is_some_and(|s| mine.contains(&s.instance))
-            })
+        let mut ours: Vec<usize> = mine
+            .iter()
+            .flat_map(|&i| faces_of_instance[i].iter().copied())
             .collect();
+        ours.sort_unstable();
         let faces: Vec<u64> = ours
             .iter()
             .filter_map(|&f| part.face_source(f).map(|s| s.entity))
@@ -2803,13 +2822,10 @@ fn part_definitions(
         let face_index = faces.iter().enumerate().map(|(i, &f)| (f, i)).collect();
         // Named after the first assembly (in visiting order) that holds it alone and has a
         // name, as specify-core's `_part_name` names it.
-        let name = assemblies
-            .iter()
-            .find(|a| {
-                matches!(a.components[..], [c] if c.definition == def.definition)
-                    && !a.name.is_empty()
-            })
-            .map_or_else(|| def.name.clone(), |a| a.name.clone());
+        let name = sole_component_name
+            .get(&def.definition)
+            .map_or_else(|| def.name.clone(), |&name| name.to_string());
+        part_of_definition.insert(def.definition, parts.len());
         parts.push(PartDefinition {
             product_definition: def.definition,
             shape,
