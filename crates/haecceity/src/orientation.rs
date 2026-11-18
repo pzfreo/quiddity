@@ -125,14 +125,9 @@ const PROOF_FACES: usize = 8;
 /// global inversion. `outward_proved_excludes_global_inversion` checks this.
 fn outward_proved(part: &Part, solid: usize) -> bool {
     let faces = &part.solids[solid].faces;
-    let mut boxes = vec![crate::geom::Bounds::empty(); part.faces.len()];
-    for &f in faces {
-        let Some(b) = certain_box(part, f) else {
-            return false;
-        };
-        boxes[f] = b;
-    }
-    let classifier = Classifier::with_face_boxes(part, faces.clone(), boxes);
+    let Some(classifier) = proof_classifier(part, solid) else {
+        return false;
+    };
     for &f in faces.iter().take(PROOF_FACES) {
         match face_side(part, &classifier, f) {
             Side::Outward => return true,
@@ -141,6 +136,18 @@ fn outward_proved(part: &Part, solid: usize) -> bool {
         }
     }
     false
+}
+
+/// The classifier [`outward_proved`] casts rays with: against the solid's faces, pruned by their
+/// [`certain_box`]es, one per face of the solid (so the work and storage follow the solid, not
+/// the faces of every other solid in the file). `None` when a face has no certain box.
+fn proof_classifier(part: &Part, solid: usize) -> Option<Classifier<'_>> {
+    let faces = &part.solids[solid].faces;
+    let boxes = faces
+        .iter()
+        .map(|&f| certain_box(part, f))
+        .collect::<Option<Vec<_>>>()?;
+    Some(Classifier::with_face_boxes(part, faces.clone(), boxes))
 }
 
 /// A box that certainly holds face *f* and the bands of its edges, without sampling its
@@ -410,5 +417,29 @@ mod tests {
             }
         }
         assert!(checked >= 36 && proved > 0, "{proved} proved of {checked}");
+    }
+
+    /// The proof's classifier holds each face's certain box, for the solid's faces alone:
+    /// another solid's faces add none.
+    #[test]
+    fn outward_proof_boxes_are_sized_by_the_solid() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/two_solids.step");
+        let part = crate::read_step_file(&path).unwrap();
+        assert!(part.solids.len() > 1);
+        for (solid, s) in part.solids.iter().enumerate() {
+            assert!(s.faces.len() < part.faces.len());
+            let classifier = proof_classifier(&part, solid).unwrap();
+            let crate::rays::FaceBoxes::Local(local) = &classifier.rays().face_boxes else {
+                panic!("the proof keeps its boxes for the solid alone");
+            };
+            assert_eq!(local.len(), s.faces.len());
+            for &f in &s.faces {
+                assert_eq!(
+                    classifier.rays().face_boxes[f],
+                    certain_box(&part, f).unwrap()
+                );
+            }
+        }
     }
 }

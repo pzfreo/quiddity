@@ -8,6 +8,17 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
+- Reading a STEP file no longer sizes per-solid work by every face in the file: the import's
+  outward-shell proof and the ray casters keep their face boxes and membership for the
+  solid's own faces, the unresolved-face and unresolved-edge lookups search a sorted list, and
+  the part list built from a file's instances, faces and assemblies is looked up once for the
+  file, not searched per part (it grew faster than the number of parts). Output is unchanged.
+  For #293.
+- `StepFile::part(index)` no longer rebuilds against the whole file for every part. It reads the
+  part from a document of that part's own entities (its product chain, shape representations
+  and what they reach, with the file's unit context), so reading every part costs in proportion
+  to the parts, not parts times file size; a part that document cannot reproduce exactly is
+  read from the whole file as before. Output is unchanged. For #293.
 - The manifest's `common` no longer grows with the number of products. A shape representation's
   context and units, and a product's own product and definition contexts, that only one product
   reaches now travel in that product's ranges, as geometry-only contexts already did. The
