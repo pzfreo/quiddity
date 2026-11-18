@@ -451,8 +451,9 @@ fn key_id(ids: &FileIds<'_>, key: m::EntityKey) -> Result<u64, StepError> {
         .copied()
         .ok_or_else(dangling)
 }
-/// Fills `buf` from `offset`. Where the platform has positional reads it neither uses nor moves
-/// the file's cursor, so one `File` can serve several threads at once.
+/// Fills `buf` from `offset`. Where the platform has positional reads one `File` can serve
+/// several threads at once. On Unix the cursor is neither used nor moved; on Windows `seek_read`
+/// moves it, which is harmless here because every read is positional.
 fn read_exact_at(file: &File, buf: &mut [u8], offset: u64) -> std::io::Result<()> {
     #[cfg(unix)]
     {
@@ -464,12 +465,14 @@ fn read_exact_at(file: &File, buf: &mut [u8], offset: u64) -> std::io::Result<()
         use std::os::windows::fs::FileExt;
         let (mut done, mut offset) = (0, offset);
         while done < buf.len() {
-            match file.seek_read(&mut buf[done..], offset)? {
-                0 => return Err(std::io::ErrorKind::UnexpectedEof.into()),
-                n => {
+            match file.seek_read(&mut buf[done..], offset) {
+                Ok(0) => return Err(std::io::ErrorKind::UnexpectedEof.into()),
+                Ok(n) => {
                     done += n;
                     offset += n as u64;
                 }
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(e) => return Err(e),
             }
         }
         Ok(())

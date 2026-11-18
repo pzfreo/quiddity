@@ -239,18 +239,21 @@ The manifest also carries assemblies, occurrence paths and placements in millime
 presentation/other ranges, and shared-geometry refusals. `read_product(&file, "p0")` reads the
 header and common/product ranges in one forward pass, checks size and hashes, and uses the
 existing part readers with exact ordered face checks. On Unix and Windows the ranges are read
-by position, so threads can read different products through one shared `&File`. Headers are bounded to 16 MiB before a
-manifest-controlled allocation. `verify_source(reader)` explicitly checks the whole source.
+by position, so threads can read different products through one shared `&File`. Headers are
+bounded to 16 MiB before a manifest-controlled allocation. `verify_source(reader)` explicitly
+checks the whole source.
 The common hash includes the original header bytes followed by the common range bytes.
 Incompatible manifests report both reader versions; haecceity records only its own version.
 Gzip sources can be scanned, but range reads refuse them.
 
-Only contexts/units the assembly chain uses, or that several products' definitions or shape
-representations share, go to `common`; it does not grow with the number of products. A
-context and its units (and a product's own product and definition contexts) that only one
-product reaches go into that product's ranges, as geometry-only contexts (including per-pcurve
-contexts) do, and a geometry-only context used by several products is copied into each without
-unioning them.
+Only contexts/units that several products' definitions or shape representations share go to
+`common`; it does not grow with the number of products or sub-assemblies. A context and its
+units (and a product's own product and definition contexts) that only one product reaches go
+into that product's ranges, as geometry-only contexts (including per-pcurve contexts) do, and
+a geometry-only context used by several products is copied into each without unioning them.
+The contexts of assembly products and placement relationships are read only for the placement
+document and stay unowned, as the assembly entities that reference them do (a file with a
+single product keeps that product's contexts in `common`).
 Unreached contexts remain unowned. Frames and their point/direction dependencies are also copied
 by indexed dependency links, without retaining parsed geometry frames. Only actual assembly
 transform frames are fetched into the small placement document after scanning.

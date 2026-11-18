@@ -200,10 +200,21 @@ struct Plan {
     /// definition, product definition, formation, product) they reach, in ascending id order.
     skeleton: Vec<u64>,
 }
+/// What `plans` found besides the products.
+struct Chains {
+    /// Representations whose contexts stay in `common`: those of a file's only product.
+    common_reps: HashSet<u64>,
+    /// Definition-chain entities whose contexts stay in `common`: those of a file's only
+    /// product, which has nothing to be shared with.
+    common_skeleton: HashSet<u64>,
+    /// Representations of products without bodies and of the placement relationships. Their
+    /// contexts are read for the placement document only.
+    assembly_reps: HashSet<u64>,
+}
 fn plans(
     graph: &BTreeMap<u64, RawEntity>,
     index: &Index,
-) -> Result<(Vec<Plan>, HashSet<u64>), StepError> {
+) -> Result<(Vec<Plan>, Chains), StepError> {
     let mut pd_to_pds: BTreeMap<u64, Vec<u64>> = BTreeMap::new();
     let mut pds_to_sdr: HashMap<u64, Vec<(u64, u64)>> = HashMap::new();
     let mut bridges: HashMap<u64, Vec<(u64, u64)>> = HashMap::new();
@@ -230,10 +241,12 @@ fn plans(
         }
     }
     let mut result = Vec::new();
-    // Representations whose contexts the assembly chain shares. A product with bodies keeps
-    // its own representations out of this set: their contexts travel with the product unless
-    // several products reach the same one.
-    let mut common_reps = HashSet::new();
+    // Representations of the assembly chain. A product with bodies keeps its own
+    // representations out of this set: their contexts travel with the product unless several
+    // products reach the same one. The assembly chain's own contexts are not read by
+    // `read_product`, so they are not in `common` either (the writer gives every assembly
+    // product its own); only the placement document needs them.
+    let mut assembly_chain = HashSet::new();
     let mut product_reps = HashSet::new();
     for (pd, shapes) in pd_to_pds {
         if !graph.get(&pd).is_some_and(|e| {
@@ -295,7 +308,7 @@ fn plans(
         surfaces.dedup();
         solids.extend(surfaces);
         if solids.is_empty() {
-            common_reps.extend(visited);
+            assembly_chain.extend(visited);
             continue;
         }
         let [shape] = represented.as_slice() else {
@@ -346,10 +359,12 @@ fn plans(
     }
     // A lone product has nothing to be shared with: its contexts stay in common, as for any
     // single-part file, and the assembly chain sees all its representations.
+    let mut common_reps = HashSet::new();
+    let mut common_skeleton = HashSet::new();
     if result.len() < 2 {
         for plan in &mut result {
             common_reps.extend(plan.visited.drain(..));
-            plan.skeleton.clear();
+            common_skeleton.extend(plan.skeleton.drain(..));
         }
         product_reps.clear();
     }
@@ -380,8 +395,8 @@ fn plans(
             continue;
         };
         if index.kind(slot) == Kind::Representation {
-            if !product_reps.contains(&id) {
-                common_reps.insert(id);
+            if !product_reps.contains(&id) && !common_reps.contains(&id) {
+                assembly_chain.insert(id);
             }
             if let Some(next) = bridges.get(&id) {
                 assembly_reps.extend(next.iter().map(|&(_, rep)| rep));
@@ -396,7 +411,14 @@ fn plans(
             }));
         }
     }
-    Ok((result, common_reps))
+    Ok((
+        result,
+        Chains {
+            common_reps,
+            common_skeleton,
+            assembly_reps: assembly_chain,
+        },
+    ))
 }
 fn face_list(graph: &BTreeMap<u64, RawEntity>, solids: &[u64]) -> Result<Vec<u64>, StepError> {
     let get = |id| {
@@ -504,18 +526,20 @@ pub fn scan<R: Read + Seek>(mut reader: R, options: &ScanOptions) -> Result<Mani
         )));
     }
     index.finish()?;
-    let (plans, common_reps) = plans(&graph, &index)?;
+    let (plans, chains) = plans(&graph, &index)?;
     if plans.len() >= (MULTI - 2) as usize {
         return Err(StepError::Limit(
             "manifest has too many distinct products".into(),
         ));
     }
     let mut owners = Owners::new(index.len());
-    // Common is a forward closure of the contexts reached by the product/assembly skeleton, by
-    // the assembly chain's representations, or by the shape representations of several
-    // products. A context (and its units) reached by one product's shape representations
-    // alone is that product's, as per-pcurve contexts are: it follows the product through
-    // the ordinary ownership pass below, so `common` does not grow with the product count.
+    // Common is a forward closure of the contexts reached by a lone product's definition
+    // chain and representations, or reached from several products' definition chains or shape
+    // representations. A context (and its units) reached by one product alone is that
+    // product's, as per-pcurve contexts are: it follows the product through the ordinary
+    // ownership pass below. One reached only by assembly entities and relationships is read
+    // for the placement document alone (`own_contexts`, below) and stays unowned, as those
+    // entities do. Neither grows `common` with the number of products.
     let mut queue = Queue::new(index.len());
     let mut own_contexts = HashSet::new();
     let skeletons: HashSet<u64> = plans
@@ -523,17 +547,22 @@ pub fn scan<R: Read + Seek>(mut reader: R, options: &ScanOptions) -> Result<Mani
         .flat_map(|p| p.skeleton.iter().copied())
         .collect();
     for (&id, e) in &graph {
-        if skeletons.contains(&id)
-            || (!common_reps.contains(&id)
-                && !index
+        let lone = chains.common_reps.contains(&id) || chains.common_skeleton.contains(&id);
+        let assembly = chains.assembly_reps.contains(&id)
+            || (!skeletons.contains(&id)
+                && index
                     .lookup(id)
-                    .is_some_and(|slot| index.kind(slot) == Kind::Assembly))
-        {
+                    .is_some_and(|slot| index.kind(slot) == Kind::Assembly));
+        if !lone && !assembly {
             continue;
         }
         for slot in ids_of_kind(&index, references(e), Kind::context) {
-            if owners.add(slot, COMMON) {
-                queue.push_back(slot);
+            if lone {
+                if owners.add(slot, COMMON) {
+                    queue.push_back(slot);
+                }
+            } else {
+                own_contexts.insert(slot);
             }
         }
     }
@@ -726,6 +755,12 @@ pub fn scan<R: Read + Seek>(mut reader: R, options: &ScanOptions) -> Result<Mani
             if fetch_set.insert(to) {
                 queue.push_back(to);
             }
+        }
+    }
+    // A protocol declaration follows the application context the placement document reads.
+    for &(from, to) in &index.boundary {
+        if index.kind(from) == Kind::Protocol && fetch_set.contains(&to) {
+            fetch_set.insert(from);
         }
     }
     let shared: HashMap<_, _> = roots

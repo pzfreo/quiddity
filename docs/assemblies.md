@@ -36,7 +36,7 @@ and coalesced across whitespace and comments.
 | `format` | Manifest format identifier; incompatible formats are refused |
 | `source` | Whole uncompressed `size` and `sha256`, `header` range, DATA section `data` ranges, and optional `compressed` flag (absent means false) |
 | `reader.haecceity` | Reader version; another version is refused and requires a rescan |
-| `common` | Contexts, units and protocol records shared by several products or the assembly chain (those only one product reaches are in its ranges): `ranges`, `entities`, `sha256`; the hash also covers the header bytes |
+| `common` | Contexts, units and protocol records shared by several products (those only one product reaches are in its ranges, and those only assemblies use are unowned): `ranges`, `entities`, `sha256`; the hash also covers the header bytes |
 | `products` | Distinct geometric products in reader part order, with ids `p0`, `p1`, … |
 | `products[].product_definition`, `shape` | STEP entity numbers for the product definition and product definition shape |
 | `products[].name`, `product_id` | Product name and STEP PRODUCT identifier |
