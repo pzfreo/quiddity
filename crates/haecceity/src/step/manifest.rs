@@ -451,6 +451,39 @@ fn key_id(ids: &FileIds<'_>, key: m::EntityKey) -> Result<u64, StepError> {
         .copied()
         .ok_or_else(dangling)
 }
+/// Fills `buf` from `offset`. Where the platform has positional reads one `File` can serve
+/// several threads at once. On Unix the cursor is neither used nor moved; on Windows `seek_read`
+/// moves it, which is harmless here because every read is positional.
+fn read_exact_at(file: &File, buf: &mut [u8], offset: u64) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::FileExt;
+        file.read_exact_at(buf, offset)
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::FileExt;
+        let (mut done, mut offset) = (0, offset);
+        while done < buf.len() {
+            match file.seek_read(&mut buf[done..], offset) {
+                Ok(0) => return Err(std::io::ErrorKind::UnexpectedEof.into()),
+                Ok(n) => {
+                    done += n;
+                    offset += n as u64;
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(())
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let mut input = file;
+        input.seek(SeekFrom::Start(offset))?;
+        input.read_exact(buf)
+    }
+}
 impl Manifest {
     /// Rebuild lookups after changing product ids/order/membership or refusal membership/order.
     /// Scanning and deserialization build it automatically; editing hashes needs no rebuild.
@@ -499,7 +532,9 @@ impl Manifest {
         }
         Ok(())
     }
-    /// One forward pass over the source's header and the selected common/product ranges.
+    /// One forward pass over the source's header and the selected common/product ranges, by
+    /// positional reads where the platform has them (Unix and Windows), so several threads can
+    /// read different products through one shared `&File`.
     /// Hashes are checked before geometry is parsed. Per-read geometry limits remain those
     /// of `read_part_definitions` and `read_part`; manifest instance limits do not change them.
     pub fn read_product(&self, file: &File, id: &str) -> Result<Part, StepError> {
@@ -547,14 +582,10 @@ impl Manifest {
         if p.bytes != p.ranges.iter().map(|r| r[1] - r[0]).sum::<u64>() {
             return Err(refuse("range byte count mismatch".into()));
         }
-        let mut input = file;
-        input.seek(SeekFrom::Start(0)).map_err(io)?;
         let header_len = usize::try_from(self.source.header[1])
             .map_err(|_| refuse("header is too large".into()))?;
         let mut bytes = vec![0; header_len];
-        input
-            .read_exact(&mut bytes)
-            .map_err(|e| refuse(e.to_string()))?;
+        read_exact_at(file, &mut bytes, 0).map_err(|e| refuse(e.to_string()))?;
         if bytes.starts_with(&[31, 139]) {
             return Err(refuse("compressed source cannot be read by ranges".into()));
         }
@@ -563,18 +594,13 @@ impl Manifest {
         hashes[0].update(&bytes[..header_len]);
         let mut buffer = vec![0; CHUNK];
         for (r, group) in ranges {
-            input
-                .seek(SeekFrom::Start(r[0]))
-                .map_err(|e| refuse(e.to_string()))?;
-            let mut left = r[1] - r[0];
-            while left > 0 {
-                let n = buffer.len().min(left as usize);
-                input
-                    .read_exact(&mut buffer[..n])
-                    .map_err(|e| refuse(e.to_string()))?;
+            let mut at = r[0];
+            while at < r[1] {
+                let n = buffer.len().min((r[1] - at) as usize);
+                read_exact_at(file, &mut buffer[..n], at).map_err(|e| refuse(e.to_string()))?;
                 hashes[group].update(&buffer[..n]);
                 bytes.extend_from_slice(&buffer[..n]);
-                left -= n as u64;
+                at += n as u64;
             }
             bytes.push(b'\n');
         }
