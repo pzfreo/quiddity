@@ -9,7 +9,21 @@ in [docs/alpha1.md](docs/alpha1.md).
 ### Added
 
 - Owned-snapshot STEP geometry entry points release parsed input bytes before B-rep
-  construction; file and recognition snapshot readers preserve the original source digest.
+  construction. File and recognition snapshot readers preserve the original source digest.
+
+### Changed
+
+- Geometry provenance and declared-unit metadata read lossless packed STEP records
+  by file id, decoding only the current record or selected attributes.
+
+## 0.5.4 (2026-11-16)
+
+A patch release for Specify and draftwright 0.6.0-alpha.4: a hole's counterbore, spotface,
+outer-step and countersink sub-records list their own faces (specify-core#180), and
+volume-fraction checks look for an early rejection in the widest slab first (#291). The
+change is additive; recognition output is unchanged.
+
+### Added
 
 - A hole's nested `cbore`, `spotface`, `outer_steps` items and `csink` publish an optional,
   sorted `faces` listing the faces the recogniser located for that sub-record, omitted
@@ -18,10 +32,9 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Changed
 
-- Geometry provenance and declared-unit metadata use lossless packed STEP records,
-  decoding selected attributes or the current record without retaining a second
-  owned graph. Face and edge identity, reference validation, refusals and assemblies
-  are unchanged.
+- Volume-fraction checks try the widest original height slab first when looking for a
+  sufficient rejection witness. Complete sums retain their original order, integration
+  rules and refusal checks; partial values cannot establish acceptance.
 
 ## 0.5.3 (2026-11-15)
 
