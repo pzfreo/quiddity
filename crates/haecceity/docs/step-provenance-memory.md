@@ -40,10 +40,8 @@ its input; this is a lifetime change, not a streaming file implementation.
 The lossless Part 21 editing document retains its separate ordinary raw graph
 and original bytes.
 
-The draft pins the official step-io commit that introduces `parser::stream()`.
-Haecceity's manifest carries the pin so that downstream consumers resolve the
-same parser. Switch to the published crate containing the stream API before
-merging and recheck the dependency and package resolution.
+Haecceity requires step-io 0.3.1 or a compatible patch release for
+`parser::stream()`. Downstream builds resolve it directly from crates.io.
 
 Directed tests compare full imported `Part` debug fields, assemblies and refusal
 messages against the ordinary representation. The opt-in real-file test streams
