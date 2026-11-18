@@ -1,6 +1,8 @@
 //! Reader-only #190 acceptance: no CLI, Python, layouts or recognition changes.
 #[path = "common/parallel.rs"]
 mod parallel;
+#[path = "common/torus_products.rs"]
+mod torus_products;
 use haecceity::p21::streaming::{self, Event};
 use haecceity::step::{
     StepFile,
@@ -9,6 +11,7 @@ use haecceity::step::{
 use std::fs::File;
 use std::io::{Cursor, Read, Write};
 use std::path::{Path, PathBuf};
+use torus_products::torus_products;
 
 fn files(dir: &Path, out: &mut Vec<PathBuf>) {
     if !dir.is_dir() {
@@ -847,13 +850,246 @@ fn occurrence_representation_contexts_are_reached_from_assembly_chains() {
     let m = manifest::scan(Cursor::new(&out), &ScanOptions::default()).unwrap();
     let rows = statements(&out, 4096).unwrap();
     let context = rows.iter().find(|r| r.id == next + 1).unwrap();
-    assert!(
-        m.common
-            .ranges
+    let within = |ranges: &[manifest::ByteRange]| {
+        ranges
             .iter()
             .any(|r| r[0] <= context.offset && context.offset < r[1])
-    );
+    };
+    // The occurrence representation relates to one part's representation, so its context
+    // travels with that product alone rather than sitting in common. The placements, which
+    // read it too, still agree with the whole-file read below.
+    assert!(!within(&m.common.ranges));
+    assert_eq!(m.products.iter().filter(|p| within(&p.ranges)).count(), 1);
     check_bytes("occurrence-only representation context", &out);
+}
+
+#[test]
+fn common_does_not_grow_with_products_that_have_their_own_contexts() {
+    // Each product's shape representation, product context and definition context are its
+    // own (#73 with its units and uncertainty, #8, #9 in the torus), so they belong to that
+    // product's ranges. Only what every product shares may stay in common.
+    let mut entities = Vec::new();
+    for copies in [2, 4, 8] {
+        let (text, stride) = torus_products(copies);
+        let m = manifest::scan(Cursor::new(&text), &ScanOptions::default()).unwrap();
+        assert_eq!(m.products.len() as u64, copies);
+        assert!(m.refusals.is_empty());
+        entities.push(m.common.entities);
+        let rows = statements(&text, 4096).unwrap();
+        let contains = |ranges: &[manifest::ByteRange], id: u64| {
+            let row = rows.iter().find(|r| r.id == id).unwrap();
+            ranges
+                .iter()
+                .any(|r| r[0] <= row.offset && row.offset < r[1])
+        };
+        for copy in 0..copies {
+            let own = copy * stride;
+            // #5 is the torus's product definition.
+            let product = m
+                .products
+                .iter()
+                .find(|p| p.product_definition == 5 + own)
+                .unwrap();
+            // The shape representation's context with its units and uncertainty, and the
+            // product's context and definition context, in each copy.
+            for id in [8, 9, 73, 74, 75, 76, 77] {
+                assert!(
+                    contains(&product.ranges, id + own),
+                    "{} lacks #{}",
+                    product.id,
+                    id + own
+                );
+                assert!(!contains(&m.common.ranges, id + own));
+            }
+        }
+        assert!(
+            contains(&m.common.ranges, 2),
+            "the shared application context"
+        );
+        check_bytes("products with their own contexts", &text);
+    }
+    assert!(
+        entities.windows(2).all(|w| w[0] == w[1]),
+        "common grew with the product count: {entities:?}"
+    );
+}
+
+/// `subs` sub-assemblies under one root, each holding one torus from `torus_products`. As the
+/// OCCT writer does, every assembly product has its own product context, definition context and
+/// geometric context with units, and every link its own placement.
+fn nested_torus_assemblies(subs: u64) -> Vec<u8> {
+    struct Ids {
+        next: u64,
+        text: String,
+    }
+    impl Ids {
+        fn add(&mut self, entity: String) -> u64 {
+            let id = self.next;
+            self.next += 1;
+            self.text.push_str(&format!("#{id}={entity};\n"));
+            id
+        }
+        /// An assembly product with its own contexts; returns its definition and the
+        /// representation (placing the origin and `placements` frames) its shape definition uses.
+        fn assembly(&mut self, name: &str, placements: &[u64]) -> (u64, u64) {
+            let pc = self.add("PRODUCT_CONTEXT('',#2,'mechanical')".into());
+            let dc = self.add("PRODUCT_DEFINITION_CONTEXT('part definition',#2,'design')".into());
+            let product = self.add(format!("PRODUCT('{name}','{name}','',(#{pc}))"));
+            let formation = self.add(format!("PRODUCT_DEFINITION_FORMATION('','',#{product})"));
+            let pd = self.add(format!(
+                "PRODUCT_DEFINITION('design','',#{formation},#{dc})"
+            ));
+            let shape = self.add(format!("PRODUCT_DEFINITION_SHAPE('','',#{pd})"));
+            let (len, angle, solid, uncertainty) =
+                (self.next + 1, self.next + 2, self.next + 3, self.next + 4);
+            let context = self.add(format!(
+                "( GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#{uncertainty})) GLOBAL_UNIT_ASSIGNED_CONTEXT((#{len},#{angle},#{solid})) REPRESENTATION_CONTEXT('Context','3D Context with UNIT and UNCERTAINTY') )"
+            ));
+            self.add("( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) )".into());
+            self.add("( NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.) )".into());
+            self.add("( NAMED_UNIT(*) SI_UNIT($,.STERADIAN.) SOLID_ANGLE_UNIT() )".into());
+            self.add(format!(
+                "UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-07),#{len},'distance_accuracy_value','confusion accuracy')"
+            ));
+            let items: Vec<_> = std::iter::once(11)
+                .chain(placements.iter().copied())
+                .map(|i| format!("#{i}"))
+                .collect();
+            let rep = self.add(format!(
+                "SHAPE_REPRESENTATION('',({}),#{context})",
+                items.join(",")
+            ));
+            self.add(format!("SHAPE_DEFINITION_REPRESENTATION(#{shape},#{rep})"));
+            (pd, rep)
+        }
+        fn link(&mut self, k: u64, parent: (u64, u64), child: (u64, u64), placement: u64) {
+            let usage = self.add(format!(
+                "NEXT_ASSEMBLY_USAGE_OCCURRENCE('{k}','','',#{},#{},$)",
+                parent.0, child.0
+            ));
+            let shape = self.add(format!(
+                "PRODUCT_DEFINITION_SHAPE('Placement','Placement of an item',#{usage})"
+            ));
+            let transform = self.add(format!(
+                "ITEM_DEFINED_TRANSFORMATION('','',#11,#{placement})"
+            ));
+            let relation = self.add(format!(
+                "( REPRESENTATION_RELATIONSHIP('','',#{},#{}) REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION(#{transform}) SHAPE_REPRESENTATION_RELATIONSHIP() )",
+                child.1, parent.1
+            ));
+            self.add(format!(
+                "CONTEXT_DEPENDENT_SHAPE_REPRESENTATION(#{relation},#{shape})"
+            ));
+        }
+        fn frame(&mut self, x: u64) -> u64 {
+            let point = self.add(format!("CARTESIAN_POINT('',({x}.,0.,0.))"));
+            self.add(format!("AXIS2_PLACEMENT_3D('',#{point},#13,#14)"))
+        }
+    }
+    let (text, stride) = torus_products(subs);
+    let mut text = String::from_utf8(text).unwrap();
+    let mut ids = Ids {
+        next: subs * stride + 1,
+        text: String::new(),
+    };
+    let mut children = Vec::new();
+    for sub in 0..subs {
+        let place = ids.frame(sub * 10);
+        let node = ids.assembly(&format!("sub{sub}"), &[place]);
+        // The torus of this copy: its definition #5 and representation #10.
+        let part = (5 + sub * stride, 10 + sub * stride);
+        ids.link(sub, node, part, place);
+        children.push(node);
+    }
+    let places: Vec<_> = (0..subs).map(|s| ids.frame(s * 100)).collect();
+    let root = ids.assembly("root", &places);
+    for (k, (&child, &place)) in children.iter().zip(&places).enumerate() {
+        ids.link(subs + k as u64, root, child, place);
+    }
+    let end = text.rfind("ENDSEC;").unwrap();
+    text.insert_str(end, &ids.text);
+    text.into_bytes()
+}
+
+#[test]
+fn common_does_not_grow_with_sub_assemblies_that_have_their_own_contexts() {
+    let mut entities = Vec::new();
+    for subs in [2, 4, 8] {
+        let text = nested_torus_assemblies(subs);
+        let m = manifest::scan(Cursor::new(&text), &ScanOptions::default()).unwrap();
+        assert_eq!(m.products.len() as u64, subs);
+        assert_eq!(
+            m.instances.len() as u64,
+            subs,
+            "one occurrence of each torus"
+        );
+        assert!(m.refusals.is_empty());
+        entities.push(m.common.entities);
+        // Reading and placing still work with the assembly contexts out of common.
+        check_bytes("sub-assemblies with their own contexts", &text);
+    }
+    assert!(
+        entities.windows(2).all(|w| w[0] == w[1]),
+        "common grew with the sub-assembly count: {entities:?}"
+    );
+}
+
+#[test]
+fn threads_share_one_file_to_read_products() {
+    let (text, _) = torus_products(6);
+    let m = manifest::scan(Cursor::new(&text), &ScanOptions::default()).unwrap();
+    let file = temp_source(&text);
+    let faces = |id: &str| {
+        let part = m.read_product(&file, id).unwrap();
+        (0..part.faces.len())
+            .map(|f| part.face_source(f).unwrap().entity)
+            .collect::<Vec<_>>()
+    };
+    let expected: Vec<_> = m.products.iter().map(|p| faces(&p.id)).collect();
+    #[cfg(unix)]
+    let cursor = std::io::Seek::stream_position(&mut &file).unwrap();
+    std::thread::scope(|scope| {
+        for thread in 0..4 {
+            let (m, expected, faces) = (&m, &expected, &faces);
+            scope.spawn(move || {
+                for round in 0..10 {
+                    for step in 0..m.products.len() {
+                        let i = (step + thread + round) % m.products.len();
+                        assert_eq!(&faces(&m.products[i].id), &expected[i]);
+                    }
+                }
+            });
+        }
+    });
+    // Positional reads leave the shared cursor where it was.
+    #[cfg(unix)]
+    assert_eq!(std::io::Seek::stream_position(&mut &file).unwrap(), cursor);
+}
+
+#[test]
+fn assembly_product_contexts_stay_with_their_products() {
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ap242/assembly/assembly.step");
+    let b = bytes(&path);
+    let m = manifest::scan(Cursor::new(&b), &ScanOptions::default()).unwrap();
+    let rows = statements(&b, 4096).unwrap();
+    let contains = |ranges: &[manifest::ByteRange], id: u64| {
+        let row = rows.iter().find(|r| r.id == id).unwrap();
+        ranges
+            .iter()
+            .any(|r| r[0] <= row.offset && row.offset < r[1])
+    };
+    // #27 is the assembly's own context: only the assembly reads it, so it is neither common
+    // nor a part's. #959 (plate) and #1256 (pin) are the parts'.
+    assert!(!contains(&m.common.ranges, 27));
+    assert!(m.products.iter().all(|p| !contains(&p.ranges, 27)));
+    assert!(contains(&m.unowned.other.ranges, 27));
+    for (name, context) in [("plate", 959), ("pin", 1256)] {
+        let product = m.products.iter().find(|p| p.name == name).unwrap();
+        assert!(contains(&product.ranges, context), "{name}");
+        assert!(!contains(&m.common.ranges, context), "{name}");
+    }
+    check_bytes("assembly with per-part contexts", &b);
 }
 
 #[test]

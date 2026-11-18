@@ -839,7 +839,13 @@ impl Part {
 
     /// Records the faces whose surface (`Surface::Other`, unevaluable) and the edges whose curve
     /// (its chord stands in) the reader could not resolve.
-    pub(super) fn with_unresolved(mut self, faces: Vec<usize>, edges: Vec<usize>) -> Self {
+    pub(super) fn with_unresolved(mut self, mut faces: Vec<usize>, mut edges: Vec<usize>) -> Self {
+        // Ascending, so that [`Self::check_solid`] looks each face or edge up by search rather
+        // than by scanning every unresolved one in the file.
+        faces.sort_unstable();
+        faces.dedup();
+        edges.sort_unstable();
+        edges.dedup();
         self.unresolved_faces = faces;
         self.unresolved_edges = edges;
         self
@@ -1352,7 +1358,10 @@ impl Part {
 
     fn check_solid(&self, solid: usize) -> bool {
         let faces = &self.solids[solid].faces;
-        if faces.iter().any(|f| self.unresolved_faces.contains(f)) {
+        if faces
+            .iter()
+            .any(|f| self.unresolved_faces.binary_search(f).is_ok())
+        {
             return false;
         }
         let mut uses: std::collections::BTreeMap<usize, Vec<(usize, bool)>> = Default::default();
@@ -1364,7 +1373,9 @@ impl Part {
             }
         }
         let sound = !uses.is_empty()
-            && !uses.keys().any(|e| self.unresolved_edges.contains(e))
+            && !uses
+                .keys()
+                .any(|e| self.unresolved_edges.binary_search(e).is_ok())
             && uses.iter().all(|(&e, u)| match u.as_slice() {
                 [(fa, da), (fb, db)] => fa == fb || da != db || self.edges[e].is_closed(),
                 [_] => false,

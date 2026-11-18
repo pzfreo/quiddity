@@ -14,7 +14,7 @@ fn ordinary(bytes: &[u8]) -> Parsed<step_io::parser::Graph> {
         model,
         report,
         graph,
-        declared_units,
+        declared_units: declared_units.into(),
     }
 }
 

@@ -15,6 +15,7 @@ const BLOCK: usize = 1024 * 1024;
 
 #[derive(Debug, Default)]
 pub(crate) struct PackedGraph {
+    pub(super) header: Vec<RawEntity>,
     records: BTreeMap<u64, usize>,
     symbols: Vec<String>,
     data: Blocks,
@@ -24,7 +25,10 @@ impl PackedGraph {
     /// Consume the stream through its trailer. Keep the first duplicate in file
     /// order ahead of any subsequent syntax or I/O error, as ordinary parse does.
     pub(super) fn from_stream(stream: &mut Stream<impl Read>) -> Result<Self, Error> {
-        let mut graph = Self::default();
+        let mut graph = Self {
+            header: stream.header().to_vec(),
+            ..Self::default()
+        };
         let mut symbol_ids = HashMap::new();
         for entity in stream {
             let entity = entity?;

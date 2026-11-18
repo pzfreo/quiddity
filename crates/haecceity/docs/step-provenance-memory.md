@@ -6,7 +6,7 @@ with millions of records. Haecceity consumes `step_io::parser::stream()` in
 file order and writes each DATA entity to a private in-memory store. The id
 index points into byte blocks. A repeated id is reported at once with both
 source lines. Reading through the end of the stream also validates the trailer.
-The importer borrows the stream header while resolving the declared units.
+The importer keeps the small header for per-product documents and uses it while resolving the declared units.
 
 `RecordGraph` keeps traversal order and the observation boundary explicit. Packed
 entity keywords borrow interned symbols. Selected attribute paths skip unrelated

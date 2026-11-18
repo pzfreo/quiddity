@@ -9,12 +9,44 @@ in [docs/alpha1.md](docs/alpha1.md).
 ### Added
 
 - Owned-snapshot STEP geometry entry points release parsed input bytes before B-rep
-  construction. File and recognition snapshot readers preserve the original source digest.
+  construction; file and recognition snapshot readers preserve the original source digest.
 
 ### Changed
 
-- Geometry provenance and declared-unit metadata read lossless packed STEP records
-  by file id, decoding only the current record or selected attributes.
+- Geometry provenance and declared-unit metadata use lossless packed STEP records,
+  decoding selected attributes or the current record without retaining a second
+  owned graph. Face and edge identity, reference validation, refusals and assemblies
+  are unchanged.
+
+### Fixed
+
+- Reading a STEP file no longer sizes per-solid work by every face in the file: the import's
+  outward-shell proof and the ray casters keep their face boxes and membership for the
+  solid's own faces, the unresolved-face and unresolved-edge lookups search a sorted list, and
+  the part list built from a file's instances, faces and assemblies is looked up once for the
+  file, not searched per part (it grew faster than the number of parts). Output is unchanged.
+  For #293.
+- `StepFile::part(index)` no longer rebuilds against the whole file for every part. It reads the
+  part from a document of that part's own entities (its product chain, shape representations
+  and what they reach, with the file's unit context), so reading every part costs in proportion
+  to the parts, not parts times file size; a part that document cannot reproduce exactly is
+  read from the whole file as before. Output is unchanged. For #293.
+- The manifest's `common` no longer grows with the number of products. A shape representation's
+  context and units, and a product's own product and definition contexts, that only one product
+  reaches now travel in that product's ranges, as geometry-only contexts already did. The
+  contexts of assembly products (the writer gives each its own) are read only for the placement
+  document and stay unowned, like the assembly entities that reference them. `common` keeps what
+  several products share. Each `read_product` therefore parses the product and the truly shared
+  records, not every product's and sub-assembly's contexts (reading every product grew about 3.5
+  times per doubling of the products). Reads are unchanged, and the format stays
+  `quiddity-manifest/2`: the reader version check already refuses a manifest from another
+  haecceity version, and a product read joins `common` and the product's ranges whatever they
+  hold. Code that reads `Manifest::common` directly, as `examples/support/assembly_layout.rs`
+  did, must look in the product ranges for a product's contexts. For #293.
+- `Manifest::read_product` reads its ranges by position on Unix and Windows (`read_at`,
+  `seek_read`), so one `&File` can be shared by threads reading different products. On Unix the
+  `File`'s cursor is neither used nor moved; on Windows `seek_read` moves it, which does no
+  harm because every read is positional. The signature is unchanged. For #293.
 
 ## 0.5.4 (2026-11-16)
 
