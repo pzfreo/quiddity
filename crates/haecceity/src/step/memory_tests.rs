@@ -44,7 +44,84 @@ fn a_simple_complex_keyword_does_not_become_a_complex_record() {
         assert!(graph.is_complex(2));
     }
     check(&step_io::parser::parse(bytes.as_slice()).unwrap());
-    check(&step_io::parser::parse_compact(bytes.as_slice()).unwrap());
+    check(&PackedGraph::parse(bytes.as_slice()).unwrap());
+}
+
+const STREAM_HEADER: &str = "ISO-10303-21;\nHEADER;FILE_DESCRIPTION((''),'2;1');\n\
+FILE_NAME('','',(''),(''),'','','');FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));ENDSEC;\nDATA;\n";
+const STREAM_END: &str = "ENDSEC;\nEND-ISO-10303-21;\n";
+
+#[test]
+fn streamed_records_and_selected_paths_match_the_raw_graph_across_blocks() {
+    let text = "x".repeat(2 * 1024 * 1024 + 31);
+    let bytes = format!(
+        "{STREAM_HEADER}#18446744073709551615=A(-9223372036854775808,'{text}',\
+         ((#7,-0.)),LENGTH_MEASURE(1.E-300),.T.,\"0ABC\",$,*);\n\
+         #7=(ALPHA('it''s text') BETA((#18446744073709551615)));\n{STREAM_END}"
+    );
+    let raw = step_io::parser::parse(bytes.as_bytes()).unwrap();
+    let packed = PackedGraph::parse(bytes.as_bytes()).unwrap();
+    assert_eq!(packed.ids().collect::<Vec<_>>(), [7, u64::MAX]);
+    for id in packed.ids() {
+        assert_eq!(packed.record(id).as_deref(), raw.get(id));
+        assert_eq!(packed.kind(id), raw.kind(id));
+    }
+    for (id, part, path) in [
+        (u64::MAX, None, &[2, 0, 0][..]),
+        (u64::MAX, None, &[7]),
+        (u64::MAX, None, &[1, 0]),
+        (u64::MAX, None, &[8]),
+        (7, Some("BETA"), &[0, 0]),
+        (7, Some("ABSENT"), &[0]),
+        (7, None, &[]),
+    ] {
+        assert_eq!(
+            packed.attribute_at(id, part, path),
+            raw.attribute_at(id, part, path)
+        );
+    }
+    assert!(matches!(packed.attribute_at(u64::MAX, None, &[2, 0, 1]),
+        Some(Attribute::Real(value)) if value.to_bits() == (-0.0_f64).to_bits()));
+    assert!(packed.record(0).is_none());
+}
+
+#[test]
+fn streamed_duplicates_keep_file_order_and_trailer_errors_propagate() {
+    use std::io::{self, Read};
+
+    struct Failing;
+    impl Read for Failing {
+        fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+            Err(io::Error::other("interrupted input"))
+        }
+    }
+
+    let prefix = format!("{STREAM_HEADER}#90=A();\n#3=B();\n");
+    let repeated = format!("{prefix}#90=C();\n#3=D();\n");
+    for source in [
+        format!("{prefix}ENDSEC;"),
+        format!("{prefix}#1=A(;\n#90=C();\n{STREAM_END}"),
+        format!("{repeated}{STREAM_END}"),
+        format!("{repeated}#1=A("),
+    ] {
+        let expected = step_io::parser::parse(source.as_bytes()).unwrap_err();
+        let actual = PackedGraph::parse(source.as_bytes()).unwrap_err();
+        assert_eq!(actual.to_string(), expected.to_string());
+    }
+    for source in [&prefix, &repeated] {
+        let input = || source.as_bytes().chain(Failing);
+        let expected = step_io::parser::parse(input()).unwrap_err();
+        let actual = PackedGraph::parse(input()).unwrap_err();
+        assert_eq!(actual.to_string(), expected.to_string());
+    }
+    assert!(matches!(
+        PackedGraph::parse(repeated.as_bytes()).unwrap_err(),
+        step_io::Error::DuplicateEntityId {
+            id: 90,
+            first_line: 5,
+            line: 7
+        }
+    ));
 }
 
 #[test]
@@ -60,9 +137,10 @@ FILE_NAME('','',(''),(''),'','','');FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));ENDSEC;DA
 #8=(EXTRA(0.0254000000000000000002)MEASURE_WITH_UNIT(LENGTH_MEASURE(0.0254000000000000000001),#10));\
 #10=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT($,.METRE.));ENDSEC;END-ISO-10303-21;";
     let raw = step_io::parser::parse(bytes.as_slice()).unwrap();
-    let packed = step_io::parser::parse_compact(bytes.as_slice()).unwrap();
+    let mut stream = step_io::parser::stream(bytes.as_slice()).unwrap();
+    let packed = PackedGraph::from_stream(&mut stream).unwrap();
     let a = crate::pmi::declared_length_units(&raw, &raw.header, bytes);
-    let b = crate::pmi::declared_length_units(&packed, &packed.header, bytes);
+    let b = crate::pmi::declared_length_units(&packed, stream.header(), bytes);
     let expected = Some(LengthUnit::from_metres(
         "custom",
         Decimal::parse("0.0254000000000000000001").unwrap(),
@@ -105,7 +183,7 @@ fn packed_provenance_keeps_geometry_assemblies_and_refusals() {
     ] {
         let bytes = std::fs::read(fixtures.join(name)).unwrap();
         let raw = ordinary(&bytes);
-        let graph = step_io::parser::parse_compact(bytes.as_slice()).unwrap();
+        let graph = PackedGraph::parse(bytes.as_slice()).unwrap();
         let raw_drops = crate::express::complex_reference_drops(&raw.graph);
         let packed_drops = crate::express::complex_reference_drops(&graph);
         assert_eq!(raw_drops, packed_drops, "{name}");

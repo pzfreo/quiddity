@@ -4,7 +4,7 @@
 //! the current traversal item; no cache retains a second owned graph.
 
 use std::borrow::Cow;
-use step_io::parser::{Attribute, CompactGraph, Graph, RawEntity};
+use step_io::parser::{Attribute, Graph, RawEntity};
 
 pub(crate) trait RecordGraph {
     fn ids(&self) -> Box<dyn Iterator<Item = u64> + '_>;
@@ -19,24 +19,6 @@ pub(crate) trait RecordGraph {
     fn kind(&self, id: u64) -> Option<&str>;
     fn is_complex(&self, id: u64) -> bool;
     fn attribute_at(&self, id: u64, part: Option<&str>, path: &[usize]) -> Option<Attribute>;
-}
-
-impl RecordGraph for CompactGraph {
-    fn ids(&self) -> Box<dyn Iterator<Item = u64> + '_> {
-        Box::new(self.ids())
-    }
-    fn record(&self, id: u64) -> Option<Cow<'_, RawEntity>> {
-        self.entity(id).map(Cow::Owned)
-    }
-    fn kind(&self, id: u64) -> Option<&str> {
-        self.kind(id)
-    }
-    fn is_complex(&self, id: u64) -> bool {
-        self.is_complex(id) == Some(true)
-    }
-    fn attribute_at(&self, id: u64, part: Option<&str>, path: &[usize]) -> Option<Attribute> {
-        self.attribute_at(id, part, path)
-    }
 }
 
 impl RecordGraph for Graph {

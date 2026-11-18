@@ -8,6 +8,8 @@ pub mod manifest;
 
 use std::collections::HashMap;
 
+mod packed;
+pub(crate) use packed::PackedGraph;
 mod raw_graph;
 pub(crate) use raw_graph::RecordGraph;
 #[cfg(test)]
@@ -1941,7 +1943,7 @@ fn read_placed(bytes: &[u8], outer: &Placement) -> Result<Read, StepError> {
 }
 
 /// A STEP file parsed, its shapes checked complete, before any geometry is built.
-struct Parsed<G = step_io::parser::CompactGraph> {
+struct Parsed<G = PackedGraph> {
     model: m::StepModel,
     report: step_io::Report,
     graph: G,
@@ -1965,8 +1967,10 @@ impl Parsed {
         GEOMETRY_PARSES.with(|n| n.set(n.get() + 1));
         let parse_error = |e| StepError::Parse(crate::p21::parse_message(bytes, &e));
         let (model, report) = step_io::read(bytes).map_err(parse_error)?;
-        let graph = step_io::parser::parse_compact(bytes).map_err(parse_error)?;
-        let declared_units = crate::pmi::declared_length_units(&graph, &graph.header, bytes);
+        let mut stream = step_io::parser::stream(bytes).map_err(parse_error)?;
+        let graph = PackedGraph::from_stream(&mut stream).map_err(parse_error)?;
+        let declared_units = crate::pmi::declared_length_units(&graph, stream.header(), bytes);
+        drop(stream);
         let complex_drops = crate::express::complex_reference_drops(&graph);
         refuse_dropped_shapes(&graph, &report, &complex_drops)?;
         check_curve_wrappers(&model)?;
@@ -3383,7 +3387,7 @@ mod tests {
         let bytes = std::fs::read(fixture("prismatic.step")).unwrap();
         let (model, report) = step_io::read(bytes.as_slice()).unwrap();
         let graph = step_io::parser::parse(bytes.as_slice()).unwrap();
-        let packed = step_io::parser::parse_compact(bytes.as_slice()).unwrap();
+        let packed = PackedGraph::parse(bytes.as_slice()).unwrap();
         check_permuted_instance_map(&graph, &model, &report);
         check_permuted_instance_map(&packed, &model, &report);
     }

@@ -1486,7 +1486,7 @@ mod complex_reference_tests {
             assert!(base.contains(before), "{before}");
             let modified = base.replace(before, after);
             let graph = step_io::parser::parse(modified.as_bytes()).unwrap();
-            let packed = step_io::parser::parse_compact(modified.as_bytes()).unwrap();
+            let packed = crate::step::PackedGraph::parse(modified.as_bytes()).unwrap();
             let drops = complex_reference_drops(&graph);
             assert_eq!(complex_reference_drops(&packed), drops);
             assert_eq!(drops.len(), 1, "{drops:?}");

@@ -2,8 +2,11 @@
 
 The geometry reader retains the typed step-io model and its report while checking
 original file identities. A second, generic attribute tree is expensive for files
-with millions of records. The geometry reader uses step-io's lossless
-`CompactGraph` records instead.
+with millions of records. Haecceity consumes `step_io::parser::stream()` in
+file order and writes each DATA entity to a private in-memory store. The id
+index points into byte blocks. A repeated id is reported at once with both
+source lines. Reading through the end of the stream also validates the trailer.
+The importer borrows the stream header while resolving the declared units.
 
 `RecordGraph` keeps traversal order and the observation boundary explicit. Packed
 entity keywords borrow interned symbols. Selected attribute paths skip unrelated
@@ -37,11 +40,10 @@ its input; this is a lifetime change, not a streaming file implementation.
 The lossless Part 21 editing document retains its separate ordinary raw graph
 and original bytes.
 
-The review branch pins the step-io implementation in haecceity's own dependency
-declaration, so isolated downstream builds resolve the same packed API. A patch
-in the repository workspace alone would not apply to such consumers. Replace
-the review Git pin with a released step-io version containing these APIs before
-merging and releasing this integration.
+The draft pins the official step-io commit that introduces `parser::stream()`.
+Haecceity's manifest carries the pin so that downstream consumers resolve the
+same parser. Switch to the published crate containing the stream API before
+merging and recheck the dependency and package resolution.
 
 Directed tests compare full imported `Part` debug fields, assemblies and refusal
 messages against the ordinary representation. The opt-in real-file test streams

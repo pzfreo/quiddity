@@ -966,8 +966,8 @@ dependencies = [
 
 [[package]]
 name = "step-io"
-version = "0.3.0"
-source = "git+https://github.com/xu9299/step-io.git?rev=2800c9ab1b69ee184a1c4cb25a794f342677122d#2800c9ab1b69ee184a1c4cb25a794f342677122d"
+version = "0.3.1-dev"
+source = "git+https://github.com/elgar328/step-io.git?rev=0390f7f5d3c7a06f93dd7ecc2580e47131c0bf30#0390f7f5d3c7a06f93dd7ecc2580e47131c0bf30"
 dependencies = [
  "logos",
  "memchr",
