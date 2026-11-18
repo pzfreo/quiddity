@@ -17,6 +17,8 @@ in [docs/alpha1.md](docs/alpha1.md).
   decoding selected attributes or the current record without retaining a second
   owned graph. Face and edge identity, reference validation, refusals and assemblies
   are unchanged.
+- Stop B-spline boundary cut bisection when the floating-point bracket stops changing,
+  and reuse identical cut searches across the integration passes of an open spline face.
 
 ### Fixed
 
