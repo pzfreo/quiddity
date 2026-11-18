@@ -2,6 +2,8 @@
 #[allow(dead_code)]
 #[path = "../examples/support/assembly_layout.rs"]
 mod engine;
+#[path = "common/torus_products.rs"]
+mod torus_products;
 use engine::{Expected, Layout, Options, Scale};
 use haecceity::{
     p21::{
@@ -440,6 +442,42 @@ fn scale_counts_occurrences_with_all_solids_together() {
         assert_eq!(placement(1), (1000., 0.));
         assert_eq!(placement(2), (2000., 0.));
         assert_eq!(placement(3), (3000., 0.));
+    }
+}
+
+#[test]
+fn scale_accepts_flat_products_that_each_own_their_contexts() {
+    // No assembly root: every product's contexts are its own, so none is in common.
+    let (bytes, _) = torus_products::torus_products(3);
+    let original = manifest::scan(Cursor::new(&bytes), &ScanOptions::default()).unwrap();
+    assert_eq!(original.products.len(), 3);
+    for layout in [Layout::Contiguous, Layout::Runs, Layout::Shuffled] {
+        let mut out = Vec::new();
+        let mut sidecar = Vec::new();
+        engine::scale(
+            &bytes,
+            Options {
+                layout,
+                ..Options::default()
+            },
+            Scale {
+                distinct: 4,
+                instances: 5,
+                target_bytes: 0,
+            },
+            &mut out,
+            &mut sidecar,
+        )
+        .unwrap();
+        let e: Expected = serde_json::from_slice(&sidecar).unwrap();
+        let m = manifest::scan(Cursor::new(&out), &ScanOptions::default()).unwrap();
+        assert_eq!(m.products.len(), e.products);
+        assert_eq!(m.instances.len(), e.instances);
+        assert_eq!(out.len() as u64, e.bytes);
+        for (p, e) in m.products.iter().zip(e.per_product) {
+            assert_eq!(p.faces.len(), e.faces);
+            assert_eq!(p.entities, e.entities);
+        }
     }
 }
 

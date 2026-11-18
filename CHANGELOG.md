@@ -4,6 +4,27 @@ All notable changes to quiddity-rust and haecceity. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Alpha 1's gates and their evidence are
 in [docs/alpha1.md](docs/alpha1.md).
 
+## Unreleased
+
+### Fixed
+
+- The manifest's `common` no longer grows with the number of products. A shape representation's
+  context and units, and a product's own product and definition contexts, that only one product
+  reaches now travel in that product's ranges, as geometry-only contexts already did. The
+  contexts of assembly products (the writer gives each its own) are read only for the placement
+  document and stay unowned, like the assembly entities that reference them. `common` keeps what
+  several products share. Each `read_product` therefore parses the product and the truly shared
+  records, not every product's and sub-assembly's contexts (reading every product grew about 3.5
+  times per doubling of the products). Reads are unchanged, and the format stays
+  `quiddity-manifest/2`: the reader version check already refuses a manifest from another
+  haecceity version, and a product read joins `common` and the product's ranges whatever they
+  hold. Code that reads `Manifest::common` directly, as `examples/support/assembly_layout.rs`
+  did, must look in the product ranges for a product's contexts. For #293.
+- `Manifest::read_product` reads its ranges by position on Unix and Windows (`read_at`,
+  `seek_read`), so one `&File` can be shared by threads reading different products. On Unix the
+  `File`'s cursor is neither used nor moved; on Windows `seek_read` moves it, which does no
+  harm because every read is positional. The signature is unchanged. For #293.
+
 ## 0.5.4 (2026-11-16)
 
 A patch release for Specify and draftwright 0.6.0-alpha.4: a hole's counterbore, spotface,
