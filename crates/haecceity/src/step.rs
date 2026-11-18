@@ -1991,6 +1991,14 @@ enum Scope<'a> {
     Sub(u64, &'a [usize]),
 }
 
+/// The factors taking a model's length to millimetres and its angle to radians.
+fn unit_scales(units: &step_io::scene::Units) -> (f64, f64) {
+    (
+        units.length.as_ref().map_or(1.0, |u| u.to_si * 1000.0),
+        units.angle.as_ref().map_or(1.0, |u| u.to_si),
+    )
+}
+
 fn build(parsed: &Parsed, scope: Scope<'_>) -> Result<Read, StepError> {
     let Parsed {
         model,
@@ -2006,10 +2014,11 @@ fn build(parsed: &Parsed, scope: Scope<'_>) -> Result<Read, StepError> {
     let mut ids = FileIds::new(graph, model, report);
     let scene = model.scene();
     let units = scene.units();
+    let (to_mm, to_rad) = unit_scales(&units);
     let mut reader = Reader {
         model,
-        to_mm: units.length.as_ref().map_or(1.0, |u| u.to_si * 1000.0),
-        to_rad: units.angle.as_ref().map_or(1.0, |u| u.to_si),
+        to_mm,
+        to_rad,
         placement: IDENTITY,
     };
 
@@ -2561,6 +2570,9 @@ impl StepFile {
                 .ok()?
                 .part;
             check_own(&part, def).ok()?;
+            // The document carries only the file's first unit context. If step-io takes the
+            // file's units from another (the first one was dropped, say), the units differ.
+            (part.file_units() == Some(self.index.get()?.scales)).then_some(())?;
             // The edges are as the whole file's read found them (as a set: a repair of
             // inverted shells can reorder them).
             let mut edges: Vec<u64> = (0..part.edges.len())
@@ -2583,7 +2595,12 @@ impl StepFile {
     /// they reach, and the file's own unit context, which sets the units of every read.
     fn own_document(&self, def: &PartDefinition) -> Option<Parsed> {
         let graph = &self.parsed.graph;
-        let index = self.index.get_or_init(|| PartIndex::new(&graph.entities));
+        let index = self.index.get_or_init(|| {
+            PartIndex::new(
+                &graph.entities,
+                unit_scales(&self.parsed.model.scene().units()),
+            )
+        });
         let mut seen = std::collections::BTreeSet::new();
         let mut stack: Vec<u64> = index.units.clone();
         stack.push(def.product_definition);
@@ -2685,10 +2702,12 @@ struct PartIndex {
     srr_of_rep: HashMap<u64, Vec<u64>>,
     /// The first unit contexts of each kind, which step-io takes for the file's units.
     units: Vec<u64>,
+    /// The whole file's length-to-millimetre and angle-to-radian factors.
+    scales: (f64, f64),
 }
 
 impl PartIndex {
-    fn new(entities: &std::collections::BTreeMap<u64, RawEntity>) -> Self {
+    fn new(entities: &std::collections::BTreeMap<u64, RawEntity>, scales: (f64, f64)) -> Self {
         let reference = |a: Option<&Attribute>| match a {
             Some(Attribute::EntityRef(n)) => Some(*n),
             _ => None,
@@ -2698,6 +2717,7 @@ impl PartIndex {
             sdr_of_pds: HashMap::new(),
             srr_of_rep: HashMap::new(),
             units: Vec::new(),
+            scales,
         };
         let (mut complex, mut simple) = (None, None);
         for (&id, e) in entities {
@@ -3394,6 +3414,72 @@ mod tests {
             let bytes = std::fs::read(fixture(path)).unwrap();
             assert_parts_from_own_documents(path, &bytes);
         }
+    }
+
+    /// A file whose first unit context step-io drops (it names a unit that is not there) and
+    /// whose others are in metres, one part's own in millimetres. A part's own document carries
+    /// only the first context and the part's own, so it would read that part in other units
+    /// than the whole file; `StepFile::part` must then read from the
+    /// whole file.
+    #[test]
+    fn a_part_is_read_from_the_whole_file_when_its_document_would_take_other_units() {
+        let text = std::fs::read_to_string(fixture("ap242/assembly/assembly.step")).unwrap();
+        // Make room for a first entity, and put every length in metres but the plate's, whose
+        // own context stays in millimetres (#960 in the fixture).
+        let shifted = shift_entity_numbers(&text);
+        let text = shifted
+            .replace("SI_UNIT(.MILLI.,.METRE.)", "SI_UNIT($,.METRE.)")
+            .replacen(
+                "#1960 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($,.METRE.) );",
+                "#1960 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );",
+                1,
+            )
+            .replacen(
+                "DATA;\n",
+                "DATA;\n#1 = ( GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#9999)) REPRESENTATION_CONTEXT('c','d') );\n",
+                1,
+            );
+        let file = StepFile::read(text.as_bytes()).unwrap();
+        let whole = unit_scales(&file.parsed.model.scene().units());
+        assert_eq!(
+            whole.0, 1000.0,
+            "the file's units come from a later context"
+        );
+        let mut other = 0;
+        for (index, def) in file.parts.iter().enumerate() {
+            let doc = file.own_document(def).unwrap();
+            let own = build(
+                &doc,
+                Scope::Sub(def.product_definition, &def.placements[0].instances),
+            );
+            other += usize::from(own.is_ok_and(|read| read.part.file_units() != Some(whole)));
+            let slow = own_part(&file.parsed, def).unwrap();
+            let part = file.part(index).unwrap();
+            assert_eq!(part.file_units(), Some(whole), "part {index} units");
+            assert_eq!(
+                format!("{:?}", part.faces),
+                format!("{:?}", slow.faces),
+                "part {index}"
+            );
+        }
+        assert!(other > 0, "no part's own document took other units");
+    }
+
+    /// `text` with every entity number raised by one thousand.
+    fn shift_entity_numbers(text: &str) -> String {
+        let mut out = String::new();
+        let mut rest = text;
+        while let Some(at) = rest.find('#') {
+            out.push_str(&rest[..=at]);
+            rest = &rest[at + 1..];
+            let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
+            if digits > 0 {
+                out.push_str(&(rest[..digits].parse::<u64>().unwrap() + 1000).to_string());
+                rest = &rest[digits..];
+            }
+        }
+        out.push_str(rest);
+        out
     }
 
     #[test]
