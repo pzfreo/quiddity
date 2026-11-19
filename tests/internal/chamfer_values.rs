@@ -138,6 +138,45 @@ fn hole_mouth_chamfers_stay_nested_with_the_right_values() {
     }
 }
 
+fn edge_break(name: &str) -> quiddity::kernel::brep::Part {
+    quiddity::read_step_file(&common::fixtures().join("edge_breaks").join(name)).unwrap()
+}
+
+/// A chamfer beside a groove or a slanted step is still a chamfer: the strip it leaves runs on
+/// into an oblique wall, but the section is no closed convex polygon (#301 review).
+#[test]
+fn chamfers_beside_grooves_and_steps_are_kept() {
+    for name in ["vslot.step", "slantstep.step"] {
+        let found: Vec<_> =
+            chamfers::discover_verified(&Context::new(&edge_break(name)), &Default::default())
+                .unwrap()
+                .into_iter()
+                .map(|o| (o.record.leg1, o.record.leg2, o.record.angle))
+                .collect();
+        assert!(found.contains(&(3., 3., 45.)), "{name}: {found:?}");
+        assert_eq!(
+            found.len(),
+            if name == "vslot.step" { 1 } else { 2 },
+            "{name}"
+        );
+    }
+}
+
+/// Two cones of comparable size (or equal ones) are a profile, not an edge break (#298 review).
+#[test]
+fn cone_to_cone_profiles_have_no_rim_chamfer() {
+    for name in ["bicone.step", "diamond.step"] {
+        let found =
+            chamfers::discover_verified(&Context::new(&edge_break(name)), &Default::default())
+                .unwrap();
+        assert!(
+            found.is_empty(),
+            "{name}: {:?}",
+            found.iter().map(|o| &o.record).collect::<Vec<_>>()
+        );
+    }
+}
+
 /// An MFCAD++ part whose section has several oblique sides: the big slanted face stays the
 /// angled step it is published as, and is no chamfer candidate (#301).
 #[test]

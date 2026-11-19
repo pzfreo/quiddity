@@ -155,6 +155,28 @@ fn lateral_planes(part: &Part, face: usize, run: V3) -> Vec<usize> {
         .collect()
 }
 
+/// Whether the chain of convexly joined run-parallel planes from `via` (beyond `from`) comes
+/// back round to `start`: a closed, wholly convex section, as of a polygonal prism.
+fn closes_convexly(part: &Part, run: V3, start: usize, from: usize, via: usize) -> bool {
+    let convex = |a: usize, b: usize| part.arc(a, b) == Some(crate::kernel::brep::Arc::Convex);
+    let (mut previous, mut current) = (from, via);
+    for _ in 0..part.faces.len() {
+        if current == start {
+            return true;
+        }
+        if !convex(current, previous) {
+            return false;
+        }
+        let onward: Vec<usize> = lateral_planes(part, current, run)
+            .into_iter()
+            .filter(|&n| n != previous)
+            .collect();
+        let [next] = onward[..] else { return false };
+        (previous, current) = (current, next);
+    }
+    false
+}
+
 /// The share of a wall's width that a bevel's leg along it must take before the wall's far end
 /// is asked to meet a perpendicular wall or another bevel.
 const POLYGON_SIDE_SHARE: f64 = 1. / 3.;
@@ -209,6 +231,9 @@ fn prune_polygon_sides(part: &Part, out: &mut Vec<Occurrence<Chamfer>>) {
                         || part.arc(wall, far) != Some(crate::kernel::brep::Arc::Convex)
                         || super::planes::unit_plane_normal(part, far)
                             .is_none_or(|n| geom::dot(n, wall_normal).abs() <= 1e-6)
+                        // An oblique plane only makes a polygon side if the section closes
+                        // convexly through it; a groove, dovetail or step does not.
+                        || !closes_convexly(part, run, bevel, wall, far)
                 })
             })
         });
@@ -367,6 +392,8 @@ fn turned(
     })
 }
 
+const CONE_RIM_PLANE_SHARE: f64 = 0.47;
+
 /// An edge break on the rim of a conical body: a narrow coaxial cone between a transverse end
 /// plane and the body's cone, both joined convexly (a chamfer of a cone's base or top). The
 /// legs are measured along the end plane and along the body's cone, from the virtual sharp
@@ -443,7 +470,15 @@ fn cone_body_rim(part: &Part, face: usize, tol: f64, max_leg: f64) -> Option<Occ
         None => r_body / body_angle.sin().abs(),
     };
     let (leg_hi, leg_lo) = (leg_plane.max(leg_body), leg_plane.min(leg_body));
-    if below_minimum(leg_lo, tol) || leg_hi > max_leg || leg_body > slant {
+    // The break must be small against what it breaks. Along the end plane it may reach at most
+    // 0.47 of the virtual rim's radius (the chamfer-rims cases reach 0.45; the symmetric
+    // two-cone profile of a diamond reaches 0.49), and along the body it must be strictly
+    // shorter than the band left, so a tie between two equal bands reads neither as the rim.
+    if below_minimum(leg_lo, tol)
+        || leg_hi > max_leg
+        || leg_plane > CONE_RIM_PLANE_SHARE * r_corner
+        || leg_body >= slant * (1. - 1e-9)
+    {
         return None;
     }
     let at = part.face_centre(face)?;

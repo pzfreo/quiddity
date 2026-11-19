@@ -816,7 +816,7 @@ the far end, into a perpendicular wall, another bevel or a non-planar face (or m
 internal bevel), repeated until no bevel is dropped. A wall that runs on into an oblique plane
 that is no bevel belongs to a polygonal section (a hexagonal or irregular prism), whose flats
 are indistinguishable from chamfers of one another, so none is claimed; the chamfers of its
-non-perpendicular vertices are not recognised either. A short break beside another oblique
+non-perpendicular vertices are not recognised either. The oblique far plane counts only if the convexly joined run-parallel planes beyond it close back round to the bevel: a V-groove, dovetail or slanted step (a concave or open chain) leaves the chamfer alone. A short break beside another oblique
 face is not affected. Known ambiguity: a hexagon with two opposite chamfers is also an
 octagon with four equal bevels, and is read as the latter.
 
@@ -1374,7 +1374,7 @@ planner is not changed to generate chamfer notes.
 
 ### Conical-body rim chamfers (#298)
 
-A narrow coaxial cone joined convexly to an end plane and to a conical body's cone, and shorter
+A narrow coaxial cone joined convexly to an end plane and to a conical body's cone, with its leg along the plane at most 0.47 of the virtual rim's radius (the chamfer-rims cases reach 0.45, a diamond of two cones 0.49) and strictly shorter
 than that cone (so the body itself is never read as a rim), is published as a turned `chamfers`
 record, with its legs measured along the end plane and along the body's cone from their virtual
 sharp rim. The turned body keeps the cone in its profile, so both records list the face in face

@@ -11,7 +11,8 @@ in [docs/alpha1.md](docs/alpha1.md).
 - An edge break on the rim of a conical body (the base of a cone, either end of a frustum) is
   published as a turned `Chamfer`, where it was absorbed as an unexplained cone in the
   `TurnedBody` profile. A narrow coaxial cone between an end plane and the body's cone, joined
-  convexly and shorter than that cone, is read like the existing chamfer of a cylindrical body,
+  convexly and shorter than that cone, with the leg along the plane at most 0.47 of the virtual
+  rim's radius, is read like the existing chamfer of a cylindrical body,
   with the legs taken along the end plane and along the body's cone from the virtual sharp rim.
   The profile is unchanged and both records list the cone face. Hole mouth cones stay nested in
   `HoleRecord.mouth_chamfers` (#244). The recognition schema stays at 6. For #298.
@@ -39,7 +40,9 @@ in [docs/alpha1.md](docs/alpha1.md).
   "chamfers" with the flat's bounding-box legs (2.517 / 1.453 at 30 degrees from the middle of a
   hexagon flat, where the file's chamfers are 0.524 / 0.524; about 2.8 / 2.7 for one unequal
   chamfer of 0.823 / 1.601). A bevel whose leg takes a third or more of a wall's width is now kept
-  only if that wall's far end meets a perpendicular wall, another bevel or a blend; a wall that
+  only if that wall's far end meets a perpendicular wall, another bevel or a blend, or the oblique
+  plane it runs on into does not close a convex section round to the bevel (a groove, dovetail or
+  step is no polygon); a wall that
   runs on into an oblique plane that is no bevel belongs to a polygonal section, and its bevels
   and flats are no longer claimed. A short break beside some other oblique face is still a
   chamfer. The chamfers of 120-degree and other non-perpendicular vertices are still not
