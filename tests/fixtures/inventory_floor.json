@@ -19763,14 +19763,6 @@
       "max_lost": 4,
       "reason": "For #297 the 0.6 mm fillet floor is gone: a convex or concave round below it was a generic blend and is now a fillet on the same faces, which supersede the blend. Fillet floors are raised separately.",
       "evidence": "#297: raw blend candidates are unchanged; the accepted blend on faces 2, 3, 7, 8 (R0.2 convex) is now an accepted fillet with the same defining faces and radius (checked with inventory(): physical blends against accepted fillets). It was below the 0.6 mm floor."
-    },
-    {
-      "file": "corpus/mfcadpp/10138.step",
-      "mode": "physical",
-      "family": "chamfers",
-      "max_lost": 1,
-      "reason": "#301: a slanted face between two walls is not a chamfer when a wall that its leg takes a real share of runs on into another oblique plane that is no bevel; it belongs to a polygonal section. The candidate was already superseded by an angled step in every published and accepted inventory.",
-      "evidence": "mfcadpp/10138 face 4 (normal 0.572,0.820,0; area 761.4 mm2; bounding-box legs 18.575 x 12.942) stands between the +x wall 0 and the +y wall 1. Wall 0's far end meets face 6 (normal -0.820,0.572,0) and wall 25 (normal 0.820,-0.572,0) meets the -y wall 11 at an angle that is not square, so the section has several oblique sides and face 4 is one of them, not a break of a rectilinear corner. It is still published as angled_steps/1 [2,4] with legs 18.575 and 12.942 at [9.604,6.25,18.268]; accepted and framed chamfers were already 0. tests/internal/chamfer_values.rs::corpus_polygon_side_is_no_chamfer_but_stays_an_angled_step asserts both."
     }
   ]
 }

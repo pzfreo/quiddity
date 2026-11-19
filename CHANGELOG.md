@@ -48,8 +48,7 @@ in [docs/alpha1.md](docs/alpha1.md).
   chamfer. The chamfers of 120-degree and other non-perpendicular vertices are still not
   recognised (a miss, no longer a wrong record); a hexagon with two opposite chamfers still
   reads as an octagon with four bevels. Chamfers of rectilinear corners, including large ones and
-  an L section's, are unchanged. One physical chamfer candidate of an MFCAD++ part, already
-  superseded by an angled step, is gone (inventory-floor loss entry). For #301.
+  an L section's, are unchanged. For #301.
 - Reading a STEP file no longer sizes per-solid work by every face in the file: the import's
   outward-shell proof and the ray casters keep their face boxes and membership for the
   solid's own faces, the unresolved-face and unresolved-edge lookups search a sorted list, and

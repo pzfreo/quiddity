@@ -176,29 +176,3 @@ fn cone_to_cone_profiles_have_no_rim_chamfer() {
         );
     }
 }
-
-/// An MFCAD++ part whose section has several oblique sides: the big slanted face stays the
-/// angled step it is published as, and is no chamfer candidate (#301).
-#[test]
-fn corpus_polygon_side_is_no_chamfer_but_stays_an_angled_step() {
-    use quiddity::features;
-    let Some(dir) = common::corpus_dir() else {
-        assert!(std::env::var_os("QUIDDITY_CORPUS_REQUIRED").is_none());
-        return;
-    };
-    let p = quiddity::read_step_file(&dir.join("mfcadpp/10138.step")).unwrap();
-    assert!(
-        chamfers::discover_verified(&Context::new(&p), &Default::default())
-            .unwrap()
-            .is_empty()
-    );
-    let f = features::recognise(&p);
-    assert!(f.chamfers.is_empty());
-    assert!(
-        f.angled_steps
-            .iter()
-            .any(|s| (s.leg1, s.leg2) == (18.575, 12.942)),
-        "{:?}",
-        f.angled_steps
-    );
-}
