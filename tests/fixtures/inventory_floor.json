@@ -19664,6 +19664,158 @@
       "max_lost": 4,
       "reason": "#228: a closed pocket with an analytic floor fillet is a pocket; its floor fillets belong to it.",
       "evidence": "Former slots/0 defined [213,214,215,216], the four inward walls of the closed mouth at z=48.26. Former floor fillets are face 82 R0.762 mm, face 84 R0.762 mm, face 85 R0.762 mm, and face 135 R0.762 mm. pockets/8 now claims [61,62,63,64,82,84,85,135,213,214,215,216], with planar floor 83 also claimed after floor completion. Its depth is 1.27 mm (floor z=46.99), corner_radius 3.18 mm (native wall R3.175), and uniform floor_radius 0.762 mm. The other four attached floor patches [61,62,63,64] are tori with major/minor radii 2.413/0.762 mm. The remaining slots are exactly [152,154], [220,224], [117,121]; the remaining 91 fillet claims preserve every other former face group. tests/internal/inventory_floor.rs::ftc08_floor_fillet_pocket_replaces_only_its_slot_and_floor_rounds asserts native supports, complete replacement ownership, exact remaining slot/fillet groups and all three nine-pocket inventories."
+    },
+    {
+      "file": "captured/016c60d49a52fa18.step.gz",
+      "mode": "accepted",
+      "family": "blends",
+      "max_lost": 4,
+      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "The lost accepted blends (four R0.2 convex blends) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
+    },
+    {
+      "file": "captured/5a30bebb2ebfc23c.step.gz",
+      "mode": "accepted",
+      "family": "blends",
+      "max_lost": 4,
+      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "The lost accepted blends (four R0.1 concave blends) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
+    },
+    {
+      "file": "captured/5c757e3242e218b6.step.gz",
+      "mode": "accepted",
+      "family": "blends",
+      "max_lost": 4,
+      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "The lost accepted blends (three R0.2 convex and one R0.2 concave blend) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
+    },
+    {
+      "file": "captured/7e93adb20392c185.step.gz",
+      "mode": "accepted",
+      "family": "blends",
+      "max_lost": 4,
+      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "The lost accepted blends (four R0.2 convex blends) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
+    },
+    {
+      "file": "captured/7fb19d8ac9d97a40.step.gz",
+      "mode": "accepted",
+      "family": "blends",
+      "max_lost": 4,
+      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "The lost accepted blends (four R0.5 convex blends) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
+    },
+    {
+      "file": "captured/b8d3fc70558d0417.step.gz",
+      "mode": "accepted",
+      "family": "blends",
+      "max_lost": 4,
+      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "The lost accepted blends (four R0.01 convex blends) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
+    },
+    {
+      "file": "captured/cdbb50ecd934508f.step.gz",
+      "mode": "accepted",
+      "family": "blends",
+      "max_lost": 5,
+      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "The lost accepted blends (R0.5 convex blends) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
+    },
+    {
+      "file": "captured/fcdbddb4c81aead8.step.gz",
+      "mode": "accepted",
+      "family": "blends",
+      "max_lost": 4,
+      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "The lost accepted blends (four R0.2 convex blends) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb207.step",
+      "mode": "accepted",
+      "family": "blends",
+      "max_lost": 5,
+      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "The lost accepted blends (small convex rounds (R0.2 to R0.5)) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb207.step",
+      "mode": "framed",
+      "family": "blends",
+      "max_lost": 5,
+      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "The lost accepted blends (small convex rounds (R0.2 to R0.5)) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb242.step.gz",
+      "mode": "accepted",
+      "family": "blends",
+      "max_lost": 5,
+      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "The lost accepted blends (small convex rounds (R0.2 to R0.5)) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb242.step.gz",
+      "mode": "framed",
+      "family": "blends",
+      "max_lost": 5,
+      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "The lost accepted blends (small convex rounds (R0.2 to R0.5)) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb243.step.gz",
+      "mode": "accepted",
+      "family": "blends",
+      "max_lost": 10,
+      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "The lost accepted blends (small convex rounds (R0.2 to R0.5)) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb243.step.gz",
+      "mode": "framed",
+      "family": "blends",
+      "max_lost": 10,
+      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "The lost accepted blends (small convex rounds (R0.2 to R0.5)) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
+    },
+    {
+      "file": "corpus/gramel/string_post.step",
+      "mode": "accepted",
+      "family": "blends",
+      "max_lost": 2,
+      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "The lost accepted blends (small convex rounds (R0.2 to R0.5)) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
+    },
+    {
+      "file": "corpus/gramel/string_post.step",
+      "mode": "framed",
+      "family": "blends",
+      "max_lost": 2,
+      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "The lost accepted blends (small convex rounds (R0.2 to R0.5)) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
+    },
+    {
+      "file": "corpus/mfcadpp_holdout/18016.step",
+      "mode": "accepted",
+      "family": "blends",
+      "max_lost": 1,
+      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "The lost accepted blends (small convex rounds (R0.2 to R0.5)) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
+    },
+    {
+      "file": "corpus/mfcadpp_holdout/18016.step",
+      "mode": "framed",
+      "family": "blends",
+      "max_lost": 1,
+      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "The lost accepted blends (small convex rounds (R0.2 to R0.5)) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
+    },
+    {
+      "file": "golden/golden_small_convex_blends.step",
+      "mode": "accepted",
+      "family": "blends",
+      "max_lost": 4,
+      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "The lost accepted blends (four R0.2 convex blends) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
     }
   ]
 }
