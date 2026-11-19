@@ -165,7 +165,12 @@ fn chamfers_beside_grooves_and_steps_are_kept() {
 /// Two cones of comparable size (or equal ones) are a profile, not an edge break (#298 review).
 #[test]
 fn cone_to_cone_profiles_have_no_rim_chamfer() {
-    for name in ["bicone.step", "diamond.step"] {
+    for name in [
+        "bicone.step",
+        "diamond.step",
+        "bicone12.step",
+        "leadtaper30.step",
+    ] {
         let found =
             chamfers::discover_verified(&Context::new(&edge_break(name)), &Default::default())
                 .unwrap();
@@ -175,4 +180,25 @@ fn cone_to_cone_profiles_have_no_rim_chamfer() {
             found.iter().map(|o| &o.record).collect::<Vec<_>>()
         );
     }
+}
+
+/// A real C x 45 degree chamfer on a frustum's base rim is published with equal legs (#298).
+#[test]
+fn a_large_45_degree_cone_rim_chamfer_is_kept() {
+    let found: Vec<_> = chamfers::discover_verified(
+        &Context::new(&edge_break("realchamfer042.step")),
+        &Default::default(),
+    )
+    .unwrap()
+    .into_iter()
+    .map(|o| {
+        (
+            o.record.leg1,
+            o.record.leg2,
+            o.record.angle,
+            o.record.turned,
+        )
+    })
+    .collect();
+    assert_eq!(found, [(4.2, 4.2, 45., true)]);
 }

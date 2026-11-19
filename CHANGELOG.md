@@ -11,8 +11,8 @@ in [docs/alpha1.md](docs/alpha1.md).
 - An edge break on the rim of a conical body (the base of a cone, either end of a frustum) is
   published as a turned `Chamfer`, where it was absorbed as an unexplained cone in the
   `TurnedBody` profile. A narrow coaxial cone between an end plane and the body's cone, joined
-  convexly and shorter than that cone, with the leg along the plane at most 0.47 of the virtual
-  rim's radius, is read like the existing chamfer of a cylindrical body,
+  convexly and shorter than that cone, with equal legs (a C x 45 degree break; other angles and
+  two-distance cones are left alone), is read like the existing chamfer of a cylindrical body,
   with the legs taken along the end plane and along the body's cone from the virtual sharp rim.
   The profile is unchanged and both records list the cone face. Hole mouth cones stay nested in
   `HoleRecord.mouth_chamfers` (#244). The recognition schema stays at 6. For #298.

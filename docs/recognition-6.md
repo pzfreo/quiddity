@@ -1374,7 +1374,7 @@ planner is not changed to generate chamfer notes.
 
 ### Conical-body rim chamfers (#298)
 
-A narrow coaxial cone joined convexly to an end plane and to a conical body's cone, with its leg along the plane at most 0.47 of the virtual rim's radius (the chamfer-rims cases reach 0.45, a diamond of two cones 0.49) and strictly shorter
+A narrow coaxial cone joined convexly to an end plane and to a conical body's cone, with equal legs along the plane and along the cone (within 0.0015 mm: a C x 45 degree break; any other angle, or two distances, cannot be told from a flare or lead taper and is not published), and strictly shorter
 than that cone (so the body itself is never read as a rim), is published as a turned `chamfers`
 record, with its legs measured along the end plane and along the body's cone from their virtual
 sharp rim. The turned body keeps the cone in its profile, so both records list the face in face

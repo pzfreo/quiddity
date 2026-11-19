@@ -11,6 +11,29 @@ script below (`python gen.py DIR`), for the chamfer regression tests in
   z = 15, and a plane on top. No edge break.
 - `diamond.step`: two equal cones back to back (r 10 - 15 - 10). No edge break.
 
+- `bicone12.step`: revolved profile r 10 - 15 - 12, a flare then a taper. No edge break.
+- `leadtaper30.step`: revolved profile r 14.2 - 20 - 10 over 60 mm, a lead cone then a long
+  taper. No edge break.
+- `realchamfer042.step`: a frustum r 10 to 6 over 20 mm with a 4.2 x 45 degree chamfer on its
+  base rim (legs 4.2 and 4.2).
+
+The three revolved parts come from a second script, `rev(points, name)`: close the (r, z) profile
+through the axis, revolve it 360 degrees about Z and export it:
+
+```python
+import math
+from build123d import *
+def rev(pts, name):
+    w = Wire.make_polygon([Vector(r, 0, z) for r, z in pts], close=True)
+    export_step(Solid.revolve(Face(w), 360, Axis.Z), f"{name}.step")
+rev([(0,0),(10,0),(15,5),(12,15),(0,15)], "bicone12")
+rev([(0,0),(14.2,0),(20,10),(10,60),(0,60)], "leadtaper30")
+leg = 4.2; dz = leg / math.hypot(1, 0.2); dr = 0.2 * dz   # body r = 10 - 0.2 z
+rev([(0,0),(10-leg,0),(10-dr,dz),(6,20),(0,20)], "realchamfer042")
+```
+
+The first four parts come from:
+
 ```python
 import sys
 from build123d import *

@@ -392,7 +392,8 @@ fn turned(
     })
 }
 
-const CONE_RIM_PLANE_SHARE: f64 = 0.47;
+/// The legs of a conical rim chamfer must agree to within 1.5 published cells.
+const CONE_RIM_EQUAL_LEGS: f64 = 0.0015;
 
 /// An edge break on the rim of a conical body: a narrow coaxial cone between a transverse end
 /// plane and the body's cone, both joined convexly (a chamfer of a cone's base or top). The
@@ -470,13 +471,14 @@ fn cone_body_rim(part: &Part, face: usize, tol: f64, max_leg: f64) -> Option<Occ
         None => r_body / body_angle.sin().abs(),
     };
     let (leg_hi, leg_lo) = (leg_plane.max(leg_body), leg_plane.min(leg_body));
-    // The break must be small against what it breaks. Along the end plane it may reach at most
-    // 0.47 of the virtual rim's radius (the chamfer-rims cases reach 0.45; the symmetric
-    // two-cone profile of a diamond reaches 0.49), and along the body it must be strictly
-    // shorter than the band left, so a tie between two equal bands reads neither as the rim.
+    // Only a C x 45 degree edge break: the two legs equal within the published precision (a
+    // 0.001 mm cell), and the break strictly shorter than the body band left, so a tie between
+    // two equal bands reads neither as the rim. A cone at any other angle, or with two
+    // distances, cannot be told from a two-cone profile (a flare, a lead taper) by proportion,
+    // so it is left alone.
     if below_minimum(leg_lo, tol)
         || leg_hi > max_leg
-        || leg_plane > CONE_RIM_PLANE_SHARE * r_corner
+        || leg_hi - leg_lo > CONE_RIM_EQUAL_LEGS
         || leg_body >= slant * (1. - 1e-9)
     {
         return None;
