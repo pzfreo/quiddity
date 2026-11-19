@@ -24,7 +24,7 @@ in [docs/alpha1.md](docs/alpha1.md).
   as some converters write a degenerate face) is left out of recognition and published as an
   `unmeasured_face_refusals` record (`UnmeasuredFaceRefusal`, reason `unmeasured_face`; its
   face is `refused` in `face_accounting`). Before, a hole could be recognised on it with
-  invented values (depth 0, `flat`). Records that define or consult the face are dropped;
+  invented values (depth 0, `flat`). Records that define the face are dropped (and, in `blends` and `helical_springs`, those that consult it);
   the rest of the part is recognised. Additive in `recognition/6`. The part frame is still
   refused (`unmeasured-face`) because the volume needs every face, so such a part is
   recognised in file coordinates. specify-core must stop refusing the whole part on this

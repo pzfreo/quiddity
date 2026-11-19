@@ -17,7 +17,7 @@ fingerprints or evidence status. Precedence is:
 A face whose geometry resolved but whose area and centroid `haecceity` cannot compute
 (`Part::face_moments` is `None`, for example a cylinder bounded by one closed circle) is
 refused alone: one `unmeasured_face_refusals/N` record (`UnmeasuredFaceRefusal`, reason
-`unmeasured_face`) names it, and no record that defines or consults it is kept.
+`unmeasured_face`) names it, and no record that defines it is kept (`blends` and `helical_springs` also drop those that consult it).
 Other faces and records are unaffected.
 
 Thus a refusal cannot erase a feature claim, and body evidence cannot erase either.

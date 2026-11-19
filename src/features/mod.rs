@@ -336,6 +336,28 @@ pub(crate) fn recognise_projected(
         Some(Err(e)) => (Vec::new(), Vec::new(), Vec::new(), Some(e)),
         None => (Vec::new(), Vec::new(), Vec::new(), None),
     };
+    let unmeasured: BTreeSet<usize> = unmeasured_faces(ctx.part).into_iter().collect();
+    let (section_recesses, patterns) = if unmeasured.is_empty()
+        || !section_recesses.iter().any(|r| {
+            r.evidence()
+                .defining_faces()
+                .iter()
+                .any(|f| unmeasured.contains(f))
+        }) {
+        (section_recesses, patterns)
+    } else {
+        // Patterns name recesses by index; with a recess dropped they are dropped too.
+        let kept: Vec<_> = section_recesses
+            .into_iter()
+            .filter(|r| {
+                !r.evidence()
+                    .defining_faces()
+                    .iter()
+                    .any(|f| unmeasured.contains(f))
+            })
+            .collect();
+        (kept, Vec::new())
+    };
     let defining = section_recesses
         .iter()
         .map(|r| r.evidence().defining_faces().to_vec())
@@ -502,6 +524,14 @@ pub(crate) fn recognise_projected(
     }
     failures.sort_by(|a, b| (&a.family, &a.stage).cmp(&(&b.family, &b.stage)));
     features.failures = failures;
+    // The later claim extensions (drill-point cones, slot end walls, terminal caps, floors)
+    // consult faces beyond the ones kept above; an unmeasured face is never claimed.
+    let unmeasured = unmeasured_faces(ctx.part);
+    if !unmeasured.is_empty() {
+        for faces in features.defining.values_mut().flatten() {
+            faces.retain(|f| !unmeasured.contains(f));
+        }
+    }
     duplicate_references::mark(ctx.part, &mut features);
     features
 }
@@ -1344,6 +1374,12 @@ pub(super) fn unmeasured_faces(part: &Part) -> Vec<usize> {
         .collect()
 }
 
+/// Families whose published values depend on the area of a consulted face, with no refusal
+/// when that area is missing. Every other family either returns nothing for a candidate whose
+/// consulted face has no area or moments (`face_mass(f)?`, `surface_moments(f)?`), or does not
+/// read them.
+const MOMENT_CONTEXT_FAMILIES: &[&str] = &["blends", "helical_springs"];
+
 /// A proved whole spring takes precedence over descriptions of its individual wire
 /// patches. Filter before storing records/evidence, so patterns inherit accepted members.
 /// Occurrences that define or consult an unmeasured face are dropped here too: no value is
@@ -1356,13 +1392,15 @@ fn without_spring_claims<R>(
     let found = if kept.unmeasured.is_empty() {
         found
     } else {
+        // Defining an unmeasured face always drops the occurrence. Consulting one drops it only
+        // where the family reads that face's area where a missing one does not already end
+        // the candidate (`blend_view::face_area` gives NaN, and `f64::min` ignores NaN).
+        let reads_context = MOMENT_CONTEXT_FAMILIES.contains(&family);
         found
             .into_iter()
             .filter(|o| {
-                !o.defining
-                    .iter()
-                    .chain(&o.context)
-                    .any(|f| kept.unmeasured.contains(f))
+                let hit = |f: &usize| kept.unmeasured.contains(f);
+                !(o.defining.iter().any(hit) || (reads_context && o.context.iter().any(hit)))
             })
             .collect()
     };
@@ -1413,4 +1451,40 @@ internal_entry! {
 pub fn records<R>(found: Vec<Occurrence<R>>) -> Vec<R> {
     found.into_iter().map(|o| o.record).collect()
 }
+}
+
+#[cfg(test)]
+mod unmeasured_tests {
+    use super::*;
+
+    /// An unmeasured face only drops what defines it, or a family that reads its area (#303).
+    #[test]
+    fn an_unmeasured_context_face_keeps_a_record_that_does_not_read_it() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/unmeasured_face_closed.step");
+        let part = crate::read_step_file(&path).unwrap();
+        assert_eq!(unmeasured_faces(&part), [7]);
+        let kept = Kept {
+            part: &part,
+            unmeasured: BTreeSet::from([7]),
+            claimed: Defining::new(),
+            defining: Defining::new(),
+            constituent: Defining::new(),
+            evidence_status: BTreeMap::new(),
+        };
+        let found = || {
+            vec![
+                Occurrence::new("defines", vec![7], vec![2]),
+                Occurrence::new("consults", vec![6], vec![2, 7]),
+            ]
+        };
+        let names = |family| -> Vec<_> {
+            without_spring_claims(&kept, family, found())
+                .into_iter()
+                .map(|o| o.record)
+                .collect()
+        };
+        assert_eq!(names("holes"), ["consults"]);
+        assert!(names("blends").is_empty());
+    }
 }
