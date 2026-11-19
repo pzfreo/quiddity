@@ -111,6 +111,7 @@ pub fn discover(ctx: &Context<'_>, opts: &ChamferOptions) -> Vec<Occurrence<Cham
             planar(ctx, f, tol, max_leg).or_else(|| rolled_planar(ctx, f, tol, max_leg))
         }));
     }
+    prune_polygon_sides(part, &mut out);
     let external = turned::external_cylinders(ctx);
     out.extend((0..part.faces.len()).filter_map(|f| turned(part, f, tol, max_leg, &external)));
     for o in &mut out {
@@ -129,6 +130,85 @@ pub fn discover(ctx: &Context<'_>, opts: &ChamferOptions) -> Vec<Occurrence<Cham
     });
     out
 }
+}
+
+/// The planar faces sharing a straight edge parallel to `run` with `face`.
+fn lateral_planes(part: &Part, face: usize, run: V3) -> Vec<usize> {
+    part.neighbours(face)
+        .into_iter()
+        .filter(|&n| matches!(part.faces[n].surface, Surface::Plane { .. }))
+        .filter(|&n| {
+            part.shared_edges(face, n).into_iter().any(|e| {
+                let edge = &part.edges[e];
+                let span = geom::sub(edge.end, edge.start);
+                matches!(edge.curve, geom::Curve::Line { .. })
+                    && geom::norm(geom::cross(span, run)) <= 1e-6 * geom::norm(span)
+            })
+        })
+        .collect()
+}
+
+/// The share of a wall's width that a bevel's leg along it must take before the wall's far end
+/// is asked to meet a perpendicular wall or another bevel.
+const POLYGON_SIDE_SHARE: f64 = 1. / 3.;
+
+/// A flat of a polygonal section is not a chamfer of its neighbours. Two walls and the bevel
+/// between them are read as a chamfered corner only when each wall's far end also meets a
+/// perpendicular wall, another bevel or a blend: a wall that runs on into an oblique plane that
+/// is no bevel belongs to a polygonal section (a hexagonal bar, say), whose flats could equally
+/// be called chamfers of one another (#301). Only a bevel whose leg takes a third or more of a
+/// wall's width is held to this; a short break beside some other oblique face is still a chamfer.
+/// A removed bevel can orphan its neighbours, so repeat until nothing changes.
+fn prune_polygon_sides(part: &Part, out: &mut Vec<Occurrence<Chamfer>>) {
+    loop {
+        let bevels: Vec<usize> = out
+            .iter()
+            .filter(|o| !o.record.turned)
+            .map(|o| o.defining[0])
+            .collect();
+        let before = out.len();
+        out.retain(|o| {
+            if o.record.turned {
+                return true;
+            }
+            let bevel = o.defining[0];
+            let mut run = [0.; 3];
+            run[match o.record.axis {
+                'x' => 0,
+                'y' => 1,
+                _ => 2,
+            }] = 1.;
+            let walls = lateral_planes(part, bevel, run)
+                .into_iter()
+                .filter(|&wall| part.arc(bevel, wall) == Some(crate::kernel::brep::Arc::Convex));
+            walls.into_iter().all(|wall| {
+                let Some(wall_normal) = super::planes::unit_plane_normal(part, wall) else {
+                    return true;
+                };
+                // A short break does not make its wall a side of a polygon: only a bevel whose
+                // leg takes a real share of the wall's own width asks for a square far end.
+                let across = geom::cross(run, wall_normal);
+                let width = |face: usize| {
+                    let (lo, hi) = part.extent_along(&[face], across);
+                    hi - lo
+                };
+                if width(bevel) <= POLYGON_SIDE_SHARE * width(wall) {
+                    return true;
+                }
+                lateral_planes(part, wall, run).into_iter().all(|far| {
+                    far == bevel
+                        || bevels.contains(&far)
+                        // A concave far end (an internal bevel) is another feature.
+                        || part.arc(wall, far) != Some(crate::kernel::brep::Arc::Convex)
+                        || super::planes::unit_plane_normal(part, far)
+                            .is_none_or(|n| geom::dot(n, wall_normal).abs() <= 1e-6)
+                })
+            })
+        });
+        if out.len() == before {
+            return;
+        }
+    }
 }
 
 /// An oblique planar bevel on a convex edge between two axis-aligned walls.

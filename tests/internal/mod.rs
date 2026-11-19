@@ -6,6 +6,8 @@ mod common;
 mod slices;
 #[path = "captured.rs"]
 mod captured;
+#[path = "chamfer_values.rs"]
+mod chamfer_values;
 #[path = "corpus.rs"]
 mod corpus;
 #[path = "correspondence.rs"]

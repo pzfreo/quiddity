@@ -63,3 +63,8 @@ crates/haecceity/src/presentation/fonts/Standard.cxf and gdt.cxf are QCAD 3 stro
 Andrew Mustun (RibbonSoft), copied unchanged. QCAD's licence file states that its CXF fonts
 in the fonts directory are released as public domain, all copyright waived. They draw the
 text and symbols of GD&T frames, matching the sizes CAD systems give a native TOLERANCE.
+
+The tests/fixtures/brep-conformance/ STEP files are from springcraft-ai/brep-conformance
+1.0.0 (https://github.com/springcraft-ai/brep-conformance), MIT licence, as written by
+OpenCascade 8.0.1 for its published chamfer cases, gzip-compressed and otherwise unchanged;
+they were supplied for #298 and #301.

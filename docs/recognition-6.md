@@ -810,6 +810,16 @@ caps still count once. Grouping cannot satisfy a floor by dropping a patch. In t
 cgb202 regression, 708 old occurrences become 542 callout records with the same
 708 primary round patches; the historical floor remains 708.
 
+A planar chamfer also needs a rectilinear neighbourhood when it is large (#301): for each
+convex wall whose width the bevel's leg takes a third or more of, the wall must continue, at
+the far end, into a perpendicular wall, another bevel or a non-planar face (or meet a concave
+internal bevel), repeated until no bevel is dropped. A wall that runs on into an oblique plane
+that is no bevel belongs to a polygonal section (a hexagonal or irregular prism), whose flats
+are indistinguishable from chamfers of one another, so none is claimed; the chamfers of its
+non-perpendicular vertices are not recognised either. A short break beside another oblique
+face is not affected. Known ambiguity: a hexagon with two opposite chamfers is also an
+octagon with four equal bevels, and is read as the latter.
+
 Planar chamfer and angled-step `corner` is optional/null when unproved. Retention
 requires consistency of the measured legs and angle with the corner/anchor points
 at their published precision (0.001 mm for points and legs, 0.01 degrees for angles).

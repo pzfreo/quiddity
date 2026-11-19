@@ -26,6 +26,20 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
+- A planar chamfer is no longer read from the flats of a polygonal section. A bevel between two
+  principal-plane walls was published whenever it stood between them, so the flats of a hexagonal
+  or irregular polygonal prism whose neighbours happened to lie on principal planes became
+  "chamfers" with the flat's bounding-box legs (2.517 / 1.453 at 30 degrees from the middle of a
+  hexagon flat, where the file's chamfers are 0.524 / 0.524; about 2.8 / 2.7 for one unequal
+  chamfer of 0.823 / 1.601). A bevel whose leg takes a third or more of a wall's width is now kept
+  only if that wall's far end meets a perpendicular wall, another bevel or a blend; a wall that
+  runs on into an oblique plane that is no bevel belongs to a polygonal section, and its bevels
+  and flats are no longer claimed. A short break beside some other oblique face is still a
+  chamfer. The chamfers of 120-degree and other non-perpendicular vertices are still not
+  recognised (a miss, no longer a wrong record); a hexagon with two opposite chamfers still
+  reads as an octagon with four bevels. Chamfers of rectilinear corners, including large ones and
+  an L section's, are unchanged. One physical chamfer candidate of an MFCAD++ part, already
+  superseded by an angled step, is gone (inventory-floor loss entry). For #301.
 - Reading a STEP file no longer sizes per-solid work by every face in the file: the import's
   outward-shell proof and the ray casters keep their face boxes and membership for the
   solid's own faces, the unresolved-face and unresolved-edge lookups search a sorted list, and
