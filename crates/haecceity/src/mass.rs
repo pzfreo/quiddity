@@ -2180,7 +2180,7 @@ mod tests {
         let x = |i: usize| i as f64 / (2 * spans) as f64;
         // Bézier control heights of u ↦ u² over each span: a², ab, b².
         let z = |i: usize| {
-            if i % 2 == 0 {
+            if i.is_multiple_of(2) {
                 x(i) * x(i)
             } else {
                 x(i - 1) * x(i + 1)
