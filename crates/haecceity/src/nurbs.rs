@@ -1072,6 +1072,12 @@ struct PreparedAxis {
     derivative: Basis,
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Evaluations by [`SurfaceEvaluation`] on this thread: a structural cost measure for tests.
+    pub(crate) static EVALUATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// Integral-local reuse of exact operands; nodes, arithmetic order and refusal stay unchanged.
 /// Each axis retains only its last basis and derivative, keyed by the clamped parameter's
 /// exact bits; non-finite parameters use the uncached evaluator. Homogeneous controls are
@@ -1097,6 +1103,8 @@ impl<'a> SurfaceEvaluation<'a> {
     }
 
     pub(crate) fn value_and_partials(&mut self, u: f64, v: f64) -> (V3, V3, V3) {
+        #[cfg(test)]
+        EVALUATIONS.with(|n| n.set(n.get() + 1));
         let surface = self.surface;
         let (u0, u1, v0, v1) = surface.domain();
         let (u, v) = (u.clamp(u0, u1), v.clamp(v0, v1));

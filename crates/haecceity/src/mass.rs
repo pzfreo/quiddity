@@ -74,6 +74,46 @@ fn integrate<const N: usize>(cuts: &[f64], f: impl Fn(f64) -> [f64; N]) -> [f64;
     total
 }
 
+/// Knot spans in u from which a B-spline face's inner integral may run along v instead (#302).
+const LARGE_NET_SPANS: usize = 32;
+
+/// [`integrate`], also reporting whether every panel's rule agrees with the same rule on its
+/// two halves to 1e-9 of the terms' magnitudes in each component (and 1e-12 of the largest component's): a density with a narrow
+/// dip (a strip whose normal nearly reverses) fails it, and its caller then uses the other
+/// form. The sum is the whole-panel rule's, as [`integrate`]'s.
+fn integrate_checked<const N: usize>(
+    cuts: &[f64],
+    f: impl Fn(f64) -> [f64; N],
+) -> ([f64; N], bool) {
+    let mut total = [0.0; N];
+    let mut resolved = true;
+    let rule = |a: f64, b: f64, y: &mut [f64; N], size: &mut [f64; N]| {
+        let (half, centre) = (0.5 * (b - a), 0.5 * (b + a));
+        for &(x, weight) in gauss_nodes() {
+            let v = f(centre + half * x);
+            for k in 0..N {
+                y[k] += weight * half * v[k];
+                size[k] += (weight * half * v[k]).abs();
+            }
+        }
+    };
+    for w in cuts.windows(2) {
+        let (mut whole, mut halves, mut size) = ([0.0; N], [0.0; N], [0.0; N]);
+        rule(w[0], w[1], &mut whole, &mut [0.0; N]);
+        let mid = 0.5 * (w[0] + w[1]);
+        rule(w[0], mid, &mut halves, &mut size);
+        rule(mid, w[1], &mut halves, &mut size);
+        // A component whose terms are all round-off beside the others' (a coordinate near
+        // zero) cannot be judged against its own size.
+        let largest = size.iter().fold(0.0f64, |m, &x| m.max(x));
+        for k in 0..N {
+            total[k] += whole[k];
+            resolved &= (whole[k] - halves[k]).abs() <= 1e-9 * size[k] + 1e-12 * largest;
+        }
+    }
+    (total, resolved && total.iter().all(|x| x.is_finite()))
+}
+
 /// Most panels or periods an integral is cut into. An angular range is a few turns and a conic's
 /// a few radians; the longest is a straight run in a surface's parameters, one panel per unit
 /// (a cylinder's v is a length), so a million is a kilometre at a millimetre. Only nonsense
@@ -827,12 +867,61 @@ impl Part {
         )
     }
 
+    /// [`Self::integrate_face_legacy_in`], first by the form of Green's theorem whose inner
+    /// integral crosses fewer knot spans where that form is eligible (a face with one very
+    /// large B-spline net in u and a few spans in v, #302), then, should it refuse or fail
+    /// its own check, by the stock form. Only a completed, checked result of the cheaper form
+    /// is returned.
     fn integrate_face_legacy<const N: usize>(
         &self,
         face: usize,
         f: impl Fn(V3, V3, V3) -> [f64; N],
         rule: IntegralRule,
         observed: &mut Option<MassPass>,
+    ) -> Option<[f64; N]> {
+        if self.cheaper_inner_form(face) {
+            let unresolved = std::cell::Cell::new(false);
+            let mut trial = None;
+            let swapped =
+                self.integrate_face_legacy_in(face, &f, rule, &mut trial, Some(&unresolved));
+            if swapped.is_some()
+                && !unresolved.get()
+                && matches!(trial, None | Some(MassPass::Evaluated(Some(_))))
+            {
+                *observed = trial;
+                return swapped;
+            }
+        }
+        self.integrate_face_legacy_in(face, f, rule, observed, None)
+    }
+
+    /// Whether the face's inner integral can run along the parameter with far fewer knot
+    /// spans: an open, unpinched B-spline face whose u has at least [`LARGE_NET_SPANS`] spans
+    /// and eight times those of v.
+    fn cheaper_inner_form(&self, face: usize) -> bool {
+        let surface = &self.faces[face].surface;
+        let Surface::Freeform { surface: s, .. } = surface else {
+            return false;
+        };
+        if surface.periodic() != (false, false) {
+            return false;
+        }
+        let (su, sv) = closed_spans(surface);
+        if su.is_finite() || sv.is_finite() || collapsed_sides(surface) != (None, None) {
+            return false;
+        }
+        let nu = breaks(&s.knots_u, s.degree_u).len();
+        let nv = breaks(&s.knots_v, s.degree_v).len();
+        nu >= LARGE_NET_SPANS && nu >= 8 * nv
+    }
+
+    fn integrate_face_legacy_in<const N: usize>(
+        &self,
+        face: usize,
+        f: impl Fn(V3, V3, V3) -> [f64; N],
+        rule: IntegralRule,
+        observed: &mut Option<MassPass>,
+        cheaper: Option<&std::cell::Cell<bool>>,
     ) -> Option<[f64; N]> {
         let fc = &self.faces[face];
         let surface = &fc.surface;
@@ -886,6 +975,10 @@ impl Part {
         // beside it, and the inner integral starts from that side, so that it vanishes there as
         // it does from a sphere's pole.
         let collapsed = collapsed_sides(surface);
+        // The cheaper form (only a face [`Self::cheaper_inner_form`] passed, no loop round u)
+        // integrates along v from the loop's first point; the swept area is still measured
+        // along u from it, and the loops' direction still reads it.
+        let cheaper = cheaper.filter(|_| !along_v);
         let reference = if along_v {
             let (lo, hi) = domain.v_range();
             [lo, hi]
@@ -893,14 +986,29 @@ impl Part {
                 .find_map(|v| surface.singular_v(v).filter(|s| (s - v).abs() < 1e-6))
                 .or(collapsed.1)
                 .unwrap_or(start.1)
+        } else if cheaper.is_some() {
+            start.1
         } else {
             collapsed.0.unwrap_or(start.0)
         };
         // (The swept area, read only where the loops do not run round u, is measured from the
         // same reference.)
-        let u_ref = if along_v { 0.0 } else { reference };
+        let u_ref = if along_v {
+            0.0
+        } else if cheaper.is_some() {
+            start.0
+        } else {
+            reference
+        };
         let term = |u: f64, v: f64, du: f64, dv: f64| {
-            let (weight, y) = if along_v {
+            let (weight, y) = if let Some(unresolved) = cheaper {
+                let cuts = surface_cuts(surface, spans.1, true, reference, v)?;
+                let (y, resolved) = integrate_checked(&cuts, |s| f(u, s));
+                if !resolved {
+                    unresolved.set(true);
+                }
+                (-du, y)
+            } else if along_v {
                 let cuts = surface_cuts(surface, spans.1, true, reference, v)?;
                 (-du, integrate(&cuts, |s| f(u, s)))
             } else {
@@ -2030,5 +2138,167 @@ mod tests {
                 assert_eq!(prefix_panels, full_panels);
             }
         }
+    }
+
+    /// A STEP file under construction: numbered entities, one per line.
+    struct Entities {
+        text: String,
+        last: usize,
+    }
+
+    impl Entities {
+        fn add(&mut self, body: String) -> usize {
+            self.last += 1;
+            self.text.push_str(&format!("#{} = {body};\n", self.last));
+            self.last
+        }
+
+        fn point(&mut self, p: [f64; 3]) -> usize {
+            self.add(format!(
+                "CARTESIAN_POINT('',({:?},{:?},{:?}))",
+                p[0], p[1], p[2]
+            ))
+        }
+
+        fn vertex(&mut self, p: [f64; 3]) -> usize {
+            let point = self.point(p);
+            self.add(format!("VERTEX_POINT('',#{point})"))
+        }
+
+        /// The oriented edge a → b along curve `c`.
+        fn edge(&mut self, a: usize, b: usize, c: usize, forward: bool) -> usize {
+            let e = self.add(format!("EDGE_CURVE('',#{a},#{b},#{c},.T.)"));
+            let sense = if forward { "T" } else { "F" };
+            self.add(format!("ORIENTED_EDGE('',*,*,#{e},.{sense}.)"))
+        }
+    }
+
+    /// STEP text of one open face S(u, v) = (u, v, u²) on the unit square: `spans` quadratic
+    /// Bézier spans in u (a net of 2·`spans` + 1 rows), one linear span in v, as a writer that
+    /// emits dense B-spline surfaces produces (#302). Its area is √5/2 + asinh(2)/4.
+    fn dense_ruled_face(spans: usize) -> String {
+        let x = |i: usize| i as f64 / (2 * spans) as f64;
+        // Bézier control heights of u ↦ u² over each span: a², ab, b².
+        let z = |i: usize| {
+            if i % 2 == 0 {
+                x(i) * x(i)
+            } else {
+                x(i - 1) * x(i + 1)
+            }
+        };
+        let list = |items: Vec<String>| items.join(",");
+        let mut e = Entities {
+            text: String::from(
+                "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('t'),'2;1');\nFILE_NAME('t','',(''),(''),'','','');\nFILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));\nENDSEC;\nDATA;\n",
+            ),
+            last: 0,
+        };
+        let (mut grid, mut low, mut high) = (Vec::new(), Vec::new(), Vec::new());
+        for i in 0..=2 * spans {
+            let a = e.point([x(i), 0.0, z(i)]);
+            let b = e.point([x(i), 1.0, z(i)]);
+            grid.push(format!("(#{a},#{b})"));
+            low.push(format!("#{a}"));
+            high.push(format!("#{b}"));
+        }
+        let v = [
+            e.vertex([0.0, 0.0, 0.0]),
+            e.vertex([1.0, 0.0, 1.0]),
+            e.vertex([1.0, 1.0, 1.0]),
+            e.vertex([0.0, 1.0, 0.0]),
+        ];
+        let mut mult = vec!["3".to_string()];
+        mult.extend(vec!["2".to_string(); spans - 1]);
+        mult.push("3".into());
+        let mult = list(mult);
+        let knots = list(
+            (0..=spans)
+                .map(|i| format!("{:?}", i as f64 / spans as f64))
+                .collect(),
+        );
+        let surface = e.add(format!(
+            "B_SPLINE_SURFACE_WITH_KNOTS('',2,1,({}),.UNSPECIFIED.,.F.,.F.,.F.,({mult}),(2,2),({knots}),(0.,1.),.UNSPECIFIED.)",
+            list(grid)
+        ));
+        let curve = |e: &mut Entities, points: Vec<String>| {
+            e.add(format!(
+                "B_SPLINE_CURVE_WITH_KNOTS('',2,({}),.UNSPECIFIED.,.F.,.F.,({mult}),({knots}),.UNSPECIFIED.)",
+                list(points)
+            ))
+        };
+        let (c_low, c_high) = (curve(&mut e, low), curve(&mut e, high));
+        let rule = |e: &mut Entities, from: [f64; 3]| {
+            let origin = e.point(from);
+            let direction = e.add("DIRECTION('',(0.,1.,0.))".into());
+            let vector = e.add(format!("VECTOR('',#{direction},1.)"));
+            e.add(format!("LINE('',#{origin},#{vector})"))
+        };
+        let (l_right, l_left) = (rule(&mut e, [1.0, 0.0, 1.0]), rule(&mut e, [0.0, 0.0, 0.0]));
+        let sides = [
+            e.edge(v[0], v[1], c_low, true),
+            e.edge(v[1], v[2], l_right, true),
+            e.edge(v[3], v[2], c_high, false),
+            e.edge(v[0], v[3], l_left, false),
+        ];
+        let sides = list(sides.iter().map(|s| format!("#{s}")).collect());
+        let lp = e.add(format!("EDGE_LOOP('',({sides}))"));
+        let bound = e.add(format!("FACE_OUTER_BOUND('',#{lp},.T.)"));
+        let face = e.add(format!("ADVANCED_FACE('',(#{bound}),#{surface},.T.)"));
+        let shell = e.add(format!("CLOSED_SHELL('',(#{face}))"));
+        let model = e.add(format!("MANIFOLD_SOLID_BREP('',#{shell})"));
+        let units = e.last + 3;
+        let context = e.add(format!(
+            "( GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#{},#{},#{})) REPRESENTATION_CONTEXT('c','3D') )",
+            units,
+            units + 1,
+            units + 2
+        ));
+        e.add(format!(
+            "ADVANCED_BREP_SHAPE_REPRESENTATION('',(#{model}),#{context})"
+        ));
+        e.add("( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) )".into());
+        e.add("( NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.) )".into());
+        e.add("( NAMED_UNIT(*) SI_UNIT($,.STERADIAN.) SOLID_ANGLE_UNIT() )".into());
+        e.text.push_str("ENDSEC;\nEND-ISO-10303-21;\n");
+        e.text
+    }
+
+    /// The face's area and the surface evaluations its moments cost.
+    fn dense_ruled_area(spans: usize) -> (f64, usize) {
+        let part = crate::step::read_step(dense_ruled_face(spans).as_bytes()).unwrap();
+        crate::nurbs::EVALUATIONS.with(|n| n.set(0));
+        let area = part.face_moments(0).unwrap().area;
+        (area, crate::nurbs::EVALUATIONS.with(|n| n.get()))
+    }
+
+    /// A face with a large B-spline net costs surface evaluations in proportion to its spans,
+    /// not their square (#302: integrating along u crossed every u span at every boundary
+    /// sample).
+    #[test]
+    fn a_dense_bspline_face_costs_evaluations_linear_in_its_spans() {
+        let exact = 5f64.sqrt() / 2.0 + 2f64.asinh() / 4.0;
+        let ((a128, n128), (a256, n256)) = (dense_ruled_area(128), dense_ruled_area(256));
+        assert!((a128 - exact).abs() < 1e-12, "{a128} vs {exact}");
+        assert!((a256 - exact).abs() < 1e-12, "{a256} vs {exact}");
+        // Linear: about 1 000 evaluations a span (the stock integral, along u at every boundary
+        // sample, needed 43 000 a span at 128 spans and quadruple that at 256).
+        assert!(n128 < 128 * 2_000, "{n128} evaluations");
+        assert!(
+            n256 * 10 < n128 * 25,
+            "{n128} -> {n256} evaluations is not linear"
+        );
+    }
+
+    /// The cheaper form's inner rule is used only where it agrees with itself on halves: a
+    /// density with a narrow dip (a strip whose normal nearly reverses) sends the face back to
+    /// the stock form (#302).
+    #[test]
+    fn the_checked_inner_rule_rejects_a_narrow_dip() {
+        let smooth = |s: f64| [(1.0 + s * s).sqrt(), s];
+        let (sum, resolved) = integrate_checked(&[0.0, 1.0], smooth);
+        assert!(resolved);
+        assert_eq!(sum, integrate(&[0.0, 1.0], smooth));
+        let dip = |s: f64| [(1e-6 + (s - 0.3) * (s - 0.3)).sqrt()];
+        assert!(!integrate_checked(&[0.0, 1.0], dip).1);
     }
 }
