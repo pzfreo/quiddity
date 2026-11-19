@@ -13,6 +13,12 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Changed
 
+- Edge fillets are reported at any radius. The absolute 0.6 mm floor is gone: boxes and prisms
+  with every edge rounded at about 0.3 to 0.55 mm, which gave no fillet record at all, now
+  report all twelve rounds, and small rounds elsewhere (R0.2 to 0.55 on CAD parts, root
+  fillets on gears) report as fillets instead of generic blends. The tangent-wall, sweep and
+  material proofs are unchanged; only rounds under 0.0005 mm, which would publish as radius
+  0, stay unreported. For #297.
 - Geometry provenance and declared-unit metadata use lossless packed STEP records,
   decoding selected attributes or the current record without retaining a second
   owned graph. Face and edge identity, reference validation, refusals and assemblies

@@ -20,8 +20,11 @@ use crate::kernel::classify::material_at;
 use crate::kernel::geom::{self, Surface, V3, dominant_axis};
 use crate::kernel::py;
 
-/// A minimum-evidence threshold, deliberately absolute (ADR 0008).
-pub(super) const MIN_RADIUS: f64 = 0.6;
+/// The smallest round that can be published: radii are rounded to 3 decimals, so below half a
+/// micrometre the published radius would read 0. Every larger round is reported at its own
+/// radius, with no part-relative or absolute size floor (#297); the tangent-wall, sweep and
+/// material proofs below are what separate an edge round from any other small cylinder.
+pub(super) const MIN_RADIUS: f64 = 0.0005;
 /// Nearly half-turn rounds between nearly parallel walls are groove/slot full-round
 /// bottoms, not edge fillets (#120). Keep walls at least 45° apart.
 const FILLET_MAX_EXTENT: f64 = 3.0 * PI / 4.0;

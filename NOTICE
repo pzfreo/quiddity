@@ -24,6 +24,12 @@ Test fixture tests/fixtures/cast_bearing_unit.step.gz is Apache-2.0 from
 pzfreo/step-diff-demo, cast_bearing_unit.step at commit
 9f1018816812bb0d305f7b7d06d4d5262afd60a2, by Paul Fremantle, supplied for #120.
 
+The two tests/fixtures/brep-conformance/*.step.gz files (rounded-boxes-dd2233577a7b962b and
+rounded-prisms-2e6ad17301305f19, #297) are STEP files written by OpenCascade 8.0.1 for cases of
+springcraft-ai/brep-conformance 1.0.0 (https://github.com/springcraft-ai/brep-conformance),
+MIT licence, Copyright (c) 2026 Springcraft, Inc.; the MIT licence text is in
+tests/fixtures/brep-conformance/LICENSE.
+
 Test fixture tests/fixtures/spotface_outer_steps.step is an original Apache-2.0
 analytic construction made for #118 by tools/make_spotface_fixture.py, using only
 Python's standard library and no third-party model or external dataset.

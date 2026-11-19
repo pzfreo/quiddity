@@ -391,8 +391,8 @@ The round scoring correspondence also includes complete rolling-ball `blends` se
 by the published material side (`convex` or `concave`). MFInstSeg round includes both
 external rounds and internal fillets, as confirmed by its labelled concave blend faces.
 Their smooth supports and complete path are already proved; this also includes external
-rounds below the legacy fillet radius floor.
-The fillet recogniser's radius and convexity rules are unchanged. Defining-face sets
+rounds that are not fillets.
+The fillet recogniser's convexity rules are unchanged. Defining-face sets
 shared by a fillet and a blend still count as one prediction.
 
 The MFInstSeg scorer evaluates the internal caller-space inventory. Its chamfer class
@@ -508,7 +508,9 @@ A partial cylinder rounding a convex edge between two tangent planar walls is a 
 at any angle and in any direction. Principal and oblique runs use the same intrinsic
 proof: two distinct nonparallel transverse walls, each tangent within the existing
 coordinate tolerance, an outward cylindrical material side, and an empty-space probe
-towards the round from the virtual sharp corner. Radius limits are unchanged.
+towards the round from the virtual sharp corner. There is no minimum radius beyond
+publishability (0.0005 mm: radii are rounded to 3 decimals, so a smaller round would read 0;
+#297); the upper limit is unchanged.
 The contact tolerance is `max(part.file_uncertainty(), COORD_FLOOR)`, with
 `COORD_FLOOR` (0.000001 mm) as the fallback for files without a stated precision.
 The STEP reader supplies the file uncertainty in millimetres; CTC-03 states 0.00002 mm.
