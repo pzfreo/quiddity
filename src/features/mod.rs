@@ -778,8 +778,10 @@ fn inventory_in_with(
     if retry {
         return Ok(None);
     }
+    let unmeasured = unmeasured_faces(part);
     let mut defining = Kept {
         part,
+        unmeasured: unmeasured.iter().copied().collect(),
         claimed: Defining::new(),
         defining: Defining::new(),
         constituent: Defining::new(),
@@ -810,6 +812,15 @@ fn inventory_in_with(
         discover!("thin_wall_bodies", thin_walls::discover(ctx)),
     );
     let mut discovery_refusals = BTreeMap::new();
+    if !unmeasured.is_empty() {
+        discovery_refusals.insert(
+            "unmeasured_face_refusals",
+            unmeasured
+                .iter()
+                .map(|&face| discovery::DiscoveryRefusal::new("unmeasured_face", [face]))
+                .collect(),
+        );
+    }
     let (passages, compatibility) =
         isolation::guarded(&mut failures, "section_passages", "discover", || {
             Some((|| {
@@ -1302,6 +1313,9 @@ fn inventory_in_with(
 /// Defining and constituent faces by family field name, then record.
 struct Kept<'p> {
     part: &'p Part,
+    /// Faces whose area and centroid cannot be computed ([`unmeasured_faces`]); no record
+    /// is kept that defines or consults one.
+    unmeasured: BTreeSet<usize>,
     claimed: Defining,
     defining: Defining,
     constituent: Defining,
@@ -1317,13 +1331,41 @@ fn kept<R>(kept: &mut Kept<'_>, family: &'static str, found: Vec<Occurrence<R>>)
     kept_shared(kept, family, found)
 }
 
+/// The faces of *part* whose geometry resolved but whose area and centroid `haecceity` cannot
+/// integrate (`Part::face_moments`), for example a cylinder bounded by one closed circle,
+/// whose extent along its axis is undefined. They are left out of recognition and published
+/// as `unmeasured_face_refusals`; faces of unresolved geometry are reported by the warnings
+/// and have their own handling.
+pub(super) fn unmeasured_faces(part: &Part) -> Vec<usize> {
+    (0..part.faces.len())
+        .filter(|&f| {
+            part.unresolved_faces().binary_search(&f).is_err() && part.face_moments(f).is_none()
+        })
+        .collect()
+}
+
 /// A proved whole spring takes precedence over descriptions of its individual wire
 /// patches. Filter before storing records/evidence, so patterns inherit accepted members.
+/// Occurrences that define or consult an unmeasured face are dropped here too: no value is
+/// invented for a face that cannot be measured.
 fn without_spring_claims<R>(
     kept: &Kept<'_>,
     family: &str,
     found: Vec<Occurrence<R>>,
 ) -> Vec<Occurrence<R>> {
+    let found = if kept.unmeasured.is_empty() {
+        found
+    } else {
+        found
+            .into_iter()
+            .filter(|o| {
+                !o.defining
+                    .iter()
+                    .chain(&o.context)
+                    .any(|f| kept.unmeasured.contains(f))
+            })
+            .collect()
+    };
     if family == "helical_springs" {
         return found;
     }

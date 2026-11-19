@@ -20,6 +20,15 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
+- A face whose area and centroid cannot be computed (a cylinder bounded by one closed circle,
+  as some converters write a degenerate face) is left out of recognition and published as an
+  `unmeasured_face_refusals` record (`UnmeasuredFaceRefusal`, reason `unmeasured_face`; its
+  face is `refused` in `face_accounting`). Before, a hole could be recognised on it with
+  invented values (depth 0, `flat`). Records that define or consult the face are dropped;
+  the rest of the part is recognised. Additive in `recognition/6`. The part frame is still
+  refused (`unmeasured-face`) because the volume needs every face, so such a part is
+  recognised in file coordinates. specify-core must stop refusing the whole part on this
+  face (`describe_faces`). For #303.
 - Reading a STEP file no longer sizes per-solid work by every face in the file: the import's
   outward-shell proof and the ray casters keep their face boxes and membership for the
   solid's own faces, the unresolved-face and unresolved-edge lookups search a sorted list, and
