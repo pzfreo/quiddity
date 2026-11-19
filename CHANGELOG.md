@@ -6,6 +6,18 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+### Added
+
+- Owned-snapshot STEP geometry entry points release parsed input bytes before B-rep
+  construction; file and recognition snapshot readers preserve the original source digest.
+
+### Changed
+
+- Geometry provenance and declared-unit metadata use lossless packed STEP records,
+  decoding selected attributes or the current record without retaining a second
+  owned graph. Face and edge identity, reference validation, refusals and assemblies
+  are unchanged.
+
 ### Fixed
 
 - Reading a STEP file no longer sizes per-solid work by every face in the file: the import's

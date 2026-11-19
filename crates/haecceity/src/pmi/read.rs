@@ -31,7 +31,7 @@ use super::{
 };
 use crate::express::{self, Edition, Family};
 use crate::p21::{Attribute, Document, RawEntity, visit_attributes};
-use crate::step::PartDefinition;
+use crate::step::{PartDefinition, RecordGraph};
 
 /// Reads the semantic PMI of every part of `doc`. `parts` are `read_part_definitions` of the
 /// same bytes.
@@ -121,8 +121,12 @@ pub(crate) struct DeclaredUnits {
 
 /// Unit metadata is optional. Graph/record errors discard the entire metadata pass and
 /// never enter the geometry reader's error path. No lossless-document scanner is involved.
-pub(crate) fn declared_length_units(graph: &step_io::parser::Graph, bytes: &[u8]) -> DeclaredUnits {
-    declared_units_impl(graph, bytes).unwrap_or_default()
+pub(crate) fn declared_length_units(
+    graph: &impl RecordGraph,
+    header: &[RawEntity],
+    bytes: &[u8],
+) -> DeclaredUnits {
+    declared_units_impl(graph, header, bytes).unwrap_or_default()
 }
 
 #[derive(Default)]
@@ -136,7 +140,7 @@ struct ReachedItems {
 /// Cycles and dangling references are metadata errors, not geometry-import refusals.
 fn reached_items(
     root: u64,
-    graph: &step_io::parser::Graph,
+    graph: &impl RecordGraph,
     reader: &UnitReader<'_>,
     memo: &mut HashMap<u64, ReachedItems>,
 ) -> Option<()> {
@@ -162,7 +166,8 @@ fn reached_items(
                     reached.faces.push(id);
                 } else {
                     let mut children = Vec::new();
-                    visit_attributes(graph.entities.get(&id)?, &mut |a| {
+                    let record = graph.record(id)?;
+                    visit_attributes(record.as_ref(), &mut |a| {
                         if let Attribute::EntityRef(child) = a {
                             children.push(*child);
                         }
@@ -196,20 +201,32 @@ fn reached_items(
     Some(())
 }
 
-fn declared_units_impl(graph: &step_io::parser::Graph, bytes: &[u8]) -> Option<DeclaredUnits> {
-    let mut reader = UnitReader::new(UnitSource::Graph { graph, bytes });
+fn declared_units_impl(
+    graph: &impl RecordGraph,
+    header: &[RawEntity],
+    bytes: &[u8],
+) -> Option<DeclaredUnits> {
+    let mut reader = UnitReader::new(UnitSource::Graph {
+        graph,
+        header,
+        bytes,
+    });
     let mut representations = HashMap::new();
     let mut faces = HashMap::new();
     let mut links: HashMap<u64, Vec<u64>> = HashMap::new();
     let mut roots: HashMap<u64, Vec<u64>> = HashMap::new();
     let mut memo = HashMap::new();
-    for (&id, entity) in &graph.entities {
+    for id in graph.ids() {
         // Avoid schema ancestry walks for the many points, curves and surfaces. All shape
         // representation kinds the geometry importer supports have these external leaves.
         let candidate = |name: &str| {
             name.contains("SHAPE_REPRESENTATION") || name == "SHAPE_DEFINITION_REPRESENTATION"
         };
-        if !match entity {
+        if !graph.is_complex(id) && !graph.kind(id).is_some_and(candidate) {
+            continue;
+        }
+        let entity = graph.indexed_record(id);
+        if !match entity.as_ref() {
             RawEntity::Simple { name, .. } => candidate(name),
             RawEntity::Complex { parts, .. } => parts.iter().any(|p| candidate(&p.name)),
         } {

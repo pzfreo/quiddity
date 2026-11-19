@@ -48,7 +48,7 @@ use crate::correspondence::{self, Fingerprints, Recognition};
 use crate::frames::RecordFrame;
 use crate::kernel::brep::Part;
 use crate::kernel::step::{
-    IDENTITY, Placement, StepError, decode_step_file_bytes, read_step_placed,
+    IDENTITY, Placement, StepError, decode_step_file_bytes, read_step_placed_owned,
 };
 use crate::part_input;
 use crate::recognition::{self, RecognitionDocument};
@@ -199,7 +199,7 @@ fn recognise_bytes_placed(
         decode_step_file_bytes(std::path::Path::new(path), bytes)
             .map_err(|e| read_failure(path, &e))?
     };
-    let part = read_step_placed(&step_bytes, placement).map_err(|e| read_failure(path, &e))?;
+    let part = read_step_placed_owned(step_bytes, placement).map_err(|e| read_failure(path, &e))?;
     let mut recognition = correspondence::recognise(&part);
     recognition.source_sha256 = Some(source_sha256);
     let document = recognition::document(&recognition, part.faces.len());

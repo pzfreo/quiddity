@@ -1,11 +1,15 @@
 //! Shared schema access and exact unit/factor resolution. Context selection policy stays
 //! separate: semantic PMI is lenient, declared metadata requires unambiguous declarations.
 use super::*;
-use step_io::parser::Graph;
+use std::borrow::Cow;
 
 pub(super) enum Source<'a> {
     Document(&'a Document),
-    Graph { graph: &'a Graph, bytes: &'a [u8] },
+    Graph {
+        graph: &'a dyn RecordGraph,
+        header: &'a [RawEntity],
+        bytes: &'a [u8],
+    },
 }
 
 pub(super) struct UnitReader<'a> {
@@ -20,7 +24,7 @@ impl<'a> UnitReader<'a> {
     pub(super) fn new(source: Source<'a>) -> Self {
         let schema = match &source {
             Source::Document(doc) => doc.file_schema().ok().and_then(|s| s.into_iter().next()),
-            Source::Graph { graph, .. } => graph.header.iter().find_map(|entity| {
+            Source::Graph { header, .. } => header.iter().find_map(|entity| {
                 let RawEntity::Simple {
                     name, attributes, ..
                 } = entity
@@ -52,17 +56,16 @@ impl<'a> UnitReader<'a> {
         }
     }
 
-    fn graph(&self) -> &'a Graph {
+    fn record(&self, id: u64) -> Option<Cow<'a, RawEntity>> {
         match self.source {
-            Source::Document(doc) => doc.graph(),
-            Source::Graph { graph, .. } => graph,
+            Source::Document(doc) => doc.graph().entities.get(&id).map(Cow::Borrowed),
+            Source::Graph { graph, .. } => graph.record(id),
         }
     }
 
     pub(super) fn names(&self, id: u64) -> Vec<String> {
-        self.graph()
-            .entities
-            .get(&id)
+        self.record(id)
+            .as_deref()
             .map(leaf_names)
             .unwrap_or_default()
     }
@@ -105,9 +108,32 @@ impl<'a> UnitReader<'a> {
     }
 
     /// Attribute `attr` declared by `entity` (both lower case) of instance `id`.
+    /// Semantic-PMI callers borrow the editing document's stable attribute tree.
     pub(super) fn get(&mut self, id: u64, entity: &str, attr: &str) -> Option<&'a Attribute> {
-        let e = self.graph().entities.get(&id)?;
-        match e {
+        let Cow::Borrowed(record) = self.record(id)? else {
+            return None;
+        };
+        self.attribute(record, entity, attr)
+    }
+
+    /// Metadata queries can own one decoded record without retaining a second graph.
+    fn get_value(&mut self, id: u64, entity: &str, attr: &str) -> Option<Cow<'a, Attribute>> {
+        match self.record(id)? {
+            Cow::Borrowed(record) => self.attribute(record, entity, attr).map(Cow::Borrowed),
+            Cow::Owned(record) => self
+                .attribute(&record, entity, attr)
+                .cloned()
+                .map(Cow::Owned),
+        }
+    }
+
+    fn attribute<'r>(
+        &mut self,
+        record: &'r RawEntity,
+        entity: &str,
+        attr: &str,
+    ) -> Option<&'r Attribute> {
+        match record {
             RawEntity::Simple {
                 name, attributes, ..
             } => {
@@ -132,16 +158,16 @@ impl<'a> UnitReader<'a> {
     }
 
     pub(super) fn get_ref(&mut self, id: u64, entity: &str, attr: &str) -> Option<u64> {
-        ref1(self.get(id, entity, attr))
+        ref1(self.get_value(id, entity, attr).as_deref())
     }
 
     pub(super) fn get_refs(&mut self, id: u64, entity: &str, attr: &str) -> Vec<u64> {
-        refs(self.get(id, entity, attr))
+        refs(self.get_value(id, entity, attr).as_deref())
     }
 
     /// A string attribute, decoded; `None` when unset.
     pub(super) fn get_str(&mut self, id: u64, entity: &str, attr: &str) -> Option<String> {
-        match self.get(id, entity, attr)? {
+        match self.get_value(id, entity, attr)?.as_ref() {
             Attribute::String(s) => Some(s.clone()),
             _ => None,
         }
@@ -149,14 +175,17 @@ impl<'a> UnitReader<'a> {
 
     /// The text of the REAL `target` (an attribute of instance `id`) as the file writes it.
     pub(super) fn real_text(&self, id: u64, target: &Attribute) -> Option<String> {
+        self.record_real_text(id, self.record(id)?.as_ref(), target)
+    }
+
+    fn record_real_text(&self, id: u64, record: &RawEntity, target: &Attribute) -> Option<String> {
         if let Attribute::Integer(i) = target {
             return Some(i.to_string());
         }
-        let e = self.graph().entities.get(&id)?;
         let mut n = 0usize;
         let mut found = None;
         let mut count = 0usize;
-        visit_attributes(e, &mut |a| {
+        visit_attributes(record, &mut |a| {
             if let Attribute::Real(_) = a {
                 if std::ptr::eq(a, target) {
                     found = Some(n);
@@ -167,7 +196,9 @@ impl<'a> UnitReader<'a> {
         });
         let text = match self.source {
             Source::Document(doc) => &doc.bytes()[doc.span(id)?],
-            Source::Graph { bytes, .. } => bytes.get(usize::try_from(e.span().start).ok()?..)?,
+            Source::Graph { bytes, .. } => {
+                bytes.get(usize::try_from(record.span().start).ok()?..)?
+            }
         };
         // Graph spans locate #N; only this requested unit-factor record is tokenised.
         // No whole-file scanner, source copy, inverse references or edit policy is involved.
@@ -241,8 +272,9 @@ impl<'a> UnitReader<'a> {
         }
         let has = |n: &str| names.iter().any(|x| x == n);
         if has("si_unit") {
-            let prefix = enum_value(self.get(id, "si_unit", "prefix")).map(str::to_ascii_uppercase);
-            let name = enum_value(self.get(id, "si_unit", "name"))
+            let prefix = enum_value(self.get_value(id, "si_unit", "prefix").as_deref())
+                .map(str::to_ascii_uppercase);
+            let name = enum_value(self.get_value(id, "si_unit", "name").as_deref())
                 .map(str::to_ascii_uppercase)
                 .ok_or_else(|| MeasureError::unitless(format!("si_unit #{id} has no name")))?;
             let power = match prefix.as_deref() {
@@ -363,8 +395,13 @@ impl<'a> UnitReader<'a> {
                 self.entity_label(id)
             )));
         }
+        // Keep the record alive while locating the REAL by pointer within it.
+        // Matching by floating-point value would confuse equal-valued factors.
+        let record = self
+            .record(id)
+            .ok_or_else(|| MeasureError::nonconformance(format!("measure #{id} has no value")))?;
         let value = self
-            .get(id, "measure_with_unit", "value_component")
+            .attribute(record.as_ref(), "measure_with_unit", "value_component")
             .ok_or_else(|| MeasureError::nonconformance(format!("measure #{id} has no value")))?;
         let (type_name, inner) = match value {
             Attribute::Typed { type_name, value } => {
@@ -373,13 +410,13 @@ impl<'a> UnitReader<'a> {
             v => (None, v),
         };
         let text = match inner {
-            Attribute::Real(_) | Attribute::Integer(_) => {
-                self.real_text(id, inner).ok_or_else(|| {
+            Attribute::Real(_) | Attribute::Integer(_) => self
+                .record_real_text(id, record.as_ref(), inner)
+                .ok_or_else(|| {
                     MeasureError::nonconformance(format!(
                         "measure #{id}: the value's text could not be read"
                     ))
-                })?
-            }
+                })?,
             other => {
                 return Err(MeasureError::nonconformance(format!(
                     "measure #{id}: value {other:?} is not a number"

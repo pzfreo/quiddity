@@ -60,7 +60,7 @@ fn recognise_with_evidence_snapshot(path: &str, bytes: Vec<u8>) -> Result<String
         .collect::<String>();
     let step_bytes = step::decode_step_file_bytes(std::path::Path::new(path), bytes)
         .map_err(|e| format!("{path}: {e}"))?;
-    let part = step::read_step(&step_bytes).map_err(|e| format!("{path}: {e}"))?;
+    let part = step::read_step_owned(step_bytes).map_err(|e| format!("{path}: {e}"))?;
     let crate::correspondence::RecognitionWithEvidence {
         mut recognition,
         evidence,

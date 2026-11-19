@@ -61,6 +61,11 @@ reading real files faithfully, answering geometric questions about them exactly,
 
 ## Selected assembly bodies
 
+Use `step::read_step_owned(bytes)` when transferring a `Vec<u8>` to the reader,
+or `step::read_step_placed_owned(bytes, &placement)` for an explicit placement.
+File readers use the same ownership path; the borrowed-byte APIs remain available.
+See [STEP import memory](docs/step-provenance-memory.md) for the storage and lifetime contract.
+
 `step::StepFile` parses a STEP file once. `file.part(index)` reads one part definition
 in its own coordinates; `file.placed(&keep)` reads chosen body instances in their original
 file coordinates. Supply the whole-file `Part::face_source(face).instance` numbers (or
