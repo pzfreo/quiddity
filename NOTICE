@@ -66,5 +66,6 @@ text and symbols of GD&T frames, matching the sizes CAD systems give a native TO
 
 The tests/fixtures/brep-conformance/ STEP files are from springcraft-ai/brep-conformance
 1.0.0 (https://github.com/springcraft-ai/brep-conformance), MIT licence, as written by
-OpenCascade 8.0.1 for its published chamfer cases, gzip-compressed and otherwise unchanged;
-they were supplied for #298 and #301.
+OpenCascade 8.0.1 for its published chamfer and fillet cases, gzip-compressed and otherwise
+unchanged (the licence text is in tests/fixtures/brep-conformance/LICENSE); they were supplied
+for #297, #298 and #301.

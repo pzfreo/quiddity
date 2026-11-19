@@ -1372,6 +1372,17 @@ axial depth to the 2.0 mm cylinder span. Printing ↧2.0 from that top face woul
 locate the floor incorrectly. This is callout guidance; the existing dimension
 planner is not changed to generate chamfer notes.
 
+### Conical-body rim chamfers (#298)
+
+A narrow coaxial cone joined convexly to an end plane and to a conical body's cone, and shorter
+than that cone (so the body itself is never read as a rim), is published as a turned `chamfers`
+record, with its legs measured along the end plane and along the body's cone from their virtual
+sharp rim. The turned body keeps the cone in its profile, so both records list the face in face
+accounting. These chamfers are appended after the sorted existing chamfers, so saved
+`f:chamfers:N` ranks do not move. Hole mouth cones stay nested in `mouth_chamfers` as above
+(#244): a standalone chamfer per mouth would widen correspondence ambiguities on symmetric
+hole patterns. No field is added, so the schema stays at recognition/6.
+
 ### Saved face anchors
 
 On #244, `holes/0` retains faces `[3,10]` and anchor **3**. Its sub-record claims

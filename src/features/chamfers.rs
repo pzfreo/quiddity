@@ -128,6 +128,13 @@ pub fn discover(ctx: &Context<'_>, opts: &ChamferOptions) -> Vec<Occurrence<Cham
             .cmp(&b.record.axis)
             .then_with(|| py::tuple_order(&a.record.at[..], &b.record.at[..]))
     });
+    // The edge breaks of conical rims are appended after the sorted records, so a saved rank of any
+    // earlier chamfer does not move (#298).
+    let rims: Vec<Occurrence<Chamfer>> = (0..part.faces.len())
+        .filter(|f| !out.iter().any(|o| o.defining.contains(f)))
+        .filter_map(|f| cone_body_rim(part, f, tol, max_leg))
+        .collect();
+    out.extend(rims);
     out
 }
 }
@@ -351,6 +358,93 @@ fn turned(
     let transverse = !turned::transverse_planes(part, &neighbours, d).is_empty();
     if !transverse && !turned::bridges_two_bands(&coaxial) {
         return None; // a taper meeting one band, not a bevelled edge
+    }
+    let at = part.face_centre(face)?;
+    Some(Occurrence {
+        record: chamfer(edge_axis, leg_hi, leg_lo, at, true, None),
+        defining: vec![face],
+        context: vec![],
+    })
+}
+
+/// An edge break on the rim of a conical body: a narrow coaxial cone between a transverse end
+/// plane and the body's cone, both joined convexly (a chamfer of a cone's base or top). The
+/// legs are measured along the end plane and along the body's cone, from the virtual sharp
+/// rim where the two meet, as for a chamfer between any two faces (#298). The band must be
+/// shorter than the body cone it breaks into, so the body itself is never read as a rim.
+fn cone_body_rim(part: &Part, face: usize, tol: f64, max_leg: f64) -> Option<Occurrence<Chamfer>> {
+    let Surface::Cone {
+        frame: band,
+        semi_angle: band_angle,
+        ..
+    } = part.faces[face].surface
+    else {
+        return None;
+    };
+    let d = band.z;
+    let edge_axis = dominant_axis(d.map(f64::abs));
+    if d[edge_axis].abs() < AXIS_ALIGNED_COS {
+        return None;
+    }
+    let axial = |p: V3| geom::dot(geom::sub(p, band.origin), d);
+    // Radius and axial position of the circle two faces share.
+    let rim_with = |other: usize| {
+        part.shared_edges(face, other)
+            .into_iter()
+            .find_map(|e| match part.edges[e].curve {
+                geom::Curve::Circle { frame, radius } => Some((radius, axial(frame.origin))),
+                _ => None,
+            })
+    };
+    let slope = |frame: crate::kernel::geom::Frame, angle: f64| angle.tan() * geom::dot(frame.z, d);
+    let mut plane = None;
+    let mut body = None;
+    for n in part.neighbours(face) {
+        if part.arc(face, n) != Some(crate::kernel::brep::Arc::Convex) {
+            continue;
+        }
+        let surface = &part.faces[n].surface;
+        if let Surface::Plane { frame } = surface
+            && geom::dot(frame.z, d).abs() > AXIS_ALIGNED_COS
+        {
+            if plane.replace((n, *frame)).is_some() {
+                return None;
+            }
+        } else if let Surface::Cone {
+            frame,
+            radius,
+            semi_angle,
+        } = surface
+            && geom::dot(frame.z, d).abs() > 1. - 1e-9
+            && geom::norm(geom::cross(geom::sub(frame.origin, band.origin), d)) <= COORD_FLOOR
+            && (slope(*frame, *semi_angle) - slope(band, band_angle)).abs() > 1e-6
+            && body.replace((n, *frame, *radius, *semi_angle)).is_some()
+        {
+            return None;
+        }
+    }
+    let ((plane_face, plane_frame), (body_face, body_frame, body_radius, body_angle)) =
+        (plane?, body?);
+    let (r_plane, z_plane) = rim_with(plane_face)?;
+    let (r_body, z_body) = rim_with(body_face)?;
+    // The body's own radius where the end plane cuts it: the virtual sharp rim.
+    let r_corner = body_radius
+        + geom::dot(
+            geom::sub(plane_frame.origin, body_frame.origin),
+            body_frame.z,
+        ) * body_angle.tan();
+    if r_plane <= 0. || r_body <= 0. || r_corner <= r_plane {
+        return None;
+    }
+    let leg_plane = r_corner - r_plane;
+    let leg_body = (r_corner - r_body).hypot(z_plane - z_body);
+    let slant = match turned::cone_rims(part, body_face) {
+        Some(((r0, c0), (r1, c1), _)) => (r1 - r0).hypot(geom::dot(geom::sub(c1, c0), d)),
+        None => r_body / body_angle.sin().abs(),
+    };
+    let (leg_hi, leg_lo) = (leg_plane.max(leg_body), leg_plane.min(leg_body));
+    if below_minimum(leg_lo, tol) || leg_hi > max_leg || leg_body > slant {
+        return None;
     }
     let at = part.face_centre(face)?;
     Some(Occurrence {

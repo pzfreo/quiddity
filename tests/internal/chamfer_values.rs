@@ -52,6 +52,92 @@ fn chamfered_rectilinear_corners_keep_their_legs() {
     }
 }
 
+/// An edge-break cone on a conical body's rim is a chamfer measured along the end plane and
+/// along the body's cone (a base on a pointed cone, either end of a frustum), and the turned
+/// body still owns the same cone face, so the two records are linked through it (#298).
+#[test]
+fn conical_body_rim_chamfers_are_published_and_linked_to_the_turned_body() {
+    use quiddity::features;
+    for (name, legs, count) in [
+        ("rims_cone_apex_base_chamfer.step.gz", 0.69, 1),
+        ("rims_frustum_one_chamfer.step.gz", 0.623, 1),
+        ("rims_frustum_two_chamfers.step.gz", 0.651, 2),
+        ("rims_cylinder_two_chamfers.step.gz", 0.799, 2),
+    ] {
+        let p = part(name);
+        let f = features::recognise(&p);
+        assert_eq!(f.chamfers.len(), count, "{name}: {:?}", f.chamfers);
+        assert_eq!(f.turned_bodies.len(), 1, "{name}");
+        for (i, c) in f.chamfers.iter().enumerate() {
+            assert_eq!(
+                (c.leg1, c.leg2, c.angle, c.turned),
+                (legs, legs, 45., true),
+                "{name}"
+            );
+            let face = f.defining["chamfers"][i][0];
+            assert!(
+                f.turned_bodies[0].profile.iter().any(|s| s.face == face),
+                "{name}: the profile keeps the cone"
+            );
+        }
+        let doc = quiddity::recognition::document(
+            &quiddity::correspondence::recognise(&p),
+            p.faces.len(),
+        );
+        let linked = doc
+            .face_accounting
+            .unwrap()
+            .iter()
+            .filter(|a| {
+                matches!(a, quiddity::recognition::FaceAccounting::Feature { record_ids }
+                    if record_ids.iter().any(|r| r.starts_with("chamfers/"))
+                        && record_ids.contains(&"turned_bodies/0".into()))
+            })
+            .count();
+        assert_eq!(linked, count, "{name}");
+    }
+}
+
+/// A fillet on the same rims is not a chamfer.
+#[test]
+fn conical_body_rim_fillets_are_not_chamfers() {
+    for name in [
+        "rims_frustum_fillet.step.gz",
+        "rims_cone_apex_fillet.step.gz",
+    ] {
+        assert!(
+            quiddity::features::recognise(&part(name))
+                .chamfers
+                .is_empty(),
+            "{name}"
+        );
+    }
+}
+
+/// A hole's mouth edge break stays nested in the hole's `mouth_chamfers` (#244): size, depth,
+/// angle and cone face are right for the brep-conformance hole-rim chamfers, and no standalone
+/// chamfer is published for it (#298).
+#[test]
+fn hole_mouth_chamfers_stay_nested_with_the_right_values() {
+    use quiddity::features;
+    for (name, size) in [
+        ("hole_rim_chamfer_a.step.gz", 1.0914),
+        ("hole_rim_chamfer_b.step.gz", 0.542),
+    ] {
+        let f = features::recognise(&part(name));
+        assert_eq!(f.holes.len(), 1, "{name}");
+        let [m] = &f.holes[0].mouth_chamfers[..] else {
+            panic!("{name}: {:?}", f.holes[0].mouth_chamfers)
+        };
+        assert!(
+            (m.size - size).abs() < 5e-4 && (m.depth - size).abs() < 5e-4 && m.angle == 45.,
+            "{name}: {m:?}"
+        );
+        assert_eq!(m.faces.len(), 1, "{name}");
+        assert!(f.chamfers.is_empty(), "{name}");
+    }
+}
+
 /// An MFCAD++ part whose section has several oblique sides: the big slanted face stays the
 /// angled step it is published as, and is no chamfer candidate (#301).
 #[test]
