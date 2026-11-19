@@ -77,6 +77,10 @@ fn integrate<const N: usize>(cuts: &[f64], f: impl Fn(f64) -> [f64; N]) -> [f64;
 /// Knot spans in u from which a B-spline face's inner integral may run along v instead (#302).
 const LARGE_NET_SPANS: usize = 32;
 
+/// How small a node's motion across its inner integral's parameter, against its motion along
+/// the other, is not counted (round-off in an edge along a parameter line of the surface).
+const NEGLIGIBLE_MOTION: f64 = 1e-12;
+
 /// [`integrate`], also reporting whether every panel's rule agrees with the same rule on its
 /// two halves to 1e-9 of the terms' magnitudes in each component (and 1e-12 of the largest component's): a density with a narrow
 /// dip (a strip whose normal nearly reverses) fails it, and its caller then uses the other
@@ -1000,9 +1004,18 @@ impl Part {
         } else {
             reference
         };
+        // A node moving along its inner integral's own parameter line (an edge that is a side
+        // of the surface: dv = 0 to round-off for the stock form) weighs nothing; where that
+        // integral crosses many knot spans, its terms are not evaluated.
+        let negligible = |weight: f64, other: f64, cuts: &[f64]| {
+            cuts.len() > LARGE_NET_SPANS && weight.abs() <= NEGLIGIBLE_MOTION * other.abs()
+        };
         let term = |u: f64, v: f64, du: f64, dv: f64| {
             let (weight, y) = if let Some(unresolved) = cheaper {
                 let cuts = surface_cuts(surface, spans.1, true, reference, v)?;
+                if negligible(du, dv, &cuts) {
+                    return Some([0.0; N]);
+                }
                 let (y, resolved) = integrate_checked(&cuts, |s| f(u, s));
                 if !resolved {
                     unresolved.set(true);
@@ -1010,9 +1023,15 @@ impl Part {
                 (-du, y)
             } else if along_v {
                 let cuts = surface_cuts(surface, spans.1, true, reference, v)?;
+                if negligible(du, dv, &cuts) {
+                    return Some([0.0; N]);
+                }
                 (-du, integrate(&cuts, |s| f(u, s)))
             } else {
                 let cuts = surface_cuts(surface, spans.0, false, reference, u)?;
+                if negligible(dv, du, &cuts) {
+                    return Some([0.0; N]);
+                }
                 (dv, integrate(&cuts, |s| f(s, v)))
             };
             Some(y.map(|y| weight * y))
