@@ -124,8 +124,8 @@ pub struct RecognitionDocument {
 pub struct Bodies {
     /// Solids of the part (`MANIFOLD_SOLID_BREP`, `BREP_WITH_VOIDS`, faceted B-reps).
     pub solids: usize,
-    /// Void shells in all: the shells of each solid beyond its outer one
-    /// (`BREP_WITH_VOIDS`).
+    /// Void shells in all, as the file declares them (`BREP_WITH_VOIDS`), not edge-connected
+    /// face groups.
     pub void_shells: usize,
     /// With more than one solid: each solid's face indices, ascending, in file order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -136,7 +136,7 @@ impl Bodies {
     /// The summary of *part*, or `None` for a single solid of one shell (and for no solid).
     pub fn of(part: &crate::kernel::brep::Part) -> Option<Self> {
         let void_shells = (0..part.solids.len())
-            .map(|s| part.shell_count(s).saturating_sub(1))
+            .map(|s| part.declared_void_shells(s))
             .sum();
         (part.solids.len() > 1 || void_shells > 0).then(|| Self {
             solids: part.solids.len(),

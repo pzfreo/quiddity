@@ -42,8 +42,10 @@ fingerprints keep their previous meaning. Readers should ignore unknown fields.
   ascending). Recognition is not done per solid: records are found over all the part's faces
   together and may pair faces of different solids, so a caller that needs one body at a time
   should refuse the part or split it by `solid_faces`. The CLI and `serve` also warn when
-  `solids` exceeds one; void shells are stated without a warning. A file of several products
-  is read per product (`part(i)`), not through this field. `bodies` is absent for a single
+  `solids` exceeds one; void shells are stated without a warning. A whole-file run over an
+  assembly counts the solids of all its products together (the AP242 `assembly.step` fixture
+  reports three); `part(i)` reads one product at a time. `void_shells` are the shells the file
+  declares (`BREP_WITH_VOIDS`), not edge-connected face groups. `bodies` is absent for a single
   solid with one shell (and for no solid, which has its own warning), and in older documents.
   Additive: schema 6 and every record are unchanged.
 - Every `records[]` entry carries `evidence_status`: `verified` or `unproved`.
