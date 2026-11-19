@@ -35,6 +35,17 @@ fingerprints keep their previous meaning. Readers should ignore unknown fields.
   wires retain the original senses and signed volume. Ray-parity classification
   remains independent of those senses.
   Missing `input_repairs` means no repair was reported, including in older documents.
+- `bodies`, when present, states that the part is not a single solid of one shell:
+  `solids` (the count of `MANIFOLD_SOLID_BREP`, `BREP_WITH_VOIDS` and faceted solids read
+  into the part), `void_shells` (shells beyond each solid's outer one, from
+  `BREP_WITH_VOIDS`) and, with more than one solid, `solid_faces` (each solid's face indices,
+  ascending). Recognition is not done per solid: records are found over all the part's faces
+  together and may pair faces of different solids, so a caller that needs one body at a time
+  should refuse the part or split it by `solid_faces`. The CLI and `serve` also warn when
+  `solids` exceeds one; void shells are stated without a warning. A file of several products
+  is read per product (`part(i)`), not through this field. `bodies` is absent for a single
+  solid with one shell (and for no solid, which has its own warning), and in older documents.
+  Additive: schema 6 and every record are unchanged.
 - Every `records[]` entry carries `evidence_status`: `verified` or `unproved`.
   Verified means the kernel's existing strict evidence ownership check succeeded:
   the record has defining faces and all defining and consulted faces belong to

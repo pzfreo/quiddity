@@ -11,6 +11,14 @@ in [docs/alpha1.md](docs/alpha1.md).
 - Owned-snapshot STEP geometry entry points release parsed input bytes before B-rep
   construction; file and recognition snapshot readers preserve the original source digest.
 
+- The recognition document states a part's several solids and its void shells in an additive
+  optional `bodies` field (`solids`, `void_shells`, and with several solids each solid's
+  `solid_faces`), and the CLI and `serve` warn when a part holds more than one solid. Records
+  are still found over the part's faces together, so a caller that needs one body at a time can
+  refuse the part or split it by `solid_faces`. Absent for a single one-shell solid; schema 6
+  and every record are unchanged. `Recognition` and `RecognitionDocument` (non-exhaustive) gain
+  the field, and `recognition::Bodies` is new. For #300.
+
 ### Changed
 
 - Geometry provenance and declared-unit metadata use lossless packed STEP records,
