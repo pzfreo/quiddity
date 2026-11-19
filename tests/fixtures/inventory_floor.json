@@ -19117,9 +19117,9 @@
       "file": "captured/cdbb50ecd934508f.step.gz",
       "mode": "accepted",
       "family": "blends",
-      "max_lost": 4,
-      "reason": "For #120, tangent convex constant-radius rounds at arbitrary wall angles and directions are fillets, superseding generic blends: main 5 -> 3. The historical baseline is retained. For #127, concave constant-radius rounds between tangent walls pass the intrinsic fillet proof and supersede generic blends. The historical floor 5 is retained; 1 blends remain.",
-      "evidence": "Measured at main 2b291b2 and the #120 implementation in accepted coordinates. Every removed blend record is fully covered by current fillet defining faces, with tangent supports, convex material side, sweep at most 135 degrees and agreement with 180 degrees minus the wall angle within 0.5 degrees. Promoted main records: [{\"id\":\"blends/1\",\"faces\":[95]},{\"id\":\"blends/3\",\"faces\":[208]}]. Full e58d174 face/record audit: faces [111], R1.0, faces [64], R1.0. Each face becomes a concave fillet; other accepted defining claims are reserved (src/features/fillets.rs, src/features/mod.rs)."
+      "max_lost": 5,
+      "reason": "For #120, tangent convex constant-radius rounds at arbitrary wall angles and directions are fillets, superseding generic blends: main 5 -> 3. The historical baseline is retained. For #127, concave constant-radius rounds between tangent walls pass the intrinsic fillet proof and supersede generic blends. The historical floor 5 is retained; 1 blends remain. For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "Measured at main 2b291b2 and the #120 implementation in accepted coordinates. Every removed blend record is fully covered by current fillet defining faces, with tangent supports, convex material side, sweep at most 135 degrees and agreement with 180 degrees minus the wall angle within 0.5 degrees. Promoted main records: [{\"id\":\"blends/1\",\"faces\":[95]},{\"id\":\"blends/3\",\"faces\":[208]}]. Full e58d174 face/record audit: faces [111], R1.0, faces [64], R1.0. Each face becomes a concave fillet; other accepted defining claims are reserved (src/features/fillets.rs, src/features/mod.rs). The lost accepted blends (R0.5 convex blends) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
     },
     {
       "file": "captured/d099f35d94b357db.step.gz",
@@ -19173,17 +19173,17 @@
       "file": "corpus/cadgenbench_inputs/cgb207.step",
       "mode": "accepted",
       "family": "blends",
-      "max_lost": 4,
-      "reason": "For #120, tangent convex constant-radius rounds at arbitrary wall angles and directions are fillets, superseding generic blends: main 5 -> 3. The historical baseline is retained. For #127, concave constant-radius rounds between tangent walls pass the intrinsic fillet proof and supersede generic blends. The historical floor 5 is retained; 1 blends remain.",
-      "evidence": "Measured at main 2b291b2 and the #120 implementation in accepted coordinates. Every removed blend record is fully covered by current fillet defining faces, with tangent supports, convex material side, sweep at most 135 degrees and agreement with 180 degrees minus the wall angle within 0.5 degrees. Promoted main records: [{\"id\":\"blends/1\",\"faces\":[95]},{\"id\":\"blends/3\",\"faces\":[208]}]. Full e58d174 face/record audit: faces [111], R1.0, faces [64], R1.0. Each face becomes a concave fillet; other accepted defining claims are reserved (src/features/fillets.rs, src/features/mod.rs)."
+      "max_lost": 5,
+      "reason": "For #120, tangent convex constant-radius rounds at arbitrary wall angles and directions are fillets, superseding generic blends: main 5 -> 3. The historical baseline is retained. For #127, concave constant-radius rounds between tangent walls pass the intrinsic fillet proof and supersede generic blends. The historical floor 5 is retained; 1 blends remain. For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "Measured at main 2b291b2 and the #120 implementation in accepted coordinates. Every removed blend record is fully covered by current fillet defining faces, with tangent supports, convex material side, sweep at most 135 degrees and agreement with 180 degrees minus the wall angle within 0.5 degrees. Promoted main records: [{\"id\":\"blends/1\",\"faces\":[95]},{\"id\":\"blends/3\",\"faces\":[208]}]. Full e58d174 face/record audit: faces [111], R1.0, faces [64], R1.0. Each face becomes a concave fillet; other accepted defining claims are reserved (src/features/fillets.rs, src/features/mod.rs). The lost accepted blends (small convex rounds (R0.2 to R0.5)) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
     },
     {
       "file": "corpus/cadgenbench_inputs/cgb207.step",
       "mode": "framed",
       "family": "blends",
-      "max_lost": 4,
-      "reason": "For #120, tangent convex constant-radius rounds at arbitrary wall angles and directions are fillets, superseding generic blends: main 5 -> 3. The historical baseline is retained. For #127, concave constant-radius rounds between tangent walls pass the intrinsic fillet proof and supersede generic blends. The historical floor 5 is retained; 1 blends remain.",
-      "evidence": "Measured at main 2b291b2 and the #120 implementation in framed coordinates. Every removed blend record is fully covered by current fillet defining faces, with tangent supports, convex material side, sweep at most 135 degrees and agreement with 180 degrees minus the wall angle within 0.5 degrees. Promoted main records: [{\"id\":\"blends/1\",\"faces\":[95]},{\"id\":\"blends/3\",\"faces\":[208]}]. Full e58d174 face/record audit: faces [111], R1.0, faces [64], R1.0. Each face becomes a concave fillet; other accepted defining claims are reserved (src/features/fillets.rs, src/features/mod.rs)."
+      "max_lost": 5,
+      "reason": "For #120, tangent convex constant-radius rounds at arbitrary wall angles and directions are fillets, superseding generic blends: main 5 -> 3. The historical baseline is retained. For #127, concave constant-radius rounds between tangent walls pass the intrinsic fillet proof and supersede generic blends. The historical floor 5 is retained; 1 blends remain. For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "Measured at main 2b291b2 and the #120 implementation in framed coordinates. Every removed blend record is fully covered by current fillet defining faces, with tangent supports, convex material side, sweep at most 135 degrees and agreement with 180 degrees minus the wall angle within 0.5 degrees. Promoted main records: [{\"id\":\"blends/1\",\"faces\":[95]},{\"id\":\"blends/3\",\"faces\":[208]}]. Full e58d174 face/record audit: faces [111], R1.0, faces [64], R1.0. Each face becomes a concave fillet; other accepted defining claims are reserved (src/features/fillets.rs, src/features/mod.rs). The lost accepted blends (small convex rounds (R0.2 to R0.5)) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
     },
     {
       "file": "corpus/cadgenbench_inputs/cgb217.step.gz",
@@ -19221,33 +19221,33 @@
       "file": "corpus/cadgenbench_inputs/cgb242.step.gz",
       "mode": "accepted",
       "family": "blends",
-      "max_lost": 4,
-      "reason": "For #120, tangent convex constant-radius rounds at arbitrary wall angles and directions are fillets, superseding generic blends: main 14 -> 12. The historical baseline is retained. For #127, concave constant-radius rounds between tangent walls pass the intrinsic fillet proof and supersede generic blends. The historical floor 14 is retained; 10 blends remain.",
-      "evidence": "Measured at main 2b291b2 and the #120 implementation in accepted coordinates. Every removed blend record is fully covered by current fillet defining faces, with tangent supports, convex material side, sweep at most 135 degrees and agreement with 180 degrees minus the wall angle within 0.5 degrees. Promoted main records: [{\"id\":\"blends/10\",\"faces\":[862]},{\"id\":\"blends/13\",\"faces\":[843]}]. Full e58d174 face/record audit: faces [555], R1.0, faces [621], R1.0. Each face becomes a concave fillet; other accepted defining claims are reserved (src/features/fillets.rs, src/features/mod.rs)."
+      "max_lost": 5,
+      "reason": "For #120, tangent convex constant-radius rounds at arbitrary wall angles and directions are fillets, superseding generic blends: main 14 -> 12. The historical baseline is retained. For #127, concave constant-radius rounds between tangent walls pass the intrinsic fillet proof and supersede generic blends. The historical floor 14 is retained; 10 blends remain. For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "Measured at main 2b291b2 and the #120 implementation in accepted coordinates. Every removed blend record is fully covered by current fillet defining faces, with tangent supports, convex material side, sweep at most 135 degrees and agreement with 180 degrees minus the wall angle within 0.5 degrees. Promoted main records: [{\"id\":\"blends/10\",\"faces\":[862]},{\"id\":\"blends/13\",\"faces\":[843]}]. Full e58d174 face/record audit: faces [555], R1.0, faces [621], R1.0. Each face becomes a concave fillet; other accepted defining claims are reserved (src/features/fillets.rs, src/features/mod.rs). The lost accepted blends (small convex rounds (R0.2 to R0.5)) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
     },
     {
       "file": "corpus/cadgenbench_inputs/cgb242.step.gz",
       "mode": "framed",
       "family": "blends",
-      "max_lost": 4,
-      "reason": "For #120, tangent convex constant-radius rounds at arbitrary wall angles and directions are fillets, superseding generic blends: main 14 -> 12. The historical baseline is retained. For #127, concave constant-radius rounds between tangent walls pass the intrinsic fillet proof and supersede generic blends. The historical floor 14 is retained; 10 blends remain.",
-      "evidence": "Measured at main 2b291b2 and the #120 implementation in framed coordinates. Every removed blend record is fully covered by current fillet defining faces, with tangent supports, convex material side, sweep at most 135 degrees and agreement with 180 degrees minus the wall angle within 0.5 degrees. Promoted main records: [{\"id\":\"blends/11\",\"faces\":[843]},{\"id\":\"blends/12\",\"faces\":[862]}]. Full e58d174 face/record audit: faces [621], R1.0, faces [555], R1.0. Each face becomes a concave fillet; other accepted defining claims are reserved (src/features/fillets.rs, src/features/mod.rs)."
+      "max_lost": 5,
+      "reason": "For #120, tangent convex constant-radius rounds at arbitrary wall angles and directions are fillets, superseding generic blends: main 14 -> 12. The historical baseline is retained. For #127, concave constant-radius rounds between tangent walls pass the intrinsic fillet proof and supersede generic blends. The historical floor 14 is retained; 10 blends remain. For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "Measured at main 2b291b2 and the #120 implementation in framed coordinates. Every removed blend record is fully covered by current fillet defining faces, with tangent supports, convex material side, sweep at most 135 degrees and agreement with 180 degrees minus the wall angle within 0.5 degrees. Promoted main records: [{\"id\":\"blends/11\",\"faces\":[843]},{\"id\":\"blends/12\",\"faces\":[862]}]. Full e58d174 face/record audit: faces [621], R1.0, faces [555], R1.0. Each face becomes a concave fillet; other accepted defining claims are reserved (src/features/fillets.rs, src/features/mod.rs). The lost accepted blends (small convex rounds (R0.2 to R0.5)) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
     },
     {
       "file": "corpus/cadgenbench_inputs/cgb243.step.gz",
       "mode": "accepted",
       "family": "blends",
-      "max_lost": 9,
-      "reason": "For #120, two proved tangent convex rounds become fillets, superseding generic blends: main 10 -> 8. The historical baseline is retained. For #127, concave constant-radius rounds between tangent walls pass the intrinsic fillet proof and supersede generic blends. The historical floor 10 is retained; 1 blends remain.",
-      "evidence": "Faces 309 (R4, wall angle 64.838701 degrees, sweep 115.161299 degrees) and 314 (R3.5, wall angle 95 degrees, sweep 85 degrees) were blends on main 87914a5 and are now fillets in both accepted and framed coordinates. Both have tangent supports, an outward cylinder and an empty convex-corner probe; both sweeps match 180 degrees minus the wall angle and remain below 135 degrees. The two removed blend records are fully covered by these fillet defining faces; no other family claims either face. Full e58d174 face/record audit: faces [497], R1.0, faces [509], R1.0, faces [510], R1.0, faces [511], R1.0, faces [499], R1.0, faces [420], R2.5, faces [421], R2.5. Each face becomes a concave fillet; other accepted defining claims are reserved (src/features/fillets.rs, src/features/mod.rs)."
+      "max_lost": 10,
+      "reason": "For #120, two proved tangent convex rounds become fillets, superseding generic blends: main 10 -> 8. The historical baseline is retained. For #127, concave constant-radius rounds between tangent walls pass the intrinsic fillet proof and supersede generic blends. The historical floor 10 is retained; 1 blends remain. For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "Faces 309 (R4, wall angle 64.838701 degrees, sweep 115.161299 degrees) and 314 (R3.5, wall angle 95 degrees, sweep 85 degrees) were blends on main 87914a5 and are now fillets in both accepted and framed coordinates. Both have tangent supports, an outward cylinder and an empty convex-corner probe; both sweeps match 180 degrees minus the wall angle and remain below 135 degrees. The two removed blend records are fully covered by these fillet defining faces; no other family claims either face. Full e58d174 face/record audit: faces [497], R1.0, faces [509], R1.0, faces [510], R1.0, faces [511], R1.0, faces [499], R1.0, faces [420], R2.5, faces [421], R2.5. Each face becomes a concave fillet; other accepted defining claims are reserved (src/features/fillets.rs, src/features/mod.rs). The lost accepted blends (small convex rounds (R0.2 to R0.5)) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
     },
     {
       "file": "corpus/cadgenbench_inputs/cgb243.step.gz",
       "mode": "framed",
       "family": "blends",
-      "max_lost": 9,
-      "reason": "For #120, two proved tangent convex rounds become fillets, superseding generic blends: main 10 -> 8. The historical baseline is retained. For #127, concave constant-radius rounds between tangent walls pass the intrinsic fillet proof and supersede generic blends. The historical floor 10 is retained; 1 blends remain.",
-      "evidence": "Faces 309 (R4, wall angle 64.838701 degrees, sweep 115.161299 degrees) and 314 (R3.5, wall angle 95 degrees, sweep 85 degrees) were blends on main 87914a5 and are now fillets in both accepted and framed coordinates. Both have tangent supports, an outward cylinder and an empty convex-corner probe; both sweeps match 180 degrees minus the wall angle and remain below 135 degrees. The two removed blend records are fully covered by these fillet defining faces; no other family claims either face. Full e58d174 face/record audit: faces [420], R2.5, faces [421], R2.5, faces [499], R1.0, faces [497], R1.0, faces [511], R1.0, faces [509], R1.0, faces [510], R1.0. Each face becomes a concave fillet; other accepted defining claims are reserved (src/features/fillets.rs, src/features/mod.rs)."
+      "max_lost": 10,
+      "reason": "For #120, two proved tangent convex rounds become fillets, superseding generic blends: main 10 -> 8. The historical baseline is retained. For #127, concave constant-radius rounds between tangent walls pass the intrinsic fillet proof and supersede generic blends. The historical floor 10 is retained; 1 blends remain. For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
+      "evidence": "Faces 309 (R4, wall angle 64.838701 degrees, sweep 115.161299 degrees) and 314 (R3.5, wall angle 95 degrees, sweep 85 degrees) were blends on main 87914a5 and are now fillets in both accepted and framed coordinates. Both have tangent supports, an outward cylinder and an empty convex-corner probe; both sweeps match 180 degrees minus the wall angle and remain below 135 degrees. The two removed blend records are fully covered by these fillet defining faces; no other family claims either face. Full e58d174 face/record audit: faces [420], R2.5, faces [421], R2.5, faces [499], R1.0, faces [497], R1.0, faces [511], R1.0, faces [509], R1.0, faces [510], R1.0. Each face becomes a concave fillet; other accepted defining claims are reserved (src/features/fillets.rs, src/features/mod.rs). The lost accepted blends (small convex rounds (R0.2 to R0.5)) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
     },
     {
       "file": "corpus/cadgenbench_inputs/cgb245.step",
@@ -19714,68 +19714,12 @@
       "evidence": "The lost accepted blends (four R0.01 convex blends) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
     },
     {
-      "file": "captured/cdbb50ecd934508f.step.gz",
-      "mode": "accepted",
-      "family": "blends",
-      "max_lost": 5,
-      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
-      "evidence": "The lost accepted blends (R0.5 convex blends) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
-    },
-    {
       "file": "captured/fcdbddb4c81aead8.step.gz",
       "mode": "accepted",
       "family": "blends",
       "max_lost": 4,
       "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
       "evidence": "The lost accepted blends (four R0.2 convex blends) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
-    },
-    {
-      "file": "corpus/cadgenbench_inputs/cgb207.step",
-      "mode": "accepted",
-      "family": "blends",
-      "max_lost": 5,
-      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
-      "evidence": "The lost accepted blends (small convex rounds (R0.2 to R0.5)) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
-    },
-    {
-      "file": "corpus/cadgenbench_inputs/cgb207.step",
-      "mode": "framed",
-      "family": "blends",
-      "max_lost": 5,
-      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
-      "evidence": "The lost accepted blends (small convex rounds (R0.2 to R0.5)) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
-    },
-    {
-      "file": "corpus/cadgenbench_inputs/cgb242.step.gz",
-      "mode": "accepted",
-      "family": "blends",
-      "max_lost": 5,
-      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
-      "evidence": "The lost accepted blends (small convex rounds (R0.2 to R0.5)) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
-    },
-    {
-      "file": "corpus/cadgenbench_inputs/cgb242.step.gz",
-      "mode": "framed",
-      "family": "blends",
-      "max_lost": 5,
-      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
-      "evidence": "The lost accepted blends (small convex rounds (R0.2 to R0.5)) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
-    },
-    {
-      "file": "corpus/cadgenbench_inputs/cgb243.step.gz",
-      "mode": "accepted",
-      "family": "blends",
-      "max_lost": 10,
-      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
-      "evidence": "The lost accepted blends (small convex rounds (R0.2 to R0.5)) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
-    },
-    {
-      "file": "corpus/cadgenbench_inputs/cgb243.step.gz",
-      "mode": "framed",
-      "family": "blends",
-      "max_lost": 10,
-      "reason": "For #297 the 0.6 mm fillet floor is gone. Rounds below it were reported as generic blends; each is now a fillet record on the same faces, and a fillet supersedes a blend on its defining faces. The blend count falls and the fillet count rises (fillets are floored separately).",
-      "evidence": "The lost accepted blends (small convex rounds (R0.2 to R0.5)) are tangent-wall cylinders of the same radius and side, now reported as fillets: every raw blend candidate on this part that left the accepted set has all its defining faces inside an accepted fillet (checked with inventory(): physical blends vs accepted fillets)."
     },
     {
       "file": "corpus/gramel/string_post.step",
