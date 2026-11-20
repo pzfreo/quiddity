@@ -52,6 +52,9 @@ pub struct Recognition {
     /// Reported kernel input repairs, carried into the recognition document.
     #[serde(skip)]
     pub input_repairs: Vec<String>,
+    /// Several solids or void shells, carried into the recognition document.
+    #[serde(skip)]
+    pub bodies: Option<crate::recognition::Bodies>,
     /// Positive body evidence in the inferred frame; never a feature claim.
     #[serde(skip)]
     pub(crate) body_evidence: BTreeMap<usize, crate::recognition::BodyReason>,
@@ -96,6 +99,7 @@ fn normalisation_refused(part: &Part) -> Recognition {
         },
         source_sha256: None,
         input_repairs: part.input_repairs().to_vec(),
+        bodies: crate::recognition::Bodies::of(part),
         body_evidence: BTreeMap::new(),
     }
 }
@@ -126,6 +130,7 @@ fn publish(
             frame,
             source_sha256: None,
             input_repairs: part.input_repairs().to_vec(),
+            bodies: crate::recognition::Bodies::of(part),
             body_evidence,
         }
     } else {
@@ -137,6 +142,7 @@ fn publish(
             frame,
             source_sha256: None,
             input_repairs: part.input_repairs().to_vec(),
+            bodies: crate::recognition::Bodies::of(part),
             body_evidence: BTreeMap::new(),
         }
     }
@@ -235,6 +241,7 @@ pub(crate) fn caller_space_recognise(part: &Part) -> Recognition {
             frame: RecordFrame::CallerSpace,
             source_sha256: None,
             input_repairs: part.input_repairs().to_vec(),
+            bodies: crate::recognition::Bodies::of(part),
             body_evidence: BTreeMap::new(),
         }
     })
