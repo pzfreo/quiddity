@@ -502,6 +502,15 @@ consulted, after reconciliation: a plane facing along the boss axis at the recor
 ring ends on is not claimed. Feature selection and record fields are unchanged; the boss's
 fingerprint `faces`, area-weighted `position` and `neighbourhood` change within format 3.
 
+## Turned fillets (`turned: true`)
+
+A `Fillet` with `turned: true` is a toroidal round: its `axis` is the torus's axis of
+revolution, not the direction the round runs along, and `radius` is the torus's minor radius.
+It does not mean a lathe feature. Besides rounds on turned bodies and bosses, it covers a convex
+round that follows a concave cylindrical wall of at most a half turn meeting a plane wall along
+its axis: a slot's or arc wall's rounded end, or the top round turning round an inside-corner
+round on a prismatic part (#307 item 7). A whole bore's mouth ring stays a `blends` record.
+
 ## Straight convex fillets (for #120)
 
 A partial cylinder rounding a convex edge between two tangent planar walls is a fillet

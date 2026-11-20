@@ -628,8 +628,9 @@ pub(super) fn internal_cylinders<'c>(
 /// A wall spanning more than a half turn is a bore, not a slot end.
 const SLOT_END_MAX_EXTENT: f64 = PI * 1.05;
 
-/// The support of a round on the open end of a slot wall (#307): the coaxial internal
-/// half-cylinder the convex torus is tangent to (its major radius is the wall's radius plus
+/// The support of a convex round that follows a concave cylindrical wall (#307): a slot's or
+/// arc wall's rounded end, or the top round turning round an inside-corner round. The coaxial
+/// internal cylinder of at most a half turn the convex torus is tangent to (its major radius is the wall's radius plus
 /// its own minor radius), the transverse face it rounds into, and a plane wall running along
 /// the axis that makes the cylinder a slot end rather than a whole bore (a whole bore's mouth
 /// ring is a `blends` record). Concave tori (grooves) and beads are refused.

@@ -8,8 +8,10 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Added
 
-- A convex toroidal edge round on a slot's rounded end (a coaxial internal half-cylinder wall
-  that meets a plane wall running along its axis, rounded into a transverse face, with the
+- A convex toroidal edge round that follows a concave cylindrical wall (a slot's or arc wall's
+  rounded end, or the top round turning round an inside-corner round): a coaxial internal
+  cylinder wall of at most a half turn that meets a plane wall running along its axis, rounded
+  into a transverse face, with the
   torus's major radius the wall's radius plus its minor radius) is published as a turned
   `Fillet` of the minor radius, where it was left unexplained beside the straight rounds along
   the slot's sides. A whole bore's mouth ring (still a `blends` record), concave grooves and
