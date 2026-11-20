@@ -1432,8 +1432,11 @@ At least one tip and one host are required. Any other join, a tangent join to an
 half-round tip, a host that is neither plane nor cylinder, or a side with a hole refuses the
 wall. The wall must also be *thin*: `t` at most a quarter of both the height and the length
 (below), or *slender*: at most a tenth of the length and 0.6 of the height (a 1.4 x 2.5 x
-38.5 cooling fin qualifies). A 4 x 10 x 30 fin is neither, and a miss is better than a wrong
-record.
+38.5 cooling fin qualifies), but the slender test applies only to a wall in a repeated array: at
+least three congruent walls (same thickness, height, length and host type) on one host, at a
+uniform pitch along a line or round the axis of a cylinder host. A lone slender bead or ridge
+falls back to the quarter rule and is not a fin. A 4 x 10 x 30 fin is neither, and a miss is
+better than a wrong record.
 Drafted (non-parallel) sides, root fillets and curved sides are not read.
 
 **Fields.** `normal` (the sides' unit normal; its sign is chosen in the recognition frame, the first
@@ -1457,6 +1460,9 @@ wrong length.
 **Ribs and `pads`.** A plain straight rib with a flat tip on a plate is a `pads` box, and `pads`
 claim it first, so a consumer counting ribs combines `pads` and `fins`. `fins` covers what no
 family claimed: walls on cylinders, half-round or triangular ribs.
+The one exception is an array: when a `pads` box lies wholly within a wall that is a congruent
+member of a recognised fin array (at least three such fins that no family claims), the fins take
+the box and its `pads` record is dropped, so one array is not split across two families.
 
 **Claims.** The record claims its two sides and its tips, which become `feature` faces in face
 accounting; it never claims a host or a flush face. It is published only when no other family

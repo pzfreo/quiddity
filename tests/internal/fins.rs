@@ -47,10 +47,11 @@ fn a_radial_fin_array_on_a_housing_is_sixteen_fins() {
 #[test]
 fn slender_ridges_on_a_barrel_are_fins() {
     // A real motor housing's fins: 1.4 thick, 2.5 proud, 38.5 long, 64 round the barrel. The
-    // four on the axes are the `pads`', so 60 are fins.
+    // four on the axes are `pads` boxes, handed to the fins as congruent members of the array.
     let f = recognise("fins_slender_ridges.step.gz");
-    assert_eq!(f.pads.len(), 4);
-    assert_eq!(f.fins.len(), 60);
+    assert!(f.pads.is_empty());
+    assert_eq!(f.fins.len(), 64);
+    assert_eq!(f.defining["pads"].len(), 0);
     for fin in &f.fins {
         assert_eq!((fin.thickness, fin.length), (1.4, 38.5));
         assert!((fin.height - 2.5).abs() < 0.01, "{}", fin.height);
@@ -105,6 +106,8 @@ fn a_rib_another_family_claims_is_not_published_twice() {
 #[test]
 fn walls_that_are_not_thin_fins_are_not_fins() {
     for name in [
+        "fins_lone_bead.step.gz",     // slender, but alone: not an array
+        "fins_ridge_wall.step.gz",    // slender, alone
         "fins_crossing_ribs.step.gz", // a junction splits each rib: no single length
         "fins_boss_pad.step.gz",      // a boss and a pad on a plate
         "fins_pocket.step.gz",        // the wall of a pocket

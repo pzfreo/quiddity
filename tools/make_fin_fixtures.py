@@ -15,8 +15,10 @@ Positives:
                        (Z -31..29), a rear wall (R13..46, Z -22..-18) and 64 radial 1.4-thick
                        fins, 2.5 proud of the barrel (box overlapping it by 0.5), Z -26.5..12.
                        Thickness is over a quarter of the height but 0.04 of the length.
-                       The four axis-aligned fins are claimed by `pads`: 60 fins.
+                       The four axis-aligned fins are `pads` boxes, handed to the array: 64 fins.
 Controls (no fin):
+  fins_lone_bead       a lone 1.5 x 2.5 x 60 half-round bead on a plate: slender, but alone
+  fins_ridge_wall      a lone 1.5 x 2.5 x 30 ridge running into a 6-thick upright wall
   fins_crossing_ribs   two crossing 70-long half-round-tip ribs on a plate: the junction splits
                        each into pieces whose length would be wrong, so no fin
   fins_ribbed_plate    the plate with three straight ribs at y = -20, 0, 20: `pads` claim
@@ -128,3 +130,10 @@ cross = base
 for angle in (0, 90):
     cross = cross + rib_70(angle)
 write(cross, "fins_crossing_ribs.step.gz")
+
+bead = Box(60, 1.5, 1.75, align=MIN_Z) + Cylinder(0.75, 60).rotate(Axis.Y, 90).moved(Location((0, 0, 1.75)))
+write(Box(100, 60, 6, align=MIN_Z) + bead.moved(Location((0, 0, 6))), "fins_lone_bead.step.gz")
+
+part = Box(60, 40, 6, align=MIN_Z) + Box(60, 6, 30, align=MIN_Z).moved(Location((0, 17, 6)))
+part = part + Box(1.5, 30, 2.5, align=MIN_Z).moved(Location((0, -1, 6)))
+write(part, "fins_ridge_wall.step.gz")

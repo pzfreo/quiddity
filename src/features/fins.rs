@@ -154,8 +154,138 @@ fn rim(part: &Part, side: usize, thickness: f64, tol: f64) -> Option<Rim> {
 /// Thin: a quarter of both height and length at most, or slender: a tenth of the length and
 /// 0.6 of the height at most.
 fn is_thin(t: f64, length: f64, height: f64) -> bool {
-    t <= MAX_THICKNESS_FRAC * length.min(height)
+    quarter_thin(t, length, height)
         || (t <= SLENDER_LENGTH_FRAC * length && t <= SLENDER_HEIGHT_FRAC * height)
+}
+
+/// Thin by the quarter rule alone, which a lone wall must meet.
+fn quarter_thin(t: f64, length: f64, height: f64) -> bool {
+    t <= MAX_THICKNESS_FRAC * length.min(height)
+}
+
+/// Positions and pitches of an array agree to this, mm (centres publish to 0.001).
+const ARRAY_TOL: f64 = 0.02;
+const ARRAY_ANGLE_TOL: f64 = 5e-3;
+
+fn same_size(a: &Fin, b: &Fin) -> bool {
+    a.host == b.host
+        && (a.thickness - b.thickness).abs() <= 2e-3
+        && (a.height - b.height).abs() <= 2e-3
+        && (a.length - b.length).abs() <= 2e-3
+}
+
+/// Whether the centres are at one uniform pitch along a line, or at one radius round a
+/// cylinder host's axis at one uniform angular pitch.
+fn patterned(part: &Part, group: &[&Fin]) -> bool {
+    if group.len() < 3 {
+        return false;
+    }
+    let pts: Vec<V3> = group.iter().map(|f| *f.at.raw()).collect();
+    // Linear: along the line through the two farthest centres.
+    let (mut a, mut b, mut far) = (0, 0, 0.);
+    for i in 0..pts.len() {
+        for j in i + 1..pts.len() {
+            let d = geom::norm(geom::sub(pts[i], pts[j]));
+            if d > far {
+                (a, b, far) = (i, j, d);
+            }
+        }
+    }
+    if far <= ARRAY_TOL {
+        return false;
+    }
+    let d = geom::scale(geom::sub(pts[b], pts[a]), 1. / far);
+    let mut along: Vec<f64> = Vec::new();
+    let line = pts.iter().all(|&p| {
+        let rel = geom::sub(p, pts[a]);
+        let t = geom::dot(rel, d);
+        along.push(t);
+        geom::norm(geom::sub(rel, geom::scale(d, t))) <= ARRAY_TOL
+    });
+    if line {
+        along.sort_by(f64::total_cmp);
+        let gaps: Vec<f64> = along.windows(2).map(|w| w[1] - w[0]).collect();
+        let (lo, hi) = gaps
+            .iter()
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(l, h), &g| {
+                (l.min(g), h.max(g))
+            });
+        return lo > ARRAY_TOL && hi - lo <= ARRAY_TOL;
+    }
+    // Radial, on the axis of a cylinder the walls stand on.
+    let Some((origin, axis)) =
+        group[0]
+            .host_faces
+            .iter()
+            .find_map(|&h| match part.faces[h].surface {
+                Surface::Cylinder { frame, .. } => Some((frame.origin, frame.z)),
+                _ => None,
+            })
+    else {
+        return false;
+    };
+    let basis = geom::unit(geom::cross(
+        axis,
+        if axis[0].abs() < 0.9 {
+            [1., 0., 0.]
+        } else {
+            [0., 1., 0.]
+        },
+    ));
+    let Some(u) = basis else { return false };
+    let v = geom::cross(axis, u);
+    let polar: Vec<(f64, f64, f64)> = pts
+        .iter()
+        .map(|&p| {
+            let rel = geom::sub(p, origin);
+            let z = geom::dot(rel, axis);
+            (
+                geom::dot(rel, u).hypot(geom::dot(rel, v)),
+                z,
+                geom::dot(rel, v).atan2(geom::dot(rel, u)),
+            )
+        })
+        .collect();
+    if polar
+        .iter()
+        .any(|q| (q.0 - polar[0].0).abs() > ARRAY_TOL || (q.1 - polar[0].1).abs() > ARRAY_TOL)
+    {
+        return false;
+    }
+    let mut angles: Vec<f64> = polar.iter().map(|q| q.2).collect();
+    angles.sort_by(f64::total_cmp);
+    let mut gaps: Vec<f64> = angles.windows(2).map(|w| w[1] - w[0]).collect();
+    gaps.push(angles[0] + std::f64::consts::TAU - angles[angles.len() - 1]);
+    let (lo, hi) = gaps
+        .iter()
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(l, h), &g| {
+            (l.min(g), h.max(g))
+        });
+    lo > ARRAY_ANGLE_TOL && hi - lo <= ARRAY_ANGLE_TOL
+}
+
+/// For each candidate, the indices of its repeated array (at least three congruent walls on
+/// one host in a linear or radial pattern), or `None`.
+fn arrays(part: &Part, found: &[Occurrence<Fin>]) -> Vec<Option<Vec<usize>>> {
+    let tol = super::bevel::cylinder_support_tolerance(part);
+    (0..found.len())
+        .map(|i| {
+            let group: Vec<usize> = (0..found.len())
+                .filter(|&j| {
+                    same_size(&found[i].record, &found[j].record)
+                        && found[i].record.host_faces.iter().any(|&x| {
+                            found[j]
+                                .record
+                                .host_faces
+                                .iter()
+                                .any(|&y| same_surface(part, x, y, 4. * tol))
+                        })
+                })
+                .collect();
+            let fins: Vec<&Fin> = group.iter().map(|&j| &found[j].record).collect();
+            patterned(part, &fins).then_some(group)
+        })
+        .collect()
 }
 
 fn edge_length(part: &Part, e: usize) -> f64 {
@@ -494,64 +624,133 @@ pub fn discover_verified(ctx: &Context<'_>) -> Result<Vec<Occurrence<Fin>>, Evid
 /// `step_levels` and `risers` and the whole-body classifications co-own faces and do not
 /// count as claims.
 pub(super) fn append(ctx: &Context<'_>, features: &mut super::Features) {
-    let claimed: BTreeSet<usize> = features
-        .defining
-        .iter()
-        .filter(|(family, _)| {
-            !matches!(
-                **family,
-                "step_levels"
-                    | "risers"
-                    | "thin_wall_bodies"
-                    | "sheet_metal_bodies"
-                    | "plates"
-                    | "polygonal_stock"
-                    | "turned_bodies"
+    let claims = |features: &super::Features, pads: bool| -> BTreeSet<usize> {
+        features
+            .defining
+            .iter()
+            .filter(|(family, _)| {
+                (pads || **family != "pads")
+                    && !matches!(
+                        **family,
+                        "step_levels"
+                            | "risers"
+                            | "thin_wall_bodies"
+                            | "sheet_metal_bodies"
+                            | "plates"
+                            | "polygonal_stock"
+                            | "turned_bodies"
+                    )
+            })
+            .flat_map(|(_, records)| records.iter().flatten().copied())
+            .chain(
+                features
+                    .discovery_refusals
+                    .values()
+                    .flatten()
+                    .flat_map(|r| r.faces.iter().copied()),
             )
-        })
-        .flat_map(|(_, records)| records.iter().flatten().copied())
-        .chain(
-            features
-                .discovery_refusals
-                .values()
-                .flatten()
-                .flat_map(|r| r.faces.iter().copied()),
-        )
-        .chain(
-            features
-                .interior_void_refusals
-                .iter()
-                .flat_map(|r| r.candidate.void_faces.iter().copied()),
-        )
-        .chain(
-            features
-                .modelled_thread_refusals
-                .iter()
-                .flat_map(|r| r.faces.iter().copied()),
-        )
-        .chain(
-            features
-                .section_recess_refusals
-                .iter()
-                .flat_map(|r| r.evidence().defining_faces().iter().copied()),
-        )
+            .chain(
+                features
+                    .interior_void_refusals
+                    .iter()
+                    .flat_map(|r| r.candidate.void_faces.iter().copied()),
+            )
+            .chain(
+                features
+                    .modelled_thread_refusals
+                    .iter()
+                    .flat_map(|r| r.faces.iter().copied()),
+            )
+            .chain(
+                features
+                    .section_recess_refusals
+                    .iter()
+                    .flat_map(|r| r.evidence().defining_faces().iter().copied()),
+            )
+            .collect()
+    };
+    let claimed = claims(features, true);
+    let claimed_but_pads = claims(features, false);
+    let candidates = discover(ctx);
+    let arrays = arrays(ctx.part, &candidates);
+    let pads: Vec<BTreeSet<usize>> = features
+        .defining
+        .get("pads")
+        .map(|p| p.iter().map(|f| f.iter().copied().collect()).collect())
+        .unwrap_or_default();
+    // Members no family claims: an array needs three of them to be recognised.
+    let free: Vec<bool> = candidates
+        .iter()
+        .map(|o| o.record.side_faces.iter().all(|f| !claimed.contains(f)))
         .collect();
     let mut taken = BTreeSet::new();
-    let found: Vec<_> = discover(ctx)
-        .into_iter()
-        // A claimed side drops the wall; a claimed tip is left to its claimant.
-        .filter(|o| o.record.side_faces.iter().all(|f| !claimed.contains(f)))
-        .map(|mut o| {
+    let mut dropped_pads = BTreeSet::new();
+    let mut found = Vec::new();
+    for (i, mut o) in candidates.into_iter().enumerate() {
+        let array = arrays[i].as_ref();
+        // A slender wall is a fin only as a member of a repeated array.
+        if array.is_none() && !quarter_thin(o.record.thickness, o.record.length, o.record.height) {
+            continue;
+        }
+        if !free[i] {
+            // A side another family claims drops the wall. Only a `pads` box lying wholly
+            // within this wall, and congruent with a recognised array of fins, is handed over.
+            let wall: BTreeSet<usize> = o
+                .record
+                .side_faces
+                .iter()
+                .chain(&o.record.tip_faces)
+                .copied()
+                .collect();
+            let own_sides = || o.record.side_faces.iter().filter(|f| claimed.contains(f));
+            if own_sides().any(|f| claimed_but_pads.contains(f)) {
+                continue;
+            }
+            let owners: Vec<usize> = (0..pads.len())
+                .filter(|&p| pads[p].iter().any(|f| wall.contains(f)))
+                .collect();
+            let recognised = array.is_some_and(|g| g.iter().filter(|&&j| free[j]).count() >= 3);
+            if owners.iter().any(|&p| !pads[p].is_subset(&wall)) {
+                continue;
+            }
+            if !owners.is_empty() && !recognised {
+                continue;
+            }
+            if owners.is_empty() {
+                continue;
+            }
+            dropped_pads.extend(owners);
+            o.defining.retain(|f| !claimed_but_pads.contains(f));
+        } else {
+            // A claimed tip is left to its claimant.
             o.defining.retain(|f| !claimed.contains(f));
-            o
-        })
+        }
         // A face is one wall's: an ambiguous second claim drops that wall.
-        .filter(|o| {
-            let fresh = o.defining.iter().all(|f| !taken.contains(f));
-            taken.extend(o.defining.iter().copied());
-            fresh
-        })
+        let fresh = o.defining.iter().all(|f| !taken.contains(f));
+        taken.extend(o.defining.iter().copied());
+        if fresh {
+            found.push(o);
+        }
+    }
+    // A dropped box belongs to a wall that did publish.
+    let kept_faces: BTreeSet<usize> = found
+        .iter()
+        .flat_map(|o| o.defining.iter().copied())
         .collect();
+    dropped_pads.retain(|&p| pads[p].iter().all(|f| kept_faces.contains(f)));
+    for &p in dropped_pads.iter().rev() {
+        features.pads.remove(p);
+        if let Some(d) = features.defining.get_mut("pads") {
+            d.remove(p);
+        }
+        if let Some(e) = features
+            .evidence_status
+            .get_mut("pads")
+            .filter(|e| p < e.len())
+        {
+            e.remove(p);
+        }
+    }
     if found.is_empty() {
         return;
     }
