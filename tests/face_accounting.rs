@@ -723,8 +723,14 @@ fn rounded_stock_planes_are_body_by_envelope() {
     for face in [14, 17, 18, 21] {
         assert_eq!(groups[face], envelope, "flange side {face}");
     }
-    // The housing top is a cap inside the flange's envelope, and the fins are not stock.
-    assert_eq!(groups[23], FaceAccounting::Unexplained);
+    // The housing top is a cap inside the flange's envelope, and the fins are not stock. It is
+    // the cap its boss consults without claiming, so it reads `supporting` (was `unexplained`).
+    assert_eq!(
+        groups[23],
+        FaceAccounting::Supporting {
+            record_ids: vec!["bosses/0".into()]
+        }
+    );
     // Nothing a record claims is moved to body: the rule only adds body to unclaimed faces.
     let envelope_faces: Vec<_> = (0..groups.len())
         .filter(|&f| groups[f] == envelope)
