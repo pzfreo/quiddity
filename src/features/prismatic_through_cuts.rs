@@ -377,6 +377,7 @@ pub(crate) fn append(ctx: &Context<'_>, features: &mut Features) {
                 .flatten()
                 .copied()
         })
+        .chain(super::unmeasured_faces(ctx.part))
         .collect();
     let found = discover_uncovered(ctx, &occupied);
     if found.is_empty() {
