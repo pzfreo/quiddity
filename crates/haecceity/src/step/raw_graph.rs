@@ -18,6 +18,25 @@ pub(crate) trait RecordGraph {
     }
     fn kind(&self, id: u64) -> Option<&str>;
     fn is_complex(&self, id: u64) -> bool;
+    /// Whether any attribute of record `id`, at any depth and in any part, is an entity
+    /// reference into `ids`. Decoding stores override this with an allocation-free scan.
+    fn references_any(&self, id: u64, ids: &std::collections::HashSet<u64>) -> bool {
+        fn any(a: &Attribute, ids: &std::collections::HashSet<u64>) -> bool {
+            match a {
+                Attribute::EntityRef(id) => ids.contains(id),
+                Attribute::List(items) => items.iter().any(|a| any(a, ids)),
+                Attribute::Typed { value, .. } => any(value, ids),
+                _ => false,
+            }
+        }
+        self.record(id).is_some_and(|record| match record.as_ref() {
+            RawEntity::Simple { attributes, .. } => attributes.iter().any(|a| any(a, ids)),
+            RawEntity::Complex { parts, .. } => parts
+                .iter()
+                .flat_map(|p| &p.attributes)
+                .any(|a| any(a, ids)),
+        })
+    }
     fn attribute_at(&self, id: u64, part: Option<&str>, path: &[usize]) -> Option<Attribute>;
 }
 
