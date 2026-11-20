@@ -522,6 +522,10 @@ pub(crate) fn complex_reference_drops(graph: &impl crate::step::RecordGraph) -> 
     let mut slots = HashMap::new();
     let mut drops = Vec::new();
     for id in graph.ids() {
+        // Only records referencing a complex instance can be dropped; skip decoding the rest.
+        if !graph.references_any(id, &complex) {
+            continue;
+        }
         let record = graph.indexed_record(id);
         let mut inspect = |name: &str, slots: &[Slot], values: &[Param]| {
             for (slot, value) in slots.iter().zip(values) {
@@ -1497,5 +1501,92 @@ mod complex_reference_tests {
                 "{drops:?}"
             );
         }
+    }
+
+    /// Delegates to a graph but declares every record a candidate: the unfiltered path.
+    struct NoPrecheck<'a, G>(&'a G);
+
+    impl<G: crate::step::RecordGraph> crate::step::RecordGraph for NoPrecheck<'_, G> {
+        fn ids(&self) -> Box<dyn Iterator<Item = u64> + '_> {
+            self.0.ids()
+        }
+        fn record(&self, id: u64) -> Option<std::borrow::Cow<'_, RawEntity>> {
+            self.0.record(id)
+        }
+        fn kind(&self, id: u64) -> Option<&str> {
+            self.0.kind(id)
+        }
+        fn is_complex(&self, id: u64) -> bool {
+            self.0.is_complex(id)
+        }
+        fn references_any(&self, _: u64, _: &HashSet<u64>) -> bool {
+            true
+        }
+        fn attribute_at(&self, id: u64, part: Option<&str>, path: &[usize]) -> Option<Param> {
+            self.0.attribute_at(id, part, path)
+        }
+    }
+
+    /// Independent oracle: walk the decoded record.
+    fn decoded_references(record: &RawEntity, ids: &HashSet<u64>) -> bool {
+        fn any(a: &Param, ids: &HashSet<u64>) -> bool {
+            match a {
+                Param::EntityRef(id) => ids.contains(id),
+                Param::List(v) => v.iter().any(|a| any(a, ids)),
+                Param::Typed { value, .. } => any(value, ids),
+                _ => false,
+            }
+        }
+        match record {
+            RawEntity::Simple { attributes, .. } => attributes.iter().any(|a| any(a, ids)),
+            RawEntity::Complex { parts, .. } => parts
+                .iter()
+                .any(|p| p.attributes.iter().any(|a| any(a, ids))),
+        }
+    }
+
+    #[test]
+    fn precheck_matches_the_unfiltered_path() {
+        use crate::step::RecordGraph;
+        let base = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/golden_simple_through_hole.step"),
+        )
+        .unwrap();
+        let complex_face = "#17 = (ADVANCED_FACE() FACE((#18)) FACE_SURFACE(#32,.F.) REPRESENTATION_ITEM('') TOPOLOGICAL_REPRESENTATION_ITEM());";
+        let before = "#17 = ADVANCED_FACE('',(#18),#32,.F.);";
+        assert!(base.contains(before));
+        let texts = [
+            // No complex instance.
+            base.clone(),
+            // A complex instance that is referenced compatibly: no drop.
+            base.replace(before, complex_face),
+            // A complex instance referenced where a PLANE is not allowed: one drop.
+            base.replace(before, complex_face)
+                .replace("#32 = PLANE('',#33);", "#32 = PLANE('',#17);"),
+            // A complex source referencing a complex target: also one drop.
+            base.replace(
+                before,
+                &complex_face.replace("FACE_SURFACE(#32", "FACE_SURFACE(#17"),
+            ),
+        ];
+        let mut drop_counts = Vec::new();
+        for text in &texts {
+            let graph = step_io::parser::parse(text.as_bytes()).unwrap();
+            let packed = crate::step::PackedGraph::parse(text.as_bytes()).unwrap();
+            let complex: HashSet<u64> = graph.ids().filter(|&id| graph.is_complex(id)).collect();
+            for id in graph.ids() {
+                let expected = decoded_references(&graph.record(id).unwrap(), &complex);
+                assert_eq!(graph.references_any(id, &complex), expected, "#{id}");
+                assert_eq!(packed.references_any(id, &complex), expected, "#{id}");
+            }
+            let drops = complex_reference_drops(&NoPrecheck(&graph));
+            assert_eq!(complex_reference_drops(&graph), drops);
+            assert_eq!(complex_reference_drops(&packed), drops);
+            assert_eq!(complex_reference_drops(&NoPrecheck(&packed)), drops);
+            drop_counts.push(drops.len());
+        }
+        assert_eq!(drop_counts[0], 0);
+        assert!(drop_counts[2] > 0 && drop_counts[3] > 0, "{drop_counts:?}");
     }
 }
