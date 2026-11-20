@@ -990,6 +990,7 @@ fn inventory_in_with(
         discovery_refusals.insert("polygonal_boss_refusals", boss_analysis.refusals);
     }
     let pad_analysis = discover!("pads", pads::analyse(ctx, &Default::default()));
+    let mut radial_faces: BTreeSet<usize> = BTreeSet::new();
     let prismatic_analysis = discover!("prismatic_pockets", prismatic_pockets::analyse(ctx));
     if !pad_analysis.refusals.is_empty() {
         discovery_refusals.insert("pad_refusals", pad_analysis.refusals);
@@ -1214,14 +1215,14 @@ fn inventory_in_with(
         } else {
             kept(&mut defining, "rectangular_through_notches", notches)
         },
-        repeating_radial_profiles: kept(
-            &mut defining,
-            "repeating_radial_profiles",
-            discover!(
+        repeating_radial_profiles: {
+            let found = discover!(
                 "repeating_radial_profiles",
                 repeating_profiles::discover(ctx)
-            ),
-        ),
+            );
+            radial_faces.extend(found.iter().flat_map(|o| o.defining.iter().copied()));
+            kept(&mut defining, "repeating_radial_profiles", found)
+        },
         freeform_surfaces,
         modelled_threads,
         modelled_thread_refusals: thread_analysis.refusals.clone(),
@@ -1243,7 +1244,17 @@ fn inventory_in_with(
         ),
         oriented_slot_patterns: Vec::new(),
         oriented_slots,
-        pads: kept(&mut defining, "pads", pad_analysis.accepted),
+        // A pad whose faces all belong to one repeating radial profile is that profile's
+        // member (a fin of the array), not a pad of its own.
+        pads: kept(
+            &mut defining,
+            "pads",
+            pad_analysis
+                .accepted
+                .into_iter()
+                .filter(|o| !o.defining.iter().all(|f| radial_faces.contains(f)))
+                .collect(),
+        ),
         step_levels,
         risers,
         section_recesses: Vec::new(),

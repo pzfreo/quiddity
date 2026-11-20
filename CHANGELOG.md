@@ -63,6 +63,15 @@ in [docs/alpha1.md](docs/alpha1.md).
   and every record are unchanged. `Recognition` and `RecognitionDocument` (non-exhaustive) gain
   the field, and `recognition::Bodies` is new. For #300.
 
+- Radial fins that stop short of a barrel's ends (a finned motor housing's 64 fins) are one
+  `repeating_radial_profiles` record, as full-length fins already were: the two interior levels
+  at which the fins start and end, each with the host circle between the fins, form the profile
+  (64 repeats, 256 edges), and the record claims every fin cap, side and tip (320 faces) and
+  nothing of the barrel, rear wall, sleeve or standoffs. The four axis-aligned fins are no
+  longer reported also as `pads`. Same record shape; a profile of this kind must stand on a
+  cylindrical host and be one straight extrusion between its two levels (docs/recognition-6.md).
+  For #307 (item 10).
+
 ### Changed
 
 - Edge fillets are reported at any radius. The absolute 0.6 mm floor is gone: boxes and prisms

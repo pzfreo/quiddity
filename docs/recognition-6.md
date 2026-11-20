@@ -1537,3 +1537,39 @@ grooves are a separate matter (item 5).
 
 Fingerprint format 3 takes the diameters, length, width, depth and angles as sizes, `side` as a
 trait and `axis`/`axis_point` as placement; indices are ignored.
+
+## Radial fins as repeating radial profiles (#307 item 10)
+
+`repeating_radial_profiles` (a profile of at least five identical sectors about one axis, no
+gear semantics) is read from the outer wire of an extremal principal plane face and the same
+wire on the opposite extremal face. It also reads a profile whose two ends are *interior*
+levels, a finned barrel whose fins stop short of both ends, with the same record
+(`axis`, `centre`, `span`, `repeat_count`, `edge_count`, `sector_signature`; nothing is added).
+The record is the same as the one a barrel with full-length fins gives; `span` is the profile's
+own extent between its two levels.
+
+A profile of this second kind is accepted only when all of this holds, on one solid:
+
+- At each end, five or more *caps*: planar faces square to the axis at an interior level, one
+  loop of straight edges (two or more) and arcs of one circle, a whole turn or less each, every
+  arc bordering the same cylindrical face (the host, on that axis, of the circle's radius). The
+  outward normals along the axis are negative at the lower level and positive at the upper:
+  the profile stands on the host, it is not cut into it.
+- Each cap's two ends on the host circle are less than a half turn apart. The caps' straight
+  edges, with the arcs of the host circle between consecutive caps, form one closed wire, and
+  that wire meets the extremal-face rule unchanged: every edge in a bijective orbit of one
+  sector rotation about the host axis, the largest repeat count of at least five, one sector
+  inventory.
+- The two ends correspond one to one (axis, centre, host radius, repeat count, edge count and
+  sector inventory), and every straight edge of every cap is shared with exactly one other
+  planar face parallel to the axis, the caps at the two ends reaching the same set of such faces
+  (the profile is one straight extrusion between its levels).
+
+The record's faces are the caps at both levels and those swept faces (for 64 box fins: 128
+caps, 128 sides and 64 tips). The host cylinder, rear walls, sleeves, standoffs and flanges
+are never claimed. A single rib, a few unequal walls, fins off their pitch and notches cut
+into a wall (their caps face the other way) give no record.
+
+A `pads` record whose five faces all belong to one repeating radial profile is that profile's
+member (a fin of the array on an axis) and is not published as a pad: four of a housing's 64
+fins used to be reported as pads. A pad on a part with no such profile is unchanged.

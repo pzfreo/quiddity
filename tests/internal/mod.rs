@@ -52,6 +52,8 @@ mod passages;
 mod prismatic_pockets;
 #[path = "publication.rs"]
 mod publication;
+#[path = "radial_fins.rs"]
+mod radial_fins;
 #[path = "recognition.rs"]
 mod recognition;
 #[path = "recognition_evidence.rs"]
