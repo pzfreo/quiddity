@@ -53,7 +53,7 @@ pub struct RoundGroove {
 /// Publish after the existing families. Existing records are never changed. A reserved
 /// refusal on any defining face suppresses the groove, except an unproved interior void
 /// that is exactly the groove's own faces (the widening the groove explains).
-pub fn append(ctx: &Context<'_>, features: &mut Features) {
+pub(crate) fn append(ctx: &Context<'_>, features: &mut Features) {
     let claimed: BTreeSet<_> = features
         .defining
         .iter()
