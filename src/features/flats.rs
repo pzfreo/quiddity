@@ -106,29 +106,54 @@ fn vertices(part: &Part, face: usize) -> Vec<V3> {
     out
 }
 
-/// The cylinder's own face reaches past the plane: at the direction of the plane's outward
-/// normal, the cylinder exists over part of the flat's axial range. On a real D-flat that part
-/// of the cylinder is cut away; a boss poking through a block side keeps it.
-fn cylinder_reaches_past(part: &Part, cyl: usize, normal: V3, vertices: &[V3]) -> bool {
-    let Surface::Cylinder { frame, .. } = part.faces[cyl].surface else {
+/// The cylinder reaches past the plane: at the direction of the plane's outward normal, some
+/// face of the same cylinder surface exists over part of the flat's axial range. On a real
+/// D-flat that part of the cylinder is cut away; a boss poking through a block side keeps it.
+/// The cylinder may be split into several faces, with a seam or boundary exactly at the normal's
+/// angle, so every face on the surface is probed, at the angle and just either side of it.
+fn cylinder_reaches_past(part: &Part, cyl: &CylinderEvidence, normal: V3, vertices: &[V3]) -> bool {
+    const PROBE_ANGLE: f64 = 0.005;
+    let Surface::Cylinder { frame: own, radius } = part.faces[cyl.face].surface else {
         return false;
     };
-    let (Some((_, _, v0, v1)), Some(domain)) = (part.uv_bounds(cyl), part.domain(cyl)) else {
-        return false;
-    };
-    let l = frame.dir_to_local(normal);
-    let u = l[1].atan2(l[0]).rem_euclid(std::f64::consts::TAU);
-    let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
-    for &p in vertices {
-        let z = frame.to_local(p)[2];
-        lo = lo.min(z);
-        hi = hi.max(z);
+    let tol = policy::length_tol(radius, 1e-6);
+    for (face, f) in part.faces.iter().enumerate() {
+        let Surface::Cylinder { frame, radius: r } = f.surface else {
+            continue;
+        };
+        let off = geom::sub(frame.origin, own.origin);
+        let along = geom::dot(off, own.z);
+        let perp = [0, 1, 2].map(|i| off[i] - along * own.z[i]);
+        let same = (r - radius).abs() <= tol
+            && geom::dot(frame.z, own.z).abs() > 1.0 - 1e-9
+            && geom::dot(perp, perp).sqrt() <= tol;
+        if !same {
+            continue;
+        }
+        let (Some((_, _, v0, v1)), Some(domain)) = (part.uv_bounds(face), part.domain(face)) else {
+            continue;
+        };
+        let l = frame.dir_to_local(normal);
+        let u = l[1].atan2(l[0]);
+        let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+        for &p in vertices {
+            let z = frame.to_local(p)[2];
+            lo = lo.min(z);
+            hi = hi.max(z);
+        }
+        let (lo, hi) = (lo.max(v0.min(v1)), hi.min(v0.max(v1)));
+        if lo < hi
+            && [-PROBE_ANGLE, 0.0, PROBE_ANGLE].iter().any(|du| {
+                let u = (u + du).rem_euclid(std::f64::consts::TAU);
+                [0.2, 0.4, 0.6, 0.8]
+                    .iter()
+                    .any(|f| domain.contains(u, lo + f * (hi - lo)))
+            })
+        {
+            return true;
+        }
     }
-    let (lo, hi) = (lo.max(v0.min(v1)), hi.min(v0.max(v1)));
-    lo < hi
-        && [0.2, 0.4, 0.6, 0.8]
-            .iter()
-            .any(|f| domain.contains(u, lo + f * (hi - lo)))
+    false
 }
 
 struct Candidate<'c> {
@@ -179,7 +204,7 @@ pub fn discover(ctx: &Context<'_>) -> Vec<Occurrence<Flat>> {
             if !chord_truncates_stock(&vertices(part, face), ax, d, normal, r, (c.s_lo, c.s_hi)) {
                 continue; // a recess wall, or a rib, fin or tab side
             }
-            if cylinder_reaches_past(part, c.face, normal, &vertices(part, face)) {
+            if cylinder_reaches_past(part, c, normal, &vertices(part, face)) {
                 continue; // a boss pokes through a block side: its cylinder survives the plane
             }
             candidates.push(Candidate {

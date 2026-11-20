@@ -10,12 +10,17 @@ Each part is an R20 shaft, 40 long (Z = 0..40), with:
                       on its outer lower edge; a flat 7 from the axis runs on into the chamfer
   flats_boss_through_block  an R5 boss, 10 high, poking 2 mm through the x = 3 side of a
                       60 x 6 x 10 block (the side is not a flat)
+  flats_split_boss_through_block  the same, with the boss cylinder split into two faces whose
+                      boundaries lie on the block sides' normals (seam at +y, split at 180 deg)
   flats_over_land     R10 shaft with a 4 mm R10.6 land (Z 20..24); a flat 7 from the axis
                       over Z = 10..40 crosses the land
 """
 import gzip
+import math
 from pathlib import Path
 
+from build123d.topology import Shape
+from OCP.ShapeUpgrade import ShapeUpgrade_ShapeDivideAngle
 from build123d import Align, Axis, Box, Cylinder, GeomType, Location, SortBy, chamfer, export_step
 
 OUT = Path(__file__).resolve().parents[1] / "tests" / "fixtures"
@@ -64,3 +69,9 @@ write(cyl(10, 40) + cyl(10.6, 4, 20) - flat_cut(7, 10, 40), "flats_over_land.ste
 
 part = cyl(5, 10) + Box(60, 6, 10, align=(Align.MAX, Align.CENTER, Align.MIN)).moved(Location((3, 0, 0)))
 write(part, "flats_boss_through_block.step.gz")
+
+boss = cyl(5, 10).rotate(Axis.Z, 90)
+block = Box(60, 6, 10, align=(Align.MAX, Align.CENTER, Align.MIN)).moved(Location((3, 0, 0)))
+divide = ShapeUpgrade_ShapeDivideAngle(math.pi + 0.1, (block + boss).wrapped)
+divide.Perform()
+write(Shape.cast(divide.Result()), "flats_split_boss_through_block.step.gz")

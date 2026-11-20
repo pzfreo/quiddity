@@ -14,3 +14,7 @@ a 4 mm R10.6 land and must stay bound to the R10 cylinder (across 17).
 
 `flats_boss_through_block.step.gz` is an R5 boss, 10 high, poking 2 mm through the x = 3 side of
 a 60 x 6 x 10 block. The side is not a flat: the boss's cylinder survives past its plane.
+
+`flats_split_boss_through_block.step.gz` is the same part with the boss cylinder divided into two
+faces (seam at +y, split at 180 degrees), so a face boundary lies at the direction of each block
+side's normal; the cylinder must still be found past the plane.
