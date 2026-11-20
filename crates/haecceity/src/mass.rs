@@ -1950,7 +1950,9 @@ impl Part {
         let c0 = bounds.centre();
         let length = geom::dist(bounds.min, bounds.max);
         let length = (length.is_finite() && length > 0.0 && centre).then_some(length);
-        self.moment_integral::<27, 26>(face, [0, 26, 1, 2, 3], true, |p, su, sv| {
+        // Only the joint integration records a refusal: the per-group fallbacks, run after
+        // it is refused, are other integrands under the same key.
+        self.moment_integral::<27, 26>(face, [0, 26, 1, 2, 3], local && centre, |p, su, sv| {
             let n = geom::cross(su, sv);
             let w = geom::norm(n);
             let mut out = [0.0; 27];
@@ -2906,6 +2908,21 @@ mod tests {
         assert!(!part.cache[0].trial_refused((1, false)));
         // Once the finer trial has passed, a repeat runs the same two trials (nothing refused).
         assert_eq!(steep_area(&part).1, cost);
+    }
+
+    /// After the joint integration is refused, the per-group fallbacks (other integrands of the
+    /// same width) neither read nor record a refusal, so each still runs its own trials.
+    #[test]
+    fn group_fallbacks_after_a_joint_refusal_do_not_share_its_refusal() {
+        let part = crate::step::read_step(steep_in_v_face(4, 160.0).as_bytes()).unwrap();
+        POISONED_GROUP.with(|g| g.set(Some(true)));
+        let _ = part.face_moments(0);
+        POISONED_GROUP.with(|g| g.set(None));
+        assert!(part.cache[0].trial_refused((27, true)), "the joint refusal");
+        assert!(
+            !part.cache[0].trial_refused((27, false)),
+            "no group refusal"
+        );
     }
 
     /// A refusal is not remembered for `face_projected_moments`, whose integrand depends on the
