@@ -136,15 +136,22 @@ fn check(name: &str, doc: &RecognitionDocument, face_count: usize, out: &mut Vec
     if doc.schema_version != version || doc.face_count != face_count {
         out.push(format!("{name}: version or face count wrong"));
     }
-    let rank = |family: &str| RECORD_TYPES.iter().position(|(f, _)| *f == family);
-    let mut last = (0, 0);
+    // Discovery refusals follow every ordinary family, by family name.
+    let rank = |family: &str| {
+        RECORD_TYPES
+            .iter()
+            .position(|(f, _)| *f == family)
+            .map(|position| (position, String::new()))
+            .or_else(|| record_types(family).map(|_| (RECORD_TYPES.len(), family.to_owned())))
+    };
+    let mut last = ((0, String::new()), 0);
     for r in &doc.records {
         let Some(family) = rank(&r.family) else {
             out.push(format!("{name}: {} is in no family", r.id));
             continue;
         };
         let n: usize = r.id.rsplit('/').next().unwrap().parse().unwrap();
-        if r.id != format!("{}/{n}", r.family) || (family, n) < last {
+        if r.id != format!("{}/{n}", r.family) || (family.clone(), n) < last {
             out.push(format!("{name}: {} is out of order", r.id));
         }
         last = (family, n + 1);

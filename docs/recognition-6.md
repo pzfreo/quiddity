@@ -1217,6 +1217,20 @@ Schema `/6` is unchanged, following the other additive discovery-refusal familie
 The bounded-transition height used to validate this refused cavity is never
 published as an inferred radius.
 
+## Unmeasured faces (For #303)
+
+A face whose geometry resolved but whose area and centroid `haecceity` cannot compute
+(`Part::face_moments` is `None`; for example a cylinder bounded by one closed circle, which
+has no extent along its axis) is refused alone. Optional additive family
+`unmeasured_face_refusals` publishes one
+`UnmeasuredFaceRefusal {reason: "unmeasured_face", faces: [face]}` per such face through the
+existing discovery-refusal contract. It adds no fingerprint, and the face is `refused` in
+`face_accounting`. No record defines that face. A record that only consults it is kept,
+except in the `blends` and `helical_springs` families, whose values use a consulted face's
+area. The part frame is still refused (`unmeasured-face`), because the part's volume needs
+every face, so records are in file coordinates. Schema `/6` is unchanged, following the other
+additive discovery-refusal families.
+
 `tools/make_pocket_floor_fillets.py --near-misses-only` reproduces the independent
 review constructions as small compressed STEP controls. The open blind slot,
 island boss, floor through-hole, mouth-rim fillet and sloped floor do not receive

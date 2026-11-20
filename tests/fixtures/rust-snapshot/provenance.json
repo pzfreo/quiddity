@@ -3229,6 +3229,9 @@
     "tests/fixtures/two_solids.step": "6517033d96780ae13db686352fc4f5e505737dc837f0411970e5cd935ef7ae29",
     "tests/fixtures/two_solids_reversed.step": "2621b8f6fe05bb0c2fe6b8d0f03af22a3fc55ffa11f336821330bf6e465812a1",
     "tests/fixtures/unequal_radii.step": "b12f071210e9bf5d7e7d573071eb1ef4aee2c615cfe5e655bd43ffd74ceb3cf8",
+    "tests/fixtures/unmeasured_face.README.md": "a736fb2528afa9b7fe912a88a64a3022411bf9da0ca5bb04b8d8a5945c9c1a8a",
+    "tests/fixtures/unmeasured_face_closed.step": "9b66d2f4c3ab13c2af5f2817ed39fda8d04f26f8d692ecf25c30eb5650f2689a",
+    "tests/fixtures/unmeasured_face_open.step": "f41c69c82091c505199145e53cad8d06d1705e866ca04855eff12c5889f4cb9e",
     "tests/fixtures/unowned_recess_mixed.step.gz": "8cabe512b4401214e0f7f661418ac21ada0f1229d5ebef40b55b520b1d5a8ba7",
     "tests/fixtures/unowned_recess_shell.step.gz": "9c621ec8bd1931bec011f7ef38800b5db733f41edbb758f43c90795af43a529a",
     "tests/fixtures/unowned_recess_solid.step.gz": "45694f3de1715546e9cc734ffe25b17a5f5ab99cedd4e8afd4bb31b94450e1d2",
@@ -5941,5 +5944,5 @@
     "step_levels.json.gz": "6ff3ceadb33888e9d529a10b9a880babaf979f4f8d869962215d9d3193902f00",
     "unowned_recesses.json.gz": "604ec266d4c85575165c6822140a3ac79a6637c8d72a3a2bb376e74f86455343"
   },
-  "source_commit": "8cc5003d1067c9f3a8534906b75db6199ceb141a"
+  "source_commit": "8d553213167df86d635e3e08c4b2e1c7bd122201"
 }

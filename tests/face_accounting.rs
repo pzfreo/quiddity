@@ -623,3 +623,54 @@ fn same(a: &impl serde::Serialize, b: &impl serde::Serialize) -> bool {
         &serde_json::to_value(b).unwrap(),
     )
 }
+
+/// A face whose area and centroid cannot be computed (#303) is left out and reported, and the
+/// rest of the part is recognised.
+#[test]
+fn an_unmeasurable_face_is_refused_alone() {
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    let load = |name: &str| {
+        let path = dir.join(name);
+        quiddity::serve::recognise_file(path.to_str().unwrap())
+            .unwrap()
+            .0
+            .document
+    };
+    let refused_face = |doc: &RecognitionDocument| {
+        let refusals: Vec<_> = doc
+            .records
+            .iter()
+            .filter(|r| r.family == "unmeasured_face_refusals")
+            .collect();
+        assert_eq!(refusals.len(), 1);
+        let record = refusals[0];
+        assert!(record.is_refusal());
+        assert_eq!(record.parameters["reason"], "unmeasured_face");
+        assert_eq!(record.faces.len(), 1);
+        let face = record.faces[0];
+        let FaceAccounting::Refused { refusals } = &doc.face_accounting.as_ref().unwrap()[face]
+        else {
+            panic!("the unmeasured face is not accounted as refused")
+        };
+        assert_eq!(refusals[0].record_id, record.id);
+        face
+    };
+
+    // Closed shell: the through hole is found, nothing is invented for the bad wall.
+    let doc = load("unmeasured_face_closed.step");
+    let face = refused_face(&doc);
+    let holes: Vec<_> = doc.records.iter().filter(|r| r.family == "holes").collect();
+    assert_eq!(holes.len(), 1);
+    assert_eq!(holes[0].parameters["bottom"], "through");
+    assert_eq!(holes[0].parameters["diameter"], 8.0);
+    assert!(!holes[0].faces.contains(&face));
+    assert!(
+        doc.records
+            .iter()
+            .all(|r| r.is_refusal() || !r.claimed_faces().any(|f| f == face))
+    );
+
+    // Open shell: the wall is still reported by name.
+    let doc = load("unmeasured_face_open.step");
+    refused_face(&doc);
+}
