@@ -43,6 +43,15 @@ in [docs/alpha1.md](docs/alpha1.md).
   when rounded outlines and edge rounds leave no box corner (a perforated plate's top,
   bottom and outer sides, a flange's sides), instead of `unexplained`. For #307; fin sides
   and tips are not covered. Additive: the schema stays `quiddity-rust/recognition/6`.
+- `flats` records are no longer published on the sides of ribs, fins and tabs standing on a
+  cylinder. A flat now has to truncate the stock: the chord must straddle the point of the
+  plane nearest the axis (a chord wholly to one side meets the cylinder at a concave edge), and
+  no vertex of the face inside the cylinder's own axial span may lie beyond its outside
+  diameter (before, only "not inside it" was checked, so a fin side running out beyond the
+  stock passed). A tab standing a hair beyond the radius is therefore not a flat either. A flat
+  that runs on past the cylinder into a chamfer, taper, land or hex collar is still a flat,
+  with the same `across`. A block side that a small boss pokes through is not a flat either (the
+  boss's cylinder exists beyond the plane; on a real flat it is cut away). Corpus: 12 flats records on rib or lug sides are removed. For #307.
 - A planar chamfer is no longer read from the flats of a polygonal section. A bevel between two
   principal-plane walls was published whenever it stood between them, so the flats of a hexagonal
   or irregular polygonal prism whose neighbours happened to lie on principal planes became
