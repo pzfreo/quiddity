@@ -11,3 +11,9 @@ in the script's docstring). Four discs 80 mm apart along x:
 - x = 240: a plain stepped disc (d16 bore, d28 counterbore), no spokes.
 
 The test is `tests/internal/spoked_rim.rs`.
+
+`collared_floor_variants.step.gz` (tools/make_collared_floor_fixture.py, same licence) holds three
+d60 discs with a d40 recess, a d20 collar and a d10 through bore, whose recess floor is reached
+through an R1 fillet, a 1 mm chamfer, or has every face written in two halves. All keep their
+d40 counterbore. A floor broken by a slot or by ribs has no whole circle and is deliberately not
+a counterbore step when the wall overlaps the bore's span (the spoked-rim rule).

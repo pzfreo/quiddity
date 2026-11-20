@@ -37,3 +37,24 @@ fn a_rim_wall_round_the_hub_is_no_step_but_real_counterbores_stay() {
     // Nothing is published for the rim walls.
     assert!(found.iter().all(|o| o.record.diameter < 40.));
 }
+
+#[test]
+fn collared_counterbores_with_a_blended_or_split_floor_are_kept() {
+    let part =
+        quiddity::read_step_file(&common::fixtures().join("collared_floor_variants.step.gz"))
+            .unwrap();
+    let found = holes::discover_verified(&Context::new(&part), &[]).unwrap();
+    // (x, counterbore depth): wall-to-floor R1 fillet, 1 mm chamfer, faces split in halves.
+    for (x, depth) in [(0., 3.), (100., 3.), (200., 4.)] {
+        let hole = found
+            .iter()
+            .map(|o| &o.record)
+            .find(|h| h.diameter == 10. && (h.location.raw()[0] - x).abs() < 1.)
+            .unwrap_or_else(|| panic!("the d10 hole at x={x}"));
+        let cbore = hole
+            .cbore
+            .as_ref()
+            .unwrap_or_else(|| panic!("cbore at x={x}"));
+        assert_eq!((cbore.diameter, cbore.depth), (40., depth), "x={x}");
+    }
+}

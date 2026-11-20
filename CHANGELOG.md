@@ -52,7 +52,7 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
-- The inner wall of a spoked rim is no longer published as a counterbore of the hub bore. A wider coaxial cylinder whose span runs beside a narrower hole segment's (more than the stack gap) is left out of the hole stack unless a closed annular floor (a whole coaxial circle on a plane at its end) leads inwards from it; the spokes break the rim's end faces. Real and collared counterbores are unchanged. One corpus part (cgb242) loses a false d110 counterbore on a d22 hole, its two R55 concave arcs now read as fillets. For #307 (item 4).
+- The inner wall of a spoked rim is no longer published as a counterbore of the hub bore. A wider coaxial cylinder whose span overlaps a narrower hole segment's (more than the stack gap) is left out of the hole stack unless a closed annular floor leads inwards from one of its ends: a whole coaxial circle (one edge, or coplanar arcs making a full turn) on a transverse plane at the wall's end, or reached across a torus or cone blend. A collared recess with a wall-to-floor fillet or chamfer, or with faces written in halves, keeps its counterbore; a floor broken by a slot or ribs is not a step in that overlapping case. In cgb242 a false d110 counterbore on a d22 bore is gone; its two faces (pocket end walls drawn round a hub, between R3 corner rounds) were not R55 rounds, and `curved_wall_corner` no longer claims a round whose curved supports are all at least 4 times tighter than it, so they are unexplained. For #307 (item 4).
 
 - A bore that runs out into a curved wall (the tunnel in a crank block) is no longer published
   as `flat`-bottomed when its end disc leaves only thin crescents of plane at the rim: where

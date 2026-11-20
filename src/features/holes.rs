@@ -972,32 +972,73 @@ fn without_enclosing_walls(part: &Part, stack: Vec<Segment>) -> Vec<Segment> {
     stack.iter().filter(|s| !enclosing(s)).cloned().collect()
 }
 
-/// A plane exactly at *wall*'s end carries a whole coaxial circle narrower than the wall.
+/// A transverse plane at *wall*'s end, reached directly or across a coaxial torus or cone
+/// blend (an edge fillet or chamfer between wall and floor), carries a whole circle
+/// narrower than the wall. The circle may be one closed edge or coplanar coaxial arcs
+/// that together make a full turn (faces written in halves). A floor broken by a slot or
+/// ribs has no whole circle and does not count.
 fn closed_floor_inwards(part: &Part, wall: &Segment, end: f64) -> bool {
     let radius = wall.diameter / 2.0;
     let tolerance = policy::length_tol(radius, 5e-6);
-    end_partners(part, wall, end)
-        .into_iter()
-        .filter(|&f| match part.faces[f].surface {
-            Surface::Plane { frame } => {
-                (geom::dot(frame.origin, wall.direction) - end).abs() < tolerance
+    let axial = |p: V3| geom::dot(p, wall.direction);
+    let transverse = |f: usize| match part.faces[f].surface {
+        Surface::Plane { frame } if geom::dot(frame.z, wall.direction).abs() > 1. - 1e-9 => {
+            Some(axial(frame.origin))
+        }
+        _ => None,
+    };
+    let mut floors: Vec<usize> = Vec::new();
+    for partner in end_partners(part, wall, end) {
+        match part.faces[partner].surface {
+            Surface::Plane { .. } => {
+                if transverse(partner).is_some_and(|z| (z - end).abs() < tolerance) {
+                    floors.push(partner);
+                }
             }
-            _ => false,
-        })
-        .flat_map(|f| part.face_edges(f))
-        .any(|e| {
-            let edge = &part.edges[e];
-            let Curve::Circle { frame, radius: r } = edge.curve else {
-                return false;
-            };
-            edge.is_closed()
-                && r < radius - tolerance
-                && geom::dot(frame.z, wall.direction).abs() > 1. - 1e-9
-                && geom::norm(geom::cross(
-                    geom::sub(frame.origin, wall.axis_point),
-                    wall.direction,
-                )) < tolerance
-        })
+            Surface::Torus { .. } | Surface::Cone { .. } => {
+                // How far the blend runs from the wall's end along the axis.
+                let reach = part
+                    .face_edges(partner)
+                    .into_iter()
+                    .flat_map(|e| {
+                        let e = &part.edges[e];
+                        [e.start, e.end, e.midpoint()]
+                    })
+                    .map(|p| (axial(p) - end).abs())
+                    .fold(0., f64::max);
+                for n in part.neighbours(partner) {
+                    if transverse(n).is_some_and(|z| (z - end).abs() <= reach + tolerance) {
+                        floors.push(n);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    floors.sort_unstable();
+    floors.dedup();
+    let mut circles: Vec<(f64, Vec<usize>)> = Vec::new();
+    for e in floors.into_iter().flat_map(|f| part.face_edges(f)) {
+        let Curve::Circle { frame, radius: r } = part.edges[e].curve else {
+            continue;
+        };
+        if r < radius - tolerance
+            && geom::dot(frame.z, wall.direction).abs() > 1. - 1e-9
+            && geom::norm(geom::cross(
+                geom::sub(frame.origin, wall.axis_point),
+                wall.direction,
+            )) < tolerance
+        {
+            match circles.iter_mut().find(|(c, _)| (c - r).abs() <= tolerance) {
+                Some((_, edges)) if !edges.contains(&e) => edges.push(e),
+                Some(_) => {}
+                None => circles.push((r, vec![e])),
+            }
+        }
+    }
+    circles
+        .into_iter()
+        .any(|(_, edges)| super::annular_grooves::ring(part, edges, wall.direction).is_some())
 }
 
 internal_entry! {
