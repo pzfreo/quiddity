@@ -913,24 +913,44 @@ impl Part {
         self.integrate_face_legacy_in(face, f, rule, observed, None)
     }
 
-    /// Whether the face's inner integral can run along the parameter with far fewer knot
-    /// spans: an open, unpinched B-spline face whose u has at least [`LARGE_NET_SPANS`] spans
-    /// and eight times those of v.
+    /// Whether the face's inner integral can run along v, where it crosses far fewer panels
+    /// than along u: an open, unpinched B-spline face whose u has at least
+    /// [`LARGE_NET_SPANS`] spans and eight times those of v; or a cylinder or cone (one panel
+    /// along v) whose loops, closed in the lifted parameters, run through at least
+    /// [`LARGE_NET_SPANS`] radians of u (a thread's helical edge, which along u costs a panel
+    /// per radian at every boundary node).
     fn cheaper_inner_form(&self, face: usize) -> bool {
         let surface = &self.faces[face].surface;
-        let Surface::Freeform { surface: s, .. } = surface else {
-            return false;
-        };
-        if surface.periodic() != (false, false) {
-            return false;
+        match surface {
+            Surface::Freeform { surface: s, .. } => {
+                if surface.periodic() != (false, false) {
+                    return false;
+                }
+                let (su, sv) = closed_spans(surface);
+                if su.is_finite() || sv.is_finite() || collapsed_sides(surface) != (None, None) {
+                    return false;
+                }
+                let nu = breaks(&s.knots_u, s.degree_u).len();
+                let nv = breaks(&s.knots_v, s.degree_v).len();
+                nu >= LARGE_NET_SPANS && nu >= 8 * nv
+            }
+            Surface::Cylinder { .. } | Surface::Cone { .. } => {
+                let (Some(loops), Some(domain)) = (self.uv_loops(face), self.domain(face)) else {
+                    return false;
+                };
+                let (lo, hi) = domain.v_range();
+                if [lo, hi]
+                    .into_iter()
+                    .any(|v| surface.singular_v(v).is_some())
+                {
+                    return false;
+                }
+                let us = loops.iter().flat_map(|l| l.points.iter().map(|p| p.0));
+                let (min, max) = us.fold((f64::MAX, f64::MIN), |(a, b), u| (a.min(u), b.max(u)));
+                max - min >= LARGE_NET_SPANS as f64
+            }
+            _ => false,
         }
-        let (su, sv) = closed_spans(surface);
-        if su.is_finite() || sv.is_finite() || collapsed_sides(surface) != (None, None) {
-            return false;
-        }
-        let nu = breaks(&s.knots_u, s.degree_u).len();
-        let nv = breaks(&s.knots_v, s.degree_v).len();
-        nu >= LARGE_NET_SPANS && nu >= 8 * nv
     }
 
     fn integrate_face_legacy_in<const N: usize>(
