@@ -50,9 +50,11 @@ pub fn discover_verified(ctx: &Context<'_>) -> Result<Vec<Occurrence<Flat>>, Evi
 }
 }
 
-/// Both ends of the flat's chord reach the stock's outside diameter: a flat, not a recess wall
-/// ending on a slot floor (`_both_chord_ends_reach_od`).
-fn chord_ends_reach_od(vertices: &[V3], ax: V3, d: V3, n: V3, r: f64) -> bool {
+/// The flat truncates the stock: its chord has both ends on the stock's outside diameter and
+/// straddles the point where the plane is nearest the axis. Not a recess wall ending on a slot
+/// floor (an end inside the stock), and not a rib, fin or tab side (an end beyond the stock, or
+/// a chord wholly to one side of the nearest point, where the edge to the stock is concave).
+fn chord_truncates_stock(vertices: &[V3], ax: V3, d: V3, n: V3, r: f64) -> bool {
     let c = geom::cross(n, d);
     let cm = (c[0] * c[0] + c[1] * c[1] + c[2] * c[2]).powf(0.5);
     if cm < 1e-9 {
@@ -74,7 +76,11 @@ fn chord_ends_reach_od(vertices: &[V3], ax: V3, d: V3, n: V3, r: f64) -> bool {
         }
     }
     let reach = policy::length_tol(r, OD_REACH_FRAC);
-    matches!((lo, hi), (Some((_, a)), Some((_, b))) if a >= r - reach && b >= r - reach)
+    let on_stock = |rad: f64| (rad - r).abs() <= reach;
+    matches!(
+        (lo, hi),
+        (Some((lt, a)), Some((ht, b))) if lt < 0.0 && ht > 0.0 && on_stock(a) && on_stock(b)
+    )
 }
 
 /// The face's distinct vertex points, in edge order.
@@ -138,8 +144,8 @@ pub fn discover(ctx: &Context<'_>) -> Vec<Occurrence<Flat>> {
             if !(CHORD_MIN < s && s < r - CHORD_MARGIN) || too_shallow {
                 continue; // facing the axis (a slot wall), outside the stock, or a sliver
             }
-            if !chord_ends_reach_od(&vertices(part, face), ax, d, normal, r) {
-                continue; // one end on a slot floor: a recess wall
+            if !chord_truncates_stock(&vertices(part, face), ax, d, normal, r) {
+                continue; // a recess wall, or a rib, fin or tab side
             }
             candidates.push(Candidate {
                 cyl: c,
