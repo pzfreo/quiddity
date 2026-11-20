@@ -1834,6 +1834,91 @@ impl Part {
             .get_or_init(|| self.compute_face_moments(face))
     }
 
+    /// A point on the face and a length scale for its offsets: a boundary vertex moves rigidly
+    /// with the face, and existing edge samples give a cheap length scale without asking for
+    /// extrema (which require surface inversion and can cost more than the integral itself on
+    /// B-splines).
+    fn moment_frame(&self, face: usize) -> Option<(V3, f64)> {
+        let fc = &self.faces[face];
+        let origin = fc.loops.iter().find_map(|lp| {
+            lp.vertex
+                .or_else(|| lp.edges.first().map(|&(e, _)| self.edges[e].start))
+        })?;
+        let scale = fc
+            .loops
+            .iter()
+            .flat_map(|lp| {
+                lp.edges
+                    .iter()
+                    .flat_map(|&(e, _)| self.edges[e].samples.iter().copied())
+                    .chain(lp.vertex)
+            })
+            .map(|p| {
+                let d = geom::sub(p, origin);
+                geom::dot(d, d)
+            })
+            .fold(0.0, f64::max)
+            .sqrt();
+        (scale.is_finite() && scale > 0.0).then_some((origin, scale))
+    }
+
+    /// The face's one moment integration, shared by [`Part::face_moments`] and
+    /// [`Part::volume_centroid`] (each used to run its own). Cached, including `None`.
+    /// Components, all on the area scale for quadrature's error test:
+    /// 0 area w; 1..4 n; 4..7 and 7..13 the first and second moments of w about the face's
+    /// own `moment_frame` (dimensionless: offsets over its scale); 13 q·n; 14..23 qᵢnⱼ;
+    /// 23..26 qᵢ(q·n), with q the offset from the box centre over the part's length (see
+    /// `volume_centroid`). The flux p·n is integrated too, to select the mass boundary, but not
+    /// returned. A set whose frame is unusable is left zero and its
+    /// consumer refuses it separately.
+    fn face_raw_moments(&self, face: usize) -> Option<[f64; 26]> {
+        *self.cache[face]
+            .raw_moments
+            .get_or_init(|| self.compute_face_raw_moments(face))
+    }
+
+    fn compute_face_raw_moments(&self, face: usize) -> Option<[f64; 26]> {
+        let frame = self.moment_frame(face);
+        let bounds = self.bounds();
+        let c0 = bounds.centre();
+        let length = geom::dist(bounds.min, bounds.max);
+        let length = (length.is_finite() && length > 0.0).then_some(length);
+        self.moment_integral::<27, 26>(face, [0, 26, 1, 2, 3], |p, su, sv| {
+            let n = geom::cross(su, sv);
+            let w = geom::norm(n);
+            let mut out = [0.0; 27];
+            out[0] = w;
+            out[1..4].copy_from_slice(&n);
+            out[26] = geom::dot(p, n);
+            if let Some((origin, scale)) = frame {
+                let [x, y, z] = geom::scale(geom::sub(p, origin), 1.0 / scale);
+                out[4..13].copy_from_slice(&[
+                    x * w,
+                    y * w,
+                    z * w,
+                    x * x * w,
+                    y * y * w,
+                    z * z * w,
+                    x * y * w,
+                    x * z * w,
+                    y * z * w,
+                ]);
+            }
+            if let Some(length) = length {
+                let q = geom::scale(geom::sub(p, c0), 1.0 / length);
+                let qn = geom::dot(q, n);
+                out[13] = qn;
+                for i in 0..3 {
+                    out[23 + i] = q[i] * qn;
+                    for j in 0..3 {
+                        out[14 + 3 * i + j] = q[i] * n[j];
+                    }
+                }
+            }
+            out
+        })
+    }
+
     fn compute_face_moments(&self, face: usize) -> Option<FaceMoments> {
         let fc = &self.faces[face];
         let surface = &fc.surface;
@@ -1855,63 +1940,17 @@ impl Part {
                 }),
             });
         }
-        // Integrate dimensionless offsets from a point on the face, avoiding subtraction of
-        // large world-coordinate moments. Scaling puts every component on the area scale for
-        // quadrature's error test, including faces with a constant area density.
-        // A boundary vertex moves rigidly with the face. Existing edge samples give a cheap
-        // length scale without asking for extrema (which require surface inversion and can
-        // cost more than the integral itself on B-splines).
-        let origin = fc.loops.iter().find_map(|lp| {
-            lp.vertex
-                .or_else(|| lp.edges.first().map(|&(e, _)| self.edges[e].start))
-        })?;
-        let scale = fc
-            .loops
-            .iter()
-            .flat_map(|lp| {
-                lp.edges
-                    .iter()
-                    .flat_map(|&(e, _)| self.edges[e].samples.iter().copied())
-                    .chain(lp.vertex)
-            })
-            .map(|p| {
-                let d = geom::sub(p, origin);
-                geom::dot(d, d)
-            })
-            .fold(0.0, f64::max)
-            .sqrt();
-        if !scale.is_finite() || scale <= 0.0 {
-            return None;
-        }
-        let [area, mx, my, mz, nx, ny, nz, xx, yy, zz, xy, xz, yz] =
-            self.moment_integral(face, [0, 13, 4, 5, 6], |p, su, sv| {
-                let n = geom::cross(su, sv);
-                let w = geom::norm(n);
-                let [x, y, z] = geom::scale(geom::sub(p, origin), 1.0 / scale);
-                [
-                    w,
-                    x * w,
-                    y * w,
-                    z * w,
-                    n[0],
-                    n[1],
-                    n[2],
-                    x * x * w,
-                    y * y * w,
-                    z * z * w,
-                    x * y * w,
-                    x * z * w,
-                    y * z * w,
-                    geom::dot(p, n),
-                ]
-            })?;
+        let (origin, scale) = self.moment_frame(face)?;
+        let raw = self.face_raw_moments(face)?;
+        let [area, nx, ny, nz, mx, my, mz, xx, yy, zz, xy, xz, yz] =
+            std::array::from_fn(|k| raw[k]);
         if area <= 0.0 || !area.is_finite() {
             return None;
         }
         let mean = [mx / area, my / area, mz / area];
-        let raw = [[xx, xy, xz], [xy, yy, yz], [xz, yz, zz]];
+        let second = [[xx, xy, xz], [xy, yy, yz], [xz, yz, zz]];
         let second_moments = std::array::from_fn(|i| {
-            std::array::from_fn(|j| (raw[i][j] - area * mean[i] * mean[j]) * scale * scale)
+            std::array::from_fn(|j| (second[i][j] - area * mean[i] * mean[j]) * scale * scale)
         });
         let centroid = geom::add(origin, geom::scale(mean, scale));
         let area_vector = [nx, ny, nz].map(|c| if fc.reversed { -c } else { c });
@@ -1972,33 +2011,16 @@ impl Part {
                     }
                     continue;
                 }
-                // Put the flux and its moments on the area scale too. Unscaled q² terms
-                // amplify projection round-off on tiny faces far from c0: cgb242 face 483
-                // was refused only after translation, although its area was resolved.
-                // Restore physical units after quadrature; the fixed point below uses mm.
-                let f = self.moment_integral::<18, 17>(face, [0, 17, 2, 3, 4], |p, su, sv| {
-                    let n = geom::cross(su, sv);
-                    let q = geom::scale(geom::sub(p, c0), 1.0 / length);
-                    let qn = geom::dot(q, n);
-                    let mut out = [0.0; 18];
-                    out[0] = geom::norm(n);
-                    out[1] = qn;
-                    out[17] = geom::dot(p, n);
-                    for i in 0..3 {
-                        out[2 + i] = n[i];
-                        out[14 + i] = q[i] * qn;
-                        for j in 0..3 {
-                            out[5 + 3 * i + j] = q[i] * n[j];
-                        }
-                    }
-                    out
-                })?;
-                s += sense * f[1] * length;
+                // The shared face integration (`face_raw_moments`) holds the flux and its
+                // moments on the area scale. Restore physical units after quadrature; the
+                // fixed point below uses mm.
+                let f = self.face_raw_moments(face)?;
+                s += sense * f[13] * length;
                 for i in 0..3 {
-                    m[i] += sense * f[2 + i];
-                    b[i] += sense * f[14 + i] * length * length;
+                    m[i] += sense * f[1 + i];
+                    b[i] += sense * f[23 + i] * length * length;
                     for j in 0..3 {
-                        a[i][j] += sense * f[5 + 3 * i + j] * length;
+                        a[i][j] += sense * f[14 + 3 * i + j] * length;
                     }
                 }
             }
