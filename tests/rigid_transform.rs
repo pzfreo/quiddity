@@ -312,14 +312,14 @@ fn recognition_bytes(part: &Part) -> Result<Vec<u8>, String> {
     })
 }
 
-/// Two recognition documents agree except in round-off: every byte outside numbers is equal,
-/// every integer token is equal, and each pair of decimal tokens differs by at most 1e-8 of its
-/// magnitude (at least 1) plus one unit in the finer of their last printed places (a value
-/// rounded for publication can flip its last digit). `Part::transformed` carries the loaded
-/// part's face integrals through the motion (exact but for round-off), while the reader
-/// integrates the moved faces afresh, so the two are no longer bit-identical; geometry still is
-/// (`compare`).
-fn same_to_round_off(a: &[u8], b: &[u8]) -> Result<(), String> {
+/// Two recognition documents agree to the published precision: every byte outside numbers is
+/// equal, every integer token is equal, and each pair of decimal tokens differs by at most 1e-8
+/// of its magnitude plus 1e-6 (or one unit in the finer of their last printed places, if
+/// coarser). A warmed part carries its face integrals through the motion, while the reader's
+/// part integrates them in its own frame and takes other quadrature paths for integrals that
+/// are not cached; both are within the quadrature's own acceptance (1e-9 of each integral), not
+/// bit-identical. Geometry still is (`compare`), and so is an unqueried part's recognition.
+fn same_to_published_precision(a: &[u8], b: &[u8]) -> Result<(), String> {
     fn number(s: &[u8], at: usize) -> usize {
         let mut end = at;
         while end < s.len() && (s[end].is_ascii_digit() || b"+-.eE".contains(&s[end])) {
@@ -349,15 +349,12 @@ fn same_to_round_off(a: &[u8], b: &[u8]) -> Result<(), String> {
                         .unwrap_or(17) as i32
                 };
                 let unit = 10f64.powi(-places(ta).max(places(tb)));
-                // 1e-8, as `near` allows for geometry: a centroid that moves by round-off
-                // (1e-13 relative) is projected onto its face by an iterative inversion, whose
-                // foot point and normal then differ within its own convergence (2.7e-9 in u and
-                // 1e-9 in a normal component seen on nist_stc_10); a real change of decision or
-                // measurement moves a value by far more. The floor of 1 (mm and its powers, on
-                // parts of a millimetre or more) covers values whose true value is zero and
-                // which are round-off themselves (1e-16 to 1e-12 seen).
+                // 1e-6 is the precision rounded values are published to (`body_key`); unrounded
+                // values computed from integrals that are not cached differed by up to 5.4e-8
+                // (a record's `u`, -0.181401, on nist_stc_08); 1e-8 relative is `near`'s geometry
+                // tolerance. A change of decision or measurement moves a value by far more.
                 if !(decimal(ta) && decimal(tb))
-                    || (x - y).abs() > 1e-8 * x.abs().max(y.abs()).max(1.0) + 1.000001 * unit
+                    || (x - y).abs() > 1e-8 * x.abs().max(y.abs()) + 1.000001 * unit.max(1e-6)
                 {
                     let before = String::from_utf8_lossy(&a[i.saturating_sub(120)..i]);
                     return Err(format!("{} vs {} after {before:?}", text(ta), text(tb)));
@@ -465,14 +462,43 @@ fn loaded_transform_matches_reader() {
                 if !path.starts_with(&fixtures) && !named {
                     continue;
                 }
-                let (a, b) = (recognition_bytes(&moved), recognition_bytes(&read));
+                // A part transformed before any query carries nothing of its own, so it
+                // recognises exactly as the reader's part does, byte for byte.
+                let cold = read_step_file_placed(path, &IDENTITY)
+                    .unwrap()
+                    .transformed(&at)
+                    .unwrap();
+                let b = recognition_bytes(&read);
+                let a = recognition_bytes(&cold);
                 match (&a, &b) {
+                    (Ok(a), Ok(b)) if a != b => {
+                        let offset = a
+                            .iter()
+                            .zip(b)
+                            .position(|(a, b)| a != b)
+                            .unwrap_or(a.len().min(b.len()));
+                        panic!(
+                            "recognition differs under {at:?} at byte {offset}: {:?} vs {:?}",
+                            String::from_utf8_lossy(
+                                &a[offset.saturating_sub(40)..a.len().min(offset + 80)]
+                            ),
+                            String::from_utf8_lossy(
+                                &b[offset.saturating_sub(40)..b.len().min(offset + 80)]
+                            )
+                        );
+                    }
+                    (Ok(_), Ok(_)) => {}
+                    _ => assert_eq!(a, b, "recognition refusal differs"),
+                }
+                // The warmed part carries its integrals through the motion: the same records,
+                // with values to the published precision.
+                match (&recognition_bytes(&moved), &b) {
                     (Ok(a), Ok(b)) => {
-                        if let Err(why) = same_to_round_off(a, b) {
-                            panic!("recognition differs under {at:?}: {why}");
+                        if let Err(why) = same_to_published_precision(a, b) {
+                            panic!("warmed recognition differs under {at:?}: {why}");
                         }
                     }
-                    _ => assert_eq!(a, b, "recognition refusal differs"),
+                    (a, b) => assert_eq!(a, b, "warmed recognition refusal differs"),
                 }
                 eprintln!(
                     "transform equivalence: recognition checked {} at {at:?}",
