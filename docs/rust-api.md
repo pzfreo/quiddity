@@ -96,7 +96,7 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `quiddity::features::v_channels`: `VChannel`.
 - `quiddity::frames`: `FrameRefusal`, `FramedError`, `FramedRecognition`, `PartFrame`.
 - `quiddity::published_records`: `PublishedFeatures`.
-- `quiddity::recognition`: `BodyReason`, `FaceAccounting`, `FaceRefusal`, `RecognitionDocument`, `Record`.
+- `quiddity::recognition`: `Bodies`, `BodyReason`, `FaceAccounting`, `FaceRefusal`, `RecognitionDocument`, `Record`.
 - `quiddity::serve`: `Failure`, `RecognitionOutput`.
 
 Types re-exported at the crate root retain those names too: for example,

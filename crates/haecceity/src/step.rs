@@ -2045,6 +2045,8 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
     // with the placed definition it belongs to.
     let mut shells = Vec::new();
     let mut instance_of: Vec<Option<usize>> = Vec::new();
+    // Void shells each instance declares (`BREP_WITH_VOIDS`), indexed like `instance_of`.
+    let mut declared_voids: Vec<usize> = Vec::new();
     let (mut instances, mut placed) = (Vec::new(), Vec::new());
     let mut placement_paths = PlacementPaths::default();
     for root in scene.root_definitions() {
@@ -2070,6 +2072,7 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
         }
         shells.push((true, placement, faces, instance_of.len()));
         instance_of.push(def);
+        declared_voids.push(solid.voids().count());
     }
     let rg = model.ref_graph();
     for index in reachable_surface_models(model, &rg) {
@@ -2088,6 +2091,7 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
         for (placement, def) in placements {
             let instance = instance_of.len();
             instance_of.push(def);
+            declared_voids.push(0);
             for shell in &sbsm.sbsm_boundary {
                 let faces = match shell {
                     m::ShellRef::OpenShell(i) => {
@@ -2164,6 +2168,7 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
     let (mut out_faces, mut edges_out, mut solids) = (Vec::new(), Vec::new(), Vec::new());
     let (mut unresolved_faces, mut unresolved_edges) = (Vec::new(), Vec::new());
     let (mut face_sources, mut edge_sources) = (Vec::new(), Vec::new());
+    let mut solid_voids: Vec<usize> = Vec::new();
     let mut line_directions = std::collections::BTreeMap::new();
     let mut conics = std::collections::BTreeMap::new();
     let mut pcurve_splines = Vec::new();
@@ -2390,6 +2395,7 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
         vertex_count += vertex_index.len();
         if is_solid {
             solids.push(Solid { faces: members });
+            solid_voids.push(declared_voids[instance]);
         }
     }
     if out_faces.is_empty() {
@@ -2426,6 +2432,7 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
         .with_declared_length_unit(declared_length_unit)
         .with_unresolved(unresolved_faces, unresolved_edges)
         .with_sources(face_sources, edge_sources)
+        .with_declared_voids(solid_voids)
         .with_line_directions(line_directions)
         .with_conics(conics)
         .with_pcurve_splines(pcurve_splines)
