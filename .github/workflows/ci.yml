@@ -9,6 +9,12 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request supersedes the run on its previous commit. Main pushes and
+# dispatches are never cancelled: each has its own group.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -29,6 +35,11 @@ env:
 # Changed-test costs are estimates, not fresh CI measurements: generic-frame readings
 # halved; rigid-transform 45%, publication 50%, corpus replay 75%, determinism 25%;
 # merged tests reuse the measured motion/quality work plus their small extra assertions.
+# Maintainer decision, 2026-11-20: macOS PR pins run in 2 shards, not 15. Run 44713366290
+# (a PR): each of the 15 macOS shards ran 45-81 s and waited 18-62 minutes for one of the five
+# account runners, so the run took over an hour for ~15 runner-minutes of tests. The same
+# tests in two jobs fit the runner limit at once. shards.py deals by the job total, so
+# every test still runs. Full macOS (main, dispatch, release*) keeps 15 shards.
 # Lint (fmt, clippy, doc-tests) runs alongside each platform's build.
 jobs:
   advisories:
@@ -105,4 +116,4 @@ jobs:
     with:
       os: macos-latest
       tier: ${{ github.event_name == 'pull_request' && !startsWith(github.head_ref, 'release') && 'macos-pr' || 'ci' }}
-      shards: "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]"
+      shards: ${{ github.event_name == 'pull_request' && !startsWith(github.head_ref, 'release') && '[1, 2]' || '[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]' }}

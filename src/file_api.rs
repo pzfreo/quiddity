@@ -106,6 +106,37 @@ pub fn anchor(part: &Part, face: usize) -> Result<String, String> {
     json(&json!({"face": face, "point": anchor.point, "uv": anchor.uv}))
 }
 
+/// Proved points on several faces of one parsed part: a JSON array with one row per requested
+/// face, in the order asked (every face in index order when `faces` is `None`; repeats kept).
+/// A face that [`anchor`] answers gets the same `{face, point, uv}`; a face with no provable point
+/// gets `{face, point: null, uv: null, refused}` carrying the message [`anchor`] would have
+/// failed with, so one refused face does not hide the others. An out-of-range index refuses the
+/// whole call, as it refuses [`anchor`].
+pub fn anchors(part: &Part, faces: Option<&[usize]>) -> Result<String, String> {
+    let all: Vec<usize>;
+    let faces = match faces {
+        Some(faces) => faces,
+        None => {
+            all = (0..part.faces.len()).collect();
+            &all
+        }
+    };
+    if let Some(&face) = faces.iter().find(|&&f| f >= part.faces.len()) {
+        return Err(format!(
+            "face {face}: out of range ({} faces)",
+            part.faces.len()
+        ));
+    }
+    let rows: Vec<_> = faces
+        .iter()
+        .map(|&face| match part.face_anchor(face) {
+            Ok(a) => json!({"face": face, "point": a.point, "uv": a.uv}),
+            Err(e) => json!({"face": face, "point": null, "uv": null, "refused": e.to_string()}),
+        })
+        .collect();
+    json(&rows)
+}
+
 /// Existing fingerprints/3 from a STEP file.
 pub fn fingerprints_file(path: &str) -> Result<String, String> {
     let (output, _) = serve::recognise_file(path).map_err(|e| e.to_string())?;

@@ -236,6 +236,24 @@ fn partner_state(
         }
         Surface::Torus { major, .. } => {
             let curls_in = *major < seg.diameter / 2.;
+            // A groove cut into the wall between two cylinders (itself in halves, perhaps),
+            // wholly outside the bore diameter, is not a round at the end: it says nothing about
+            // whether the bore stops here. Only a torus the old rule would read as closing the
+            // end (major radius under the bore radius) is set aside; one with a larger major
+            // radius already read the end as open. A round at a mouth or a floor also borders a
+            // plane or a cone, so it is not set aside.
+            if !seg.external
+                && curls_in
+                && part.neighbours(partner).iter().all(|&n| {
+                    matches!(
+                        part.faces[n].surface,
+                        Surface::Cylinder { .. } | Surface::Torus { .. }
+                    )
+                })
+                && reach_beyond_bore(part, seg, &[partner]).is_some()
+            {
+                return None;
+            }
             Some((
                 if seg.external != curls_in {
                     End::Flat
@@ -284,6 +302,33 @@ fn partner_state(
         )),
         _ => None,
     }
+}
+
+/// How far beyond the bore radius these faces reach from the bore's axis, when every sampled
+/// point and edge point of them lies at or beyond that radius and some point beyond it: faces
+/// that widen the bore into the wall and leave no material inside the bore diameter (a
+/// groove), as opposed to a round at a floor or a ridge that narrows the bore. `None` for
+/// anything else.
+pub(super) fn reach_beyond_bore(part: &Part, seg: &Segment, faces: &[usize]) -> Option<f64> {
+    let radius = seg.diameter / 2.;
+    let tolerance = policy::length_tol(radius, STACK_GAP_FRAC);
+    let mut reach: f64 = 0.;
+    for &face in faces {
+        let edge_points = part.face_edges(face).into_iter().flat_map(|edge| {
+            let e = &part.edges[edge];
+            std::iter::once(e.midpoint()).chain(e.vertex_points())
+        });
+        let samples = probe_samples(part, face).into_iter().map(|s| s.point);
+        for point in edge_points.chain(samples) {
+            let axial = geom::dot(point, seg.direction);
+            let off = py::dist(&point, &axis_point_at(seg, axial));
+            if off < radius - tolerance {
+                return None;
+            }
+            reach = reach.max(off - radius);
+        }
+    }
+    (reach > tolerance).then_some(reach)
 }
 
 /// A native plane's outward normal as the face reports it, not renormalised

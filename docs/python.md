@@ -25,6 +25,7 @@ with open("part.step", "rb") as stream:
 | `recognise_with_evidence(step: str \| bytes)` | [Shared analysis](shared-analysis.md): complete recognition, evidence and an explicit evidence error from one shared analysis |
 | `evidence(step, framed=False)` | [Evidence/1](evidence.md): family, record, defining/constituent faces, instance groups, hosts, pattern members and rejected candidates |
 | `anchor(step, face: int)` | `{face, point: [x,y,z], uv: [u,v]}` from haecceity's proved trimmed-face anchor, in file coordinates |
+| `anchors(step, faces=None)` | `anchor` for many faces from one parse: a JSON array of `{face, point, uv}` in the order asked (every face in index order when `faces` is omitted; each result equals the single `anchor` call's). A face with no provable point gets `point` and `uv` null and the reason in `refused`; an out-of-range index raises `ValueError` for the whole call. Use it instead of looping over `anchor`, which parses the file on every call |
 | `fingerprints(step)` | The existing fingerprints/3 document |
 | `correspond(old_step, new_step)` | The existing Rust revision correspondence document |
 | `parts(step)` | Exactly `quiddity parts`: each distinct part's index, name, face and edge counts and placements, and the binding, including stdout's trailing newline |
