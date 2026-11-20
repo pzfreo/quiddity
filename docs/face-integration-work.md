@@ -50,8 +50,8 @@ These changes remove that, none touching the integrands, nodes or the boundary q
 - On a face whose inner integral's parameter has many spans (the same threshold: a face
   closed in v, whose loops wind round it, must keep integrating along u), a node that
   moves along its surface's own parameter line, within 1e-12 of its motion across it
-  (each motion taken as a share of its own knot range, so u and v of different scales are
-  judged alike), weighs nothing and is not evaluated. This applies to the existing form as
+  (each motion taken as a share of the surface's active parameter range, `domain()`, so u
+  and v of different scales are judged alike), weighs nothing and is not evaluated. This applies to the existing form as
   well as the new one: a closed B-spline face whose loops wind round u and whose v has many
   spans skips such nodes too. Locating the polynomial piece of a node for its
   velocity now searches the knots instead of rebuilding their distinct list (the same

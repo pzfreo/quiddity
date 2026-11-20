@@ -44,6 +44,7 @@ in [docs/alpha1.md](docs/alpha1.md).
   are unchanged.
 - Stop B-spline boundary cut bisection when the floating-point bracket stops changing,
   and reuse identical cut searches across the integration passes of an open spline face.
+  From #312 (@xu9299).
 - Complex-instance reference checking at STEP import scans packed records for references
   to complex instances and decodes only the records that have one, instead of decoding every
   record whenever a file has a complex instance. Output is unchanged. Follow-up to #290,
