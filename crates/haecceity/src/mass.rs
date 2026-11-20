@@ -218,9 +218,9 @@ fn cuts(a: f64, b: f64, panels: usize, breaks: &[f64]) -> Option<Vec<f64>> {
 fn split_panels(cuts: &[f64], parts: usize) -> Vec<f64> {
     let mut out = vec![cuts[0]];
     for w in cuts.windows(2) {
-        out.extend((1..=parts).map(|k| w[0] + (w[1] - w[0]) * k as f64 / parts as f64));
-        // Land on the panel's end exactly.
-        *out.last_mut().unwrap() = w[1];
+        // Each panel ends exactly where it did.
+        out.extend((1..parts).map(|k| w[0] + (w[1] - w[0]) * k as f64 / parts as f64));
+        out.push(w[1]);
     }
     out
 }
