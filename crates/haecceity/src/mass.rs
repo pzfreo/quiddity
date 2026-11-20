@@ -141,6 +141,9 @@ thread_local! {
 /// Knot spans in u from which a B-spline face's inner integral may run along v instead (#302).
 const LARGE_NET_SPANS: usize = 32;
 
+/// Sub-panels each v knot span is cut into by the cheaper form's second trial.
+const REFINED_PANELS: usize = 4;
+
 /// How small a node's motion across its inner integral's parameter, against its motion along
 /// the other, is not counted (round-off in an edge along a parameter line of the surface).
 const NEGLIGIBLE_MOTION: f64 = 1e-12;
@@ -209,6 +212,17 @@ fn cuts(a: f64, b: f64, panels: usize, breaks: &[f64]) -> Option<Vec<f64>> {
     });
     out.dedup();
     Some(out)
+}
+
+/// `cuts` with each panel divided into `parts` equal ones.
+fn split_panels(cuts: &[f64], parts: usize) -> Vec<f64> {
+    let mut out = vec![cuts[0]];
+    for w in cuts.windows(2) {
+        out.extend((1..=parts).map(|k| w[0] + (w[1] - w[0]) * k as f64 / parts as f64));
+        // Land on the panel's end exactly.
+        *out.last_mut().unwrap() = w[1];
+    }
+    out
 }
 
 /// How an integral along one surface parameter is cut: in one piece where the integrands are
@@ -972,7 +986,11 @@ impl Part {
     /// integral crosses fewer knot spans where that form is eligible (a face with one very
     /// large B-spline net in u and a few spans in v, #302), then, should it refuse or fail
     /// its own check, by the stock form. Only a completed, checked result of the cheaper form
-    /// is returned.
+    /// is returned. A face whose one rule per knot span fails the check is tried once more
+    /// with each span cut into [`REFINED_PANELS`] (its area density is a high-degree
+    /// polynomial in v, which one 16-point rule does not resolve), against the same check. A
+    /// face both refuse is remembered in the face's cache (per integrand width), so no later
+    /// integration of it repeats the trials.
     fn integrate_face_legacy<const N: usize>(
         &self,
         face: usize,
@@ -980,18 +998,30 @@ impl Part {
         rule: IntegralRule,
         observed: &mut Option<MassPass>,
     ) -> Option<[f64; N]> {
-        if self.cheaper_inner_form(face) {
-            let unresolved = std::cell::Cell::new(false);
-            let mut trial = None;
-            let swapped =
-                self.integrate_face_legacy_in(face, &f, rule, &mut trial, Some(&unresolved));
-            if swapped.is_some()
-                && !unresolved.get()
-                && matches!(trial, None | Some(MassPass::Evaluated(Some(_))))
-            {
-                *observed = trial;
-                return swapped;
+        if self.cheaper_inner_form(face) && !self.cache[face].trial_refused(N) {
+            for split in [1, REFINED_PANELS] {
+                let unresolved = std::cell::Cell::new(false);
+                let mut trial = None;
+                let swapped = self.integrate_face_legacy_in(
+                    face,
+                    &f,
+                    rule,
+                    &mut trial,
+                    Some((&unresolved, split)),
+                );
+                if swapped.is_some()
+                    && !unresolved.get()
+                    && matches!(trial, None | Some(MassPass::Evaluated(Some(_))))
+                {
+                    *observed = trial;
+                    return swapped;
+                }
+                // Only a panel the half-panel check found unresolved is worth cutting finer.
+                if !unresolved.get() {
+                    break;
+                }
             }
+            self.cache[face].refuse_trial(N);
         }
         self.integrate_face_legacy_in(face, f, rule, observed, None)
     }
@@ -1045,7 +1075,7 @@ impl Part {
         f: impl Fn(V3, V3, V3) -> [f64; N],
         rule: IntegralRule,
         observed: &mut Option<MassPass>,
-        cheaper: Option<&std::cell::Cell<bool>>,
+        cheaper: Option<(&std::cell::Cell<bool>, usize)>,
     ) -> Option<[f64; N]> {
         let fc = &self.faces[face];
         let surface = &fc.surface;
@@ -1164,11 +1194,14 @@ impl Part {
                 && weight.abs() * other_extent <= NEGLIGIBLE_MOTION * other.abs() * weight_extent
         };
         let term = |u: f64, v: f64, du: f64, dv: f64| {
-            let (weight, y) = if let Some(unresolved) = cheaper {
+            let (weight, y) = if let Some((unresolved, split)) = cheaper {
                 if negligible(du, dv, cheap_spans, true) {
                     return Some([0.0; N]);
                 }
-                let cuts = surface_cuts(surface, spans.1, true, reference, v)?;
+                let mut cuts = surface_cuts(surface, spans.1, true, reference, v)?;
+                if split > 1 {
+                    cuts = split_panels(&cuts, split);
+                }
                 let (y, resolved) = integrate_checked(&cuts, |s| f(u, s));
                 if !resolved {
                     unresolved.set(true);
@@ -2740,6 +2773,157 @@ mod tests {
         e.finish(face)
     }
 
+    /// STEP text of S(u, v) = (u, v, `height`·v^`degree`) on the unit square as a B-spline face:
+    /// degree 1 over 40 spans in u, one Bézier span of `degree` in v. Its area density
+    /// √(1 + (height·degree·v^(degree−1))²) is not a polynomial in v, and the nearer its complex
+    /// singularities lie to [0, 1] (the larger `height`), the more panels the cheaper form's
+    /// inner rule needs in v.
+    fn steep_in_v_face(degree: usize, height: f64) -> String {
+        let spans = 40;
+        let at = |i: usize, j: usize| {
+            let z = if j == degree { height } else { 0.0 };
+            [i as f64 / spans as f64, j as f64 / degree as f64, z]
+        };
+        let mut e = Entities::new();
+        let mut grid = Vec::new();
+        for i in 0..=spans {
+            let row: Vec<String> = (0..=degree)
+                .map(|j| format!("#{}", e.point(at(i, j))))
+                .collect();
+            grid.push(format!("({})", row.join(",")));
+        }
+        let mut mult = vec!["2".to_string()];
+        mult.extend(vec!["1".to_string(); spans - 1]);
+        mult.push("2".into());
+        let knots: Vec<String> = (0..=spans)
+            .map(|i| format!("{:?}", i as f64 / spans as f64))
+            .collect();
+        let surface = e.add(format!(
+            "B_SPLINE_SURFACE_WITH_KNOTS('',1,{degree},({}),.UNSPECIFIED.,.F.,.F.,.F.,({}),({degree1},{degree1}),({}),(0.,1.),.UNSPECIFIED.)",
+            grid.join(","),
+            mult.join(","),
+            knots.join(","),
+            degree1 = degree + 1
+        ));
+        // The sides along v are the surface's own curves there, with its control points.
+        let side = |e: &mut Entities, i: usize| {
+            let points: Vec<String> = (0..=degree)
+                .map(|j| format!("#{}", e.point(at(i, j))))
+                .collect();
+            e.add(format!(
+                "B_SPLINE_CURVE_WITH_KNOTS('',{degree},({}),.UNSPECIFIED.,.F.,.F.,({degree1},{degree1}),(0.,1.),.UNSPECIFIED.)",
+                points.join(","),
+                degree1 = degree + 1
+            ))
+        };
+        let (c_left, c_right) = (side(&mut e, 0), side(&mut e, spans));
+        let (low, high): (Vec<usize>, Vec<usize>) = (0..=spans)
+            .map(|i| (e.point(at(i, 0)), e.point(at(i, degree))))
+            .unzip();
+        let (c_low, c_high) = (e.polyline(&low), e.polyline(&high));
+        let v = [
+            e.vertex(at(0, 0)),
+            e.vertex(at(spans, 0)),
+            e.vertex(at(spans, degree)),
+            e.vertex(at(0, degree)),
+        ];
+        let sides = [
+            e.edge(v[0], v[1], c_low, true),
+            e.edge(v[1], v[2], c_right, true),
+            e.edge(v[3], v[2], c_high, false),
+            e.edge(v[0], v[3], c_left, false),
+        ];
+        let sides = sides.map(|s| format!("#{s}")).join(",");
+        let lp = e.add(format!("EDGE_LOOP('',({sides}))"));
+        let bound = e.add(format!("FACE_OUTER_BOUND('',#{lp},.T.)"));
+        let face = e.add(format!("ADVANCED_FACE('',(#{bound}),#{surface},.T.)"));
+        e.finish(face)
+    }
+
+    /// The face's area by [`Part::integrate_face_legacy`] (the cheaper form's trials, then the
+    /// stock form), with the integrand evaluations it costs.
+    fn steep_area(part: &Part) -> (f64, usize) {
+        let area = |_: V3, su: V3, sv: V3| [geom::norm(geom::cross(su, sv))];
+        let rule = IntegralRule {
+            components: Components::Prefix(1),
+            observe_mass: None,
+        };
+        let (value, n) = evaluations_of(|| part.integrate_face_legacy(0, area, rule, &mut None));
+        (value.unwrap()[0], n)
+    }
+
+    /// The face's area from the cheaper form cut `split` times finer, whether its check passed,
+    /// and its cost; or by the stock form (`split` 0, which always passes).
+    fn steep_trial(part: &Part, split: usize) -> (f64, bool, usize) {
+        let area = |_: V3, su: V3, sv: V3| [geom::norm(geom::cross(su, sv))];
+        let rule = IntegralRule {
+            components: Components::Prefix(1),
+            observe_mass: None,
+        };
+        let unresolved = std::cell::Cell::new(false);
+        let (value, n) = evaluations_of(|| {
+            let trial = (split > 0).then_some((&unresolved, split));
+            part.integrate_face_legacy_in(0, area, rule, &mut None, trial)
+        });
+        (value.unwrap()[0], !unresolved.get(), n)
+    }
+
+    fn steep_exact(degree: usize, height: f64) -> f64 {
+        let (d, h) = (degree as f64, height);
+        let cuts = cuts(0.0, 1.0, 2048, &[]).unwrap();
+        integrate(&cuts, |v| {
+            [(1.0 + (h * d * v.powi(degree as i32 - 1)).powi(2)).sqrt()]
+        })[0]
+    }
+
+    /// A face the cheaper form's one rule per v knot span cannot resolve (its area density is
+    /// no polynomial in v) takes the form once more with each span in four, and keeps that
+    /// result when it passes the same check: the exact area, by the finer trial alone.
+    #[test]
+    fn a_face_unresolved_per_knot_span_is_integrated_with_finer_panels_along_v() {
+        let (degree, height) = (6, 20.0);
+        let part = crate::step::read_step(steep_in_v_face(degree, height).as_bytes()).unwrap();
+        assert!(part.cheaper_inner_form(0));
+        let (_, coarse_ok, coarse_cost) = steep_trial(&part, 1);
+        let (fine, fine_ok, fine_cost) = steep_trial(&part, REFINED_PANELS);
+        assert!(!coarse_ok && fine_ok);
+        let exact = steep_exact(degree, height);
+        assert!((fine - exact).abs() < 1e-11 * exact, "{fine} vs {exact}");
+
+        let (area, cost) = steep_area(&part);
+        assert_eq!(area, fine, "the finer trial's result is the face's");
+        assert_eq!(cost, coarse_cost + fine_cost, "both trials ran, no stock");
+        assert!(!part.cache[0].trial_refused(1));
+        // Once the finer trial has passed, a repeat runs the same two trials (nothing refused).
+        assert_eq!(steep_area(&part).1, cost);
+    }
+
+    /// A face both trials refuse takes the stock form, and the refusal is remembered: a second
+    /// integration of it runs no trial.
+    #[test]
+    fn a_face_refused_at_both_panel_counts_goes_straight_to_stock_afterwards() {
+        let (degree, height) = (4, 160.0);
+        let part = crate::step::read_step(steep_in_v_face(degree, height).as_bytes()).unwrap();
+        assert!(part.cheaper_inner_form(0));
+        let (_, coarse_ok, coarse_cost) = steep_trial(&part, 1);
+        let (_, fine_ok, fine_cost) = steep_trial(&part, REFINED_PANELS);
+        let (stock, _, stock_cost) = steep_trial(&part, 0);
+        assert!(!coarse_ok && !fine_ok);
+        assert!(!part.cache[0].trial_refused(1));
+
+        let (area, first) = steep_area(&part);
+        assert_eq!(area, stock);
+        assert_eq!(first, coarse_cost + fine_cost + stock_cost);
+        assert!(part.cache[0].trial_refused(1));
+        let (area, second) = steep_area(&part);
+        assert_eq!(area, stock);
+        assert_eq!(second, stock_cost, "no trial on the second integration");
+        // Another consumer's integrand (another width) has not been refused yet.
+        assert!(!part.cache[0].trial_refused(5));
+        let exact = steep_exact(degree, height);
+        assert!((stock - exact).abs() < 1e-9 * exact, "{stock} vs {exact}");
+    }
+
     /// The strip's area is right where the cheaper form's inner rule would be 0.263% high on
     /// its shape check alone (#302): ∫₀¹ ½(√(1+k) + k·asinh(1/√k)) du with k = 1e-4 + 4e-4u²,
     /// the v integral done in closed form and the u integral by Simpson at 2 000, 4 000 and
@@ -3109,7 +3293,7 @@ mod tests {
         };
         let unresolved = std::cell::Cell::new(false);
         assert!(
-            part.integrate_face_legacy_in(0, area, rule, &mut None, Some(&unresolved))
+            part.integrate_face_legacy_in(0, area, rule, &mut None, Some((&unresolved, 1)))
                 .is_none(),
             "the cheaper form must refuse a winding loop"
         );
