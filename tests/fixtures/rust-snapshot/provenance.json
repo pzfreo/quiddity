@@ -3221,6 +3221,11 @@
     "tests/fixtures/revolution_line_shaft.step.gz": "e4bce9d8b37327f92dfdba957e129a8877769835e5ae89779a36e26fa6253f9a",
     "tests/fixtures/revolution_shaft.step.gz": "df86c9889045e2ab351772906ead5ca38ff81ec3b6156bcec64484261a13dbdc",
     "tests/fixtures/rotated_seam_band.step": "6c57a30a733a59f1b73230746d22db123f59f1911d6fdea4b34f2f0bcf71a761",
+    "tests/fixtures/round_groove_ball_race.step.gz": "e2e974574194c9475e897cd9c65d59d94d25c9c8f3d179b3f3f2eff8027b13cb",
+    "tests/fixtures/round_groove_controls.step.gz": "5d556f3f774a964c17679eb3aceb48b3bbd3da045ac0d9c039cc6b8618a9d72f",
+    "tests/fixtures/round_groove_face_glands.step.gz": "1c411016d27d9a40dbefeba1fc4cce140526c6ee8bf8524f8dfa8a03fc6e75cd",
+    "tests/fixtures/round_groove_fixtures.README.md": "22ff20211763e936a7e9de66dc80ab46d2d71b0b8282c7d9083be0ec412be253",
+    "tests/fixtures/round_groove_gland_shaft.step.gz": "6e77bf028e7a99b39d843ffa14e43dc5742d7df11a5a34b93bcc73fb44ee6142",
     "tests/fixtures/rounded_box_r1.step": "04d1e139052d2f7730a3757880faaf51590d8c34049f4679edf4a0a365ec5de0",
     "tests/fixtures/sealed_cylindrical_voids.step.gz": "4164cc85760e6de2537220f3cca689f2f6aee785bea043d4176865223a6649fc",
     "tests/fixtures/section.json.gz": "ae1dd7afea8259dea5f7afb7444216ab5b368c2b94e101bce0ff4f001d9a0c50",
@@ -5978,5 +5983,5 @@
     "step_levels.json.gz": "6ff3ceadb33888e9d529a10b9a880babaf979f4f8d869962215d9d3193902f00",
     "unowned_recesses.json.gz": "604ec266d4c85575165c6822140a3ac79a6637c8d72a3a2bb376e74f86455343"
   },
-  "source_commit": "84e4ac348e1bc5274c8d03ea13e27ab35dfa61fa"
+  "source_commit": "4ecbfd4927189e45aac2f350ad1f0fdf5be6d9f5"
 }
