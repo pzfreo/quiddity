@@ -2,6 +2,7 @@
   {
     "file": "cadgenbench/threaded_connector_109.step",
     "face": 0,
+    "spatial_control_edges": [26, 103, 141],
     "verdict": "rust-correct",
     "reason": "BSPLINE face. OpenCascade's adaptive integral (eps 1e-9): area 3.307124883e-08, centroid (51.55998496, 0.047710001, 367.6142278); with its pcurves rebuilt from the 3D edges: area 3.307124961e-08, centroid (51.55998496, 0.04771000102, 367.6142278). The port: area 3.311827352e-08, centroid (51.55998495, 0.04771074237, 367.6142278). An independent integration (Green's theorem along the edge curves, face_moment_evidence) gives area 3.311828036e-08, centroid (51.55998495, 0.04771074216, 367.6142278) (estimated error 3.3e-10): 2.1e-07 from the port, 1.4e-03 from OpenCascade.",
     "rust": [

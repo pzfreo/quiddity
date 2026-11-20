@@ -25,6 +25,45 @@ const RELATIVE: f64 = 1e-6;
 /// A listed difference's pinned area or centroid has changed.
 const PINNED: f64 = 1e-7;
 
+/// The three S1 pcurves of #17 delimit a triangle on the file's degree-(1,6)
+/// spline. Tensor Gauss integration of the surface Jacobian, position and
+/// centred tensor on that triangle gives these references at orders 8, 16
+/// and 32. Both placements must retain the selected area and all its moments.
+#[test]
+fn tiny_declared_spline_triangle_keeps_its_moments_away_from_the_origin() {
+    let Some(dir) = common::corpus_dir() else {
+        assert!(std::env::var_os("QUIDDITY_CORPUS_REQUIRED").is_none());
+        return;
+    };
+    let part = read_step_file(&dir.join("cadgenbench/threaded_connector_109.step")).unwrap();
+    assert_eq!(part.face_source(0).unwrap().entity, 17);
+    let origin = [51.56, 0.04771, 367.61423];
+    let placed = part
+        .transformed(&[
+            [1., 0., 0., -origin[0]],
+            [0., 1., 0., -origin[1]],
+            [0., 0., 1., -origin[2]],
+        ])
+        .unwrap();
+    let centre = [51.559984959625815, 0.04771000100467721, 367.61422777543277];
+    let tensor = [
+        [9.47942887e-19, -7.74988935e-17, -1.51942339e-18],
+        [-7.74988935e-17, 1.8015568032873e-14, 3.53208562e-16],
+        [-1.51942339e-18, 3.53208562e-16, 6.92491561e-18],
+    ];
+    for (p, offset) in [(&part, [0.; 3]), (&placed, origin)] {
+        let m = p.face_moments(0).expect("selected triangle has moments");
+        assert!((m.area / 3.307124882796035e-8 - 1.).abs() < 1e-8);
+        assert!((m.area / p.face_mass(0).unwrap()[0] - 1.).abs() < 1e-8);
+        for (i, row) in tensor.iter().enumerate() {
+            assert!((m.centroid[i] - (centre[i] - offset[i])).abs() < 1e-9);
+            for (got, want) in m.second_moments[i].iter().zip(row) {
+                assert!((got / want - 1.).abs() < 1e-6, "{got} vs {want}");
+            }
+        }
+    }
+}
+
 fn captured() -> Value {
     let path = common::fixtures().join("face_moments.json.gz");
     let mut text = String::new();
@@ -572,6 +611,23 @@ fn face_moments_match_opencascade_adaptive() {
         let pinned: Option<Vec<f64>> = k["rust"]
             .as_array()
             .map(|a| a.iter().map(|x| x.as_f64().unwrap()).collect());
+        if let Some(ids) = k["spatial_control_edges"].as_array() {
+            // This independent Green integral followed the 3D edges. Check
+            // its original numbers under that selection. The file's own master
+            // must pass the ordinary OpenCascade check as an unlisted face.
+            let edges = ids.iter().map(|id| id.as_u64().unwrap()).collect();
+            let spatial = common::with_spatial_edges(&dir.join(&key.0), &edges);
+            let got = moments(&spatial, key.1 as usize);
+            if !got
+                .zip(pinned.as_deref())
+                .is_some_and(|(g, p)| agrees(&g, p, PINNED))
+            {
+                problems.push(format!(
+                    "{key:?} spatial control was {pinned:?}, now {got:?}"
+                ));
+            }
+            continue;
+        }
         match found.get(&key) {
             None => problems.push(format!("{key:?} is listed but now agrees: remove it")),
             Some((got, report)) => {

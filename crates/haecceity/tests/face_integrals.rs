@@ -35,6 +35,54 @@ fn tensor(q: [[f64; 3]; 3], m: &Placement) -> [[f64; 3]; 3] {
     })
 }
 
+/// Green integration of the four STEP-selected pcurves on their own carriers
+/// gives the same area at 12, 24 and 48 Gauss nodes per knot span. One endpoint
+/// on the adjacent rational spline has v = -3.67598317687e-14 at its lower knot.
+/// On sphere #151680 another carrier ends at u = 1.000000000001 for an upper
+/// knot of 1. Its three radially projected pcurves enclose 3.54881920497864 mm²
+/// by an independent spherical solid-angle integral in two coordinate frames.
+#[test]
+fn rounded_foreign_spline_endpoints_keep_their_face_trims_under_motion() {
+    let Some(corpus) = common::corpus_dir() else {
+        return;
+    };
+    let path = corpus.join("cadgenbench_inputs/cgb202.step.gz");
+    let area = 25.67657558531589;
+    let centre = [112.71217493348577, -159.73551391711212, -94.228115143539];
+    let translation = [
+        [1., 0., 0., 123.456],
+        [0., 1., 0., -78.9],
+        [0., 0., 1., 41.3],
+    ];
+    for (first, m) in [IDENTITY, translation, motion(false), motion(true)]
+        .into_iter()
+        .enumerate()
+    {
+        let part = read_step_file_placed(&path, &m).unwrap();
+        let f = 684;
+        assert_eq!(part.face_source(f).unwrap().entity, 104_265);
+        let got = part.face_moments(f).unwrap();
+        let placed = geom::add(rotate(centre, &m), m.map(|row| row[3]));
+        assert!((got.area - area).abs() < 1e-9);
+        assert!((part.face_mass(f).unwrap()[0] - area).abs() < 1e-9);
+        assert!(geom::dist(got.centroid, placed) < 1e-8);
+
+        let sphere = 1031;
+        let sphere_area = 3.54881920497864;
+        assert_eq!(part.face_source(sphere).unwrap().entity, 151_680);
+        if first % 2 == 1 {
+            assert!((part.face_moments(sphere).unwrap().area - sphere_area).abs() < 1e-9);
+        }
+        assert!((part.face_mass(sphere).unwrap()[0] - sphere_area).abs() < 1e-9);
+        assert!((part.face_moments(sphere).unwrap().area - sphere_area).abs() < 1e-9);
+    }
+    let spatial = common::with_spatial_edges(
+        &path,
+        &[26, 104_128, 104_271, 104_293].into_iter().collect(),
+    );
+    assert!((spatial.face_mass(684).unwrap()[0] - 25.67737528249655).abs() < 1e-9);
+}
+
 #[test]
 fn hemisphere_and_disk_have_analytic_central_moments() {
     let text = std::fs::read(common::fixtures().join("hemisphere_one_edge.step")).unwrap();
@@ -235,7 +283,7 @@ fn bspline_held_side_has_independently_integrated_second_moments() {
     }
 }
 
-/// These tensors differ from GProp's pcurve integrals while their areas and centroids agree.
+/// The spatial controls use the 3D boundary on which their reference was measured.
 /// OCCT evaluation over the 3D boundary, with 16 and 32 Lobatto panels per span, independently
 /// confirms every entry to 1.2e-12 of the tensor trace (the ledger records each error). This
 /// regression runs in CI without adding a Python capture or requiring an OCCT installation.
@@ -258,32 +306,50 @@ fn second_moments_match_independently_verified_boundaries() {
     let groups: Vec<_> = groups.into_iter().collect();
     let _ = common::parallel::map(&groups, |(file, rows)| {
         let part = read_step_file_placed(&dir.join(file), &IDENTITY).unwrap();
+        let edges: std::collections::BTreeSet<u64> = rows
+            .iter()
+            .filter_map(|row| row["spatial_control_edges"].as_array())
+            .flatten()
+            .map(|edge| edge.as_u64().unwrap())
+            .collect();
+        let spatial =
+            (!edges.is_empty()).then(|| common::with_spatial_edges(&dir.join(file), &edges));
         for row in rows {
             let face = row["face"].as_u64().unwrap() as usize;
             let m = part
                 .face_moments(face)
                 .expect("independently verified integral");
-            let pin = &row["rust"];
-            let area = pin["area"].as_f64().unwrap();
-            assert!((m.area - area).abs() < 1e-7 * area, "{file} face {face}");
-            let trace: f64 = (0..3)
-                .map(|i| pin["second_moments"][i][i].as_f64().unwrap())
-                .sum();
-            for (i, &c) in m.centroid.iter().enumerate() {
-                let want = pin["centroid"][i].as_f64().unwrap();
-                assert!(
-                    (c - want).abs() < 1e-7 * want.abs().max(1.0),
-                    "{file} face {face}: centroid {m:?}"
-                );
-            }
-            for (i, values) in m.second_moments.iter().enumerate() {
-                for (j, &value) in values.iter().enumerate() {
-                    let want = pin["second_moments"][i][j].as_f64().unwrap();
+            let check = |m: haecceity::mass::FaceMoments, pin: &serde_json::Value| {
+                let area = pin["area"].as_f64().unwrap();
+                assert!((m.area - area).abs() < 1e-7 * area, "{file} face {face}");
+                let trace: f64 = (0..3)
+                    .map(|i| pin["second_moments"][i][i].as_f64().unwrap())
+                    .sum();
+                for (i, &c) in m.centroid.iter().enumerate() {
+                    let want = pin["centroid"][i].as_f64().unwrap();
                     assert!(
-                        (value - want).abs() < 1e-7 * trace,
-                        "{file} face {face}: second moments {m:?}"
+                        (c - want).abs() < 1e-7 * want.abs().max(1.0),
+                        "{file} face {face}: centroid {m:?}"
                     );
                 }
+                for (i, values) in m.second_moments.iter().enumerate() {
+                    for (j, &value) in values.iter().enumerate() {
+                        let want = pin["second_moments"][i][j].as_f64().unwrap();
+                        assert!(
+                            (value - want).abs() < 1e-7 * trace,
+                            "{file} face {face}: second moments {m:?}"
+                        );
+                    }
+                }
+            };
+            if row["spatial_control_edges"].is_array() {
+                check(m, &row["step_master"]);
+                check(
+                    spatial.as_ref().unwrap().face_moments(face).unwrap(),
+                    &row["rust"],
+                );
+            } else {
+                check(m, &row["rust"]);
             }
         }
     });

@@ -31,6 +31,38 @@ pub fn load(name: &str) -> Value {
     serde_json::from_str(&std::fs::read_to_string(fixtures().join(name)).unwrap()).unwrap()
 }
 
+/// Select just the spatial edges used to establish an independent integration reference.
+pub fn with_spatial_edges(
+    path: &Path,
+    edges: &std::collections::BTreeSet<u64>,
+) -> haecceity::brep::Part {
+    let bytes =
+        haecceity::step::decode_step_file_bytes(path, std::fs::read(path).unwrap()).unwrap();
+    let mut changed = std::collections::BTreeSet::new();
+    let original = std::str::from_utf8(&bytes).unwrap();
+    let mut modified = String::with_capacity(original.len());
+    for record in original.split_inclusive(';') {
+        let id = record
+            .trim_start()
+            .split_once('=')
+            .and_then(|(lhs, _)| lhs.trim_end().strip_prefix('#')?.parse::<u64>().ok());
+        if let Some(id) = id.filter(|id| edges.contains(id)) {
+            let flag = if record.contains(".PCURVE_S1.") {
+                ".PCURVE_S1."
+            } else {
+                ".PCURVE_S2."
+            };
+            assert_eq!(record.matches(flag).count(), 1);
+            assert!(changed.insert(id));
+            modified.push_str(&record.replace(flag, ".CURVE_3D."));
+        } else {
+            modified.push_str(record);
+        }
+    }
+    assert_eq!(&changed, edges);
+    haecceity::read_step(modified.as_bytes()).unwrap()
+}
+
 /// The shared corpus: `QUIDDITY_CORPUS`, else the sibling Python checkout's.
 pub fn corpus_dir() -> Option<PathBuf> {
     let dir = std::env::var("QUIDDITY_CORPUS")

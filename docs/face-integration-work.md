@@ -155,3 +155,19 @@ The existing quadrature and kink-budget tests retain exhaustive mode.
 Independent face-area/moment references, placements, existing recognition snapshots,
 inventory floors and tolerances remain unchanged. Repeated-moment speedups measure
 cache reuse; they are not claims about cold integrations or whole-part recognition.
+
+
+## Choosing the STEP boundary for measurement
+
+A STEP surface curve can provide several descriptions of one edge. Its master
+representation selects the spatial curve or a numbered pcurve. For each coedge
+haecceity uses that selection when integrating face area, the normal and position
+fluxes, and first and second moments. The shell and solid sums use those same
+face terms. Edges with no selected pcurve contribute their spatial projection.
+
+A pcurve is evaluated in the units and parameter interval of its named carrier.
+If that carrier differs from the face being measured, the point and tangent
+are transferred through 3D onto the receiving surface. Endpoint agreement,
+finite carrier domains, intersection and integration checks govern acceptance.
+If the assembled loop fails, measurement retries the whole face using the 3D
+edges. Mass and moments share the accepted choice across query orders.

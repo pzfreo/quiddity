@@ -39,6 +39,11 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
+- Face area, moments and volume flux now use the finite boundary selected by
+  STEP's `PCURVE_S1` or `PCURVE_S2` when it can be integrated, including when
+  projecting the 3D edge would also give an area. A `CURVE_3D` edge still uses
+  its spatial curve. An unusable selected boundary falls back to projection.
+
 - A planar chamfer is no longer read from the flats of a polygonal section. A bevel between two
   principal-plane walls was published whenever it stood between them, so the flats of a hexagonal
   or irregular polygonal prism whose neighbours happened to lie on principal planes became

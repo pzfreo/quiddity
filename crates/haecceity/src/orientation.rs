@@ -73,31 +73,21 @@ impl Part {
                     .zip(sides)
                     .filter_map(|(&f, side)| (side == Side::Inward).then_some(f))
                     .collect();
-                let mut faces = self.faces.clone();
-                for &f in &flips {
-                    faces[f].reversed = !faces[f].reversed;
-                }
-                let candidate = Part::new(faces, self.edges.clone(), self.solids.clone());
-                if candidate.solid_is_valid(solid)
-                    && inward_wires(&candidate, solid) == Some(true)
-                    && candidate
-                        .solid_mass(solid)
-                        .is_some_and(|(v, _)| v.is_finite() && v > 0.0)
-                {
-                    let classifier = Classifier::for_solid(&candidate, solid);
-                    if candidate.solids[solid]
-                        .faces
-                        .iter()
-                        // Reversing only the witness normal reuses the full inward
-                        // proof: three witnesses at two offsets, not the single
-                        // outward witness sufficient to refuse a global inversion.
-                        .all(|&f| {
-                            face_side_with_normal(&candidate, &classifier, f, true) == Side::Inward
-                        })
+                self.try_mixed_normal_repair(solid, &flips, |candidate| {
+                    if !candidate.solid_is_valid(solid)
+                        || inward_wires(candidate, solid) != Some(true)
+                        || !candidate
+                            .solid_mass(solid)
+                            .is_some_and(|(v, _)| v.is_finite() && v > 0.0)
                     {
-                        self.record_mixed_normal_repair(solid, &flips);
+                        return false;
                     }
-                }
+                    let classifier = Classifier::for_solid(candidate, solid);
+                    // Three witnesses at two offsets must prove every new outward normal.
+                    candidate.solids[solid].faces.iter().all(|&f| {
+                        face_side_with_normal(candidate, &classifier, f, true) == Side::Inward
+                    })
+                });
             }
         }
         self

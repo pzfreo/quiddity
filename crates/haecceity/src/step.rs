@@ -5,6 +5,7 @@
 
 #[cfg(feature = "manifest")]
 pub mod manifest;
+mod trim_carrier;
 
 use std::collections::HashMap;
 
@@ -20,8 +21,9 @@ use step_io::parser::{Attribute, RawEntity};
 use step_io::scene::{Edge as StepEdge, Face as StepFace, SurfaceKind};
 
 use super::brep::{
-    Edge, Face, GeometryPlacement, InstanceTransform, Loop, Part, Pcurve, PcurveSpline,
-    ProductLabel, RawCurve2d, RawFrame, RawProfile, Solid, Source, SweptSource,
+    Edge, Face, GeometryPlacement, InstanceTransform, Loop, MeasurementPcurve, Part, Pcurve,
+    PcurveSpline, ProductLabel, RawCurve2d, RawFrame, RawProfile, Solid, Source, SweptSource,
+    TrimCarrier,
 };
 use super::geom::{self, Curve, Frame, Surface, V3};
 use super::nurbs::{NurbsCurve, NurbsSurface};
@@ -185,6 +187,14 @@ pub(crate) fn compose(outer: &Placement, inner: &Placement) -> Placement {
     }
     out
 }
+
+struct PendingTrim {
+    surface: m::SurfaceRef,
+    owners: Vec<usize>,
+    curve: MeasurementPcurve,
+}
+
+type PendingTrims = std::collections::BTreeMap<usize, Option<PendingTrim>>;
 
 struct Reader<'a> {
     model: &'a m::StepModel,
@@ -479,6 +489,109 @@ impl Reader<'_> {
         })
     }
 
+    /// A parameter-space curve in file coordinates.
+    fn measurement_pcurve(&self, item: &m::RepresentationItemRef) -> Option<MeasurementPcurve> {
+        let model = self.model;
+        let point = |r: &m::CartesianPointRef| {
+            let c = self.raw_point(r)?;
+            Some([c[0], c[1]])
+        };
+        let conic = |placement: &m::Axis2PlacementRef, major, minor| {
+            let m::Axis2PlacementRef::Axis2Placement2d(id) = placement else {
+                return None;
+            };
+            let at = model.get(m::Axis2Placement2dId(id.0))?;
+            let reference = match &at.ref_direction {
+                Some(d) => {
+                    let r = self.raw_ratios(d)?;
+                    Some([r[0], r[1]])
+                }
+                None => None,
+            };
+            Some(MeasurementPcurve::Conic {
+                origin: point(&at.location)?,
+                reference,
+                major,
+                minor,
+            })
+        };
+        // ISO knot families specify their knot vector by degree and pole count.
+        let family = |degree: i64, controls: &[m::CartesianPointRef], interior: Option<i64>| {
+            let (knots, mult) = trim_carrier::standard_knots(degree, controls.len(), interior)?;
+            Some(MeasurementPcurve::Raw(RawCurve2d::BSpline {
+                degree,
+                points: controls.iter().map(point).collect::<Option<_>>()?,
+                knots,
+                multiplicities: mult,
+                weights: None,
+            }))
+        };
+        Some(match item {
+            m::RepresentationItemRef::BezierCurve(i) => {
+                let c = model.get(m::BezierCurveId(i.0))?;
+                family(c.degree, &c.control_points_list, Some(c.degree))?
+            }
+            m::RepresentationItemRef::QuasiUniformCurve(i) => {
+                let c = model.get(m::QuasiUniformCurveId(i.0))?;
+                family(c.degree, &c.control_points_list, Some(1))?
+            }
+            m::RepresentationItemRef::UniformCurve(i) => {
+                let c = model.get(m::UniformCurveId(i.0))?;
+                family(c.degree, &c.control_points_list, None)?
+            }
+            m::RepresentationItemRef::Circle(i) => {
+                let c = model.get(m::CircleId(i.0))?;
+                conic(&c.position, c.radius, None)?
+            }
+            m::RepresentationItemRef::Ellipse(i) => {
+                let c = model.get(m::EllipseId(i.0))?;
+                conic(&c.position, c.semi_axis_1, Some(c.semi_axis_2))?
+            }
+            _ => return self.raw_curve_2d(item).map(MeasurementPcurve::Raw),
+        })
+    }
+
+    /// A carrier referenced by a pcurve without an incident topological face.
+    fn independent_carrier(&self, r: &m::SurfaceRef) -> Option<Surface> {
+        let m = self.model;
+        Some(match r {
+            m::SurfaceRef::Plane(i) => Surface::Plane {
+                frame: self.placement(&m.get(m::PlaneId(i.0))?.position)?,
+            },
+            m::SurfaceRef::CylindricalSurface(i) => {
+                let s = m.get(m::CylindricalSurfaceId(i.0))?;
+                Surface::Cylinder {
+                    frame: self.placement(&s.position)?,
+                    radius: self.to_mm * s.radius,
+                }
+            }
+            m::SurfaceRef::ConicalSurface(i) => {
+                let s = m.get(m::ConicalSurfaceId(i.0))?;
+                Surface::Cone {
+                    frame: self.placement(&s.position)?,
+                    radius: self.to_mm * s.radius,
+                    semi_angle: self.to_rad * s.semi_angle,
+                }
+            }
+            m::SurfaceRef::SphericalSurface(i) => {
+                let s = m.get(m::SphericalSurfaceId(i.0))?;
+                Surface::Sphere {
+                    frame: self.placement(&s.position)?,
+                    radius: self.to_mm * s.radius,
+                }
+            }
+            m::SurfaceRef::ToroidalSurface(i) => {
+                let s = m.get(m::ToroidalSurfaceId(i.0))?;
+                Surface::Torus {
+                    frame: self.placement(&s.position)?,
+                    major: self.to_mm * s.major_radius,
+                    minor: self.to_mm * s.minor_radius,
+                }
+            }
+            _ => return self.independent_spline(r),
+        })
+    }
+
     /// The pcurves the file gives on a face's surface, by edge index, as it states them (kept to
     /// be written again).
     fn file_pcurves(
@@ -486,6 +599,8 @@ impl Reader<'_> {
         face: &StepFace<'_>,
         edge_index: &HashMap<m::EntityKey, usize>,
         collect_preferred: bool,
+        face_index: usize,
+        trims: &mut PendingTrims,
     ) -> (Vec<(usize, RawCurve2d)>, Vec<usize>) {
         let basis = face.surface().key();
         let mut out = Vec::new();
@@ -506,6 +621,39 @@ impl Reader<'_> {
                     }
                     _ => continue,
                 };
+                let slot = match master {
+                    m::PreferredSurfaceCurveRepresentation::PcurveS1 => Some(0),
+                    m::PreferredSurfaceCurveRepresentation::PcurveS2 => Some(1),
+                    _ => None,
+                };
+                if let Some(slot) = slot {
+                    let selected = trims.entry(index).or_insert_with(|| {
+                        let m::PcurveOrSurfaceRef::Pcurve(p) = associated.get(slot)? else {
+                            return None;
+                        };
+                        let pcurve = self.model.resolved(m::PcurveId(p.0));
+                        let m::DefinitionalRepresentationRef::DefinitionalRepresentation(d) =
+                            &pcurve.reference_to_curve
+                        else {
+                            return None;
+                        };
+                        let definition = self.model.resolved(m::DefinitionalRepresentationId(d.0));
+                        let [item] = definition.items.as_slice() else {
+                            return None;
+                        };
+                        Some(PendingTrim {
+                            surface: pcurve.basis_surface.clone(),
+                            owners: Vec::new(),
+                            curve: self.measurement_pcurve(item)?,
+                        })
+                    });
+                    if let Some(trim) = selected
+                        && trim.surface.entity_key() == basis
+                        && trim.owners.last() != Some(&face_index)
+                    {
+                        trim.owners.push(face_index);
+                    }
+                }
                 for (slot, g) in associated.iter().enumerate() {
                     let m::PcurveOrSurfaceRef::Pcurve(p) = g else {
                         continue;
@@ -2174,6 +2322,8 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
     let mut swept = std::collections::BTreeMap::new();
     let mut file_pcurves = std::collections::BTreeMap::new();
     let mut primary_pcurves = std::collections::BTreeMap::new();
+    let mut measure_trims = PendingTrims::new();
+    let mut outer_bounds = std::collections::BTreeMap::new();
     let (mut native_faces, mut native_edges) = (Vec::new(), Vec::new());
     let mut vertex_count = 0;
     for (is_solid, placement, faces, instance) in shells {
@@ -2233,7 +2383,11 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
             // Validate raw/scene cardinalities before building partial topology.
             ids.face(&face)?;
             let mut loops = Vec::new();
+            let mut declared_outer = Vec::new();
             for bound in face.bounds() {
+                if matches!(bound.key(), m::EntityKey::FaceOuterBound(_)) {
+                    declared_outer.push(loops.len());
+                }
                 let mut edges = Vec::new();
                 for (edge, forward) in bound.oriented_edges() {
                     if edges.len() >= limits::LOOP_EDGES {
@@ -2337,7 +2491,16 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
             }
             let collect_preferred =
                 matches!(&surface,Surface::Freeform{kind,..} if matches!(*kind,"BSPLINE"|"BEZIER"));
-            let (raw, primary) = reader.file_pcurves(&face, &edge_index, collect_preferred);
+            if let [outer] = declared_outer.as_slice() {
+                outer_bounds.insert(out_faces.len(), *outer);
+            }
+            let (raw, primary) = reader.file_pcurves(
+                &face,
+                &edge_index,
+                collect_preferred,
+                out_faces.len(),
+                &mut measure_trims,
+            );
             if !primary.is_empty() {
                 primary_pcurves.insert(out_faces.len(), primary);
             }
@@ -2422,7 +2585,7 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
                 .ok_or_else(|| StepError::Unsupported("instance numbering differs".into()))?;
         }
     }
-    let part = Part::new(out_faces, edges_out, solids)
+    let mut part = Part::new(out_faces, edges_out, solids)
         .with_declared_length_unit(declared_length_unit)
         .with_unresolved(unresolved_faces, unresolved_edges)
         .with_sources(face_sources, edge_sources)
@@ -2437,8 +2600,27 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
             (reader.to_mm, reader.to_rad),
             units.precision.map(|p| p * reader.to_mm),
         )
-        .with_native_geometry(native_faces, native_edges)
-        .repair_inverted_shells();
+        .with_native_geometry(native_faces, native_edges);
+    part.outer_bounds = outer_bounds;
+    let native = Reader {
+        placement: IDENTITY,
+        ..reader
+    };
+    part.measure_trims = measure_trims
+        .into_iter()
+        .map(|(edge, selected)| {
+            let operand = selected.and_then(|trim| {
+                let carrier = if trim.owners.is_empty() {
+                    TrimCarrier::Detached(Box::new(native.independent_carrier(&trim.surface)?))
+                } else {
+                    TrimCarrier::Faces(trim.owners)
+                };
+                Some((carrier, trim.curve))
+            });
+            (edge, operand)
+        })
+        .collect();
+    let part = part.repair_inverted_shells();
     Ok(Read {
         part,
         instances: instance_of,
@@ -3589,8 +3771,11 @@ mod tests {
     /// generator. Independent 60-digit integration: with r=10-z/2, c=r-6,
     /// A(r)=r²(π/2+asin(c/r))+c*sqrt(r²-c²), V=2∫[5,10] A(r)dr.
     /// Area sums the two caps, the remaining cone and the planar section.
-    /// OCCT's pcurve integrals give V=1178.246345909645 (1.37e-7 low) and
-    /// A=723.863727273429 (6.55e-8 low), so use the analytic reference.
+    /// The exported master pcurves approximate the exact spatial parabola.
+    /// OCCT gives V=1178.246345909645. Direct Green integrals along both selected
+    /// degree-seven cone pcurves, including their projection onto the cut plane,
+    /// give A=723.863727303646. OCCT uses its own pcurve on the plane.
+    /// Keep both independent references and change only the master declaration.
     #[test]
     fn a_parabola_boundary_resolves_and_moves_exactly() {
         let path = fixture("parabola_cut_cone.step");
@@ -3614,12 +3799,6 @@ mod tests {
                 assert!((p[0].hypot(p[1]) - (10.0 - 0.5 * p[2])).abs() < 1e-9);
             }
         }
-        let check_mass = |part: &Part| {
-            let (v, a) = part.solid_mass(0).unwrap();
-            assert!((v - 1178.246346046747).abs() < 1e-8, "{v}");
-            assert!((a - 723.8637273389423).abs() < 1e-8, "{a}");
-        };
-        check_mass(&part);
         let (s, c) = 0.37_f64.sin_cos();
         let at = [
             [c, -s, 0.0, 17.0],
@@ -3629,8 +3808,23 @@ mod tests {
         let moved = part.transformed(&at).unwrap();
         let reread = read_step_file_placed(&path, &at).unwrap();
         assert!(moved.solid_is_valid(0));
-        check_mass(&moved);
-        check_mass(&reread);
+        let check_mass = |p: &Part, volume: f64, area: f64| {
+            let (v, a) = p.solid_mass(0).unwrap();
+            assert!((v - volume).abs() < 1e-8, "{v} (expected {volume})");
+            assert!((a - area).abs() < 1e-8, "{a} (expected {area})");
+        };
+        for p in [&part, &moved, &reread] {
+            check_mass(p, 1178.246345909645, 723.863727303646);
+        }
+        let file = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(file.matches(".PCURVE_S1.").count(), 6);
+        let spatial = file.replace(".PCURVE_S1.", ".CURVE_3D.");
+        let original = read_step(spatial.as_bytes()).unwrap();
+        let transformed = original.transformed(&at).unwrap();
+        let placed = read_step_placed(spatial.as_bytes(), &at).unwrap();
+        for p in [&original, &transformed, &placed] {
+            check_mass(p, 1178.246346046747, 723.8637273389423);
+        }
         for (a, b) in moved.edges.iter().zip(&reread.edges) {
             assert_eq!(a.vertices, b.vertices);
             assert_eq!(a.samples, b.samples);

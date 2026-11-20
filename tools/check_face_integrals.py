@@ -143,6 +143,7 @@ def main():
                     and (not args.face or r['face'] in args.face)}
     ledger.update(tensor_known)
     second_differences = set()
+    checked_masters = set()
     rows, total, agreed, nonconverged = [], 0, 0, 0
     for entry in capture['files']:
         file = entry['file']
@@ -162,11 +163,15 @@ def main():
             length = math.dist(*got['bounds']) if got else 1
             convergence = errors(fine, finer, length)
             diff = errors(got, finer, length)
+            pin = tensor_known.get((file, i))
+            master = pin.get('step_master') if pin else None
+            if master:
+                checked_masters.add((file, i))
             if 'second_moments' in diff.get('failed', []):
                 second_differences.add((file, i))
             # A malformed STEP import is known to reorder faces. Do not compare unrelated faces.
             order = file == 'inventory_refusal/13975.step.gz'
-            if not diff.get('missing') and not diff['failed'] and not convergence['failed'] and not order:
+            if not master and not diff.get('missing') and not diff['failed'] and not convergence['failed'] and not order:
                 agreed += 1
                 continue
             known = ledger.get((file, i))
@@ -185,6 +190,8 @@ def main():
             independent_diff = row.get('independent_errors')
             if got is None:
                 row.update(verdict='unlisted', reason='Rust refused this face integral; a missing integral is never a zero area.')
+            elif master:
+                row.update(verdict='rust-correct', reason='Independent integration of the STEP-selected pcurves gives the pinned area, centroid and tensor.')
             elif independent_diff and not independent_diff['failed'] and not row['independent_convergence']['failed']:
                 row.update(verdict='rust-correct', reason='Area, centroid and central second moments agree with independent OCCT surface integration over the 3D edge boundary, converged at 16 and 32 Lobatto panels per curve span.')
             elif order:
@@ -198,15 +205,15 @@ def main():
                 row.update(verdict=known['verdict'], reason=known['reason'], evidence='Existing frozen face ledger; the same trimmed boundary is used for all moments.')
             else:
                 row.update(verdict='unlisted', reason='Live OpenCascade comparison needs investigation.')
-            pin = tensor_known.get((file, i))
-            if pin and (got is None or errors(got, pin['rust'], length, 1e-7)['failed']):
+            expected = pin.get('step_master', pin['rust']) if pin else None
+            if expected and (got is None or errors(got, expected, length, 1e-7)['failed']):
                 row.update(verdict='unlisted', reason='The listed Rust tensor changed; the evidence and pin must be reviewed.')
             rows.append(row)
         print(f'{file}: {len(faces)} faces', file=sys.stderr, flush=True)
         result = dict(faces=total, agree=agreed, exceptions=len(rows), nonconverged=nonconverged, rows=rows,
                       tolerance='1e-6 relative area and tensor trace; each centroid coordinate 1e-6 of max(abs(coordinate), 1 mm); no absolute area or tensor floor')
         args.report.write_text(json.dumps(result, indent=2)+'\n')
-    stale = sorted(set(tensor_known)-second_differences)
+    stale = sorted(set(tensor_known) - second_differences - checked_masters)
     result['stale'] = stale
     args.report.write_text(json.dumps(result, indent=2)+'\n')
     print(json.dumps({k: v for k, v in result.items() if k != 'rows'}))

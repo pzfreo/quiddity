@@ -3,8 +3,9 @@
 //! Gauss rule, captured by `tools/capture_face_areas.py`), and against itself with the part
 //! moved by a translation and a generic rotation.
 //!
-//! The port integrates over the region its 3D edge curves bound; OpenCascade over the region
-//! the face's pcurves bound. Every difference, and every change under motion, must be listed in
+//! The port integrates eligible STEP master trims and otherwise projects the 3D edges.
+//! OpenCascade integrates the pcurves on its imported face. Each difference and change under
+//! motion must be listed in
 //! `tests/fixtures/references/face_areas.json` with a verdict, pinned to the area the port gives
 //! (`tools/known_face_areas.py` writes the list from the differences, the capture's further
 //! OpenCascade references and the independent integrations of `tools/face_area_evidence.py`).

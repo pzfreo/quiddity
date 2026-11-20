@@ -132,6 +132,113 @@ pub(crate) enum RawCurve2d {
     },
 }
 
+/// File coordinates of a pcurve selected for numerical integration.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum MeasurementPcurve {
+    Raw(RawCurve2d),
+    Conic {
+        origin: [f64; 2],
+        reference: Option<[f64; 2]>,
+        major: f64,
+        minor: Option<f64>,
+    },
+}
+
+#[derive(Clone, Debug)]
+pub(super) enum TrimCarrier {
+    Faces(Vec<usize>),
+    Detached(Box<Surface>),
+}
+
+impl MeasurementPcurve {
+    /// Change units independently on the two parameter axes. Unequal scaling
+    /// of a rotated conic is represented by its exact rational quadrants.
+    pub(crate) fn scaled(&self, su: f64, sv: f64) -> Option<RawCurve2d> {
+        let scale = |[u, v]: [f64; 2]| [u * su, v * sv];
+        if !su.is_finite() || !sv.is_finite() || su <= 0. || sv <= 0. {
+            return None;
+        }
+        Some(match self {
+            Self::Raw(RawCurve2d::Line {
+                point,
+                direction,
+                magnitude,
+            }) => {
+                let norm = direction[0].hypot(direction[1]);
+                if !norm.is_finite() || norm == 0. || !magnitude.is_finite() || *magnitude <= 0. {
+                    return None;
+                }
+                let d = scale([direction[0] / norm, direction[1] / norm]);
+                let factor = d[0].hypot(d[1]);
+                RawCurve2d::Line {
+                    point: scale(*point),
+                    direction: [d[0] / factor, d[1] / factor],
+                    magnitude: magnitude * factor,
+                }
+            }
+            Self::Raw(RawCurve2d::BSpline {
+                degree,
+                points,
+                multiplicities,
+                knots,
+                weights,
+            }) => RawCurve2d::BSpline {
+                degree: *degree,
+                points: points.iter().copied().map(scale).collect(),
+                multiplicities: multiplicities.clone(),
+                knots: knots.clone(),
+                weights: weights.clone(),
+            },
+            Self::Conic {
+                origin,
+                reference,
+                major,
+                minor,
+            } => {
+                let [x, y] = reference.unwrap_or([1., 0.]);
+                let n = x.hypot(y);
+                let b = minor.unwrap_or(*major);
+                if !n.is_finite()
+                    || n == 0.
+                    || !major.is_finite()
+                    || *major <= 0.
+                    || !b.is_finite()
+                    || b <= 0.
+                {
+                    return None;
+                }
+                let controls = [
+                    (1., 0.),
+                    (1., 1.),
+                    (0., 1.),
+                    (-1., 1.),
+                    (-1., 0.),
+                    (-1., -1.),
+                    (0., -1.),
+                    (1., -1.),
+                    (1., 0.),
+                ];
+                let points = controls
+                    .map(|(a, c)| {
+                        scale([
+                            origin[0] + (a * *major * x - c * b * y) / n,
+                            origin[1] + (a * *major * y + c * b * x) / n,
+                        ])
+                    })
+                    .to_vec();
+                let w = std::f64::consts::FRAC_1_SQRT_2;
+                RawCurve2d::BSpline {
+                    degree: 2,
+                    points,
+                    multiplicities: vec![3, 2, 2, 2, 3],
+                    knots: vec![0., 1., 2., 3., 4.],
+                    weights: Some(vec![1., w, 1., w, 1., w, 1., w, 1.]),
+                }
+            }
+        })
+    }
+}
+
 /// A swept surface's profile curve as the file states it.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum RawProfile {
@@ -223,6 +330,8 @@ type Native<T> = (Option<std::sync::Arc<T>>, std::sync::Arc<GeometryPlacement>);
 /// Per-face values derived from the geometry, computed on first use.
 #[derive(Debug, Default)]
 pub(super) struct FaceCache {
+    pub(super) carrier: OnceLock<std::sync::Arc<Surface>>,
+    pub(super) declared: OnceLock<Option<Box<crate::mass::DeclaredBoundary>>>,
     pub(super) uv_loops: OnceLock<Option<Vec<UvLoop>>>,
     pub(super) domain: OnceLock<Option<FaceDomain>>,
     pub(super) bounds: OnceLock<Bounds>,
@@ -353,6 +462,10 @@ pub struct Part {
     file_pcurves: std::collections::BTreeMap<usize, Vec<(usize, RawCurve2d)>>,
     // Slots in file_pcurves explicitly selected as the master representation by STEP.
     primary_pcurves: std::collections::BTreeMap<usize, Vec<usize>>,
+    // An entry with no operand records an unreadable S1/S2: the whole face falls back.
+    pub(super) measure_trims:
+        std::collections::BTreeMap<usize, Option<(TrimCarrier, MeasurementPcurve)>>,
+    pub(super) outer_bounds: std::collections::BTreeMap<usize, usize>,
     // The file's length and plane angle units in millimetres and radians.
     file_units: Option<(f64, f64)>,
     declared_length_unit: Option<crate::pmi::LengthUnit>,
@@ -391,6 +504,8 @@ impl Part {
             swept: Default::default(),
             file_pcurves: Default::default(),
             primary_pcurves: Default::default(),
+            measure_trims: Default::default(),
+            outer_bounds: Default::default(),
             file_units: None,
             declared_length_unit: None,
             file_uncertainty: None,
@@ -595,6 +710,8 @@ impl Part {
         part.swept = self.swept.clone();
         part.file_pcurves = self.file_pcurves.clone();
         part.primary_pcurves = self.primary_pcurves.clone();
+        part.measure_trims = self.measure_trims.clone();
+        part.outer_bounds = self.outer_bounds.clone();
         part.file_units = self.file_units;
         part.declared_length_unit = self.declared_length_unit.clone();
         part.file_uncertainty = self.file_uncertainty;
@@ -933,20 +1050,34 @@ impl Part {
         self.ray_edges = OnceLock::new();
     }
 
-    pub(super) fn record_mixed_normal_repair(&mut self, solid: usize, flips: &[usize]) {
-        self.input_repairs.push(format!(
-            "solid {solid}: mixed face senses repaired ({} faces)",
-            flips.len()
-        ));
-        for &f in &self.solids[solid].faces {
-            if flips.contains(&f) {
-                self.faces[f].reversed = !self.faces[f].reversed;
+    /// Test the proposed face senses with all STEP boundary declarations in place.
+    /// A rejected repair restores the original senses and invalidates its trial queries.
+    pub(super) fn try_mixed_normal_repair(
+        &mut self,
+        solid: usize,
+        flips: &[usize],
+        proved: impl FnOnce(&Self) -> bool,
+    ) {
+        let toggle = |part: &mut Self| {
+            for &f in flips {
+                part.faces[f].reversed = !part.faces[f].reversed;
             }
-            self.cache[f] = FaceCache::default();
+            for &f in &part.solids[solid].faces {
+                part.cache[f] = FaceCache::default();
+            }
+            part.bad_faces = OnceLock::new();
+            part.ray_face_boxes = OnceLock::new();
+            part.ray_edges = OnceLock::new();
+        };
+        toggle(self);
+        if proved(self) {
+            self.input_repairs.push(format!(
+                "solid {solid}: mixed face senses repaired ({} faces)",
+                flips.len()
+            ));
+        } else {
+            toggle(self);
         }
-        self.bad_faces = OnceLock::new();
-        self.ray_face_boxes = OnceLock::new();
-        self.ray_edges = OnceLock::new();
     }
 
     /// The face's axis-aligned box: its boundary plus any interior axis extremes.
