@@ -18,7 +18,9 @@ A face whose geometry resolved but whose area and centroid `haecceity` cannot co
 (`Part::face_moments` is `None`, for example a cylinder bounded by one closed circle) is
 refused alone: one `unmeasured_face_refusals/N` record (`UnmeasuredFaceRefusal`, reason
 `unmeasured_face`) names it, and no record that defines it is kept (`blends` and `helical_springs` also drop those that consult it).
-Other faces and records are unaffected.
+Other faces and records are unaffected. A face the caller's integration budget refuses
+(`integration_budget`, see `docs/recognition-6.md`) is refused the same way, under its own
+`integration_budget_refusals/N` record (`IntegrationBudgetRefusal`, reason `integration_budget`).
 
 Thus a refusal cannot erase a feature claim, and body evidence cannot erase either.
 A feature face may belong to several records but belongs to only one accounting group.

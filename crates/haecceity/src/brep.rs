@@ -389,6 +389,8 @@ pub struct Part {
     file_uncertainty: Option<f64>,
     native_faces: Vec<Native<Face>>,
     native_edges: Vec<Native<Edge>>,
+    // The per-face integration budget this part was measured against; carried by transforms.
+    pub(super) integration_budget: Option<std::sync::Arc<super::mass::IntegrationBudget>>,
 }
 
 impl Part {
@@ -426,7 +428,34 @@ impl Part {
             file_uncertainty: None,
             native_faces: Vec::new(),
             native_edges: Vec::new(),
+            integration_budget: None,
         }
+    }
+
+    /// The same part with fresh query caches: every field copied, nothing derived carried.
+    pub(super) fn fresh_copy(&self) -> Self {
+        let mut part = Self::new(self.faces.clone(), self.edges.clone(), self.solids.clone());
+        part.unresolved_faces = self.unresolved_faces.clone();
+        part.unresolved_edges = self.unresolved_edges.clone();
+        part.face_sources = self.face_sources.clone();
+        part.edge_sources = self.edge_sources.clone();
+        part.input_repairs = self.input_repairs.clone();
+        part.declared_voids = self.declared_voids.clone();
+        part.line_directions = self.line_directions.clone();
+        part.conics = self.conics.clone();
+        part.pcurve_splines = self.pcurve_splines.clone();
+        part.face_frames = self.face_frames.clone();
+        part.edge_frames = self.edge_frames.clone();
+        part.swept = self.swept.clone();
+        part.file_pcurves = self.file_pcurves.clone();
+        part.primary_pcurves = self.primary_pcurves.clone();
+        part.file_units = self.file_units;
+        part.declared_length_unit = self.declared_length_unit.clone();
+        part.file_uncertainty = self.file_uncertainty;
+        part.native_faces = self.native_faces.clone();
+        part.native_edges = self.native_edges.clone();
+        part.integration_budget = self.integration_budget.clone();
+        part
     }
 
     /// Copy this loaded part through a finite proper rigid motion, without reading STEP.
@@ -439,7 +468,8 @@ impl Part {
     /// keeps |sᵤ × sᵥ|, so each is an exact function of the old integrals, the motion and the
     /// two parts' reference points (the faces' moment frames, the box centres and lengths),
     /// to round-off. Refusals and groups whose reference exists in only one part are not
-    /// carried; those faces integrate again. The placement must be a proper rigid motion
+    /// carried; those faces integrate again. The integration budget's verdict is carried, and a
+    /// face it refused carries nothing (its integrals stay `None`). The placement must be a proper rigid motion
     /// (orthonormal, determinant +1, to 1e-12), so no scale, mirror or unit change reaches this.
     /// Imported native primitives and their placement chains are retained so composition
     /// precedes coordinate rounding, including on a part transformed more than once.
@@ -639,6 +669,9 @@ impl Part {
         part.file_uncertainty = self.file_uncertainty;
         part.native_faces = native_faces;
         part.native_edges = native_edges;
+        // The budget's verdict first: a face it refused stays refused, and nothing integrated
+        // for it is carried.
+        part.integration_budget = self.integration_budget.clone();
         self.carry_integrals(&part, placement);
         Ok(part)
     }

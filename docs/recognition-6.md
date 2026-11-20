@@ -1339,6 +1339,89 @@ across revisions, just as a `None`→`Some` corner-radius proof does. This chang
 does not introduce a correspondence heuristic or alter other feature ranks.
 
 
+## Integration budget (For #307 item 3)
+
+A caller may bound the work any one face's integration takes: Rust
+`RecognitionOptions { integration_budget: Some(n) }` with `recognise_with`, `evidence_with`
+or `fingerprints_with`; `--integration-budget N` on `quiddity <file>`, `quiddity evidence`,
+`quiddity fingerprints` and the manifest `quiddity recognise`; an optional
+`"integration_budget": N` in `quiddity serve`'s `recognise` request; `integration_budget=N` on
+Python `recognise`, `evidence` and `fingerprints`. `quiddity fingerprints` of a JSON document
+refuses a budget (those fingerprints were made already). The default (`None`) leaves every
+output byte-identical. Cancellation is not offered.
+
+**Work unit.** One integrand evaluation (the surface's point and first partials at one
+quadrature node) inside a face's area and moment integration, the one `Part::face_moments`,
+`Part::face_mass` and `Part::volume_centroid` share, including the cheaper along-v trials and
+the explicit-trim recovery. Before recognition every face is integrated once, on a fresh copy
+of the part in the file's placement, with its own counter (`Part::with_integration_budget`).
+The count depends only on that face's geometry: not on face order, threads or the clock.
+When a face's count passes the limit, the evaluation returns a "budget spent" signal that
+every integrator passes straight back (no unwinding, so `panic = "abort"` builds behave the
+same), and the face's integration stops there; the whole pass is bounded by the limit times
+the face count. The verdict is made once; the part's frame-normalised copy carries it.
+Integrals of accepted faces stay cached; later caller-specific integrals of accepted faces
+(projected moments) are not metered.
+
+**Refused faces** use #304's mechanism for unmeasured faces: one
+`IntegrationBudgetRefusal {reason: "integration_budget", faces: [face]}` per face in the optional
+family `integration_budget_refusals`, the face `refused` in `face_accounting`, records that
+define the face dropped (and in `blends` and `helical_springs` those that consult it), other
+records kept. A family that reads a refused face's area or moments where it has no fallback
+finds nothing there (a miss, never a guessed value).
+
+**Any refused face refuses the part frame.** The frame's origin is the volume centroid, which
+integrates every face of every solid, so one refused face of a solid refuses the frame
+(`integration-budget`) and every record is in file coordinates, placement-dependent as for any
+refused frame. The document (and the evidence document) gains `budget: {limit,
+refused_faces, count, frame_refused}` only when a budget was set: `count` is the number of
+refused faces, and `frame_refused: true` (absent otherwise) says the frame was refused for
+them. Schema `/6` is unchanged.
+
+**Calibration** (Apple M5 Max, `sysctl -n machdep.cpu.brand_string`; one thread; counted
+instructions, not wall-clock). Integrating every face of text-to-cad's gearbox casing (270
+faces, 67 B-spline) takes 74.26M work units and 212.9G instructions beyond parsing, an
+average of about 2,870 instructions (700 cycles) per unit, about 5.5M units per second at this
+core's measured 3.9 GHz. **Units are not uniform in cost**; the average is dominated by
+B-spline faces. Measured one face at a time (instructions beyond reading the part and its
+first integration's shared setup): face 41 (B-spline, 26.81M units) about 3,070 instructions
+per unit; face 45 (B-spline, 6.55M) about 3,340; face 1 (plane, 0.20M) about 580; face 244
+(cylinder, 0.18M) about 280. So a budget converts to time only roughly: for B-spline faces 1M
+units is about 0.2 s, 5M about 1 s, 20M about 4 s; analytic faces cost five to ten times less
+per unit.
+
+**Worked example: the gearbox casing.** Unbounded, its costliest faces (all B-spline) take
+26.81M work units (face 41), 6.55M (45), 6.10M (2), 3.07M (0), 2.97M (49), 1.87M (264), 1.86M
+(3), 1.84M (267), 1.15M (258); every other face takes under 0.7M. Without a budget recognition
+retires 697G instructions: frame inferred; 67 `freeform_surfaces`, 30 `bosses`, 2 `holes`
+(d56 and d52, blind, flat, depth 126), 2 `interior_voids` (refusals, reason
+`widening_behind_throat_unproved`, accounting faces 55, 78, 82, 98, 195 and 196 `refused`), 2
+`step_levels`, 1 `cylindrical_profiles`; accounting 114 feature, 150 unexplained, 6 refused.
+
+| Budget | Refused faces | Instructions | Records that change | Accounting (feature / unexplained / refused) |
+|---|---|---|---|---|
+| none | none | 697G | (frame inferred) | 114 / 150 / 6 |
+| 20M | 41 | 254G | frame refused; 66 freeform surfaces | 113 / 150 / 7 |
+| 5M | 2, 41, 45 | 201G | frame refused; 64 freeform surfaces | 111 / 150 / 9 |
+| 1M | 0, 2, 3, 41, 45, 49, 258, 264, 267 | 136G | frame refused; 58 freeform surfaces; no interior voids | 105 / 156 / 9 |
+
+Every budgeted run refuses the frame (`frame_refused: true`), and its records are in file
+coordinates; the two holes, 30 bosses, 2 step levels and the cylindrical profile are
+unchanged. Most of the drop in instructions comes from the refused frame, not from the
+refused faces: without a frame, recognition runs on the measured copy itself and reuses its
+integrals, where an inferred frame integrates every face twice (once in the file's placement
+for the frame, again on the frame-normalised copy, about 213G instructions each on this part).
+Face 41 alone is 26.8M units (about 82G instructions) of the 74.3M units in one pass. At 1M the two `interior_voids` refusals are no longer
+produced, so faces 55, 78, 82, 98, 195 and 196, which they accounted `refused`, become
+`unexplained` (150 + 6 = 156). The records' own faces include no refused face, so the
+defining-face rule does not drop them: the void analysis no longer forms the candidates. To
+grow a cavity's skin it asks, for each face bordering it, whether a probe from just outside
+escapes (`escapes` in `src/features/interior_voids.rs`), which needs that face's area for its
+probe offset, and an unknown answer abandons the region. Refusing face 49 is what removes
+them: with a budget of 3.0M (faces 0, 2, 41, 45 refused) both refusals remain; with 2.9M (49
+refused as well) neither does; that face 49 reaches the analysis through `escapes` is read
+from the code, not traced.
+
 ## Circular blind steps with conical entries
 
 A native flared quarter-cone can establish the opening of a circular blind step.

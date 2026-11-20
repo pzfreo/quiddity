@@ -764,6 +764,9 @@ pub struct EvidenceDocument {
     pub features: Vec<EvidenceRecord>,
     pub candidates: Vec<EvidenceCandidate>,
     pub rejected_candidates: Vec<usize>,
+    /// Present only when the caller set a per-face integration budget ([`evidence_with`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub budget: Option<crate::recognition::Budget>,
 }
 
 /// STEP identity of one face or edge. Names on these entities can bind an export to live CAD
@@ -811,6 +814,20 @@ pub fn document(part: &Part, framed: bool) -> Result<EvidenceDocument, EvidenceV
         .map_err(|e| EvidenceViewError(e.to_string()))?;
     let view = build_recognition_evidence(working.as_ref().unwrap_or(part))?;
     Ok(document_from_view(part, frame, view))
+}
+
+/// [`document`] under *options*: with an integration budget, every face's integration is first
+/// measured against it, and a face that would exceed it is refused
+/// ([`crate::RecognitionOptions`]). The default options give [`document`]'s result.
+pub fn evidence_with(
+    part: &Part,
+    framed: bool,
+    options: &crate::RecognitionOptions,
+) -> Result<EvidenceDocument, EvidenceViewError> {
+    match options.integration_budget {
+        Some(limit) => document(&part.with_integration_budget(limit), framed),
+        None => document(part, framed),
+    }
 }
 
 /// Own an already projected view, retaining the original STEP face identities.
@@ -873,5 +890,6 @@ pub(crate) fn document_from_view(
         features,
         candidates: view.candidates,
         rejected_candidates: view.rejected_candidates,
+        budget: crate::recognition::Budget::of(part),
     }
 }

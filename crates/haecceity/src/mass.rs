@@ -107,19 +107,23 @@ fn gauss_nodes() -> &'static [(f64, f64)] {
 }
 
 /// ∫ f over the interval running through `cuts` in order, one Gauss panel between each
-/// consecutive pair, for every component of f at once.
-fn integrate<const N: usize>(cuts: &[f64], f: impl Fn(f64) -> [f64; N]) -> [f64; N] {
+/// consecutive pair, for every component of f at once; `None` as soon as f is (the face's
+/// integration budget is spent, [`spend_work`]).
+fn integrate<const N: usize>(
+    cuts: &[f64],
+    f: impl Fn(f64) -> Option<[f64; N]>,
+) -> Option<[f64; N]> {
     let mut total = [0.0; N];
     for w in cuts.windows(2) {
         let (half, centre) = (0.5 * (w[1] - w[0]), 0.5 * (w[1] + w[0]));
         for &(x, weight) in gauss_nodes() {
-            let y = f(centre + half * x);
+            let y = f(centre + half * x)?;
             for k in 0..N {
                 total[k] += weight * half * y[k];
             }
         }
     }
-    total
+    Some(total)
 }
 
 /// The face's shared moment integration, one result per consumer (`Part::face_raw_moments`).
@@ -134,8 +138,85 @@ thread_local! {
     /// Test hook: `Some(true)` makes the face-moment group's integrand non-finite,
     /// `Some(false)` the centroid group's.
     static POISONED_GROUP: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
+    /// Test hook: panic at the next metered evaluation (a genuine panic inside a budget pass).
+    static PANIC_WHILE_METERED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     /// Integrand evaluations of face integrals on this thread: a structural cost for tests.
     static INTEGRAND_EVALUATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+thread_local! {
+    /// The work meter of the face integration running on this thread, while
+    /// [`Part::with_integration_budget`] measures one: (work units spent, limit).
+    static METER: std::cell::Cell<Option<(u64, u64)>> = const { std::cell::Cell::new(None) };
+}
+
+/// Count one work unit, an integrand evaluation (one surface point and partials) inside face
+/// integration, against the face being metered on this thread. `None` once the count would
+/// pass the limit (the count then stays at `limit + 1`): every integrator returns `None` at
+/// once on it, so the face's integration stops there. Outside metering this always succeeds.
+#[inline]
+pub(super) fn spend_work() -> Option<()> {
+    // Unmetered integration (every call without a budget) pays one relaxed load.
+    if METERS.load(std::sync::atomic::Ordering::Relaxed) == 0 {
+        return Some(());
+    }
+    METER.with(|meter| match meter.get() {
+        None => Some(()),
+        #[cfg(test)]
+        Some(_) if PANIC_WHILE_METERED.with(|p| p.replace(false)) => {
+            panic!("forced panic while metered")
+        }
+        Some((spent, limit)) if spent > limit => None,
+        Some((spent, limit)) => {
+            meter.set(Some((spent + 1, limit)));
+            (spent < limit).then_some(())
+        }
+    })
+}
+
+/// How many threads are metering a face now.
+static METERS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Metering on this thread for as long as it lives: on every exit, a panic included, the
+/// thread's meter is cleared and it no longer counts in [`METERS`], so a later unbudgeted
+/// integration on the same thread (a server's or the Python wheel's, which catch panics and
+/// keep the thread) is not metered against a stale limit.
+struct MeterGuard;
+
+impl MeterGuard {
+    fn new() -> Self {
+        METERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        MeterGuard
+    }
+}
+
+impl Drop for MeterGuard {
+    fn drop(&mut self) {
+        METER.with(|meter| meter.set(None));
+        METERS.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+/// Whether the face being metered on this thread has passed its limit.
+pub(super) fn work_exhausted() -> bool {
+    if METERS.load(std::sync::atomic::Ordering::Relaxed) == 0 {
+        return false;
+    }
+    METER.with(|meter| meter.get().is_some_and(|(spent, limit)| spent > limit))
+}
+
+/// A per-face integration budget applied to a part ([`Part::with_integration_budget`]): the
+/// limit, the work each face's integration took (`limit + 1` for a face abandoned on passing
+/// it) and the faces refused.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct IntegrationBudget {
+    /// The most work units one face's integration may take.
+    pub limit: u64,
+    /// Work units each face's integration took, by face; `limit + 1` where it was abandoned.
+    pub work: Vec<u64>,
+    /// Faces whose integration would exceed the limit, ascending.
+    pub refused: Vec<usize>,
 }
 
 /// Knot spans in u from which a B-spline face's inner integral may run along v instead (#302).
@@ -154,26 +235,27 @@ const NEGLIGIBLE_MOTION: f64 = 1e-12;
 /// form. The sum is the whole-panel rule's, as [`integrate`]'s.
 fn integrate_checked<const N: usize>(
     cuts: &[f64],
-    f: impl Fn(f64) -> [f64; N],
-) -> ([f64; N], bool) {
+    f: impl Fn(f64) -> Option<[f64; N]>,
+) -> Option<([f64; N], bool)> {
     let mut total = [0.0; N];
     let mut resolved = true;
     let rule = |a: f64, b: f64, y: &mut [f64; N], size: &mut [f64; N]| {
         let (half, centre) = (0.5 * (b - a), 0.5 * (b + a));
         for &(x, weight) in gauss_nodes() {
-            let v = f(centre + half * x);
+            let v = f(centre + half * x)?;
             for k in 0..N {
                 y[k] += weight * half * v[k];
                 size[k] += (weight * half * v[k]).abs();
             }
         }
+        Some(())
     };
     for w in cuts.windows(2) {
         let (mut whole, mut halves, mut size) = ([0.0; N], [0.0; N], [0.0; N]);
-        rule(w[0], w[1], &mut whole, &mut [0.0; N]);
+        rule(w[0], w[1], &mut whole, &mut [0.0; N])?;
         let mid = 0.5 * (w[0] + w[1]);
-        rule(w[0], mid, &mut halves, &mut size);
-        rule(mid, w[1], &mut halves, &mut size);
+        rule(w[0], mid, &mut halves, &mut size)?;
+        rule(mid, w[1], &mut halves, &mut size)?;
         // A component whose terms are all round-off beside the others' (a coordinate near
         // zero) cannot be judged against its own size.
         let largest = size.iter().fold(0.0f64, |m, &x| m.max(x));
@@ -182,7 +264,7 @@ fn integrate_checked<const N: usize>(
             resolved &= (whole[k] - halves[k]).abs() <= 1e-9 * size[k] + 1e-12 * largest;
         }
     }
-    (total, resolved && total.iter().all(|x| x.is_finite()))
+    Some((total, resolved && total.iter().all(|x| x.is_finite())))
 }
 
 /// Most panels or periods an integral is cut into. An angular range is a few turns and a conic's
@@ -827,6 +909,60 @@ impl FaceMass {
 }
 
 impl Part {
+    /// A copy of this part, with fresh caches, whose faces' integrations were each measured
+    /// against `limit` work units ([`IntegrationBudget`]): one unit is one integrand evaluation
+    /// inside the face's area and moment integration (the one [`Part::face_moments`],
+    /// [`Part::face_mass`] and [`Part::volume_centroid`] share). A face whose integration would
+    /// take more is abandoned as soon as its count passes the limit and refused: its area,
+    /// moments and every integral over it are `None` on the copy and on its
+    /// [`Part::transformed`] copies, as for a face that cannot be integrated. The count depends
+    /// only on the face's geometry in this placement, not on the order faces are measured in,
+    /// threads or the clock. Every other face's integration is kept (cached) on the copy.
+    pub fn with_integration_budget(&self, limit: u64) -> Part {
+        let mut part = self.fresh_copy();
+        part.integration_budget = None;
+        let mut work = Vec::with_capacity(part.faces.len());
+        let mut refused = Vec::new();
+        let guard = MeterGuard::new();
+        for face in 0..part.faces.len() {
+            METER.with(|meter| meter.set(Some((0, limit))));
+            // Each step returns at once (`None`) when the work passes the limit.
+            part.face_moments(face);
+            if !work_exhausted() {
+                part.face_raw_moments(face);
+            }
+            if !work_exhausted() {
+                part.face_terms(face);
+            }
+            let exhausted = work_exhausted();
+            let (spent, _) = METER.with(|meter| meter.take()).unwrap_or((0, limit));
+            if exhausted {
+                refused.push(face);
+            }
+            work.push(spent);
+        }
+        drop(guard);
+        part.integration_budget = Some(std::sync::Arc::new(IntegrationBudget {
+            limit,
+            work,
+            refused,
+        }));
+        part
+    }
+
+    /// The integration budget this part was measured against, if any
+    /// ([`Part::with_integration_budget`]).
+    pub fn integration_budget(&self) -> Option<&IntegrationBudget> {
+        self.integration_budget.as_deref()
+    }
+
+    /// Whether the face's integration was refused by the part's integration budget.
+    pub fn integration_refused(&self, face: usize) -> bool {
+        self.integration_budget
+            .as_ref()
+            .is_some_and(|budget| budget.refused.binary_search(&face).is_ok())
+    }
+
     /// The solid's volume and area (`solid.volume`, `solid.area`). The volume is a third of the
     /// flux of the position vector out through its faces (a void's faces subtract), measured
     /// from the mean of the solid's vertex uses (OpenCascade's `roughBaryCenter`). A file's
@@ -879,6 +1015,9 @@ impl Part {
     /// The face's area, the flux of the position vector through it and its area vector ∬ n dA,
     /// along the surface's natural normal.
     fn face_terms(&self, face: usize) -> Option<[f64; 5]> {
+        if self.integration_refused(face) {
+            return None;
+        }
         self.cache[face]
             .mass
             .get_or_init(|| self.compute_face_mass(face))
@@ -933,6 +1072,9 @@ impl Part {
         remember: bool,
         f: impl Fn(V3, V3, V3) -> [f64; N],
     ) -> Option<[f64; M]> {
+        if self.integration_refused(face) {
+            return None;
+        }
         let mut shared = None;
         let mut attempted = false;
         let choice = self.cache[face].mass.get_or_init(|| {
@@ -1086,6 +1228,9 @@ impl Part {
         observed: &mut Option<MassPass>,
         cheaper: Option<(&std::cell::Cell<bool>, usize)>,
     ) -> Option<[f64; N]> {
+        if work_exhausted() {
+            return None;
+        }
         let fc = &self.faces[face];
         let surface = &fc.surface;
         let (pu, pv) = surface.periodic();
@@ -1132,12 +1277,13 @@ impl Part {
         let f = |u: f64, v: f64| {
             #[cfg(test)]
             INTEGRAND_EVALUATIONS.with(|n| n.set(n.get() + 1));
+            spend_work()?;
             let (u, v) = wrap_closed(surface, spans, (u, v));
             let (p, su, sv) = match &evaluator {
                 Some(evaluator) => evaluator.borrow_mut().value_and_partials(u, v),
                 None => point_and_partials(surface, u, v),
             };
-            f(p, su, sv)
+            Some(f(p, su, sv))
         };
         let first = (0..fc.loops.len()).find(|&i| fc.loops[i].vertex.is_none())?;
         let start = uv[first].points.first().copied()?;
@@ -1211,7 +1357,7 @@ impl Part {
                 if split > 1 {
                     cuts = split_panels(&cuts, split);
                 }
-                let (y, resolved) = integrate_checked(&cuts, |s| f(u, s));
+                let (y, resolved) = integrate_checked(&cuts, |s| f(u, s))?;
                 if !resolved {
                     unresolved.set(true);
                 }
@@ -1221,13 +1367,13 @@ impl Part {
                     return Some([0.0; N]);
                 }
                 let cuts = surface_cuts(surface, spans.1, true, reference, v)?;
-                (-du, integrate(&cuts, |s| f(u, s)))
+                (-du, integrate(&cuts, |s| f(u, s))?)
             } else {
                 if negligible(dv, du, stock_spans, false) {
                     return Some([0.0; N]);
                 }
                 let cuts = surface_cuts(surface, spans.0, false, reference, u)?;
-                (dv, integrate(&cuts, |s| f(s, v)))
+                (dv, integrate(&cuts, |s| f(s, v))?)
             };
             Some(y.map(|y| weight * y))
         };
@@ -1881,6 +2027,9 @@ impl Part {
     /// [`Part::face_mass`]; `None` where that cannot integrate the face.
     /// Cached, including `None`, for this immutable part's geometry and placement.
     pub fn face_moments(&self, face: usize) -> Option<FaceMoments> {
+        if self.integration_refused(face) {
+            return None;
+        }
         *self.cache[face]
             .moments
             .get_or_init(|| self.compute_face_moments(face))
@@ -1926,6 +2075,12 @@ impl Part {
     /// (the other's components left zero, which no error test reads), as before they were
     /// shared. A group whose frame is unusable is left zero and its consumer refuses it.
     fn face_raw_moments(&self, face: usize) -> RawMoments {
+        if self.integration_refused(face) {
+            return RawMoments {
+                local: None,
+                centre: None,
+            };
+        }
         *self.cache[face]
             .raw_moments
             .get_or_init(|| self.compute_face_raw_moments(face))
@@ -2135,7 +2290,8 @@ impl Part {
     /// The along-v refusals and the mass boundary choice are carried as they are. Derived face
     /// moments are rebuilt from the carried group. A refusal (a missing mass or group) is not
     /// carried, nor is a group whose reference exists in only one of the two parts: those faces
-    /// integrate again. A placement that is not a proper rotation carries nothing.
+    /// integrate again, and a face the integration budget refused carries nothing. A placement
+    /// that is not a proper rotation carries nothing.
     pub(super) fn carry_integrals(&self, moved: &Part, at: &crate::step::Placement) {
         if crate::step::validate_placement(at).is_err() || moved.faces.len() != self.faces.len() {
             return;
@@ -2164,6 +2320,11 @@ impl Part {
             .then(|| reference(self).zip(reference(moved)))
             .flatten();
         for face in 0..self.faces.len() {
+            // A face the integration budget refused may hold a partial integration: none of
+            // it is carried (the moved part keeps the verdict and refuses the face).
+            if self.integration_refused(face) {
+                continue;
+            }
             let (from, to) = (&self.cache[face], &moved.cache[face]);
             from.carry_refusals(to);
             if let Some(mass) = from.mass.get()
@@ -2339,7 +2500,10 @@ mod tests {
     #[test]
     fn gauss_rule_is_exact_for_polynomials() {
         let pi = std::f64::consts::PI;
-        let [x7, s] = integrate(&cuts(0.0, pi, 3, &[1.0]).unwrap(), |x| [x.powi(7), x.sin()]);
+        let [x7, s] = integrate(&cuts(0.0, pi, 3, &[1.0]).unwrap(), |x| {
+            Some([x.powi(7), x.sin()])
+        })
+        .unwrap();
         assert!((x7 - pi.powi(8) / 8.0).abs() < 1e-11);
         assert!((s - 2.0).abs() < 1e-15);
         assert_eq!(
@@ -2900,6 +3064,80 @@ mod tests {
         );
     }
 
+    /// A face the integration budget refused stays refused through a rigid motion and carries
+    /// nothing, even a partial integration left in its cache; every other face carries its
+    /// integrals and integrates nothing again.
+    #[test]
+    fn a_budget_refused_face_stays_refused_and_carries_nothing() {
+        let part = grooved_solid();
+        let work = part
+            .with_integration_budget(u64::MAX)
+            .integration_budget()
+            .unwrap()
+            .work
+            .clone();
+        let mut sorted = work.clone();
+        sorted.sort_unstable();
+        // Between the cheapest and the dearest face: some faces are refused, not all.
+        let limit = sorted[sorted.len() / 2];
+        let budgeted = part.with_integration_budget(limit);
+        let refused = budgeted.integration_budget().unwrap().refused.clone();
+        assert!(
+            !refused.is_empty() && refused.len() < part.faces.len(),
+            "{refused:?}"
+        );
+        // The budget's verdict on a copy whose every face holds an integration, the refused
+        // faces' standing for a partial one (as a pass abandoned after its mass or one group
+        // could leave): the motion must not carry those.
+        let full = grooved_solid();
+        let budgeted = budgeted.fresh_copy();
+        for f in 0..full.faces.len() {
+            let _ = full.face_moments(f);
+            let cache = &budgeted.cache[f];
+            if let Some(mass) = full.cache[f].mass.get() {
+                let _ = cache.mass.set(FaceMass {
+                    terms: mass.terms,
+                    preferred: mass.preferred,
+                });
+            }
+            if let Some(raw) = full.cache[f].raw_moments.get() {
+                let _ = cache.raw_moments.set(*raw);
+            }
+            if refused.contains(&f) {
+                cache.refuse_trial((27, true));
+            }
+        }
+        assert!(refused.iter().all(|&f| {
+            budgeted.cache[f]
+                .mass
+                .get()
+                .is_some_and(|m| m.terms.is_some())
+                && budgeted.cache[f].raw_moments.get().is_some()
+        }));
+        let moved = budgeted.transformed(&generic_motion()).unwrap();
+        for &f in &refused {
+            assert!(moved.integration_refused(f), "face {f}");
+            let cache = &moved.cache[f];
+            assert!(
+                cache.mass.get().is_none() && cache.raw_moments.get().is_none(),
+                "face {f}"
+            );
+            assert!(!cache.trial_refused((27, true)), "face {f}");
+        }
+        let (moments, cost) = evaluations_of(|| {
+            (0..moved.faces.len())
+                .map(|f| moved.face_moments(f))
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(
+            cost, 0,
+            "kept faces carry their integrals; refused ones are not integrated"
+        );
+        for (f, m) in moments.iter().enumerate() {
+            assert_eq!(m.is_none(), refused.contains(&f), "face {f}");
+        }
+    }
+
     /// The along-v refusals and the mass boundary choice survive a rigid motion as they are.
     #[test]
     fn rigid_motion_carries_trial_refusals() {
@@ -2996,6 +3234,20 @@ mod tests {
                 assert_eq!(moments, clean.face_moments(0));
             }
         }
+    }
+
+    /// A panic inside a budget pass leaves no meter behind: a later unbudgeted integration on
+    /// the same thread gives the ordinary result.
+    #[test]
+    fn a_panic_while_metered_leaves_the_thread_unmetered() {
+        let expected = grooved_solid().face_moments(0);
+        assert!(expected.is_some());
+        PANIC_WHILE_METERED.with(|p| p.set(true));
+        // A limit of one: a stale meter would refuse the next integration after one evaluation.
+        let caught = std::panic::catch_unwind(|| grooved_solid().with_integration_budget(1));
+        PANIC_WHILE_METERED.with(|p| p.set(false));
+        assert!(caught.is_err(), "the forced panic happened");
+        assert_eq!(grooved_solid().face_moments(0), expected);
     }
 
     /// A face with a large B-spline net costs surface evaluations in proportion to its spans,
@@ -3173,8 +3425,9 @@ mod tests {
         let (d, h) = (degree as f64, height);
         let cuts = cuts(0.0, 1.0, 2048, &[]).unwrap();
         integrate(&cuts, |v| {
-            [(1.0 + (h * d * v.powi(degree as i32 - 1)).powi(2)).sqrt()]
-        })[0]
+            Some([(1.0 + (h * d * v.powi(degree as i32 - 1)).powi(2)).sqrt()])
+        })
+        .unwrap()[0]
     }
 
     /// A face the cheaper form's one rule per v knot span cannot resolve (its area density is
@@ -3356,12 +3609,12 @@ mod tests {
     /// the stock form (#302).
     #[test]
     fn the_checked_inner_rule_rejects_a_narrow_dip() {
-        let smooth = |s: f64| [(1.0 + s * s).sqrt(), s];
-        let (sum, resolved) = integrate_checked(&[0.0, 1.0], smooth);
+        let smooth = |s: f64| Some([(1.0 + s * s).sqrt(), s]);
+        let (sum, resolved) = integrate_checked(&[0.0, 1.0], smooth).unwrap();
         assert!(resolved);
-        assert_eq!(sum, integrate(&[0.0, 1.0], smooth));
-        let dip = |s: f64| [(1e-6 + (s - 0.3) * (s - 0.3)).sqrt()];
-        assert!(!integrate_checked(&[0.0, 1.0], dip).1);
+        assert_eq!(Some(sum), integrate(&[0.0, 1.0], smooth));
+        let dip = |s: f64| Some([(1e-6 + (s - 0.3) * (s - 0.3)).sqrt()]);
+        assert!(!integrate_checked(&[0.0, 1.0], dip).unwrap().1);
     }
 
     /// The polynomial piece a parameter lies in, by search, is the pair `breaks` gave.

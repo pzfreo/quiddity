@@ -8,6 +8,24 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Added
 
+- A caller-set per-face integration budget: `RecognitionOptions { integration_budget }` with
+  `recognise_with`, `fingerprints_with` and `evidence_with` (Rust), `--integration-budget N` on
+  `quiddity <file>`, `quiddity evidence`, `quiddity fingerprints` and the manifest
+  `quiddity recognise`, an optional `integration_budget` in `serve`'s recognise request, and
+  `integration_budget=None` on Python `recognise`, `evidence` and `fingerprints`. A work unit is
+  one integrand evaluation in a face's area and moment integration (deterministic: independent
+  of clock, threads and face order). A face whose integration would pass the budget is abandoned
+  at that point (the integrators return, nothing unwinds) and refused alone, as an
+  unmeasured face is: an `integration_budget_refusals`
+  record (`IntegrationBudgetRefusal`, reason `integration_budget`), `refused` in
+  `face_accounting`, records defining it dropped, and the part frame refused
+  (`integration-budget`) when it needs the face. The document gains an optional
+  `budget: {limit, refused_faces, count, frame_refused}` (also on evidence) only when a
+  budget is set; any refused face refuses the frame, since its origin needs every face's
+  volume. Without
+  a budget the output is byte-identical. Haecceity adds `Part::with_integration_budget`,
+  `Part::integration_budget`, `Part::integration_refused` and `mass::IntegrationBudget`.
+  Additive in `recognition/6`. Cancellation is not included. For #307 (item 3).
 - Tapers and V-grooves of a turned body are records of their own, `tapers` and `v_grooves`,
   where they were only cone segments in the `turned_bodies` profile (whose profile is unchanged).
   A taper is one whole coaxial cone, external or internal, between two cylinders, a cylinder and a

@@ -115,6 +115,39 @@ pub struct RecognitionDocument {
     /// Present only when the part has several solids or a solid with void shells (#300).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bodies: Option<Bodies>,
+    /// Present only when the caller set a per-face integration budget
+    /// ([`crate::RecognitionOptions::integration_budget`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub budget: Option<Budget>,
+}
+
+/// The caller's per-face integration budget and the faces it refused (each also published as
+/// an `integration_budget_refusals` record and accounted `refused`).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct Budget {
+    /// The most work units (integrand evaluations) one face's integration may take.
+    pub limit: u64,
+    /// Faces whose integration would take more, ascending.
+    pub refused_faces: Vec<usize>,
+    /// How many faces were refused.
+    pub count: usize,
+    /// Whether the part frame was refused because it needs a refused face (its origin is the
+    /// volume centroid over every face): the records are then in file coordinates.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub frame_refused: bool,
+}
+
+impl Budget {
+    /// The budget *part* was measured against, if any.
+    pub fn of(part: &crate::kernel::brep::Part) -> Option<Self> {
+        part.integration_budget().map(|budget| Self {
+            limit: budget.limit,
+            refused_faces: budget.refused.clone(),
+            count: budget.refused.len(),
+            frame_refused: false,
+        })
+    }
 }
 
 /// The solids of a part that is not a single one-shell solid. Recognition runs over every
@@ -240,6 +273,7 @@ impl Record {
                 | "ReconciliationRefusal"
                 | "PolygonalBossRefusal"
                 | "UnmeasuredFaceRefusal"
+                | "IntegrationBudgetRefusal"
         )
     }
 }
@@ -344,6 +378,7 @@ const DISCOVERY_REFUSAL_TYPES: &[(&str, &[&str])] = &[
     ("reconciliation_refusals", &["ReconciliationRefusal"]),
     ("polygonal_boss_refusals", &["PolygonalBossRefusal"]),
     ("unmeasured_face_refusals", &["UnmeasuredFaceRefusal"]),
+    ("integration_budget_refusals", &["IntegrationBudgetRefusal"]),
 ];
 
 /// The record class names a family's records can have.
@@ -589,6 +624,15 @@ pub fn document(recognition: &Recognition, face_count: usize) -> RecognitionDocu
         run_mode: working.run_mode,
         input_repairs: recognition.input_repairs.clone(),
         bodies: recognition.bodies.clone(),
+        budget: recognition.budget.clone().map(|mut budget| {
+            budget.frame_refused = matches!(
+                recognition.frame,
+                RecordFrame::Refused {
+                    reason: crate::frames::FrameRefusal::IntegrationBudget
+                }
+            );
+            budget
+        }),
     }
 }
 

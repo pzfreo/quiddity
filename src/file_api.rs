@@ -4,7 +4,7 @@ use serde_json::json;
 use sha2::{Digest, Sha256};
 
 use crate::{
-    Part, evidence_view,
+    Part, RecognitionOptions, evidence_view,
     kernel::{
         p21::{self, Attribute, RawEntity},
         step,
@@ -21,13 +21,27 @@ pub fn json<T: Serialize>(value: &T) -> Result<String, String> {
 
 /// Recognition on a snapshot of STEP bytes, with the same digest and output as a file.
 pub fn recognise_bytes(bytes: Vec<u8>) -> Result<String, String> {
-    let (output, _) = serve::recognise_bytes("<bytes>", bytes).map_err(|e| e.to_string())?;
+    recognise_bytes_with(bytes, &RecognitionOptions::default())
+}
+
+/// [`recognise_bytes`] under *options* ([`crate::recognise_with`]).
+pub fn recognise_bytes_with(
+    bytes: Vec<u8>,
+    options: &RecognitionOptions,
+) -> Result<String, String> {
+    let (output, _) =
+        serve::recognise_bytes_with("<bytes>", bytes, options).map_err(|e| e.to_string())?;
     json(&output)
 }
 
 /// File recognition, identical to stdout from `quiddity <path>`.
 pub fn recognise_file(path: &str) -> Result<String, String> {
-    let (output, _) = serve::recognise_file(path).map_err(|e| e.to_string())?;
+    recognise_file_with(path, &RecognitionOptions::default())
+}
+
+/// [`recognise_file`] under *options* ([`crate::recognise_with`]).
+pub fn recognise_file_with(path: &str, options: &RecognitionOptions) -> Result<String, String> {
+    let (output, _) = serve::recognise_file_with(path, options).map_err(|e| e.to_string())?;
     json(&output)
 }
 
@@ -82,14 +96,33 @@ fn recognise_with_evidence_snapshot(path: &str, bytes: Vec<u8>) -> Result<String
 
 /// The evidence of a loaded part.
 pub fn evidence(part: &Part, framed: bool) -> Result<String, String> {
-    json(&evidence_view::document(part, framed).map_err(|e| e.to_string())?)
+    evidence_with(part, framed, &RecognitionOptions::default())
+}
+
+/// [`evidence`] under *options* ([`crate::evidence_with`]).
+pub fn evidence_with(
+    part: &Part,
+    framed: bool,
+    options: &RecognitionOptions,
+) -> Result<String, String> {
+    json(&evidence_view::evidence_with(part, framed, options).map_err(|e| e.to_string())?)
 }
 
 /// Evidence from a STEP path (gzip is supported by the existing STEP reader).
 pub fn evidence_file(path: &str, framed: bool) -> Result<String, String> {
-    evidence(
+    evidence_file_with(path, framed, &RecognitionOptions::default())
+}
+
+/// [`evidence_file`] under *options* ([`crate::evidence_with`]).
+pub fn evidence_file_with(
+    path: &str,
+    framed: bool,
+    options: &RecognitionOptions,
+) -> Result<String, String> {
+    evidence_with(
         &step::read_step_file(std::path::Path::new(path)).map_err(|e| e.to_string())?,
         framed,
+        options,
     )
     .map(|s| s.trim_end_matches('\n').to_owned())
 }
@@ -139,7 +172,20 @@ pub fn anchors(part: &Part, faces: Option<&[usize]>) -> Result<String, String> {
 
 /// Existing fingerprints/3 from a STEP file.
 pub fn fingerprints_file(path: &str) -> Result<String, String> {
-    let (output, _) = serve::recognise_file(path).map_err(|e| e.to_string())?;
+    fingerprints_file_with(path, &RecognitionOptions::default())
+}
+
+/// [`fingerprints_file`] under *options* ([`crate::fingerprints_with`]).
+pub fn fingerprints_file_with(path: &str, options: &RecognitionOptions) -> Result<String, String> {
+    if options.integration_budget.is_some()
+        && !(serve::is_step(path) || crate::part_input::is_f3d(path))
+    {
+        return Err(format!(
+            "{path}: an integration budget applies only to a STEP file recognised, not to \
+             fingerprints read from JSON"
+        ));
+    }
+    let (output, _) = serve::recognise_file_with(path, options).map_err(|e| e.to_string())?;
     serde_json::to_string_pretty(&output.recognition.fingerprints).map_err(|e| e.to_string())
 }
 
@@ -206,7 +252,17 @@ pub fn recognise_part_with_warnings(
     source_sha256: &str,
     label: &str,
 ) -> Result<(String, Vec<String>), String> {
-    let mut recognition = crate::correspondence::recognise(part);
+    recognise_part_with_options(part, source_sha256, label, &RecognitionOptions::default())
+}
+
+/// [`recognise_part_with_warnings`] under *options* ([`crate::recognise_with`]).
+pub fn recognise_part_with_options(
+    part: &Part,
+    source_sha256: &str,
+    label: &str,
+    options: &RecognitionOptions,
+) -> Result<(String, Vec<String>), String> {
+    let mut recognition = crate::correspondence::recognise_with(part, options);
     recognition.source_sha256 = Some(source_sha256.to_owned());
     let document = crate::recognition::document(&recognition, part.faces.len());
     let warnings = serve::recognition_warnings(label, part, &recognition, &document);
@@ -245,11 +301,22 @@ pub fn recognise_product_with_warnings(
     manifest: &step::manifest::Manifest,
     id: &str,
 ) -> Result<(String, Vec<String>), String> {
+    recognise_product_with_options(path, manifest, id, &RecognitionOptions::default())
+}
+
+/// [`recognise_product_with_warnings`] under *options* ([`crate::recognise_with`]).
+#[cfg(feature = "manifest")]
+pub fn recognise_product_with_options(
+    path: &str,
+    manifest: &step::manifest::Manifest,
+    id: &str,
+    options: &RecognitionOptions,
+) -> Result<(String, Vec<String>), String> {
     let file = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
     let part = manifest
         .read_product(&file, id)
         .map_err(|e| format!("{path}: {e}"))?;
-    recognise_part_with_warnings(&part, &manifest.source.sha256, path)
+    recognise_part_with_options(&part, &manifest.source.sha256, path, options)
 }
 
 /// Validate a worker's selection before any output is written. Results follow manifest order.
