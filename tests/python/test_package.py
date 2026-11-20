@@ -183,7 +183,7 @@ def test_integration_budget_round_trip():
     assert quiddity.recognise(str(sheet), integration_budget=None) == plain
     assert "budget" not in json.loads(plain)["document"]
     # The B-spline sheet (face 2) takes far more work than the bore or the planes.
-    budgeted = json.loads(quiddity.recognise(sheet.read_bytes(), integration_budget=400_000))
+    budgeted = json.loads(quiddity.recognise(gzip.decompress(sheet.read_bytes()), integration_budget=400_000))
     assert budgeted["document"]["budget"] == {"limit": 400_000, "refused_faces": [2], "count": 1}
     (refusal,) = [r for r in budgeted["document"]["records"] if r["family"] == "integration_budget_refusals"]
     assert refusal["faces"] == [2] and refusal["parameters"]["reason"] == "integration_budget"
