@@ -7,3 +7,7 @@ Each part is an R20 shaft, 40 long. `flats_finned_shaft.step.gz` adds six 4-thic
 radial fins reaching R30; `flats_low_tab.step.gz` adds one 4-thick tab whose tip stands
 0.3 beyond R20; `flats_key_flat.step.gz` has one key flat 12 from the axis over the top
 20. The fins and the tab are not flats; the key flat is (across 32).
+
+`flats_chamfer_overrun.step.gz` and `flats_over_land.step.gz` are real D-flats on an R10 shaft
+that must be kept: the first runs on into the 2 mm chamfer of an R15 collar, the second crosses
+a 4 mm R10.6 land and must stay bound to the R10 cylinder (across 17).

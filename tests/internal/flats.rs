@@ -32,3 +32,14 @@ fn a_double_d_keeps_both_flats() {
     assert_eq!(f.len(), 2);
     assert!(f.iter().all(|flat| flat.across == 20.));
 }
+
+#[test]
+fn a_flat_running_past_its_cylinder_keeps_its_value() {
+    // 7 from the axis on an R10 shaft: across 17, whether the flat runs on into a collar's
+    // chamfer or crosses a slightly larger land (which must not take the binding).
+    for name in ["flats_chamfer_overrun.step.gz", "flats_over_land.step.gz"] {
+        let f = flats(name);
+        assert_eq!(f.len(), 1, "{name}");
+        assert_eq!(f[0].across, 17., "{name}");
+    }
+}

@@ -6,11 +6,15 @@ Each part is an R20 shaft, 40 long (Z = 0..40), with:
   flats_finned_shaft  six 4-thick radial fins reaching R30
   flats_low_tab       one 4-thick tab whose tip stands 0.3 beyond R20
   flats_key_flat      one key flat 12 from the axis over Z = 20..40
+  flats_chamfer_overrun  R10 shaft (Z 0..30), R15 collar (Z 30..40) with a 2 mm chamfer
+                      on its outer lower edge; a flat 7 from the axis runs on into the chamfer
+  flats_over_land     R10 shaft with a 4 mm R10.6 land (Z 20..24); a flat 7 from the axis
+                      over Z = 10..40 crosses the land
 """
 import gzip
 from pathlib import Path
 
-from build123d import Align, Axis, Box, Cylinder, Location, export_step
+from build123d import Align, Axis, Box, Cylinder, GeomType, Location, SortBy, chamfer, export_step
 
 OUT = Path(__file__).resolve().parents[1] / "tests" / "fixtures"
 MIN_Z = (Align.CENTER, Align.CENTER, Align.MIN)
@@ -38,3 +42,20 @@ write(part, "flats_low_tab.step.gz")
 
 part = shaft() - Box(10, 60, 20, align=MIN_Z).moved(Location((17, 0, 20)))
 write(part, "flats_key_flat.step.gz")
+
+
+def flat_cut(offset, z0, z1):
+    return Box(100, 200, z1 - z0, align=(Align.MIN, Align.CENTER, Align.MIN)).moved(
+        Location((offset, 0, z0))
+    )
+
+
+def cyl(radius, height, z=0):
+    return Cylinder(radius, height, align=MIN_Z).moved(Location((0, 0, z)))
+
+
+part = cyl(10, 30) + cyl(15, 10, 30)
+rim = part.edges().filter_by(GeomType.CIRCLE).group_by(Axis.Z)[1].sort_by(SortBy.RADIUS)[-1]
+write(chamfer(rim, 2.0) - flat_cut(7, 15, 31), "flats_chamfer_overrun.step.gz")
+
+write(cyl(10, 40) + cyl(10.6, 4, 20) - flat_cut(7, 10, 40), "flats_over_land.step.gz")

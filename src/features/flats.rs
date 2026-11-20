@@ -50,24 +50,32 @@ pub fn discover_verified(ctx: &Context<'_>) -> Result<Vec<Occurrence<Flat>>, Evi
 }
 }
 
-/// The flat truncates the stock: its chord has both ends on the stock's outside diameter and
-/// straddles the point where the plane is nearest the axis. Not a recess wall ending on a slot
-/// floor (an end inside the stock), and not a rib, fin or tab side (an end beyond the stock, or
-/// a chord wholly to one side of the nearest point, where the edge to the stock is concave).
-fn chord_truncates_stock(vertices: &[V3], ax: V3, d: V3, n: V3, r: f64) -> bool {
+/// The flat truncates the stock: its chord has both ends reaching the stock's outside diameter
+/// and straddles the point where the plane is nearest the axis. Not a recess wall ending on a
+/// slot floor (an end inside the stock), and not a rib, fin or tab side (a chord wholly to one
+/// side of the nearest point, where the edge to the stock is concave, or a vertex beyond the
+/// stock). The flat may run on past the cylinder's own axial span (into a chamfer, taper,
+/// land or hex collar), so only vertices strictly inside that span must lie within the stock.
+fn chord_truncates_stock(vertices: &[V3], ax: V3, d: V3, n: V3, r: f64, span: (f64, f64)) -> bool {
     let c = geom::cross(n, d);
     let cm = (c[0] * c[0] + c[1] * c[1] + c[2] * c[2]).powf(0.5);
     if cm < 1e-9 {
         return false;
     }
     let c = c.map(|x| x / cm);
+    let reach = policy::length_tol(r, OD_REACH_FRAC);
     let (mut lo, mut hi) = (None::<(f64, f64)>, None::<(f64, f64)>);
+    let mut within_stock = true;
     for &v in vertices {
         let rel = geom::sub(v, ax);
         let t = rel[0] * c[0] + rel[1] * c[1] + rel[2] * c[2];
         let along = rel[0] * d[0] + rel[1] * d[1] + rel[2] * d[2];
         let p = [0, 1, 2].map(|i| rel[i] - along * d[i]);
         let rad = (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).powf(0.5);
+        let s_axis = v[0] * d[0] + v[1] * d[1] + v[2] * d[2];
+        if span.0 + COORD_FLOOR < s_axis && s_axis < span.1 - COORD_FLOOR && rad > r + reach {
+            within_stock = false;
+        }
         if lo.is_none_or(|(lt, _)| t < lt) {
             lo = Some((t, rad));
         }
@@ -75,11 +83,10 @@ fn chord_truncates_stock(vertices: &[V3], ax: V3, d: V3, n: V3, r: f64) -> bool 
             hi = Some((t, rad));
         }
     }
-    let reach = policy::length_tol(r, OD_REACH_FRAC);
-    let on_stock = |rad: f64| (rad - r).abs() <= reach;
     matches!(
         (lo, hi),
-        (Some((lt, a)), Some((ht, b))) if lt < 0.0 && ht > 0.0 && on_stock(a) && on_stock(b)
+        (Some((lt, a)), Some((ht, b)))
+            if within_stock && lt < 0.0 && ht > 0.0 && a >= r - reach && b >= r - reach
     )
 }
 
@@ -144,7 +151,7 @@ pub fn discover(ctx: &Context<'_>) -> Vec<Occurrence<Flat>> {
             if !(CHORD_MIN < s && s < r - CHORD_MARGIN) || too_shallow {
                 continue; // facing the axis (a slot wall), outside the stock, or a sliver
             }
-            if !chord_truncates_stock(&vertices(part, face), ax, d, normal, r) {
+            if !chord_truncates_stock(&vertices(part, face), ax, d, normal, r, (c.s_lo, c.s_hi)) {
                 continue; // a recess wall, or a rib, fin or tab side
             }
             candidates.push(Candidate {

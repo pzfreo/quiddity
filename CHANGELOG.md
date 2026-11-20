@@ -21,11 +21,13 @@ in [docs/alpha1.md](docs/alpha1.md).
 ### Fixed
 
 - `flats` records are no longer published on the sides of ribs, fins and tabs standing on a
-  cylinder. A flat now has to truncate the stock: both ends of its chord on the cylinder's
-  outside diameter (before, only "not inside it", so a fin side running out beyond the stock
-  passed) and the chord straddling the point of the plane nearest the axis (a chord wholly to
-  one side meets the cylinder at a concave edge). A tab standing a hair beyond the radius is
-  therefore not a flat either. Real D-flats and across-flats pairs are unchanged. For #307.
+  cylinder. A flat now has to truncate the stock: the chord must straddle the point of the
+  plane nearest the axis (a chord wholly to one side meets the cylinder at a concave edge), and
+  no vertex of the face inside the cylinder's own axial span may lie beyond its outside
+  diameter (before, only "not inside it" was checked, so a fin side running out beyond the
+  stock passed). A tab standing a hair beyond the radius is therefore not a flat either. A flat
+  that runs on past the cylinder into a chamfer, taper, land or hex collar is still a flat,
+  with the same `across`. Corpus: 12 flats records on rib or lug sides are removed. For #307.
 - A face whose area and centroid cannot be computed (a cylinder bounded by one closed circle,
   as some converters write a degenerate face) is left out of recognition and published as an
   `unmeasured_face_refusals` record (`UnmeasuredFaceRefusal`, reason `unmeasured_face`; its
