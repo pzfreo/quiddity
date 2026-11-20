@@ -228,7 +228,7 @@ pub(super) struct FaceCache {
     pub(super) bounds: OnceLock<Bounds>,
     pub(super) mass: OnceLock<super::mass::FaceMass>,
     pub(super) moments: OnceLock<Option<super::mass::FaceMoments>>,
-    pub(super) raw_moments: OnceLock<Option<[f64; 26]>>,
+    pub(super) raw_moments: OnceLock<super::mass::RawMoments>,
     pub(super) edge_deviation: OnceLock<Vec<(usize, f64)>>,
     pub(super) uv_bounds: OnceLock<Option<(f64, f64, f64, f64)>>,
     pub(super) recovered: OnceLock<Option<Surface>>,

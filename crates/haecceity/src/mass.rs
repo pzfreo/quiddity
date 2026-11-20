@@ -122,8 +122,18 @@ fn integrate<const N: usize>(cuts: &[f64], f: impl Fn(f64) -> [f64; N]) -> [f64;
     total
 }
 
+/// The face's shared moment integration, one result per consumer (`Part::face_raw_moments`).
+#[derive(Clone, Copy, Debug)]
+pub(super) struct RawMoments {
+    local: Option<[f64; 26]>,
+    centre: Option<[f64; 26]>,
+}
+
 #[cfg(test)]
 thread_local! {
+    /// Test hook: `Some(true)` makes the face-moment group's integrand non-finite,
+    /// `Some(false)` the centroid group's.
+    static POISONED_GROUP: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
     /// Integrand evaluations of face integrals on this thread: a structural cost for tests.
     static INTEGRAND_EVALUATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
@@ -1863,26 +1873,41 @@ impl Part {
     }
 
     /// The face's one moment integration, shared by [`Part::face_moments`] and
-    /// [`Part::volume_centroid`] (each used to run its own). Cached, including `None`.
+    /// [`Part::volume_centroid`] (each used to run its own). Cached, including refusals.
     /// Components, all on the area scale for quadrature's error test:
     /// 0 area w; 1..4 n; 4..7 and 7..13 the first and second moments of w about the face's
-    /// own `moment_frame` (dimensionless: offsets over its scale); 13 q·n; 14..23 qᵢnⱼ;
-    /// 23..26 qᵢ(q·n), with q the offset from the box centre over the part's length (see
-    /// `volume_centroid`). The flux p·n is integrated too, to select the mass boundary, but not
-    /// returned. A set whose frame is unusable is left zero and its
-    /// consumer refuses it separately.
-    fn face_raw_moments(&self, face: usize) -> Option<[f64; 26]> {
+    /// own `moment_frame` (dimensionless: offsets over its scale), the face-moment group;
+    /// 13 q·n; 14..23 qᵢnⱼ; 23..26 qᵢ(q·n), with q the offset from the box centre over the
+    /// part's length (see `volume_centroid`), the centroid group; 26 the flux p·n, integrated
+    /// to select the mass boundary and not returned. Each consumer is refused only for its
+    /// own group: when the joint integration is refused, each group is integrated alone
+    /// (the other's components left zero, which no error test reads), as before they were
+    /// shared. A group whose frame is unusable is left zero and its consumer refuses it.
+    fn face_raw_moments(&self, face: usize) -> RawMoments {
         *self.cache[face]
             .raw_moments
             .get_or_init(|| self.compute_face_raw_moments(face))
     }
 
-    fn compute_face_raw_moments(&self, face: usize) -> Option<[f64; 26]> {
-        let frame = self.moment_frame(face);
+    fn compute_face_raw_moments(&self, face: usize) -> RawMoments {
+        if let joint @ Some(_) = self.raw_group_integral(face, true, true) {
+            return RawMoments {
+                local: joint,
+                centre: joint,
+            };
+        }
+        RawMoments {
+            local: self.raw_group_integral(face, true, false),
+            centre: self.raw_group_integral(face, false, true),
+        }
+    }
+
+    fn raw_group_integral(&self, face: usize, local: bool, centre: bool) -> Option<[f64; 26]> {
+        let frame = self.moment_frame(face).filter(|_| local);
         let bounds = self.bounds();
         let c0 = bounds.centre();
         let length = geom::dist(bounds.min, bounds.max);
-        let length = (length.is_finite() && length > 0.0).then_some(length);
+        let length = (length.is_finite() && length > 0.0 && centre).then_some(length);
         self.moment_integral::<27, 26>(face, [0, 26, 1, 2, 3], |p, su, sv| {
             let n = geom::cross(su, sv);
             let w = geom::norm(n);
@@ -1915,6 +1940,12 @@ impl Part {
                     }
                 }
             }
+            #[cfg(test)]
+            POISONED_GROUP.with(|g| match g.get() {
+                Some(true) if frame.is_some() => out[4] = f64::NAN,
+                Some(false) if length.is_some() => out[13] = f64::NAN,
+                _ => {}
+            });
             out
         })
     }
@@ -1941,7 +1972,7 @@ impl Part {
             });
         }
         let (origin, scale) = self.moment_frame(face)?;
-        let raw = self.face_raw_moments(face)?;
+        let raw = self.face_raw_moments(face).local?;
         let [area, nx, ny, nz, mx, my, mz, xx, yy, zz, xy, xz, yz] =
             std::array::from_fn(|k| raw[k]);
         if area <= 0.0 || !area.is_finite() {
@@ -2014,7 +2045,7 @@ impl Part {
                 // The shared face integration (`face_raw_moments`) holds the flux and its
                 // moments on the area scale. Restore physical units after quadrature; the
                 // fixed point below uses mm.
-                let f = self.face_raw_moments(face)?;
+                let f = self.face_raw_moments(face).centre?;
                 s += sense * f[13] * length;
                 for i in 0..3 {
                     m[i] += sense * f[1 + i];
@@ -2570,6 +2601,68 @@ mod tests {
         INTEGRAND_EVALUATIONS.with(|n| n.set(0));
         let area = part.face_moments(0).unwrap().area;
         (area, INTEGRAND_EVALUATIONS.with(|n| n.get()))
+    }
+
+    fn grooved_solid() -> Part {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/annular_face_groove.step");
+        crate::step::read_step_file(&path).unwrap()
+    }
+
+    fn evaluations_of<T>(run: impl FnOnce() -> T) -> (T, usize) {
+        INTEGRAND_EVALUATIONS.with(|n| n.set(0));
+        let value = run();
+        (value, INTEGRAND_EVALUATIONS.with(|n| n.get()))
+    }
+
+    /// Face moments and the solid's centroid read one integration per face: whichever is
+    /// asked second evaluates no integrand.
+    #[test]
+    fn face_moments_and_volume_centroid_integrate_each_face_once() {
+        let part = grooved_solid();
+        let (_, cost) = evaluations_of(|| {
+            for f in 0..part.faces.len() {
+                let _ = part.face_moments(f);
+            }
+        });
+        assert!(cost > 0);
+        let (centroid, again) = evaluations_of(|| part.volume_centroid());
+        assert!(centroid.is_some());
+        assert_eq!(again, 0, "volume_centroid after face_moments");
+
+        let part = grooved_solid();
+        let (centroid, _) = evaluations_of(|| part.volume_centroid());
+        assert!(centroid.is_some());
+        let (moments, again) = evaluations_of(|| {
+            (0..part.faces.len())
+                .map(|f| part.face_moments(f))
+                .collect::<Vec<_>>()
+        });
+        assert!(moments.iter().all(Option::is_some));
+        assert_eq!(again, 0, "face_moments after volume_centroid");
+    }
+
+    /// A face whose face-moment components cannot be integrated refuses its face moments
+    /// alone, and one whose centroid components cannot refuses the solid's centroid alone
+    /// (forced by making one group's integrand non-finite).
+    #[test]
+    fn a_face_refuses_only_the_consumer_whose_group_is_unresolved() {
+        for (poisoned, moments_refused) in [(true, true), (false, false)] {
+            let part = grooved_solid();
+            POISONED_GROUP.with(|g| g.set(Some(poisoned)));
+            let moments = part.face_moments(0);
+            let centroid = part.volume_centroid();
+            POISONED_GROUP.with(|g| g.set(None));
+            assert_eq!(moments.is_none(), moments_refused);
+            assert_eq!(centroid.is_none(), !moments_refused);
+            // The unpoisoned group equals what an unforced part gives.
+            let clean = grooved_solid();
+            if moments_refused {
+                assert_eq!(centroid, clean.volume_centroid());
+            } else {
+                assert_eq!(moments, clean.face_moments(0));
+            }
+        }
     }
 
     /// A face with a large B-spline net costs surface evaluations in proportion to its spans,
