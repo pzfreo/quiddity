@@ -1248,6 +1248,8 @@ mod tests {
         assert!(levels.iter().any(|z| (z - 29.0).abs() < 1e-6));
         // A short-finned tube likewise.
         assert_eq!(bar("radial_fin_short.step.gz").len(), 2);
+        // A plain tube: both annular ends.
+        assert_eq!(bar("bar_tube.step.gz").len(), 2);
     }
 
     #[test]
@@ -1258,6 +1260,8 @@ mod tests {
         assert!(bar("golden_simple_through_hole.step").is_empty());
         // Rounded ends have no plane joining the cylinder.
         assert!(bar("boss_end_round.step.gz").is_empty());
+        // Chamfered ends: no end plane meets the cylinder.
+        assert!(bar("bar_chamfered.step.gz").is_empty());
         // Polygons between round sections: no one cylinder spans the part.
         assert!(bar("radial_fin_hex.step.gz").is_empty());
     }

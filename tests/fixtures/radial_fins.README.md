@@ -24,3 +24,7 @@ round section, never one host, so they must give no record.
 
 Two identical fin bands on one tube give no record either: each lower level matches two upper levels, and
 a miss is preferred to a guess.
+
+`bar_tube` (R30/R20 tube, Z 0..40) and `bar_chamfered` (R25 bar with 2 mm chamfers on both ends)
+are the bar-end rule's controls: the tube's two annular ends are `body`/`stock_envelope`, the
+chamfered bar has no end plane meeting its cylinder and claims nothing.

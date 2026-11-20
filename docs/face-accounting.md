@@ -125,10 +125,10 @@ feature count or dataset identity selects body evidence. Recognised corner treat
 and plates supply only the geometric premises specified here.
 
 This is conservative evidence for box stock, not a reconstruction of design intent.
-Unusual profiles still need review. There is no turned-body rule: maximum radius
-can also describe a flange or an unrecognised boss, and the stronger full-axial-span
-cylinder candidate supplied no unclaimed corpus examples with two complete end
-rings. Cones can themselves be drawn tapers/chamfers. Curved faces remain unexplained
+Unusual profiles still need review. Maximum radius alone is no turned-body rule: it
+can also describe a flange or an unrecognised boss. The one turned rule is the
+full-axial-span cylinder closed by its two end planes (round bar or tube ends, under
+`stock_envelope`); it supplied no corpus examples. Cones can themselves be drawn tapers/chamfers. Curved faces remain unexplained
 unless a record or refusal accounts for them. Invalid, shell-only,
 freeform-bearing, degenerate, or frame-refused input supplies no body evidence.
 

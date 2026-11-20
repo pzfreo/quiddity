@@ -22,6 +22,8 @@ both barrel ends), with invented dimensions. No reporter file is used.
   radial_fin_star     round R20, six-point star R26/R14 (Z 20..40), round R20
                       The three are controls: each polygon's section sits between two round
                       sections, so the arcs between its caps are not one host's surface.
+  bar_tube            R30/R20 tube Z 0..40 (both annular ends are the bar's end planes)
+  bar_chamfered       R25 bar Z 0..40 with 2 mm chamfers on both ends (no end plane meets the cylinder)
 """
 import gzip
 import sys
@@ -29,7 +31,7 @@ from pathlib import Path
 
 import math
 
-from build123d import Align, Axis, Box, BuildPart, BuildSketch, Cylinder, Location, Plane, Polygon, Pos, RegularPolygon, export_step, extrude
+from build123d import Align, Axis, Box, BuildPart, BuildSketch, Cylinder, GeomType, Location, Plane, Polygon, Pos, RegularPolygon, export_step, extrude
 
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parents[1] / "tests" / "fixtures"
 MIN_Z = (Align.CENTER, Align.CENTER, Align.MIN)
@@ -106,3 +108,8 @@ star = [(26 if i % 2 == 0 else 14) for i in range(12)]
 write(section_stack(lambda: Polygon(*[(r * math.cos(i * math.pi / 6), r * math.sin(i * math.pi / 6))
                                        for i, r in enumerate(star)], align=None), 20),
       "radial_fin_star.step.gz")
+
+# Bar-end controls (#307 item 10): a plain tube and a bar with chamfered ends.
+write(tube(30, 20, 0, 40), "bar_tube.step.gz")
+bar = cyl(25, 0, 40)
+write(bar.chamfer(2, None, bar.edges().filter_by(GeomType.CIRCLE)), "bar_chamfered.step.gz")

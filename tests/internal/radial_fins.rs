@@ -138,8 +138,24 @@ fn housing_rims_are_body_and_the_rest_is_left_unexplained_for_stated_reasons() {
         (-22.0, 91.0, 93.0),
         (-18.0, 91.0, 93.0),
     ] {
-        for f in plane_at(z, lo, hi) {
+        let found = plane_at(z, lo, hi);
+        assert!(!found.is_empty(), "no plane at z={z}");
+        for f in found {
             assert!(unexplained.contains(&f), "face {f} at z={z}");
         }
     }
+    // The rear recess's cylinder wall (r46, z -31..-22) is unexplained as well.
+    let wall: Vec<usize> = (0..p.faces.len())
+        .filter(|&f| {
+            let b = p.face_bounds(f);
+            matches!(
+                p.faces[f].surface,
+                quiddity::kernel::geom::Surface::Cylinder { .. }
+            ) && (b.min[2] + 31.0).abs() < 1e-6
+                && (b.max[2] + 22.0).abs() < 1e-6
+                && (b.max[0] - 46.0).abs() < 1e-6
+        })
+        .collect();
+    assert_eq!(wall.len(), 1);
+    assert_eq!(groups[wall[0]], FaceAccounting::Unexplained);
 }
