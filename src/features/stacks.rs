@@ -235,10 +235,15 @@ fn partner_state(
             }
         }
         Surface::Torus { major, .. } => {
-            // A groove cut into the wall between two cylinders (itself in halves, perhaps), wholly outside the bore
-            // diameter, is not a round at the end: it says nothing about whether the bore
-            // stops here. (A round at a mouth or a floor borders a plane or a cone as well.)
+            let curls_in = *major < seg.diameter / 2.;
+            // A groove cut into the wall between two cylinders (itself in halves, perhaps),
+            // wholly outside the bore diameter, is not a round at the end: it says nothing about
+            // whether the bore stops here. Only a torus the old rule would read as closing the
+            // end (major radius under the bore radius) is set aside; one with a larger major
+            // radius already read the end as open. A round at a mouth or a floor also borders a
+            // plane or a cone, so it is not set aside.
             if !seg.external
+                && curls_in
                 && part.neighbours(partner).iter().all(|&n| {
                     matches!(
                         part.faces[n].surface,
@@ -249,7 +254,6 @@ fn partner_state(
             {
                 return None;
             }
-            let curls_in = *major < seg.diameter / 2.;
             Some((
                 if seg.external != curls_in {
                     End::Flat

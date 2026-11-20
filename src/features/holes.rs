@@ -254,6 +254,9 @@ pub fn recognise_holes(part: &Part, opts: &HoleOptions) -> Vec<HoleRecord> {
 /// for the lands either side of it to remain one bore (#307).
 const GROOVE_FRAC: f64 = 0.25;
 
+/// The most faces an internal groove has between its lands.
+const GROOVE_FACES: usize = 4;
+
 fn same_diameter(a: f64, b: f64) -> bool {
     (a - b).abs() <= SAME_DIAMETER_FRAC * a.abs().max(b.abs()).max(DIAMETER_FLOOR)
 }
@@ -331,6 +334,9 @@ fn merge_stacks(part: &Part, stacks: Vec<Vec<Segment>>) -> Vec<Vec<Segment>> {
             return false;
         }
         let wanted: BTreeSet<usize> = end_partners(part, b, b.s_lo).into_iter().collect();
+        // The faces reachable from the first land's end without crossing a land. An internal
+        // groove is a small closed set bounded only by lands; a slot or a thin wall open to
+        // the outside connects on to the outer wall and the rest of the part, and is not one.
         let mut seen: BTreeSet<usize> = BTreeSet::new();
         let mut front: Vec<usize> = end_partners(part, a, a.s_hi)
             .into_iter()
@@ -339,21 +345,24 @@ fn merge_stacks(part: &Part, stacks: Vec<Vec<Segment>>) -> Vec<Vec<Segment>> {
         if front.is_empty() || wanted.is_empty() {
             return false;
         }
-        for _ in 0..3 {
-            seen.extend(front.iter().copied());
-            if seen.iter().any(|f| wanted.contains(f)) {
-                let faces: Vec<usize> = seen.iter().copied().collect();
-                return reach_beyond_bore(part, a, &faces).is_some_and(|reach| reach <= limit);
+        while let Some(face) = front.pop() {
+            if !seen.insert(face) {
+                continue;
             }
-            front = front
-                .iter()
-                .flat_map(|&f| part.neighbours(f))
-                .filter(|&n| owner_of(a.solid, n).is_none() && !seen.contains(&n))
-                .collect();
-            front.sort_unstable();
-            front.dedup();
+            if seen.len() > GROOVE_FACES {
+                return false;
+            }
+            front.extend(
+                part.neighbours(face)
+                    .into_iter()
+                    .filter(|&n| owner_of(a.solid, n).is_none() && !seen.contains(&n)),
+            );
         }
-        false
+        if !seen.iter().any(|f| wanted.contains(f)) {
+            return false;
+        }
+        let faces: Vec<usize> = seen.iter().copied().collect();
+        reach_beyond_bore(part, a, &faces).is_some_and(|reach| reach <= limit)
     };
     let mut by_line: Vec<(Vec<f64>, Vec<Vec<Segment>>)> = Vec::new();
     for stack in stacks {

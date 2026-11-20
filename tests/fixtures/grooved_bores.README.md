@@ -18,4 +18,9 @@ Controls that must not merge or change:
 - `grooved_bore_steps`: a d27.2 and a d28.0 land separated by a ball groove (two holes).
 - `grooved_bore_wide`: tube r 13.6..22 with a torus groove R13.0 r4.0 (8 mm wide; a groove may be at
   most a quarter of the bore diameter wide and deep): two holes.
+- `grooved_bore_valve`: a d16 bore through a 40 mm cube with a torus gallery R8.0 r3.5 at the top
+  face; major radius equals the bore radius (two through holes, as before).
+- `grooved_bore_sawn_6_5.step.gz`, `grooved_bore_sawn_7_4.step.gz`: a tube with a d10 bore and a
+  transverse 1 mm slot open to the outside, leaving a 0.7 mm bridge (two holes; not an internal
+  groove).
 - `grooved_bore_cross`: a plate with a d27.2 bore and a d3 cross hole (a through bore, whole).

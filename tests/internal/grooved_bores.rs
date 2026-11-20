@@ -59,13 +59,15 @@ fn lands_separated_by_material_inside_the_bore_stay_separate_holes() {
         ],
     );
     // The same web across the ball groove: still two holes, and the groove is not a floor.
-    let found = holes_of("grooved_bore_webgroove", &IDENTITY);
-    assert_eq!(found.len(), 2, "{found:?}");
-    assert!(
-        found
-            .iter()
-            .all(|h| h.0 == 27.2 && h.1 != holes::Bottom::Through)
-    );
+    for placement in placements() {
+        let found = holes_of("grooved_bore_webgroove", &placement);
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert!(
+            found
+                .iter()
+                .all(|h| h.0 == 27.2 && h.1 != holes::Bottom::Through)
+        );
+    }
 }
 
 #[test]
@@ -73,26 +75,57 @@ fn lands_of_different_diameter_are_never_merged() {
     // A plain shoulder: one stepped hole.
     assert_holes("grooved_bore_cbore", &[(27.2, holes::Bottom::Through, 3.5)]);
     // A ball groove between a d27.2 and a d28.0 land: two holes, neither given a floor.
-    let found = holes_of("grooved_bore_steps", &IDENTITY);
-    assert_eq!(found.len(), 2, "{found:?}");
-    assert_eq!(
-        found.iter().map(|h| h.0).collect::<Vec<_>>(),
-        vec![27.2, 28.0]
-    );
-    assert!(found.iter().all(|h| h.1 != holes::Bottom::Flat));
+    for placement in placements() {
+        let found = holes_of("grooved_bore_steps", &placement);
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert_eq!(
+            found.iter().map(|h| h.0).collect::<Vec<_>>(),
+            vec![27.2, 28.0]
+        );
+        assert!(found.iter().all(|h| h.1 != holes::Bottom::Flat));
+    }
 }
 
 #[test]
 fn a_groove_wider_than_a_quarter_of_the_bore_is_not_merged() {
     // A torus R13.0 r4.0 (8 mm wide, against a quarter diameter of 6.8): two holes, and no
     // floor claimed on the groove.
-    let found = holes_of("grooved_bore_wide", &IDENTITY);
-    assert_eq!(found.len(), 2, "{found:?}");
-    assert!(
-        found
-            .iter()
-            .all(|h| h.0 == 27.2 && h.1 != holes::Bottom::Flat)
+    for placement in placements() {
+        let found = holes_of("grooved_bore_wide", &placement);
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert!(
+            found
+                .iter()
+                .all(|h| h.0 == 27.2 && h.1 != holes::Bottom::Flat)
+        );
+    }
+}
+
+#[test]
+fn a_torus_gallery_whose_major_radius_reaches_the_bore_keeps_its_through_ends() {
+    // R8.0 r3.5 on a d16 bore: the end already read as open before the groove rule.
+    assert_holes(
+        "grooved_bore_valve",
+        &[
+            (16.0, holes::Bottom::Through, 16.5),
+            (16.0, holes::Bottom::Through, 16.5),
+        ],
     );
+}
+
+#[test]
+fn a_slot_open_to_the_outside_is_not_an_internal_groove_at_any_wall_thickness() {
+    // A 1 mm sawn slot across a d10 bore leaves a 0.7 mm bridge: two holes whatever the
+    // outer radius.
+    for fixture in ["grooved_bore_sawn_6_5", "grooved_bore_sawn_7_4"] {
+        assert_holes(
+            fixture,
+            &[
+                (10.0, holes::Bottom::Through, 9.5),
+                (10.0, holes::Bottom::Through, 9.5),
+            ],
+        );
+    }
 }
 
 #[test]
