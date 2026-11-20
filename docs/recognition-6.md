@@ -919,6 +919,28 @@ open: flat; two-passage strips 26% and 38%, axis covered: flat.
 A bore whose exit edge is too long to
 be read as an end at all stays `unknown`.
 
+## Bores with an internal groove (#307)
+
+Two coaxial internal cylinders of the same diameter are one bore when only an internal
+groove separates them: the faces reachable from the first land's end without crossing a land
+are at most four, include the second land's end partner, and lie wholly at or beyond the
+bore radius from the axis with some point beyond it. A slot or thin wall open to the outside
+connects on to the outer wall and is not such a set. The gap and the radial reach must each
+be at most a quarter of the bore diameter (that limit decides torus and cone grooves; a
+rectangular groove already joins through its own coaxial cylinder at any width). A web or
+ridge (material inside the bore diameter) or a different diameter keeps the lands separate
+holes.
+
+A toroidal face between two cylinders, wholly beyond the bore radius, whose major radius is
+under the bore radius (which used to read the end as a closing round) is set aside: it says
+nothing about the end. It is excluded where it borders a plane or a cone, as a round at a mouth
+or floor does. An end bordered only by such a groove is `unknown` rather than `flat`. A torus
+with a major radius at or over the bore radius already read the end as open and is unchanged.
+The groove faces remain unexplained until they have a record of their own.
+
+Known miss: a wide torus or cone gallery (over a quarter of the diameter) leaves the two
+lands as separate holes.
+
 ## Partially obstructed through-hole exits
 
 A bore spanning its local wall, with exterior planar rim support at both axial ends,

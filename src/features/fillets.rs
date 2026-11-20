@@ -310,6 +310,13 @@ pub(super) fn prismatic(
     Some(found)
 }
 
+/// This also refuses a round between a plane and one much tighter cylinder (rare).
+/// A curved wall counts as a much tighter round than the candidate when the candidate's
+/// radius is at least this many times the wall's. The #127 corpus rounds spring from
+/// walls at least their own radius (CTC-05: R6.35 from R19.05); the pocket end wall in
+/// cgb242 (R55) sits between two R3 corner rounds, 18 times tighter.
+const CURVED_WALL_MIN_RATIO: f64 = 4.;
+
 /// A straight inside round can also spring from a parallel cylindrical wall (#127).
 /// Use its tangent plane at the shared straight spring line. Both analytic cylinders
 /// must contain that line at model precision and their oriented normals must agree.
@@ -325,6 +332,7 @@ pub(crate) fn curved_wall_corner(
     let tol = cylinder_support_tolerance(part);
     let mut supports: Vec<(V3, V3)> = Vec::new();
     let mut curved = false;
+    let (mut curved_walls, mut small_walls) = (0, 0);
     for n in part.neighbours(face) {
         let (point, normal) = match part.faces[n].surface {
             Surface::Plane { frame } => (frame.origin, super::planes::unit_plane_normal(part, n)?),
@@ -383,6 +391,10 @@ pub(crate) fn curved_wall_corner(
                     contact = Some((point, normal));
                 }
                 curved = true;
+                curved_walls += 1;
+                if wall_radius * CURVED_WALL_MIN_RATIO < radius {
+                    small_walls += 1;
+                }
                 contact?
             }
             _ => continue,
@@ -408,7 +420,9 @@ pub(crate) fn curved_wall_corner(
     let [(pa, a), (pb, b)] = supports.as_slice() else {
         return None;
     };
-    if !curved {
+    // A round beside walls that are themselves much tighter rounds is a wide wall between
+    // two corner rounds (a pocket end drawn round a hub), not a round springing from them.
+    if !curved || small_walls == curved_walls {
         return None;
     }
     let d = geom::dot(*a, *b);
