@@ -1,7 +1,8 @@
 //! Face index order is a contract: face *i* of a read part is `face_source(i)`, and the order is
-//! OpenCascade's `TopExp::MapShapes` traversal of the file's shape: placed solid instances in the
-//! order the file's representation lists them, each its outer shell's faces then its void shells'
-//! in the order the `CLOSED_SHELL` lists them, then open shells and surface models.
+//! the reader's traversal (docs/evidence.md): placed solid instances in assembly traversal order,
+//! each its outer shell's faces then its void shells' in `CLOSED_SHELL` order, then the shells of
+//! surface models. For solids it is OpenCascade's `TopExp::MapShapes` order, except that a face
+//! shared by two shells is listed twice.
 //!
 //! That is the ascending `ADVANCED_FACE` file order whenever the file writes its solids and each
 //! shell's faces in ascending instance order (every exporter output in the corpus does), and only
