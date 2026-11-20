@@ -20,6 +20,8 @@
 
 mod preferred;
 
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use super::brep::Part;
@@ -27,6 +29,52 @@ use super::geom::{self, Curve, Surface, V3};
 use super::nurbs::breaks;
 use super::sampling::{edge_interval, extreme_parameters};
 use super::uv::UvLoop;
+
+fn bisect_cut(mut lo: f64, mut hi: f64, before_cut: impl Fn(f64) -> bool) -> f64 {
+    for _ in 0..60 {
+        let mid = 0.5 * (lo + hi);
+        let endpoint = if before_cut(mid) { &mut lo } else { &mut hi };
+        // A fixed bracket gives the same midpoint and the same decision on every
+        // remaining step. Compare bits so signed zero cannot hide an interval change.
+        if mid.to_bits() == endpoint.to_bits() {
+            return mid;
+        }
+        *endpoint = mid;
+    }
+    0.5 * (lo + hi)
+}
+
+const MAX_CACHED_CUTS: usize = 2048;
+
+/// Cut searches within one legacy integral of a face. The surface, its parameter
+/// domain, and its edges are fixed across the coarse and refined passes. The edge
+/// index, ordered bracket and original UV seed then determine the entire search,
+/// including how a failed projection contributes to the bracket.
+#[derive(Default)]
+struct CutCache {
+    cuts: HashMap<(usize, [u64; 4]), f64>,
+}
+
+impl CutCache {
+    fn search(
+        &mut self,
+        edge: usize,
+        bracket: (f64, f64),
+        seed: (f64, f64),
+        find: impl FnOnce() -> f64,
+    ) -> f64 {
+        let parameters = [bracket.0, bracket.1, seed.0, seed.1].map(f64::to_bits);
+        let key = (edge, parameters);
+        if let Some(&cut) = self.cuts.get(&key) {
+            return cut;
+        }
+        let cut = find();
+        if self.cuts.len() < MAX_CACHED_CUTS {
+            self.cuts.insert(key, cut);
+        }
+        cut
+    }
+}
 
 /// Gauss–Legendre nodes and weights on [-1, 1], in ascending order.
 fn gauss_nodes() -> &'static [(f64, f64)] {
@@ -912,11 +960,28 @@ impl Part {
         let loops: Vec<usize> = (0..fc.loops.len())
             .filter(|&i| fc.loops[i].vertex.is_none())
             .collect();
+        let cut_cache = (matches!(
+            surface,
+            Surface::Freeform {
+                kind: "BSPLINE" | "BEZIER",
+                ..
+            }
+        ) && spans == (f64::INFINITY, f64::INFINITY)
+            && collapsed == (None, None))
+            .then(|| RefCell::new(CutCache::default()));
+        let cut_cache = cut_cache.as_ref();
         // One rule per panel; then again, refining where needed, for a loop with a panel
         // unresolved at the scale of the whole face's terms.
         let mut passes = Vec::with_capacity(loops.len());
         for &i in &loops {
-            passes.push(self.boundary_integral(face, i, shifts[i], &term, (None, rule), u_ref)?);
+            passes.push(self.boundary_integral(
+                face,
+                i,
+                shifts[i],
+                &term,
+                (None, rule, cut_cache),
+                u_ref,
+            )?);
         }
         // Canonical mass validity uses its own errors, floor, refinement and loop sense,
         // irrespective of which additional components this caller needs.
@@ -936,6 +1001,7 @@ impl Part {
                                 components: Components::Mass(indices),
                                 observe_mass: None,
                             },
+                            cut_cache,
                         ),
                         u_ref,
                     )?;
@@ -972,6 +1038,7 @@ impl Part {
                             observe_mass: None,
                             ..rule
                         },
+                        cut_cache,
                     ),
                     u_ref,
                 )?;
@@ -1005,7 +1072,7 @@ impl Part {
         i: usize,
         shift: (f64, f64),
         term: &dyn Fn(f64, f64, f64, f64) -> Option<[f64; N]>,
-        (floor, rule): (Option<f64>, IntegralRule),
+        (floor, rule, cut_cache): (Option<f64>, IntegralRule, Option<&RefCell<CutCache>>),
         u_ref: f64,
     ) -> Option<(Panel<f64, N>, Estimate)> {
         debug_assert!(rule.observe_mass.is_none() || floor.is_none());
@@ -1212,16 +1279,19 @@ impl Part {
                 _ => (false, false, 0, 0),
             };
             let corner = |(ta, pa): (f64, (f64, f64)), tb: f64| {
-                let (mut lo, mut hi) = (ta, tb);
-                for _ in 0..60 {
-                    let mid = 0.5 * (lo + hi);
-                    let point = ed.curve.value(mid);
-                    match foot(surface, spans, point, wrap(pa)).map(|q| unwrap(q, pa)) {
-                        Some(q) if held(q) == held(pa) => lo = mid,
-                        _ => hi = mid,
-                    }
+                let find = || {
+                    let seed = wrap(pa);
+                    let side = held(pa);
+                    bisect_cut(ta, tb, |mid| {
+                        foot(surface, spans, ed.curve.value(mid), seed)
+                            .is_some_and(|q| held(unwrap(q, pa)) == side)
+                    })
+                };
+                if let Some(cache) = cut_cache {
+                    cache.borrow_mut().search(e, (ta, tb), pa, find)
+                } else {
+                    find()
                 }
-                0.5 * (lo + hi)
             };
             // Nodes are visited in walking order, so periodic parameters unwrap node by node.
             let mut edge_mass: Estimate = (0.0, 0.0);
@@ -1732,6 +1802,73 @@ impl Part {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stalled_cut_bisection_preserves_the_fixed_round_result() {
+        use std::cell::Cell;
+
+        for (start, end) in [(0.0, 1.0), (1.0, 0.0), (-0.0, 0.0), (1e8, 1e8 + 0.01)] {
+            for split in [start, 0.37 * start + 0.63 * end, end] {
+                // A failed projection at the split takes the existing false branch.
+                let before = |t: f64| t != split && (t < split) == (start < end);
+                let (mut lo, mut hi) = (start, end);
+                for _ in 0..60 {
+                    let mid = 0.5 * (lo + hi);
+                    if before(mid) {
+                        lo = mid;
+                    } else {
+                        hi = mid;
+                    }
+                }
+                let original = 0.5 * (lo + hi);
+                let calls = Cell::new(0);
+                let cut = bisect_cut(start, end, |t| {
+                    calls.set(calls.get() + 1);
+                    before(t)
+                });
+                assert_eq!(cut.to_bits(), original.to_bits());
+                assert!(calls.get() <= 60);
+                if start >= 1e8 {
+                    assert!(calls.get() < 60);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn cut_search_cache_requires_the_same_edge_bracket_and_seed_bits() {
+        let mut cache = CutCache::default();
+        let first = cache.search(2, (0.0, 1.0), (1.0, 2.0), || -0.0);
+        let again = cache.search(2, (0.0, 1.0), (1.0, 2.0), || unreachable!());
+        assert_eq!(first.to_bits(), again.to_bits());
+        for (edge, bracket, seed) in [
+            (3, (0.0, 1.0), (1.0, 2.0)),
+            (2, (1.0, 0.0), (1.0, 2.0)),
+            (2, (-0.0, 1.0), (1.0, 2.0)),
+            (2, (0.0, 1.0), (1.0, 2.0f64.next_up())),
+        ] {
+            assert_eq!(cache.search(edge, bracket, seed, || 0.5), 0.5);
+        }
+        for edge in 4..(MAX_CACHED_CUTS + 4) {
+            cache.search(edge, (0.0, 1.0), (1.0, 2.0), || 0.0);
+        }
+        assert_eq!(cache.cuts.len(), MAX_CACHED_CUTS);
+        assert_eq!(
+            cache
+                .search(2, (0.0, 1.0), (1.0, 2.0), || unreachable!())
+                .to_bits(),
+            first.to_bits()
+        );
+        assert_eq!(
+            cache.search(usize::MAX, (0.0, 1.0), (1.0, 2.0), || 0.25),
+            0.25
+        );
+        assert_eq!(
+            cache.search(usize::MAX, (0.0, 1.0), (1.0, 2.0), || 0.75),
+            0.75
+        );
+        assert_eq!(cache.cuts.len(), MAX_CACHED_CUTS);
+    }
 
     #[test]
     fn mass_convergence_is_independent_of_moment_density() {
