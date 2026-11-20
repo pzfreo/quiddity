@@ -476,7 +476,8 @@ fn majority_frame_recovers_specify_fillets_and_parallel_support_chamfer() {
         ),
         // For #127, 34 proved inside rounds join #120's forty convex fillets.
         // For #297, 29 R0.5 rounds (below the former 0.6 mm floor) join those 74.
-        ("cadgenbench_inputs/cgb207.step", "fillets", 103, vec![176]),
+        // For #307 (item 7), five more patches (four rounds at slot and arc-wall ends) join those 103.
+        ("cadgenbench_inputs/cgb207.step", "fillets", 108, vec![176]),
         ("mfcadpp/10252.step", "oriented_chamfers", 1, vec![2]),
     ] {
         let part = quiddity::read_step_file(&dir.join(file)).unwrap();
