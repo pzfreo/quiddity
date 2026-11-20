@@ -335,6 +335,25 @@ fn wrap_closed(surface: &Surface, spans: (f64, f64), (u, v): (f64, f64)) -> (f64
     (wrap(u, u0, u1, spans.0), wrap(v, v0, v1, spans.1))
 }
 
+/// Whether a loop on a surface closed in u (across `span`) winds round it: its parameters, each
+/// step brought to the nearest whole span, add up to more than half of one; or a step is so long
+/// (over a quarter span) that the way round it is not certain.
+fn winds_round(lp: &UvLoop, span: f64) -> bool {
+    if !span.is_finite() {
+        return false;
+    }
+    let mut net = 0.0;
+    for w in lp.points.windows(2) {
+        let d = w[1].0 - w[0].0;
+        let d = d - span * (d / span).round();
+        if d.abs() > 0.25 * span {
+            return true;
+        }
+        net += d;
+    }
+    net.abs() > 0.5 * span
+}
+
 /// A boundary node met on the walk: its curve parameter, its surface parameters and their
 /// velocity.
 type Met = (f64, (f64, f64), (f64, f64));
@@ -968,7 +987,7 @@ impl Part {
     }
 
     /// Whether the face's inner integral can run along v, where it crosses far fewer panels
-    /// than along u: an open, unpinched B-spline face whose u has at least
+    /// than along u: an unpinched B-spline face, not closed in v, whose u has at least
     /// [`LARGE_NET_SPANS`] spans and eight times those of v; or a cylinder or cone (one panel
     /// along v) whose loops, closed in the lifted parameters, run through at least
     /// [`LARGE_NET_SPANS`] radians of u (a thread's helical edge, which along u costs a panel
@@ -980,8 +999,11 @@ impl Part {
                 if surface.periodic() != (false, false) {
                     return false;
                 }
-                let (su, sv) = closed_spans(surface);
-                if su.is_finite() || sv.is_finite() || collapsed_sides(surface) != (None, None) {
+                // Closed in u is allowed (the integrand wraps the lifted parameters across the
+                // seam, as the stock form's does); a loop that winds round u never reaches the
+                // cheaper form in `integrate_face_legacy_in`, which runs its own along-v form.
+                let (_, sv) = closed_spans(surface);
+                if sv.is_finite() || collapsed_sides(surface) != (None, None) {
                     return false;
                 }
                 let nu = breaks(&s.knots_u, s.degree_u).len();
@@ -1046,6 +1068,12 @@ impl Part {
         // seam (a face's own seam need not lie on it), so the integrands read the surface a
         // whole span round.
         let spans = closed_spans(surface);
+        // The cheaper form reads no loop that winds round a surface closed in u (its parameters
+        // wrap at the seam, so the loop's ends agree whatever it encircles): the stock form
+        // decides such a face.
+        if cheaper.is_some() && uv.iter().any(|lp| winds_round(lp, spans.0)) {
+            return None;
+        }
         let evaluator = match surface {
             Surface::Freeform { surface, .. } => Some(std::cell::RefCell::new(
                 crate::nurbs::SurfaceEvaluation::new(surface),
@@ -2785,5 +2813,195 @@ mod tests {
             n20 * 10 < n10 * 25,
             "{n10} -> {n20} evaluations is not linear"
         );
+    }
+
+    /// Per facet, how far the slanted strip of [`prism_face`] rises.
+    const PRISM_SLOPE: f64 = 0.03;
+
+    /// STEP text of part of the lateral surface of a regular `n`-gonal prism (circumradius 5,
+    /// height 2) as a B-spline face closed in u, as a writer emits a cylinder it approximates:
+    /// degree 1 in u over `n` spans, one span in v, its sides of constant u coinciding. The face
+    /// is a strip a unit high rising [`PRISM_SLOPE`] a facet, from facet `from` to facet `to`
+    /// (past `n`, across the surface's seam): a loop that winds round nowhere, whose edges
+    /// along u move in v. Or, `whole`, it is all of the surface, between two loops that wind
+    /// round u.
+    fn prism_face(n: usize, from: usize, to: usize, whole: bool) -> String {
+        let (r, h) = (5.0f64, 2.0f64);
+        let at = |i: usize, z: f64| {
+            let a = std::f64::consts::TAU * i as f64 / n as f64;
+            [r * a.cos(), r * a.sin(), z]
+        };
+        let (from, to) = if whole { (0, n) } else { (from, to) };
+        let rise = |i: usize| PRISM_SLOPE * (i - from) as f64;
+        let list = |items: Vec<String>| items.join(",");
+        let mut e = Entities::new();
+        let grid: Vec<String> = (0..=n)
+            .map(|i| {
+                let (a, b) = (e.point(at(i, 0.0)), e.point(at(i, h)));
+                format!("(#{a},#{b})")
+            })
+            .collect();
+        let mut mult = vec!["2".to_string()];
+        mult.extend(vec!["1".to_string(); n - 1]);
+        mult.push("2".into());
+        let knots = list((0..=n).map(|i| format!("{:?}", i as f64)).collect());
+        let surface = e.add(format!(
+            "B_SPLINE_SURFACE_WITH_KNOTS('',1,1,({}),.UNSPECIFIED.,.F.,.F.,.F.,({}),(2,2),({knots}),(0.,1.),.UNSPECIFIED.)",
+            list(grid),
+            list(mult)
+        ));
+        let row = |e: &mut Entities, from: usize, to: usize, z: &dyn Fn(usize) -> f64| {
+            let points: Vec<usize> = (from..=to).map(|i| e.point(at(i, z(i)))).collect();
+            e.polyline(&points)
+        };
+        let bounds = if whole {
+            // Each ring in two edges, as a writer splits a closed curve.
+            let ring = |e: &mut Entities, z: f64, kind: &str| {
+                let (a, b) = (e.vertex(at(0, z)), e.vertex(at(n / 2, z)));
+                let (first, second) = (row(e, 0, n / 2, &|_| z), row(e, n / 2, n, &|_| z));
+                let edges = [e.edge(a, b, first, true), e.edge(b, a, second, true)];
+                let lp = e.add(format!("EDGE_LOOP('',(#{},#{}))", edges[0], edges[1]));
+                e.add(format!("{kind}('',#{lp},.T.)"))
+            };
+            vec![
+                ring(&mut e, 0.0, "FACE_OUTER_BOUND"),
+                ring(&mut e, h, "FACE_BOUND"),
+            ]
+        } else {
+            let band = 1.0;
+            let (c_low, c_high) = (
+                row(&mut e, from, to, &rise),
+                row(&mut e, from, to, &|i| rise(i) + band),
+            );
+            let v = [
+                e.vertex(at(from, rise(from))),
+                e.vertex(at(to, rise(to))),
+                e.vertex(at(to, rise(to) + band)),
+                e.vertex(at(from, rise(from) + band)),
+            ];
+            let l_end = e.line(at(to, rise(to)), [0.0, 0.0, 1.0]);
+            let l_start = e.line(at(from, rise(from)), [0.0, 0.0, 1.0]);
+            let sides = [
+                e.edge(v[0], v[1], c_low, true),
+                e.edge(v[1], v[2], l_end, true),
+                e.edge(v[3], v[2], c_high, false),
+                e.edge(v[0], v[3], l_start, false),
+            ];
+            let sides = sides.map(|s| format!("#{s}")).join(",");
+            let lp = e.add(format!("EDGE_LOOP('',({sides}))"));
+            vec![e.add(format!("FACE_OUTER_BOUND('',#{lp},.T.)"))]
+        };
+        let bounds: Vec<String> = bounds.iter().map(|b| format!("#{b}")).collect();
+        let face = e.add(format!(
+            "ADVANCED_FACE('',({}),#{surface},.T.)",
+            bounds.join(",")
+        ));
+        e.finish(face)
+    }
+
+    /// The exact area and centroid of the strip of [`prism_face`] over `facets`: each facet is
+    /// a flat parallelogram of side 2·5·sin(π/n) and height 1, its centroid at the apothem
+    /// along its mid-angle, half a unit above its mid-edge. (`whole`: height 2, level.)
+    fn prism_exact(n: usize, facets: std::ops::Range<usize>, whole: bool) -> (f64, V3) {
+        let r = 5.0f64;
+        let (side, apothem) = (
+            2.0 * r * (std::f64::consts::PI / n as f64).sin(),
+            r * (std::f64::consts::PI / n as f64).cos(),
+        );
+        let (height, slope) = if whole {
+            (2.0, 0.0)
+        } else {
+            (1.0, PRISM_SLOPE)
+        };
+        let mut sum = [0.0, 0.0, 0.0];
+        for i in facets.clone() {
+            let a = std::f64::consts::TAU * (i as f64 + 0.5) / n as f64;
+            let z = slope * (i as f64 + 0.5 - facets.start as f64) + 0.5 * height;
+            sum = geom::add(sum, [apothem * a.cos(), apothem * a.sin(), z]);
+        }
+        let facets = facets.len() as f64;
+        (side * height * facets, geom::scale(sum, 1.0 / facets))
+    }
+
+    /// The face's area by the stock form (the integral along u) and by the form the face takes,
+    /// with the integrand evaluations each costs.
+    fn prism_areas(text: &str) -> ((f64, usize), (f64, usize)) {
+        let area = |_: V3, su: V3, sv: V3| [geom::norm(geom::cross(su, sv))];
+        let rule = IntegralRule {
+            components: Components::Prefix(1),
+            observe_mass: None,
+        };
+        let part = crate::step::read_step(text.as_bytes()).unwrap();
+        INTEGRAND_EVALUATIONS.with(|n| n.set(0));
+        let stock = part
+            .integrate_face_legacy_in(0, area, rule, &mut None, None)
+            .unwrap()[0];
+
+        let stock = (stock, INTEGRAND_EVALUATIONS.with(|n| n.get()));
+        INTEGRAND_EVALUATIONS.with(|n| n.set(0));
+        let chosen = part.face_moments(0).unwrap().area;
+        (stock, (chosen, INTEGRAND_EVALUATIONS.with(|n| n.get())))
+    }
+
+    /// A B-spline face closed in u whose loop does not wind round u, with a large net, takes the
+    /// cheaper form (along v), whether or not it crosses the surface's seam, and keeps its area
+    /// and centroid (a casing's closed faces spent most of the file's time along u).
+    #[test]
+    fn a_closed_in_u_face_not_winding_round_u_takes_the_cheaper_form() {
+        let n = 96;
+        for (from, to) in [(8, 40), (80, 112)] {
+            let text = prism_face(n, from, to, false);
+            let part = crate::step::read_step(text.as_bytes()).unwrap();
+            assert!(
+                closed_spans(&part.faces[0].surface).0.is_finite(),
+                "the surface must be closed in u"
+            );
+            assert!(part.cheaper_inner_form(0));
+            let ((stock, n_stock), (area, n_cheap)) = prism_areas(&text);
+            let (exact, centroid) = prism_exact(n, from..to, false);
+            let moments = part.face_moments(0).unwrap();
+            assert!(
+                (area - exact).abs() < 1e-12 * exact,
+                "{from}..{to}: {area} vs {exact}"
+            );
+            assert!((stock - exact).abs() < 1e-12 * exact, "{stock} vs {exact}");
+            for k in 0..3 {
+                assert!(
+                    (moments.centroid[k] - centroid[k]).abs() < 1e-12,
+                    "{from}..{to}: {:?} vs {centroid:?}",
+                    moments.centroid
+                );
+            }
+            assert!(
+                n_cheap * 4 < n_stock,
+                "{from}..{to}: {n_cheap} evaluations against {n_stock} for the stock form"
+            );
+        }
+    }
+
+    /// A closed-in-u face whose loops wind round u is not read by the cheaper form (its
+    /// parameters wrap at the seam, so such a loop looks closed): the form refuses it, and the
+    /// face takes the path it always took (which, for this synthetic face, integrates nothing).
+    #[test]
+    fn a_closed_in_u_face_winding_round_u_keeps_the_stock_form() {
+        let n = 96;
+        let part = crate::step::read_step(prism_face(n, 0, n, true).as_bytes()).unwrap();
+        assert!(part.cheaper_inner_form(0), "the surface alone is eligible");
+        let area = |_: V3, su: V3, sv: V3| [geom::norm(geom::cross(su, sv))];
+        let rule = IntegralRule {
+            components: Components::Prefix(1),
+            observe_mass: None,
+        };
+        let unresolved = std::cell::Cell::new(false);
+        assert!(
+            part.integrate_face_legacy_in(0, area, rule, &mut None, Some(&unresolved))
+                .is_none(),
+            "the cheaper form must refuse a winding loop"
+        );
+        // As before the cheaper form existed, the stock form does not integrate this face
+        // (its loops close at the seam, and no area results).
+        let stock = part.integrate_face_legacy_in(0, area, rule, &mut None, None);
+        assert!(stock.is_none_or(|y| y[0] == 0.0), "{stock:?}");
+        assert!(part.face_moments(0).is_none());
     }
 }
