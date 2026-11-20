@@ -154,6 +154,10 @@ thread_local! {
 /// once on it, so the face's integration stops there. Outside metering this always succeeds.
 #[inline]
 pub(super) fn spend_work() -> Option<()> {
+    // Unmetered integration (every call without a budget) pays one relaxed load.
+    if METERS.load(std::sync::atomic::Ordering::Relaxed) == 0 {
+        return Some(());
+    }
     METER.with(|meter| match meter.get() {
         None => Some(()),
         Some((spent, limit)) if spent > limit => None,
@@ -164,8 +168,14 @@ pub(super) fn spend_work() -> Option<()> {
     })
 }
 
+/// How many threads are metering a face now.
+static METERS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 /// Whether the face being metered on this thread has passed its limit.
 pub(super) fn work_exhausted() -> bool {
+    if METERS.load(std::sync::atomic::Ordering::Relaxed) == 0 {
+        return false;
+    }
     METER.with(|meter| meter.get().is_some_and(|(spent, limit)| spent > limit))
 }
 
@@ -887,6 +897,7 @@ impl Part {
         part.integration_budget = None;
         let mut work = Vec::with_capacity(part.faces.len());
         let mut refused = Vec::new();
+        METERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         for face in 0..part.faces.len() {
             METER.with(|meter| meter.set(Some((0, limit))));
             // Each step returns at once (`None`) when the work passes the limit.
@@ -904,6 +915,7 @@ impl Part {
             }
             work.push(spent);
         }
+        METERS.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
         part.integration_budget = Some(std::sync::Arc::new(IntegrationBudget {
             limit,
             work,
