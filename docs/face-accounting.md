@@ -155,6 +155,18 @@ is bounded by unrecognised cylinders stays unexplained, because a recognised ble
 required. Fin sides and tips are not covered: the rule needs the face itself on the
 part's envelope, and no fin or rib record supplies the stock premise.
 
+**Round bar or tube ends.** The end planes of a round bar or tube are `stock_envelope` too,
+without any recognised blend. An external native cylinder spans the solid's whole extent along
+its principal axis, and exactly one plane at each axial extreme joins it convexly and spans
+exactly its transverse extent, so the cylinder's end circle is each plane's outer boundary (holes
+in the plane are inner loops). Fins that stop short of the ends, standoffs and a sleeve inside
+change nothing: the barrel rims of a finned motor housing qualify (#307 item 10). Planes wider
+than the cylinder (full-length fins, a boss's support plane), a cylinder closed at one extreme
+only, rounded or chamfered ends and a bore abstain. Boss caps and a counterbore's shoulder
+stay unexplained: a boss's cap is consulted, not claimed, by design (it is outside the boss
+fingerprint, so a chamfer added to a shaft end keeps its boss `carried` in a revision diff), and
+holes claim cylinders and floors only.
+
 ### `plate_edge`
 
 After box evidence, a recognised plate supplies its own defining face groups and

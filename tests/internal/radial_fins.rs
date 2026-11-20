@@ -86,3 +86,60 @@ fn a_gear_is_still_one_profile_on_its_end_faces() {
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].defining.len(), 2);
 }
+
+#[test]
+fn housing_rims_are_body_and_the_rest_is_left_unexplained_for_stated_reasons() {
+    use quiddity::recognition::{BodyReason, FaceAccounting};
+    let p = part("radial_fin_housing.step.gz");
+    let recognition = quiddity::correspondence::recognise(&p);
+    let groups = quiddity::recognition::document(&recognition, p.faces.len())
+        .face_accounting
+        .unwrap();
+    let plane_at = |z: f64, lo: f64, hi: f64| -> Vec<usize> {
+        (0..p.faces.len())
+            .filter(|&f| {
+                matches!(
+                    p.faces[f].surface,
+                    quiddity::kernel::geom::Surface::Plane { .. }
+                )
+            })
+            .filter(|&f| {
+                let b = p.face_bounds(f);
+                let width = b.max[0] - b.min[0];
+                (b.min[2] - z).abs() < 1e-6
+                    && (b.max[2] - z).abs() < 1e-6
+                    && (lo..=hi).contains(&width)
+            })
+            .collect()
+    };
+    // The barrel's rims: the bar's end planes.
+    for z in [-31.0, 29.0] {
+        let rim = plane_at(z, 99.0, 101.0);
+        assert_eq!(rim.len(), 1);
+        assert_eq!(
+            groups[rim[0]],
+            FaceAccounting::Body {
+                reason: BodyReason::StockEnvelope
+            }
+        );
+    }
+    // Standoff tops and the sleeve's end are boss caps (consulted, not claimed by the boss
+    // record), the shoulder between the d26 and d30 bores belongs to no record, and the rear
+    // recess and the rear wall's faces carry islands and passages no family describes.
+    let unexplained: Vec<usize> = (0..p.faces.len())
+        .filter(|&f| groups[f] == FaceAccounting::Unexplained)
+        .collect();
+    assert_eq!(unexplained.len(), 11);
+    for (z, lo, hi) in [
+        (-28.8, 5.9, 6.1),
+        (-24.4, 4.9, 5.1),
+        (1.5, 55.0, 57.0),
+        (-18.0, 29.0, 31.0),
+        (-22.0, 91.0, 93.0),
+        (-18.0, 91.0, 93.0),
+    ] {
+        for f in plane_at(z, lo, hi) {
+            assert!(unexplained.contains(&f), "face {f} at z={z}");
+        }
+    }
+}

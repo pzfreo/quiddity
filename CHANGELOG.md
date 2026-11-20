@@ -8,6 +8,14 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Added
 
+- The end planes of a round bar or tube are `body` (`stock_envelope`) where they were unexplained:
+  an external cylinder spanning the part's whole extent along its axis, closed at each end by one
+  plane that joins it convexly and spans exactly its transverse extent. On a finned motor housing
+  this accounts for the barrel's two rims. Standoff tops, the sleeve's end, the counterbore
+  shoulder and the rear recess and wall faces are left unexplained: a boss's cap is deliberately
+  not claimed (a chamfer added to a shaft end must keep its boss `carried`), holes claim no
+  shoulders, and no family describes the recess. For #307 (item 10).
+
 - Tapers and V-grooves of a turned body are records of their own, `tapers` and `v_grooves`,
   where they were only cone segments in the `turned_bodies` profile (whose profile is unchanged).
   A taper is one whole coaxial cone, external or internal, between two cylinders, a cylinder and a
