@@ -718,6 +718,8 @@ pub fn opposed_wall(ctx: &Context<'_>, solid: Option<usize>, faces: &[usize], f:
         else {
             return false;
         };
+        // Within the level band the two planes are one level, not two walls; a face farther
+        // than the body is long cannot face across material-free space inside it.
         let gap = (other.origin[h] - frame.origin[h]) * sign;
         if crate::kernel::geom::dot(n, m) >= -AXIS_ALIGNED_COS || gap <= TOL || gap >= reach {
             return false;
@@ -726,11 +728,14 @@ pub fn opposed_wall(ctx: &Context<'_>, solid: Option<usize>, faces: &[usize], f:
         let overlap = |k: usize| (fb.min[k].max(gb.min[k]), fb.max[k].min(gb.max[k]));
         let (ou, ov) = (overlap(u), overlap(v));
         let (wu, wv) = (ou.1 - ou.0, ov.1 - ov.0);
+        // An overlap within the level band is an edge contact, not two faces opposite.
         if wu <= TOL || wv <= TOL {
             return false;
         }
-        // A matched pair of walls, each covered at least half by the other across the axis,
-        // nearer each other than the pair is long: a channel, not two shelves facing.
+        // A matched pair of walls, each covered at least half by the other across the axis
+        // (opposite walls of one channel are about the same size; a small face under a broad
+        // shelf is not), nearer each other than the pair is long (a channel's width is less than
+        // its walls' length; ctc_02's facing shelves are 390-540 apart on faces 34-325 wide).
         let area = |b: &Bounds| (b.max[u] - b.min[u]) * (b.max[v] - b.min[v]);
         if wu * wv < 0.5 * area(&fb) || wu * wv < 0.5 * area(&gb) || gap >= wu.max(wv) {
             return false;
@@ -739,6 +744,8 @@ pub fn opposed_wall(ctx: &Context<'_>, solid: Option<usize>, faces: &[usize], f:
             Some(s) => ctx.solid_classifier(s),
             None => ctx.classifier(),
         };
+        // A probe every tenth of the gap: a rib or island standing between the faces is inside
+        // the body at one of them, so the pair is not one open channel.
         (1..10).all(|k| {
             let mut p = [0.0; 3];
             p[u] = 0.5 * (ou.0 + ou.1);

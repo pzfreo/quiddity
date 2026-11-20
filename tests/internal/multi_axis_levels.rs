@@ -100,3 +100,54 @@ fn claimed_faces_give_no_level_along_the_new_axes() {
     want.sort();
     assert_eq!(found, want);
 }
+
+/// The faces of *file*'s published step levels, or `None` without the corpus (refused when the
+/// corpus is required).
+fn level_faces(file: &str) -> Option<BTreeSet<usize>> {
+    let Some(dir) = common::corpus_dir() else {
+        assert!(
+            std::env::var_os("QUIDDITY_CORPUS_REQUIRED").is_none(),
+            "QUIDDITY_CORPUS_REQUIRED is set but the corpus was not found"
+        );
+        return None;
+    };
+    let p = quiddity::read_step_file(&dir.join(file)).unwrap();
+    let recognition = quiddity::correspondence::recognise(&p);
+    let document = quiddity::recognition::document(&recognition, p.faces.len());
+    Some(
+        document
+            .records
+            .iter()
+            .filter(|r| r.family == "step_levels")
+            .flat_map(|r| r.faces.iter().copied())
+            .collect(),
+    )
+}
+
+/// ctc_02's drafted walls (tilted 2-5 degrees, spanning 6.1 along the frame's z) are no level,
+/// while its flat shelves 540 and 390 apart, facing each other across the part, stay levels:
+/// that gap is longer than the faces are wide, so they are not one channel's walls.
+#[test]
+fn drafted_walls_are_no_level_and_wide_facing_shelves_are() {
+    let Some(faces) = level_faces("nist/nist_ctc_02_asme1_rc.stp") else {
+        return;
+    };
+    for f in [205, 323, 367] {
+        assert!(!faces.contains(&f), "drafted face {f} is a level");
+    }
+    for f in [214, 358, 188, 313] {
+        assert!(faces.contains(&f), "shelf {f} is no level");
+    }
+}
+
+/// ctc_04's 25-wide slots: each wall faces the other across the slot, fully overlapping, so
+/// neither is a level along the frame's y.
+#[test]
+fn slot_walls_are_no_level() {
+    let Some(faces) = level_faces("nist/nist_ctc_04_asme1_rd.stp") else {
+        return;
+    };
+    for f in [154, 156, 67, 162] {
+        assert!(!faces.contains(&f), "slot wall {f} is a level");
+    }
+}
