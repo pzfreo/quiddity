@@ -3081,6 +3081,10 @@
     "tests/fixtures/modelled_threads/round_wire_spring.step.gz": "479777b86e81a7aac818fad2c6462ecbe9fa90d27449d4de01f96516213300ed",
     "tests/fixtures/modelled_threads/varying_pitch_sweep.step.gz": "d7df4a8d880815dc6cb34b35f5190f2dc9fd4a2cad32d30c2e89d5d745dfae4e",
     "tests/fixtures/motion_breakdown_limits.json": "fc8afaaaa68ae8bbd4a509505ae4fdece01c7f9fd4474008be19b8b4ed12147b",
+    "tests/fixtures/multi_solid/README.md": "6971e2efe9ddeab45b7b882abf54e34181b08189866297f3d0f563feacf89c9c",
+    "tests/fixtures/multi_solid/brep_with_voids.step.gz": "bfb7db5fe113555daa50d2752d3eb8cdf8ba2fbc734a2bea8994c98e913a39ce",
+    "tests/fixtures/multi_solid/sphere_and_box.step.gz": "a1de70a1596008b30f71776fd3146f2ed349aa215924988d43d021acf7b509a1",
+    "tests/fixtures/multi_solid/two_boxes.step.gz": "1883a75d8f8965f09ac22d64e21329c30a66389e7eedaffddbaaa870b8d9568e",
     "tests/fixtures/nist_ctc_02_asme1_ap242-e2.stp.gz": "07d46072b0c80ea1545392b3c23a33ca50b9c6be76da3a87f8f53c3ecdf59aee",
     "tests/fixtures/nist_ftc_07_asme1_ap242-e2.stp.gz": "641c42c53a2b5c8ea79d15a99c5ee4fc7d511b9edcbc4970ffa25a7807370af4",
     "tests/fixtures/nonprincipal_37.step": "bdf987ad2a890562a733c0d6c29b2a0c62ad22540796271e8e514765064f7d70",
@@ -3283,7 +3287,7 @@
     "calls/recognise_through_steps.json.gz": "ab6a0b5b06756fa3435099be76e5ab432b867be4d4a1b42c49047ff83b086cca",
     "calls/recognise_turned_steps.json.gz": "37d10e8c5e2ce5dcf6c5bd2fdc7444e86494bb44768e9d32d9a1abfd3f2fbd90",
     "channel_geometry.json.gz": "bd25ff87def7f73b4f119d26614600b141ee4350f45c77cef55aae7ea787e85f",
-    "corpus.json.gz": "8307d4a21e72068a895538ff40acf2f971b7df4d1d79a0cc48c2986c748fd489",
+    "corpus.json.gz": "ff52ae25d87dd535a7c426c11694a1a3d8a9f87de535d2848e07a1e8af0343dc",
     "coverage.json.gz": "c835b80d39757ae5ef556953e11a2d7e8bbde3148a233f2af51ae92e1d23a971",
     "cylindrical_proofs/corpus/cadgenbench/flanged_spool_132.step.json.gz": "b93acca566253df99ab62bb5ac97424226850b3ee3963c8d1025939a7339d823",
     "cylindrical_proofs/corpus/cadgenbench/threaded_connector_109.step.json.gz": "eea12e52bf91a9c762e7cadc1b12994398bf8f3836ab11ab8b58a2bf4c5d9a4e",
@@ -5941,5 +5945,5 @@
     "step_levels.json.gz": "6ff3ceadb33888e9d529a10b9a880babaf979f4f8d869962215d9d3193902f00",
     "unowned_recesses.json.gz": "604ec266d4c85575165c6822140a3ac79a6637c8d72a3a2bb376e74f86455343"
   },
-  "source_commit": "8cc5003d1067c9f3a8534906b75db6199ceb141a"
+  "source_commit": "73182d2a4975505bedfaf018b3d45dfbc0e21763"
 }
