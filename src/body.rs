@@ -177,10 +177,9 @@ fn broken_side(
                 })
         })
     });
-    let rimmed = !stock_corner
-        && !blended_corner(part, face, bounds, tol, blends)
-        && enveloping_rim(part, face, axis, bounds, tol, blends);
-    if !stock_corner && !rimmed && !blended_corner(part, face, bounds, tol, blends) {
+    let blended = blended_corner(part, face, bounds, tol, blends);
+    let rimmed = !stock_corner && !blended && enveloping_rim(part, face, axis, bounds, tol, blends);
+    if !stock_corner && !blended && !rimmed {
         return None;
     }
     // A rim-only face has no surviving or replaced box corner; apply the broader veto.
@@ -202,6 +201,16 @@ fn broken_side(
             continue;
         }
         let level = 0.5 * (gb.min[axis] + gb.max[axis]);
+        // A rimmed platform stops a blend short of the extremes: its own non-concave
+        // blends count, so rounding the edges cannot hide it from the veto.
+        let mut gb = gb;
+        if rimmed {
+            for h in part.neighbours(g) {
+                if blends.contains(&h) && part.arc(g, h) != Some(Arc::Concave) {
+                    gb.merge(&part.face_bounds(h));
+                }
+            }
+        }
         // With a certified replaced envelope corner, an opposite block's inward
         // wall is not an underlying platform. Require an actual bridging face
         // incident to both planes. Keep the older surviving-corner veto intact.

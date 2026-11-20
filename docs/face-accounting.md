@@ -140,20 +140,20 @@ evidence. Motion tests cover Z30, X30 and composed Z17+X23, with translation.
 ### `stock_envelope`
 
 For parts whose outline or edges are rounded, so that no box corner survives for the two
-rules above. The face is a native principal plane lying entirely on an outward envelope
-plane, in a valid solid with the same native-geometry and tolerance premises. In **each**
-transverse axis its rim reaches an extreme of the solid: a neighbour that is an outward
-principal plane at that extreme, joined convexly, or a recognised fillet, chamfer or blend
-(not concave to the face) whose bounds reach it. Thus the R0.8 rounds and R5 outline corners
-of a perforated plate replace its corners, and the plate's top, bottom and outer sides
-qualify, as does a flange side beside rounded edges. The same underlying-platform veto as
-`stock_box_notched` applies, in its broader surviving-corner form: a lower parallel
-platform reaching the solid's extremes vetoes the face. A boss, pad, fin or turned cap has
-no principal planes or blends of the envelope around it, so it abstains. Records still win:
-the rule only ever adds body to faces no record claims. The code is tried last among the
-envelope-side rules, so existing `stock_box_*` evidence keeps its code. Fin sides and tips
-are not covered: the rule needs the face itself on the part's envelope, and there is no
-fin or rib record to supply the stock premise.
+rules above. The face is a native principal plane on the solid's bounding box (outward
+normal, entirely on that envelope plane), in a valid solid with the same native-geometry and
+tolerance premises, with its rim at the extremes: in **each** transverse axis a neighbour
+reaches an extreme, either an outward principal plane at that extreme joined convexly or a
+recognised fillet, chamfer or blend (not concave to the face) whose bounds reach it, and at
+least one recognised blend meets the face. The plate's top, bottom and outer sides, and a
+flange side beside rounded edges, qualify. The underlying-platform veto of `stock_box_notched`
+applies in its broader form: a lower parallel platform reaching the extremes vetoes the face,
+and the platform's own non-concave recognised blends count towards reaching them, so rounding
+its edges does not hide it. Records still win: the rule only adds body to faces no record
+claims. It is tried after the `stock_box_*` rules, which keep their codes. A side whose rim
+is bounded by unrecognised cylinders stays unexplained, because a recognised blend is
+required. Fin sides and tips are not covered: the rule needs the face itself on the
+part's envelope, and no fin or rib record supplies the stock premise.
 
 ### `plate_edge`
 

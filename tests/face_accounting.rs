@@ -721,3 +721,26 @@ fn rounded_stock_planes_are_body_by_envelope() {
         .collect();
     assert_eq!(envelope_faces, [14, 17, 18, 21]);
 }
+
+/// A step, pad or rib top is a feature surface: rounding every edge must not turn it into stock
+/// (the platform veto counts the platform's own blends).
+#[test]
+fn rounded_feature_tops_are_not_stock_envelope() {
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    for (name, face) in [
+        ("stock_envelope_step_allround.step.gz", 29),
+        ("stock_envelope_pad_allround.step.gz", 36),
+        ("stock_envelope_rib_allround.step.gz", 12),
+    ] {
+        let doc = quiddity::serve::recognise_file(dir.join(name).to_str().unwrap())
+            .unwrap()
+            .0
+            .document;
+        check(&doc);
+        assert_eq!(
+            doc.face_accounting.as_ref().unwrap()[face],
+            FaceAccounting::Unexplained,
+            "{name} face {face}"
+        );
+    }
+}
