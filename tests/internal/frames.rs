@@ -374,7 +374,8 @@ fn axis_majorities_and_intrinsic_frames_survive_sixty_and_one_degree_motions() {
         ),
         (
             common::fixtures().join("nist_ftc_07_asme1_ap242-e2.stp.gz"),
-            63,
+            // For #297, 16 internal R0.432 rounds (below the former 0.6 mm floor) join 63.
+            79,
             4,
             5,
         ),
@@ -382,7 +383,7 @@ fn axis_majorities_and_intrinsic_frames_survive_sixty_and_one_degree_motions() {
     if let Some(dir) = corpus {
         cases.extend([
             (dir.join("nist/nist_ctc_02_asme1_rc.stp"), 113, 0, 0),
-            (dir.join("nist/nist_ftc_07_asme1_rd.stp"), 63, 4, 5),
+            (dir.join("nist/nist_ftc_07_asme1_rd.stp"), 79, 4, 5),
         ]);
     }
     for (path, fillets, bosses, plates) in cases {
@@ -474,7 +475,8 @@ fn majority_frame_recovers_specify_fillets_and_parallel_support_chamfer() {
             ],
         ),
         // For #127, 34 proved inside rounds join #120's forty convex fillets.
-        ("cadgenbench_inputs/cgb207.step", "fillets", 74, vec![176]),
+        // For #297, 29 R0.5 rounds (below the former 0.6 mm floor) join those 74.
+        ("cadgenbench_inputs/cgb207.step", "fillets", 103, vec![176]),
         ("mfcadpp/10252.step", "oriented_chamfers", 1, vec![2]),
     ] {
         let part = quiddity::read_step_file(&dir.join(file)).unwrap();

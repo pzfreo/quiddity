@@ -20,8 +20,16 @@ use crate::kernel::classify::material_at;
 use crate::kernel::geom::{self, Surface, V3, dominant_axis};
 use crate::kernel::py;
 
-/// A minimum-evidence threshold, deliberately absolute (ADR 0008).
-pub(super) const MIN_RADIUS: f64 = 0.6;
+/// The smallest round that can be published: radii are rounded to 3 decimals, so below half a
+/// micrometre the published radius would read 0. Every larger round is reported at its own
+/// radius, with no part-relative or absolute size floor (#297); the tangent-wall, sweep and
+/// material proofs below are what separate an edge round from any other small cylinder.
+pub(super) const MIN_RADIUS: f64 = 0.0005;
+/// A round must be this many times larger than the contact tolerance (the file's declared
+/// precision, at least 1e-6 mm) for the tangent-wall proof to mean anything. The smallest
+/// reported ratio on the corpus is about 25 (R0.5 in files declaring 0.02 mm), the
+/// brep-conformance files (1e-7) are above 1e5; 2 leaves the tolerance at most half the radius.
+const MIN_RADIUS_OVER_PRECISION: f64 = 2.;
 /// Nearly half-turn rounds between nearly parallel walls are groove/slot full-round
 /// bottoms, not edge fillets (#120). Keep walls at least 45° apart.
 const FILLET_MAX_EXTENT: f64 = 3.0 * PI / 4.0;
@@ -258,6 +266,11 @@ pub(super) fn prismatic(
     };
     let (u0, u1, _, _) = part.uv_bounds(face)?;
     if radius < min_radius || radius > max_radius {
+        return None;
+    }
+    // The tangency test below accepts any wall within the file's precision of the
+    // cylinder's radius, so it proves nothing once the radius is itself that small.
+    if radius <= MIN_RADIUS_OVER_PRECISION * cylinder_support_tolerance(part) {
         return None;
     }
     // Convexity belongs to the cylinder's oriented material side, independently of the
@@ -773,6 +786,33 @@ mod tests {
         assert!(!sweep_matches_walls(90.501_f64.to_radians(), walls));
         assert!(sweep_matches_walls(89.501_f64.to_radians(), walls));
         assert!(!sweep_matches_walls(89.499_f64.to_radians(), walls));
+    }
+
+    /// #297: the fillet proof needs a radius clearly above the file's declared precision.
+    #[test]
+    fn a_round_within_the_files_precision_is_not_reported() {
+        use std::io::Read;
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/brep-conformance/rounded-boxes-dd2233577a7b962b.step.gz");
+        let mut text = String::new();
+        flate2::read::GzDecoder::new(std::fs::File::open(path).unwrap())
+            .read_to_string(&mut text)
+            .unwrap();
+        // The fixture's rounds are R0.3377 and its declared precision is 1e-7 mm.
+        let rounds = |precision: &str| {
+            let text = text.replace(
+                "LENGTH_MEASURE(1.E-07)",
+                &format!("LENGTH_MEASURE({precision})"),
+            );
+            let part = crate::read_step(text.as_bytes()).unwrap();
+            let ctx = Context::new(&part);
+            (0..part.faces.len())
+                .filter(|&f| prismatic(&ctx, f, MIN_RADIUS, 100.).is_some())
+                .count()
+        };
+        assert_eq!(rounds("1.E-07"), 12);
+        assert_eq!(rounds("1.E-01"), 12); // 2 x 0.1 < 0.3377
+        assert_eq!(rounds("2.E-01"), 0); // 2 x 0.2 > 0.3377
     }
 
     #[test]

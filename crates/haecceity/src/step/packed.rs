@@ -136,6 +136,22 @@ impl RecordGraph for PackedGraph {
         })
     }
 
+    fn references_any(&self, id: u64, ids: &std::collections::HashSet<u64>) -> bool {
+        let Some(mut reader) = self.reader(id) else {
+            return false;
+        };
+        reader.span();
+        if reader.byte() == 0 {
+            reader.unsigned();
+            reader.attributes_reference(ids)
+        } else {
+            (0..reader.length()).any(|_| {
+                reader.unsigned();
+                reader.attributes_reference(ids)
+            })
+        }
+    }
+
     fn attribute_at(&self, id: u64, part: Option<&str>, path: &[usize]) -> Option<Attribute> {
         let mut reader = self.reader(id)?;
         reader.span();
@@ -353,6 +369,35 @@ impl<'a> RecordReader<'a> {
         } else {
             None
         }
+    }
+
+    /// Scan one attribute list for a reference into `ids` without building values.
+    /// Stops at the first hit; the reader position is then unspecified.
+    fn attributes_reference(&mut self, ids: &std::collections::HashSet<u64>) -> bool {
+        (0..self.length()).any(|_| self.attribute_reference(ids))
+    }
+
+    #[allow(
+        clippy::unreachable,
+        reason = "RecordWriter::attribute emits only tags 0 through 9"
+    )]
+    fn attribute_reference(&mut self, ids: &std::collections::HashSet<u64>) -> bool {
+        match self.byte() {
+            0 | 1 => self.position += 8,
+            2 | 4 => self.position += self.length(),
+            3 => {
+                self.unsigned();
+            }
+            5 => return ids.contains(&self.unsigned()),
+            6 | 7 => {}
+            8 => return self.attributes_reference(ids),
+            9 => {
+                self.unsigned();
+                return self.attribute_reference(ids);
+            }
+            _ => unreachable!("private attribute tag"),
+        }
+        false
     }
 
     fn skip_attributes(&mut self) {
