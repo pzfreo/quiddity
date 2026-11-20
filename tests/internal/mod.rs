@@ -4,6 +4,8 @@ mod common;
 #[macro_use]
 #[path = "../support/slices.rs"]
 mod slices;
+#[path = "bores_into_tunnel.rs"]
+mod bores_into_tunnel;
 #[path = "captured.rs"]
 mod captured;
 #[path = "corpus.rs"]

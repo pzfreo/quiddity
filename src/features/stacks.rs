@@ -2,7 +2,7 @@
 //! beyond an axial end, and whether that end is open, flat, a drill point, or unknown. Shared by
 //! holes (internal segments) and bosses (external ones).
 
-use super::cylinders::{STACK_GAP_FRAC, Segment};
+use super::cylinders::{STACK_GAP_FRAC, Segment, axis_point_at};
 use super::policy;
 use super::probes::probe_samples;
 use crate::kernel::brep::Part;
@@ -79,6 +79,17 @@ pub fn classify_end(part: &Part, seg: &Segment, s_end: f64, hi_end: bool) -> (En
             target.push((distance, state, faces));
         }
     }
+    // A plane only closes a bore it actually lies under. Slivers of plane left at the rim of
+    // an exit into a curved face (a tunnel, a crossing cavity) are not a floor; with them set
+    // aside, the curved partner that is left reads the end as open. Without such a partner
+    // (a floor with a smaller hole continuing from it) the plane stays the verdict.
+    if !seg.external
+        && weak.iter().any(|(_, state, _)| *state == End::Open)
+        && !strong.is_empty()
+        && thin_rim_floor(part, seg, s_end, &strong)
+    {
+        strong.retain(|(_, state, faces)| !(*state == End::Flat && is_plane_floor(part, faces)));
+    }
     let answers = if strong.is_empty() { weak } else { strong };
     let Some((nearest, state, _)) = answers.first() else {
         return (End::Unknown, vec![]);
@@ -97,6 +108,83 @@ pub fn classify_end(part: &Part, seg: &Segment, s_end: f64, hi_end: bool) -> (En
     terminal.dedup();
     (*state, terminal)
 }
+}
+
+fn is_plane_floor(part: &Part, faces: &[usize]) -> bool {
+    !faces.is_empty()
+        && faces
+            .iter()
+            .all(|&f| matches!(part.faces[f].surface, Surface::Plane { .. }))
+}
+
+/// Whether the plane faces read as this end's floor cover under half of the bore's own
+/// section. A floor cut by a crossing hole still covers most of it; the crescents left where
+/// the disc ends partly inside a curved wall cover a few percent. Undecidable faces (no
+/// domain) never qualify, so existing readings stay.
+fn thin_rim_floor(
+    part: &Part,
+    seg: &Segment,
+    s_end: f64,
+    strong: &[(f64, End, Vec<usize>)],
+) -> bool {
+    let mut floors: Vec<usize> = strong
+        .iter()
+        .filter(|(_, state, faces)| *state == End::Flat && is_plane_floor(part, faces))
+        .flat_map(|(_, _, faces)| faces.iter().copied())
+        .collect();
+    floors.sort_unstable();
+    floors.dedup();
+    if floors.is_empty() || floors.iter().any(|&f| part.domain(f).is_none()) {
+        return false;
+    }
+    let d = seg.direction;
+    let centre = axis_point_at(seg, s_end);
+    let radius = seg.diameter / 2.;
+    // Any perpendicular pair spans the section.
+    let helper = if d[0].abs() < 0.9 {
+        [1., 0., 0.]
+    } else {
+        [0., 1., 0.]
+    };
+    let Some(u) = geom::unit(geom::cross(d, helper)) else {
+        return false;
+    };
+    let v = geom::cross(d, u);
+    const RINGS: usize = 16;
+    const SECTORS: usize = 64;
+    let mut covered = 0;
+    for ring in 0..RINGS {
+        let r = radius * ((ring as f64 + 0.5) / RINGS as f64).sqrt();
+        for sector in 0..SECTORS {
+            let angle = std::f64::consts::TAU * (sector as f64 + 0.5) / SECTORS as f64;
+            let (sin, cos) = angle.sin_cos();
+            let point = geom::add(
+                centre,
+                geom::add(geom::scale(u, r * cos), geom::scale(v, r * sin)),
+            );
+            let hit = floors.iter().any(|&f| {
+                let Surface::Plane { frame } = part.faces[f].surface else {
+                    return false;
+                };
+                // Carry the section point along the axis onto the floor plane.
+                let slope = geom::dot(frame.z, d);
+                if slope.abs() < 1e-9 {
+                    return false;
+                }
+                let travel = geom::dot(geom::sub(frame.origin, point), frame.z) / slope;
+                let on_plane = geom::add(point, geom::scale(d, travel));
+                part.faces[f]
+                    .surface
+                    .parameters(on_plane, None)
+                    .and_then(|(pu, pv)| Some(part.domain(f)?.contains(pu, pv)))
+                    .unwrap_or(false)
+            });
+            if hit {
+                covered += 1;
+            }
+        }
+    }
+    (covered as f64) < 0.5 * (RINGS * SECTORS) as f64
 }
 
 /// A support's verdict; `false` means a curved-wall fallback, subordinate to strong evidence.
