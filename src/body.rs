@@ -247,7 +247,8 @@ fn broken_side(
 /// transverse axis, through an outward principal plane at that extreme or a recognised
 /// non-concave fillet/chamfer/blend reaching it. Rounded outlines and edge rounds replace
 /// every box corner with several faces, so none survives for the corner rules, yet the face
-/// still bounds the stock like a notched side. A boss or turned cap has no such planes or
+/// still bounds the stock like a notched side. At least one recognised blend must meet the
+/// face: an unrecognised chamfer stays unproved, as for the corner rules. A boss or turned cap has no such planes or
 /// blends at the envelope around it, so it abstains.
 fn enveloping_rim(
     part: &Part,
@@ -259,6 +260,7 @@ fn enveloping_rim(
 ) -> bool {
     let transverse: Vec<_> = (0..3).filter(|&j| j != axis).collect();
     let mut reached = [[false; 2]; 3];
+    let mut rounded = false;
     for g in part.neighbours(face) {
         if part.faces[g].solid != part.faces[face].solid {
             continue;
@@ -279,13 +281,14 @@ fn enveloping_rim(
                 reached[k][side] = true;
             }
         } else if blends.contains(&g) && part.arc(face, g) != Some(Arc::Concave) {
+            rounded = true;
             for &k in &transverse {
                 reached[k][0] |= (gb.min[k] - bounds.min[k]).abs() <= tol;
                 reached[k][1] |= (gb.max[k] - bounds.max[k]).abs() <= tol;
             }
         }
     }
-    transverse.iter().all(|&k| reached[k][0] || reached[k][1])
+    rounded && transverse.iter().all(|&k| reached[k][0] || reached[k][1])
 }
 
 /// A recognised edge treatment must meet this face and replace an actual box
