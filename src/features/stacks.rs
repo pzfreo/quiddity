@@ -235,6 +235,11 @@ fn partner_state(
             }
         }
         Surface::Torus { major, .. } => {
+            // A groove cut into the wall, wholly outside the bore diameter, is not a round at
+            // the end: it says nothing about whether the bore stops here.
+            if !seg.external && lies_outside_bore(part, seg, &[partner]) {
+                return None;
+            }
             let curls_in = *major < seg.diameter / 2.;
             Some((
                 if seg.external != curls_in {
@@ -284,6 +289,32 @@ fn partner_state(
         )),
         _ => None,
     }
+}
+
+/// Whether every sampled point and edge point of these faces lies at or beyond the bore's own
+/// radius from its axis, and some point beyond it: faces that widen the bore into the wall and
+/// leave no material inside the bore diameter (a groove), as opposed to a round at a floor or a
+/// ridge that narrows the bore.
+pub(super) fn lies_outside_bore(part: &Part, seg: &Segment, faces: &[usize]) -> bool {
+    let radius = seg.diameter / 2.;
+    let tolerance = policy::length_tol(radius, STACK_GAP_FRAC);
+    let mut beyond = false;
+    for &face in faces {
+        let edge_points = part.face_edges(face).into_iter().flat_map(|edge| {
+            let e = &part.edges[edge];
+            std::iter::once(e.midpoint()).chain(e.vertex_points())
+        });
+        let samples = probe_samples(part, face).into_iter().map(|s| s.point);
+        for point in edge_points.chain(samples) {
+            let axial = geom::dot(point, seg.direction);
+            let off = py::dist(&point, &axis_point_at(seg, axial));
+            if off < radius - tolerance {
+                return false;
+            }
+            beyond |= off > radius + tolerance;
+        }
+    }
+    beyond
 }
 
 /// A native plane's outward normal as the face reports it, not renormalised

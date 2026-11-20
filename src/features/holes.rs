@@ -26,7 +26,7 @@ use super::cylinders::{
 use super::evidence::{self, EvidenceError, Occurrence};
 use super::placed::{Grid, Placed};
 use super::policy;
-use super::stacks::{End, classify_end, end_partners};
+use super::stacks::{End, classify_end, end_partners, lies_outside_bore};
 use crate::kernel::brep::{Arc, Part};
 use crate::kernel::geom::{self, COORD_FLOOR, Surface, V3};
 use crate::kernel::py;
@@ -317,6 +317,35 @@ fn merge_stacks(part: &Part, stacks: Vec<Vec<Segment>>) -> Vec<Vec<Segment>> {
             })
         })
     };
+    // Two lands of one bore that only an internal groove separates: the faces between them (a
+    // torus, a pair of cones, a plane-cylinder-plane chain) all lie outside the bore diameter,
+    // so no material narrows the bore between the lands.
+    let separated_by_groove = |a: &Segment, b: &Segment| -> bool {
+        let wanted: BTreeSet<usize> = end_partners(part, b, b.s_lo).into_iter().collect();
+        let mut seen: BTreeSet<usize> = BTreeSet::new();
+        let mut front: Vec<usize> = end_partners(part, a, a.s_hi)
+            .into_iter()
+            .filter(|&f| owner_of(a.solid, f).is_none())
+            .collect();
+        if front.is_empty() || wanted.is_empty() {
+            return false;
+        }
+        for _ in 0..3 {
+            seen.extend(front.iter().copied());
+            if seen.iter().any(|f| wanted.contains(f)) {
+                let faces: Vec<usize> = seen.iter().copied().collect();
+                return lies_outside_bore(part, a, &faces);
+            }
+            front = front
+                .iter()
+                .flat_map(|&f| part.neighbours(f))
+                .filter(|&n| owner_of(a.solid, n).is_none() && !seen.contains(&n))
+                .collect();
+            front.sort_unstable();
+            front.dedup();
+        }
+        false
+    };
     let mut by_line: Vec<(Vec<f64>, Vec<Vec<Segment>>)> = Vec::new();
     for stack in stacks {
         let key = line_key(&stack[0]);
@@ -339,7 +368,7 @@ fn merge_stacks(part: &Part, stacks: Vec<Vec<Segment>>) -> Vec<Vec<Segment>> {
             if same_diameter(a.diameter, b.diameter)
                 && !closed(classify_end(part, a, a.s_hi, true).0)
                 && !closed(classify_end(part, b, b.s_lo, false).0)
-                && shares_interruption(a, b)
+                && (shares_interruption(a, b) || separated_by_groove(a, b))
             {
                 let mut joined = a.clone();
                 joined.s_hi = b.s_hi;

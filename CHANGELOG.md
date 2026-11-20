@@ -24,6 +24,13 @@ in [docs/alpha1.md](docs/alpha1.md).
   as `flat`-bottomed when its end disc leaves only thin crescents of plane at the rim: where
   a curved wall also borders the end, planar supports count as a floor unless no plane face lies
   under the bore axis and they cover under half the bore's section, in which case the bore is `through` and no floor face is claimed. For #307 (item 2).
+- A bore with an internal groove (a bearing race's ball groove, a V groove in a ring bore)
+  is one hole, not two lands each ending on the groove. Two coaxial equal-diameter internal
+  lands are one bore when only faces lying wholly outside the bore diameter separate them
+  (no material narrows the bore between them); a toroidal groove of that kind no longer reads
+  as a round at the bore's end, so it is not a `flat` floor. Lands separated by a web or a
+  different diameter stay separate holes, and an end that borders only such a groove is
+  `unknown`. The groove itself is still unexplained. For #307 (item 3).
 - A face whose area and centroid cannot be computed (a cylinder bounded by one closed circle,
   as some converters write a degenerate face) is left out of recognition and published as an
   `unmeasured_face_refusals` record (`UnmeasuredFaceRefusal`, reason `unmeasured_face`; its
