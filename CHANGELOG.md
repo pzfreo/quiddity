@@ -8,6 +8,11 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Added
 
+- `file_api::anchors` and Python `quiddity.anchors(step, faces=None)` answer many face anchors from
+  one parse (`anchor` parses the whole file on every call: 54.9 ms median per face on a 379-face
+  part, 1.45 s on a 21 MB one). Rows equal the single-call results; a face with no provable point
+  has null `point`/`uv` and a `refused` reason instead of failing the call. `anchor` is unchanged.
+  For #307 (item 8).
 - Documented face index order as a contract (OpenCascade `TopExp::MapShapes` traversal, ascending
   `ADVANCED_FACE` id only when the file lists solids and shell faces in that order) and what
   `face_sources[].instance` means, with `tests/face_index_order.rs` pinning both.
