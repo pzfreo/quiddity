@@ -312,6 +312,74 @@ fn recognition_bytes(part: &Part) -> Result<Vec<u8>, String> {
     })
 }
 
+/// Two recognition documents agree except in round-off: every byte outside numbers is equal,
+/// every integer token is equal, and each pair of decimal tokens differs by at most 1e-8 of its
+/// magnitude (at least 1) plus one unit in the finer of their last printed places (a value
+/// rounded for publication can flip its last digit). `Part::transformed` carries the loaded
+/// part's face integrals through the motion (exact but for round-off), while the reader
+/// integrates the moved faces afresh, so the two are no longer bit-identical; geometry still is
+/// (`compare`).
+fn same_to_round_off(a: &[u8], b: &[u8]) -> Result<(), String> {
+    fn number(s: &[u8], at: usize) -> usize {
+        let mut end = at;
+        while end < s.len() && (s[end].is_ascii_digit() || b"+-.eE".contains(&s[end])) {
+            end += 1;
+        }
+        end
+    }
+    let starts = |s: &[u8], i: usize| {
+        (s[i].is_ascii_digit() || s[i] == b'-') && (i == 0 || b"[,:".contains(&s[i - 1]))
+    };
+    let (mut i, mut j) = (0, 0);
+    while i < a.len() && j < b.len() {
+        if starts(a, i) && starts(b, j) {
+            let (ei, ej) = (number(a, i), number(b, j));
+            let (ta, tb) = (&a[i..ei], &b[j..ej]);
+            let text = |t: &[u8]| String::from_utf8_lossy(t).into_owned();
+            let decimal = |t: &[u8]| t.iter().any(|c| b".eE".contains(c));
+            if ta != tb {
+                let (x, y): (f64, f64) = match (text(ta).parse(), text(tb).parse()) {
+                    (Ok(x), Ok(y)) => (x, y),
+                    _ => return Err(format!("{} vs {}", text(ta), text(tb))),
+                };
+                let places = |t: &[u8]| {
+                    let t = text(t);
+                    (!t.contains(['e', 'E']))
+                        .then(|| t.split_once('.').map_or(0, |(_, f)| f.len()))
+                        .unwrap_or(17) as i32
+                };
+                let unit = 10f64.powi(-places(ta).max(places(tb)));
+                // 1e-8, as `near` allows for geometry: a centroid that moves by round-off
+                // (1e-13 relative) is projected onto its face by an iterative inversion, whose
+                // foot point and normal then differ within its own convergence (2.7e-9 in u and
+                // 1e-9 in a normal component seen on nist_stc_10); a real change of decision or
+                // measurement moves a value by far more. The floor of 1 (mm and its powers, on
+                // parts of a millimetre or more) covers values whose true value is zero and
+                // which are round-off themselves (1e-16 to 1e-12 seen).
+                if !(decimal(ta) && decimal(tb))
+                    || (x - y).abs() > 1e-8 * x.abs().max(y.abs()).max(1.0) + 1.000001 * unit
+                {
+                    let before = String::from_utf8_lossy(&a[i.saturating_sub(120)..i]);
+                    return Err(format!("{} vs {} after {before:?}", text(ta), text(tb)));
+                }
+            }
+            (i, j) = (ei, ej);
+        } else if a[i] == b[j] {
+            (i, j) = (i + 1, j + 1);
+        } else {
+            let show = |s: &[u8], k: usize| {
+                String::from_utf8_lossy(&s[k.saturating_sub(40)..s.len().min(k + 80)]).into_owned()
+            };
+            return Err(format!("at byte {i}: {:?} vs {:?}", show(a, i), show(b, j)));
+        }
+    }
+    if i == a.len() && j == b.len() {
+        Ok(())
+    } else {
+        Err("lengths differ".into())
+    }
+}
+
 /// Corpus parts whose recognition is also compared: a costly one and the two whose frame choice
 /// is closest (#91). The fixtures are all compared; every corpus part's recognition is pinned by
 /// the corpus snapshot and by `the_default_document_moves_with_the_part`.
@@ -399,23 +467,11 @@ fn loaded_transform_matches_reader() {
                 }
                 let (a, b) = (recognition_bytes(&moved), recognition_bytes(&read));
                 match (&a, &b) {
-                    (Ok(a), Ok(b)) if a != b => {
-                        let offset = a
-                            .iter()
-                            .zip(b)
-                            .position(|(a, b)| a != b)
-                            .unwrap_or(a.len().min(b.len()));
-                        panic!(
-                            "recognition differs under {at:?} at byte {offset}: {:?} vs {:?}",
-                            String::from_utf8_lossy(
-                                &a[offset.saturating_sub(40)..a.len().min(offset + 80)]
-                            ),
-                            String::from_utf8_lossy(
-                                &b[offset.saturating_sub(40)..b.len().min(offset + 80)]
-                            )
-                        );
+                    (Ok(a), Ok(b)) => {
+                        if let Err(why) = same_to_round_off(a, b) {
+                            panic!("recognition differs under {at:?}: {why}");
+                        }
                     }
-                    (Ok(_), Ok(_)) => {}
                     _ => assert_eq!(a, b, "recognition refusal differs"),
                 }
                 eprintln!(

@@ -244,6 +244,13 @@ impl FaceCache {
             .is_ok_and(|refused| refused.contains(&key))
     }
 
+    /// Copy the along-v refusals to the same face of a rigidly moved part.
+    pub(super) fn carry_refusals(&self, to: &FaceCache) {
+        if let (Ok(from), Ok(mut into)) = (self.refused_trials.lock(), to.refused_trials.lock()) {
+            into.clone_from(&from);
+        }
+    }
+
     pub(super) fn refuse_trial(&self, key: (usize, bool)) {
         if let Ok(mut refused) = self.refused_trials.lock()
             && !refused.contains(&key)
@@ -424,8 +431,16 @@ impl Part {
 
     /// Copy this loaded part through a finite proper rigid motion, without reading STEP.
     /// Face, edge, solid, vertex and source indices and parameter-space curves are preserved.
-    /// Derived boxes, quadratures, inversion grids and classification caches are invalidated
-    /// and rebuilt lazily from the transformed geometry; no cached caller-space data survives.
+    /// Boxes, inversion grids, classification caches and derived face moments are invalidated
+    /// and rebuilt lazily from the transformed geometry. The face integrals that are already
+    /// computed (each face's mass terms and shared moment integration, with its along-v trial
+    /// refusals) survive, carried through the motion by `Part::carry_integrals`: they integrate
+    /// p and sᵤ × sᵥ over the unchanged parameter domain, and a proper rotation turns both and
+    /// keeps |sᵤ × sᵥ|, so each is an exact function of the old integrals, the motion and the
+    /// two parts' reference points (the faces' moment frames, the box centres and lengths),
+    /// to round-off. Refusals and groups whose reference exists in only one part are not
+    /// carried; those faces integrate again. The placement must be a proper rigid motion
+    /// (orthonormal, determinant +1, to 1e-12), so no scale, mirror or unit change reaches this.
     /// Imported native primitives and their placement chains are retained so composition
     /// precedes coordinate rounding, including on a part transformed more than once.
     pub fn transformed(
@@ -624,6 +639,7 @@ impl Part {
         part.file_uncertainty = self.file_uncertainty;
         part.native_faces = native_faces;
         part.native_edges = native_edges;
+        self.carry_integrals(&part, placement);
         Ok(part)
     }
 

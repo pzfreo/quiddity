@@ -2116,6 +2116,133 @@ impl Part {
         }
         Some((volume(d), geom::add(c0, d)))
     }
+
+    /// Carry this part's face integrals into `moved`, the same part after the proper rigid
+    /// motion `at` (p ↦ Rp + t; `Part::transformed`), so they are not integrated again. Every
+    /// integrand is built from the position p and the natural normal n = sᵤ × sᵥ over the same
+    /// parameter domain, and with R orthonormal and det R = +1, n ↦ Rn and |n| is unchanged, so
+    /// each carried integral is an exact function of the old ones and the motion (round-off
+    /// apart; quadrature visits the same parameter nodes):
+    /// - area ∬|n| is invariant, the area vector ∬n turns by R, and the flux ∬p·n gains t·R∬n;
+    /// - the face-moment group, about the face's `moment_frame` (o, s) and now (o′, s′), with
+    ///   e = Ro + t − o′: M₁′ = (sRM₁ + eA)/s′ and M₂′ = (s²RM₂Rᵀ + s(RM₁eᵀ + eM₁ᵀRᵀ) + Aeeᵀ)/s′²
+    ///   (the parallel-axis terms; e is round-off, as o is a boundary vertex);
+    /// - the centroid group, about the box centre c₀ over the length L and now (c₀′, L′), with
+    ///   d = Rc₀ + t − c₀′ (not small: an axis-aligned box changes as the part turns):
+    ///   s′ = (Ls + d·Rm)/L′, a′ = (L RaRᵀ + d(Rm)ᵀ)/L′ and
+    ///   b′ = (L²Rb + L RaRᵀd + Ls d + (d·Rm) d)/L′².
+    ///
+    /// The along-v refusals and the mass boundary choice are carried as they are. Derived face
+    /// moments are rebuilt from the carried group. A refusal (a missing mass or group) is not
+    /// carried, nor is a group whose reference exists in only one of the two parts: those faces
+    /// integrate again. A placement that is not a proper rotation carries nothing.
+    pub(super) fn carry_integrals(&self, moved: &Part, at: &crate::step::Placement) {
+        if crate::step::validate_placement(at).is_err() || moved.faces.len() != self.faces.len() {
+            return;
+        }
+        let turn = |v: V3| at.map(|r| r[0] * v[0] + r[1] * v[1] + r[2] * v[2]);
+        let shift = at.map(|r| r[3]);
+        let turn_matrix = |m: [[f64; 3]; 3]| -> [[f64; 3]; 3] {
+            // R m Rᵀ
+            let rm: [[f64; 3]; 3] = std::array::from_fn(|i| {
+                std::array::from_fn(|j| (0..3).map(|k| at[i][k] * m[k][j]).sum())
+            });
+            std::array::from_fn(|i| {
+                std::array::from_fn(|j| (0..3).map(|k| rm[i][k] * at[j][k]).sum::<f64>())
+            })
+        };
+        let reference = |part: &Part| {
+            let bounds = part.bounds();
+            let length = geom::dist(bounds.min, bounds.max);
+            (length.is_finite() && length > 0.0).then_some((bounds.centre(), length))
+        };
+        let any_centre = self
+            .cache
+            .iter()
+            .any(|c| c.raw_moments.get().is_some_and(|r| r.centre.is_some()));
+        let centres = any_centre
+            .then(|| reference(self).zip(reference(moved)))
+            .flatten();
+        for face in 0..self.faces.len() {
+            let (from, to) = (&self.cache[face], &moved.cache[face]);
+            from.carry_refusals(to);
+            if let Some(mass) = from.mass.get()
+                && let Some([area, flux, nx, ny, nz]) = mass.terms
+            {
+                let n = turn([nx, ny, nz]);
+                let _ = to.mass.set(FaceMass {
+                    terms: Some([area, flux + geom::dot(shift, n), n[0], n[1], n[2]]),
+                    preferred: mass.preferred,
+                });
+            }
+            let Some(RawMoments {
+                local: Some(local),
+                centre: Some(centre),
+            }) = from.raw_moments.get().copied()
+            else {
+                continue;
+            };
+            let common = |raw: &[f64; 26]| {
+                let mut out = [0.0; 26];
+                out[0] = raw[0];
+                out[1..4].copy_from_slice(&turn([raw[1], raw[2], raw[3]]));
+                out
+            };
+            let mut new_local = common(&local);
+            match (self.moment_frame(face), moved.moment_frame(face)) {
+                (Some((o, s)), Some((o2, s2))) => {
+                    let area = local[0];
+                    let m1 = turn([local[4], local[5], local[6]]);
+                    let [xx, yy, zz, xy, xz, yz] = std::array::from_fn(|k| local[7 + k]);
+                    let m2 = turn_matrix([[xx, xy, xz], [xy, yy, yz], [xz, yz, zz]]);
+                    let e = geom::sub(geom::add(turn(o), shift), o2);
+                    let first: V3 = std::array::from_fn(|i| (s * m1[i] + e[i] * area) / s2);
+                    let second = |i: usize, j: usize| {
+                        (s * s * m2[i][j] + s * (m1[i] * e[j] + e[i] * m1[j]) + area * e[i] * e[j])
+                            / (s2 * s2)
+                    };
+                    new_local[4..7].copy_from_slice(&first);
+                    new_local[7..13].copy_from_slice(&[
+                        second(0, 0),
+                        second(1, 1),
+                        second(2, 2),
+                        second(0, 1),
+                        second(0, 2),
+                        second(1, 2),
+                    ]);
+                }
+                // No frame in either: the group is unused (`compute_face_moments` refuses).
+                (None, None) => {}
+                _ => continue,
+            }
+            let mut new_centre = common(&centre);
+            let Some(((c0, length), (c1, length1))) = centres else {
+                continue;
+            };
+            let m = [new_centre[1], new_centre[2], new_centre[3]];
+            let s = centre[13];
+            let a = turn_matrix(std::array::from_fn(|i| {
+                std::array::from_fn(|j| centre[14 + 3 * i + j])
+            }));
+            let b = turn([centre[23], centre[24], centre[25]]);
+            let d = geom::sub(geom::add(turn(c0), shift), c1);
+            let dm = geom::dot(d, m);
+            let ad = [0, 1, 2].map(|i| geom::dot(a[i], d));
+            new_centre[13] = (length * s + dm) / length1;
+            for i in 0..3 {
+                for j in 0..3 {
+                    new_centre[14 + 3 * i + j] = (length * a[i][j] + d[i] * m[j]) / length1;
+                }
+                new_centre[23 + i] =
+                    (length * length * b[i] + length * ad[i] + length * s * d[i] + dm * d[i])
+                        / (length1 * length1);
+            }
+            let _ = to.raw_moments.set(RawMoments {
+                local: Some(new_local),
+                centre: Some(new_centre),
+            });
+        }
+    }
 }
 
 #[cfg(test)]
@@ -2657,6 +2784,168 @@ mod tests {
         INTEGRAND_EVALUATIONS.with(|n| n.set(0));
         let value = run();
         (value, INTEGRAND_EVALUATIONS.with(|n| n.get()))
+    }
+
+    fn fixture_part(name: &str) -> Part {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures")
+            .join(name);
+        crate::step::read_step_file(&path).unwrap()
+    }
+
+    /// A generic proper rigid motion: a turn of 0.7 rad about (1, 2, 3) and a shift.
+    fn generic_motion() -> crate::step::Placement {
+        let k = geom::unit([1.0, 2.0, 3.0]).unwrap();
+        let (s, c) = 0.7f64.sin_cos();
+        let shift = [123.4, -56.7, 89.1];
+        std::array::from_fn(|i| {
+            let mut row = [0.0; 4];
+            for j in 0..3 {
+                let skew = match (i, j) {
+                    (0, 1) => -k[2],
+                    (0, 2) => k[1],
+                    (1, 0) => k[2],
+                    (1, 2) => -k[0],
+                    (2, 0) => -k[1],
+                    (2, 1) => k[0],
+                    _ => 0.0,
+                };
+                row[j] = if i == j { c } else { 0.0 } + s * skew + (1.0 - c) * k[i] * k[j];
+            }
+            row[3] = shift[i];
+            row
+        })
+    }
+
+    /// Every face integral the recognisers read, in order (all integrated on first use).
+    fn integrate_all(part: &Part) -> Vec<Option<Vec<f64>>> {
+        let mut out = Vec::new();
+        for face in 0..part.faces.len() {
+            out.push(part.face_terms(face).map(|m| m.to_vec()));
+            let raw = part.face_raw_moments(face);
+            out.push(raw.local.map(|m| m[..13].to_vec()));
+            out.push(raw.centre.map(|m| [&m[..4], &m[13..]].concat()));
+            out.push(part.face_moments(face).map(|m| {
+                std::iter::once(m.area)
+                    .chain(m.centroid)
+                    .chain(m.area_vector)
+                    .chain(m.second_moments.into_iter().flatten())
+                    .collect()
+            }));
+        }
+        out.push(
+            part.volume_centroid()
+                .map(|(v, c)| std::iter::once(v).chain(c).collect()),
+        );
+        out
+    }
+
+    /// Integrals carried through a rigid motion equal a fresh integration in the new frame
+    /// to round-off, on plane, cylinder, open and closed-u B-spline faces, and cost no
+    /// integrand evaluation. Each value is compared relative to the largest magnitude in
+    /// its group (the moment groups are on the area scale), to 1e-11.
+    #[test]
+    fn rigid_motion_carries_face_integrals_to_round_off() {
+        let at = generic_motion();
+        let mut kinds = [false; 4];
+        for name in ["cast_bearing_unit.step.gz", "rotated_seam_band.step"] {
+            let warm = fixture_part(name);
+            for fc in &warm.faces {
+                match &fc.surface {
+                    Surface::Plane { .. } => kinds[0] = true,
+                    Surface::Cylinder { .. } => kinds[1] = true,
+                    s @ Surface::Freeform { .. } => {
+                        kinds[if closed_spans(s).0.is_finite() { 3 } else { 2 }] = true
+                    }
+                    _ => {}
+                }
+            }
+            let (_, cost) = evaluations_of(|| integrate_all(&warm));
+            assert!(cost > 0);
+            let moved = warm.transformed(&at).unwrap();
+            let (carried, again) = evaluations_of(|| integrate_all(&moved));
+            assert_eq!(again, 0, "{name}: a rigid motion integrates nothing again");
+            let fresh = fixture_part(name).transformed(&at).unwrap();
+            let (expected, cost) = evaluations_of(|| integrate_all(&fresh));
+            assert!(cost > 0);
+            assert_eq!(carried.len(), expected.len());
+            let mut worst = 0.0f64;
+            let mut compared = 0;
+            for (k, (got, want)) in carried.iter().zip(&expected).enumerate() {
+                let (Some(got), Some(want)) = (got, want) else {
+                    assert_eq!(got.is_some(), want.is_some(), "{name} value {k}");
+                    continue;
+                };
+                compared += 1;
+                let size = want.iter().fold(0.0f64, |m, x| m.max(x.abs())).max(1e-300);
+                for (g, w) in got.iter().zip(want) {
+                    worst = worst.max((g - w).abs() / size);
+                }
+            }
+            // Every face's mass, both groups and its moments were compared, not skipped.
+            assert!(
+                compared > 4 * warm.faces.len() - 4,
+                "{name}: {compared} compared"
+            );
+            eprintln!("{name}: worst relative difference {worst:e}");
+            // Both sides evaluate the same integrands at the same parameter nodes, so they
+            // differ only by the round-off of a few dozen products and sums on each value
+            // (about 1e-14 each, 2.4e-13 seen on the bearing unit): 1e-11 leaves that margin
+            // while a wrong term (a missing parallel-axis or shift term) is of order 1.
+            assert!(worst <= 1e-11, "{name}: {worst:e}");
+        }
+        assert_eq!(
+            kinds, [true; 4],
+            "plane, cylinder, B-spline, closed-u B-spline"
+        );
+    }
+
+    /// The along-v refusals and the mass boundary choice survive a rigid motion as they are.
+    #[test]
+    fn rigid_motion_carries_trial_refusals() {
+        let part = crate::step::read_step(steep_in_v_face(4, 160.0).as_bytes()).unwrap();
+        let _ = steep_area(&part);
+        assert!(part.cache[0].trial_refused((1, false)));
+        let moved = part.transformed(&generic_motion()).unwrap();
+        assert!(moved.cache[0].trial_refused((1, false)));
+        assert_eq!(
+            moved.cache[0].mass.get().map(|m| m.preferred),
+            part.cache[0].mass.get().map(|m| m.preferred)
+        );
+    }
+
+    /// A scale, a mirror or a unit change is not a rigid motion: `transformed` refuses it,
+    /// and nothing is carried by it, so each face integrates again.
+    #[test]
+    fn non_rigid_placements_carry_nothing() {
+        let warm = grooved_solid();
+        let _ = integrate_all(&warm);
+        let diagonal = |d: [f64; 3]| -> crate::step::Placement {
+            std::array::from_fn(|i| {
+                let mut row = [0.0; 4];
+                row[i] = d[i];
+                row[3] = 5.0;
+                row
+            })
+        };
+        for (what, at) in [
+            ("scale", diagonal([2.0, 2.0, 2.0])),
+            ("mirror", diagonal([-1.0, 1.0, 1.0])),
+            ("unit change", diagonal([25.4, 25.4, 25.4])),
+        ] {
+            assert!(warm.transformed(&at).is_err(), "{what}");
+            let cold = grooved_solid();
+            warm.carry_integrals(&cold, &at);
+            for c in &cold.cache {
+                assert!(
+                    c.mass.get().is_none() && c.raw_moments.get().is_none(),
+                    "{what}"
+                );
+                assert!(!c.trial_refused((27, true)), "{what}");
+            }
+            let (_, cost) = evaluations_of(|| integrate_all(&cold));
+            assert!(cost > 0, "{what} recomputes");
+        }
     }
 
     /// Face moments and the solid's centroid read one integration per face: whichever is
