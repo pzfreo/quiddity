@@ -81,6 +81,7 @@ pub(super) fn append(ctx: &Context<'_>, features: &mut Features) {
     }
     let mut registration = Kept {
         part: ctx.part,
+        unmeasured: super::unmeasured_faces(ctx.part).into_iter().collect(),
         claimed: Default::default(),
         defining: Default::default(),
         constituent: Default::default(),

@@ -58,6 +58,7 @@ pub(crate) mod tests {
             "oriented_slot_refusals",
             "reconciliation_refusals",
             "polygonal_boss_refusals",
+            "unmeasured_face_refusals",
         ];
         let features = PublishedFeatures::from(Features {
             discovery_refusals: families

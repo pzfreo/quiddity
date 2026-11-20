@@ -238,6 +238,7 @@ impl Record {
                 | "OrientedSlotRefusal"
                 | "ReconciliationRefusal"
                 | "PolygonalBossRefusal"
+                | "UnmeasuredFaceRefusal"
         )
     }
 }
@@ -338,6 +339,7 @@ const DISCOVERY_REFUSAL_TYPES: &[(&str, &[&str])] = &[
     ("oriented_slot_refusals", &["OrientedSlotRefusal"]),
     ("reconciliation_refusals", &["ReconciliationRefusal"]),
     ("polygonal_boss_refusals", &["PolygonalBossRefusal"]),
+    ("unmeasured_face_refusals", &["UnmeasuredFaceRefusal"]),
 ];
 
 /// The record class names a family's records can have.

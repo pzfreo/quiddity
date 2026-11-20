@@ -24,6 +24,12 @@ Test fixture tests/fixtures/cast_bearing_unit.step.gz is Apache-2.0 from
 pzfreo/step-diff-demo, cast_bearing_unit.step at commit
 9f1018816812bb0d305f7b7d06d4d5262afd60a2, by Paul Fremantle, supplied for #120.
 
+Every tests/fixtures/brep-conformance/*.step.gz file (16 STEP files) is from springcraft-ai/brep-conformance
+1.0.0 (https://github.com/springcraft-ai/brep-conformance), MIT licence, Copyright (c) 2026
+Springcraft, Inc.: STEP written by OpenCascade 8.0.1 for the suite's published fillet and
+chamfer cases, gzip-compressed and otherwise unchanged. They were supplied for #297, #298 and
+#301; the MIT licence text is in tests/fixtures/brep-conformance/LICENSE.
+
 Test fixture tests/fixtures/spotface_outer_steps.step is an original Apache-2.0
 analytic construction made for #118 by tools/make_spotface_fixture.py, using only
 Python's standard library and no third-party model or external dataset.
@@ -57,3 +63,4 @@ crates/haecceity/src/presentation/fonts/Standard.cxf and gdt.cxf are QCAD 3 stro
 Andrew Mustun (RibbonSoft), copied unchanged. QCAD's licence file states that its CXF fonts
 in the fonts directory are released as public domain, all copyright waived. They draw the
 text and symbols of GD&T frames, matching the sizes CAD systems give a native TOLERANCE.
+
