@@ -74,6 +74,12 @@ fn integrate<const N: usize>(cuts: &[f64], f: impl Fn(f64) -> [f64; N]) -> [f64;
     total
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Integrand evaluations of face integrals on this thread: a structural cost for tests.
+    static INTEGRAND_EVALUATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// Knot spans in u from which a B-spline face's inner integral may run along v instead (#302).
 const LARGE_NET_SPANS: usize = 32;
 
@@ -999,6 +1005,8 @@ impl Part {
             _ => None,
         };
         let f = |u: f64, v: f64| {
+            #[cfg(test)]
+            INTEGRAND_EVALUATIONS.with(|n| n.set(n.get() + 1));
             let (u, v) = wrap_closed(surface, spans, (u, v));
             let (p, su, sv) = match &evaluator {
                 Some(evaluator) => evaluator.borrow_mut().value_and_partials(u, v),
@@ -2206,6 +2214,15 @@ mod tests {
     }
 
     impl Entities {
+        fn new() -> Self {
+            Self {
+                text: String::from(
+                    "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('t'),'2;1');\nFILE_NAME('t','',(''),(''),'','','');\nFILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));\nENDSEC;\nDATA;\n",
+                ),
+                last: 0,
+            }
+        }
+
         fn add(&mut self, body: String) -> usize {
             self.last += 1;
             self.text.push_str(&format!("#{} = {body};\n", self.last));
@@ -2222,6 +2239,51 @@ mod tests {
         fn vertex(&mut self, p: [f64; 3]) -> usize {
             let point = self.point(p);
             self.add(format!("VERTEX_POINT('',#{point})"))
+        }
+
+        /// A unit-speed line through `from` along `direction`.
+        fn line(&mut self, from: [f64; 3], d: [f64; 3]) -> usize {
+            let origin = self.point(from);
+            let direction = self.add(format!("DIRECTION('',({:?},{:?},{:?}))", d[0], d[1], d[2]));
+            let vector = self.add(format!("VECTOR('',#{direction},1.)"));
+            self.add(format!("LINE('',#{origin},#{vector})"))
+        }
+
+        /// A degree-1 B-spline curve through the points `ids`, with knots 0 to their count.
+        fn polyline(&mut self, ids: &[usize]) -> usize {
+            let n = ids.len() - 1;
+            let mut mult = vec!["2".to_string()];
+            mult.extend(vec!["1".to_string(); n - 1]);
+            mult.push("2".into());
+            let knots: Vec<String> = (0..=n).map(|i| format!("{:?}", i as f64)).collect();
+            let points: Vec<String> = ids.iter().map(|p| format!("#{p}")).collect();
+            self.add(format!(
+                "B_SPLINE_CURVE_WITH_KNOTS('',1,({}),.POLYLINE_FORM.,.F.,.F.,({}),({}),.UNSPECIFIED.)",
+                points.join(","),
+                mult.join(","),
+                knots.join(",")
+            ))
+        }
+
+        /// The file's closing entities: `face` in a solid, with its units.
+        fn finish(mut self, face: usize) -> String {
+            let shell = self.add(format!("CLOSED_SHELL('',(#{face}))"));
+            let model = self.add(format!("MANIFOLD_SOLID_BREP('',#{shell})"));
+            let units = self.last + 3;
+            let context = self.add(format!(
+                "( GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#{},#{},#{})) REPRESENTATION_CONTEXT('c','3D') )",
+                units,
+                units + 1,
+                units + 2
+            ));
+            self.add(format!(
+                "ADVANCED_BREP_SHAPE_REPRESENTATION('',(#{model}),#{context})"
+            ));
+            self.add("( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) )".into());
+            self.add("( NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.) )".into());
+            self.add("( NAMED_UNIT(*) SI_UNIT($,.STERADIAN.) SOLID_ANGLE_UNIT() )".into());
+            self.text.push_str("ENDSEC;\nEND-ISO-10303-21;\n");
+            self.text
         }
 
         /// The oriented edge a → b along curve `c`.
@@ -2246,12 +2308,7 @@ mod tests {
             }
         };
         let list = |items: Vec<String>| items.join(",");
-        let mut e = Entities {
-            text: String::from(
-                "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('t'),'2;1');\nFILE_NAME('t','',(''),(''),'','','');\nFILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));\nENDSEC;\nDATA;\n",
-            ),
-            last: 0,
-        };
+        let mut e = Entities::new();
         let (mut grid, mut low, mut high) = (Vec::new(), Vec::new(), Vec::new());
         for i in 0..=2 * spans {
             let a = e.point([x(i), 0.0, z(i)]);
@@ -2286,13 +2343,8 @@ mod tests {
             ))
         };
         let (c_low, c_high) = (curve(&mut e, low), curve(&mut e, high));
-        let rule = |e: &mut Entities, from: [f64; 3]| {
-            let origin = e.point(from);
-            let direction = e.add("DIRECTION('',(0.,1.,0.))".into());
-            let vector = e.add(format!("VECTOR('',#{direction},1.)"));
-            e.add(format!("LINE('',#{origin},#{vector})"))
-        };
-        let (l_right, l_left) = (rule(&mut e, [1.0, 0.0, 1.0]), rule(&mut e, [0.0, 0.0, 0.0]));
+        let l_right = e.line([1.0, 0.0, 1.0], [0.0, 1.0, 0.0]);
+        let l_left = e.line([0.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
         let sides = [
             e.edge(v[0], v[1], c_low, true),
             e.edge(v[1], v[2], l_right, true),
@@ -2303,31 +2355,15 @@ mod tests {
         let lp = e.add(format!("EDGE_LOOP('',({sides}))"));
         let bound = e.add(format!("FACE_OUTER_BOUND('',#{lp},.T.)"));
         let face = e.add(format!("ADVANCED_FACE('',(#{bound}),#{surface},.T.)"));
-        let shell = e.add(format!("CLOSED_SHELL('',(#{face}))"));
-        let model = e.add(format!("MANIFOLD_SOLID_BREP('',#{shell})"));
-        let units = e.last + 3;
-        let context = e.add(format!(
-            "( GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#{},#{},#{})) REPRESENTATION_CONTEXT('c','3D') )",
-            units,
-            units + 1,
-            units + 2
-        ));
-        e.add(format!(
-            "ADVANCED_BREP_SHAPE_REPRESENTATION('',(#{model}),#{context})"
-        ));
-        e.add("( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) )".into());
-        e.add("( NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.) )".into());
-        e.add("( NAMED_UNIT(*) SI_UNIT($,.STERADIAN.) SOLID_ANGLE_UNIT() )".into());
-        e.text.push_str("ENDSEC;\nEND-ISO-10303-21;\n");
-        e.text
+        e.finish(face)
     }
 
-    /// The face's area and the surface evaluations its moments cost.
+    /// The face's area and the integrand evaluations its moments cost.
     fn dense_ruled_area(spans: usize) -> (f64, usize) {
         let part = crate::step::read_step(dense_ruled_face(spans).as_bytes()).unwrap();
-        crate::nurbs::EVALUATIONS.with(|n| n.set(0));
+        INTEGRAND_EVALUATIONS.with(|n| n.set(0));
         let area = part.face_moments(0).unwrap().area;
-        (area, crate::nurbs::EVALUATIONS.with(|n| n.get()))
+        (area, INTEGRAND_EVALUATIONS.with(|n| n.get()))
     }
 
     /// A face with a large B-spline net costs surface evaluations in proportion to its spans,
@@ -2384,5 +2420,70 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// STEP text of a strip of cylinder (radius 5) between two helices an axial 1 apart, `turns`
+    /// turns long: the face of a thread flank on a core, as a writer emits it (#302). Its area
+    /// is 5 · 1 · (2π · turns).
+    fn helical_strip(turns: usize) -> String {
+        let (r, pitch, width) = (5.0f64, 0.2f64, 1.0f64);
+        let segments = 128 * turns;
+        let end = std::f64::consts::TAU * turns as f64;
+        let mut e = Entities::new();
+        let at = |u: f64, lift: f64| [r * u.cos(), r * u.sin(), pitch * u + lift];
+        let (mut low, mut high) = (Vec::new(), Vec::new());
+        for i in 0..=segments {
+            let u = end * i as f64 / segments as f64;
+            low.push(e.point(at(u, 0.0)));
+            high.push(e.point(at(u, width)));
+        }
+        let v = [
+            e.vertex(at(0.0, 0.0)),
+            e.vertex(at(end, 0.0)),
+            e.vertex(at(end, width)),
+            e.vertex(at(0.0, width)),
+        ];
+        let (c_low, c_high) = (e.polyline(&low), e.polyline(&high));
+        let l_end = e.line(at(end, 0.0), [0.0, 0.0, 1.0]);
+        let l_start = e.line(at(0.0, 0.0), [0.0, 0.0, 1.0]);
+        let sides = [
+            e.edge(v[0], v[1], c_low, true),
+            e.edge(v[1], v[2], l_end, true),
+            e.edge(v[3], v[2], c_high, false),
+            e.edge(v[0], v[3], l_start, false),
+        ];
+        let sides = sides.map(|s| format!("#{s}")).join(",");
+        let origin = e.point([0.0; 3]);
+        let z = e.add("DIRECTION('',(0.,0.,1.))".into());
+        let x = e.add("DIRECTION('',(1.,0.,0.))".into());
+        let frame = e.add(format!("AXIS2_PLACEMENT_3D('',#{origin},#{z},#{x})"));
+        let surface = e.add(format!("CYLINDRICAL_SURFACE('',#{frame},{r:?})"));
+        let lp = e.add(format!("EDGE_LOOP('',({sides}))"));
+        let bound = e.add(format!("FACE_OUTER_BOUND('',#{lp},.T.)"));
+        let face = e.add(format!("ADVANCED_FACE('',(#{bound}),#{surface},.T.)"));
+        e.finish(face)
+    }
+
+    /// A cylinder face whose boundary winds through many turns costs integrand evaluations in
+    /// proportion to its length, not its square (#302: the inner integral along u crossed a
+    /// panel per radian at every boundary node).
+    #[test]
+    fn a_long_helical_strip_costs_evaluations_linear_in_its_turns() {
+        let cost = |turns: usize| {
+            let part = crate::step::read_step(helical_strip(turns).as_bytes()).unwrap();
+            INTEGRAND_EVALUATIONS.with(|n| n.set(0));
+            let area = part.face_moments(0).unwrap().area;
+            let exact = 5.0 * std::f64::consts::TAU * turns as f64;
+            assert!(
+                (area - exact).abs() < 1e-3 * exact,
+                "{turns} turns: {area} vs {exact}"
+            );
+            INTEGRAND_EVALUATIONS.with(|n| n.get())
+        };
+        let (n10, n20) = (cost(10), cost(20));
+        assert!(
+            n20 * 10 < n10 * 25,
+            "{n10} -> {n20} evaluations is not linear"
+        );
     }
 }
