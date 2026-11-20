@@ -101,6 +101,10 @@ struct Cli {
     /// recognise the part's features and print them as JSON
     #[arg(value_name = "FILE.STEP", allow_hyphen_values = true)]
     file: Option<String>,
+    /// refuse any face whose area and moment integration would take more than N work units
+    /// (integrand evaluations); see document.budget
+    #[arg(long, value_name = "N")]
+    integration_budget: Option<u64>,
     #[command(subcommand)]
     command: Option<Command>,
 }
@@ -154,11 +158,17 @@ enum Command {
         /// in the part's own frame, with the frame given
         #[arg(long)]
         framed: bool,
+        /// refuse any face whose integration would take more than N work units
+        #[arg(long, value_name = "N")]
+        integration_budget: Option<u64>,
     },
     /// print the part's feature fingerprints as JSON
     Fingerprints {
         #[arg(value_name = "FILE.STEP", allow_hyphen_values = true)]
         file: String,
+        /// refuse any face whose integration would take more than N work units
+        #[arg(long, value_name = "N")]
+        integration_budget: Option<u64>,
     },
     /// print this build's versioned capabilities as JSON
     Capabilities,
@@ -238,9 +248,16 @@ pub fn main(args: &[String]) -> u8 {
             return u8::try_from(e.exit_code()).unwrap_or(2);
         }
     };
+    let budget = |integration_budget| crate::RecognitionOptions { integration_budget };
     let command = match (cli.file, cli.command) {
         (Some(path), _) => {
-            return print(recognise(&path).map_err(|failure| failure.to_string()));
+            return print(
+                recognise(&path, &budget(cli.integration_budget))
+                    .map_err(|failure| failure.to_string()),
+            );
+        }
+        (None, None) if cli.integration_budget.is_some() => {
+            return usage_error(&[], "--integration-budget needs a STEP file");
         }
         (None, Some(command)) => command,
         (None, None) => return usage_error(&[], "a STEP file or a command is needed"),
@@ -291,8 +308,15 @@ pub fn main(args: &[String]) -> u8 {
             return 0;
         }
         Command::Capabilities => Ok(crate::file_api::capabilities()),
-        Command::Fingerprints { file } => crate::file_api::fingerprints_file(&file),
-        Command::Evidence { file, framed } => crate::file_api::evidence_file(&file, framed),
+        Command::Fingerprints {
+            file,
+            integration_budget,
+        } => crate::file_api::fingerprints_file_with(&file, &budget(integration_budget)),
+        Command::Evidence {
+            file,
+            framed,
+            integration_budget,
+        } => crate::file_api::evidence_file_with(&file, framed, &budget(integration_budget)),
         Command::Correspond { old, new } => {
             correspond(&old, &new).map_err(|failure| failure.to_string())
         }
@@ -347,8 +371,8 @@ fn warn(warnings: Vec<String>) {
     }
 }
 
-fn recognise(path: &str) -> Result<String, Failure> {
-    let (output, warning) = serve::recognise_file(path)?;
+fn recognise(path: &str, options: &crate::RecognitionOptions) -> Result<String, Failure> {
+    let (output, warning) = serve::recognise_file_with(path, options)?;
     warn(warning);
     Ok(serde_json::to_string_pretty(&output).expect("records serialise"))
 }

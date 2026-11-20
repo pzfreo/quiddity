@@ -19,6 +19,7 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `haecceity::express`: `Violation`.
 - `haecceity::express_rules`: `RuleViolation`.
 - `haecceity::gvp`: `ValidationProperty`.
+- `haecceity::mass`: `IntegrationBudget`.
 - `haecceity::json::presentation`: `Graphic`, `Presentation`, `TextPlacement`, `PolylineRole`.
 - `haecceity::presentation`: `Callout`.
 - `haecceity::mesh`: `FaceMesh`, `MeshRefusal`.
@@ -30,7 +31,7 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `haecceity::removal`: `Blocker`, `Emptied`, `RemovalPlan`, `RemovalRefusal`, `RemovalReport`.
 - `haecceity::step`: `Assembly`, `Component`, `PartDefinition`, `PartPlacement`, `StepError`, `StepFile`.
 - `haecceity::step::manifest`: `Common`, `Instance`, `Manifest`, `Product`, `Ranges`, `ReaderVersion`, `Refusal`, `ScanOptions`, `Source`, `Unowned`.
-- `quiddity::correspondence`: `Change`, `Entry`, `FaceFingerprint`, `FeatureFingerprint`, `Recognition`, `RecognitionWithEvidence`, `Thresholds`.
+- `quiddity::correspondence`: `Change`, `Entry`, `FaceFingerprint`, `FeatureFingerprint`, `Recognition`, `RecognitionOptions`, `RecognitionWithEvidence`, `Thresholds`.
 - `quiddity::evidence_view`: `EvidenceCandidate`, `EvidenceDocument`, `EvidenceFeature`, `EvidenceRecord`.
 - `quiddity::features::angled_steps`: `AngledStep`.
 - `quiddity::features::annular_grooves`: `AnnularGroove`.
@@ -98,7 +99,7 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `quiddity::features::v_channels`: `VChannel`.
 - `quiddity::frames`: `FrameRefusal`, `FramedError`, `FramedRecognition`, `PartFrame`.
 - `quiddity::published_records`: `PublishedFeatures`.
-- `quiddity::recognition`: `Bodies`, `BodyReason`, `FaceAccounting`, `FaceRefusal`, `RecognitionDocument`, `Record`.
+- `quiddity::recognition`: `Bodies`, `BodyReason`, `Budget`, `FaceAccounting`, `FaceRefusal`, `RecognitionDocument`, `Record`.
 - `quiddity::serve`: `Failure`, `RecognitionOutput`.
 
 Types re-exported at the crate root retain those names too: for example,

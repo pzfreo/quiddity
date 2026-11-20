@@ -863,14 +863,28 @@ fn inventory_in_with(
         discover!("thin_wall_bodies", thin_walls::discover(ctx)),
     );
     let mut discovery_refusals = BTreeMap::new();
-    if !unmeasured.is_empty() {
-        discovery_refusals.insert(
-            "unmeasured_face_refusals",
-            unmeasured
-                .iter()
-                .map(|&face| discovery::DiscoveryRefusal::new("unmeasured_face", [face]))
-                .collect(),
-        );
+    // A face the caller's integration budget refused is left out as an unmeasured face is,
+    // and published under its own reason.
+    let (over_budget, unmeasured): (Vec<usize>, Vec<usize>) = unmeasured
+        .iter()
+        .partition(|&&face| part.integration_refused(face));
+    for (family, reason, faces) in [
+        ("unmeasured_face_refusals", "unmeasured_face", unmeasured),
+        (
+            "integration_budget_refusals",
+            "integration_budget",
+            over_budget,
+        ),
+    ] {
+        if !faces.is_empty() {
+            discovery_refusals.insert(
+                family,
+                faces
+                    .into_iter()
+                    .map(|face| discovery::DiscoveryRefusal::new(reason, [face]))
+                    .collect(),
+            );
+        }
     }
     let (passages, compatibility) =
         isolation::guarded(&mut failures, "section_passages", "discover", || {

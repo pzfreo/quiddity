@@ -2,7 +2,7 @@
 use pyo3::exceptions::{PyRuntimeError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyString};
-use quiddity::{Part, file_api, kernel::step, serve};
+use quiddity::{Part, RecognitionOptions, file_api, kernel::step, serve};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 mod pmi;
@@ -62,27 +62,41 @@ impl Input {
         }
     }
 
-    fn recognise(self) -> Result<String, String> {
+    fn recognise(self, options: &RecognitionOptions) -> Result<String, String> {
         match self {
-            Self::Path(path) => file_api::recognise_file(&path),
-            Self::Bytes(bytes) => file_api::recognise_bytes(bytes),
+            Self::Path(path) => file_api::recognise_file_with(&path, options),
+            Self::Bytes(bytes) => file_api::recognise_bytes_with(bytes, options),
         }
     }
 
-    fn fingerprints(self) -> Result<quiddity::Fingerprints, String> {
+    fn fingerprints(self, options: &RecognitionOptions) -> Result<quiddity::Fingerprints, String> {
         let output = match self {
-            Self::Path(path) => serve::recognise_file(&path),
-            Self::Bytes(bytes) => serve::recognise_bytes("<bytes>", bytes),
+            Self::Path(path) => serve::recognise_file_with(&path, options),
+            Self::Bytes(bytes) => serve::recognise_bytes_with("<bytes>", bytes, options),
         }
         .map_err(|e| e.to_string())?;
         Ok(output.0.recognition.fingerprints)
     }
 }
 
+/// The options of one call: ``integration_budget`` is the most work units (integrand
+/// evaluations) one face's integration may take; a face that would take more is refused.
+fn options(integration_budget: Option<u64>) -> RecognitionOptions {
+    let mut options = RecognitionOptions::default();
+    options.integration_budget = integration_budget;
+    options
+}
+
 #[pyfunction]
-fn recognise(py: Python<'_>, step: &Bound<'_, PyAny>) -> PyResult<String> {
+#[pyo3(signature = (step, integration_budget=None))]
+fn recognise(
+    py: Python<'_>,
+    step: &Bound<'_, PyAny>,
+    integration_budget: Option<u64>,
+) -> PyResult<String> {
     let input = Input::extract(step)?;
-    detached(py, || input.recognise())?.map_err(PyValueError::new_err)
+    let options = options(integration_budget);
+    detached(py, || input.recognise(&options))?.map_err(PyValueError::new_err)
 }
 
 /// Return complete recognition and evidence as JSON from shared analysis.
@@ -104,10 +118,19 @@ fn recognise_with_evidence(py: Python<'_>, step: &Bound<'_, PyAny>) -> PyResult<
 }
 
 #[pyfunction]
-#[pyo3(signature = (step, framed=false))]
-fn evidence(py: Python<'_>, step: &Bound<'_, PyAny>, framed: bool) -> PyResult<String> {
+#[pyo3(signature = (step, framed=false, integration_budget=None))]
+fn evidence(
+    py: Python<'_>,
+    step: &Bound<'_, PyAny>,
+    framed: bool,
+    integration_budget: Option<u64>,
+) -> PyResult<String> {
     let input = Input::extract(step)?;
-    detached(py, || file_api::evidence(&input.load()?, framed))?.map_err(PyValueError::new_err)
+    let options = options(integration_budget);
+    detached(py, || {
+        file_api::evidence_with(&input.load()?, framed, &options)
+    })?
+    .map_err(PyValueError::new_err)
 }
 
 #[pyfunction]
@@ -128,9 +151,15 @@ fn anchors(py: Python<'_>, step: &Bound<'_, PyAny>, faces: Option<Vec<usize>>) -
 }
 
 #[pyfunction]
-fn fingerprints(py: Python<'_>, step: &Bound<'_, PyAny>) -> PyResult<String> {
+#[pyo3(signature = (step, integration_budget=None))]
+fn fingerprints(
+    py: Python<'_>,
+    step: &Bound<'_, PyAny>,
+    integration_budget: Option<u64>,
+) -> PyResult<String> {
     let input = Input::extract(step)?;
-    detached(py, || file_api::json(&input.fingerprints()?))?.map_err(PyValueError::new_err)
+    let options = options(integration_budget);
+    detached(py, || file_api::json(&input.fingerprints(&options)?))?.map_err(PyValueError::new_err)
 }
 
 #[pyfunction]
@@ -142,8 +171,11 @@ fn correspond(
     let old = Input::extract(old_step)?;
     let new = Input::extract(new_step)?;
     detached(py, || {
-        let result = serve::correspond(&old.fingerprints()?, &new.fingerprints()?)
-            .map_err(|e| e.to_string())?;
+        let result = serve::correspond(
+            &old.fingerprints(&RecognitionOptions::default())?,
+            &new.fingerprints(&RecognitionOptions::default())?,
+        )
+        .map_err(|e| e.to_string())?;
         file_api::json(&result)
     })?
     .map_err(PyValueError::new_err)

@@ -195,6 +195,7 @@ fn master_boundary_length(
     let speed = |curve: &Curve, t| {
         let p = curve.value(t);
         let d = curve.derivative(t);
+        super::spend_work();
         let (_, su, sv) = evaluator.borrow_mut().value_and_partials(p[0], p[1]);
         [geom::norm(geom::add(
             geom::scale(su, d[0]),
@@ -366,6 +367,7 @@ impl Part {
             }
             let length = integrate(&[0., 1.], |t| {
                 let q = geom::add(from, geom::scale(delta, t));
+                super::spend_work();
                 let (_, su, sv) = surface.value_and_partials(q[0], q[1]);
                 [geom::norm(geom::add(
                     geom::scale(su, delta[0]),
@@ -410,6 +412,7 @@ impl Part {
         )?;
         let evaluator = std::cell::RefCell::new(crate::nurbs::SurfaceEvaluation::new(&local));
         let f = |u, v| {
+            super::spend_work();
             let (p, su, sv) = evaluator.borrow_mut().value_and_partials(u, v);
             density(geom::add(origin, p), su, sv)
         };

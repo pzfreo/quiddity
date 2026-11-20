@@ -44,7 +44,7 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
-use crate::correspondence::{self, Fingerprints, Recognition};
+use crate::correspondence::{self, Fingerprints, Recognition, RecognitionOptions};
 use crate::frames::RecordFrame;
 use crate::kernel::brep::Part;
 use crate::kernel::step::{
@@ -154,17 +154,22 @@ pub fn recognise_step(
     placement: &Placement,
 ) -> Result<(Part, Recognition, Vec<String>), Failure> {
     // Even fingerprint-only callers need the published document's types and statuses for warnings.
-    let (part, recognition, _, warnings) = recognise_step_document(path, placement)?;
+    let (part, recognition, _, warnings) =
+        recognise_step_document(path, placement, &RecognitionOptions::default())?;
     Ok((part, recognition, warnings))
 }
 
 type StepRecognition = (Part, Recognition, RecognitionDocument, Vec<String>);
 
 /// Read, recognise, document and diagnose once for both public entry points.
-fn recognise_step_document(path: &str, placement: &Placement) -> Result<StepRecognition, Failure> {
+fn recognise_step_document(
+    path: &str,
+    placement: &Placement,
+    options: &RecognitionOptions,
+) -> Result<StepRecognition, Failure> {
     // Hash and parse one snapshot: a file changed during frame inference cannot mix sources.
     let bytes = std::fs::read(path).map_err(|e| read_failure(path, &e))?;
-    recognise_bytes_placed(path, bytes, placement)
+    recognise_bytes_placed(path, bytes, placement, options)
 }
 
 /// Recognise a STEP byte snapshot. The source digest covers these exact bytes.
@@ -172,7 +177,17 @@ pub fn recognise_bytes(
     path: &str,
     bytes: Vec<u8>,
 ) -> Result<(RecognitionOutput, Vec<String>), Failure> {
-    let (_, recognition, document, warnings) = recognise_bytes_placed(path, bytes, &IDENTITY)?;
+    recognise_bytes_with(path, bytes, &RecognitionOptions::default())
+}
+
+/// [`recognise_bytes`] under *options* ([`correspondence::recognise_with`]).
+pub fn recognise_bytes_with(
+    path: &str,
+    bytes: Vec<u8>,
+    options: &RecognitionOptions,
+) -> Result<(RecognitionOutput, Vec<String>), Failure> {
+    let (_, recognition, document, warnings) =
+        recognise_bytes_placed(path, bytes, &IDENTITY, options)?;
     Ok((
         RecognitionOutput {
             recognition,
@@ -186,6 +201,7 @@ fn recognise_bytes_placed(
     path: &str,
     bytes: Vec<u8>,
     placement: &Placement,
+    options: &RecognitionOptions,
 ) -> Result<StepRecognition, Failure> {
     let source_sha256 = Sha256::digest(&bytes)
         .iter()
@@ -199,7 +215,11 @@ fn recognise_bytes_placed(
         decode_step_file_bytes(std::path::Path::new(path), bytes)
             .map_err(|e| read_failure(path, &e))?
     };
-    let part = read_step_placed_owned(step_bytes, placement).map_err(|e| read_failure(path, &e))?;
+    let mut part =
+        read_step_placed_owned(step_bytes, placement).map_err(|e| read_failure(path, &e))?;
+    if let Some(limit) = options.integration_budget {
+        part = part.with_integration_budget(limit);
+    }
     let mut recognition = correspondence::recognise(&part);
     recognition.source_sha256 = Some(source_sha256);
     let document = recognition::document(&recognition, part.faces.len());
@@ -238,6 +258,13 @@ pub(crate) fn recognition_warnings(
             "{path}: warning: section-recess projection refused: {reason}"
         ));
     }
+    if let Some(budget) = document.budget.as_ref().filter(|b| b.count > 0) {
+        warnings.push(format!(
+            "{path}: warning: integration budget of {} work units refused {} faces (see \
+             document.budget)",
+            budget.limit, budget.count
+        ));
+    }
     if let RecordFrame::Refused { reason } = &recognition.frame {
         warnings.push(format!(
             "{path}: warning: no part frame ({}); recognised as placed in the file, so the \
@@ -250,7 +277,15 @@ pub(crate) fn recognition_warnings(
 
 /// Recognise the STEP file at *path*: the output and any warnings.
 pub fn recognise_file(path: &str) -> Result<(RecognitionOutput, Vec<String>), Failure> {
-    let (_, recognition, document, warnings) = recognise_step_document(path, &IDENTITY)?;
+    recognise_file_with(path, &RecognitionOptions::default())
+}
+
+/// [`recognise_file`] under *options* ([`correspondence::recognise_with`]).
+pub fn recognise_file_with(
+    path: &str,
+    options: &RecognitionOptions,
+) -> Result<(RecognitionOutput, Vec<String>), Failure> {
+    let (_, recognition, document, warnings) = recognise_step_document(path, &IDENTITY, options)?;
     let output = RecognitionOutput {
         recognition,
         document,
@@ -285,8 +320,16 @@ pub fn fingerprints_value(mut value: Value, source: &str) -> Result<Fingerprints
 /// A revision's fingerprints from the file at *path*: a STEP file recognised, or a JSON file
 /// `quiddity <file.step>` wrote. With any warnings.
 pub fn fingerprints_file(path: &str) -> Result<(Fingerprints, Vec<String>), Failure> {
+    fingerprints_file_with(path, &RecognitionOptions::default())
+}
+
+/// [`fingerprints_file`] under *options*; they apply to a STEP file recognised.
+pub fn fingerprints_file_with(
+    path: &str,
+    options: &RecognitionOptions,
+) -> Result<(Fingerprints, Vec<String>), Failure> {
     if is_step(path) || part_input::is_f3d(path) {
-        let (_, recognition, warnings) = recognise_step(path, &IDENTITY)?;
+        let (_, recognition, _, warnings) = recognise_step_document(path, &IDENTITY, options)?;
         return Ok((recognition.fingerprints, warnings));
     }
     let text = std::fs::read_to_string(path)

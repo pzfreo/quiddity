@@ -177,6 +177,25 @@ def test_anchors_refused_face_row():
     assert row == {"face": 6, "point": None, "uv": None, "refused": str(why.value)}
 
 
+def test_integration_budget_round_trip():
+    sheet = FIXTURES / "integration_budget_sheet.step.gz"
+    plain = quiddity.recognise(str(sheet))
+    assert quiddity.recognise(str(sheet), integration_budget=None) == plain
+    assert "budget" not in json.loads(plain)["document"]
+    # The B-spline sheet (face 2) takes far more work than the bore or the planes.
+    budgeted = json.loads(quiddity.recognise(sheet.read_bytes(), integration_budget=400_000))
+    assert budgeted["document"]["budget"] == {"limit": 400_000, "refused_faces": [2], "count": 1}
+    (refusal,) = [r for r in budgeted["document"]["records"] if r["family"] == "integration_budget_refusals"]
+    assert refusal["faces"] == [2] and refusal["parameters"]["reason"] == "integration_budget"
+    run = cli(sheet, "--integration-budget", 400_000)
+    assert run.returncode == 0, run.stderr
+    assert json.loads(run.stdout)["document"]["budget"] == budgeted["document"]["budget"]
+    evidence = json.loads(quiddity.evidence(str(sheet), integration_budget=400_000))
+    assert evidence["budget"]["refused_faces"] == [2]
+    assert json.loads(quiddity.fingerprints(str(sheet), integration_budget=400_000)) == budgeted["fingerprints"]
+    assert quiddity.fingerprints(str(sheet)) == quiddity.fingerprints(str(sheet), integration_budget=None)
+
+
 def test_correspond():
     before = gzip.decompress((FIXTURES / "revisions/hole_moved.old.step.gz").read_bytes())
     after = gzip.decompress((FIXTURES / "revisions/hole_moved.new.step.gz").read_bytes())

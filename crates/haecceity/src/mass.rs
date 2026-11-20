@@ -138,6 +138,45 @@ thread_local! {
     static INTEGRAND_EVALUATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
+thread_local! {
+    /// The work meter of the face integration running on this thread, while
+    /// [`Part::with_integration_budget`] measures one: (work units spent, limit).
+    static METER: std::cell::Cell<Option<(u64, u64)>> = const { std::cell::Cell::new(None) };
+}
+
+/// The unwind payload that abandons a metered face integration once its work passes the limit.
+struct OverBudget;
+
+/// Count one work unit, an integrand evaluation (one surface point and partials) inside face
+/// integration, against the face being metered on this thread; past the limit, abandon that
+/// face's integration at once. Outside metering this does nothing.
+#[inline]
+pub(super) fn spend_work() {
+    METER.with(|meter| {
+        if let Some((spent, limit)) = meter.get() {
+            let spent = spent + 1;
+            meter.set(Some((spent, limit)));
+            if spent > limit {
+                std::panic::resume_unwind(Box::new(OverBudget));
+            }
+        }
+    });
+}
+
+/// A per-face integration budget applied to a part ([`Part::with_integration_budget`]): the
+/// limit, the work each face's integration took (`limit + 1` for a face abandoned on passing
+/// it) and the faces refused.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct IntegrationBudget {
+    /// The most work units one face's integration may take.
+    pub limit: u64,
+    /// Work units each face's integration took, by face; `limit + 1` where it was abandoned.
+    pub work: Vec<u64>,
+    /// Faces whose integration would exceed the limit, ascending.
+    pub refused: Vec<usize>,
+}
+
 /// Knot spans in u from which a B-spline face's inner integral may run along v instead (#302).
 const LARGE_NET_SPANS: usize = 32;
 
@@ -827,6 +866,57 @@ impl FaceMass {
 }
 
 impl Part {
+    /// A copy of this part, with fresh caches, whose faces' integrations were each measured
+    /// against `limit` work units ([`IntegrationBudget`]): one unit is one integrand evaluation
+    /// inside the face's area and moment integration (the one [`Part::face_moments`],
+    /// [`Part::face_mass`] and [`Part::volume_centroid`] share). A face whose integration would
+    /// take more is abandoned as soon as its count passes the limit and refused: its area,
+    /// moments and every integral over it are `None` on the copy and on its
+    /// [`Part::transformed`] copies, as for a face that cannot be integrated. The count depends
+    /// only on the face's geometry in this placement, not on the order faces are measured in,
+    /// threads or the clock. Every other face's integration is kept (cached) on the copy.
+    pub fn with_integration_budget(&self, limit: u64) -> Part {
+        let mut part = self.fresh_copy();
+        part.integration_budget = None;
+        let mut work = Vec::with_capacity(part.faces.len());
+        let mut refused = Vec::new();
+        for face in 0..part.faces.len() {
+            METER.with(|meter| meter.set(Some((0, limit))));
+            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                part.face_moments(face);
+                part.face_raw_moments(face);
+                part.face_terms(face);
+            }));
+            let (spent, _) = METER.with(|meter| meter.take()).unwrap_or((0, limit));
+            if let Err(payload) = outcome {
+                if !payload.is::<OverBudget>() {
+                    std::panic::resume_unwind(payload);
+                }
+                refused.push(face);
+            }
+            work.push(spent);
+        }
+        part.integration_budget = Some(std::sync::Arc::new(IntegrationBudget {
+            limit,
+            work,
+            refused,
+        }));
+        part
+    }
+
+    /// The integration budget this part was measured against, if any
+    /// ([`Part::with_integration_budget`]).
+    pub fn integration_budget(&self) -> Option<&IntegrationBudget> {
+        self.integration_budget.as_deref()
+    }
+
+    /// Whether the face's integration was refused by the part's integration budget.
+    pub fn integration_refused(&self, face: usize) -> bool {
+        self.integration_budget
+            .as_ref()
+            .is_some_and(|budget| budget.refused.binary_search(&face).is_ok())
+    }
+
     /// The solid's volume and area (`solid.volume`, `solid.area`). The volume is a third of the
     /// flux of the position vector out through its faces (a void's faces subtract), measured
     /// from the mean of the solid's vertex uses (OpenCascade's `roughBaryCenter`). A file's
@@ -879,6 +969,9 @@ impl Part {
     /// The face's area, the flux of the position vector through it and its area vector ∬ n dA,
     /// along the surface's natural normal.
     fn face_terms(&self, face: usize) -> Option<[f64; 5]> {
+        if self.integration_refused(face) {
+            return None;
+        }
         self.cache[face]
             .mass
             .get_or_init(|| self.compute_face_mass(face))
@@ -933,6 +1026,9 @@ impl Part {
         remember: bool,
         f: impl Fn(V3, V3, V3) -> [f64; N],
     ) -> Option<[f64; M]> {
+        if self.integration_refused(face) {
+            return None;
+        }
         let mut shared = None;
         let mut attempted = false;
         let choice = self.cache[face].mass.get_or_init(|| {
@@ -1132,6 +1228,7 @@ impl Part {
         let f = |u: f64, v: f64| {
             #[cfg(test)]
             INTEGRAND_EVALUATIONS.with(|n| n.set(n.get() + 1));
+            spend_work();
             let (u, v) = wrap_closed(surface, spans, (u, v));
             let (p, su, sv) = match &evaluator {
                 Some(evaluator) => evaluator.borrow_mut().value_and_partials(u, v),
@@ -1881,6 +1978,9 @@ impl Part {
     /// [`Part::face_mass`]; `None` where that cannot integrate the face.
     /// Cached, including `None`, for this immutable part's geometry and placement.
     pub fn face_moments(&self, face: usize) -> Option<FaceMoments> {
+        if self.integration_refused(face) {
+            return None;
+        }
         *self.cache[face]
             .moments
             .get_or_init(|| self.compute_face_moments(face))
@@ -1926,6 +2026,12 @@ impl Part {
     /// (the other's components left zero, which no error test reads), as before they were
     /// shared. A group whose frame is unusable is left zero and its consumer refuses it.
     fn face_raw_moments(&self, face: usize) -> RawMoments {
+        if self.integration_refused(face) {
+            return RawMoments {
+                local: None,
+                centre: None,
+            };
+        }
         *self.cache[face]
             .raw_moments
             .get_or_init(|| self.compute_face_raw_moments(face))
