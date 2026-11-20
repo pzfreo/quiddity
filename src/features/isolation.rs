@@ -146,6 +146,7 @@ const CLAIM_INPUTS: &[&str] = &[
     "section_recesses",
     "cylindrical_profiles",
     "face_grooves",
+    "round_grooves",
     "v_grooves",
     "tapers",
 ];

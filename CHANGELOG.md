@@ -28,8 +28,8 @@ in [docs/alpha1.md](docs/alpha1.md).
 - A convex toroidal edge round that follows a concave cylindrical wall (a slot's or arc wall's
   rounded end, or the top round turning round an inside-corner round): a coaxial internal
   cylinder wall of at most a half turn that meets a plane wall running along its axis, rounded
-  into a transverse face, with the
-  torus's major radius the wall's radius plus its minor radius) is published as a turned
+  into a transverse face, with the torus's major radius the wall's radius plus its minor
+  radius, is published as a turned
   `Fillet` of the minor radius, where it was left unexplained beside the straight rounds along
   the slot's sides. A whole bore's mouth ring (still a `blends` record), concave grooves and
   convex ridges inside a bore are not claimed. For #307 (item 7).
@@ -126,7 +126,8 @@ in [docs/alpha1.md](docs/alpha1.md).
   under the bore radius no longer reads as a round at the bore's end, so it is not a `flat`
   floor. Lands separated by a web or a
   different diameter stay separate holes, and an end that borders only such a groove is
-  `unknown`. The groove itself is still unexplained. For #307 (item 3).
+  `unknown`. The groove itself is a `round_grooves` or `v_grooves` record where it qualifies
+  (items 5 and 6). For #307 (item 3).
 - A planar chamfer is no longer read from the flats of a polygonal section. A bevel between two
   principal-plane walls was published whenever it stood between them, so the flats of a hexagonal
   or irregular polygonal prism whose neighbours happened to lie on principal planes became
