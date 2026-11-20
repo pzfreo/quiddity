@@ -53,7 +53,7 @@ pub struct RoundGroove {
 /// Publish after the existing families. Existing records are never changed. A reserved
 /// refusal on any defining face suppresses the groove, except an unproved interior void
 /// that is exactly the groove's own faces (the widening the groove explains).
-pub(super) fn append(ctx: &Context<'_>, features: &mut Features) {
+pub fn append(ctx: &Context<'_>, features: &mut Features) {
     let claimed: BTreeSet<_> = features
         .defining
         .iter()
@@ -102,10 +102,11 @@ pub(super) fn append(ctx: &Context<'_>, features: &mut Features) {
                             .any(|f| o.defining.contains(f))
                     })
                     .all(|r| {
-                        r.candidate
-                            .void_faces
-                            .iter()
-                            .all(|f| o.defining.contains(f))
+                        // The refusal must be exactly this groove: the same face set.
+                        let mut void = r.candidate.void_faces.clone();
+                        void.sort_unstable();
+                        void.dedup();
+                        void == o.defining
                     })
         })
         .collect();

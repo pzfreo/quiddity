@@ -108,3 +108,29 @@ fn a_filleted_step_and_a_bead_are_not_grooves() {
     assert!(!torus_faces(&part).is_empty());
     assert!(features::recognise(&part).round_grooves.is_empty());
 }
+
+#[test]
+fn an_interior_void_refusal_is_kept_only_when_it_is_exactly_the_groove() {
+    use quiddity::features::{Context, round_grooves};
+    let part = load("round_groove_ball_race.step.gz");
+    let base = features::recognise(&part);
+    let groove_faces = base.round_grooves[0].faces.clone();
+    let mut refusal = base
+        .interior_void_refusals
+        .first()
+        .expect("the race's widening behind the throat is refused as an unproved void")
+        .clone();
+    for (void_faces, kept) in [
+        (groove_faces.clone(), true),
+        (vec![groove_faces[0]], false),
+        (vec![groove_faces[0], groove_faces[1], 3], false),
+    ] {
+        refusal.candidate.void_faces = void_faces;
+        let mut f = base.clone();
+        f.round_grooves.clear();
+        f.defining.remove("round_grooves");
+        f.interior_void_refusals = vec![refusal.clone()];
+        round_grooves::append(&Context::new(&part), &mut f);
+        assert_eq!(!f.round_grooves.is_empty(), kept);
+    }
+}

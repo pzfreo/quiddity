@@ -300,7 +300,7 @@ host surface) reports its mouth width, not its widest chord.
 
 Publication follows `face_grooves`: after the other families, a torus face with another
 accepted claim or a reserved refusal is left alone. The exception is an unproved
-`interior_voids` refusal whose faces are exactly the groove's torus faces (the widening
+`interior_voids` refusal whose face set equals the groove's torus faces exactly (a subset or a superset suppresses it; the widening
 behind a throat that the groove explains); that refusal is kept. Because only the torus faces
 are claimed, a bore with such a groove reads the same whether its lands form one hole record
 or two. Fingerprint format 3 uses `ring_diameter`, `bottom_radius`, `width`, `depth` and
