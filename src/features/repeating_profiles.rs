@@ -117,7 +117,9 @@ pub fn recognise_repeating_radial_profiles(
 }
 
 internal_entry! {
-/// Every profile of every solid with its two opposed source faces, in record order.
+/// Every profile of every solid in record order, with its defining faces: the two opposed
+/// extremal source faces, or, for a profile between interior levels, every cap and swept face
+/// (so the same fins are counted differently by whether they reach the part's ends).
 pub fn discover(ctx: &Context<'_>) -> Vec<Occurrence<RepeatingRadialProfile>> {
     discover_with(ctx.part, RepeatingRadialProfileOptions::default().tol)
 }
@@ -125,7 +127,7 @@ pub fn discover(ctx: &Context<'_>) -> Vec<Occurrence<RepeatingRadialProfile>> {
 
 internal_entry! {
 /// The evidence path (`_discover_repeating_radial_profiles` with a writer): refused when a
-/// profile's two faces are one face, when a face is claimed by two profiles, or when the faces
+/// profile's first two defining faces are one face, when a face is claimed by two profiles, or when the faces
 /// do not share one valid solid.
 pub fn discover_verified(
     ctx: &Context<'_>,
@@ -772,6 +774,8 @@ fn sequence_order<T>(a: &[T], b: &[T], order: impl Fn(&T, &T) -> Ordering) -> Or
 /// whose outer wire is straight edges closed by arcs of one host circle.
 struct Cap {
     face: usize,
+    /// The one cylindrical face every root arc borders.
+    host: usize,
     axis: usize,
     at: f64,
     /// Outward normal along the axis: `-1` for the lower end of a protruding profile.
@@ -817,6 +821,7 @@ fn read_cap(part: &Part, face: usize, bbox: &Bounds, tol: f64) -> Option<Cap> {
         return None;
     }
     let (mut centre, mut radius) = ((0.0, 0.0), 0.0);
+    let mut host_face = None;
     for (i, &e) in arcs.iter().enumerate() {
         let Curve::Circle {
             frame: f,
@@ -839,6 +844,9 @@ fn read_cap(part: &Part, face: usize, bbox: &Bounds, tol: f64) -> Option<Cap> {
             return None;
         };
         let host = if a == face { b } else { a };
+        if *host_face.get_or_insert(host) != host {
+            return None;
+        }
         match &part.faces[host].surface {
             Surface::Cylinder {
                 frame: h,
@@ -881,6 +889,7 @@ fn read_cap(part: &Part, face: usize, bbox: &Bounds, tol: f64) -> Option<Cap> {
     }
     Some(Cap {
         face,
+        host: host_face?,
         axis,
         at,
         sign: if n[axis] > 0.0 { 1 } else { -1 },
@@ -951,6 +960,19 @@ fn section_boundary(part: &Part, caps: &[&Cap], tol: f64) -> Option<BoundaryEvid
     })
 }
 
+/// The host cylinder reaches past both levels along its axis, so the host-circle arcs between
+/// the caps at each level are real host surface (not two different round sections).
+fn host_covers(part: &Part, host: usize, lo: f64, hi: f64, tol: f64) -> bool {
+    let Surface::Cylinder { frame, .. } = &part.faces[host].surface else {
+        return false;
+    };
+    let axis = (0..3)
+        .max_by(|&a, &b| frame.z[a].abs().total_cmp(&frame.z[b].abs()))
+        .unwrap_or(2);
+    let b = part.face_bounds(host);
+    b.min[axis] <= lo - tol && b.max[axis] >= hi + tol
+}
+
 /// The faces swept between the two end caps: every straight edge of every cap is shared with
 /// exactly one other planar face parallel to the axis, and the caps at the two ends reach the
 /// same faces. `None` unless the whole profile is one straight extrusion between the levels.
@@ -1000,6 +1022,7 @@ fn recognise_sections(
         match groups.iter_mut().find(|g| {
             let h = g[0];
             h.axis == cap.axis
+                && h.host == cap.host
                 && h.sign == cap.sign
                 && (h.at - cap.at).abs() <= tol
                 && distance(h.centre, cap.centre) <= tol
@@ -1027,6 +1050,8 @@ fn recognise_sections(
                     up[0].sign == 1
                         && up[0].axis == lower[0].axis
                         && up[0].at > lower[0].at + tol
+                        && up[0].host == lower[0].host
+                        && host_covers(part, lower[0].host, lower[0].at, up[0].at, tol)
                         && distance(up[0].centre, lower[0].centre) <= tol
                         && (up[0].radius - lower[0].radius).abs() <= tol
                         && profiles_correspond(low, u, tol)

@@ -17,12 +17,19 @@ both barrel ends), with invented dimensions. No reporter file is used.
   radial_fin_irregular the short-fin tube with every fin shifted off the pitch by a different amount
   radial_fin_notched   the tube with 24 radial notches cut into its wall over Z 6..34 (the profile
                        is cut into the host, not standing on it)
+  radial_fin_hex      round R22 (Z 0..20), hex 40 across flats (Z 20..40), round R22 (Z 40..60)
+  radial_fin_octagon  round R22.5, octagon of circumradius 23 (apothem 21.25), round R22.5
+  radial_fin_star     round R20, six-point star R26/R14 (Z 20..40), round R20
+                      The three are controls: each polygon's section sits between two round
+                      sections, so the arcs between its caps are not one host's surface.
 """
 import gzip
 import sys
 from pathlib import Path
 
-from build123d import Align, Axis, Box, Cylinder, Location, Pos, export_step
+import math
+
+from build123d import Align, Axis, Box, BuildPart, BuildSketch, Cylinder, Location, Plane, Polygon, Pos, RegularPolygon, export_step, extrude
 
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parents[1] / "tests" / "fixtures"
 MIN_Z = (Align.CENTER, Align.CENTER, Align.MIN)
@@ -82,3 +89,20 @@ for i in range(24):
     notched = notched - notches[0].rotate(Axis.Z, i * 15)
 write(notched, "radial_fin_notched.step.gz")
 write(tube(50, 46, 0, 40) + irregular, "radial_fin_irregular.step.gz")
+
+
+def section_stack(sketch_fn, r):
+    """Round R r, a prismatic section Z 20..40, round R r."""
+    with BuildPart() as bp:
+        with BuildSketch(Plane.XY.offset(20)):
+            sketch_fn()
+        extrude(amount=20)
+    return cyl(r, 0, 20) + bp.part + cyl(r, 40, 60)
+
+
+write(section_stack(lambda: RegularPolygon(40 / math.sqrt(3), 6), 22), "radial_fin_hex.step.gz")
+write(section_stack(lambda: RegularPolygon(23, 8), 22.5), "radial_fin_octagon.step.gz")
+star = [(26 if i % 2 == 0 else 14) for i in range(12)]
+write(section_stack(lambda: Polygon(*[(r * math.cos(i * math.pi / 6), r * math.sin(i * math.pi / 6))
+                                       for i, r in enumerate(star)], align=None), 20),
+      "radial_fin_star.step.gz")

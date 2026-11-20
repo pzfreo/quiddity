@@ -1570,6 +1570,8 @@ caps, 128 sides and 64 tips). The host cylinder, rear walls, sleeves, standoffs 
 are never claimed. A single rib, a few unequal walls, fins off their pitch and notches cut
 into a wall (their caps face the other way) give no record.
 
+Two identical fin bands on one tube give no record (each lower level matches two upper levels). The path claims every fin face (cap, side, tip), where the end-face path claims only the two end faces, so the same fins are counted differently by whether they reach the part's ends.
+
 A `pads` record whose five faces all belong to one repeating radial profile is that profile's
 member (a fin of the array on an axis) and is not published as a pad: four of a housing's 64
 fins used to be reported as pads. A pad on a part with no such profile is unchanged.

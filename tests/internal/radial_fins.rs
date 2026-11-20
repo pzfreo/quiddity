@@ -60,6 +60,10 @@ fn ribs_walls_irregular_fins_and_notches_are_not_profiles() {
         "radial_fin_walls.step.gz",
         "radial_fin_irregular.step.gz",
         "radial_fin_notched.step.gz",
+        // A polygon or star between two round sections: no one host under its caps.
+        "radial_fin_hex.step.gz",
+        "radial_fin_octagon.step.gz",
+        "radial_fin_star.step.gz",
     ] {
         let f = features::recognise(&part(name));
         assert!(f.repeating_radial_profiles.is_empty(), "{name}");

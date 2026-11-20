@@ -16,3 +16,11 @@ end faces: the established path, unchanged); `radial_fin_short` has the same fin
 of different sizes; `radial_fin_irregular` is the short-fin tube with each fin shifted off its pitch;
 `radial_fin_notched` has 24 notches cut into the wall (cut into the host, not standing on it).
 The last four must give no record.
+
+`radial_fin_hex`, `radial_fin_octagon` and `radial_fin_star` are a prismatic section (hex, octagon,
+six-point star) between two round sections whose diameter lies between the polygon's across-flats and
+across-corners (the star's hub is smaller than its points). Their caps border the lower and the upper
+round section, never one host, so they must give no record.
+
+Two identical fin bands on one tube give no record either: each lower level matches two upper levels, and
+a miss is preferred to a guess.
