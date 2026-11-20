@@ -3034,6 +3034,20 @@
     "tests/fixtures/filleted_box_one_edge.step": "aa5813e8bb2d6966eb137b9afc636625069179a5d8baa8468a5034dadc7be8f1",
     "tests/fixtures/filleted_plate_with_holes.step": "d5ad2cc3c627a8ccd5171c2ab4fa1f7f948858f6f866080d268897e2bbf89a08",
     "tests/fixtures/filleted_stepped_shaft.step": "f076385408f7f77a51d84764896b79879e3447709666f6d8825d8a0c810e58fc",
+    "tests/fixtures/fins.README.md": "7a16d5e4cc59f64d37e1ed158751989a08fa69512e29c1a3bbb8bf1be2482693",
+    "tests/fixtures/fins_boss_pad.step.gz": "f54b5aa0e5b580d87fd81801d0251bd047d1fdcf7c2d643350134aea776ccfac",
+    "tests/fixtures/fins_crossing_ribs.step.gz": "0ec7733d6d180a1ca3c9cc362eda328aec78b0bd28c487582ffd02abef597a12",
+    "tests/fixtures/fins_flat_rib.step.gz": "375e64a6dab605e5e367e0c9759b3ce640fefba7fba040e1a6b058736aadbe3d",
+    "tests/fixtures/fins_gusset_plate.step.gz": "6d89f2b7ca97a8bfa0b3ed2bc783814b78e5fe418ed6982ec1cdc0c5ac8407c2",
+    "tests/fixtures/fins_lone_bead.step.gz": "5d338e0565b9f67cf1e675264aceed1e5c280e32da76ac91e9d3baadbf8c30aa",
+    "tests/fixtures/fins_pocket.step.gz": "6fead85e8f072cd320411551cb870e98663202b628b902160852402d0c12a01f",
+    "tests/fixtures/fins_ribbed_plate.step.gz": "0ae5613c91268d0418c71a7496245833e363c04912a8703fd037a350086a7333",
+    "tests/fixtures/fins_ridge_wall.step.gz": "700738db140496b0fa0647d0b2d72c7db7851a04399adf06cad9e4cbd5731e52",
+    "tests/fixtures/fins_round_tip_rib.step.gz": "9262584e063544ce2c0d61e11bbb774422da53c8aca42805c9b6a84bb279605c",
+    "tests/fixtures/fins_sheet_bend.step.gz": "d66aaccb1c76a67c32724c789779ac89fb08c881ce45a55df034c42f9e316879",
+    "tests/fixtures/fins_sheet_flange.step.gz": "aeaf99cb74abcefb6a5e9e9e4ec34cd387f4f01735f915a3034ecb58b12acb29",
+    "tests/fixtures/fins_slender_ridges.step.gz": "df5fec74b449760735a71b2268096f3972d148c22b900fcaec24f9c53a32f863",
+    "tests/fixtures/fins_thick_step.step.gz": "393742964fd4346701ef56d30dc518da35df0d6ddcdfa2e99367c2d667134811",
     "tests/fixtures/flat_floor_controls.step.gz": "0dc05229fb8af5d792538c51396139911010a067605b55b09778e39df8347ca4",
     "tests/fixtures/flat_floor_patterns.step.gz": "97889759623a22cea1dd86378f9bcd4acfcb8ff2a11343c4fabfa2ac586257f2",
     "tests/fixtures/flats.README.md": "2c6e60fed69649f8eccec2899033ffde024c96579badecb6b7151027d27797b5",
@@ -6035,5 +6049,5 @@
     "step_levels.json.gz": "6ff3ceadb33888e9d529a10b9a880babaf979f4f8d869962215d9d3193902f00",
     "unowned_recesses.json.gz": "604ec266d4c85575165c6822140a3ac79a6637c8d72a3a2bb376e74f86455343"
   },
-  "source_commit": "37aefc8f94e5c8f5e483932d51af0899adb62683"
+  "source_commit": "d476e847d5b5ae9383454b2bba73b90d6dc0b6eb"
 }
