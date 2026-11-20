@@ -22,8 +22,8 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 - A bore that runs out into a curved wall (the tunnel in a crank block) is no longer published
   as `flat`-bottomed when its end disc leaves only thin crescents of plane at the rim: where
-  a curved wall also borders the end, planar supports count as a floor only when they cover at
-  least half the bore's section, otherwise the bore is `through` and no floor face is claimed. For #307 (item 2).
+  a curved wall also borders the end, planar supports count as a floor only when a plane face
+  lies under the bore axis, otherwise the bore is `through` and no floor face is claimed. For #307 (item 2).
 - A face whose area and centroid cannot be computed (a cylinder bounded by one closed circle,
   as some converters write a degenerate face) is left out of recognition and published as an
   `unmeasured_face_refusals` record (`UnmeasuredFaceRefusal`, reason `unmeasured_face`; its

@@ -54,3 +54,29 @@ fn bores_opening_into_a_tunnel_have_no_floor_but_real_floors_beside_it_stay() {
         assert_ne!(hole.bottom, holes::Bottom::Flat);
     }
 }
+
+fn blind_hole_bottom(fixture: &str) -> holes::Bottom {
+    let part = quiddity::read_step_file(&common::fixtures().join(fixture)).unwrap();
+    let found = holes::discover_verified(&Context::new(&part), &[]).unwrap();
+    found
+        .iter()
+        .map(|o| &o.record)
+        .find(|h| h.diameter == 20. && h.axis == [0., 0., -1.])
+        .expect("the d20 blind hole")
+        .bottom
+}
+
+#[test]
+fn a_floor_crossing_the_axis_stays_flat_and_one_missing_there_is_through() {
+    // Two R8 passages at the floor's height leave a 6-wide strip of floor across the axis,
+    // with material on the axis just past it.
+    assert_eq!(
+        blind_hole_bottom("blind_hole_floor_strip_between_passages.step.gz"),
+        holes::Bottom::Flat
+    );
+    // An R10 tunnel removes the floor under the axis: air on the axis past the end.
+    assert_eq!(
+        blind_hole_bottom("blind_hole_floor_removed_under_axis.step.gz"),
+        holes::Bottom::Through
+    );
+}

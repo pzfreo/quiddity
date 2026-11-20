@@ -54,3 +54,22 @@ target = Path(__file__).resolve().parents[1] / 'tests/fixtures/bores_into_tunnel
 export_step(block, str(target))
 target.with_suffix('.step.gz').write_bytes(gzip.compress(target.read_bytes(), mtime=0))
 target.unlink()
+
+# Two more parts: a d20 blind hole (floor at z=40) in an 80 x 80 x 60 block with passages along x.
+def blind_block(passages):
+    b = Box(80, 80, 60, align=(Align.CENTER, Align.CENTER, Align.MIN))
+    b -= Pos(0, 0, 40) * Cylinder(10, 25, align=(Align.CENTER, Align.CENTER, Align.MIN))
+    for y, z, r in passages:
+        b -= Pos(0, y, z) * Rot(0, 90, 0) * Cylinder(r, 100)
+    return b
+
+for name, passages in (
+    # Two R8 passages at y = +-11 leave a strip of floor across the axis.
+    ('floor_strip_between_passages', [(11, 40, 8), (-11, 40, 8)]),
+    # An R10 tunnel at y=6, z=36 removes the floor under the axis.
+    ('floor_removed_under_axis', [(6, 36, 10)]),
+):
+    target = Path(__file__).resolve().parents[1] / f'tests/fixtures/blind_hole_{name}.step'
+    export_step(blind_block(passages), str(target))
+    target.with_suffix('.step.gz').write_bytes(gzip.compress(target.read_bytes(), mtime=0))
+    target.unlink()

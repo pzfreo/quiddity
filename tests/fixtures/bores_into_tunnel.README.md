@@ -16,3 +16,8 @@ top of R14 bosses whose faces are square to the bore, tilted 35 degrees off vert
 - x = 110, d9: tilted blind flat floor 28 mm short of the tunnel axis.
 
 The test is `tests/internal/bores_into_tunnel.rs`.
+
+`blind_hole_floor_strip_between_passages.step.gz` and `blind_hole_floor_removed_under_axis.step.gz`
+come from the same script: a d20 blind hole (floor at z = 40) in an 80 x 80 x 60 block. The first has
+two R8 passages along x at y = +-11, z = 40, leaving a strip of floor across the axis (`flat`). The
+second has an R10 tunnel at y = 6, z = 36 that removes the floor under the axis (`through`).
