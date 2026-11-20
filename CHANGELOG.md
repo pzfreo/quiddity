@@ -20,6 +20,10 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
+- Planar faces that bound the part's stock are `body` with the new reason `stock_envelope`
+  when rounded outlines and edge rounds leave no box corner (a perforated plate's top,
+  bottom and outer sides, a flange's sides), instead of `unexplained`. For #307; fin sides
+  and tips are not covered. Additive: the schema stays `quiddity-rust/recognition/6`.
 - A face whose area and centroid cannot be computed (a cylinder bounded by one closed circle,
   as some converters write a degenerate face) is left out of recognition and published as an
   `unmeasured_face_refusals` record (`UnmeasuredFaceRefusal`, reason `unmeasured_face`; its

@@ -674,3 +674,50 @@ fn an_unmeasurable_face_is_refused_alone() {
     let doc = load("unmeasured_face_open.step");
     refused_face(&doc);
 }
+
+/// Rounded outlines and edge rounds leave no box corner for the box rules (#307): the plate's
+/// top, bottom and outer sides, and a flange's sides, still bound the stock.
+#[test]
+fn rounded_stock_planes_are_body_by_envelope() {
+    use quiddity::recognition::BodyReason;
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    let load = |name: &str| {
+        quiddity::serve::recognise_file(dir.join(name).to_str().unwrap())
+            .unwrap()
+            .0
+            .document
+    };
+    let envelope = FaceAccounting::Body {
+        reason: BodyReason::StockEnvelope,
+    };
+    let doc = load("stock_envelope_plate.step.gz");
+    check(&doc);
+    let groups = doc.face_accounting.as_ref().unwrap();
+    for face in [0, 5, 8, 10, 12, 37] {
+        assert_eq!(groups[face], envelope, "plate face {face}");
+    }
+    let body = groups
+        .iter()
+        .filter(|g| matches!(g, FaceAccounting::Body { .. }))
+        .count();
+    assert_eq!(body, 6);
+    assert!(
+        groups
+            .iter()
+            .all(|g| !matches!(g, FaceAccounting::Unexplained))
+    );
+
+    let doc = load("stock_envelope_housing.step.gz");
+    check(&doc);
+    let groups = doc.face_accounting.as_ref().unwrap();
+    for face in [14, 17, 18, 21] {
+        assert_eq!(groups[face], envelope, "flange side {face}");
+    }
+    // The housing top is a cap inside the flange's envelope, and the fins are not stock.
+    assert_eq!(groups[23], FaceAccounting::Unexplained);
+    // Nothing a record claims is moved to body: the rule only adds body to unclaimed faces.
+    let envelope_faces: Vec<_> = (0..groups.len())
+        .filter(|&f| groups[f] == envelope)
+        .collect();
+    assert_eq!(envelope_faces, [14, 17, 18, 21]);
+}

@@ -55,6 +55,7 @@ pub enum BodyReason {
     StockBoxSide,
     StockBoxNotched,
     StockBoxSplit,
+    StockEnvelope,
     PlateEdge,
     StockWall,
 }
