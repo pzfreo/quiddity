@@ -1055,14 +1055,15 @@ impl Part {
             _ => 0,
         };
         let (cheap_spans, stock_spans) = (inner_spans(true), inner_spans(false));
-        // Motions are compared as shares of their own parameter ranges, so a surface whose u and
-        // v knots differ in scale is judged the same as a normalised one.
-        let extent = |knots: &[f64]| match (knots.first(), knots.last()) {
-            (Some(a), Some(b)) if b > a => b - a,
-            _ => 1.0,
-        };
+        // Motions are compared as shares of their own active parameter ranges (the domain, not
+        // the knot vector's ends, which a writer may pad), so a surface whose u and v differ in
+        // scale is judged the same as a normalised one.
         let (u_extent, v_extent) = match surface {
-            Surface::Freeform { surface: s, .. } => (extent(&s.knots_u), extent(&s.knots_v)),
+            Surface::Freeform { surface: s, .. } => {
+                let (u0, u1, v0, v1) = s.domain();
+                let extent = |a: f64, b: f64| if b > a { b - a } else { 1.0 };
+                (extent(u0, u1), extent(v0, v1))
+            }
             _ => (1.0, 1.0),
         };
         // `weight` is the motion across the inner integral's line (u when that line runs along v),
@@ -2470,6 +2471,80 @@ mod tests {
         INTEGRAND_EVALUATIONS.with(|n| n.set(0));
         let area = part.face_moments(0).unwrap().area;
         assert!((area - exact).abs() < 1e-9 * exact, "{area} vs {exact}");
+    }
+
+    /// STEP text of the plane S(u, v) = (u, v, 0) as a degree-(1, 1) B-spline surface of 40 × 8
+    /// uniform spans on [0, 1]², trimmed to the triangle (0, 0), (1, 0), (1, 1).
+    fn trimmed_triangle_on_a_net() -> String {
+        let (nu, nv) = (40usize, 8usize);
+        let at = |i: usize, j: usize| [i as f64 / nu as f64, j as f64 / nv as f64, 0.0];
+        let mut e = Entities::new();
+        let mut grid = Vec::new();
+        for i in 0..=nu {
+            let row: Vec<String> = (0..=nv)
+                .map(|j| format!("#{}", e.point(at(i, j))))
+                .collect();
+            grid.push(format!("({})", row.join(",")));
+        }
+        let v = [
+            e.vertex([0.0, 0.0, 0.0]),
+            e.vertex([1.0, 0.0, 0.0]),
+            e.vertex([1.0, 1.0, 0.0]),
+        ];
+        let mults = |n: usize| {
+            let mut m = vec!["2".to_string()];
+            m.extend(vec!["1".to_string(); n - 1]);
+            m.push("2".into());
+            m.join(",")
+        };
+        let knots = |n: usize| {
+            let k: Vec<String> = (0..=n)
+                .map(|i| format!("{:?}", i as f64 / n as f64))
+                .collect();
+            k.join(",")
+        };
+        let surface = e.add(format!(
+            "B_SPLINE_SURFACE_WITH_KNOTS('',1,1,({}),.UNSPECIFIED.,.F.,.F.,.F.,({}),({}),({}),({}),.UNSPECIFIED.)",
+            grid.join(","),
+            mults(nu),
+            mults(nv),
+            knots(nu),
+            knots(nv)
+        ));
+        let r = std::f64::consts::FRAC_1_SQRT_2;
+        let bottom = e.line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+        let right = e.line([1.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
+        let diagonal = e.line([1.0, 1.0, 0.0], [-r, -r, 0.0]);
+        let sides = [
+            e.edge(v[0], v[1], bottom, true),
+            e.edge(v[1], v[2], right, true),
+            e.edge(v[2], v[0], diagonal, true),
+        ];
+        let sides = sides.map(|s| format!("#{s}")).join(",");
+        let lp = e.add(format!("EDGE_LOOP('',({sides}))"));
+        let bound = e.add(format!("FACE_OUTER_BOUND('',#{lp},.T.)"));
+        let face = e.add(format!("ADVANCED_FACE('',(#{bound}),#{surface},.T.)"));
+        e.finish(face)
+    }
+
+    /// A huge knot outside the active domain does not change the face (#308, found by xu9299):
+    /// the stationary-node skip judges motions by the active parameter ranges, so the diagonal
+    /// edge's nodes are integrated and the triangle keeps its area ½ and centroid (⅔, ⅓, 0).
+    #[test]
+    fn phantom_outer_knots_do_not_hide_the_diagonal_edge() {
+        let mut part = crate::step::read_step(trimmed_triangle_on_a_net().as_bytes()).unwrap();
+        let Surface::Freeform { surface, .. } = &mut part.faces[0].surface else {
+            panic!("not a B-spline face");
+        };
+        let last = surface.knots_v.len() - 1;
+        surface.knots_v[0] = -1e13;
+        surface.knots_v[last] = 1e13;
+        let m = part.face_moments(0).unwrap();
+        assert!((m.area - 0.5).abs() < 1e-9, "area {}", m.area);
+        let c = m.centroid;
+        for (got, want) in c.iter().zip([2.0 / 3.0, 1.0 / 3.0, 0.0]) {
+            assert!((got - want).abs() < 1e-9, "centroid {c:?}");
+        }
     }
 
     /// The cheaper form's inner rule is used only where it agrees with itself on halves: a

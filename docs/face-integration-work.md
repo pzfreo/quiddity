@@ -41,6 +41,8 @@ These changes remove that, none touching the integrands, nodes or the boundary q
   checked result is used. A loop's direction still reads the swept parameter area.
   xu9299 independently found the same approach (the other Green's-theorem form) and the
   narrow-dip counterexample in #302.
+  xu9299 also found that the stationary-node test must judge motions by the active
+  parameter ranges (`domain()`), not the knot vector's end values, which a writer may pad.
 - A cylinder or cone whose loops (closed in the lifted parameters, not winding round u) run
   through at least 32 radians of u, as a thread's helical edge does, takes the same form:
   along u the inner integral costs a panel per radian at every boundary node, along v one
