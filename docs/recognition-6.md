@@ -272,6 +272,40 @@ actual angular intervals must cover a complete turn. Counting overlapping arc le
 as a full rim is refused. The cylindrical walls must still each be complete; every floor
 piece is retained in the defining claim and strict ownership proof.
 
+## Round-bottomed grooves (for #307)
+
+The optional `round_grooves` family publishes one `RoundGroove` per annular groove whose
+bottom is a torus: an O-ring gland or a ball groove cut with one torus. It is additive within
+`quiddity-rust/recognition/6` and omitted when empty. No nominal O-ring size, ball size or
+function is inferred. Rectangular-section recesses stay `annular_grooves` or `face_grooves`,
+and radial grooves with a cylindrical floor stay `grooves`.
+
+Fields: `host` (`bore`, `shaft` or `face`), `axis` (the torus axis; for `face` it points from
+the groove bottom out of the face), `center` (the torus centre on the axis), `ring_diameter`
+(the circle through the section centres), `bottom_radius` (the section radius), `width`
+(across the mouth, where the torus meets the host: along the axis for a bore or shaft,
+radially for a face), `depth` (host surface to the deepest point), optional `host_diameter`
+(the bore or shaft diameter beside the groove; absent for `face`), `faces` (the torus faces,
+the whole defining claim) and `host_faces` (the lands, consulted only).
+
+The torus faces sharing one torus surface must close into exactly two complete circular rims
+coaxial with it. Each rim must meet one land through a convex crease: either two coaxial
+cylinders of equal radius that are both bore walls (`bore`) or both shaft surfaces (`shaft`),
+or two coplanar planar faces square to the axis (`face`). A tangent rim (a fillet), a concave
+crease (a bead), unequal lands, a mixed cylinder and plane, a spindle torus, or a torus face
+range that omits the deepest point toward the groove (the host side) is refused. The bore or
+shaft groove must be deeper than the host by more than the length tolerance. The torus and
+lands need strict evidence on one valid solid. An undercut groove (centre circle beyond the
+host surface) reports its mouth width, not its widest chord.
+
+Publication follows `face_grooves`: after the other families, a torus face with another
+accepted claim or a reserved refusal is left alone. The exception is an unproved
+`interior_voids` refusal whose faces are exactly the groove's torus faces (the widening
+behind a throat that the groove explains); that refusal is kept. Because only the torus faces
+are claimed, a bore with such a groove reads the same whether its lands form one hole record
+or two. Fingerprint format 3 uses `ring_diameter`, `bottom_radius`, `width`, `depth` and
+`host_diameter` as sizes, `axis` as direction and `center` as placement.
+
 ## Additive duplicate references (#204, #206)
 
 Optional `superseded_by` on `holes` and `bosses` names the accepted annular groove

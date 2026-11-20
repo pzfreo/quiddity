@@ -569,6 +569,7 @@ fn carry(
         grooves,
         annular_grooves,
         face_grooves,
+        round_grooves,
         plates,
         turned_bodies,
         round_bottom_blind_slots,
@@ -717,6 +718,15 @@ fn carry(
             |out: &mut Out, mut r: crate::features::face_grooves::FaceGroove| {
                 r.axis = out.direction(r.axis);
                 r.axis_point = out.point(r.axis_point);
+                r
+            }
+        ),
+        round_grooves: each!(
+            "round_grooves",
+            round_grooves,
+            |out: &mut Out, mut r: crate::features::round_grooves::RoundGroove| {
+                r.axis = out.direction(r.axis);
+                r.center = out.point(r.center);
                 r
             }
         ),

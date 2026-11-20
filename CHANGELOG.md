@@ -19,6 +19,14 @@ in [docs/alpha1.md](docs/alpha1.md).
   with the legs taken along the end plane and along the body's cone from the virtual sharp rim.
   The profile is unchanged and both records list the cone face. Hole mouth cones stay nested in
   `HoleRecord.mouth_chamfers` (#244). The recognition schema stays at 6. For #298.
+- New optional `round_grooves` family: a round-bottomed (toroidal) annular groove, such as an
+  O-ring gland or a bearing's ball groove, cut into a bore, onto a shaft or into a planar face,
+  with its mouth width, depth, bottom radius and ring diameter. The groove's torus faces are
+  its only defining faces; the bore, shaft or planar lands are consulted evidence, so the record
+  does not depend on how a bore's holes are split and never claims their faces. These faces
+  were unexplained or only in `turned_bodies`. A torus tangent to its neighbours (a fillet) or
+  convex (a bead) is not a groove. Schema 6 and every existing record are unchanged. For #307
+  (item 5).
 - Owned-snapshot STEP geometry entry points release parsed input bytes before B-rep
   construction; file and recognition snapshot readers preserve the original source digest.
 

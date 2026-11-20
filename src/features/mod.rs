@@ -92,6 +92,7 @@ pub mod regions;
 pub mod repeating_profiles;
 pub mod rings;
 pub mod round_bottom_slots;
+pub mod round_grooves;
 pub mod section_passages;
 pub mod section_recess;
 pub mod section_recess_discovery;
@@ -184,6 +185,10 @@ pub struct Features {
     /// Intrinsic face recesses on otherwise unclaimed faces (for #123).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub face_grooves: Vec<face_grooves::FaceGroove>,
+    /// Round-bottomed (toroidal) annular grooves in a bore, on a shaft or in a planar face
+    /// (for #307).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub round_grooves: Vec<round_grooves::RoundGroove>,
     pub plates: Vec<plates::Plate>,
     /// Complete analytic turned solids (#123), co-owning faces with their features.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -461,6 +466,9 @@ pub(crate) fn recognise_projected(
     });
     post!("face_grooves", "append", || {
         face_grooves::append(ctx, &mut features)
+    });
+    post!("round_grooves", "append", || {
+        round_grooves::append(ctx, &mut features)
     });
     // Complete recess floors in this same post-reconciliation completion pass, after
     // append/suppression has finished: added claims must not feed recognition decisions.
@@ -1105,6 +1113,7 @@ fn inventory_in_with(
             }
         },
         face_grooves: Vec::new(),
+        round_grooves: Vec::new(),
         plates: kept_shared(&mut defining, "plates", plate_occurrences),
         turned_bodies: {
             let found = discover!("turned_bodies", turned_bodies::discover(ctx));

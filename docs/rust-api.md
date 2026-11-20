@@ -50,6 +50,7 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `quiddity::features::evidence`: `EvidenceError`, `EvidenceStatus`, `Occurrence`, `RunMode`.
 - `quiddity::features::face_grooves`: `FaceGroove`.
 - `quiddity::features::fillets`: `Fillet`, `FilletOptions`.
+- `quiddity::features::round_grooves`: `RoundGroove`, `RoundGrooveHost`.
 - `quiddity::features::flats`: `Flat`.
 - `quiddity::features::freeform_surfaces`: `BSplineSurfaceSupport`, `FreeformSurface`, `SurfaceContinuityLink`.
 - `quiddity::features::grooves`: `Groove`.

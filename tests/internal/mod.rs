@@ -98,6 +98,8 @@ mod vector_publication;
 
 #[path = "face_grooves.rs"]
 mod face_grooves;
+#[path = "round_grooves.rs"]
+mod round_grooves;
 #[path = "turned_bodies.rs"]
 mod turned_bodies;
 
