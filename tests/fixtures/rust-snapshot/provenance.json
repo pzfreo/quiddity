@@ -3232,6 +3232,21 @@
     "tests/fixtures/split_coplanar_support.step": "084beaffe0fadc052dd7644d1556e2557a69616887adfede148a87c5a63aab32",
     "tests/fixtures/spotface_outer_steps.step": "57d97bd5afeaae6b7bfe84b70fd96c49419f3a2c1ee71904429d86db8f1e70da",
     "tests/fixtures/stack.step": "1da640ef610f52637a8b898c744b44ac84b6d1051960f81437bc06a3448eaf38",
+    "tests/fixtures/taper_bore_chamber.step.gz": "9fb78963ddfd954f0c61013547996bbc9e2b755354d6c75179672f8e54f296bb",
+    "tests/fixtures/taper_bore_pin.step.gz": "9672a09b1bb22f67f33dd195aaa1a1f078d0adf6eda9d9cf9e758753b9ba4144",
+    "tests/fixtures/taper_bore_socket.step.gz": "a36e3efcc2a85820bb905aa72f94a20461b4abf9c37c699055895f09306460dd",
+    "tests/fixtures/taper_control_chamfer.step.gz": "cc4bf47b7b5fcff97a3e7bdbbc6d7fed773ddb90370d65475c46bb2766048893",
+    "tests/fixtures/taper_control_chamfer_narrow.step.gz": "76140d6cd5d1621fe29dc605e4ba05deb0f7bacfd3fed602718fc9e5ffeceba2",
+    "tests/fixtures/taper_control_countersink.step.gz": "e3846e702c09e7e4a02efb65b958e37deb6a79785ce90aee4c747dade7a4fdf6",
+    "tests/fixtures/taper_control_drill_point.step.gz": "2aa5497f00d3d55965ac6af457f7f0670be4c60f6c78f277c380188b39de1cb7",
+    "tests/fixtures/taper_control_ridge.step.gz": "d797247f3e7831e2a2c5f4c2d978077d4e83ab29b092088cc03ee84beb64254a",
+    "tests/fixtures/taper_control_tiny_step.step.gz": "4ed01771a24d4f6d63b602344cbef57954b1637002935f32d5dcd1f1666b0b3c",
+    "tests/fixtures/taper_control_trapezoid.step.gz": "3e4b9eb48cb3624416623732c334b18ad45499822767f2b41ac9b35e848bfca3",
+    "tests/fixtures/taper_control_web.step.gz": "16a47c3218f4b0ff9d5b3d58189e8519463b0fac5719fe997e5e235ea8d5556c",
+    "tests/fixtures/taper_control_wide_frustum.step.gz": "0c954a11f78d8e7c45daf5ae1cb4accc264370db284e2f2caaa90aea236c11ff",
+    "tests/fixtures/taper_groove_records.README.md": "a5a705e218da93d39d09fd59452c80fc29706d09609cce22f1ed9d5c372be67f",
+    "tests/fixtures/taper_morse.step.gz": "10d00034ac1d62179ee98868e3ea1d3c175eeee9f66851bd2905b24498c573a3",
+    "tests/fixtures/taper_shank.step.gz": "45bd7552d83efe6ee6655dfe9b80fd939e7de04259ee070146c48cf959c9d37d",
     "tests/fixtures/ties/asymmetric_double_mouth.step": "9c9ed59050729db6dd69f1ab1848758b39034a5a7735b91ebc07938465ed0a73",
     "tests/fixtures/ties/cube.step": "e84b1980c8656ace04f6b309f80eb6b18690a31a174b331786ff628b87be4160",
     "tests/fixtures/ties/equal_axis_shafts.step": "d63622f00dd47e5c1f8e0fea1dfe851e20774807bb3d798af3bcea24ce853e2d",
@@ -3271,6 +3286,9 @@
     "tests/fixtures/unowned_recess_solid.step.gz": "45694f3de1715546e9cc734ffe25b17a5f5ab99cedd4e8afd4bb31b94450e1d2",
     "tests/fixtures/unowned_recesses.README.md": "726d7ea362aa978b33ddcb8c3b0b05563e9eb4c3d97d75d0ed49e8fcdb0e8057",
     "tests/fixtures/v_channel.step": "0a0a6c99a17b6084a4247e90c70e16e6757d12fd19d885261d0ac6262e03924a",
+    "tests/fixtures/vgroove_external.step.gz": "b235cc67f965c70c4f7cef8e2fabb24936c06d48dd50a1ffed025bed5625ba2b",
+    "tests/fixtures/vgroove_flat.step.gz": "84a79dd45b2e9e769c586e9d8f55c46fce41cba6f4802034db48bf80a6f9ae0b",
+    "tests/fixtures/vgroove_internal.step.gz": "4607329e7a542b1f060a2706b79a8ea700af39416fb8000d26469368f6b4d5a0",
     "tests/fixtures/whistle_frame_reference.step.gz": "dffb437b2618ddac7f9f5578c16b015624b5c02193c399165117397f90c40909"
   },
   "schema": 1,
@@ -5978,5 +5996,5 @@
     "step_levels.json.gz": "6ff3ceadb33888e9d529a10b9a880babaf979f4f8d869962215d9d3193902f00",
     "unowned_recesses.json.gz": "604ec266d4c85575165c6822140a3ac79a6637c8d72a3a2bb376e74f86455343"
   },
-  "source_commit": "84e4ac348e1bc5274c8d03ea13e27ab35dfa61fa"
+  "source_commit": "e8267b18e00a3eecf94114d1baff91e52b63568b"
 }
