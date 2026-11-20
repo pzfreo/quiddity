@@ -2,7 +2,7 @@
 //! beyond an axial end, and whether that end is open, flat, a drill point, or unknown. Shared by
 //! holes (internal segments) and bosses (external ones).
 
-use super::cylinders::{STACK_GAP_FRAC, Segment};
+use super::cylinders::{STACK_GAP_FRAC, Segment, axis_point_at};
 use super::policy;
 use super::probes::probe_samples;
 use crate::kernel::brep::Part;
@@ -79,6 +79,17 @@ pub fn classify_end(part: &Part, seg: &Segment, s_end: f64, hi_end: bool) -> (En
             target.push((distance, state, faces));
         }
     }
+    // A plane only closes a bore it actually lies under. Slivers of plane left at the rim of
+    // an exit into a curved face (a tunnel, a crossing cavity) are not a floor; with them set
+    // aside, the curved partner that is left reads the end as open. Without such a partner
+    // (a floor with a smaller hole continuing from it) the plane stays the verdict.
+    if !seg.external
+        && weak.iter().any(|(_, state, _)| *state == End::Open)
+        && !strong.is_empty()
+        && floor_misses_axis(part, seg, s_end, &strong)
+    {
+        strong.retain(|(_, state, faces)| !(*state == End::Flat && is_plane_floor(part, faces)));
+    }
     let answers = if strong.is_empty() { weak } else { strong };
     let Some((nearest, state, _)) = answers.first() else {
         return (End::Unknown, vec![]);
@@ -97,6 +108,89 @@ pub fn classify_end(part: &Part, seg: &Segment, s_end: f64, hi_end: bool) -> (En
     terminal.dedup();
     (*state, terminal)
 }
+}
+
+fn is_plane_floor(part: &Part, faces: &[usize]) -> bool {
+    !faces.is_empty()
+        && faces
+            .iter()
+            .all(|&f| matches!(part.faces[f].surface, Surface::Plane { .. }))
+}
+
+/// Whether the plane faces of this end's floor leave the bore open: no plane face lies under
+/// the bore axis at the end (that axis point, carried along the axis onto each plane, is outside
+/// every face) AND together they cover less than half the bore's own section. Slivers left at
+/// the rim of an exit into a curved wall satisfy both. A floor cut by a thin passage across
+/// the axis, or one with a strip left across it, fails one and stays a floor. Faces without a
+/// domain never qualify, so existing readings stay.
+fn floor_misses_axis(
+    part: &Part,
+    seg: &Segment,
+    s_end: f64,
+    strong: &[(f64, End, Vec<usize>)],
+) -> bool {
+    let mut floors: Vec<usize> = strong
+        .iter()
+        .filter(|(_, state, faces)| *state == End::Flat && is_plane_floor(part, faces))
+        .flat_map(|(_, _, faces)| faces.iter().copied())
+        .collect();
+    floors.sort_unstable();
+    floors.dedup();
+    if floors.is_empty() || floors.iter().any(|&f| part.domain(f).is_none()) {
+        return false;
+    }
+    let d = seg.direction;
+    let centre = axis_point_at(seg, s_end);
+    let covers = |point: V3| {
+        floors.iter().any(|&f| {
+            let Surface::Plane { frame } = part.faces[f].surface else {
+                return false;
+            };
+            let slope = geom::dot(frame.z, d);
+            if slope.abs() < 1e-9 {
+                return false;
+            }
+            // Carry the section point along the axis onto the floor plane.
+            let travel = geom::dot(geom::sub(frame.origin, point), frame.z) / slope;
+            let on_plane = geom::add(point, geom::scale(d, travel));
+            part.faces[f]
+                .surface
+                .parameters(on_plane, None)
+                .and_then(|(pu, pv)| Some(part.domain(f)?.contains(pu, pv)))
+                .unwrap_or(false)
+        })
+    };
+    let axis_covered = covers(centre);
+    let Some(u) = geom::unit(geom::cross(
+        d,
+        if d[0].abs() < 0.9 {
+            [1., 0., 0.]
+        } else {
+            [0., 1., 0.]
+        },
+    )) else {
+        return false;
+    };
+    let v = geom::cross(d, u);
+    const RINGS: usize = 16;
+    const SECTORS: usize = 64;
+    let radius = seg.diameter / 2.;
+    let mut covered = 0;
+    for ring in 0..RINGS {
+        let r = radius * ((ring as f64 + 0.5) / RINGS as f64).sqrt();
+        for sector in 0..SECTORS {
+            let angle = std::f64::consts::TAU * (sector as f64 + 0.5) / SECTORS as f64;
+            let (sin, cos) = angle.sin_cos();
+            let point = geom::add(
+                centre,
+                geom::add(geom::scale(u, r * cos), geom::scale(v, r * sin)),
+            );
+            if covers(point) {
+                covered += 1;
+            }
+        }
+    }
+    !axis_covered && (covered as f64) < 0.5 * (RINGS * SECTORS) as f64
 }
 
 /// A support's verdict; `false` means a curved-wall fallback, subordinate to strong evidence.
@@ -142,6 +236,24 @@ fn partner_state(
         }
         Surface::Torus { major, .. } => {
             let curls_in = *major < seg.diameter / 2.;
+            // A groove cut into the wall between two cylinders (itself in halves, perhaps),
+            // wholly outside the bore diameter, is not a round at the end: it says nothing about
+            // whether the bore stops here. Only a torus the old rule would read as closing the
+            // end (major radius under the bore radius) is set aside; one with a larger major
+            // radius already read the end as open. A round at a mouth or a floor also borders a
+            // plane or a cone, so it is not set aside.
+            if !seg.external
+                && curls_in
+                && part.neighbours(partner).iter().all(|&n| {
+                    matches!(
+                        part.faces[n].surface,
+                        Surface::Cylinder { .. } | Surface::Torus { .. }
+                    )
+                })
+                && reach_beyond_bore(part, seg, &[partner]).is_some()
+            {
+                return None;
+            }
             Some((
                 if seg.external != curls_in {
                     End::Flat
@@ -190,6 +302,33 @@ fn partner_state(
         )),
         _ => None,
     }
+}
+
+/// How far beyond the bore radius these faces reach from the bore's axis, when every sampled
+/// point and edge point of them lies at or beyond that radius and some point beyond it: faces
+/// that widen the bore into the wall and leave no material inside the bore diameter (a
+/// groove), as opposed to a round at a floor or a ridge that narrows the bore. `None` for
+/// anything else.
+pub(super) fn reach_beyond_bore(part: &Part, seg: &Segment, faces: &[usize]) -> Option<f64> {
+    let radius = seg.diameter / 2.;
+    let tolerance = policy::length_tol(radius, STACK_GAP_FRAC);
+    let mut reach: f64 = 0.;
+    for &face in faces {
+        let edge_points = part.face_edges(face).into_iter().flat_map(|edge| {
+            let e = &part.edges[edge];
+            std::iter::once(e.midpoint()).chain(e.vertex_points())
+        });
+        let samples = probe_samples(part, face).into_iter().map(|s| s.point);
+        for point in edge_points.chain(samples) {
+            let axial = geom::dot(point, seg.direction);
+            let off = py::dist(&point, &axis_point_at(seg, axial));
+            if off < radius - tolerance {
+                return None;
+            }
+            reach = reach.max(off - radius);
+        }
+    }
+    (reach > tolerance).then_some(reach)
 }
 
 /// A native plane's outward normal as the face reports it, not renormalised

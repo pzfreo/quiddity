@@ -19891,6 +19891,54 @@
       "max_lost": 2,
       "reason": "Flats are planar truncations of round stock; the sides of ribs, fins and tabs standing on a cylinder are not (a flat's chord must have both ends on the cylinder's outside diameter and straddle the point of its plane nearest the axis; For #307).",
       "evidence": "Faces 255/260 are the 5 mm apart sides of a rib on an R14 cylinder, chords from radius 14.0 out to 31.6 (17.6 mm tall), one side of the nearest point: rib sides, as the corpus geometry suggested."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb202.step.gz",
+      "mode": "accepted",
+      "family": "fillets",
+      "max_lost": 9,
+      "reason": "Nine fillet patches were walls of two concentric arc slots, claimed as inside rounds by curved_wall_corner (#127) only because they are tangent to the two R3 corner rounds at the slot ends. A curved support more than four times tighter than the candidate cannot be what the candidate springs from.",
+      "evidence": "cgb202 faces 1966, 1968, 1975, 1982, 1989, 1996, 2003, 2010, 2026, 2032, 2041 were R76 and R85 cylinders (concentric families 9 mm apart), each with only R3 curved supports (ratios 25 and 28). Refused for #307 item 4; they stay unexplained. Radii and neighbour pairing observed from the corner proof; the slot reading is inferred from the concentric radii and has not been checked against a drawing."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb202.step.gz",
+      "mode": "framed",
+      "family": "fillets",
+      "max_lost": 9,
+      "reason": "Nine fillet patches were walls of two concentric arc slots, claimed as inside rounds by curved_wall_corner (#127) only because they are tangent to the two R3 corner rounds at the slot ends. A curved support more than four times tighter than the candidate cannot be what the candidate springs from.",
+      "evidence": "cgb202 faces 1966, 1968, 1975, 1982, 1989, 1996, 2003, 2010, 2026, 2032, 2041 were R76 and R85 cylinders (concentric families 9 mm apart), each with only R3 curved supports (ratios 25 and 28). Refused for #307 item 4; they stay unexplained. Radii and neighbour pairing observed from the corner proof; the slot reading is inferred from the concentric radii and has not been checked against a drawing."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb202.step.gz",
+      "mode": "physical",
+      "family": "fillets",
+      "max_lost": 9,
+      "reason": "Nine fillet patches were walls of two concentric arc slots, claimed as inside rounds by curved_wall_corner (#127) only because they are tangent to the two R3 corner rounds at the slot ends. A curved support more than four times tighter than the candidate cannot be what the candidate springs from.",
+      "evidence": "cgb202 faces 1966, 1968, 1975, 1982, 1989, 1996, 2003, 2010, 2026, 2032, 2041 were R76 and R85 cylinders (concentric families 9 mm apart), each with only R3 curved supports (ratios 25 and 28). Refused for #307 item 4; they stay unexplained. Radii and neighbour pairing observed from the corner proof; the slot reading is inferred from the concentric radii and has not been checked against a drawing."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb242.step.gz",
+      "mode": "accepted",
+      "family": "fillets",
+      "max_lost": 2,
+      "reason": "Faces 173 and 185 are the end walls of a pocket drawn round a hub, about 2.9 mm across between two R3 corner rounds on pocket floor 169, not R55 rounds. curved_wall_corner (#127) claimed them because they are tangent to the R3 rounds; main hid this because holes/0 owned them as a d110 counterbore.",
+      "evidence": "cgb242 faces 173 and 185: concave cylinders R55, each between two R3 cylinders (ratio 18), on pocket floor 169. Refused for #307 item 4."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb242.step.gz",
+      "mode": "framed",
+      "family": "fillets",
+      "max_lost": 2,
+      "reason": "Faces 173 and 185 are the end walls of a pocket drawn round a hub, about 2.9 mm across between two R3 corner rounds on pocket floor 169, not R55 rounds. curved_wall_corner (#127) claimed them because they are tangent to the R3 rounds; main hid this because holes/0 owned them as a d110 counterbore.",
+      "evidence": "cgb242 faces 173 and 185: concave cylinders R55, each between two R3 cylinders (ratio 18), on pocket floor 169. Refused for #307 item 4."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb242.step.gz",
+      "mode": "physical",
+      "family": "fillets",
+      "max_lost": 2,
+      "reason": "Faces 173 and 185 are the end walls of a pocket drawn round a hub, about 2.9 mm across between two R3 corner rounds on pocket floor 169, not R55 rounds. curved_wall_corner (#127) claimed them because they are tangent to the R3 rounds; main hid this because holes/0 owned them as a d110 counterbore.",
+      "evidence": "cgb242 faces 173 and 185: concave cylinders R55, each between two R3 cylinders (ratio 18), on pocket floor 169. Refused for #307 item 4."
     }
   ]
 }

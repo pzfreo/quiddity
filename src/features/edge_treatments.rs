@@ -42,6 +42,7 @@ pub(super) fn discover(ctx: &Context<'_>) -> Vec<Occurrence<()>> {
     // turned-treatment records use principal-axis presentation; apply those same
     // geometric proofs here without that presentation gate (#134).
     let external = turned::external_cylinders(ctx);
+    let internal = fillets::internal_cylinders(ctx);
     let max_leg = chamfers::ChamferOptions::default().max_leg_frac * ctx.bounds().max_extent();
     let max_radius = fillets::FilletOptions::default().max_radius_frac * ctx.bounds().max_extent();
     for (face, f) in ctx.part.faces.iter().enumerate() {
@@ -76,8 +77,9 @@ pub(super) fn discover(ctx: &Context<'_>) -> Vec<Occurrence<()>> {
                 if (hi - lo).abs() > fillets::TURNED_FILLET_MAX_EXTENT {
                     continue;
                 }
-                let Some(context) =
-                    fillets::turned_context(ctx.part, face, &ctx.part.neighbours(face), &external)
+                let neighbours = ctx.part.neighbours(face);
+                let Some(context) = fillets::turned_context(ctx.part, face, &neighbours, &external)
+                    .or_else(|| fillets::slot_end_context(ctx.part, face, &neighbours, &internal))
                 else {
                     continue;
                 };

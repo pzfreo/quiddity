@@ -4,6 +4,8 @@ mod common;
 #[macro_use]
 #[path = "../support/slices.rs"]
 mod slices;
+#[path = "bores_into_tunnel.rs"]
+mod bores_into_tunnel;
 #[path = "captured.rs"]
 mod captured;
 #[path = "chamfer_values.rs"]
@@ -76,6 +78,8 @@ mod section_recesses;
 mod sections;
 #[path = "shared_analysis.rs"]
 mod shared_analysis;
+#[path = "spoked_rim.rs"]
+mod spoked_rim;
 #[path = "step_levels.rs"]
 mod step_levels;
 #[path = "tie_breaks.rs"]
@@ -96,6 +100,8 @@ mod vector_publication;
 
 #[path = "face_grooves.rs"]
 mod face_grooves;
+#[path = "round_grooves.rs"]
+mod round_grooves;
 #[path = "turned_bodies.rs"]
 mod turned_bodies;
 
@@ -122,3 +128,7 @@ mod prismatic_through_cuts;
 
 #[path = "fins.rs"]
 mod fins;
+#[path = "grooved_bores.rs"]
+mod grooved_bores;
+#[path = "taper_groove_records.rs"]
+mod taper_groove_records;

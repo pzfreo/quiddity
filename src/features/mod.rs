@@ -93,6 +93,7 @@ pub mod regions;
 pub mod repeating_profiles;
 pub mod rings;
 pub mod round_bottom_slots;
+pub mod round_grooves;
 pub mod section_passages;
 pub mod section_recess;
 pub mod section_recess_discovery;
@@ -109,6 +110,7 @@ pub mod thin_walls;
 pub mod through_steps;
 pub mod turned;
 pub mod turned_bodies;
+pub mod turned_profile_records;
 pub mod turned_steps;
 pub mod volume_probe;
 pub mod wire_seed;
@@ -185,6 +187,16 @@ pub struct Features {
     /// Intrinsic face recesses on otherwise unclaimed faces (for #123).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub face_grooves: Vec<face_grooves::FaceGroove>,
+    /// Round-bottomed (toroidal) annular grooves in a bore, on a shaft or in a planar face
+    /// (for #307).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub round_grooves: Vec<round_grooves::RoundGroove>,
+    /// Conical bands of a turned body, linked to its `turned_bodies` record (#307).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub tapers: Vec<turned_profile_records::Taper>,
+    /// Annular V sections of a turned body (#307).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub v_grooves: Vec<turned_profile_records::VGroove>,
     /// Thin walls standing on a host surface, omitted when absent.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub fins: Vec<fins::Fin>,
@@ -465,6 +477,15 @@ pub(crate) fn recognise_projected(
     });
     post!("face_grooves", "append", || {
         face_grooves::append(ctx, &mut features)
+    });
+    post!("round_grooves", "append", || {
+        round_grooves::append(ctx, &mut features)
+    });
+    post!("v_grooves", "append", || {
+        turned_profile_records::append_v_grooves(ctx, &mut features)
+    });
+    post!("tapers", "append", || {
+        turned_profile_records::append_tapers(ctx, &mut features)
     });
     post!("fins", "append", || fins::append(ctx, &mut features));
     // Complete recess floors in this same post-reconciliation completion pass, after
@@ -1110,6 +1131,9 @@ fn inventory_in_with(
             }
         },
         face_grooves: Vec::new(),
+        round_grooves: Vec::new(),
+        tapers: Vec::new(),
+        v_grooves: Vec::new(),
         fins: Vec::new(),
         plates: kept_shared(&mut defining, "plates", plate_occurrences),
         turned_bodies: {

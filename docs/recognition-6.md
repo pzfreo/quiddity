@@ -272,6 +272,40 @@ actual angular intervals must cover a complete turn. Counting overlapping arc le
 as a full rim is refused. The cylindrical walls must still each be complete; every floor
 piece is retained in the defining claim and strict ownership proof.
 
+## Round-bottomed grooves (for #307)
+
+The optional `round_grooves` family publishes one `RoundGroove` per annular groove whose
+bottom is a torus: an O-ring gland or a ball groove cut with one torus. It is additive within
+`quiddity-rust/recognition/6` and omitted when empty. No nominal O-ring size, ball size or
+function is inferred. Rectangular-section recesses stay `annular_grooves` or `face_grooves`,
+and radial grooves with a cylindrical floor stay `grooves`.
+
+Fields: `host` (`bore`, `shaft` or `face`), `axis` (the torus axis; for `face` it points from
+the groove bottom out of the face), `center` (the torus centre on the axis), `ring_diameter`
+(the circle through the section centres), `bottom_radius` (the section radius), `width`
+(across the mouth, where the torus meets the host: along the axis for a bore or shaft,
+radially for a face), `depth` (host surface to the deepest point), optional `host_diameter`
+(the bore or shaft diameter beside the groove; absent for `face`), `faces` (the torus faces,
+the whole defining claim) and `host_faces` (the lands, consulted only).
+
+The torus faces sharing one torus surface must close into exactly two complete circular rims
+coaxial with it. Each rim must meet one land through a convex crease: either two coaxial
+cylinders of equal radius that are both bore walls (`bore`) or both shaft surfaces (`shaft`),
+or two coplanar planar faces square to the axis (`face`). A tangent rim (a fillet), a concave
+crease (a bead), unequal lands, a mixed cylinder and plane, a spindle torus, or a torus face
+range that omits the deepest point toward the groove (the host side) is refused. The bore or
+shaft groove must be deeper than the host by more than the length tolerance. The torus and
+lands need strict evidence on one valid solid. An undercut groove (centre circle beyond the
+host surface) reports its mouth width, not its widest chord.
+
+Publication follows `face_grooves`: after the other families, a torus face with another
+accepted claim or a reserved refusal is left alone. The exception is an unproved
+`interior_voids` refusal whose face set equals the groove's torus faces exactly (a subset or a superset suppresses it; the widening
+behind a throat that the groove explains); that refusal is kept. Because only the torus faces
+are claimed, a bore with such a groove reads the same whether its lands form one hole record
+or two. Fingerprint format 3 uses `ring_diameter`, `bottom_radius`, `width`, `depth` and
+`host_diameter` as sizes, `axis` as direction and `center` as placement.
+
 ## Additive duplicate references (#204, #206)
 
 Optional `superseded_by` on `holes` and `bosses` names the accepted annular groove
@@ -501,6 +535,15 @@ consulted, after reconciliation: a plane facing along the boss axis at the recor
 `top`, lying within the side ring's transverse extent. A support face or any wider face the
 ring ends on is not claimed. Feature selection and record fields are unchanged; the boss's
 fingerprint `faces`, area-weighted `position` and `neighbourhood` change within format 3.
+
+## Turned fillets (`turned: true`)
+
+A `Fillet` with `turned: true` is a toroidal round: its `axis` is the torus's axis of
+revolution, not the direction the round runs along, and `radius` is the torus's minor radius.
+It does not mean a lathe feature. Besides rounds on turned bodies and bosses, it covers a convex
+round that follows a concave cylindrical wall of at most a half turn meeting a plane wall along
+its axis: a slot's or arc wall's rounded end, or the top round turning round an inside-corner
+round on a prismatic part (#307 item 7). A whole bore's mouth ring stays a `blends` record.
 
 ## Straight convex fillets (for #120)
 
@@ -891,6 +934,46 @@ and fingerprint retain those exact defining faces; `faces` also appears in the
 record parameters. Draftwright can use `free_length` and `outer_diameter` for its
 simplified view dimensions, and the remaining measurements for its spring data
 table, retaining unknown active coils and omitting unstated rate.
+
+## Bores running out into a curved wall (#307)
+
+A bore that ends by opening into a curved face, such as a tunnel, can leave slivers of
+plane at the rim where its end disc cuts the wall's edge. Such a sliver is not a floor.
+When a curved wall also borders an internal bore's end, planar supports are set aside only
+if BOTH no plane face lies under the bore axis at that end (the axis point there is air past
+the end) AND the plane faces together cover less than half of the bore's section (sampled
+with 1024 equal-area points). Then the curved wall reads the end as open: the bore is
+`through` with no floor face claimed. Either condition alone keeps the floor, so a thin
+passage crossing the axis under a floor, or a strip of floor left across the axis, does not
+turn a blind hole into a through hole. A floor with a smaller hole continuing from it has no
+curved wall at its rim and stays flat. Measured on the synthetic models (axis covered?, floor
+coverage): tunnel crescent 15%, axis open: through; R10 tunnel removing the floor under the
+axis 30%, open: through; R6 central slot 45%, open: through; R3 cross hole under the floor 72%,
+open: flat; two-passage strips 26% and 38%, axis covered: flat.
+A bore whose exit edge is too long to
+be read as an end at all stays `unknown`.
+
+## Bores with an internal groove (#307)
+
+Two coaxial internal cylinders of the same diameter are one bore when only an internal
+groove separates them: the faces reachable from the first land's end without crossing a land
+are at most four, include the second land's end partner, and lie wholly at or beyond the
+bore radius from the axis with some point beyond it. A slot or thin wall open to the outside
+connects on to the outer wall and is not such a set. The gap and the radial reach must each
+be at most a quarter of the bore diameter (that limit decides torus and cone grooves; a
+rectangular groove already joins through its own coaxial cylinder at any width). A web or
+ridge (material inside the bore diameter) or a different diameter keeps the lands separate
+holes.
+
+A toroidal face between two cylinders, wholly beyond the bore radius, whose major radius is
+under the bore radius (which used to read the end as a closing round) is set aside: it says
+nothing about the end. It is excluded where it borders a plane or a cone, as a round at a mouth
+or floor does. An end bordered only by such a groove is `unknown` rather than `flat`. A torus
+with a major radius at or over the bore radius already read the end as open and is unchanged.
+The groove faces remain unexplained until they have a record of their own.
+
+Known miss: a wide torus or cone gallery (over a quarter of the diameter) leaves the two
+lands as separate holes.
 
 ## Partially obstructed through-hole exits
 
@@ -1405,6 +1488,55 @@ No standalone feature is added, and existing hole, pattern and chamfer IDs and
 fingerprints stay unchanged. Consumers can select the nested cone faces for a
 chamfer note while preserving the cylinder as the saved feature reference.
 
+## Tapers and V-grooves (#307 item 6)
+
+The optional `tapers` and `v_grooves` families read the meridian profile that `turned_bodies`
+publishes; the profile itself is unchanged and both families are appended after every other
+family, so no existing record changes. Each record names the `turned_bodies` record it comes
+from by index (`turned_body`), lists its defining cone faces (`faces`) and co-owns them with the
+body. A cone face that any other record defines (a chamfer, countersink, a hole's drill point, a
+thread) is left to that record, and a V-groove claims only its flanks and tiny bottom, never the
+land faces on either side, which stay with their holes or bosses.
+
+A cone counts only when it runs a whole turn (two closed circular rims, any other edge a seam),
+is not flat or cylindrical, and its small end is off the axis (a drill point ends in the axis).
+
+**Taper** (`Taper`: `axis`, `axis_point`, `side`, `large_diameter`, `small_diameter`, `length`,
+`included_angle`, `turned_body`, `faces`). One profile cone whose two ends meet exactly one
+coaxial cylinder of the same side or one plane each. `length` is axial and `included_angle` the full
+cone angle in degrees. `axis` runs from the large end to the small end and `axis_point` is the large
+circle's centre. The included angle is strictly below 90 degrees: a cone of 90 and up is a profile transition, a web, a chamfer or a seat,
+not a taper (a 127 degree conical web between two flange planes, or a 100 degree frustum, publish no taper; the
+78.2 degree d24 to d50 shank over 16 mm is one). A cone between two end planes is a taper only under this bound,
+which is what makes it safe. Whatever a cone joins (cylinder, plane or both), it is an edge break and no
+taper when its legs are equal (45 degrees, as `chamfers` reads it) or its larger leg is under a tenth of
+its larger diameter (a 0.5 mm 45 degree step between a d20 and a d21 bore is not a taper). An internal
+cone against a plane must also be as slender as a socket taper (included angle at most 30 degrees),
+which leaves countersinks and truncated drill points alone. A taper socket or chamber that `holes`
+and `countersinks` already define as a hole's cone stays theirs; a through taper-pin hole, which no
+hole record claims, is an internal taper. A cone that leads down to a cylindrical
+floor that rises again (the flank of a groove) is refused, which also leaves a taper that ends in a
+neck and then a shoulder unpublished. Cones next to cones, tori or spheres (rounded or compound
+transitions), split cones and cones on an axis the body does not share are not published.
+
+**V-groove** (`VGroove`: `axis`, `axis_point`, `side`, `width`, `depth`, `included_angle`,
+`mouth_diameter`, `bottom_diameter`, `turned_body`, `faces`). Two whole cones of one side that
+descend to a common bottom, either as a sharp circle or through one cylinder or torus whose axial
+span is at most a tenth of the groove width, with each flank's outer rim on a land cylinder of
+the same side and the two rims of equal radius (within 0.002 mm). `width` is the axial distance
+between the rims, `depth` the radial distance from rim to the deepest circle (a round's deepest
+point is its tube circle's), and `included_angle` the angle between the two flanks, between 20 and
+140 degrees. `axis` is the turning axis with a positive dominant component (made canonical again in framed
+output, since a groove is symmetric; a taper's `axis` stays large end to small end) and `axis_point` the
+mouth's centre. Flanks with a wider flat (a trapezoid), a peak (a ridge), unequal rims, a
+plane or cone at a rim, or round-bottomed grooves of any size are not V-grooves; a groove
+that is only the sum of two cones that other records define is left to them. A groove whose flat or round
+bottom is already read as `grooves` with `chamfers` (a flat of a few hundredths, for example) keeps
+those records, and gets no V-groove record: its faces are claimed. Round-bottomed
+grooves are a separate matter (item 5).
+
+Fingerprint format 3 takes the diameters, length, width, depth and angles as sizes, `side` as a
+trait and `axis`/`axis_point` as placement; indices are ignored.
 ### Fins and ribs (#307 item 10)
 
 `fins` is an optional family, omitted when empty, with record type `Fin`: a thin plate-like

@@ -116,6 +116,17 @@ fn anchor(py: Python<'_>, step: &Bound<'_, PyAny>, face: usize) -> PyResult<Stri
     detached(py, || file_api::anchor(&input.load()?, face))?.map_err(PyValueError::new_err)
 }
 
+/// Anchors of several faces from one parse: a JSON array of ``anchor`` results, in the order
+/// asked (all faces in index order when ``faces`` is omitted). A face with no provable point
+/// has ``point`` and ``uv`` null and the reason in ``refused``.
+#[pyfunction]
+#[pyo3(signature = (step, faces=None))]
+fn anchors(py: Python<'_>, step: &Bound<'_, PyAny>, faces: Option<Vec<usize>>) -> PyResult<String> {
+    let input = Input::extract(step)?;
+    detached(py, || file_api::anchors(&input.load()?, faces.as_deref()))?
+        .map_err(PyValueError::new_err)
+}
+
 #[pyfunction]
 fn fingerprints(py: Python<'_>, step: &Bound<'_, PyAny>) -> PyResult<String> {
     let input = Input::extract(step)?;
@@ -254,6 +265,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(recognise_with_evidence, m)?)?;
     m.add_function(wrap_pyfunction!(evidence, m)?)?;
     m.add_function(wrap_pyfunction!(anchor, m)?)?;
+    m.add_function(wrap_pyfunction!(anchors, m)?)?;
     m.add_function(wrap_pyfunction!(fingerprints, m)?)?;
     m.add_function(wrap_pyfunction!(correspond, m)?)?;
     m.add_function(wrap_pyfunction!(parts, m)?)?;

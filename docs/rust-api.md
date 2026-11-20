@@ -50,6 +50,7 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `quiddity::features::evidence`: `EvidenceError`, `EvidenceStatus`, `Occurrence`, `RunMode`.
 - `quiddity::features::face_grooves`: `FaceGroove`.
 - `quiddity::features::fillets`: `Fillet`, `FilletOptions`.
+- `quiddity::features::round_grooves`: `RoundGroove`, `RoundGrooveHost`.
 - `quiddity::features::flats`: `Flat`.
 - `quiddity::features::freeform_surfaces`: `BSplineSurfaceSupport`, `FreeformSurface`, `SurfaceContinuityLink`.
 - `quiddity::features::grooves`: `Groove`.
@@ -93,11 +94,12 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `quiddity::features::through_steps`: `ThroughStep`.
 - `quiddity::features::turned`: `TurnedProfileKey`.
 - `quiddity::features::turned_bodies`: `Bore`, `ProfileSegment`, `TurnedBody`.
+- `quiddity::features::turned_profile_records`: `Taper`, `VGroove`.
 - `quiddity::features::turned_steps`: `TurnedStep`.
 - `quiddity::features::v_channels`: `VChannel`.
 - `quiddity::frames`: `FrameRefusal`, `FramedError`, `FramedRecognition`, `PartFrame`.
 - `quiddity::published_records`: `PublishedFeatures`.
-- `quiddity::recognition`: `BodyReason`, `FaceAccounting`, `FaceRefusal`, `RecognitionDocument`, `Record`.
+- `quiddity::recognition`: `Bodies`, `BodyReason`, `FaceAccounting`, `FaceRefusal`, `RecognitionDocument`, `Record`.
 - `quiddity::serve`: `Failure`, `RecognitionOutput`.
 
 Types re-exported at the crate root retain those names too: for example,
