@@ -66,6 +66,10 @@ in [docs/alpha1.md](docs/alpha1.md).
   the stationary-node test scaled motions by the whole knot vector rather than the active
   domain, which skipped a real edge's nodes when a writer padded the end knots. For #302.
 
+- A bore that runs out into a curved wall (the tunnel in a crank block) is no longer published
+  as `flat`-bottomed when its end disc leaves only thin crescents of plane at the rim: where
+  a curved wall also borders the end, planar supports count as a floor unless no plane face lies
+  under the bore axis and they cover under half the bore's section, in which case the bore is `through` and no floor face is claimed. For #307 (item 2).
 - A planar chamfer is no longer read from the flats of a polygonal section. A bevel between two
   principal-plane walls was published whenever it stood between them, so the flats of a hexagonal
   or irregular polygonal prism whose neighbours happened to lie on principal planes became

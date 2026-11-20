@@ -892,6 +892,24 @@ record parameters. Draftwright can use `free_length` and `outer_diameter` for it
 simplified view dimensions, and the remaining measurements for its spring data
 table, retaining unknown active coils and omitting unstated rate.
 
+## Bores running out into a curved wall (#307)
+
+A bore that ends by opening into a curved face, such as a tunnel, can leave slivers of
+plane at the rim where its end disc cuts the wall's edge. Such a sliver is not a floor.
+When a curved wall also borders an internal bore's end, planar supports are set aside only
+if BOTH no plane face lies under the bore axis at that end (the axis point there is air past
+the end) AND the plane faces together cover less than half of the bore's section (sampled
+with 1024 equal-area points). Then the curved wall reads the end as open: the bore is
+`through` with no floor face claimed. Either condition alone keeps the floor, so a thin
+passage crossing the axis under a floor, or a strip of floor left across the axis, does not
+turn a blind hole into a through hole. A floor with a smaller hole continuing from it has no
+curved wall at its rim and stays flat. Measured on the synthetic models (axis covered?, floor
+coverage): tunnel crescent 15%, axis open: through; R10 tunnel removing the floor under the
+axis 30%, open: through; R6 central slot 45%, open: through; R3 cross hole under the floor 72%,
+open: flat; two-passage strips 26% and 38%, axis covered: flat.
+A bore whose exit edge is too long to
+be read as an end at all stays `unknown`.
+
 ## Partially obstructed through-hole exits
 
 A bore spanning its local wall, with exterior planar rim support at both axial ends,

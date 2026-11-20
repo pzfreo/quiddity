@@ -273,6 +273,11 @@
     "tests/fixtures/ap242/write/thumbwheel_thread_knurl_intent.step.gz": "8b490895558a0786853b725d243ddf8f14a66ea6b2c1d88f3d4ebab5ac8cdf37",
     "tests/fixtures/blend_r5.step": "91decec860d19ea407af10ac1a10935e55e287200cb3611d17fd8705bac2f359",
     "tests/fixtures/blend_r5_enlarged.step": "84a6c6f0b9a3db468f14af4cdb197e46f2223b2b407c1f84cd893195fa28def5",
+    "tests/fixtures/blind_hole_floor_removed_under_axis.step.gz": "2be3cd7561d1020fff2bf12ef2d91c844a472b349260745cc1034964f3c90cf0",
+    "tests/fixtures/blind_hole_floor_strip_between_passages.step.gz": "1cddebd9a9cbebf634ba5195b7fa7b18fe83ecb2705478ef90b4d9305e525019",
+    "tests/fixtures/blind_hole_floor_under_small_cross_hole.step.gz": "63b2522a78ae2b8f3848b875e2dc01d8120895da4010ace22d08095deee2f19c",
+    "tests/fixtures/bores_into_tunnel.README.md": "a311bf5eb454ef24e2b2f5517a4854327143500af22b99f040a25fffa56a3740",
+    "tests/fixtures/bores_into_tunnel.step.gz": "b04d5fbe62b9b9e5bf9c38fafe0f8c68820162b6c94aeddc63ede2bf825ef62f",
     "tests/fixtures/boss_end_round.step.gz": "9724c96008666c66ebb5e20c1fc77758765c09fadbf7ad9154961ccc82ff691e",
     "tests/fixtures/boss_end_small_round.step.gz": "ce1f7ef75d8dde3afbb614b1a9daa0ebc157f551688ff410bb233f90ff5e9081",
     "tests/fixtures/boss_end_sphere.step.gz": "bd1e136cd062485a37f0de16f874bdf467c82c73e784fedec24e51b93da3e5b8",
@@ -5973,5 +5978,5 @@
     "step_levels.json.gz": "6ff3ceadb33888e9d529a10b9a880babaf979f4f8d869962215d9d3193902f00",
     "unowned_recesses.json.gz": "604ec266d4c85575165c6822140a3ac79a6637c8d72a3a2bb376e74f86455343"
   },
-  "source_commit": "f14196e97c44239043772e6170626baa6fc696d9"
+  "source_commit": "84e4ac348e1bc5274c8d03ea13e27ab35dfa61fa"
 }
