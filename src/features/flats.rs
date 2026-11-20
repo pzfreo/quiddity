@@ -50,22 +50,32 @@ pub fn discover_verified(ctx: &Context<'_>) -> Result<Vec<Occurrence<Flat>>, Evi
 }
 }
 
-/// Both ends of the flat's chord reach the stock's outside diameter: a flat, not a recess wall
-/// ending on a slot floor (`_both_chord_ends_reach_od`).
-fn chord_ends_reach_od(vertices: &[V3], ax: V3, d: V3, n: V3, r: f64) -> bool {
+/// The flat truncates the stock: its chord has both ends reaching the stock's outside diameter
+/// and straddles the point where the plane is nearest the axis. Not a recess wall ending on a
+/// slot floor (an end inside the stock), and not a rib, fin or tab side (a chord wholly to one
+/// side of the nearest point, where the edge to the stock is concave, or a vertex beyond the
+/// stock). The flat may run on past the cylinder's own axial span (into a chamfer, taper,
+/// land or hex collar), so only vertices strictly inside that span must lie within the stock.
+fn chord_truncates_stock(vertices: &[V3], ax: V3, d: V3, n: V3, r: f64, span: (f64, f64)) -> bool {
     let c = geom::cross(n, d);
     let cm = (c[0] * c[0] + c[1] * c[1] + c[2] * c[2]).powf(0.5);
     if cm < 1e-9 {
         return false;
     }
     let c = c.map(|x| x / cm);
+    let reach = policy::length_tol(r, OD_REACH_FRAC);
     let (mut lo, mut hi) = (None::<(f64, f64)>, None::<(f64, f64)>);
+    let mut within_stock = true;
     for &v in vertices {
         let rel = geom::sub(v, ax);
         let t = rel[0] * c[0] + rel[1] * c[1] + rel[2] * c[2];
         let along = rel[0] * d[0] + rel[1] * d[1] + rel[2] * d[2];
         let p = [0, 1, 2].map(|i| rel[i] - along * d[i]);
         let rad = (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).powf(0.5);
+        let s_axis = v[0] * d[0] + v[1] * d[1] + v[2] * d[2];
+        if span.0 + COORD_FLOOR < s_axis && s_axis < span.1 - COORD_FLOOR && rad > r + reach {
+            within_stock = false;
+        }
         if lo.is_none_or(|(lt, _)| t < lt) {
             lo = Some((t, rad));
         }
@@ -73,8 +83,11 @@ fn chord_ends_reach_od(vertices: &[V3], ax: V3, d: V3, n: V3, r: f64) -> bool {
             hi = Some((t, rad));
         }
     }
-    let reach = policy::length_tol(r, OD_REACH_FRAC);
-    matches!((lo, hi), (Some((_, a)), Some((_, b))) if a >= r - reach && b >= r - reach)
+    matches!(
+        (lo, hi),
+        (Some((lt, a)), Some((ht, b)))
+            if within_stock && lt < 0.0 && ht > 0.0 && a >= r - reach && b >= r - reach
+    )
 }
 
 /// The face's distinct vertex points, in edge order.
@@ -91,6 +104,56 @@ fn vertices(part: &Part, face: usize) -> Vec<V3> {
         }
     }
     out
+}
+
+/// The cylinder reaches past the plane: at the direction of the plane's outward normal, some
+/// face of the same cylinder surface exists over part of the flat's axial range. On a real
+/// D-flat that part of the cylinder is cut away; a boss poking through a block side keeps it.
+/// The cylinder may be split into several faces, with a seam or boundary exactly at the normal's
+/// angle, so every face on the surface is probed, at the angle and just either side of it.
+fn cylinder_reaches_past(part: &Part, cyl: &CylinderEvidence, normal: V3, vertices: &[V3]) -> bool {
+    const PROBE_ANGLE: f64 = 0.005;
+    let Surface::Cylinder { frame: own, radius } = part.faces[cyl.face].surface else {
+        return false;
+    };
+    let tol = policy::length_tol(radius, 1e-6);
+    for (face, f) in part.faces.iter().enumerate() {
+        let Surface::Cylinder { frame, radius: r } = f.surface else {
+            continue;
+        };
+        let off = geom::sub(frame.origin, own.origin);
+        let along = geom::dot(off, own.z);
+        let perp = [0, 1, 2].map(|i| off[i] - along * own.z[i]);
+        let same = (r - radius).abs() <= tol
+            && geom::dot(frame.z, own.z).abs() > 1.0 - 1e-9
+            && geom::dot(perp, perp).sqrt() <= tol;
+        if !same {
+            continue;
+        }
+        let (Some((_, _, v0, v1)), Some(domain)) = (part.uv_bounds(face), part.domain(face)) else {
+            continue;
+        };
+        let l = frame.dir_to_local(normal);
+        let u = l[1].atan2(l[0]);
+        let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+        for &p in vertices {
+            let z = frame.to_local(p)[2];
+            lo = lo.min(z);
+            hi = hi.max(z);
+        }
+        let (lo, hi) = (lo.max(v0.min(v1)), hi.min(v0.max(v1)));
+        if lo < hi
+            && [-PROBE_ANGLE, 0.0, PROBE_ANGLE].iter().any(|du| {
+                let u = (u + du).rem_euclid(std::f64::consts::TAU);
+                [0.2, 0.4, 0.6, 0.8]
+                    .iter()
+                    .any(|f| domain.contains(u, lo + f * (hi - lo)))
+            })
+        {
+            return true;
+        }
+    }
+    false
 }
 
 struct Candidate<'c> {
@@ -138,8 +201,11 @@ pub fn discover(ctx: &Context<'_>) -> Vec<Occurrence<Flat>> {
             if !(CHORD_MIN < s && s < r - CHORD_MARGIN) || too_shallow {
                 continue; // facing the axis (a slot wall), outside the stock, or a sliver
             }
-            if !chord_ends_reach_od(&vertices(part, face), ax, d, normal, r) {
-                continue; // one end on a slot floor: a recess wall
+            if !chord_truncates_stock(&vertices(part, face), ax, d, normal, r, (c.s_lo, c.s_hi)) {
+                continue; // a recess wall, or a rib, fin or tab side
+            }
+            if cylinder_reaches_past(part, c, normal, &vertices(part, face)) {
+                continue; // a boss pokes through a block side: its cylinder survives the plane
             }
             candidates.push(Candidate {
                 cyl: c,

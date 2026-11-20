@@ -469,14 +469,19 @@ fn majority_frame_recovers_specify_fillets_and_parallel_support_chamfer() {
             "cadgenbench_inputs/cgb202.step.gz",
             "fillets",
             // For #127, 401 proved inside rounds join #120's 307 convex fillets.
-            708,
+            // For #307 (item 4), the walls of two concentric arc slots (R76 and R85, 9 mm
+            // apart) between R3 corner rounds were claimed as inside rounds through
+            // `curved_wall_corner`; they are slot walls, 25 to 28 times the radius of the
+            // rounds they touch, so nine patches leave the count.
+            699,
             vec![
                 1248, 1250, 1453, 1464, 1473, 1475, 1477, 1623, 1631, 2056, 2057,
             ],
         ),
         // For #127, 34 proved inside rounds join #120's forty convex fillets.
         // For #297, 29 R0.5 rounds (below the former 0.6 mm floor) join those 74.
-        ("cadgenbench_inputs/cgb207.step", "fillets", 103, vec![176]),
+        // For #307 (item 7), five more patches (four rounds at slot and arc-wall ends) join those 103.
+        ("cadgenbench_inputs/cgb207.step", "fillets", 108, vec![176]),
         ("mfcadpp/10252.step", "oriented_chamfers", 1, vec![2]),
     ] {
         let part = quiddity::read_step_file(&dir.join(file)).unwrap();
