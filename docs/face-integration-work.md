@@ -24,6 +24,31 @@ location cannot affect the next step. All quadrature nodes and the walking state
 still evaluated. The discarded corner search has local state, cannot change the walk,
 and does not propagate its projection failures. The initial boundary cuts are untouched.
 
+## Faces with one very large B-spline net
+
+A face whose B-spline net has many knot spans in u and few in v (a threaded part's
+helical flank, a sweep along a spline: 300 to 800 spans against one to four) integrates
+along u for its inner integral at every boundary node, so the work grew with the spans
+times the nodes (#302). Two changes remove that, neither touching the integrands,
+nodes or the boundary quadrature:
+
+- An open, unpinched face with at least 32 u spans and eight times v's takes the other
+  form of Green's theorem, the inner integral along v from the loop's first point, whose
+  few spans each cost one 16-point panel. Each panel's rule is compared with the same
+  rule on its halves, to 1e-9 of its terms' magnitude in each component (and 1e-12 of the
+  largest component's); a face that fails the comparison anywhere, or that this form
+  refuses or finds invalid, is integrated again by the stock form, so only a completed,
+  checked result is used. A loop's direction still reads the swept parameter area.
+- On a face whose inner integral's parameter has many spans (the same threshold: a face
+  closed in v, whose loops wind round it, must keep integrating along u), a node that
+  moves along its surface's own parameter line, within 1e-12 of its motion across it,
+  weighs nothing and is not evaluated. Locating the polynomial piece of a node for its
+  velocity now searches the knots instead of rebuilding their distinct list (the same
+  piece), which had cost one pass over the knots per node.
+
+Results agree with the stock form to round-off (about 1e-10 mm in a recognised location).
+`tests/face_moments.rs` and the face-area checks against OpenCascade are unchanged.
+
 ## A certificate for an inevitable refusal
 
 This is a proof about the existing finite algorithm, not a proof that the geometric

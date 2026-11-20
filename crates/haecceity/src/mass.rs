@@ -595,6 +595,22 @@ fn point_and_partials(surface: &Surface, u: f64, v: f64) -> (V3, V3, V3) {
     }
 }
 
+/// The distinct knots (`knots`: the domain's, ascending) either side of `x`: the greatest
+/// not above it and the least above it, or the first two (the last two) distinct knots where
+/// `x` is below (not below) them all. The pair [`breaks`] would give, found by search.
+fn piece_of(knots: &[f64], x: f64) -> (f64, f64) {
+    let above = |t: f64| knots.partition_point(|&k| k <= t);
+    let j = above(x);
+    if j == 0 {
+        (knots[0], knots[above(knots[0])])
+    } else if j == knots.len() {
+        let hi = knots[j - 1];
+        (knots[knots.partition_point(|&k| k < hi) - 1], hi)
+    } else {
+        (knots[j - 1], knots[j])
+    }
+}
+
 /// The parameter-space velocity (du/dt, dv/dt) of the foot point (u, v) on the surface of a
 /// curve point `p` moving at `c`. With r = p − S(u, v) normal to the surface, differentiating
 /// r·Su = r·Sv = 0 gives [Su·Su − r·Suu, Su·Sv − r·Suv; Su·Sv − r·Suv, Sv·Sv − r·Svv]·(du, dv)
@@ -622,9 +638,7 @@ fn uv_velocity(surface: &Surface, spans: (f64, f64), u: f64, v: f64, p: V3, c: V
             // difference straddling it would smear that jump over the stencil's width, where
             // no panel is split.
             let span = |x: f64, knots: &[f64], degree: usize| {
-                let b = breaks(knots, degree);
-                let i = b.partition_point(|&k| k <= x).clamp(1, b.len() - 1);
-                (b[i - 1], b[i])
+                piece_of(&knots[degree..knots.len() - degree], x)
             };
             let (pu, pv) = (
                 span(u, &surface.knots_u, surface.degree_u),
@@ -1007,31 +1021,37 @@ impl Part {
         // A node moving along its inner integral's own parameter line (an edge that is a side
         // of the surface: dv = 0 to round-off for the stock form) weighs nothing; where that
         // integral crosses many knot spans, its terms are not evaluated.
-        let negligible = |weight: f64, other: f64, cuts: &[f64]| {
-            cuts.len() > LARGE_NET_SPANS && weight.abs() <= NEGLIGIBLE_MOTION * other.abs()
+        let inner_spans = |along_v: bool| match surface {
+            Surface::Freeform { surface: s, .. } if along_v => breaks(&s.knots_v, s.degree_v).len(),
+            Surface::Freeform { surface: s, .. } => breaks(&s.knots_u, s.degree_u).len(),
+            _ => 0,
+        };
+        let (cheap_spans, stock_spans) = (inner_spans(true), inner_spans(false));
+        let negligible = |weight: f64, other: f64, spans: usize| {
+            spans > LARGE_NET_SPANS && weight.abs() <= NEGLIGIBLE_MOTION * other.abs()
         };
         let term = |u: f64, v: f64, du: f64, dv: f64| {
             let (weight, y) = if let Some(unresolved) = cheaper {
-                let cuts = surface_cuts(surface, spans.1, true, reference, v)?;
-                if negligible(du, dv, &cuts) {
+                if negligible(du, dv, cheap_spans) {
                     return Some([0.0; N]);
                 }
+                let cuts = surface_cuts(surface, spans.1, true, reference, v)?;
                 let (y, resolved) = integrate_checked(&cuts, |s| f(u, s));
                 if !resolved {
                     unresolved.set(true);
                 }
                 (-du, y)
             } else if along_v {
-                let cuts = surface_cuts(surface, spans.1, true, reference, v)?;
-                if negligible(du, dv, &cuts) {
+                if negligible(du, dv, cheap_spans) {
                     return Some([0.0; N]);
                 }
+                let cuts = surface_cuts(surface, spans.1, true, reference, v)?;
                 (-du, integrate(&cuts, |s| f(u, s)))
             } else {
-                let cuts = surface_cuts(surface, spans.0, false, reference, u)?;
-                if negligible(dv, du, &cuts) {
+                if negligible(dv, du, stock_spans) {
                     return Some([0.0; N]);
                 }
+                let cuts = surface_cuts(surface, spans.0, false, reference, u)?;
                 (dv, integrate(&cuts, |s| f(s, v)))
             };
             Some(y.map(|y| weight * y))
@@ -2319,5 +2339,30 @@ mod tests {
         assert_eq!(sum, integrate(&[0.0, 1.0], smooth));
         let dip = |s: f64| [(1e-6 + (s - 0.3) * (s - 0.3)).sqrt()];
         assert!(!integrate_checked(&[0.0, 1.0], dip).1);
+    }
+
+    /// The polynomial piece a parameter lies in, by search, is the pair `breaks` gave.
+    #[test]
+    fn the_piece_of_a_parameter_matches_the_distinct_knots_around_it() {
+        for degree in [1, 2, 3, 7] {
+            for inner in [
+                vec![0.25],
+                vec![0.25, 0.5, 0.5, 0.75],
+                (1..40).map(|i| i as f64 / 40.0).collect(),
+            ] {
+                let mut knots = vec![0.0; degree + 1];
+                knots.extend(&inner);
+                knots.extend(vec![1.0; degree + 1]);
+                let b = breaks(&knots, degree);
+                let window = &knots[degree..knots.len() - degree];
+                let mut xs = vec![-1.0, 0.0, 1.0, 2.0, f64::NAN];
+                xs.extend(b.iter().flat_map(|&k| [k, k - 1e-9, k + 1e-9]));
+                xs.extend((0..=100).map(|i| i as f64 / 100.0));
+                for x in xs {
+                    let i = b.partition_point(|&k| k <= x).clamp(1, b.len() - 1);
+                    assert_eq!(piece_of(window, x), (b[i - 1], b[i]), "{degree} {x}");
+                }
+            }
+        }
     }
 }
