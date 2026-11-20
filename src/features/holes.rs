@@ -28,7 +28,7 @@ use super::placed::{Grid, Placed};
 use super::policy;
 use super::stacks::{End, classify_end, end_partners};
 use crate::kernel::brep::{Arc, Part};
-use crate::kernel::geom::{self, COORD_FLOOR, Surface, V3};
+use crate::kernel::geom::{self, COORD_FLOOR, Curve, Surface, V3};
 use crate::kernel::py;
 
 /// Two quantised diameters are one diameter within this proportion.
@@ -944,28 +944,60 @@ pub(super) fn hole_stacks(ctx: &Context<'_>) -> Vec<Vec<Segment>> {
     internal.retain(|c| !enclosed.contains(&c.face));
     let runs = merge_runs(&segments(&internal), line_key)
         .into_iter()
-        .map(without_enclosing_walls)
+        .map(|run| without_enclosing_walls(part, run))
         .collect();
     merge_stacks(part, runs)
 }
 
 /// Steps of one hole follow each other along the axis. A wider coaxial wall whose span runs
-/// beside a narrower segment's (more than the stack gap) is not a step of that bore: it
-/// bounds a cavity round material the bore passes through, such as the inner wall of a
-/// spoked rim round a hub (#307 item 4). Such walls are left out of the stack.
-fn without_enclosing_walls(stack: Vec<Segment>) -> Vec<Segment> {
+/// beside a narrower segment's (more than the stack gap) is a step only if a closed annular
+/// floor leads inwards from one of its ends (a collared recess). Otherwise it bounds a
+/// cavity round material the bore passes through, such as the inner wall of a spoked rim
+/// round a hub, whose end faces are broken by the spokes (#307 item 4), and is left out.
+fn without_enclosing_walls(part: &Part, stack: Vec<Segment>) -> Vec<Segment> {
     let enclosing = |wall: &Segment| {
         stack.iter().any(|bore| {
             bore.diameter < wall.diameter
                 && !same_diameter(bore.diameter, wall.diameter)
                 && bore.s_hi.min(wall.s_hi) - bore.s_lo.max(wall.s_lo)
                     > policy::length_tol(bore.diameter, STACK_GAP_FRAC)
+                && ![wall.s_lo, wall.s_hi]
+                    .iter()
+                    .any(|&end| closed_floor_inwards(part, wall, end))
         })
     };
     if !stack.iter().any(enclosing) {
         return stack;
     }
     stack.iter().filter(|s| !enclosing(s)).cloned().collect()
+}
+
+/// A plane exactly at *wall*'s end carries a whole coaxial circle narrower than the wall.
+fn closed_floor_inwards(part: &Part, wall: &Segment, end: f64) -> bool {
+    let radius = wall.diameter / 2.0;
+    let tolerance = policy::length_tol(radius, 5e-6);
+    end_partners(part, wall, end)
+        .into_iter()
+        .filter(|&f| match part.faces[f].surface {
+            Surface::Plane { frame } => {
+                (geom::dot(frame.origin, wall.direction) - end).abs() < tolerance
+            }
+            _ => false,
+        })
+        .flat_map(|f| part.face_edges(f))
+        .any(|e| {
+            let edge = &part.edges[e];
+            let Curve::Circle { frame, radius: r } = edge.curve else {
+                return false;
+            };
+            edge.is_closed()
+                && r < radius - tolerance
+                && geom::dot(frame.z, wall.direction).abs() > 1. - 1e-9
+                && geom::norm(geom::cross(
+                    geom::sub(frame.origin, wall.axis_point),
+                    wall.direction,
+                )) < tolerance
+        })
 }
 
 internal_entry! {
