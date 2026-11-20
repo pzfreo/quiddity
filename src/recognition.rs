@@ -132,6 +132,10 @@ pub struct Budget {
     pub refused_faces: Vec<usize>,
     /// How many faces were refused.
     pub count: usize,
+    /// Whether the part frame was refused because it needs a refused face (its origin is the
+    /// volume centroid over every face): the records are then in file coordinates.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub frame_refused: bool,
 }
 
 impl Budget {
@@ -141,6 +145,7 @@ impl Budget {
             limit: budget.limit,
             refused_faces: budget.refused.clone(),
             count: budget.refused.len(),
+            frame_refused: false,
         })
     }
 }
@@ -619,7 +624,15 @@ pub fn document(recognition: &Recognition, face_count: usize) -> RecognitionDocu
         run_mode: working.run_mode,
         input_repairs: recognition.input_repairs.clone(),
         bodies: recognition.bodies.clone(),
-        budget: recognition.budget.clone(),
+        budget: recognition.budget.clone().map(|mut budget| {
+            budget.frame_refused = matches!(
+                recognition.frame,
+                RecordFrame::Refused {
+                    reason: crate::frames::FrameRefusal::IntegrationBudget
+                }
+            );
+            budget
+        }),
     }
 }
 

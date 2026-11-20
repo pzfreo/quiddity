@@ -107,19 +107,23 @@ fn gauss_nodes() -> &'static [(f64, f64)] {
 }
 
 /// ∫ f over the interval running through `cuts` in order, one Gauss panel between each
-/// consecutive pair, for every component of f at once.
-fn integrate<const N: usize>(cuts: &[f64], f: impl Fn(f64) -> [f64; N]) -> [f64; N] {
+/// consecutive pair, for every component of f at once; `None` as soon as f is (the face's
+/// integration budget is spent, [`spend_work`]).
+fn integrate<const N: usize>(
+    cuts: &[f64],
+    f: impl Fn(f64) -> Option<[f64; N]>,
+) -> Option<[f64; N]> {
     let mut total = [0.0; N];
     for w in cuts.windows(2) {
         let (half, centre) = (0.5 * (w[1] - w[0]), 0.5 * (w[1] + w[0]));
         for &(x, weight) in gauss_nodes() {
-            let y = f(centre + half * x);
+            let y = f(centre + half * x)?;
             for k in 0..N {
                 total[k] += weight * half * y[k];
             }
         }
     }
-    total
+    Some(total)
 }
 
 /// The face's shared moment integration, one result per consumer (`Part::face_raw_moments`).
@@ -144,23 +148,25 @@ thread_local! {
     static METER: std::cell::Cell<Option<(u64, u64)>> = const { std::cell::Cell::new(None) };
 }
 
-/// The unwind payload that abandons a metered face integration once its work passes the limit.
-struct OverBudget;
-
 /// Count one work unit, an integrand evaluation (one surface point and partials) inside face
-/// integration, against the face being metered on this thread; past the limit, abandon that
-/// face's integration at once. Outside metering this does nothing.
+/// integration, against the face being metered on this thread. `None` once the count would
+/// pass the limit (the count then stays at `limit + 1`): every integrator returns `None` at
+/// once on it, so the face's integration stops there. Outside metering this always succeeds.
 #[inline]
-pub(super) fn spend_work() {
-    METER.with(|meter| {
-        if let Some((spent, limit)) = meter.get() {
-            let spent = spent + 1;
-            meter.set(Some((spent, limit)));
-            if spent > limit {
-                std::panic::resume_unwind(Box::new(OverBudget));
-            }
+pub(super) fn spend_work() -> Option<()> {
+    METER.with(|meter| match meter.get() {
+        None => Some(()),
+        Some((spent, limit)) if spent > limit => None,
+        Some((spent, limit)) => {
+            meter.set(Some((spent + 1, limit)));
+            (spent < limit).then_some(())
         }
-    });
+    })
+}
+
+/// Whether the face being metered on this thread has passed its limit.
+pub(super) fn work_exhausted() -> bool {
+    METER.with(|meter| meter.get().is_some_and(|(spent, limit)| spent > limit))
 }
 
 /// A per-face integration budget applied to a part ([`Part::with_integration_budget`]): the
@@ -193,26 +199,27 @@ const NEGLIGIBLE_MOTION: f64 = 1e-12;
 /// form. The sum is the whole-panel rule's, as [`integrate`]'s.
 fn integrate_checked<const N: usize>(
     cuts: &[f64],
-    f: impl Fn(f64) -> [f64; N],
-) -> ([f64; N], bool) {
+    f: impl Fn(f64) -> Option<[f64; N]>,
+) -> Option<([f64; N], bool)> {
     let mut total = [0.0; N];
     let mut resolved = true;
     let rule = |a: f64, b: f64, y: &mut [f64; N], size: &mut [f64; N]| {
         let (half, centre) = (0.5 * (b - a), 0.5 * (b + a));
         for &(x, weight) in gauss_nodes() {
-            let v = f(centre + half * x);
+            let v = f(centre + half * x)?;
             for k in 0..N {
                 y[k] += weight * half * v[k];
                 size[k] += (weight * half * v[k]).abs();
             }
         }
+        Some(())
     };
     for w in cuts.windows(2) {
         let (mut whole, mut halves, mut size) = ([0.0; N], [0.0; N], [0.0; N]);
-        rule(w[0], w[1], &mut whole, &mut [0.0; N]);
+        rule(w[0], w[1], &mut whole, &mut [0.0; N])?;
         let mid = 0.5 * (w[0] + w[1]);
-        rule(w[0], mid, &mut halves, &mut size);
-        rule(mid, w[1], &mut halves, &mut size);
+        rule(w[0], mid, &mut halves, &mut size)?;
+        rule(mid, w[1], &mut halves, &mut size)?;
         // A component whose terms are all round-off beside the others' (a coordinate near
         // zero) cannot be judged against its own size.
         let largest = size.iter().fold(0.0f64, |m, &x| m.max(x));
@@ -221,7 +228,7 @@ fn integrate_checked<const N: usize>(
             resolved &= (whole[k] - halves[k]).abs() <= 1e-9 * size[k] + 1e-12 * largest;
         }
     }
-    (total, resolved && total.iter().all(|x| x.is_finite()))
+    Some((total, resolved && total.iter().all(|x| x.is_finite())))
 }
 
 /// Most panels or periods an integral is cut into. An angular range is a few turns and a conic's
@@ -882,16 +889,17 @@ impl Part {
         let mut refused = Vec::new();
         for face in 0..part.faces.len() {
             METER.with(|meter| meter.set(Some((0, limit))));
-            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                part.face_moments(face);
+            // Each step returns at once (`None`) when the work passes the limit.
+            part.face_moments(face);
+            if !work_exhausted() {
                 part.face_raw_moments(face);
+            }
+            if !work_exhausted() {
                 part.face_terms(face);
-            }));
+            }
+            let exhausted = work_exhausted();
             let (spent, _) = METER.with(|meter| meter.take()).unwrap_or((0, limit));
-            if let Err(payload) = outcome {
-                if !payload.is::<OverBudget>() {
-                    std::panic::resume_unwind(payload);
-                }
+            if exhausted {
                 refused.push(face);
             }
             work.push(spent);
@@ -1182,6 +1190,9 @@ impl Part {
         observed: &mut Option<MassPass>,
         cheaper: Option<(&std::cell::Cell<bool>, usize)>,
     ) -> Option<[f64; N]> {
+        if work_exhausted() {
+            return None;
+        }
         let fc = &self.faces[face];
         let surface = &fc.surface;
         let (pu, pv) = surface.periodic();
@@ -1228,13 +1239,13 @@ impl Part {
         let f = |u: f64, v: f64| {
             #[cfg(test)]
             INTEGRAND_EVALUATIONS.with(|n| n.set(n.get() + 1));
-            spend_work();
+            spend_work()?;
             let (u, v) = wrap_closed(surface, spans, (u, v));
             let (p, su, sv) = match &evaluator {
                 Some(evaluator) => evaluator.borrow_mut().value_and_partials(u, v),
                 None => point_and_partials(surface, u, v),
             };
-            f(p, su, sv)
+            Some(f(p, su, sv))
         };
         let first = (0..fc.loops.len()).find(|&i| fc.loops[i].vertex.is_none())?;
         let start = uv[first].points.first().copied()?;
@@ -1308,7 +1319,7 @@ impl Part {
                 if split > 1 {
                     cuts = split_panels(&cuts, split);
                 }
-                let (y, resolved) = integrate_checked(&cuts, |s| f(u, s));
+                let (y, resolved) = integrate_checked(&cuts, |s| f(u, s))?;
                 if !resolved {
                     unresolved.set(true);
                 }
@@ -1318,13 +1329,13 @@ impl Part {
                     return Some([0.0; N]);
                 }
                 let cuts = surface_cuts(surface, spans.1, true, reference, v)?;
-                (-du, integrate(&cuts, |s| f(u, s)))
+                (-du, integrate(&cuts, |s| f(u, s))?)
             } else {
                 if negligible(dv, du, stock_spans, false) {
                     return Some([0.0; N]);
                 }
                 let cuts = surface_cuts(surface, spans.0, false, reference, u)?;
-                (dv, integrate(&cuts, |s| f(s, v)))
+                (dv, integrate(&cuts, |s| f(s, v))?)
             };
             Some(y.map(|y| weight * y))
         };
@@ -2318,7 +2329,10 @@ mod tests {
     #[test]
     fn gauss_rule_is_exact_for_polynomials() {
         let pi = std::f64::consts::PI;
-        let [x7, s] = integrate(&cuts(0.0, pi, 3, &[1.0]).unwrap(), |x| [x.powi(7), x.sin()]);
+        let [x7, s] = integrate(&cuts(0.0, pi, 3, &[1.0]).unwrap(), |x| {
+            Some([x.powi(7), x.sin()])
+        })
+        .unwrap();
         assert!((x7 - pi.powi(8) / 8.0).abs() < 1e-11);
         assert!((s - 2.0).abs() < 1e-15);
         assert_eq!(
@@ -2990,8 +3004,9 @@ mod tests {
         let (d, h) = (degree as f64, height);
         let cuts = cuts(0.0, 1.0, 2048, &[]).unwrap();
         integrate(&cuts, |v| {
-            [(1.0 + (h * d * v.powi(degree as i32 - 1)).powi(2)).sqrt()]
-        })[0]
+            Some([(1.0 + (h * d * v.powi(degree as i32 - 1)).powi(2)).sqrt()])
+        })
+        .unwrap()[0]
     }
 
     /// A face the cheaper form's one rule per v knot span cannot resolve (its area density is
@@ -3173,12 +3188,12 @@ mod tests {
     /// the stock form (#302).
     #[test]
     fn the_checked_inner_rule_rejects_a_narrow_dip() {
-        let smooth = |s: f64| [(1.0 + s * s).sqrt(), s];
-        let (sum, resolved) = integrate_checked(&[0.0, 1.0], smooth);
+        let smooth = |s: f64| Some([(1.0 + s * s).sqrt(), s]);
+        let (sum, resolved) = integrate_checked(&[0.0, 1.0], smooth).unwrap();
         assert!(resolved);
-        assert_eq!(sum, integrate(&[0.0, 1.0], smooth));
-        let dip = |s: f64| [(1e-6 + (s - 0.3) * (s - 0.3)).sqrt()];
-        assert!(!integrate_checked(&[0.0, 1.0], dip).1);
+        assert_eq!(Some(sum), integrate(&[0.0, 1.0], smooth));
+        let dip = |s: f64| Some([(1e-6 + (s - 0.3) * (s - 0.3)).sqrt()]);
+        assert!(!integrate_checked(&[0.0, 1.0], dip).unwrap().1);
     }
 
     /// The polynomial piece a parameter lies in, by search, is the pair `breaks` gave.

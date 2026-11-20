@@ -1,9 +1,10 @@
 //! `quiddity serve`: recognition and correspondence over JSON lines, one request per line on
 //! the input and one response per line on the output, in order.
 //!
-//! Requests (every field required, no others):
+//! Requests (every field required unless marked optional, no others):
 //!
-//! - `{"id": ID, "op": "recognise", "step": PATH}` → `{"id": ID, "result": R}`, `R` the JSON
+//! - `{"id": ID, "op": "recognise", "step": PATH, "integration_budget": N}` (the budget
+//!   optional, as `quiddity <file.step> --integration-budget N`) → `{"id": ID, "result": R}`, `R` the JSON
 //!   `quiddity <file.step>` writes ([`RecognitionOutput`]): each family's records, their
 //!   `fingerprints` and the versioned recognition `document`. The part is recognised in its own
 //!   frame and the records reported in the file's coordinates
@@ -294,7 +295,7 @@ pub fn recognise_file_with(
 }
 
 /// Whether *path* names a STEP file (by its extension, as the CLI decides).
-fn is_step(path: &str) -> bool {
+pub(crate) fn is_step(path: &str) -> bool {
     let lower = path.to_lowercase();
     [".step", ".stp", ".step.gz", ".stp.gz"]
         .iter()
@@ -323,7 +324,8 @@ pub fn fingerprints_file(path: &str) -> Result<(Fingerprints, Vec<String>), Fail
     fingerprints_file_with(path, &RecognitionOptions::default())
 }
 
-/// [`fingerprints_file`] under *options*; they apply to a STEP file recognised.
+/// [`fingerprints_file`] under *options*. They apply to a STEP file recognised; a JSON
+/// document's fingerprints were made already, so an integration budget is refused for one.
 pub fn fingerprints_file_with(
     path: &str,
     options: &RecognitionOptions,
@@ -331,6 +333,15 @@ pub fn fingerprints_file_with(
     if is_step(path) || part_input::is_f3d(path) {
         let (_, recognition, _, warnings) = recognise_step_document(path, &IDENTITY, options)?;
         return Ok((recognition.fingerprints, warnings));
+    }
+    if options.integration_budget.is_some() {
+        return Err(Failure::new(
+            "bad_request",
+            format!(
+                "{path}: an integration budget applies only to a STEP file recognised, not to \
+                 fingerprints read from JSON"
+            ),
+        ));
     }
     let text = std::fs::read_to_string(path)
         .map_err(|e| Failure::new("unreadable", format!("{path}: {e}")))?;
@@ -418,8 +429,18 @@ fn execute(request: &Map<String, Value>) -> Result<(String, Vec<String>), Failur
     let mut warnings = Vec::new();
     let json = match op {
         "recognise" => {
-            closed(request, op, &["step"])?;
-            let (output, warning) = recognise_file(path_field(request, "step")?)?;
+            closed(request, op, &["step", "integration_budget"])?;
+            let integration_budget = match request.get("integration_budget") {
+                None | Some(Value::Null) => None,
+                Some(value) => Some(value.as_u64().ok_or_else(|| {
+                    Failure::new(
+                        "bad_request",
+                        "`integration_budget` must be a non-negative integer",
+                    )
+                })?),
+            };
+            let options = RecognitionOptions { integration_budget };
+            let (output, warning) = recognise_file_with(path_field(request, "step")?, &options)?;
             warnings.extend(warning);
             serde_json::to_string(&output).expect("records serialise")
         }

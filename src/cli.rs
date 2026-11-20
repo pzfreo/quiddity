@@ -140,6 +140,9 @@ enum Command {
         /// parse the whole source for shared geometry; memory grows with the entire file
         #[arg(long)]
         fallback_whole_file: bool,
+        /// refuse any face whose integration would take more than N work units
+        #[arg(long, value_name = "N")]
+        integration_budget: Option<u64>,
     },
     /// match two revisions' features and print the correspondence as JSON
     Correspond {
@@ -278,6 +281,7 @@ pub fn main(args: &[String]) -> u8 {
             verify_source,
             no_product_hashes,
             fallback_whole_file,
+            integration_budget,
         } => {
             return finish(manifest_recognise(
                 &file,
@@ -287,6 +291,7 @@ pub fn main(args: &[String]) -> u8 {
                 verify_source,
                 no_product_hashes,
                 fallback_whole_file,
+                &budget(integration_budget),
             ));
         }
         Command::Serve => {
@@ -934,6 +939,7 @@ impl<W: std::io::Write> AssemblyStream<W> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn manifest_recognise(
     path: &str,
     manifest_path: &str,
@@ -942,6 +948,7 @@ fn manifest_recognise(
     verify_source: bool,
     no_product_hashes: bool,
     fallback: bool,
+    options: &crate::RecognitionOptions,
 ) -> Result<(), String> {
     use crate::kernel::step::{StepFile, manifest::Manifest};
     use std::collections::HashMap;
@@ -1041,7 +1048,7 @@ fn manifest_recognise(
             .collect();
         let mut recovered = false;
         let result = if shared.is_empty() {
-            crate::file_api::recognise_product_with_warnings(path, &manifest, id)
+            crate::file_api::recognise_product_with_options(path, &manifest, id, options)
         } else if fallback {
             if whole.is_none() {
                 whole = Some((|| -> Result<_, String> {
@@ -1088,10 +1095,11 @@ fn manifest_recognise(
                     whole.part(index).map_err(|e| format!("product {id}: {e}"))
                 })
                 .and_then(|part| {
-                    crate::file_api::recognise_part_with_warnings(
+                    crate::file_api::recognise_part_with_options(
                         &part,
                         &manifest.source.sha256,
                         path,
+                        options,
                     )
                 })
                 .inspect(|_| recovered = true)

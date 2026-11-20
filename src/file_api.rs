@@ -177,6 +177,14 @@ pub fn fingerprints_file(path: &str) -> Result<String, String> {
 
 /// [`fingerprints_file`] under *options* ([`crate::fingerprints_with`]).
 pub fn fingerprints_file_with(path: &str, options: &RecognitionOptions) -> Result<String, String> {
+    if options.integration_budget.is_some()
+        && !(serve::is_step(path) || crate::part_input::is_f3d(path))
+    {
+        return Err(format!(
+            "{path}: an integration budget applies only to a STEP file recognised, not to \
+             fingerprints read from JSON"
+        ));
+    }
     let (output, _) = serve::recognise_file_with(path, options).map_err(|e| e.to_string())?;
     serde_json::to_string_pretty(&output.recognition.fingerprints).map_err(|e| e.to_string())
 }
@@ -244,7 +252,17 @@ pub fn recognise_part_with_warnings(
     source_sha256: &str,
     label: &str,
 ) -> Result<(String, Vec<String>), String> {
-    let mut recognition = crate::correspondence::recognise(part);
+    recognise_part_with_options(part, source_sha256, label, &RecognitionOptions::default())
+}
+
+/// [`recognise_part_with_warnings`] under *options* ([`crate::recognise_with`]).
+pub fn recognise_part_with_options(
+    part: &Part,
+    source_sha256: &str,
+    label: &str,
+    options: &RecognitionOptions,
+) -> Result<(String, Vec<String>), String> {
+    let mut recognition = crate::correspondence::recognise_with(part, options);
     recognition.source_sha256 = Some(source_sha256.to_owned());
     let document = crate::recognition::document(&recognition, part.faces.len());
     let warnings = serve::recognition_warnings(label, part, &recognition, &document);
@@ -283,11 +301,22 @@ pub fn recognise_product_with_warnings(
     manifest: &step::manifest::Manifest,
     id: &str,
 ) -> Result<(String, Vec<String>), String> {
+    recognise_product_with_options(path, manifest, id, &RecognitionOptions::default())
+}
+
+/// [`recognise_product_with_warnings`] under *options* ([`crate::recognise_with`]).
+#[cfg(feature = "manifest")]
+pub fn recognise_product_with_options(
+    path: &str,
+    manifest: &step::manifest::Manifest,
+    id: &str,
+    options: &RecognitionOptions,
+) -> Result<(String, Vec<String>), String> {
     let file = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
     let part = manifest
         .read_product(&file, id)
         .map_err(|e| format!("{path}: {e}"))?;
-    recognise_part_with_warnings(&part, &manifest.source.sha256, path)
+    recognise_part_with_options(&part, &manifest.source.sha256, path, options)
 }
 
 /// Validate a worker's selection before any output is written. Results follow manifest order.

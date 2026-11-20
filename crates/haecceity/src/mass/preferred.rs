@@ -10,7 +10,7 @@ use super::*;
 fn integrate_inner<const N: usize>(
     cuts: &[f64],
     budget: f64,
-    f: impl Fn(f64) -> [f64; N],
+    f: impl Fn(f64) -> Option<[f64; N]>,
     rule: IntegralRule,
 ) -> Option<([f64; N], f64)> {
     if !(budget.is_finite() && budget >= 0.) || cuts.is_empty() || cuts.len() > MAX_PANELS {
@@ -20,7 +20,7 @@ fn integrate_inner<const N: usize>(
         return Some(([0.; N], 0.));
     }
     let eval = |a, b, depth| {
-        let (p, _) = kronrod_rule((), a, b, |(), t| Some(f(t)), rule)?;
+        let (p, _) = kronrod_rule((), a, b, |(), t| f(t), rule)?;
         if !p.1.is_finite() || p.0.iter().any(|x| !x.is_finite()) {
             return None;
         }
@@ -195,12 +195,12 @@ fn master_boundary_length(
     let speed = |curve: &Curve, t| {
         let p = curve.value(t);
         let d = curve.derivative(t);
-        super::spend_work();
+        super::spend_work()?;
         let (_, su, sv) = evaluator.borrow_mut().value_and_partials(p[0], p[1]);
-        [geom::norm(geom::add(
+        Some([geom::norm(geom::add(
             geom::scale(su, d[0]),
             geom::scale(sv, d[1]),
-        ))]
+        ))])
     };
     let cuts = paths
         .iter()
@@ -209,8 +209,8 @@ fn master_boundary_length(
     let coarse = paths
         .iter()
         .zip(&cuts)
-        .map(|((c, _, _), cut)| integrate(cut, |t| speed(c, t))[0])
-        .sum::<f64>();
+        .map(|((c, _, _), cut)| integrate(cut, |t| speed(c, t)).map(|y| y[0]))
+        .sum::<Option<f64>>()?;
     let budget = 1e-11 * coarse / paths.len() as f64;
     if !budget.is_finite() || budget <= 0. {
         return None;
@@ -332,6 +332,9 @@ impl Part {
         density: impl Fn(V3, V3, V3) -> [f64; N],
         components: Components,
     ) -> Option<[f64; N]> {
+        if super::work_exhausted() {
+            return None;
+        }
         let trim = self.integration_pcurves(face)?;
         let curves = &trim.curves;
         let fc = &self.faces[face];
@@ -367,13 +370,13 @@ impl Part {
             }
             let length = integrate(&[0., 1.], |t| {
                 let q = geom::add(from, geom::scale(delta, t));
-                super::spend_work();
+                super::spend_work()?;
                 let (_, su, sv) = surface.value_and_partials(q[0], q[1]);
-                [geom::norm(geom::add(
+                Some([geom::norm(geom::add(
                     geom::scale(su, delta[0]),
                     geom::scale(sv, delta[1]),
-                ))]
-            })[0];
+                ))])
+            })?[0];
             if !length.is_finite() || length > noise {
                 return None;
             }
@@ -412,9 +415,9 @@ impl Part {
         )?;
         let evaluator = std::cell::RefCell::new(crate::nurbs::SurfaceEvaluation::new(&local));
         let f = |u, v| {
-            super::spend_work();
+            super::spend_work()?;
             let (p, su, sv) = evaluator.borrow_mut().value_and_partials(u, v);
-            density(geom::add(origin, p), su, sv)
+            Some(density(geom::add(origin, p), su, sv))
         };
         let rule = IntegralRule {
             components,
@@ -427,7 +430,7 @@ impl Part {
             }
             let cuts = surface_cuts(&fc.surface, f64::INFINITY, false, reference, u)?;
             let (sum, error) = match budget.get() {
-                None => (integrate(&cuts, |s| f(s, v)), 0.),
+                None => (integrate(&cuts, |s| f(s, v))?, 0.),
                 Some(budget) => integrate_inner(&cuts, budget, |s| f(s, v), rule)?,
             };
             Some((sum.map(|y| y * dv), error * dv.abs()))
@@ -906,12 +909,14 @@ mod tests {
             components: Components::Prefix(1),
             observe_mass: None,
         };
-        assert!(integrate_inner(&[0., 1.], 1e-12, |t| [1. / (t - 0.3).powi(2)], rule).is_none());
+        assert!(
+            integrate_inner(&[0., 1.], 1e-12, |t| Some([1. / (t - 0.3).powi(2)]), rule).is_none()
+        );
         assert_eq!(
-            integrate_inner(&[0.2], 0., |t| [t.exp()], rule),
+            integrate_inner(&[0.2], 0., |t| Some([t.exp()]), rule),
             Some(([0.], 0.))
         );
-        let (got, error) = integrate_inner(&[0., 1.], 1e-12, |t| [t.exp()], rule).unwrap();
+        let (got, error) = integrate_inner(&[0., 1.], 1e-12, |t| Some([t.exp()]), rule).unwrap();
         assert!((got[0] - (1f64.exp() - 1.)).abs() < 1e-12 && error <= 1e-12);
     }
     #[test]
