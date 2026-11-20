@@ -1156,8 +1156,8 @@ pub const FAMILIES: &[FamilyFingerprint] = &[
             ("tol", Ignored),
             ("body_levels", Placement),
             ("body_key", Placement),
-            // Present on risers along the frame's x or y only (#307 item 10).
-            ("height_axis", Placement),
+            // Present on risers along the frame's x or y only (#307 item 10); `axis` comes first.
+            ("height_axis", Axis),
         ],
     },
     FamilyFingerprint {

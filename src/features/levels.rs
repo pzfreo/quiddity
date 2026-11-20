@@ -217,7 +217,8 @@ fn scopes(ctx: &Context<'_>) -> Vec<Scope> {
 
 /// The levels of one scope along frame axis *height* with the faces supporting each
 /// (`_face_level_proposals_one`): its planes square to that axis, the area threshold taken in
-/// the scope's own cross-section across it.
+/// the scope's own cross-section across it. A plane is read only when it is flat along that axis
+/// ([`flat_along`]): a tilted face is not a level on any axis.
 fn level_proposals(
     part: &Part,
     scope: &Scope,
@@ -231,6 +232,7 @@ fn level_proposals(
     for &f in &scope.faces {
         if let Surface::Plane { frame } = part.faces[f].surface
             && frame.z[h].abs() > AXIS_ALIGNED_COS
+            && flat_along(part, f, h)
         {
             zs.push(frame.origin[h]);
             faces.push(f);
@@ -576,8 +578,9 @@ fn riser_proposals(
 /// the same rules as the z ones (area in the axis's own cross-section, the same end margin and
 /// riser floors) and published with their `height_axis`. A plane has one normal, so a face is
 /// a level along one axis at most. Unlike the z levels, which are evidence co-owning any face,
-/// they are a miss rather than a second description: a level or riser is not proposed when any
-/// of its faces is *occupied* (claimed by another family, refused, or body evidence) or already
+/// they are a miss rather than a second description: a level with a face that is one wall of a
+/// slot or pocket ([`opposed_wall`]) is not proposed, and a level or riser is not proposed when
+/// any of its faces is *occupied* (claimed by another family, refused, or body evidence) or already
 /// *taken* by a z level or riser; a riser is read only along an axis its body has a level on,
 /// not from a face of any level, and not from a face that is a riser along both x and y.
 /// Risers carry their own axis's levels as `body_levels`.
@@ -603,6 +606,11 @@ pub(crate) fn other_axes(
                 interior_levels(part, &scope, height, end_margin(&scope, height, None))
                     .into_iter()
                     .filter(|(_, faces)| free(faces, &none))
+                    .filter(|(_, faces)| {
+                        !faces
+                            .iter()
+                            .any(|&f| opposed_wall(ctx, scope.solid, &scope.faces, f, height))
+                    })
                     .collect()
             })
             .into();
@@ -667,4 +675,77 @@ pub(crate) fn other_axes(
     levels.sort_by(|a, b| a.record.order(&b.record));
     risers.sort_by(|a, b| a.record.order(&b.record));
     (levels, risers)
+}
+
+internal_entry! {
+/// Whether face *f* spans at most the level band [`TOL`] along frame axis *h*: a level is a plane
+/// square to its axis, not a drafted wall that [`AXIS_ALIGNED_COS`] (about 8°) admits.
+pub fn flat_along(part: &Part, f: usize, h: usize) -> bool {
+    let b = part.face_bounds(f);
+    b.max[h] - b.min[h] <= TOL
+}
+}
+
+internal_entry! {
+/// Whether level face *f* (a plane square to frame axis *h*, in *scope*) is one wall of a slot or
+/// pocket rather than a shelf: another plane of the same body, flat along *h* ([`flat_along`]),
+/// faces it (its outward normal anti-parallel to *f*'s within [`AXIS_ALIGNED_COS`]) from *f*'s
+/// outward side, more than [`TOL`] and less than the body's extent along *h* away; the overlap of
+/// the two faces' boxes across *h* covers at least half of each box, and the gap is shorter than
+/// the overlap's longer side (a channel narrower than its walls are long); and nine points evenly
+/// spaced between the two planes, on the line through the centre of that overlap, all classify
+/// as outside the body (space a proof finds empty, not merely unknown).
+pub fn opposed_wall(ctx: &Context<'_>, solid: Option<usize>, faces: &[usize], f: usize, h: usize) -> bool {
+    let part = ctx.part;
+    let [u, v, _] = plane_axes(h);
+    let (Surface::Plane { frame }, Some(n)) = (&part.faces[f].surface, part.face_normal(f, 0.0, 0.0))
+    else {
+        return false;
+    };
+    let extent = |b: &Bounds| b.max[h] - b.min[h];
+    let reach = match solid {
+        Some(s) => extent(&part.solid_bounds(s)),
+        None => extent(&part.bounds()),
+    };
+    let fb = part.face_bounds(f);
+    let sign = n[h].signum();
+    faces.iter().any(|&g| {
+        if g == f || !flat_along(part, g, h) {
+            return false;
+        }
+        let (Surface::Plane { frame: other }, Some(m)) =
+            (&part.faces[g].surface, part.face_normal(g, 0.0, 0.0))
+        else {
+            return false;
+        };
+        let gap = (other.origin[h] - frame.origin[h]) * sign;
+        if crate::kernel::geom::dot(n, m) >= -AXIS_ALIGNED_COS || gap <= TOL || gap >= reach {
+            return false;
+        }
+        let gb = part.face_bounds(g);
+        let overlap = |k: usize| (fb.min[k].max(gb.min[k]), fb.max[k].min(gb.max[k]));
+        let (ou, ov) = (overlap(u), overlap(v));
+        let (wu, wv) = (ou.1 - ou.0, ov.1 - ov.0);
+        if wu <= TOL || wv <= TOL {
+            return false;
+        }
+        // A matched pair of walls, each covered at least half by the other across the axis,
+        // nearer each other than the pair is long: a channel, not two shelves facing.
+        let area = |b: &Bounds| (b.max[u] - b.min[u]) * (b.max[v] - b.min[v]);
+        if wu * wv < 0.5 * area(&fb) || wu * wv < 0.5 * area(&gb) || gap >= wu.max(wv) {
+            return false;
+        }
+        let classifier = match solid {
+            Some(s) => ctx.solid_classifier(s),
+            None => ctx.classifier(),
+        };
+        (1..10).all(|k| {
+            let mut p = [0.0; 3];
+            p[u] = 0.5 * (ou.0 + ou.1);
+            p[v] = 0.5 * (ov.0 + ov.1);
+            p[h] = frame.origin[h] + (other.origin[h] - frame.origin[h]) * f64::from(k) / 10.0;
+            classifier.classify(p) == crate::kernel::classify::State::Out
+        })
+    })
+}
 }
