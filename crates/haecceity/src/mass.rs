@@ -1055,12 +1055,30 @@ impl Part {
             _ => 0,
         };
         let (cheap_spans, stock_spans) = (inner_spans(true), inner_spans(false));
-        let negligible = |weight: f64, other: f64, spans: usize| {
-            spans > LARGE_NET_SPANS && weight.abs() <= NEGLIGIBLE_MOTION * other.abs()
+        // Motions are compared as shares of their own parameter ranges, so a surface whose u and
+        // v knots differ in scale is judged the same as a normalised one.
+        let extent = |knots: &[f64]| match (knots.first(), knots.last()) {
+            (Some(a), Some(b)) if b > a => b - a,
+            _ => 1.0,
+        };
+        let (u_extent, v_extent) = match surface {
+            Surface::Freeform { surface: s, .. } => (extent(&s.knots_u), extent(&s.knots_v)),
+            _ => (1.0, 1.0),
+        };
+        // `weight` is the motion across the inner integral's line (u when that line runs along v),
+        // `other` the motion along it.
+        let negligible = |weight: f64, other: f64, spans: usize, inner_is_v: bool| {
+            let (weight_extent, other_extent) = if inner_is_v {
+                (u_extent, v_extent)
+            } else {
+                (v_extent, u_extent)
+            };
+            spans > LARGE_NET_SPANS
+                && weight.abs() * other_extent <= NEGLIGIBLE_MOTION * other.abs() * weight_extent
         };
         let term = |u: f64, v: f64, du: f64, dv: f64| {
             let (weight, y) = if let Some(unresolved) = cheaper {
-                if negligible(du, dv, cheap_spans) {
+                if negligible(du, dv, cheap_spans, true) {
                     return Some([0.0; N]);
                 }
                 let cuts = surface_cuts(surface, spans.1, true, reference, v)?;
@@ -1070,13 +1088,13 @@ impl Part {
                 }
                 (-du, y)
             } else if along_v {
-                if negligible(du, dv, cheap_spans) {
+                if negligible(du, dv, cheap_spans, true) {
                     return Some([0.0; N]);
                 }
                 let cuts = surface_cuts(surface, spans.1, true, reference, v)?;
                 (-du, integrate(&cuts, |s| f(u, s)))
             } else {
-                if negligible(dv, du, stock_spans) {
+                if negligible(dv, du, stock_spans, false) {
                     return Some([0.0; N]);
                 }
                 let cuts = surface_cuts(surface, spans.0, false, reference, u)?;
