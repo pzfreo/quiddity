@@ -61,7 +61,11 @@ fn lands_separated_by_material_inside_the_bore_stay_separate_holes() {
     // The same web across the ball groove: still two holes, and the groove is not a floor.
     let found = holes_of("grooved_bore_webgroove", &IDENTITY);
     assert_eq!(found.len(), 2, "{found:?}");
-    assert!(found.iter().all(|h| h.0 == 27.2 && h.1 != holes::Bottom::Through));
+    assert!(
+        found
+            .iter()
+            .all(|h| h.0 == 27.2 && h.1 != holes::Bottom::Through)
+    );
 }
 
 #[test]
