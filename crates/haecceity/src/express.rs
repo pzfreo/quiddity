@@ -1570,6 +1570,43 @@ mod complex_reference_tests {
                 &complex_face.replace("FACE_SURFACE(#32", "FACE_SURFACE(#17"),
             ),
         ];
+        // Reference shapes the scan must walk: typed wrapper, typed value before the hit,
+        // and a hit nested two lists deep. Only the scan is compared, not the drops.
+        let plane = "#32 = PLANE('',#33);";
+        assert!(base.contains(plane));
+        let shapes = [
+            "#32 = PLANE('',WRAP(#17));",
+            "#32 = PLANE(WRAP(#33),#17);",
+            "#32 = PLANE('',WRAP(WRAP(#33)),#17);",
+            "#32 = PLANE('',((#17)));",
+            "#32 = PLANE(((#33),(#33,(#17))),#33);",
+        ];
+        for shape in shapes {
+            let text = base.replace(before, complex_face).replace(plane, shape);
+            let graph = step_io::parser::parse(text.as_bytes()).unwrap();
+            let packed = crate::step::PackedGraph::parse(text.as_bytes()).unwrap();
+            let complex: HashSet<u64> = graph.ids().filter(|&id| graph.is_complex(id)).collect();
+            let mut hit = false;
+            for id in graph.ids() {
+                let expected = decoded_references(&graph.record(id).unwrap(), &complex);
+                hit |= id == 32 && expected;
+                assert_eq!(
+                    packed.references_any(id, &complex),
+                    expected,
+                    "#{id}: {shape}"
+                );
+                assert_eq!(
+                    graph.references_any(id, &complex),
+                    expected,
+                    "#{id}: {shape}"
+                );
+            }
+            assert!(hit, "#32 must reference the complex instance: {shape}");
+            assert_eq!(
+                complex_reference_drops(&packed),
+                complex_reference_drops(&NoPrecheck(&packed))
+            );
+        }
         let mut drop_counts = Vec::new();
         for text in &texts {
             let graph = step_io::parser::parse(text.as_bytes()).unwrap();
