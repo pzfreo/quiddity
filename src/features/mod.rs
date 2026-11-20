@@ -44,6 +44,7 @@ pub mod evidence;
 pub mod experimental_geometry;
 pub mod face_grooves;
 pub mod fillets;
+pub mod fins;
 pub mod flats;
 pub mod freeform_surfaces;
 pub mod geometry_evidence;
@@ -184,6 +185,9 @@ pub struct Features {
     /// Intrinsic face recesses on otherwise unclaimed faces (for #123).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub face_grooves: Vec<face_grooves::FaceGroove>,
+    /// Thin walls standing on a host surface, omitted when absent.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub fins: Vec<fins::Fin>,
     pub plates: Vec<plates::Plate>,
     /// Complete analytic turned solids (#123), co-owning faces with their features.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -462,6 +466,7 @@ pub(crate) fn recognise_projected(
     post!("face_grooves", "append", || {
         face_grooves::append(ctx, &mut features)
     });
+    post!("fins", "append", || fins::append(ctx, &mut features));
     // Complete recess floors in this same post-reconciliation completion pass, after
     // append/suppression has finished: added claims must not feed recognition decisions.
     if failures.len() == before {
@@ -1105,6 +1110,7 @@ fn inventory_in_with(
             }
         },
         face_grooves: Vec::new(),
+        fins: Vec::new(),
         plates: kept_shared(&mut defining, "plates", plate_occurrences),
         turned_bodies: {
             let found = discover!("turned_bodies", turned_bodies::discover(ctx));

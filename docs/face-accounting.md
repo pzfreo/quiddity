@@ -153,7 +153,10 @@ its edges does not hide it. Records still win: the rule only adds body to faces 
 claims. It is tried after the `stock_box_*` rules, which keep their codes. A side whose rim
 is bounded by unrecognised cylinders stays unexplained, because a recognised blend is
 required. Fin sides and tips are not covered: the rule needs the face itself on the
-part's envelope, and no fin or rib record supplies the stock premise.
+part's envelope. They are `feature` faces instead, claimed by their `fins` record (see
+recognition-6, "Fins and ribs"), which is the rib premise the veto above anticipated: the
+veto is unchanged, and a pad, boss or a face a fin ends flush with (a housing top) is still not
+body.
 
 ### `plate_edge`
 

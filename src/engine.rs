@@ -55,6 +55,7 @@ pub use features::countersinks::CounterSink;
 pub use features::edge_open_circular::EdgeOpenCircularPocket;
 pub use features::edge_open_prismatic::EdgeOpenPrismaticRecess;
 pub use features::fillets::{Fillet, FilletAxis, FilletOptions};
+pub use features::fins::Fin;
 pub use features::flats::Flat;
 pub use features::freeform_surfaces::{
     BSplineSurfaceSupport, FreeformSurface, SurfaceContinuityLink,

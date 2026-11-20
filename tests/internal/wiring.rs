@@ -188,6 +188,21 @@ fn families_are_wired_and_their_records_fingerprinted_field_by_field() {
     for (key, paths) in new_leaves {
         found.entry(key).or_default().extend(paths);
     }
+    // The optional fin family: a finned housing.
+    let housing =
+        quiddity::read_step_file(&common::fixtures().join("stock_envelope_housing.step.gz"))
+            .unwrap();
+    let features = features::recognise(&housing);
+    assert_eq!(features.fins.len(), 16);
+    let (p, new_leaves) = check(
+        "finned housing",
+        &records_json(&features),
+        &features.defining,
+    );
+    problems.extend(p);
+    for (key, paths) in new_leaves {
+        found.entry(key).or_default().extend(paths);
+    }
     // For #123, exercise the new family even without the optional corpus or local repro.
     let disc = super::face_grooves::two_ends();
     let grooves = features::recognise(&disc).face_grooves;

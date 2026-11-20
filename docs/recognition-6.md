@@ -1404,3 +1404,55 @@ cone face `[1]`, so the cone is explained without shifting the hole's anchor to 
 No standalone feature is added, and existing hole, pattern and chamfer IDs and
 fingerprints stay unchanged. Consumers can select the nested cone faces for a
 chamfer note while preserving the cylinder as the saved feature reference.
+
+### Fins and ribs (#307 item 10)
+
+`fins` is an optional family, omitted when empty, with record type `Fin`: a thin plate-like
+wall standing on a host plane or cylinder, one record per wall. It is the explicit rib premise
+that the boss/pad/rib veto of [face accounting](face-accounting.md) anticipated, and it is
+deliberately narrow. It is additive within recognition/6: the family is appended after
+`face_grooves` and no existing record, order or fingerprint moves.
+
+**Definition.** Two planar *side* faces, each a single loop of straight or circular edges
+(no inner loop), with opposed unit normals (within about half a degree) and material between them:
+the second lies behind the first against its outward normal, at the thickness `t`. Every
+neighbour of a side is one of
+
+- a **host**, joined concavely along straight edges, a plane or a cylinder; each host of one
+  side must be met on the other side by the *same surface* (a tube split into one face per fin
+  qualifies, since the sides see different faces of one cylinder);
+- a **tip**, joined convexly (or tangentially, for a half-round tip: a cylinder of radius `t/2`),
+  that is thin (its area is at most twice `t` times its edge with a side) and bridges the sides:
+  the ends of its edge with one side, moved by `t` along the normal, are the ends of its edge
+  with the other;
+- a **flush face**, joined convexly, a plane perpendicular to the sides and larger than a tip (a
+  housing top or a plate side the wall ends flush with). It is context only.
+
+At least one tip and one host are required. Any other join, a tangent join to anything but a
+half-round tip, a host that is neither plane nor cylinder, or a side with a hole refuses the
+wall. The wall must also be *thin*: `t` at most a quarter of both the height and the length
+(below). A 4 x 10 fin is therefore not a fin, and a miss is better than a wrong record.
+Drafted (non-parallel) sides, root fillets and curved sides are not read.
+
+**Fields.** `normal` (the sides' unit normal, first non-zero component positive), `thickness`,
+`length` (the extent of a side along `run`, the direction of its longest root edge) and `height`
+(its extent along `rise`, the in-plane direction from the root to the tip; a half-round tip
+adds its radius), `at` (the mean of a side's vertices moved to the midplane), `host` (`plane`,
+`cylinder` or `mixed`, as for a fin between a tube and a flange), and the faces:
+`side_faces`, `tip_faces` and `host_faces`. Lengths and positions publish to three decimals,
+unit directions to six. `host_faces` are context. `tip_faces` lists every tip, including one
+another family claims.
+
+**Claims.** The record claims its two sides and its tips, which become `feature` faces in face
+accounting; it never claims a host or a flush face. It is published only when no other family
+has claimed a side (the families that may co-own a face are those named in face accounting:
+`step_levels`, `risers` and the whole-body classifications); a tip another family claims (a
+blend, say) is left to it and is not in the fin's claim. So `pads`, `pockets` and `gusset_ribs`,
+which claim straight ribs, divider walls and triangular ribs first, keep them; no face is
+claimed twice. The family is therefore the fallback for walls on cylinders, with half-round
+tips or on a mixed host, which nothing claimed.
+
+**Interaction with the stock veto.** The fins do not turn the part's stock accounting into
+anything new. A pad, boss or housing top still gets no body reason: the veto's premise is
+unchanged. A face the fins end flush with (the finned housing's top, face 23 of
+`stock_envelope_housing`) is neither a side nor a tip and stays `unexplained`.

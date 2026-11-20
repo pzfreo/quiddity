@@ -88,6 +88,7 @@ fn every_family_has_a_record_type() {
                 "helical_springs",
                 "annular_grooves",
                 "face_grooves", // Optional intrinsic face-recess family, for #123.
+                "fins",         // Optional thin-wall family, for #307.
                 "v_channels",
                 "semicircular_blind_slots",
                 "rectangular_through_notches",

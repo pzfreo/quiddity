@@ -16,6 +16,14 @@ in [docs/alpha1.md](docs/alpha1.md).
   with the legs taken along the end plane and along the body's cone from the virtual sharp rim.
   The profile is unchanged and both records list the cone face. Hole mouth cones stay nested in
   `HoleRecord.mouth_chamfers` (#244). The recognition schema stays at 6. For #298.
+- `fins` recognises a thin plate-like wall standing on a host plane or cylinder: two parallel
+  planar sides at a thickness of at most a quarter of the wall's height and length, a tip
+  (planar or half-round) bridging them and a host along their root (a tube split into one face
+  per fin counts as one cylinder), as a `Fin` with thickness, height, length, run, rise,
+  normal and its side, tip and host faces. The record claims the sides and tips, so the
+  radial fins of a finned housing stop being `unexplained`; it never claims a host, a face the
+  wall ends flush with, or any face another family claims. Optional and additive: the schema
+  stays at recognition/6. For #307 (item 10).
 - Owned-snapshot STEP geometry entry points release parsed input bytes before B-rep
   construction; file and recognition snapshot readers preserve the original source digest.
 
@@ -42,7 +50,7 @@ in [docs/alpha1.md](docs/alpha1.md).
 - Planar faces that bound the part's stock are `body` with the new reason `stock_envelope`
   when rounded outlines and edge rounds leave no box corner (a perforated plate's top,
   bottom and outer sides, a flange's sides), instead of `unexplained`. For #307; fin sides
-  and tips are not covered. Additive: the schema stays `quiddity-rust/recognition/6`.
+  and tips are `feature` faces of the new `fins` record. Additive: the schema stays `quiddity-rust/recognition/6`.
 - `flats` records are no longer published on the sides of ribs, fins and tabs standing on a
   cylinder. A flat now has to truncate the stock: the chord must straddle the point of the
   plane nearest the axis (a chord wholly to one side meets the cylinder at a concave edge), and

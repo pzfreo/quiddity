@@ -119,3 +119,6 @@ mod pocket_floor_fillets;
 
 #[path = "prismatic_through_cuts.rs"]
 mod prismatic_through_cuts;
+
+#[path = "fins.rs"]
+mod fins;

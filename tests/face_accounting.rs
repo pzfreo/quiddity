@@ -715,6 +715,13 @@ fn rounded_stock_planes_are_body_by_envelope() {
     }
     // The housing top is a cap inside the flange's envelope, and the fins are not stock.
     assert_eq!(groups[23], FaceAccounting::Unexplained);
+    // The fins claim their sides and tips (#307 item 10): they are features, not unexplained.
+    let fins = doc.records.iter().filter(|r| r.family == "fins").count();
+    assert_eq!(fins, 16);
+    let unexplained: Vec<_> = (0..groups.len())
+        .filter(|&f| groups[f] == FaceAccounting::Unexplained)
+        .collect();
+    assert_eq!(unexplained, [23]);
     // Nothing a record claims is moved to body: the rule only adds body to unclaimed faces.
     let envelope_faces: Vec<_> = (0..groups.len())
         .filter(|&f| groups[f] == envelope)
