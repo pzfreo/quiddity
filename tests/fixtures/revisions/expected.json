@@ -616,6 +616,24 @@
             0.0,
             0.088045
           ]
+        },
+        {
+          "label": "#307 item 10 step level along the shaft axis (the shoulder at x 27.2, moved with the shorter shaft)",
+          "family": "step_levels",
+          "class": "adapted",
+          "old_at": [
+            27.2,
+            0.0,
+            0.183886
+          ],
+          "new_at": [
+            25.2,
+            0.0,
+            0.183886
+          ],
+          "changes": [
+            "position"
+          ]
         }
       ]
     },
@@ -742,6 +760,25 @@
             30.203994,
             0.0,
             0.13745
+          ]
+        },
+        {
+          "label": "#307 item 10 step level along the shaft axis (the shoulder at x 27.2, trimmed by the deeper flat)",
+          "family": "step_levels",
+          "class": "adapted",
+          "old_at": [
+            27.2,
+            0.0,
+            0.183886
+          ],
+          "new_at": [
+            27.2,
+            0.0,
+            0.279096
+          ],
+          "changes": [
+            "position",
+            "sizes.footprint.1"
           ]
         }
       ]
