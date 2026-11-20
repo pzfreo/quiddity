@@ -307,6 +307,7 @@ pub(super) fn prismatic(
     Some(found)
 }
 
+/// This also refuses a round between a plane and one much tighter cylinder (rare).
 /// A curved wall counts as a much tighter round than the candidate when the candidate's
 /// radius is at least this many times the wall's. The #127 corpus rounds spring from
 /// walls at least their own radius (CTC-05: R6.35 from R19.05); the pocket end wall in

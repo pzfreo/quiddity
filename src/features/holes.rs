@@ -981,8 +981,19 @@ fn closed_floor_inwards(part: &Part, wall: &Segment, end: f64) -> bool {
     let radius = wall.diameter / 2.0;
     let tolerance = policy::length_tol(radius, 5e-6);
     let axial = |p: V3| geom::dot(p, wall.direction);
+    // The floor faces into the wall's span: its outward normal points from the end towards
+    // the wall (a part face beyond a rounded top edge faces away).
+    let inwards = if (end - wall.s_lo).abs() <= (end - wall.s_hi).abs() {
+        1.
+    } else {
+        -1.
+    };
     let transverse = |f: usize| match part.faces[f].surface {
-        Surface::Plane { frame } if geom::dot(frame.z, wall.direction).abs() > 1. - 1e-9 => {
+        Surface::Plane { frame }
+            if geom::dot(frame.z, wall.direction).abs() > 1. - 1e-9
+                && super::planes::unit_plane_normal(part, f)
+                    .is_some_and(|n| inwards * geom::dot(n, wall.direction) > 0.5) =>
+        {
             Some(axial(frame.origin))
         }
         _ => None,
@@ -1017,7 +1028,8 @@ fn closed_floor_inwards(part: &Part, wall: &Segment, end: f64) -> bool {
     }
     floors.sort_unstable();
     floors.dedup();
-    let mut circles: Vec<(f64, Vec<usize>)> = Vec::new();
+    // Arcs make one circle only with the same radius, centre and plane.
+    let mut circles: Vec<(f64, V3, Vec<usize>)> = Vec::new();
     for e in floors.into_iter().flat_map(|f| part.face_edges(f)) {
         let Curve::Circle { frame, radius: r } = part.edges[e].curve else {
             continue;
@@ -1029,16 +1041,18 @@ fn closed_floor_inwards(part: &Part, wall: &Segment, end: f64) -> bool {
                 wall.direction,
             )) < tolerance
         {
-            match circles.iter_mut().find(|(c, _)| (c - r).abs() <= tolerance) {
-                Some((_, edges)) if !edges.contains(&e) => edges.push(e),
+            match circles.iter_mut().find(|(c, o, _)| {
+                (c - r).abs() <= tolerance && geom::dist(*o, frame.origin) <= tolerance
+            }) {
+                Some((_, _, edges)) if !edges.contains(&e) => edges.push(e),
                 Some(_) => {}
-                None => circles.push((r, vec![e])),
+                None => circles.push((r, frame.origin, vec![e])),
             }
         }
     }
     circles
         .into_iter()
-        .any(|(_, edges)| super::annular_grooves::ring(part, edges, wall.direction).is_some())
+        .any(|(_, _, edges)| super::annular_grooves::ring(part, edges, wall.direction).is_some())
 }
 
 internal_entry! {
