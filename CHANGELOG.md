@@ -24,7 +24,8 @@ in [docs/alpha1.md](docs/alpha1.md).
   wall faces, the bore shoulder and the sleeve shoulder (left unexplained by the bar-end entry
   below) become levels along the barrel's axis, and the fin sides are no longer levels. Corpus:
   step levels 335 → 487, risers 129 → 131, unexplained faces 2178 → 1851, every other family
-  unchanged. Readers that assumed one height axis: see
+  unchanged. `quiddity evidence` (framed and in file coordinates) reports the same step
+  levels and risers as the recognition of that reading. Readers that assumed one height axis: see
   [recognition 6](docs/recognition-6.md#levels-and-risers-along-every-frame-axis-for-307-item-10).
   For #307 (item 10).
 
