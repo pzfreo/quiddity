@@ -6,8 +6,6 @@ mod common;
 mod slices;
 #[path = "bores_into_tunnel.rs"]
 mod bores_into_tunnel;
-#[path = "spoked_rim.rs"]
-mod spoked_rim;
 #[path = "captured.rs"]
 mod captured;
 #[path = "chamfer_values.rs"]
@@ -80,6 +78,8 @@ mod section_recesses;
 mod sections;
 #[path = "shared_analysis.rs"]
 mod shared_analysis;
+#[path = "spoked_rim.rs"]
+mod spoked_rim;
 #[path = "step_levels.rs"]
 mod step_levels;
 #[path = "tie_breaks.rs"]
