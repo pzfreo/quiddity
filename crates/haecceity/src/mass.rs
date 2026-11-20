@@ -1103,15 +1103,16 @@ impl Part {
             _ => 0,
         };
         let (cheap_spans, stock_spans) = (inner_spans(true), inner_spans(false));
-        // Motions are compared as shares of the face's own parameter box (its loops' extent, not
-        // the surface's domain, nor the knot vector's ends, which a writer may pad), so a face
-        // that is a small part of a large or oddly scaled surface is judged by its own size.
-        let (u_extent, v_extent) = {
-            let extent = |(a, b): (f64, f64)| if b > a { b - a } else { 1.0 };
-            match surface {
-                Surface::Freeform { .. } => (extent(domain.u_range()), extent(domain.v_range())),
-                _ => (1.0, 1.0),
+        // Motions are compared as shares of their own active parameter ranges (the domain, not
+        // the knot vector's ends, which a writer may pad), so a surface whose u and v differ in
+        // scale is judged the same as a normalised one.
+        let (u_extent, v_extent) = match surface {
+            Surface::Freeform { surface: s, .. } => {
+                let (u0, u1, v0, v1) = s.domain();
+                let extent = |a: f64, b: f64| if b > a { b - a } else { 1.0 };
+                (extent(u0, u1), extent(v0, v1))
             }
+            _ => (1.0, 1.0),
         };
         // `weight` is the motion across the inner integral's line (u when that line runs along v),
         // `other` the motion along it.
