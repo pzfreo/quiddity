@@ -74,7 +74,13 @@ fn a_floor_crossing_the_axis_stays_flat_and_one_missing_there_is_through() {
         blind_hole_bottom("blind_hole_floor_strip_between_passages.step.gz"),
         holes::Bottom::Flat
     );
-    // An R10 tunnel removes the floor under the axis: air on the axis past the end.
+    // A thin R3 cross hole crosses the axis under the floor: air on the axis, but 72% of
+    // the floor remains, so the blind hole keeps its floor.
+    assert_eq!(
+        blind_hole_bottom("blind_hole_floor_under_small_cross_hole.step.gz"),
+        holes::Bottom::Flat
+    );
+    // An R10 tunnel removes the floor under the axis and 30% of it: air on the axis past the end.
     assert_eq!(
         blind_hole_bottom("blind_hole_floor_removed_under_axis.step.gz"),
         holes::Bottom::Through

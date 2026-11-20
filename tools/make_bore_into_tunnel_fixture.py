@@ -68,6 +68,8 @@ for name, passages in (
     ('floor_strip_between_passages', [(11, 40, 8), (-11, 40, 8)]),
     # An R10 tunnel at y=6, z=36 removes the floor under the axis.
     ('floor_removed_under_axis', [(6, 36, 10)]),
+    # A thin R3 cross hole under the floor crosses the axis; most of the floor remains.
+    ('floor_under_small_cross_hole', [(0, 38, 3)]),
 ):
     target = Path(__file__).resolve().parents[1] / f'tests/fixtures/blind_hole_{name}.step'
     export_step(blind_block(passages), str(target))

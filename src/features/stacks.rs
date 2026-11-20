@@ -117,11 +117,12 @@ fn is_plane_floor(part: &Part, faces: &[usize]) -> bool {
             .all(|&f| matches!(part.faces[f].surface, Surface::Plane { .. }))
 }
 
-/// Whether no plane face of this end's floor lies under the bore axis: the axis point at the
-/// end, carried along the axis onto each plane, is outside every plane face. Slivers left at
-/// the rim of an exit into a curved wall never reach the axis; a floor interrupted by a
-/// crossing passage still does while any of it crosses the axis. Faces without a domain
-/// never qualify, so existing readings stay.
+/// Whether the plane faces of this end's floor leave the bore open: no plane face lies under
+/// the bore axis at the end (that axis point, carried along the axis onto each plane, is outside
+/// every face) AND together they cover less than half the bore's own section. Slivers left at
+/// the rim of an exit into a curved wall satisfy both. A floor cut by a thin passage across
+/// the axis, or one with a strip left across it, fails one and stays a floor. Faces without a
+/// domain never qualify, so existing readings stay.
 fn floor_misses_axis(
     part: &Part,
     seg: &Segment,
@@ -140,22 +141,56 @@ fn floor_misses_axis(
     }
     let d = seg.direction;
     let centre = axis_point_at(seg, s_end);
-    !floors.iter().any(|&f| {
-        let Surface::Plane { frame } = part.faces[f].surface else {
-            return true;
-        };
-        let slope = geom::dot(frame.z, d);
-        if slope.abs() < 1e-9 {
-            return true;
+    let covers = |point: V3| {
+        floors.iter().any(|&f| {
+            let Surface::Plane { frame } = part.faces[f].surface else {
+                return false;
+            };
+            let slope = geom::dot(frame.z, d);
+            if slope.abs() < 1e-9 {
+                return false;
+            }
+            // Carry the section point along the axis onto the floor plane.
+            let travel = geom::dot(geom::sub(frame.origin, point), frame.z) / slope;
+            let on_plane = geom::add(point, geom::scale(d, travel));
+            part.faces[f]
+                .surface
+                .parameters(on_plane, None)
+                .and_then(|(pu, pv)| Some(part.domain(f)?.contains(pu, pv)))
+                .unwrap_or(false)
+        })
+    };
+    let axis_covered = covers(centre);
+    let Some(u) = geom::unit(geom::cross(
+        d,
+        if d[0].abs() < 0.9 {
+            [1., 0., 0.]
+        } else {
+            [0., 1., 0.]
+        },
+    )) else {
+        return false;
+    };
+    let v = geom::cross(d, u);
+    const RINGS: usize = 16;
+    const SECTORS: usize = 64;
+    let radius = seg.diameter / 2.;
+    let mut covered = 0;
+    for ring in 0..RINGS {
+        let r = radius * ((ring as f64 + 0.5) / RINGS as f64).sqrt();
+        for sector in 0..SECTORS {
+            let angle = std::f64::consts::TAU * (sector as f64 + 0.5) / SECTORS as f64;
+            let (sin, cos) = angle.sin_cos();
+            let point = geom::add(
+                centre,
+                geom::add(geom::scale(u, r * cos), geom::scale(v, r * sin)),
+            );
+            if covers(point) {
+                covered += 1;
+            }
         }
-        let travel = geom::dot(geom::sub(frame.origin, centre), frame.z) / slope;
-        let on_plane = geom::add(centre, geom::scale(d, travel));
-        part.faces[f]
-            .surface
-            .parameters(on_plane, None)
-            .and_then(|(pu, pv)| Some(part.domain(f)?.contains(pu, pv)))
-            .unwrap_or(true)
-    })
+    }
+    !axis_covered && (covered as f64) < 0.5 * (RINGS * SECTORS) as f64
 }
 
 /// A support's verdict; `false` means a curved-wall fallback, subordinate to strong evidence.
