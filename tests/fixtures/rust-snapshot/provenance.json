@@ -3198,6 +3198,12 @@
     "tests/fixtures/split_coplanar_support.step": "084beaffe0fadc052dd7644d1556e2557a69616887adfede148a87c5a63aab32",
     "tests/fixtures/spotface_outer_steps.step": "57d97bd5afeaae6b7bfe84b70fd96c49419f3a2c1ee71904429d86db8f1e70da",
     "tests/fixtures/stack.step": "1da640ef610f52637a8b898c744b44ac84b6d1051960f81437bc06a3448eaf38",
+    "tests/fixtures/stock_envelope.README.md": "e069cd1152d72f25b0fff132b6692f7b049b32cb510031f96ebcacc8923300ca",
+    "tests/fixtures/stock_envelope_housing.step.gz": "59dabaa67ed0d4a8fa9863c0e4d48451114dd288754825daca12702c0614d94c",
+    "tests/fixtures/stock_envelope_pad_allround.step.gz": "f4cd0be8cf5875fbb528e3711dd9352104154e8194ca06a10e96345eb17612e4",
+    "tests/fixtures/stock_envelope_plate.step.gz": "6a0d37a2edec0970238397115144c91649efeaba60f8216bf1cbeca56f2ee0a3",
+    "tests/fixtures/stock_envelope_rib_allround.step.gz": "40f4229108a205c22bc9b869daa146577ad2ad88fd812fb4075703397bd2e321",
+    "tests/fixtures/stock_envelope_step_allround.step.gz": "ae3863e0a4275dd4c2c28bc57bfe63839fb58cef51a78a4626c751b78cf36eee",
     "tests/fixtures/ties/asymmetric_double_mouth.step": "9c9ed59050729db6dd69f1ab1848758b39034a5a7735b91ebc07938465ed0a73",
     "tests/fixtures/ties/cube.step": "e84b1980c8656ace04f6b309f80eb6b18690a31a174b331786ff628b87be4160",
     "tests/fixtures/ties/equal_axis_shafts.step": "d63622f00dd47e5c1f8e0fea1dfe851e20774807bb3d798af3bcea24ce853e2d",
@@ -3286,7 +3292,7 @@
     "calls/recognise_through_steps.json.gz": "ab6a0b5b06756fa3435099be76e5ab432b867be4d4a1b42c49047ff83b086cca",
     "calls/recognise_turned_steps.json.gz": "37d10e8c5e2ce5dcf6c5bd2fdc7444e86494bb44768e9d32d9a1abfd3f2fbd90",
     "channel_geometry.json.gz": "bd25ff87def7f73b4f119d26614600b141ee4350f45c77cef55aae7ea787e85f",
-    "corpus.json.gz": "8307d4a21e72068a895538ff40acf2f971b7df4d1d79a0cc48c2986c748fd489",
+    "corpus.json.gz": "f430a1960df9d4d9bdc6018a90e6cd5185acce838c10451885774253a3f41b62",
     "coverage.json.gz": "c835b80d39757ae5ef556953e11a2d7e8bbde3148a233f2af51ae92e1d23a971",
     "cylindrical_proofs/corpus/cadgenbench/flanged_spool_132.step.json.gz": "b93acca566253df99ab62bb5ac97424226850b3ee3963c8d1025939a7339d823",
     "cylindrical_proofs/corpus/cadgenbench/threaded_connector_109.step.json.gz": "eea12e52bf91a9c762e7cadc1b12994398bf8f3836ab11ab8b58a2bf4c5d9a4e",
@@ -5944,5 +5950,5 @@
     "step_levels.json.gz": "6ff3ceadb33888e9d529a10b9a880babaf979f4f8d869962215d9d3193902f00",
     "unowned_recesses.json.gz": "604ec266d4c85575165c6822140a3ac79a6637c8d72a3a2bb376e74f86455343"
   },
-  "source_commit": "8d553213167df86d635e3e08c4b2e1c7bd122201"
+  "source_commit": "95e00add6603905349117a11fe75189efd04ac97"
 }
