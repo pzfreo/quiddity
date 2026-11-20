@@ -138,6 +138,8 @@ thread_local! {
     /// Test hook: `Some(true)` makes the face-moment group's integrand non-finite,
     /// `Some(false)` the centroid group's.
     static POISONED_GROUP: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
+    /// Test hook: panic at the next metered evaluation (a genuine panic inside a budget pass).
+    static PANIC_WHILE_METERED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     /// Integrand evaluations of face integrals on this thread: a structural cost for tests.
     static INTEGRAND_EVALUATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
@@ -160,6 +162,10 @@ pub(super) fn spend_work() -> Option<()> {
     }
     METER.with(|meter| match meter.get() {
         None => Some(()),
+        #[cfg(test)]
+        Some(_) if PANIC_WHILE_METERED.with(|p| p.replace(false)) => {
+            panic!("forced panic while metered")
+        }
         Some((spent, limit)) if spent > limit => None,
         Some((spent, limit)) => {
             meter.set(Some((spent + 1, limit)));
@@ -170,6 +176,26 @@ pub(super) fn spend_work() -> Option<()> {
 
 /// How many threads are metering a face now.
 static METERS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Metering on this thread for as long as it lives: on every exit, a panic included, the
+/// thread's meter is cleared and it no longer counts in [`METERS`], so a later unbudgeted
+/// integration on the same thread (a server's or the Python wheel's, which catch panics and
+/// keep the thread) is not metered against a stale limit.
+struct MeterGuard;
+
+impl MeterGuard {
+    fn new() -> Self {
+        METERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        MeterGuard
+    }
+}
+
+impl Drop for MeterGuard {
+    fn drop(&mut self) {
+        METER.with(|meter| meter.set(None));
+        METERS.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
 
 /// Whether the face being metered on this thread has passed its limit.
 pub(super) fn work_exhausted() -> bool {
@@ -897,7 +923,7 @@ impl Part {
         part.integration_budget = None;
         let mut work = Vec::with_capacity(part.faces.len());
         let mut refused = Vec::new();
-        METERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let guard = MeterGuard::new();
         for face in 0..part.faces.len() {
             METER.with(|meter| meter.set(Some((0, limit))));
             // Each step returns at once (`None`) when the work passes the limit.
@@ -915,7 +941,7 @@ impl Part {
             }
             work.push(spent);
         }
-        METERS.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+        drop(guard);
         part.integration_budget = Some(std::sync::Arc::new(IntegrationBudget {
             limit,
             work,
@@ -2839,6 +2865,19 @@ mod tests {
                 assert_eq!(moments, clean.face_moments(0));
             }
         }
+    }
+
+    /// A panic inside a budget pass leaves no meter behind: a later unbudgeted integration on
+    /// the same thread gives the ordinary result.
+    #[test]
+    fn a_panic_while_metered_leaves_the_thread_unmetered() {
+        let expected = grooved_solid().face_moments(0);
+        assert!(expected.is_some());
+        PANIC_WHILE_METERED.with(|p| p.set(true));
+        let caught = std::panic::catch_unwind(|| grooved_solid().with_integration_budget(1 << 40));
+        PANIC_WHILE_METERED.with(|p| p.set(false));
+        assert!(caught.is_err(), "the forced panic happened");
+        assert_eq!(grooved_solid().face_moments(0), expected);
     }
 
     /// A face with a large B-spline net costs surface evaluations in proportion to its spans,
