@@ -8,6 +8,12 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Added
 
+- A convex toroidal edge round on a slot's rounded end (a coaxial internal half-cylinder wall
+  that meets a plane wall running along its axis, rounded into a transverse face, with the
+  torus's major radius the wall's radius plus its minor radius) is published as a turned
+  `Fillet` of the minor radius, where it was left unexplained beside the straight rounds along
+  the slot's sides. A whole bore's mouth ring (still a `blends` record), concave grooves and
+  convex ridges inside a bore are not claimed. For #307 (item 7).
 - Documented face index order as a contract (OpenCascade `TopExp::MapShapes` traversal, ascending
   `ADVANCED_FACE` id only when the file lists solids and shell faces in that order) and what
   `face_sources[].instance` means, with `tests/face_index_order.rs` pinning both.
