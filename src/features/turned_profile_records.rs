@@ -65,8 +65,9 @@ const EDGE_BREAK_FRAC: f64 = 0.1;
 /// A bore cone that meets a plane (a mouth or floor) is a seat or a drill point, unless it
 /// is as slender as a taper socket.
 const MAX_BORE_TAPER_DEG: f64 = 30.0;
-/// A taper's included angle is at most this; wider cones are transitions, chamfers or seats.
-const MAX_TAPER_DEG: f64 = 60.0;
+/// A taper's included angle is strictly below this; cones of 90 degrees and up are
+/// transitions, webs, chamfers or seats.
+const MAX_TAPER_DEG: f64 = 90.0;
 /// A V groove opens between these angles; narrower is a slit, wider a shallow dish.
 const V_ANGLE_RANGE: (f64, f64) = (20.0, 140.0);
 
@@ -385,7 +386,7 @@ fn taper_of(m: &Meridian<'_>, claimed: &BTreeSet<usize>, i: usize, body: usize) 
     }
     let included = 2. * dr.atan2(length).to_degrees();
     // A taper is slender: a wider cone is a profile transition, a chamfer or a seat.
-    if included > MAX_TAPER_DEG {
+    if included >= MAX_TAPER_DEG {
         return None;
     }
     // No edge-break-sized cone is a taper, whatever it joins: equal legs (a 45 degree break,

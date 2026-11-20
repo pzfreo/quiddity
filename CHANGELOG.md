@@ -15,8 +15,8 @@ in [docs/alpha1.md](docs/alpha1.md).
   end to small) and the `turned_bodies` record it belongs to. A V-groove is two whole coaxial
   cones meeting at a sharp bottom circle or a tiny flat or round, between two equal lands, with
   width, depth, included angle, mouth and bottom diameters. A cone that another record defines (an
-  edge break, countersink, drill point or thread), any narrow or 45 degree cone, a cone wider than 60
-  degrees included, an internal cone at a plane over 30 degrees, a groove flank, a ridge and a cone ending at the axis
+  edge break, countersink, drill point or thread), any narrow or 45 degree cone, a cone of 90
+  degrees or more included, an internal cone at a plane over 30 degrees, a groove flank, a ridge and a cone ending at the axis
   are never published. New optional families; recognition schema `/6` is unchanged. For #307 (item 6).
 - Documented face index order as a contract (OpenCascade `TopExp::MapShapes` traversal, ascending
   `ADVANCED_FACE` id only when the file lists solids and shell faces in that order) and what

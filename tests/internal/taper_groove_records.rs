@@ -46,10 +46,11 @@ fn a_bare_frustum_between_two_end_planes_is_a_taper() {
     let [t] = &f.tapers[..] else {
         panic!("{:?}", f.tapers)
     };
-    near(t.large_diameter, 40.);
+    near(t.large_diameter, 50.);
     near(t.small_diameter, 24.);
     near(t.length, 16.);
-    near(t.included_angle, angle(8., 16.));
+    near(t.included_angle, angle(13., 16.));
+    assert!((t.included_angle - 78.2).abs() < 0.05);
     // From the large end to the small one: against +z, as the part is built.
     near(t.axis[2], -1.);
 }

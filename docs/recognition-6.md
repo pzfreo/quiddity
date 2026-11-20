@@ -1440,9 +1440,9 @@ is not flat or cylindrical, and its small end is off the axis (a drill point end
 `included_angle`, `turned_body`, `faces`). One profile cone whose two ends meet exactly one
 coaxial cylinder of the same side or one plane each. `length` is axial and `included_angle` the full
 cone angle in degrees. `axis` runs from the large end to the small end and `axis_point` is the large
-circle's centre. The included angle is at most 60 degrees: a wider cone is a profile transition, a chamfer or a seat,
-not a taper (a 127 degree conical web between two flange planes, or the 78.6 degree frustum of
-d24 to d50 over 16 mm, publish no taper). A cone between two end planes is a taper only under this bound,
+circle's centre. The included angle is strictly below 90 degrees: a cone of 90 and up is a profile transition, a web, a chamfer or a seat,
+not a taper (a 127 degree conical web between two flange planes, or a 100 degree frustum, publish no taper; the
+78.2 degree d24 to d50 shank over 16 mm is one). A cone between two end planes is a taper only under this bound,
 which is what makes it safe. Whatever a cone joins (cylinder, plane or both), it is an edge break and no
 taper when its legs are equal (45 degrees, as `chamfers` reads it) or its larger leg is under a tenth of
 its larger diameter (a 0.5 mm 45 degree step between a d20 and a d21 bore is not a taper). An internal

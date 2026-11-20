@@ -10,7 +10,8 @@ Regenerate with: uv run --no-project --python 3.12 --with build123d \
 Every part is turned about z. Records expected:
   taper_morse        a shaft d20 (z 0..30), a Morse-like taper d20 -> d12.5 (z 30..90), a d12.5
                      tail (z 90..100): one external taper, included angle ~ 4.3 degrees
-  taper_shank        a bare frustum d24 -> d50, 16 mm long (the issue's shock eye shank)
+  taper_shank        a bare frustum d24 -> d50, 16 mm long, 78.2 degrees (the issue's shock eye shank,
+                     between two end planes)
   taper_bore_pin     a d40 x 40 block with a through taper-pin hole, d16 at z 40 narrowing to d10 at
                      z 0: one internal taper, included angle ~ 8.6 degrees
   vgroove_external   a d50 shaft (z 0..40) with a 90 degree V groove 4 mm wide at z 20: one
@@ -27,5 +28,8 @@ Controls, which must publish neither record:
   taper_control_chamfer_narrow  the same shaft with a 2.5 x 1 mm edge break on one end (not 45 degrees)
   taper_control_countersink   a 30 x 30 x 10 plate with a d6 hole and a 90 degree countersink d12
   taper_control_drill_point   a d20 x 30 block with a d8 blind hole, 118 degree drill point
+  taper_control_wide_frustum  a 100 degree frustum, not below 90: none
+  taper_control_tiny_step  a 0.5 mm 45 degree cone between d20 and d21 bores, none
+  taper_control_web  a 127 degree conical web between two flange planes, none
   taper_control_trapezoid     the external groove with a 2 mm flat bottom (two flanks, no V)
   taper_control_ridge         a d30 shaft with a V-shaped ridge (a peak, not a groove)
