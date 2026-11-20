@@ -110,6 +110,10 @@ impl<'a> UnitReader<'a> {
     /// Attribute `attr` declared by `entity` (both lower case) of instance `id`.
     /// Semantic-PMI callers borrow the editing document's stable attribute tree.
     pub(super) fn get(&mut self, id: u64, entity: &str, attr: &str) -> Option<&'a Attribute> {
+        debug_assert!(
+            matches!(self.source, Source::Document(_)),
+            "UnitReader::get borrows the Document's records; a packed graph would yield None"
+        );
         let Cow::Borrowed(record) = self.record(id)? else {
             return None;
         };
@@ -175,6 +179,11 @@ impl<'a> UnitReader<'a> {
 
     /// The text of the REAL `target` (an attribute of instance `id`) as the file writes it.
     pub(super) fn real_text(&self, id: u64, target: &Attribute) -> Option<String> {
+        debug_assert!(
+            matches!(self.source, Source::Document(_)),
+            "UnitReader::real_text locates `target` by pointer in the Document's record; \
+             a packed graph decodes a fresh record and would yield None"
+        );
         self.record_real_text(id, self.record(id)?.as_ref(), target)
     }
 
