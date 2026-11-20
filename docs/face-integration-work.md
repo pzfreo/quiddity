@@ -27,10 +27,10 @@ and does not propagate its projection failures. The initial boundary cuts are un
 ## Faces with one very large B-spline net
 
 A face whose B-spline net has many knot spans in u and few in v (a threaded part's
-helical flank, a sweep along a spline: 300 to 800 spans against one to four) integrates
-along u for its inner integral at every boundary node, so the work grew with the spans
-times the nodes (#302). Two changes remove that, neither touching the integrands,
-nodes or the boundary quadrature:
+helical flank, a sweep along a spline: 300 to 800 spans against one to four), or a
+cylinder carrying a helical thread edge, integrates along u for its inner integral at
+every boundary node, so the work grew with the spans (or radians) times the nodes (#302).
+These changes remove that, none touching the integrands, nodes or the boundary quadrature:
 
 - An open, unpinched face with at least 32 u spans and eight times v's takes the other
   form of Green's theorem, the inner integral along v from the loop's first point, whose
@@ -39,6 +39,10 @@ nodes or the boundary quadrature:
   largest component's); a face that fails the comparison anywhere, or that this form
   refuses or finds invalid, is integrated again by the stock form, so only a completed,
   checked result is used. A loop's direction still reads the swept parameter area.
+- A cylinder or cone whose loops (closed in the lifted parameters, not winding round u) run
+  through at least 32 radians of u, as a thread's helical edge does, takes the same form:
+  along u the inner integral costs a panel per radian at every boundary node, along v one
+  panel. The same check and fallback apply.
 - On a face whose inner integral's parameter has many spans (the same threshold: a face
   closed in v, whose loops wind round it, must keep integrating along u), a node that
   moves along its surface's own parameter line, within 1e-12 of its motion across it,
