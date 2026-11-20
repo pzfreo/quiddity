@@ -169,6 +169,14 @@ def test_anchors_batch_equals_single_calls():
         quiddity.anchors(str(PLATE), [-1])
 
 
+def test_anchors_refused_face_row():
+    open_step = FIXTURES / "unmeasured_face_open.step"
+    with pytest.raises(ValueError) as why:
+        quiddity.anchor(str(open_step), 6)
+    (row,) = json.loads(quiddity.anchors(str(open_step), [6]))
+    assert row == {"face": 6, "point": None, "uv": None, "refused": str(why.value)}
+
+
 def test_correspond():
     before = gzip.decompress((FIXTURES / "revisions/hole_moved.old.step.gz").read_bytes())
     after = gzip.decompress((FIXTURES / "revisions/hole_moved.new.step.gz").read_bytes())

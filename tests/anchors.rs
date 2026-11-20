@@ -49,3 +49,17 @@ fn out_of_range_refuses_the_whole_call() {
     assert_eq!(err, file_api::anchor(&part, part.faces.len()).unwrap_err());
     assert_eq!(file_api::anchors(&part, Some(&[])).unwrap().trim(), "[]");
 }
+
+#[test]
+fn a_refused_face_is_a_null_row_with_the_single_calls_reason() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/unmeasured_face_open.step");
+    let part = step::read_step_file(&path).unwrap();
+    let why = file_api::anchor(&part, 6).unwrap_err();
+    let rows: Vec<Value> =
+        serde_json::from_str(&file_api::anchors(&part, Some(&[6])).unwrap()).unwrap();
+    assert_eq!(
+        rows[0],
+        serde_json::json!({"face": 6, "point": null, "uv": null, "refused": why})
+    );
+}
