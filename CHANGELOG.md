@@ -44,6 +44,7 @@ in [docs/alpha1.md](docs/alpha1.md).
   are unchanged.
 - Stop B-spline boundary cut bisection when the floating-point bracket stops changing,
   and reuse identical cut searches across the integration passes of an open spline face.
+  From #312 (@xu9299).
 - Complex-instance reference checking at STEP import scans packed records for references
   to complex instances and decodes only the records that have one, instead of decoding every
   record whenever a file has a complex instance. Output is unchanged. Follow-up to #290,
@@ -51,6 +52,19 @@ in [docs/alpha1.md](docs/alpha1.md).
   builds that they are not used on a packed graph, where they would return `None`.
 
 ### Fixed
+
+- Faces with a very large B-spline net or a long helical edge (threaded fasteners and sweeps
+  along a spline as some writers emit them) took minutes in face integration: the inner
+  integral crossed every knot span (or radian) at every boundary node. A B-spline face with
+  many u spans and few v spans, and a cylinder or cone whose loops run through many radians,
+  now integrate along v, checked against their own half-panels and falling back to the stock
+  form where the check fails; a node moving along a parameter line of a very large net is not
+  evaluated, and a node's knot piece is found by search. Over the 43 springrep files that
+  exceeded 30 s, instructions retired fall 6 to 100 times (49 times in total); recognised
+  values agree to round-off (at most 1e-9). xu9299 independently found the same approach
+  (the other Green's-theorem form) and the narrow-dip counterexample in #302, and found that
+  the stationary-node test scaled motions by the whole knot vector rather than the active
+  domain, which skipped a real edge's nodes when a writer padded the end knots. For #302.
 
 - A bore that runs out into a curved wall (the tunnel in a crank block) is no longer published
   as `flat`-bottomed when its end disc leaves only thin crescents of plane at the rim: where
