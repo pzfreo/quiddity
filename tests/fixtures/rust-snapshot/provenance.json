@@ -3171,6 +3171,17 @@
     "tests/fixtures/prismatic_scale3.step": "9072823826149d16330612e34a111cf1815a0540a64a942e40b696ba9c98988c",
     "tests/fixtures/prismatic_translated.step": "1fa8ab721215b637d51a95d67ca8e1ad1d909cb4158ef38760047ebb3117bde6",
     "tests/fixtures/probes.json.gz": "5d90e0512277d3ef76182eac6d4897c8eec0bce67b76f520232be2f8d7791ae1",
+    "tests/fixtures/radial_fin_hex.step.gz": "e349a4dfc8055e46336d1d373ddf3a67d87f075eccc651562f9712a16730abc1",
+    "tests/fixtures/radial_fin_housing.step.gz": "5a2f60d0964fb900129d6ee8a186a3ce24d81d8ec6c7a3caeb85dede44fa8943",
+    "tests/fixtures/radial_fin_irregular.step.gz": "a57cde644fbb922a97527bfb495525056bac8427372d1aa17825c85720baf0f4",
+    "tests/fixtures/radial_fin_notched.step.gz": "fccaa186c4ad3b6163e7bc9aaeeb7a7ddea0742189fa5fbc60d3b7fd303af3cc",
+    "tests/fixtures/radial_fin_octagon.step.gz": "cd2d27aa016e92c6faea67aecfc3d4f2df9252f445754497d35b3d32729f0fd0",
+    "tests/fixtures/radial_fin_short.step.gz": "3257e2d270b224a6ada474257f4b538d84f3141fe166e7b37d4ded6d1a63b182",
+    "tests/fixtures/radial_fin_single.step.gz": "0170137fbda25988912e9d44211d2f36b564c8cb1b7b693771ef2b26d2978fa6",
+    "tests/fixtures/radial_fin_star.step.gz": "64a51f347049c2f6f17cb677ab69e0ad2d999367692ab11742ff92e42cd74450",
+    "tests/fixtures/radial_fin_tube.step.gz": "ec4a81981322d14bb5a4c752662da7b5557727fda91ef4dbddce8dbce8716616",
+    "tests/fixtures/radial_fin_walls.step.gz": "5bf3058b2d5d2080cad9284cdeda541e346c1b6fd33bd04d2865f90b1c8276e6",
+    "tests/fixtures/radial_fins.README.md": "abbcf2a9765128607ac7b509f26adbfa69509e0ccc6c266afe76777509096aba",
     "tests/fixtures/recognition011_oriented.json.gz": "8e35a9e6375b3e718ede46a79aa6e8a414833ea2533561f6a2c05472c0f9d576",
     "tests/fixtures/references/body_measurement_evidence.json": "d499c04fd0f74b6b668be4e0d45cd1cc4270f5d678a5a7748c7d0472416b711f",
     "tests/fixtures/references/body_measurements.json.gz": "4e29f03e5e6b76964d80b6a78a4fb75499d191cdc46f891469b9951e96c46f7b",
@@ -6035,5 +6046,5 @@
     "step_levels.json.gz": "6ff3ceadb33888e9d529a10b9a880babaf979f4f8d869962215d9d3193902f00",
     "unowned_recesses.json.gz": "604ec266d4c85575165c6822140a3ac79a6637c8d72a3a2bb376e74f86455343"
   },
-  "source_commit": "d558749fb403e7a73633236a537f7d12e635f9e6"
+  "source_commit": "c0a1c0176385fcbb5df48a567b450efc13729944"
 }
