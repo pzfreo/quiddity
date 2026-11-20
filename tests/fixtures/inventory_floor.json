@@ -19939,6 +19939,286 @@
       "max_lost": 2,
       "reason": "Faces 173 and 185 are the end walls of a pocket drawn round a hub, about 2.9 mm across between two R3 corner rounds on pocket floor 169, not R55 rounds. curved_wall_corner (#127) claimed them because they are tangent to the R3 rounds; main hid this because holes/0 owned them as a d110 counterbore.",
       "evidence": "cgb242 faces 173 and 185: concave cylinders R55, each between two R3 cylinders (ratio 18), on pocket floor 169. Refused for #307 item 4."
+    },
+    {
+      "file": "captured/4c1f9c12b4ecc50a.step.gz",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 2: tilt 8.00 deg, extent 11.134, area 4591.0; 4: tilt 8.00 deg, extent 11.134, area 4800.0; the levels they formed are gone."
+    },
+    {
+      "file": "captured/4c1f9c12b4ecc50a.step.gz",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 2: tilt 8.00 deg, extent 11.134, area 4591.0; 4: tilt 8.00 deg, extent 11.134, area 4800.0; the levels they formed are gone."
+    },
+    {
+      "file": "captured/5b99f08b2a6f5d42.step.gz",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 2,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 2: tilt 8.00 deg, extent 8.350, area 4200.0; 4: tilt 8.00 deg, extent 8.350, area 4800.0; 10: tilt 8.00 deg, extent 2.783, area 600.0; the levels they formed are gone."
+    },
+    {
+      "file": "captured/5b99f08b2a6f5d42.step.gz",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 2,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 2: tilt 8.00 deg, extent 8.350, area 4200.0; 4: tilt 8.00 deg, extent 8.350, area 4800.0; 10: tilt 8.00 deg, extent 2.783, area 600.0; the levels they formed are gone."
+    },
+    {
+      "file": "captured/93bb4b9e34f2a7ef.step.gz",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 4,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 1: tilt 4.56 deg, extent 0.640, area 80.4; 6: tilt 4.56 deg, extent 0.640, area 80.4; 9: tilt 4.56 deg, extent 0.640, area 80.4; 14: tilt 4.56 deg, extent 0.640, area 80.4; the levels they formed are gone."
+    },
+    {
+      "file": "captured/93bb4b9e34f2a7ef.step.gz",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 4,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 1: tilt 4.56 deg, extent 0.640, area 80.4; 6: tilt 4.56 deg, extent 0.640, area 80.4; 9: tilt 4.56 deg, extent 0.640, area 80.4; 14: tilt 4.56 deg, extent 0.640, area 80.4; the levels they formed are gone."
+    },
+    {
+      "file": "captured/a002c0adc2b690f1.step.gz",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 4,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 2: tilt 4.56 deg, extent 0.640, area 80.4; 5: tilt 4.56 deg, extent 0.640, area 80.4; 10: tilt 4.56 deg, extent 0.640, area 80.4; 13: tilt 4.56 deg, extent 0.640, area 80.4; the levels they formed are gone."
+    },
+    {
+      "file": "captured/a002c0adc2b690f1.step.gz",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 4,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 2: tilt 4.56 deg, extent 0.640, area 80.4; 5: tilt 4.56 deg, extent 0.640, area 80.4; 10: tilt 4.56 deg, extent 0.640, area 80.4; 13: tilt 4.56 deg, extent 0.640, area 80.4; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb202.step.gz",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 5,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 1637: tilt 2.94 deg, extent 3.698, area 264.0; 1876: tilt 2.94 deg, extent 0.837, area 2398.2; 1956: tilt 2.94 deg, extent 9.987, area 13047.8; 1958: tilt 2.94 deg, extent 9.987, area 13047.8; 2052: tilt 2.94 deg, extent 2.062, area 2241.2; 2055: tilt 2.94 deg, extent 7.206, area 21007.6; 2059: tilt 2.94 deg, extent 0.977, area 342.8; 2060: tilt 2.94 deg, extent 2.175, area 339.3; 2077: tilt 2.94 deg, extent 2.175, area 339.3; 2079: tilt 2.94 deg, extent 2.062, area 2435.0; 2082: tilt 2.94 deg, extent 1.441, area 224.8; 2083: tilt 2.94 deg, extent 2.175, area 339.3; 2084: tilt 2.94 deg, extent 7.206, area 17032.9; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb202.step.gz",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 5,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 1637: tilt 2.94 deg, extent 3.698, area 264.0; 1876: tilt 2.94 deg, extent 0.837, area 2398.2; 1956: tilt 2.94 deg, extent 9.987, area 13047.8; 1958: tilt 2.94 deg, extent 9.987, area 13047.8; 2052: tilt 2.94 deg, extent 2.062, area 2241.2; 2055: tilt 2.94 deg, extent 7.206, area 21007.6; 2059: tilt 2.94 deg, extent 0.977, area 342.8; 2060: tilt 2.94 deg, extent 2.175, area 339.3; 2077: tilt 2.94 deg, extent 2.175, area 339.3; 2079: tilt 2.94 deg, extent 2.062, area 2435.0; 2082: tilt 2.94 deg, extent 1.441, area 224.8; 2083: tilt 2.94 deg, extent 2.175, area 339.3; 2084: tilt 2.94 deg, extent 7.206, area 17032.9; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp/10077.step",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 11: tilt 5.15 deg, extent 3.122, area 636.6; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp/10077.step",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 11: tilt 5.15 deg, extent 3.122, area 636.6; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp/10096.step",
+      "mode": "framed",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Framed reading (the published document): mfcadpp_10096.step step_levels/0 z=-18.89784222628137 faces=[2] (level gone) face 2: tilt 8.07 deg, extent 1.017, area 68.416 mfcadpp_10096.step step_levels/1 z=-18.061506273674368 faces=[1, 35, 36] (level gone) face 1: tilt 8.07 deg, extent 1.017, area 68.416 face 35: tilt 0.00 deg, extent 0.000, area 0.239 face 36: tilt 0.00 deg, extent 0.000, area 1.589"
+    },
+    {
+      "file": "corpus/mfcadpp/10098.step",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 4: tilt 3.26 deg, extent 2.352, area 283.2; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp/10098.step",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 4: tilt 3.26 deg, extent 2.352, area 283.2; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp/10155.step",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 26: tilt 2.53 deg, extent 1.333, area 298.0; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp/10155.step",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 26: tilt 2.53 deg, extent 1.333, area 298.0; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp/10212.step",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 2,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 2: tilt 3.49 deg, extent 1.472, area 50.8; 4: tilt 3.49 deg, extent 1.472, area 50.8; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp/10212.step",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 2,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 2: tilt 3.49 deg, extent 1.472, area 50.8; 4: tilt 3.49 deg, extent 1.472, area 50.8; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp_holdout/203.step",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 19: tilt 5.30 deg, extent 0.552, area 33.8; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp_holdout/203.step",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 19: tilt 5.30 deg, extent 0.552, area 33.8; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp_holdout/229.step",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 2,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 2: tilt 7.29 deg, extent 2.223, area 533.8; 4: tilt 7.29 deg, extent 2.223, area 533.8; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp_holdout/229.step",
+      "mode": "framed",
+      "family": "step_levels",
+      "max_lost": 2,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Framed reading (the published document): mfcadpp_holdout_229.step step_levels/3 z=5.399129367294 faces=[4] (level gone) face 4: tilt 7.29 deg, extent 2.223, area 533.842 mfcadpp_holdout_229.step step_levels/5 z=3.175763106529999 faces=[2] (level gone) face 2: tilt 7.29 deg, extent 2.223, area 533.842"
+    },
+    {
+      "file": "corpus/mfcadpp_holdout/229.step",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 2,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 2: tilt 7.29 deg, extent 2.223, area 533.8; 4: tilt 7.29 deg, extent 2.223, area 533.8; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp_holdout/274.step",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 3: tilt 2.12 deg, extent 1.393, area 395.3; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp_holdout/274.step",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 3: tilt 2.12 deg, extent 1.393, area 395.3; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp_holdout/419.step",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 4: tilt 4.50 deg, extent 2.724, area 148.7; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp_holdout/419.step",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 4: tilt 4.50 deg, extent 2.724, area 148.7; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp_regressions/11512.step",
+      "mode": "framed",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Framed reading (the published document): mfcadpp_regressions_11512.step step_levels/0 z=-8.09420897373748 faces=[1, 10] (level gone) face 1: tilt 8.10 deg, extent 1.803, area 150.503 face 10: tilt 8.10 deg, extent 1.803, area 134.221 mfcadpp_regressions_11512.step step_levels/1 z=-6.291380300680478 faces=[3, 12] (flat faces [12] remain in a reshaped level) face 3: tilt 8.10 deg, extent 1.803, area 323.802 face 12: tilt 0.00 deg, extent 0.000, area 143.342"
+    },
+    {
+      "file": "corpus/nist/nist_ctc_02_asme1_rc.stp",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 205: tilt 5.00 deg, extent 6.123, area 10119.7; 323: tilt 5.00 deg, extent 6.123, area 4644.5; 367: tilt 5.00 deg, extent 6.123, area 10119.7; 390: tilt 5.00 deg, extent 6.123, area 4644.5; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/nist/nist_ctc_02_asme1_rc.stp",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 205: tilt 5.00 deg, extent 6.123, area 10119.7; 323: tilt 5.00 deg, extent 6.123, area 4644.5; 367: tilt 5.00 deg, extent 6.123, area 10119.7; 390: tilt 5.00 deg, extent 6.123, area 4644.5; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/nist/nist_ftc_07_asme1_rd.stp",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 4,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 84: tilt 1.00 deg, extent 2.047, area 34378.0; 87: tilt 1.00 deg, extent 2.047, area 34438.7; 173: tilt 1.00 deg, extent 2.213, area 28641.6; 184: tilt 1.00 deg, extent 2.213, area 28702.3; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/nist/nist_ftc_07_asme1_rd.stp",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 4,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 84: tilt 1.00 deg, extent 2.047, area 34378.0; 87: tilt 1.00 deg, extent 2.047, area 34438.7; 173: tilt 1.00 deg, extent 2.213, area 28641.6; 184: tilt 1.00 deg, extent 2.213, area 28702.3; the levels they formed are gone."
+    },
+    {
+      "file": "fixture/nist_ftc_07_asme1_ap242-e2.stp.gz",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 4,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 203: tilt 1.00 deg, extent 2.213, area 28641.6; 276: tilt 1.00 deg, extent 2.213, area 28702.3; 287: tilt 1.00 deg, extent 2.047, area 34438.7; 289: tilt 1.00 deg, extent 2.047, area 34378.0; the levels they formed are gone."
+    },
+    {
+      "file": "fixture/nist_ftc_07_asme1_ap242-e2.stp.gz",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 4,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 203: tilt 1.00 deg, extent 2.213, area 28641.6; 276: tilt 1.00 deg, extent 2.213, area 28702.3; 287: tilt 1.00 deg, extent 2.047, area 34438.7; 289: tilt 1.00 deg, extent 2.047, area 34378.0; the levels they formed are gone."
     }
   ]
 }

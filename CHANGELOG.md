@@ -12,15 +12,19 @@ in [docs/alpha1.md](docs/alpha1.md).
   each plane square to the frame's x or y that passes the same area (in that axis's own
   cross-section) and end-margin rules is a level along that axis, published after the z records
   with its `height_axis`, `x_axis` and `y_axis` (risers with `height_axis`); its `z` and spans are
-  measured along those axes. A face is in at most one level (a plane has one normal). These new
-  records are not published on any face another family claims, a refusal names or body evidence
-  explains, nor on a z level's or z riser's face; risers along x or y need a level on that axis
-  and are not read from a face that would rise along both.
-  No level on any axis is read from a fin or rib face of a `repeating_radial_profiles` record. On
-  the finned housing the rear wall faces, the bore shoulder and the sleeve shoulder (left
-  unexplained by the bar-end entry below) become levels along the barrel's axis, and the fin
-  sides are no longer levels. Corpus: 223 new step levels, 2 new risers, unexplained faces 2178 → 1765, every other
-  family unchanged. Readers that assumed one height axis: see
+  measured along those axes. A face is in at most one level (a plane has one normal). On every
+  axis, z included, a level's face must be flat along the axis (extent at most the 0.5 level
+  band): a drafted or sloping face is no level, so 22 corpus z levels that held one are gone or
+  lose that face. The new x and y records are not published on any face another family claims,
+  a refusal names or body evidence explains, nor on a z level's or z riser's face, nor where a
+  level face is one wall of a slot or pocket (an anti-parallel flat face across empty space,
+  overlapping it by half, nearer than the pair is long); risers along x or y need a level on that
+  axis and are not read from a face that would rise along both. No level on any axis is read
+  from a fin or rib face of a `repeating_radial_profiles` record. On the finned housing the rear
+  wall faces, the bore shoulder and the sleeve shoulder (left unexplained by the bar-end entry
+  below) become levels along the barrel's axis, and the fin sides are no longer levels. Corpus:
+  step levels 335 → 487, risers 129 → 131, unexplained faces 2178 → 1851, every other family
+  unchanged. Readers that assumed one height axis: see
   [recognition 6](docs/recognition-6.md#levels-and-risers-along-every-frame-axis-for-307-item-10).
   For #307 (item 10).
 
