@@ -20,13 +20,15 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
-- Faces with one very large B-spline net (threaded fasteners and sweeps along a spline as some
-  writers emit them) took minutes in face integration: the inner integral crossed every knot
-  span of the net at every boundary node. A face with many u spans and few v spans now
-  integrates along v, checked against its own half-panels and falling back to the stock form
-  where the check fails, and a node moving along a parameter line of a very large net is not
-  evaluated. Instructions retired fall 11 to 50 times on the springrep hex screw, thread
-  runout and sweep files; recognised values agree to round-off. For #302.
+- Faces with a very large B-spline net or a long helical edge (threaded fasteners and sweeps
+  along a spline as some writers emit them) took minutes in face integration: the inner
+  integral crossed every knot span (or radian) at every boundary node. A B-spline face with
+  many u spans and few v spans, and a cylinder or cone whose loops run through many radians,
+  now integrate along v, checked against their own half-panels and falling back to the stock
+  form where the check fails; a node moving along a parameter line of a very large net is not
+  evaluated, and a node's knot piece is found by search. Over the 43 springrep files that
+  exceeded 30 s, instructions retired fall 6 to 100 times (49 times in total); recognised
+  values agree to round-off (at most 1e-9). For #302.
 - Reading a STEP file no longer sizes per-solid work by every face in the file: the import's
   outward-shell proof and the ray casters keep their face boxes and membership for the
   solid's own faces, the unresolved-face and unresolved-edge lookups search a sorted list, and
