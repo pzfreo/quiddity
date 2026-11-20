@@ -54,6 +54,29 @@ exactly the input face numbering. Framed requests refuse when the frame cannot
 be inferred. This differs from recognition/6, whose records always use file
 coordinates and whose frame is provenance only.
 
+## Face index order is a contract
+
+Face index *i* of every document (evidence, recognition, anchors, PMI) is face *i* of the
+reader's part, and `face_sources[i]` names its file instance. The order is OpenCascade's
+`TopExp::MapShapes` face order over the file's shape: placed solid instances in the order the
+file's representation lists them, each solid's outer shell then its void shells, faces in the
+order the `CLOSED_SHELL` lists them; then open shells and surface models. It is **not** defined
+as ascending `ADVANCED_FACE` id. The two coincide when the file writes its solids, and each
+shell's faces, in ascending id order, as every exporter output in the corpus does, and only
+then; a file that lists its solids or a shell's faces out of id order is numbered in listed
+order (`tests/fixtures/two_solids_reversed.step`). `tests/face_index_order.rs` pins both cases and
+`tests/face_sources.rs` checks the order against `MapShapes` captured from OpenCascade over the
+corpus and the NIST files. It follows that `face_sources[i].entity` is the cross-check for a
+mapping built on index order, and the route when names are partial: join through it, never by
+assuming `entity` ascends.
+
+`face_sources[i].instance` is the placed instance the face belongs to: the reader's placed
+solids in traversal order (a solid's number is its index in the part's solids, so on a
+single-part multi-solid file it is the solid index), then each placement of a surface model.
+It is non-decreasing along the face index and never restarts: the face index runs on across
+instances. When one part is placed several times, its `ADVANCED_FACE` entities repeat once per
+instance, so `(entity, instance)` is the unique key, not `entity` alone.
+
 For edit operations, retain the exact exported bytes and a verified mapping
 from `face_sources` (and `edge_sources`) to the live shape's faces (and edges). Check every index and invalidate
 all handles when the source changes. STEP entity IDs are scoped to one export;

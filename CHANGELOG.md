@@ -8,6 +8,9 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Added
 
+- Documented face index order as a contract (OpenCascade `TopExp::MapShapes` traversal, ascending
+  `ADVANCED_FACE` id only when the file lists solids and shell faces in that order) and what
+  `face_sources[].instance` means, with `tests/face_index_order.rs` pinning both.
 - Owned-snapshot STEP geometry entry points release parsed input bytes before B-rep
   construction; file and recognition snapshot readers preserve the original source digest.
 

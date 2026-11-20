@@ -208,6 +208,14 @@ unproved/refusal records as permission to edit. Retain the consumer's existing
 valid-solid, plain-through-hole and stale-source checks, then re-export and
 re-recognise after each edit. Use `correspond` for revision matching.
 
+Face index order is a contract: face *i* is OpenCascade's `TopExp::MapShapes` order, which is
+the file's solids in representation order and each shell's faces in listed order (ascending
+`ADVANCED_FACE` id for exporter-written files, but not by definition). `face_sources[i].entity` is
+the cross-check, and the route when names are partial. `face_sources[i].instance` is the placed
+instance (on a single-part multi-solid file, the solid index); it never restarts the face index,
+and a part placed repeatedly repeats its entities per instance. See
+[evidence.md](evidence.md#face-index-order-is-a-contract).
+
 The face-order trial and reproducible procedure are in
 [the trial report](python-face-order.md). Do not assume an exporter version's
 observed ordering is a durable contract. The trial verified a complete geometric bijection using unique anchor membership,
