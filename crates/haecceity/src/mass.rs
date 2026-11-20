@@ -2919,8 +2919,9 @@ mod tests {
         let _ = part.face_moments(0);
         POISONED_GROUP.with(|g| g.set(None));
         assert!(part.cache[0].trial_refused((27, true)), "the joint refusal");
+        // The fallbacks integrate at width 26 (the groups' own, unobserved).
         assert!(
-            !part.cache[0].trial_refused((27, false)),
+            !part.cache[0].trial_refused((26, false)),
             "no group refusal"
         );
     }
