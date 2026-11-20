@@ -54,6 +54,40 @@ exactly the input face numbering. Framed requests refuse when the frame cannot
 be inferred. This differs from recognition/6, whose records always use file
 coordinates and whose frame is provenance only.
 
+## Face index order is a contract
+
+Face index *i* is face *i* of the reader's part, and `face_sources[i]` names its file instance.
+Which part depends on the call. Evidence, recognition and anchors on a whole file number the
+whole-file read. `StepFile.part(i)` (and Python PMI `part=`) number that part definition's faces
+in its own frame, in `StepFile.part` order: the same traversal restricted to that definition.
+
+The order follows OpenCascade's `TopExp::MapShapes` for solids. A whole-file read walks the
+assembly tree depth first: roots in product-definition order; for each definition its own
+solids, then its child occurrences in NAUO order. A file with no product structure lists all
+`MANIFOLD_SOLID_BREP`s, then all `BREP_WITH_VOIDS`. Each solid gives its outer shell's faces
+then its void shells', in the order the `CLOSED_SHELL` lists them. All solids are read before
+any surface model, then each surface model's shells in `sbsm_boundary` order, so a file mixing
+solids and surface models is not in `MapShapes` order. A standalone `OPEN_SHELL` is never read.
+Faces are not de-duplicated: a face shared by two shells or solids under one placement appears
+twice, where `MapShapes` lists it once (placed copies repeating is correct).
+
+This is not defined as ascending `ADVANCED_FACE` id. The two coincide when the file writes its
+solids and each shell's faces in ascending id order, as every exporter output in the corpus
+does, and only then (`tests/fixtures/two_solids_reversed.step` is numbered in traversal order).
+`tests/face_index_order.rs` pins both cases. `tests/face_sources.rs` checks per-part orders
+against XCAF `MapShapes` captures, with listed exceptions (`13975` "faces order", the NIST
+part-split cases); it does not check whole-file assembly order, which an offline OpenCascade
+comparison on six fixtures supports only. `face_sources[i].entity` is the cross-check and the
+route when names are partial; never assume `entity` ascends.
+
+`face_sources[i].instance` is the placed instance the face belongs to: the placed solids in
+traversal order, then each placement of a surface model. On a whole-file read a solid's number
+is its index in the part's solids, so on a single-part multi-solid file it is the solid index.
+`StepFile.part(i)` and selected-body reads keep the whole-file instance numbers, which need not
+equal the index in the resulting part. It is non-decreasing along the face index and never
+restarts. A part placed several times repeats its `ADVANCED_FACE` entities per instance, so
+`(entity, instance)` is the unique key.
+
 For edit operations, retain the exact exported bytes and a verified mapping
 from `face_sources` (and `edge_sources`) to the live shape's faces (and edges). Check every index and invalidate
 all handles when the source changes. STEP entity IDs are scoped to one export;

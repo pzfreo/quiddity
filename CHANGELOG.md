@@ -8,6 +8,9 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Added
 
+- Documented face index order as a contract (OpenCascade `TopExp::MapShapes` traversal, ascending
+  `ADVANCED_FACE` id only when the file lists solids and shell faces in that order) and what
+  `face_sources[].instance` means, with `tests/face_index_order.rs` pinning both.
 - An edge break on the rim of a conical body (the base of a cone, either end of a frustum) is
   published as a turned `Chamfer`, where it was absorbed as an unexplained cone in the
   `TurnedBody` profile. A narrow coaxial cone between an end plane and the body's cone, joined
@@ -39,6 +42,8 @@ in [docs/alpha1.md](docs/alpha1.md).
   decoding selected attributes or the current record without retaining a second
   owned graph. Face and edge identity, reference validation, refusals and assemblies
   are unchanged.
+- Stop B-spline boundary cut bisection when the floating-point bracket stops changing,
+  and reuse identical cut searches across the integration passes of an open spline face.
 - Complex-instance reference checking at STEP import scans packed records for references
   to complex instances and decodes only the records that have one, instead of decoding every
   record whenever a file has a complex instance. Output is unchanged. Follow-up to #290,
