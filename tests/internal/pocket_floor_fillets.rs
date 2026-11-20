@@ -138,7 +138,9 @@ fn sharp_floor_retains_legacy_families_and_parameters() {
     assert_eq!(f.blends.len(), 4);
     assert_eq!(f.step_levels.len(), 1); // caller-space; framed publication has two
     let published = quiddity::correspondence::recognise(&part);
-    assert_eq!(published.features.step_levels.len(), 2);
+    // The two walls read as levels along the frame's z, and (#307 item 10) the unclaimed
+    // floor as a level along the frame's x, the file's z.
+    assert_eq!(published.features.step_levels.len(), 3);
     assert_eq!(f.section_recesses.len(), 1);
     assert!(f.slots.is_empty());
     assert!(f.fillets.is_empty());
