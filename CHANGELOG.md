@@ -28,7 +28,8 @@ in [docs/alpha1.md](docs/alpha1.md).
   form where the check fails; a node moving along a parameter line of a very large net is not
   evaluated, and a node's knot piece is found by search. Over the 43 springrep files that
   exceeded 30 s, instructions retired fall 6 to 100 times (49 times in total); recognised
-  values agree to round-off (at most 1e-9). For #302.
+  values agree to round-off (at most 1e-9). xu9299 independently found the same approach
+  (the other Green's-theorem form) and the narrow-dip counterexample in #302. For #302.
 - Reading a STEP file no longer sizes per-solid work by every face in the file: the import's
   outward-shell proof and the ray casters keep their face boxes and membership for the
   solid's own faces, the unresolved-face and unresolved-edge lookups search a sorted list, and

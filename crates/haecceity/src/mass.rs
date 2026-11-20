@@ -2393,13 +2393,83 @@ mod tests {
         let ((a128, n128), (a256, n256)) = (dense_ruled_area(128), dense_ruled_area(256));
         assert!((a128 - exact).abs() < 1e-12, "{a128} vs {exact}");
         assert!((a256 - exact).abs() < 1e-12, "{a256} vs {exact}");
-        // Linear: about 1 000 evaluations a span (the stock integral, along u at every boundary
-        // sample, needed 43 000 a span at 128 spans and quadruple that at 256).
-        assert!(n128 < 128 * 2_000, "{n128} evaluations");
+        // Linear: about 1 000 evaluations a span. Measured at 128 spans: 131 040 here; 43 008
+        // with the along-v form switched off (the stationary-node skip alone); 5 591 040 for the
+        // stock integral, along u at every boundary sample (43 680 a span, and quadruple the
+        // total at 256 spans; xu9299's fixture for the same case). The cap sits 2.3 times above
+        // this form and 18 times below stock.
+        assert!(n128 < 300_000, "{n128} evaluations");
         assert!(
             n256 * 10 < n128 * 25,
             "{n128} -> {n256} evaluations is not linear"
         );
+    }
+
+    /// STEP text of the ruled strip S(u, v) = (u(1 − 2v), v, 0.01u) on the unit square as a
+    /// bilinear B-spline face with `spans` equal spans in u (#302, the counterexample xu9299
+    /// found: its normal nearly reverses at v = ½, so its area density has a narrow dip).
+    fn reversing_strip_face(spans: usize) -> String {
+        let at = |i: usize, v: f64| {
+            let u = i as f64 / spans as f64;
+            [u * (1.0 - 2.0 * v), v, 0.01 * u]
+        };
+        let mut e = Entities::new();
+        let (mut grid, mut low, mut high) = (Vec::new(), Vec::new(), Vec::new());
+        for i in 0..=spans {
+            let a = e.point(at(i, 0.0));
+            let b = e.point(at(i, 1.0));
+            grid.push(format!("(#{a},#{b})"));
+            low.push(a);
+            high.push(b);
+        }
+        let v = [
+            e.vertex(at(0, 0.0)),
+            e.vertex(at(spans, 0.0)),
+            e.vertex(at(spans, 1.0)),
+            e.vertex(at(0, 1.0)),
+        ];
+        let mut mult = vec!["2".to_string()];
+        mult.extend(vec!["1".to_string(); spans - 1]);
+        mult.push("2".into());
+        let mult = mult.join(",");
+        let knots: Vec<String> = (0..=spans)
+            .map(|i| format!("{:?}", i as f64 / spans as f64))
+            .collect();
+        let surface = e.add(format!(
+            "B_SPLINE_SURFACE_WITH_KNOTS('',1,1,({}),.UNSPECIFIED.,.F.,.F.,.F.,({mult}),(2,2),({}),(0.,1.),.UNSPECIFIED.)",
+            grid.join(","),
+            knots.join(",")
+        ));
+        let (c_low, c_high) = (e.polyline(&low), e.polyline(&high));
+        let (p_right, p_left) = (
+            [e.point(at(spans, 0.0)), e.point(at(spans, 1.0))],
+            [e.point(at(0, 0.0)), e.point(at(0, 1.0))],
+        );
+        let (c_right, c_left) = (e.polyline(&p_right), e.polyline(&p_left));
+        let sides = [
+            e.edge(v[0], v[1], c_low, true),
+            e.edge(v[1], v[2], c_right, true),
+            e.edge(v[3], v[2], c_high, false),
+            e.edge(v[0], v[3], c_left, false),
+        ];
+        let sides = sides.map(|s| format!("#{s}")).join(",");
+        let lp = e.add(format!("EDGE_LOOP('',({sides}))"));
+        let bound = e.add(format!("FACE_OUTER_BOUND('',#{lp},.T.)"));
+        let face = e.add(format!("ADVANCED_FACE('',(#{bound}),#{surface},.T.)"));
+        e.finish(face)
+    }
+
+    /// The strip's area is right where the cheaper form's inner rule would be 0.263% high on
+    /// its shape check alone (#302): ∫₀¹ ½(√(1+k) + k·asinh(1/√k)) du with k = 1e-4 + 4e-4u²,
+    /// the v integral done in closed form and the u integral by Simpson at 2 000, 4 000 and
+    /// 8 000 intervals (all agreeing to 1e-16).
+    #[test]
+    fn a_strip_whose_normal_nearly_reverses_has_its_exact_area() {
+        let exact = 0.500_619_693_849_426_7;
+        let part = crate::step::read_step(reversing_strip_face(40).as_bytes()).unwrap();
+        INTEGRAND_EVALUATIONS.with(|n| n.set(0));
+        let area = part.face_moments(0).unwrap().area;
+        assert!((area - exact).abs() < 1e-9 * exact, "{area} vs {exact}");
     }
 
     /// The cheaper form's inner rule is used only where it agrees with itself on halves: a
