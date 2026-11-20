@@ -2874,7 +2874,8 @@ mod tests {
         let expected = grooved_solid().face_moments(0);
         assert!(expected.is_some());
         PANIC_WHILE_METERED.with(|p| p.set(true));
-        let caught = std::panic::catch_unwind(|| grooved_solid().with_integration_budget(1 << 40));
+        // A limit of one: a stale meter would refuse the next integration after one evaluation.
+        let caught = std::panic::catch_unwind(|| grooved_solid().with_integration_budget(1));
         PANIC_WHILE_METERED.with(|p| p.set(false));
         assert!(caught.is_err(), "the forced panic happened");
         assert_eq!(grooved_solid().face_moments(0), expected);
