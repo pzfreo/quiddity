@@ -391,8 +391,8 @@ The round scoring correspondence also includes complete rolling-ball `blends` se
 by the published material side (`convex` or `concave`). MFInstSeg round includes both
 external rounds and internal fillets, as confirmed by its labelled concave blend faces.
 Their smooth supports and complete path are already proved; this also includes external
-rounds below the legacy fillet radius floor.
-The fillet recogniser's radius and convexity rules are unchanged. Defining-face sets
+rounds that are not fillets.
+The fillet recogniser's convexity rules are unchanged. Defining-face sets
 shared by a fillet and a blend still count as one prediction.
 
 The MFInstSeg scorer evaluates the internal caller-space inventory. Its chamfer class
@@ -508,7 +508,9 @@ A partial cylinder rounding a convex edge between two tangent planar walls is a 
 at any angle and in any direction. Principal and oblique runs use the same intrinsic
 proof: two distinct nonparallel transverse walls, each tangent within the existing
 coordinate tolerance, an outward cylindrical material side, and an empty-space probe
-towards the round from the virtual sharp corner. Radius limits are unchanged.
+towards the round from the virtual sharp corner. There is no minimum radius beyond
+publishability (0.0005 mm: radii are rounded to 3 decimals, so a smaller round would read 0;
+#297); the upper limit is unchanged.
 The contact tolerance is `max(part.file_uncertainty(), COORD_FLOOR)`, with
 `COORD_FLOOR` (0.000001 mm) as the fallback for files without a stated precision.
 The STEP reader supplies the file uncertainty in millimetres; CTC-03 states 0.00002 mm.
@@ -807,6 +809,16 @@ torus patches (one per source arc), while cylindrical fillets including spherica
 caps still count once. Grouping cannot satisfy a floor by dropping a patch. In the
 cgb202 regression, 708 old occurrences become 542 callout records with the same
 708 primary round patches; the historical floor remains 708.
+
+A planar chamfer also needs a rectilinear neighbourhood when it is large (#301): for each
+convex wall whose width the bevel's leg takes a third or more of, the wall must continue, at
+the far end, into a perpendicular wall, another bevel or a non-planar face (or meet a concave
+internal bevel), repeated until no bevel is dropped. A wall that runs on into an oblique plane
+that is no bevel belongs to a polygonal section (a hexagonal or irregular prism), whose flats
+are indistinguishable from chamfers of one another, so none is claimed; the chamfers of its
+non-perpendicular vertices are not recognised either. The oblique far plane counts only if the convexly joined run-parallel planes beyond it close back round to the bevel: a V-groove, dovetail or slanted step (a concave or open chain) leaves the chamfer alone. A short break beside another oblique
+face is not affected. Known ambiguity: a hexagon with two opposite chamfers is also an
+octagon with four equal bevels, and is read as the latter.
 
 Planar chamfer and angled-step `corner` is optional/null when unproved. Retention
 requires consistency of the measured legs and angle with the corner/anchor points
@@ -1391,6 +1403,17 @@ should read **⌴⌀5 ↧2.25**, plus **0.25 × 45° at counterbore mouth**: add
 axial depth to the 2.0 mm cylinder span. Printing ↧2.0 from that top face would
 locate the floor incorrectly. This is callout guidance; the existing dimension
 planner is not changed to generate chamfer notes.
+
+### Conical-body rim chamfers (#298)
+
+A narrow coaxial cone joined convexly to an end plane and to a conical body's cone, with equal legs along the plane and along the cone (within 0.0015 mm: a C x 45 degree break; any other angle, or two distances, cannot be told from a flare or lead taper and is not published), and strictly shorter
+than that cone (so the body itself is never read as a rim), is published as a turned `chamfers`
+record, with its legs measured along the end plane and along the body's cone from their virtual
+sharp rim. The turned body keeps the cone in its profile, so both records list the face in face
+accounting. These chamfers are appended after the sorted existing chamfers, so saved
+`f:chamfers:N` ranks do not move. Hole mouth cones stay nested in `mouth_chamfers` as above
+(#244): a standalone chamfer per mouth would widen correspondence ambiguities on symmetric
+hole patterns. No field is added, so the schema stays at recognition/6.
 
 ### Saved face anchors
 

@@ -83,6 +83,7 @@ pub(crate) mod tests {
             },
             source_sha256: None,
             input_repairs: Vec::new(),
+            bodies: None,
             body_evidence: BTreeMap::new(),
         };
         assert!(recognition.fingerprints.features.is_empty());
