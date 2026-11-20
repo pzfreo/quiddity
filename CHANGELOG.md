@@ -8,6 +8,9 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Added
 
+- Documented face index order as a contract (OpenCascade `TopExp::MapShapes` traversal, ascending
+  `ADVANCED_FACE` id only when the file lists solids and shell faces in that order) and what
+  `face_sources[].instance` means, with `tests/face_index_order.rs` pinning both.
 - An edge break on the rim of a conical body (the base of a cone, either end of a frustum) is
   published as a turned `Chamfer`, where it was absorbed as an unexplained cone in the
   `TurnedBody` profile. A narrow coaxial cone between an end plane and the body's cone, joined
@@ -18,6 +21,14 @@ in [docs/alpha1.md](docs/alpha1.md).
   `HoleRecord.mouth_chamfers` (#244). The recognition schema stays at 6. For #298.
 - Owned-snapshot STEP geometry entry points release parsed input bytes before B-rep
   construction; file and recognition snapshot readers preserve the original source digest.
+
+- The recognition document states a part's several solids and its void shells in an additive
+  optional `bodies` field (`solids`, `void_shells`, and with several solids each solid's
+  `solid_faces`), and the CLI and `serve` warn when a part holds more than one solid. Records
+  are still found over the part's faces together, so a caller that needs one body at a time can
+  refuse the part or split it by `solid_faces`. Absent for a single one-shell solid; schema 6
+  and every record are unchanged. `Recognition` and `RecognitionDocument` (non-exhaustive) gain
+  the field, and `recognition::Bodies` is new. For #300.
 
 ### Changed
 
@@ -31,6 +42,9 @@ in [docs/alpha1.md](docs/alpha1.md).
   decoding selected attributes or the current record without retaining a second
   owned graph. Face and edge identity, reference validation, refusals and assemblies
   are unchanged.
+- Stop B-spline boundary cut bisection when the floating-point bracket stops changing,
+  and reuse identical cut searches across the integration passes of an open spline face.
+  From #312 (@xu9299).
 - Complex-instance reference checking at STEP import scans packed records for references
   to complex instances and decodes only the records that have one, instead of decoding every
   record whenever a file has a complex instance. Output is unchanged. Follow-up to #290,
@@ -43,6 +57,33 @@ in [docs/alpha1.md](docs/alpha1.md).
   when rounded outlines and edge rounds leave no box corner (a perforated plate's top,
   bottom and outer sides, a flange's sides), instead of `unexplained`. For #307; fin sides
   and tips are not covered. Additive: the schema stays `quiddity-rust/recognition/6`.
+- Faces with a very large B-spline net or a long helical edge (threaded fasteners and sweeps
+  along a spline as some writers emit them) took minutes in face integration: the inner
+  integral crossed every knot span (or radian) at every boundary node. A B-spline face with
+  many u spans and few v spans, and a cylinder or cone whose loops run through many radians,
+  now integrate along v, checked against their own half-panels and falling back to the stock
+  form where the check fails; a node moving along a parameter line of a very large net is not
+  evaluated, and a node's knot piece is found by search. Over the 43 springrep files that
+  exceeded 30 s, instructions retired fall 6 to 100 times (49 times in total); recognised
+  values agree to round-off (at most 1e-9). xu9299 independently found the same approach
+  (the other Green's-theorem form) and the narrow-dip counterexample in #302, and found that
+  the stationary-node test scaled motions by the whole knot vector rather than the active
+  domain, which skipped a real edge's nodes when a writer padded the end knots. For #302.
+
+- A bore that runs out into a curved wall (the tunnel in a crank block) is no longer published
+  as `flat`-bottomed when its end disc leaves only thin crescents of plane at the rim: where
+  a curved wall also borders the end, planar supports count as a floor unless no plane face lies
+  under the bore axis and they cover under half the bore's section, in which case the bore is `through` and no floor face is claimed. For #307 (item 2).
+- A bore with an internal groove (a bearing race's ball groove, a V groove in a ring bore)
+  is one hole, not two lands each ending on the groove. Two coaxial equal-diameter internal
+  lands are one bore when only faces lying wholly outside the bore diameter separate them
+  (no material narrows the bore between them) and the groove is an internal one (a small
+  closed set of faces bounded by the lands, not a slot open to the outside) at most a quarter of
+  the bore diameter wide and deep; a toroidal groove between two cylinders with a major radius
+  under the bore radius no longer reads as a round at the bore's end, so it is not a `flat`
+  floor. Lands separated by a web or a
+  different diameter stay separate holes, and an end that borders only such a groove is
+  `unknown`. The groove itself is still unexplained. For #307 (item 3).
 - A planar chamfer is no longer read from the flats of a polygonal section. A bevel between two
   principal-plane walls was published whenever it stood between them, so the flats of a hexagonal
   or irregular polygonal prism whose neighbours happened to lie on principal planes became

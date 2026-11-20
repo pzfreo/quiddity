@@ -892,6 +892,46 @@ record parameters. Draftwright can use `free_length` and `outer_diameter` for it
 simplified view dimensions, and the remaining measurements for its spring data
 table, retaining unknown active coils and omitting unstated rate.
 
+## Bores running out into a curved wall (#307)
+
+A bore that ends by opening into a curved face, such as a tunnel, can leave slivers of
+plane at the rim where its end disc cuts the wall's edge. Such a sliver is not a floor.
+When a curved wall also borders an internal bore's end, planar supports are set aside only
+if BOTH no plane face lies under the bore axis at that end (the axis point there is air past
+the end) AND the plane faces together cover less than half of the bore's section (sampled
+with 1024 equal-area points). Then the curved wall reads the end as open: the bore is
+`through` with no floor face claimed. Either condition alone keeps the floor, so a thin
+passage crossing the axis under a floor, or a strip of floor left across the axis, does not
+turn a blind hole into a through hole. A floor with a smaller hole continuing from it has no
+curved wall at its rim and stays flat. Measured on the synthetic models (axis covered?, floor
+coverage): tunnel crescent 15%, axis open: through; R10 tunnel removing the floor under the
+axis 30%, open: through; R6 central slot 45%, open: through; R3 cross hole under the floor 72%,
+open: flat; two-passage strips 26% and 38%, axis covered: flat.
+A bore whose exit edge is too long to
+be read as an end at all stays `unknown`.
+
+## Bores with an internal groove (#307)
+
+Two coaxial internal cylinders of the same diameter are one bore when only an internal
+groove separates them: the faces reachable from the first land's end without crossing a land
+are at most four, include the second land's end partner, and lie wholly at or beyond the
+bore radius from the axis with some point beyond it. A slot or thin wall open to the outside
+connects on to the outer wall and is not such a set. The gap and the radial reach must each
+be at most a quarter of the bore diameter (that limit decides torus and cone grooves; a
+rectangular groove already joins through its own coaxial cylinder at any width). A web or
+ridge (material inside the bore diameter) or a different diameter keeps the lands separate
+holes.
+
+A toroidal face between two cylinders, wholly beyond the bore radius, whose major radius is
+under the bore radius (which used to read the end as a closing round) is set aside: it says
+nothing about the end. It is excluded where it borders a plane or a cone, as a round at a mouth
+or floor does. An end bordered only by such a groove is `unknown` rather than `flat`. A torus
+with a major radius at or over the bore radius already read the end as open and is unchanged.
+The groove faces remain unexplained until they have a record of their own.
+
+Known miss: a wide torus or cone gallery (over a quarter of the diameter) leaves the two
+lands as separate holes.
+
 ## Partially obstructed through-hole exits
 
 A bore spanning its local wall, with exterior planar rim support at both axial ends,
