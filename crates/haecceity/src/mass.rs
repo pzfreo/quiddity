@@ -140,6 +140,10 @@ thread_local! {
     static POISONED_GROUP: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
     /// Test hook: panic at the next metered evaluation (a genuine panic inside a budget pass).
     static PANIC_WHILE_METERED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// Test hook: (part address, shift, scale factor) moves that part's `moment_frame`
+    /// references, so the carry's change of local reference is not round-off.
+    static MOVED_FRAME: std::cell::Cell<Option<(usize, V3, f64)>> =
+        const { std::cell::Cell::new(None) };
     /// Integrand evaluations of face integrals on this thread: a structural cost for tests.
     static INTEGRAND_EVALUATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
@@ -2060,6 +2064,13 @@ impl Part {
             })
             .fold(0.0, f64::max)
             .sqrt();
+        #[cfg(test)]
+        let (origin, scale) = MOVED_FRAME.with(|m| match m.get() {
+            Some((part, shift, factor)) if part == self as *const Part as usize => {
+                (geom::add(origin, shift), scale * factor)
+            }
+            _ => (origin, scale),
+        });
         (scale.is_finite() && scale > 0.0).then_some((origin, scale))
     }
 
@@ -2273,7 +2284,8 @@ impl Part {
     }
 
     /// Carry this part's face integrals into `moved`, the same part after the proper rigid
-    /// motion `at` (p ↦ Rp + t; `Part::transformed`), so they are not integrated again. Every
+    /// motion `at` (p ↦ Rp + t; [`Part::transformed_carrying_integrals`]), so they are not
+    /// integrated again. Every
     /// integrand is built from the position p and the natural normal n = sᵤ × sᵥ over the same
     /// parameter domain, and with R orthonormal and det R = +1, n ↦ Rn and |n| is unchanged, so
     /// each carried integral is an exact function of the old ones and the motion (round-off
@@ -2287,11 +2299,12 @@ impl Part {
     ///   s′ = (Ls + d·Rm)/L′, a′ = (L RaRᵀ + d(Rm)ᵀ)/L′ and
     ///   b′ = (L²Rb + L RaRᵀd + Ls d + (d·Rm) d)/L′².
     ///
-    /// The along-v refusals and the mass boundary choice are carried as they are. Derived face
-    /// moments are rebuilt from the carried group. A refusal (a missing mass or group) is not
-    /// carried, nor is a group whose reference exists in only one of the two parts: those faces
-    /// integrate again, and a face the integration budget refused carries nothing. A placement
-    /// that is not a proper rotation carries nothing.
+    /// Every face's shared integration is carried (integrated first where it is missing),
+    /// except a whole sphere's (closed forms) and a face the integration budget refused; with it
+    /// go the mass it selected (and its boundary authority) and the face's along-v refusals.
+    /// Derived face moments are rebuilt from the carried group. A refused group, or one whose
+    /// reference exists in only one of the two parts, carries nothing for that face: it
+    /// integrates again. A placement that is not a proper rotation carries nothing.
     pub(super) fn carry_integrals(&self, moved: &Part, at: &crate::step::Placement) {
         if crate::step::validate_placement(at).is_err() || moved.faces.len() != self.faces.len() {
             return;
@@ -2312,34 +2325,24 @@ impl Part {
             let length = geom::dist(bounds.min, bounds.max);
             (length.is_finite() && length > 0.0).then_some((bounds.centre(), length))
         };
-        let any_centre = self
-            .cache
-            .iter()
-            .any(|c| c.raw_moments.get().is_some_and(|r| r.centre.is_some()));
-        let centres = any_centre
-            .then(|| reference(self).zip(reference(moved)))
-            .flatten();
+        let centres = reference(self).zip(reference(moved));
         for face in 0..self.faces.len() {
             // A face the integration budget refused may hold a partial integration: none of
-            // it is carried (the moved part keeps the verdict and refuses the face).
-            if self.integration_refused(face) {
+            // it is carried (the moved part keeps the verdict and refuses the face). A whole
+            // sphere's area and moments are closed forms, not integrals.
+            if self.integration_refused(face)
+                || matches!(self.faces[face].surface, Surface::Sphere { .. })
+                    && self.whole_sphere(face)
+            {
                 continue;
             }
+            // Every other face's shared integration is carried, made here where it is still
+            // missing, so which faces carry does not depend on what was asked of `self` before.
             let (from, to) = (&self.cache[face], &moved.cache[face]);
-            from.carry_refusals(to);
-            if let Some(mass) = from.mass.get()
-                && let Some([area, flux, nx, ny, nz]) = mass.terms
-            {
-                let n = turn([nx, ny, nz]);
-                let _ = to.mass.set(FaceMass {
-                    terms: Some([area, flux + geom::dot(shift, n), n[0], n[1], n[2]]),
-                    preferred: mass.preferred,
-                });
-            }
             let Some(RawMoments {
                 local: Some(local),
                 centre: Some(centre),
-            }) = from.raw_moments.get().copied()
+            }) = Some(self.face_raw_moments(face))
             else {
                 continue;
             };
@@ -2402,6 +2405,18 @@ impl Part {
                 local: Some(new_local),
                 centre: Some(new_centre),
             });
+            // The mass the shared integration selected (and its boundary authority), and the
+            // along-v refusals, go only with the carried integration.
+            if let Some(mass) = from.mass.get()
+                && let Some([area, flux, nx, ny, nz]) = mass.terms
+            {
+                let n = turn([nx, ny, nz]);
+                let _ = to.mass.set(FaceMass {
+                    terms: Some([area, flux + geom::dot(shift, n), n[0], n[1], n[2]]),
+                    preferred: mass.preferred,
+                });
+            }
+            from.carry_refusals(to);
         }
     }
 }
@@ -3026,7 +3041,7 @@ mod tests {
             }
             let (_, cost) = evaluations_of(|| integrate_all(&warm));
             assert!(cost > 0);
-            let moved = warm.transformed(&at).unwrap();
+            let moved = warm.transformed_carrying_integrals(&at).unwrap();
             let (carried, again) = evaluations_of(|| integrate_all(&moved));
             assert_eq!(again, 0, "{name}: a rigid motion integrates nothing again");
             let fresh = fixture_part(name).transformed(&at).unwrap();
@@ -3114,7 +3129,9 @@ mod tests {
                 .is_some_and(|m| m.terms.is_some())
                 && budgeted.cache[f].raw_moments.get().is_some()
         }));
-        let moved = budgeted.transformed(&generic_motion()).unwrap();
+        let moved = budgeted
+            .transformed_carrying_integrals(&generic_motion())
+            .unwrap();
         for &f in &refused {
             assert!(moved.integration_refused(f), "face {f}");
             let cache = &moved.cache[f];
@@ -3138,13 +3155,111 @@ mod tests {
         }
     }
 
+    /// `transformed` carries nothing: what a part was asked before never changes what its
+    /// copy answers (only recognition's `transformed_carrying_integrals` carries).
+    #[test]
+    fn a_plain_transform_carries_no_integrals() {
+        let at = generic_motion();
+        let warm = grooved_solid();
+        let _ = integrate_all(&warm);
+        let moved = warm.transformed(&at).unwrap();
+        assert!(moved.cache.iter().all(|c| c.mass.get().is_none()
+            && c.raw_moments.get().is_none()
+            && !c.trial_refused((27, true))));
+        let (warmed, cost) = evaluations_of(|| integrate_all(&moved));
+        assert!(cost > 0);
+        let cold = integrate_all(&grooved_solid().transformed(&at).unwrap());
+        let bits = |v: &[Option<Vec<f64>>]| {
+            v.iter()
+                .map(|x| {
+                    x.as_ref()
+                        .map(|x| x.iter().map(|y| y.to_bits()).collect::<Vec<_>>())
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(bits(&warmed), bits(&cold));
+    }
+
+    /// The face-moment group's change of reference (the shift e = Ro + t − o′ and the scale
+    /// s′/s) carried exactly, where it is not round-off: the moved part's moment frames are
+    /// displaced by (40, −25, 60) mm and scaled by 3 (a test hook), under a motion with a large
+    /// translation, and the carried moments equal a fresh integration about those frames.
+    #[test]
+    fn the_local_reference_change_is_carried_exactly() {
+        let mut at = generic_motion();
+        at[0][3] = 25_000.0;
+        at[1][3] = -40_000.0;
+        let warm = grooved_solid();
+        let _ = integrate_all(&warm);
+        let moved = warm.transformed(&at).unwrap();
+        let fresh = grooved_solid().transformed(&at).unwrap();
+        let displaced = |part: &Part, run: &dyn Fn()| {
+            MOVED_FRAME.with(|m| {
+                m.set(Some((
+                    part as *const Part as usize,
+                    [40.0, -25.0, 60.0],
+                    3.0,
+                )))
+            });
+            run();
+            MOVED_FRAME.with(|m| m.set(None));
+        };
+        displaced(&moved, &|| warm.carry_integrals(&moved, &at));
+        let worst = std::cell::Cell::new(0.0f64);
+        displaced(&fresh, &|| {
+            for f in 0..fresh.faces.len() {
+                let (Some(got), Some(want)) = (
+                    moved.cache[f].raw_moments.get().and_then(|r| r.local),
+                    fresh.face_raw_moments(f).local,
+                ) else {
+                    panic!("face {f}: no local group");
+                };
+                let size = want[..13].iter().fold(0.0f64, |m, x| m.max(x.abs()));
+                for k in 0..13 {
+                    worst.set(worst.get().max((got[k] - want[k]).abs() / size));
+                }
+            }
+        });
+        let worst = worst.get();
+        eprintln!("worst relative difference {worst:e}");
+        // As in `rigid_motion_carries_face_integrals_to_round_off`: round-off of a few dozen
+        // products and sums; a dropped shift or scale term is of order 1 here.
+        assert!(worst <= 1e-11, "{worst:e}");
+    }
+
+    /// Along-v refusals go only with a carried integration: a face whose shared integration is
+    /// not carried (its face-moment group refused here) keeps none.
+    #[test]
+    fn refusals_are_carried_only_with_the_integration() {
+        let part = grooved_solid();
+        POISONED_GROUP.with(|g| g.set(Some(true)));
+        let _ = part.face_raw_moments(0);
+        POISONED_GROUP.with(|g| g.set(None));
+        assert!(part.face_raw_moments(0).local.is_none());
+        part.cache[0].refuse_trial((9, true));
+        let moved = part
+            .transformed_carrying_integrals(&generic_motion())
+            .unwrap();
+        assert!(moved.cache[0].raw_moments.get().is_none());
+        assert!(!moved.cache[0].trial_refused((9, true)));
+        // Another face, whose integration is carried, carries its refusals with it.
+        part.cache[1].refuse_trial((9, true));
+        let moved = part
+            .transformed_carrying_integrals(&generic_motion())
+            .unwrap();
+        assert!(moved.cache[1].raw_moments.get().is_some());
+        assert!(moved.cache[1].trial_refused((9, true)));
+    }
+
     /// The along-v refusals and the mass boundary choice survive a rigid motion as they are.
     #[test]
     fn rigid_motion_carries_trial_refusals() {
         let part = crate::step::read_step(steep_in_v_face(4, 160.0).as_bytes()).unwrap();
         let _ = steep_area(&part);
         assert!(part.cache[0].trial_refused((1, false)));
-        let moved = part.transformed(&generic_motion()).unwrap();
+        let moved = part
+            .transformed_carrying_integrals(&generic_motion())
+            .unwrap();
         assert!(moved.cache[0].trial_refused((1, false)));
         assert_eq!(
             moved.cache[0].mass.get().map(|m| m.preferred),
@@ -3171,7 +3286,7 @@ mod tests {
             ("mirror", diagonal([-1.0, 1.0, 1.0])),
             ("unit change", diagonal([25.4, 25.4, 25.4])),
         ] {
-            assert!(warm.transformed(&at).is_err(), "{what}");
+            assert!(warm.transformed_carrying_integrals(&at).is_err(), "{what}");
             let cold = grooved_solid();
             warm.carry_integrals(&cold, &at);
             for c in &cold.cache {

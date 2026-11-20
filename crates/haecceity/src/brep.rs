@@ -460,17 +460,8 @@ impl Part {
 
     /// Copy this loaded part through a finite proper rigid motion, without reading STEP.
     /// Face, edge, solid, vertex and source indices and parameter-space curves are preserved.
-    /// Boxes, inversion grids, classification caches and derived face moments are invalidated
-    /// and rebuilt lazily from the transformed geometry. The face integrals that are already
-    /// computed (each face's mass terms and shared moment integration, with its along-v trial
-    /// refusals) survive, carried through the motion by `Part::carry_integrals`: they integrate
-    /// p and sᵤ × sᵥ over the unchanged parameter domain, and a proper rotation turns both and
-    /// keeps |sᵤ × sᵥ|, so each is an exact function of the old integrals, the motion and the
-    /// two parts' reference points (the faces' moment frames, the box centres and lengths),
-    /// to round-off. Refusals and groups whose reference exists in only one part are not
-    /// carried; those faces integrate again. The integration budget's verdict is carried, and a
-    /// face it refused carries nothing (its integrals stay `None`). The placement must be a proper rigid motion
-    /// (orthonormal, determinant +1, to 1e-12), so no scale, mirror or unit change reaches this.
+    /// Derived boxes, quadratures, inversion grids and classification caches are invalidated
+    /// and rebuilt lazily from the transformed geometry; no cached caller-space data survives.
     /// Imported native primitives and their placement chains are retained so composition
     /// precedes coordinate rounding, including on a part transformed more than once.
     pub fn transformed(
@@ -669,9 +660,28 @@ impl Part {
         part.file_uncertainty = self.file_uncertainty;
         part.native_faces = native_faces;
         part.native_edges = native_edges;
-        // The budget's verdict first: a face it refused stays refused, and nothing integrated
-        // for it is carried.
         part.integration_budget = self.integration_budget.clone();
+        Ok(part)
+    }
+
+    /// [`Part::transformed`], keeping this part's face integrals: recognition's move into the
+    /// part frame it inferred, whose inference has just integrated the solids' faces here (it is not
+    /// for general use, which `transformed` serves with no history: what a part was asked
+    /// before never changes what its copy answers). Each face's shared moment integration
+    /// (made now where missing), the mass it selected and its along-v trial refusals are
+    /// carried through the motion by `Part::carry_integrals`. They integrate p and sᵤ × sᵥ over
+    /// the unchanged parameter domain, and a proper rotation turns both and keeps |sᵤ × sᵥ|, so
+    /// each is an exact function of the old integrals, the motion and the two parts' reference
+    /// points (the faces' moment frames, the box centres and lengths), to round-off. A whole
+    /// sphere's closed forms, refusals, groups whose reference exists in only one part and the
+    /// faces the integration budget refused (whose verdict is carried) carry nothing; those
+    /// integrate again, or stay refused.
+    #[doc(hidden)]
+    pub fn transformed_carrying_integrals(
+        &self,
+        placement: &super::step::Placement,
+    ) -> Result<Self, super::step::StepError> {
+        let part = self.transformed(placement)?;
         self.carry_integrals(&part, placement);
         Ok(part)
     }

@@ -140,57 +140,7 @@ fn surface(a: &Surface, b: &Surface, scale: f64) {
         _ => panic!("different surfaces"),
     }
 }
-/// The integrals of `b`, or, given the part `b` was moved from and the motion, that part's
-/// integrals moved by it.
-struct Integrals<'a> {
-    b: &'a Part,
-    from: Option<(&'a Part, Placement)>,
-}
-
-impl Integrals<'_> {
-    fn point(&self, p: V3) -> V3 {
-        match &self.from {
-            Some((_, at)) => std::array::from_fn(|i| {
-                at[i][0] * p[0] + at[i][1] * p[1] + at[i][2] * p[2] + at[i][3]
-            }),
-            None => p,
-        }
-    }
-    fn direction(&self, v: V3) -> V3 {
-        match &self.from {
-            Some((_, at)) => {
-                std::array::from_fn(|i| at[i][0] * v[0] + at[i][1] * v[1] + at[i][2] * v[2])
-            }
-            None => v,
-        }
-    }
-    fn part(&self) -> &Part {
-        self.from.as_ref().map_or(self.b, |(part, _)| part)
-    }
-    fn face_moments(&self, face: usize) -> Option<quiddity::kernel::mass::FaceMoments> {
-        let mut m = self.part().face_moments(face)?;
-        m.centroid = self.point(m.centroid);
-        m.area_vector = self.direction(m.area_vector);
-        // R M Rᵀ, column by column.
-        let rm: [V3; 3] =
-            std::array::from_fn(|j| self.direction([0, 1, 2].map(|i| m.second_moments[i][j])));
-        m.second_moments = std::array::from_fn(|i| self.direction([0, 1, 2].map(|j| rm[j][i])));
-        Some(m)
-    }
-    fn solid_mass(&self, solid: usize) -> Option<(f64, f64)> {
-        self.part().solid_mass(solid)
-    }
-    fn volume_centroid(&self) -> Option<(f64, V3)> {
-        let (v, c) = self.part().volume_centroid()?;
-        Some((v, self.point(c)))
-    }
-}
-
 fn compare(a: &Part, b: &Part) {
-    compare_integrals(a, b, Integrals { b, from: None });
-}
-
-fn compare_integrals(a: &Part, b: &Part, integrals: Integrals<'_>) {
     assert_eq!(
         (a.faces.len(), a.edges.len(), a.solids.len()),
         (b.faces.len(), b.edges.len(), b.solids.len())
@@ -231,7 +181,7 @@ fn compare_integrals(a: &Part, b: &Part, integrals: Integrals<'_>) {
                 vector(a, b, scale);
             }
         }
-        match (a.face_moments(i), integrals.face_moments(i)) {
+        match (a.face_moments(i), b.face_moments(i)) {
             (Some(a), Some(b)) => {
                 near(a.area, b.area, scale * scale);
                 vector(a.centroid, b.centroid, scale);
@@ -309,7 +259,7 @@ fn compare_integrals(a: &Part, b: &Part, integrals: Integrals<'_>) {
     assert_eq!(a.edge_faces(), b.edge_faces());
     for (i, (x, y)) in a.solids.iter().zip(&b.solids).enumerate() {
         assert_eq!(x.faces, y.faces);
-        match (a.solid_mass(i), integrals.solid_mass(i)) {
+        match (a.solid_mass(i), b.solid_mass(i)) {
             (Some((v, e)), Some((w, f))) => {
                 near(v, w, scale.powi(3));
                 near(e, f, scale.powi(3));
@@ -338,7 +288,7 @@ fn compare_integrals(a: &Part, b: &Part, integrals: Integrals<'_>) {
             }
         }
     }
-    match (a.volume_centroid(), integrals.volume_centroid()) {
+    match (a.volume_centroid(), b.volume_centroid()) {
         (Some((v, c)), Some((w, d))) => {
             near(v, w, scale.powi(3));
             vector(c, d, scale);
@@ -360,26 +310,6 @@ fn recognition_bytes(part: &Part) -> Result<Vec<u8>, String> {
             .or_else(|| e.downcast_ref::<&str>().map(|s| (*s).to_owned()))
             .unwrap_or_else(|| "non-string recognition panic".into())
     })
-}
-
-/// The two recognitions are byte-identical, or both refused alike.
-fn same_recognition(a: &Result<Vec<u8>, String>, b: &Result<Vec<u8>, String>, what: &str) {
-    match (a, b) {
-        (Ok(a), Ok(b)) if a != b => {
-            let offset = a
-                .iter()
-                .zip(b)
-                .position(|(a, b)| a != b)
-                .unwrap_or(a.len().min(b.len()));
-            panic!(
-                "{what}: recognition differs at byte {offset}: {:?} vs {:?}",
-                String::from_utf8_lossy(&a[offset.saturating_sub(40)..a.len().min(offset + 80)]),
-                String::from_utf8_lossy(&b[offset.saturating_sub(40)..b.len().min(offset + 80)])
-            );
-        }
-        (Ok(_), Ok(_)) => {}
-        _ => assert_eq!(a, b, "{what}: recognition refusal differs"),
-    }
 }
 
 /// Corpus parts whose recognition is also compared: a costly one and the two whose frame choice
@@ -455,21 +385,7 @@ fn loaded_transform_matches_reader() {
             ] {
                 let moved = part.transformed(&at).unwrap();
                 let read = read_step_file_placed(path, &at).unwrap();
-                // Geometry against the reader's; integrals against the loaded part's own,
-                // moved. The moved part carries those integrals, and a fresh integration in
-                // the moved frame can refuse a face that integrates in others: nist_ftc_07's
-                // face 181, a cylinder, is refused by a read under `oblique`, while the file
-                // frame and a read under the quarter turn both give 131.38394654315604 mm².
-                // That frame-dependent refusal is the base integration's, not the motion's
-                // (decided by the maintainer, 2026-11-20: the file frame's value is the oracle).
-                compare_integrals(
-                    &moved,
-                    &read,
-                    Integrals {
-                        b: &read,
-                        from: Some((&part, at)),
-                    },
-                );
+                compare(&moved, &read);
                 eprintln!(
                     "transform equivalence: geometry checked {} at {at:?}",
                     path.display()
@@ -481,36 +397,27 @@ fn loaded_transform_matches_reader() {
                 if !path.starts_with(&fixtures) && !named {
                     continue;
                 }
-                // A part transformed before any query carries nothing of its own, so it
-                // recognises exactly as the reader's part does, byte for byte.
-                let cold = read_step_file_placed(path, &IDENTITY)
-                    .unwrap()
-                    .transformed(&at)
-                    .unwrap();
-                same_recognition(
-                    &recognition_bytes(&cold),
-                    &recognition_bytes(&read),
-                    &format!("unqueried part under {at:?}"),
-                );
-                // The warmed part carries its face integrals through the motion, and nothing
-                // else it warmed: it recognises byte for byte as a part that integrated only
-                // (the same integrals, in the same order) before the same motion. Against the
-                // reader's fresh integration it is not bit-identical (decided by the
-                // maintainer, 2026-11-20: the file frame's integrals are the oracle): over the
-                // fixtures and corpus, values differ by at most 6.3e-8 of max(1, |value|), and
-                // two fixtures' records differ under `oblique`: a riser in
-                // golden_triangular_and_hex_pockets (kept by the carried integrals, as in the
-                // file frame) and grooved_bore_wide's void refusal's air_samples.
-                let integrated = read_step_file_placed(path, &IDENTITY).unwrap();
-                for i in 0..integrated.faces.len() {
-                    let _ = integrated.face_moments(i);
+                let (a, b) = (recognition_bytes(&moved), recognition_bytes(&read));
+                match (&a, &b) {
+                    (Ok(a), Ok(b)) if a != b => {
+                        let offset = a
+                            .iter()
+                            .zip(b)
+                            .position(|(a, b)| a != b)
+                            .unwrap_or(a.len().min(b.len()));
+                        panic!(
+                            "recognition differs under {at:?} at byte {offset}: {:?} vs {:?}",
+                            String::from_utf8_lossy(
+                                &a[offset.saturating_sub(40)..a.len().min(offset + 80)]
+                            ),
+                            String::from_utf8_lossy(
+                                &b[offset.saturating_sub(40)..b.len().min(offset + 80)]
+                            )
+                        );
+                    }
+                    (Ok(_), Ok(_)) => {}
+                    _ => assert_eq!(a, b, "recognition refusal differs"),
                 }
-                let _ = integrated.volume_centroid();
-                same_recognition(
-                    &recognition_bytes(&moved),
-                    &recognition_bytes(&integrated.transformed(&at).unwrap()),
-                    &format!("warmed part under {at:?}"),
-                );
                 eprintln!(
                     "transform equivalence: recognition checked {} at {at:?}",
                     path.display()

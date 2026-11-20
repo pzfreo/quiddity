@@ -116,7 +116,7 @@ pub fn recognise(part: &Part) -> Recognition {
 }
 
 fn recognise_in_frame(part: &Part, frame: PartFrame) -> Recognition {
-    let working = match part.transformed(&frame.normalisation()) {
+    let working = match part.transformed_carrying_integrals(&frame.normalisation()) {
         Ok(working) => working,
         Err(_) => {
             // A failed normalisation must never silently publish caller-space features.
@@ -226,7 +226,7 @@ fn joint_analysis(
     use crate::evidence_view::{self, EvidenceViewError};
 
     let (frame, working) = match frames::infer_part_frame(part) {
-        Ok(frame) => match part.transformed(&frame.normalisation()) {
+        Ok(frame) => match part.transformed_carrying_integrals(&frame.normalisation()) {
             Ok(working) => (RecordFrame::Inferred(frame), Some(working)),
             Err(_) => {
                 return (

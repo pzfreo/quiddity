@@ -101,15 +101,14 @@ in [docs/alpha1.md](docs/alpha1.md).
   record whenever a file has a complex instance. Output is unchanged. Follow-up to #290,
   at the maintainer's suggestion. `UnitReader::get` and `real_text` now assert in debug
   builds that they are not used on a packed graph, where they would return `None`.
-- `Part::transformed` carries each face's computed integrals (mass terms, the shared moment
-  integration, along-v trial refusals) through a proper rigid motion instead of integrating
-  every face again, so recognition no longer integrates a part twice (once in file coordinates
-  to infer its frame, once in that frame). Each carried value is an exact function of the old
+- Recognition no longer integrates a part twice (once in file coordinates to infer its frame,
+  once in that frame): its move into the inferred frame carries each face's moment
+  integration, the mass it selected and its along-v trial refusals through the rigid motion
+  instead of integrating every face again. Each carried value is an exact function of the old
   integrals and the motion: area kept, first moments turned and shifted, second moments
   R·M·Rᵀ with parallel-axis terms, the centroid group re-referred to the moved box centre.
-  Refusals are not carried. On the gearbox casing (270 faces) the in-frame integrand
-  evaluations fall from 166,647,664 to 0. Values agree with a fresh integration to round-off.
-  For #307.
+  Refusals and budget-refused faces are not carried. `Part::transformed` itself still carries
+  nothing. Values agree with a fresh integration in the frame to round-off. For #307.
 
 ### Fixed
 

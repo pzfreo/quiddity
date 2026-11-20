@@ -809,7 +809,7 @@ pub fn document(part: &Part, framed: bool) -> Result<EvidenceDocument, EvidenceV
     };
     let working = frame
         .as_ref()
-        .map(|f| part.transformed(&f.normalisation()))
+        .map(|f| part.transformed_carrying_integrals(&f.normalisation()))
         .transpose()
         .map_err(|e| EvidenceViewError(e.to_string()))?;
     let view = build_recognition_evidence(working.as_ref().unwrap_or(part))?;
