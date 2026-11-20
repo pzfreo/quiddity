@@ -232,22 +232,23 @@ pub(super) struct FaceCache {
     pub(super) edge_deviation: OnceLock<Vec<(usize, f64)>>,
     pub(super) uv_bounds: OnceLock<Option<(f64, f64, f64, f64)>>,
     pub(super) recovered: OnceLock<Option<Surface>>,
-    /// Widths of the integrands for which the cheaper along-v trials were both refused.
-    refused_trials: std::sync::Mutex<Vec<usize>>,
+    /// (integrand width, whether mass was observed) of the integrations whose cheaper along-v
+    /// trials were both refused: only integrands the face and the pair identify.
+    refused_trials: std::sync::Mutex<Vec<(usize, bool)>>,
 }
 
 impl FaceCache {
-    pub(super) fn trial_refused(&self, width: usize) -> bool {
+    pub(super) fn trial_refused(&self, key: (usize, bool)) -> bool {
         self.refused_trials
             .lock()
-            .is_ok_and(|refused| refused.contains(&width))
+            .is_ok_and(|refused| refused.contains(&key))
     }
 
-    pub(super) fn refuse_trial(&self, width: usize) {
+    pub(super) fn refuse_trial(&self, key: (usize, bool)) {
         if let Ok(mut refused) = self.refused_trials.lock()
-            && !refused.contains(&width)
+            && !refused.contains(&key)
         {
-            refused.push(width);
+            refused.push(key);
         }
     }
 }

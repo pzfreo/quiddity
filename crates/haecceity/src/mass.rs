@@ -906,7 +906,7 @@ impl Part {
             components: Components::Prefix(5),
             observe_mass: None,
         };
-        if let Some(value) = self.integrate_face_legacy(face, density, rule, &mut None) {
+        if let Some(value) = self.integrate_face_legacy(face, density, rule, &mut None, true) {
             return FaceMass::legacy(valid_mass(value));
         }
         self.recover_face_mass(face)
@@ -930,6 +930,7 @@ impl Part {
         &self,
         face: usize,
         mass: [usize; 5],
+        remember: bool,
         f: impl Fn(V3, V3, V3) -> [f64; N],
     ) -> Option<[f64; M]> {
         let mut shared = None;
@@ -945,6 +946,7 @@ impl Part {
                     observe_mass: Some(mass),
                 },
                 &mut observed,
+                remember,
             );
             match observed {
                 Some(MassPass::Evaluated(terms)) => FaceMass::legacy(terms),
@@ -979,6 +981,7 @@ impl Part {
                 observe_mass: None,
             },
             &mut None,
+            remember,
         )
     }
 
@@ -989,16 +992,20 @@ impl Part {
     /// is returned. A face whose one rule per knot span fails the check is tried once more
     /// with each span cut into [`REFINED_PANELS`] (its area density is a high-degree
     /// polynomial in v, which one 16-point rule does not resolve), against the same check. A
-    /// face both refuse is remembered in the face's cache (per integrand width), so no later
-    /// integration of it repeats the trials.
+    /// face both refuse is remembered in the face's cache when `remember` (the integrand is
+    /// fixed by the face and the rule: not one that depends on a caller's argument), keyed by
+    /// its width and whether mass is observed, so no later like integration repeats the trials.
     fn integrate_face_legacy<const N: usize>(
         &self,
         face: usize,
         f: impl Fn(V3, V3, V3) -> [f64; N],
         rule: IntegralRule,
         observed: &mut Option<MassPass>,
+        remember: bool,
     ) -> Option<[f64; N]> {
-        if self.cheaper_inner_form(face) && !self.cache[face].trial_refused(N) {
+        let key = (N, rule.observe_mass.is_some());
+        let remembered = remember && self.cache[face].trial_refused(key);
+        if self.cheaper_inner_form(face) && !remembered {
             for split in [1, REFINED_PANELS] {
                 let unresolved = std::cell::Cell::new(false);
                 let mut trial = None;
@@ -1021,7 +1028,9 @@ impl Part {
                     break;
                 }
             }
-            self.cache[face].refuse_trial(N);
+            if remember {
+                self.cache[face].refuse_trial(key);
+            }
         }
         self.integrate_face_legacy_in(face, f, rule, observed, None)
     }
@@ -1841,7 +1850,7 @@ impl Part {
             lp.vertex
                 .or_else(|| lp.edges.first().map(|&(e, _)| self.edges[e].start))
         })?;
-        let [area, x, y, z] = self.moment_integral(face, [4, 5, 6, 7, 8], |p, su, sv| {
+        let [area, x, y, z] = self.moment_integral(face, [4, 5, 6, 7, 8], false, |p, su, sv| {
             let n = geom::cross(su, sv);
             let w = geom::dot(n, direction);
             let q = geom::sub(p, origin);
@@ -1941,7 +1950,7 @@ impl Part {
         let c0 = bounds.centre();
         let length = geom::dist(bounds.min, bounds.max);
         let length = (length.is_finite() && length > 0.0 && centre).then_some(length);
-        self.moment_integral::<27, 26>(face, [0, 26, 1, 2, 3], |p, su, sv| {
+        self.moment_integral::<27, 26>(face, [0, 26, 1, 2, 3], true, |p, su, sv| {
             let n = geom::cross(su, sv);
             let w = geom::norm(n);
             let mut out = [0.0; 27];
@@ -2848,7 +2857,8 @@ mod tests {
             components: Components::Prefix(1),
             observe_mass: None,
         };
-        let (value, n) = evaluations_of(|| part.integrate_face_legacy(0, area, rule, &mut None));
+        let (value, n) =
+            evaluations_of(|| part.integrate_face_legacy(0, area, rule, &mut None, true));
         (value.unwrap()[0], n)
     }
 
@@ -2893,9 +2903,32 @@ mod tests {
         let (area, cost) = steep_area(&part);
         assert_eq!(area, fine, "the finer trial's result is the face's");
         assert_eq!(cost, coarse_cost + fine_cost, "both trials ran, no stock");
-        assert!(!part.cache[0].trial_refused(1));
+        assert!(!part.cache[0].trial_refused((1, false)));
         // Once the finer trial has passed, a repeat runs the same two trials (nothing refused).
         assert_eq!(steep_area(&part).1, cost);
+    }
+
+    /// A refusal is not remembered for `face_projected_moments`, whose integrand depends on the
+    /// direction: another direction still runs its own trials, bit for bit as with no refusal on record.
+    #[test]
+    fn a_refused_projected_direction_does_not_skip_the_trial_for_another() {
+        let part = || crate::step::read_step(steep_in_v_face(4, 160.0).as_bytes()).unwrap();
+        let (first, second) = ([0.0, 0.0, 1.0], [0.0, 0.6, 0.8]);
+        let warm = part();
+        assert!(warm.face_projected_moments(0, first).is_some());
+        assert!(!warm.cache[0].trial_refused((9, true)));
+        let (warm_result, warm_cost) = evaluations_of(|| warm.face_projected_moments(0, second));
+        // The same call on a part that only integrated the face's moments, so that mass is
+        // cached as in `warm` and no projected refusal exists: its trials run.
+        let cold = part();
+        assert!(cold.face_moments(0).is_some());
+        let (cold_result, cold_cost) = evaluations_of(|| cold.face_projected_moments(0, second));
+        assert!(cold_result.is_some());
+        assert_eq!(
+            warm_result.map(|(a, c)| (a.to_bits(), c.map(f64::to_bits))),
+            cold_result.map(|(a, c)| (a.to_bits(), c.map(f64::to_bits)))
+        );
+        assert_eq!(warm_cost, cold_cost);
     }
 
     /// A face both trials refuse takes the stock form, and the refusal is remembered: a second
@@ -2909,17 +2942,17 @@ mod tests {
         let (_, fine_ok, fine_cost) = steep_trial(&part, REFINED_PANELS);
         let (stock, _, stock_cost) = steep_trial(&part, 0);
         assert!(!coarse_ok && !fine_ok);
-        assert!(!part.cache[0].trial_refused(1));
+        assert!(!part.cache[0].trial_refused((1, false)));
 
         let (area, first) = steep_area(&part);
         assert_eq!(area, stock);
         assert_eq!(first, coarse_cost + fine_cost + stock_cost);
-        assert!(part.cache[0].trial_refused(1));
+        assert!(part.cache[0].trial_refused((1, false)));
         let (area, second) = steep_area(&part);
         assert_eq!(area, stock);
         assert_eq!(second, stock_cost, "no trial on the second integration");
         // Another consumer's integrand (another width) has not been refused yet.
-        assert!(!part.cache[0].trial_refused(5));
+        assert!(!part.cache[0].trial_refused((5, false)));
         let exact = steep_exact(degree, height);
         assert!((stock - exact).abs() < 1e-9 * exact, "{stock} vs {exact}");
     }
