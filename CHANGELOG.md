@@ -8,6 +8,22 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Added
 
+- `step_levels` and `risers` are read along every axis of the recognition frame, not only its z:
+  each plane square to the frame's x or y that passes the same area (in that axis's own
+  cross-section) and end-margin rules is a level along that axis, published after the z records
+  with its `height_axis`, `x_axis` and `y_axis` (risers with `height_axis`); its `z` and spans are
+  measured along those axes. A face is in at most one level (a plane has one normal). These new
+  records are not published on any face another family claims, a refusal names or body evidence
+  explains, nor on a z level's or z riser's face; risers along x or y need a level on that axis
+  and are not read from a face that would rise along both.
+  No level on any axis is read from a fin or rib face of a `repeating_radial_profiles` record. On
+  the finned housing the rear wall faces, the bore shoulder and the sleeve shoulder (left
+  unexplained by the bar-end entry below) become levels along the barrel's axis, and the fin
+  sides are no longer levels. Corpus: 223 new step levels, 2 new risers, unexplained faces 2178 → 1765, every other
+  family unchanged. Readers that assumed one height axis: see
+  [recognition 6](docs/recognition-6.md#levels-and-risers-along-every-frame-axis-for-307-item-10).
+  For #307 (item 10).
+
 - The end planes of a round bar or tube are `body` (`stock_envelope`) where they were unexplained:
   an external cylinder spanning the part's whole extent along its axis, closed at each end by one
   plane that joins it convexly and spans exactly its transverse extent. On a finned motor housing

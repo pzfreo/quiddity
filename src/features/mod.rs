@@ -535,6 +535,11 @@ pub(crate) fn recognise_projected(
             });
         }
     }
+    // Step levels and risers along the frame's x and y, once every other claim is final, and
+    // no level on a fin's or rib's faces along any axis.
+    post!("step_levels", "other_axes", || {
+        other_axis_levels(ctx, &mut features)
+    });
     if failures.len() != before {
         // A post-pass may already have mutated records or claims. Discard everything,
         // then rediscover and reconcile with the failed/blocked families revoked.
@@ -555,6 +560,106 @@ pub(crate) fn recognise_projected(
     }
     duplicate_references::mark(ctx.part, &mut features);
     features
+}
+
+/// The step levels and risers along the frame's x and y ([`levels::other_axes`]), appended
+/// after the z ones, and no z level on the faces of a `repeating_radial_profiles` record (the
+/// sides of fins or ribs swept along another axis are walls, not heights; the z risers drop
+/// such a level from their `body_levels`). A new level or riser avoids every face another
+/// family claims, a refusal names, or body evidence explains.
+fn other_axis_levels(ctx: &Context<'_>, features: &mut Features) {
+    let fins: BTreeSet<usize> = features
+        .defining
+        .get("repeating_radial_profiles")
+        .into_iter()
+        .flatten()
+        .flatten()
+        .copied()
+        .collect();
+    if !fins.is_empty() {
+        let gone: BTreeSet<usize> = features.defining["step_levels"]
+            .iter()
+            .enumerate()
+            .filter(|(_, faces)| faces.iter().any(|f| fins.contains(f)))
+            .map(|(i, _)| i)
+            .collect();
+        if !gone.is_empty() {
+            let dropped: Vec<levels::FaceLevel> = gone
+                .iter()
+                .map(|&i| features.step_levels[i].clone())
+                .collect();
+            drop_rejected(&mut features.step_levels, &gone);
+            drop_rejected(features.defining.get_mut("step_levels").unwrap(), &gone);
+            drop_rejected(
+                features.evidence_status.get_mut("step_levels").unwrap(),
+                &gone,
+            );
+            for riser in &mut features.risers {
+                riser.body_levels.retain(|l| !dropped.contains(l));
+            }
+        }
+    }
+    let mut occupied: BTreeSet<usize> = features
+        .defining
+        .iter()
+        .filter(|(family, _)| !matches!(**family, "step_levels" | "risers"))
+        .flat_map(|(_, claims)| claims.iter().flatten().copied())
+        .collect();
+    occupied.extend(
+        features
+            .discovery_refusals
+            .values()
+            .flatten()
+            .flat_map(|r| r.faces.iter().copied()),
+    );
+    occupied.extend(
+        features
+            .section_recess_refusals
+            .iter()
+            .flat_map(|r| r.evidence().defining_faces().iter().copied()),
+    );
+    occupied.extend(
+        features
+            .interior_void_refusals
+            .iter()
+            .flat_map(|r| r.candidate.void_faces.iter().copied()),
+    );
+    occupied.extend(
+        features
+            .modelled_thread_refusals
+            .iter()
+            .flat_map(|r| r.faces.iter().copied()),
+    );
+    occupied.extend(crate::body::evidence(ctx.part, features).into_keys());
+    let taken: BTreeSet<usize> = ["step_levels", "risers"]
+        .iter()
+        .flat_map(|family| features.defining[family].iter().flatten().copied())
+        .collect();
+    let (new_levels, new_risers) = levels::other_axes(ctx, &occupied, &taken);
+    for (family, found) in [
+        (
+            "step_levels",
+            new_levels.iter().map(|o| &o.defining).collect::<Vec<_>>(),
+        ),
+        ("risers", new_risers.iter().map(|o| &o.defining).collect()),
+    ] {
+        features.evidence_status.get_mut(family).unwrap().extend(
+            found
+                .iter()
+                .map(|d| evidence::strict_status(ctx.part, d, &[])),
+        );
+        features
+            .defining
+            .get_mut(family)
+            .unwrap()
+            .extend(found.into_iter().cloned());
+    }
+    features
+        .step_levels
+        .extend(new_levels.into_iter().map(|o| o.record));
+    features
+        .risers
+        .extend(new_risers.into_iter().map(|o| o.record));
 }
 
 /// Reserve individual manufacturing claims before floor completion. Levels and risers

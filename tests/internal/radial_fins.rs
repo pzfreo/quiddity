@@ -124,15 +124,33 @@ fn housing_rims_are_body_and_the_rest_is_left_unexplained_for_stated_reasons() {
         );
     }
     // Standoff tops and the sleeve's end are boss caps (consulted, not claimed by the boss
-    // record), the shoulder between the d26 and d30 bores belongs to no record, and the rear
-    // recess and the rear wall's faces carry islands and passages no family describes.
+    // record), and the rear recess's floor ring carries islands no family describes.
     let unexplained: Vec<usize> = (0..p.faces.len())
         .filter(|&f| groups[f] == FaceAccounting::Unexplained)
         .collect();
-    assert_eq!(unexplained.len(), 11);
+    assert_eq!(unexplained.len(), 7);
+    for (z, lo, hi) in [(-28.8, 5.9, 6.1), (-24.4, 4.9, 5.1)] {
+        let found = plane_at(z, lo, hi);
+        assert!(!found.is_empty(), "no plane at z={z}");
+        for f in found {
+            assert!(unexplained.contains(&f), "face {f} at z={z}");
+        }
+    }
+    // The rear wall's faces, the shoulder between the d26 and d30 bores and the sleeve's
+    // shoulder are step levels along the barrel's axis (#307 item 10: the frame's z is across
+    // it, so these are levels along the frame's x), each in exactly one level; the fin sides,
+    // which the fins record claims, are in none.
+    let document = quiddity::recognition::document(&recognition, p.faces.len());
+    let levels: Vec<_> = document
+        .records
+        .iter()
+        .filter(|r| r.family == "step_levels")
+        .collect();
+    assert_eq!(levels.len(), 3);
+    for level in &levels {
+        assert_eq!(level.parameters["height_axis"], "z");
+    }
     for (z, lo, hi) in [
-        (-28.8, 5.9, 6.1),
-        (-24.4, 4.9, 5.1),
         (1.5, 55.0, 57.0),
         (-18.0, 29.0, 31.0),
         (-22.0, 91.0, 93.0),
@@ -141,9 +159,16 @@ fn housing_rims_are_body_and_the_rest_is_left_unexplained_for_stated_reasons() {
         let found = plane_at(z, lo, hi);
         assert!(!found.is_empty(), "no plane at z={z}");
         for f in found {
-            assert!(unexplained.contains(&f), "face {f} at z={z}");
+            let owners: Vec<_> = levels.iter().filter(|l| l.faces.contains(&f)).collect();
+            assert_eq!(owners.len(), 1, "face {f} at z={z}");
         }
     }
+    let fins = &recognition.features.working().defining["repeating_radial_profiles"][0];
+    assert!(
+        levels
+            .iter()
+            .all(|l| l.faces.iter().all(|f| !fins.contains(f)))
+    );
     // The rear recess's cylinder wall (r46, z -31..-22) is unexplained as well.
     let wall: Vec<usize> = (0..p.faces.len())
         .filter(|&f| {

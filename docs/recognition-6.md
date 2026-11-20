@@ -44,6 +44,32 @@ same published height direction. `open_sign`, `depth_sign`, pad direction
 and gusset support-side signs refer to their published directions. Empty position arrays
 remain empty. Nested levels and pattern members use the same decoding rules independently.
 An unconverted record without `origin` retains the existing absolute file-coordinate rules.
+
+### Levels and risers along every frame axis (for #307 item 10)
+
+`step_levels` and `risers` are read along each axis of the recognition frame: its z first (as
+before, same records and IDs), then its x, then its y, appended in that order. A plane is a level
+along the one frame axis its normal lies along, so a face is in at most one level. Along every
+axis the same rules apply: a level's faces cover at least 1% of the body's cross-section across
+that axis, and it lies strictly inside the body's extent along it by the end margin (0.6, at most
+a quarter of the extent); risers use the same area floors and tolerance. Along the frame's x and
+y a level or riser is a miss rather than a second description: none is published when any of its
+faces is claimed by another family, named by a refusal, explained as `body`, or already a z level
+or z riser face; risers along x or y are read only where their body has a level on that axis,
+never from a level's face, and not from a face that would be a riser along both x and y (which
+axis it rises along is ambiguous). No level on any axis is read from a `repeating_radial_profiles` record's
+faces (fin and rib sides are walls, not heights); z risers drop such a level from `body_levels`.
+
+What changes for a reader that assumed one height axis: a record along the frame's x or y always
+carries `height_axis` (with `origin`; levels also `x_axis` and `y_axis`), even where the frame's
+z is the file's. Then `z` is the height along `height_axis`, not file Z; `x_span` and `y_span` are
+extents along `x_axis` and `y_axis`, the two axes across it in cyclic frame order (y then z for an
+x level, z then x for a y level), not file X and Y. A riser's `z_lo`/`z_hi`, `vertical` and
+`lo_at_envelope`/`hi_at_envelope` refer to its `height_axis`, its `axis`/`other_axis` may name
+file Z, and its `body_levels` are levels along the same axis. A record without `height_axis`
+keeps its existing meaning. A reader that ignores `height_axis` misplaces these records, so it
+should skip records whose `height_axis` it does not handle. Without an inferred frame, records are
+unconverted: `height_axis` is a file letter and the spans follow the same cyclic file order.
 Flat `axis_line` gives the two coordinates along `section_axes`. Start at
 `q = origin + axis_line[0] * section_axes[0] + axis_line[1] * section_axes[1]`, then move
 along `axis` until `dot(q - origin, axis_direction) = 0`. This also handles a stock cylinder
