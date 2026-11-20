@@ -1413,10 +1413,14 @@ integrals, where an inferred frame integrates every face twice (once in the file
 for the frame, again on the frame-normalised copy, about 213G instructions each on this part).
 Face 41 alone is 26.8M units (about 82G instructions) of the 74.3M units in one pass. At 1M the two `interior_voids` refusals are no longer
 produced, so faces 55, 78, 82, 98, 195 and 196, which they accounted `refused`, become
-`unexplained` (150 + 6 = 156): the records' own faces include no refused face, so they are not
-dropped by the defining-face rule; the void analysis reads the area of faces around the
-cavity (`escapes`), and with one of the faces refused at 1M but not at 5M (0, 3, 49, 258, 264,
-267) it finds no void (inferred from the counts; the face was not traced).
+`unexplained` (150 + 6 = 156). The records' own faces include no refused face, so the
+defining-face rule does not drop them: the void analysis no longer forms the candidates. To
+grow a cavity's skin it asks, for each face bordering it, whether a probe from just outside
+escapes (`escapes` in `src/features/interior_voids.rs`), which needs that face's area for its
+probe offset, and an unknown answer abandons the region. Refusing face 49 is what removes
+them: with a budget of 3.0M (faces 0, 2, 41, 45 refused) both refusals remain; with 2.9M (49
+refused as well) neither does; that face 49 reaches the analysis through `escapes` is read
+from the code, not traced.
 
 ## Circular blind steps with conical entries
 

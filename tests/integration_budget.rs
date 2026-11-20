@@ -40,6 +40,9 @@ fn expensive_face(part: &Part) -> (usize, u64) {
     let mut order: Vec<usize> = (0..work.len()).collect();
     order.sort_by_key(|&f| std::cmp::Reverse(work[f]));
     let (top, next) = (work[order[0]], work[order[1]]);
+    // A factor of two leaves the midpoint budget at least a quarter of the top cost away from
+    // either face's count, a margin for a rigid motion's effect on adaptive quadrature counts
+    // (the motion test checks the refused set survives it); the sheet is 17 times the bore.
     assert!(
         top > 2 * next,
         "one face must dominate: {top} against {next}"
