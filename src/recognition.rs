@@ -55,9 +55,9 @@ pub enum BodyReason {
     StockBoxSide,
     StockBoxNotched,
     StockBoxSplit,
-    StockEnvelope,
     PlateEdge,
     StockWall,
+    StockEnvelope,
 }
 
 /// A named refusal record and its original reason code.
