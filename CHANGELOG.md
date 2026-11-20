@@ -8,6 +8,9 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Added
 
+- Documented face index order as a contract (OpenCascade `TopExp::MapShapes` traversal, ascending
+  `ADVANCED_FACE` id only when the file lists solids and shell faces in that order) and what
+  `face_sources[].instance` means, with `tests/face_index_order.rs` pinning both.
 - An edge break on the rim of a conical body (the base of a cone, either end of a frustum) is
   published as a turned `Chamfer`, where it was absorbed as an unexplained cone in the
   `TurnedBody` profile. A narrow coaxial cone between an end plane and the body's cone, joined

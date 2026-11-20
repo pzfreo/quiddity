@@ -208,9 +208,16 @@ unproved/refusal records as permission to edit. Retain the consumer's existing
 valid-solid, plain-through-hole and stale-source checks, then re-export and
 re-recognise after each edit. Use `correspond` for revision matching.
 
+Face index order is a contract: the reader's traversal order, `TopExp::MapShapes` for solids
+(solids in assembly traversal order, each shell's faces as listed: ascending `ADVANCED_FACE` id
+only for files written that way). `face_sources[i].entity` is the cross-check, and the route when
+names are partial. `face_sources[i].instance` is the placed instance (on a single-part multi-solid
+file, the solid index); it never restarts the face index, and a part placed repeatedly repeats its
+entities per instance. See [evidence.md](evidence.md#face-index-order-is-a-contract).
+
 The face-order trial and reproducible procedure are in
-[the trial report](python-face-order.md). Do not assume an exporter version's
-observed ordering is a durable contract. The trial verified a complete geometric bijection using unique anchor membership,
+[the trial report](python-face-order.md). The trial concerns another exporter's (build123d/OCC) face order, which quiddity does not control, so
+verify that mapping on each export. The trial verified a complete geometric bijection using unique anchor membership,
 area and centroid agreement. Apply those checks to each export before issuing
 edit handles. Names can also be joined through `face_sources[face].entity` (and edges through
 `edge_sources[edge].entity`) when
