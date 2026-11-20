@@ -1431,17 +1431,32 @@ neighbour of a side is one of
 At least one tip and one host are required. Any other join, a tangent join to anything but a
 half-round tip, a host that is neither plane nor cylinder, or a side with a hole refuses the
 wall. The wall must also be *thin*: `t` at most a quarter of both the height and the length
-(below). A 4 x 10 fin is therefore not a fin, and a miss is better than a wrong record.
+(below), or *slender*: at most a tenth of the length and 0.6 of the height (a 1.4 x 2.5 x
+38.5 cooling fin qualifies). A 4 x 10 x 30 fin is neither, and a miss is better than a wrong
+record.
 Drafted (non-parallel) sides, root fillets and curved sides are not read.
 
-**Fields.** `normal` (the sides' unit normal, first non-zero component positive), `thickness`,
-`length` (the extent of a side along `run`, the direction of its longest root edge) and `height`
-(its extent along `rise`, the in-plane direction from the root to the tip; a half-round tip
-adds its radius), `at` (the mean of a side's vertices moved to the midplane), `host` (`plane`,
-`cylinder` or `mixed`, as for a fin between a tube and a flange), and the faces:
-`side_faces`, `tip_faces` and `host_faces`. Lengths and positions publish to three decimals,
-unit directions to six. `host_faces` are context. `tip_faces` lists every tip, including one
-another family claims.
+**Fields.** `normal` (the sides' unit normal; its sign is chosen in the recognition frame, the first
+non-zero component positive, then carried to file coordinates with the part), `thickness`,
+and the wall's size in its own plane, defined by where it meets its host: `run` is the
+direction of its longest root edge (a straight edge where a side meets a host) and `length`
+the extent of a side along it; `rise` is the in-plane direction perpendicular to `run`, from the
+root towards the free tip, and `height` the extent along it (a half-round tip adds its radius).
+A wall with two hosts at an angle (a rib in a corner, or a fin on a tube above a flange) takes
+the longer root edge. `at` is the wall's centre: the middle of its `run` and `rise` extents, on
+the midplane between the sides. `host` is `plane`, `cylinder` or `mixed` (a fin between a tube
+and a flange), and the faces are `side_faces`, `tip_faces` and `host_faces`. Lengths and
+positions publish to three decimals, unit directions to six. `host_faces` are context.
+`tip_faces` lists every tip, including one another family claims.
+
+**Junctions.** A wall is refused when another face of the solid lies in the same plane facing
+the same way: the wall runs on past a crossing or meeting rib, so each piece would carry a
+wrong length (two crossing 70-long ribs would be four fins of 34). A miss is better than a
+wrong length.
+
+**Ribs and `pads`.** A plain straight rib with a flat tip on a plate is a `pads` box, and `pads`
+claim it first, so a consumer counting ribs combines `pads` and `fins`. `fins` covers what no
+family claimed: walls on cylinders, half-round or triangular ribs.
 
 **Claims.** The record claims its two sides and its tips, which become `feature` faces in face
 accounting; it never claims a host or a flush face. It is published only when no other family

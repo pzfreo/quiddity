@@ -22,6 +22,10 @@ use crate::kernel::py;
 const PARALLEL_TOL: f64 = 5e-5;
 /// A wall is thin when its thickness is at most this fraction of both its height and length.
 const MAX_THICKNESS_FRAC: f64 = 0.25;
+/// A slender wall (a low ridge on a long run) is thin when its thickness is at most this
+/// fraction of its length and of its height.
+const SLENDER_LENGTH_FRAC: f64 = 0.1;
+const SLENDER_HEIGHT_FRAC: f64 = 0.6;
 /// A tip face is no larger than this multiple of thickness times its edge with a side; a
 /// rounded (half-round) tip is 1.57 times that of a flat one.
 const MAX_TIP_AREA_FACTOR: f64 = 2.0;
@@ -30,7 +34,7 @@ const MAX_TIP_AREA_FACTOR: f64 = 2.0;
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[non_exhaustive]
 pub struct Fin {
-    /// The sides' unit normal, its first non-zero component positive.
+    /// The sides' unit normal; the sign is chosen in the recognition frame, first non-zero component positive.
     pub normal: V3,
     /// The distance between the two parallel side planes.
     pub thickness: f64,
@@ -43,7 +47,7 @@ pub struct Fin {
     pub run: V3,
     /// The unit direction from the root to the free tip, in the sides' plane.
     pub rise: V3,
-    /// The mean of a side's vertices, on the wall's midplane.
+    /// The wall's centre: the middle of its run and rise extents, on the midplane.
     pub at: Placed<V3>,
     /// What the wall stands on: `plane`, `cylinder` or `mixed` (both, as a fin between a tube
     /// and a flange).
@@ -147,6 +151,13 @@ fn rim(part: &Part, side: usize, thickness: f64, tol: f64) -> Option<Rim> {
     Some(Rim { convex, hosts })
 }
 
+/// Thin: a quarter of both height and length at most, or slender: a tenth of the length and
+/// 0.6 of the height at most.
+fn is_thin(t: f64, length: f64, height: f64) -> bool {
+    t <= MAX_THICKNESS_FRAC * length.min(height)
+        || (t <= SLENDER_LENGTH_FRAC * length && t <= SLENDER_HEIGHT_FRAC * height)
+}
+
 fn edge_length(part: &Part, e: usize) -> f64 {
     part.edges[e]
         .samples
@@ -244,6 +255,44 @@ fn pair(ctx: &Context<'_>, s1: usize, s2: usize) -> Option<Occurrence<Fin>> {
     {
         return None;
     }
+    // Junction: a host that is a side of another wall (a rib crossing or meeting this one; its other
+    // side lies across a tip), whose other side meets a face coplanar with one of ours, means the wall runs on beyond it: each
+    // piece's length would be wrong, so the wall is refused.
+    let coplanar = |g: usize, side: usize, normal: V3, origin: V3| {
+        g != side
+            && unit_plane_normal(part, g)
+                .is_some_and(|ng| geom::dot(ng, normal) > 1. - PARALLEL_TOL)
+            && matches!(&part.faces[g].surface, Surface::Plane { frame }
+                if geom::dot(geom::sub(frame.origin, origin), normal).abs() <= 4. * tol)
+    };
+    for &h in rim1.hosts.iter().chain(&rim2.hosts) {
+        if !matches!(part.faces[h].surface, Surface::Plane { .. }) {
+            continue;
+        }
+        let Some(nh) = unit_plane_normal(part, h) else {
+            continue;
+        };
+        let across: BTreeSet<usize> = part
+            .neighbours(h)
+            .into_iter()
+            .flat_map(|f| part.neighbours(f))
+            .filter(|&f| f != h)
+            .collect();
+        for h2 in across {
+            if !matches!(part.faces[h2].surface, Surface::Plane { .. })
+                || unit_plane_normal(part, h2).is_none_or(|n| geom::dot(n, nh) > -1. + PARALLEL_TOL)
+            {
+                continue;
+            }
+            if part
+                .neighbours(h2)
+                .into_iter()
+                .any(|g| coplanar(g, s1, n1, f1.origin) || coplanar(g, s2, n2, f2.origin))
+            {
+                return None;
+            }
+        }
+    }
     // A host must not be the wall's own side or tip.
     let mut hosts: Vec<usize> = rim1.hosts.iter().chain(&rim2.hosts).copied().collect();
     hosts.sort_unstable();
@@ -318,10 +367,11 @@ fn pair(ctx: &Context<'_>, s1: usize, s2: usize) -> Option<Occurrence<Fin>> {
             lo = lo.min(s - r);
             hi = hi.max(s + r);
         }
-        hi - lo
+        (lo, hi)
     };
-    let (length, height) = (extent(run), extent(rise));
-    if length <= 0. || height <= 0. || thickness > MAX_THICKNESS_FRAC * length.min(height) {
+    let ((run_lo, run_hi), (rise_lo, rise_hi)) = (extent(run), extent(rise));
+    let (length, height) = (run_hi - run_lo, rise_hi - rise_lo);
+    if length <= 0. || height <= 0. || !is_thin(thickness, length, height) {
         return None;
     }
     // The wall is material between its sides.
@@ -330,8 +380,16 @@ fn pair(ctx: &Context<'_>, s1: usize, s2: usize) -> Option<Occurrence<Fin>> {
         verts.iter().fold([0.; 3], |s, &p| geom::add(s, p)),
         1. / verts.len() as f64,
     );
-    let at = geom::add(centre, geom::scale(shift, 0.5));
-    if ctx.solid_classifier(solid).classify(at) != State::In
+    let mid = geom::add(centre, geom::scale(shift, 0.5));
+    // The wall's centre: the middle of its extents on the midplane.
+    let at = geom::add(
+        geom::add(
+            geom::scale(run, 0.5 * (run_lo + run_hi)),
+            geom::scale(rise, 0.5 * (rise_lo + rise_hi)),
+        ),
+        geom::scale(n1, geom::dot(f1.origin, n1) - 0.5 * thickness),
+    );
+    if ctx.solid_classifier(solid).classify(mid) != State::In
         || ctx
             .solid_classifier(solid)
             .classify(geom::add(centre, geom::scale(shift, 0.05)))

@@ -9,8 +9,13 @@ with build123d 0.13.0. No customer geometry is used. The finned housing is
 - `fins_gusset_plate.step.gz`: a plate with an upright wall, a triangular gusset against it (a
   `gusset_ribs` record, no fin) and a free 3-thick triangular rib (one fin, 20 high, 25 long).
 
+- `fins_slender_ridges.step.gz`: a barrel built like a motor housing, 64 radial 1.4-thick fins
+  2.5 proud (the real-part geometry of the #307 housing): 60 fins, the four on the axes being
+  the `pads`'.
+
 Controls, no fin: `fins_flat_rib.step.gz` (one straight rib) and `fins_ribbed_plate.step.gz`
-(three), which `pads` claim; `fins_boss_pad`, `fins_pocket` (a pocket wall), `fins_thick_step`
+(three), which `pads` claim; `fins_crossing_ribs` (two crossing 70-long half-round ribs: refused, the junction would give
+each a wrong length), `fins_boss_pad`, `fins_pocket` (a pocket wall), `fins_thick_step`
 (a 12-thick bar), `fins_sheet_flange` (a sharp 2 mm L) and `fins_sheet_bend` (the same with an
 R2/R4 bend). `flats_low_tab` and `flats_finned_shaft` (4-thick, 10-high fins: over the
 quarter-height thickness limit) are also controls.
