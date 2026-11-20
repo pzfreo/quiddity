@@ -3068,6 +3068,18 @@
     "tests/fixtures/golden_traversal_order.step": "17f6fd012b0e7d9df7d2c17c65f0ffaf62c6be649199d189747b28b260e6a0c2",
     "tests/fixtures/golden_triangular_and_hex_pockets.step": "f27aa6fddb2ff1cf1322b78f3f59aeed4225e42ef3643379d33c071cfa6ad586",
     "tests/fixtures/golden_turned_steps_and_grooves.step": "ef8b87840b03131c721a1d8f0a47fb9b03cf6f834b092101596b635ff7570a35",
+    "tests/fixtures/grooved_bore_cbore.step.gz": "2f71208bba3b84cb0278ebe60a3340dff645546b1bb0b48522ed6462a27d74b0",
+    "tests/fixtures/grooved_bore_cross.step.gz": "7f219c6242bedddabaec65b72c11bc92cd80a0aaf442709f1454bc01722d560c",
+    "tests/fixtures/grooved_bore_race.step.gz": "506c72858ec380feb3e808855a6921a1810c1cf2e9a42962978813f9e052134e",
+    "tests/fixtures/grooved_bore_ring.step.gz": "4e9efd1f4fec1681680363551735659ae00db314a02954d07ccca7ec146b18e8",
+    "tests/fixtures/grooved_bore_sawn_6_5.step.gz": "d479b83b4371df65dd3d883ae01107d97e67ff16398e5b41a4aea0a202bb64a7",
+    "tests/fixtures/grooved_bore_sawn_7_4.step.gz": "7c5a83d6aa87c99cd8add33ad947c225ef4cf646996ff17df3b8cf51723d1bf0",
+    "tests/fixtures/grooved_bore_steps.step.gz": "a162c85975e02597def45a349b74783af46194d9de715d78dc967b6e8f550a1d",
+    "tests/fixtures/grooved_bore_valve.step.gz": "5a7cffaefd2d92b7b6c13fb5de7a58fb1e5679fc0a2d5a99fde8f0fb9b242e9c",
+    "tests/fixtures/grooved_bore_web.step.gz": "d2e29ae6b5ab55cfe9dc6153648a58c76030b9cc15cb6196f9091dd512777879",
+    "tests/fixtures/grooved_bore_webgroove.step.gz": "206abb8eb961ac12ece0fdc6392a21b97484ae3fd908ca27b2eb8d6cd7f7c379",
+    "tests/fixtures/grooved_bore_wide.step.gz": "2b197f11f03a09fe2c4aa69250d39d269ef73f5bef983d82006659a5d6b5477e",
+    "tests/fixtures/grooved_bores.README.md": "1db22d06293a55c396288abdcf506a09f56b312f19db8c2eaf3a1f140014ca45",
     "tests/fixtures/gvp-occt.json": "0cb1444b067c8473b9b99c0fe19c39ff471cf1a05d6d43d3b13ca692fa50b22a",
     "tests/fixtures/gvp/README.md": "a0e080a1fc523195d275bd1020f569ee56e5de5c832e5757701695436bc552a7",
     "tests/fixtures/gvp/nist/nist_stc_08_asme1_ap242-e3.stp.gz": "696530365041490bab0810b3ec4c7e5036f90debed120a2e1e8e69bd8ac0c302",
@@ -5978,5 +5990,5 @@
     "step_levels.json.gz": "6ff3ceadb33888e9d529a10b9a880babaf979f4f8d869962215d9d3193902f00",
     "unowned_recesses.json.gz": "604ec266d4c85575165c6822140a3ac79a6637c8d72a3a2bb376e74f86455343"
   },
-  "source_commit": "84e4ac348e1bc5274c8d03ea13e27ab35dfa61fa"
+  "source_commit": "d7dfba64c22da47f4088a44afa82e974d741bcb7"
 }
