@@ -43,3 +43,10 @@ fn a_flat_running_past_its_cylinder_keeps_its_value() {
         assert_eq!(f[0].across, 17., "{name}");
     }
 }
+
+#[test]
+fn a_block_side_a_boss_pokes_through_is_not_a_flat() {
+    // The boss cylinder exists beyond the side's plane (a real flat cuts it away), though the
+    // boss's chord vertices sit at the ends of its own axial span.
+    assert!(flats("flats_boss_through_block.step.gz").is_empty());
+}

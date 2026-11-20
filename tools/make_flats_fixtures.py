@@ -8,6 +8,8 @@ Each part is an R20 shaft, 40 long (Z = 0..40), with:
   flats_key_flat      one key flat 12 from the axis over Z = 20..40
   flats_chamfer_overrun  R10 shaft (Z 0..30), R15 collar (Z 30..40) with a 2 mm chamfer
                       on its outer lower edge; a flat 7 from the axis runs on into the chamfer
+  flats_boss_through_block  an R5 boss, 10 high, poking 2 mm through the x = 3 side of a
+                      60 x 6 x 10 block (the side is not a flat)
   flats_over_land     R10 shaft with a 4 mm R10.6 land (Z 20..24); a flat 7 from the axis
                       over Z = 10..40 crosses the land
 """
@@ -59,3 +61,6 @@ rim = part.edges().filter_by(GeomType.CIRCLE).group_by(Axis.Z)[1].sort_by(SortBy
 write(chamfer(rim, 2.0) - flat_cut(7, 15, 31), "flats_chamfer_overrun.step.gz")
 
 write(cyl(10, 40) + cyl(10.6, 4, 20) - flat_cut(7, 10, 40), "flats_over_land.step.gz")
+
+part = cyl(5, 10) + Box(60, 6, 10, align=(Align.MAX, Align.CENTER, Align.MIN)).moved(Location((3, 0, 0)))
+write(part, "flats_boss_through_block.step.gz")

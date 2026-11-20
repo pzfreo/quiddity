@@ -11,3 +11,6 @@ radial fins reaching R30; `flats_low_tab.step.gz` adds one 4-thick tab whose tip
 `flats_chamfer_overrun.step.gz` and `flats_over_land.step.gz` are real D-flats on an R10 shaft
 that must be kept: the first runs on into the 2 mm chamfer of an R15 collar, the second crosses
 a 4 mm R10.6 land and must stay bound to the R10 cylinder (across 17).
+
+`flats_boss_through_block.step.gz` is an R5 boss, 10 high, poking 2 mm through the x = 3 side of
+a 60 x 6 x 10 block. The side is not a flat: the boss's cylinder survives past its plane.

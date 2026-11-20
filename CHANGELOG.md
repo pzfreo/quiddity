@@ -27,7 +27,8 @@ in [docs/alpha1.md](docs/alpha1.md).
   diameter (before, only "not inside it" was checked, so a fin side running out beyond the
   stock passed). A tab standing a hair beyond the radius is therefore not a flat either. A flat
   that runs on past the cylinder into a chamfer, taper, land or hex collar is still a flat,
-  with the same `across`. Corpus: 12 flats records on rib or lug sides are removed. For #307.
+  with the same `across`. A block side that a small boss pokes through is not a flat either (the
+  boss's cylinder exists beyond the plane; on a real flat it is cut away). Corpus: 12 flats records on rib or lug sides are removed. For #307.
 - A face whose area and centroid cannot be computed (a cylinder bounded by one closed circle,
   as some converters write a degenerate face) is left out of recognition and published as an
   `unmeasured_face_refusals` record (`UnmeasuredFaceRefusal`, reason `unmeasured_face`; its

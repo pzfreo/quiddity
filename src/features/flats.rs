@@ -106,6 +106,31 @@ fn vertices(part: &Part, face: usize) -> Vec<V3> {
     out
 }
 
+/// The cylinder's own face reaches past the plane: at the direction of the plane's outward
+/// normal, the cylinder exists over part of the flat's axial range. On a real D-flat that part
+/// of the cylinder is cut away; a boss poking through a block side keeps it.
+fn cylinder_reaches_past(part: &Part, cyl: usize, normal: V3, vertices: &[V3]) -> bool {
+    let Surface::Cylinder { frame, .. } = part.faces[cyl].surface else {
+        return false;
+    };
+    let (Some((_, _, v0, v1)), Some(domain)) = (part.uv_bounds(cyl), part.domain(cyl)) else {
+        return false;
+    };
+    let l = frame.dir_to_local(normal);
+    let u = l[1].atan2(l[0]).rem_euclid(std::f64::consts::TAU);
+    let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+    for &p in vertices {
+        let z = frame.to_local(p)[2];
+        lo = lo.min(z);
+        hi = hi.max(z);
+    }
+    let (lo, hi) = (lo.max(v0.min(v1)), hi.min(v0.max(v1)));
+    lo < hi
+        && [0.2, 0.4, 0.6, 0.8]
+            .iter()
+            .any(|f| domain.contains(u, lo + f * (hi - lo)))
+}
+
 struct Candidate<'c> {
     cyl: &'c CylinderEvidence,
     normal: V3,
@@ -153,6 +178,9 @@ pub fn discover(ctx: &Context<'_>) -> Vec<Occurrence<Flat>> {
             }
             if !chord_truncates_stock(&vertices(part, face), ax, d, normal, r, (c.s_lo, c.s_hi)) {
                 continue; // a recess wall, or a rib, fin or tab side
+            }
+            if cylinder_reaches_past(part, c.face, normal, &vertices(part, face)) {
+                continue; // a boss pokes through a block side: its cylinder survives the plane
             }
             candidates.push(Candidate {
                 cyl: c,
