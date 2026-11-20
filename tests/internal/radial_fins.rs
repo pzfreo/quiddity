@@ -88,7 +88,7 @@ fn a_gear_is_still_one_profile_on_its_end_faces() {
 }
 
 #[test]
-fn housing_rims_are_body_and_the_rest_is_left_unexplained_for_stated_reasons() {
+fn housing_rims_are_body_standoff_tops_supporting_and_the_rest_unexplained() {
     use quiddity::recognition::{BodyReason, FaceAccounting};
     let p = part("radial_fin_housing.step.gz");
     let recognition = quiddity::correspondence::recognise(&p);
@@ -123,24 +123,50 @@ fn housing_rims_are_body_and_the_rest_is_left_unexplained_for_stated_reasons() {
             }
         );
     }
-    // Standoff tops and the sleeve's end are boss caps (consulted, not claimed by the boss
-    // record), and the rear recess's floor ring carries islands no family describes.
+    // Standoff tops are boss caps: consulted, not claimed, by the boss record, so they read
+    // `supporting` with that boss. The sleeve's end is a step level, so it stays a feature.
+    // The rear recess's floor ring carries islands no family describes.
     let unexplained: Vec<usize> = (0..p.faces.len())
         .filter(|&f| groups[f] == FaceAccounting::Unexplained)
         .collect();
-    assert_eq!(unexplained.len(), 7);
+    assert_eq!(unexplained.len(), 1);
+    let document = quiddity::recognition::document(&recognition, p.faces.len());
+    let supporting: Vec<(usize, &Vec<String>)> = groups
+        .iter()
+        .enumerate()
+        .filter_map(|(f, g)| match g {
+            FaceAccounting::Supporting { record_ids } => Some((f, record_ids)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(supporting.len(), 6);
+    for &(f, record_ids) in &supporting {
+        assert_eq!(record_ids.len(), 1, "face {f}");
+        let boss = document
+            .records
+            .iter()
+            .find(|r| r.id == record_ids[0])
+            .unwrap();
+        assert_eq!(boss.family, "bosses");
+        assert!(!boss.faces.contains(&f), "face {f} is claimed by its boss");
+        assert!(
+            document
+                .records
+                .iter()
+                .all(|r| !r.claimed_faces().any(|c| c == f))
+        );
+    }
     for (z, lo, hi) in [(-28.8, 5.9, 6.1), (-24.4, 4.9, 5.1)] {
         let found = plane_at(z, lo, hi);
         assert!(!found.is_empty(), "no plane at z={z}");
         for f in found {
-            assert!(unexplained.contains(&f), "face {f} at z={z}");
+            assert!(supporting.iter().any(|&(s, _)| s == f), "face {f} at z={z}");
         }
     }
     // The rear wall's faces, the shoulder between the d26 and d30 bores and the sleeve's
     // shoulder are step levels along the barrel's axis (#307 item 10: the frame's z is across
     // it, so these are levels along the frame's x), each in exactly one level; the fin sides,
     // which the fins record claims, are in none.
-    let document = quiddity::recognition::document(&recognition, p.faces.len());
     let levels: Vec<_> = document
         .records
         .iter()
@@ -183,4 +209,66 @@ fn housing_rims_are_body_and_the_rest_is_left_unexplained_for_stated_reasons() {
         .collect();
     assert_eq!(wall.len(), 1);
     assert_eq!(groups[wall[0]], FaceAccounting::Unexplained);
+}
+
+#[test]
+fn a_standoff_top_supports_exactly_its_own_boss_and_a_claimed_cap_stays_a_feature() {
+    use quiddity::recognition::FaceAccounting;
+    let p = part("radial_fin_housing.step.gz");
+    let recognition = quiddity::correspondence::recognise(&p);
+    let document = quiddity::recognition::document(&recognition, p.faces.len());
+    let groups = document.face_accounting.as_ref().unwrap();
+    let boss_of = |cylinder: usize| -> String {
+        document
+            .records
+            .iter()
+            .find(|r| r.family == "bosses" && r.faces == [cylinder])
+            .unwrap()
+            .id
+            .clone()
+    };
+    // Standoff cylinders 359, 361-363, 367 and 368 stand under tops 370-373, 375 and 376.
+    for (cylinder, top) in [
+        (359, 370),
+        (361, 371),
+        (362, 372),
+        (363, 373),
+        (367, 375),
+        (368, 376),
+    ] {
+        assert_eq!(
+            groups[top],
+            FaceAccounting::Supporting {
+                record_ids: vec![boss_of(cylinder)]
+            },
+            "top {top}"
+        );
+    }
+    // The sleeve's end (377) is consulted by its boss and claimed by a step level: a feature.
+    let FaceAccounting::Feature { record_ids } = &groups[377] else {
+        panic!("{:?}", groups[377]);
+    };
+    assert!(record_ids.iter().all(|id| id.starts_with("step_levels/")));
+    assert!(!boss_of(369).is_empty());
+}
+
+#[test]
+fn a_rounded_boss_on_a_block_reads_its_unclaimed_top_as_supporting() {
+    use quiddity::recognition::FaceAccounting;
+    let p = part("top_round_boss8.step.gz");
+    let document =
+        quiddity::recognition::document(&quiddity::correspondence::recognise(&p), p.faces.len());
+    let groups = document.face_accounting.unwrap();
+    // Face 0 is the boss wall, 1 the top round and 3 the flat top inside it.
+    assert_eq!(
+        groups[3],
+        FaceAccounting::Supporting {
+            record_ids: vec!["bosses/0".into()]
+        }
+    );
+    assert!(
+        groups
+            .iter()
+            .all(|g| !matches!(g, FaceAccounting::Unexplained))
+    );
 }

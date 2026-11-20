@@ -142,6 +142,10 @@ pub struct Features {
     /// Strict proof on each occurrence's defining AND consulted faces, kept through filtering.
     #[serde(skip)]
     pub evidence_status: BTreeMap<&'static str, Vec<evidence::EvidenceStatus>>,
+    /// Each round boss's consulted free-end cap faces, by the boss's defining faces: faces its
+    /// evidence reads without claiming them (face accounting reports them as supporting).
+    #[serde(skip)]
+    pub(crate) boss_caps: BTreeMap<Vec<usize>, Vec<usize>>,
     /// Complete round-wire helical springs, omitted when absent.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub helical_springs: Vec<helical_springs::HelicalSpring>,
@@ -1110,6 +1114,7 @@ fn inventory_in_with(
     let mut physical = Features {
         helical_springs,
         discovery_refusals,
+        boss_caps: BTreeMap::new(),
         run_mode: if evidence::local_degradation() {
             evidence::RunMode::LocallyDegraded
         } else {
@@ -1378,6 +1383,10 @@ fn inventory_in_with(
         defining: defining.defining,
         evidence_status: defining.evidence_status,
     };
+    // Bosses were kept, so their analysis completed and is cached.
+    if !physical.bosses.is_empty() {
+        physical.boss_caps = bosses::caps(ctx);
+    }
     // The thin-wall rule reads the risers this inventory carries, in its order.
     let mut evidence = evidence;
     evidence.risers = physical.defining["risers"].clone();

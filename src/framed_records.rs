@@ -542,6 +542,7 @@ fn carry(
         run_mode,
         discovery_refusals,
         evidence_status,
+        boss_caps,
         fillets,
         cylindrical_profiles,
         chamfers,
@@ -636,6 +637,7 @@ fn carry(
         run_mode,
         discovery_refusals,
         evidence_status,
+        boss_caps,
         fillets: each!("fillets", fillets, fillet),
         cylindrical_profiles: each!(
             "cylindrical_profiles",

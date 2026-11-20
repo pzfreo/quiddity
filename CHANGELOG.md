@@ -117,6 +117,17 @@ in [docs/alpha1.md](docs/alpha1.md).
   at the maintainer's suggestion. `UnitReader::get` and `real_text` now assert in debug
   builds that they are not used on a packed graph, where they would return `None`.
 
+### Changed output: face accounting
+
+- A new face-accounting group, `supporting`: a face that no record claims but that a round
+  boss's evidence consults as its cap reads `{"group": "supporting", "record_ids": ["bosses/3"]}`
+  instead of `unexplained`, in the same recognition/6 schema (an additive JSON value). Which
+  record claims which face does not change, and feature, refused and body still outrank it. The
+  six standoff tops of the finned motor housing now read `supporting`, each with its own boss,
+  and the counts of `unexplained` faces fall by the faces that move. Rust callers' wildcard arm
+  receives `FaceAccounting::Supporting { record_ids }`: the enum is `#[non_exhaustive]`, so
+  nothing stops compiling. For #307 (item 10).
+
 ### Fixed
 
 - The inner wall of a spoked rim is no longer published as a counterbore of the hub bore. A wider coaxial cylinder whose span overlaps a narrower hole segment's (more than the stack gap) is left out of the hole stack unless a closed annular floor leads inwards from one of its ends: a whole coaxial circle (one edge, or coplanar arcs making a full turn) on a transverse plane at the wall's end, or reached across a torus or cone blend. A collared recess with a wall-to-floor fillet or chamfer, or with faces written in halves, keeps its counterbore; a floor broken by a slot or ribs is not a step in that overlapping case. `curved_wall_corner` no longer claims a round whose curved supports are all at least 4 times tighter than it: cgb242's faces 173 and 185 (pocket end walls drawn round a hub, between R3 corner rounds), its long walls 103 (R51) and 203 (R62), and nine R76/R85 slot-wall patches in cgb202 are no longer published as inside rounds (they are reported as residual cylindrical profiles). cgb242's false d110 counterbore on its d22 hole is gone: the floor test accepts only a transverse plane facing into the wall's span, so a top face reached across an edge round no longer counts. For #307 (item 4).

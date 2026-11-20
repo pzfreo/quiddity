@@ -248,6 +248,13 @@ reference described below (#206). See [face accounting](face-accounting.md) for
 ownership precedence and the distinction between discovery evidence and
 completed claims.
 
+`face_accounting` has a fifth group within recognition/6, an additive JSON value:
+`{"group":"supporting","record_ids":["bosses/3"]}`. A face that no record claims but that a
+round boss's evidence consults as its cap reads `supporting` with the boss records that
+consult it, in place of `unexplained`. Precedence is feature, refused, body, supporting,
+unexplained. No record, claim, fingerprint or evidence status changes. Consumers that
+reject unknown groups must accept it ([face accounting](face-accounting.md#supporting)).
+
 ## Slot precision correction (for #92)
 
 The plain recess recogniser retains its legacy two-decimal positions, for stable

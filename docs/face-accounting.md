@@ -12,7 +12,24 @@ fingerprints or evidence status. Precedence is:
 2. `{"group":"refused","refusals":[{"record_id":"...","reason":"..."}]}`:
    every named refusal covering the face, in document order, retaining its reason.
 3. `{"group":"body","reason":"..."}`: one of the positive evidence codes below.
-4. `{"group":"unexplained"}`: no sufficient explanation. Review these faces.
+4. `{"group":"supporting","record_ids":[...]}`: no record claims the face, but the evidence
+   of these `bosses` records consults it as the boss's cap (below). It is not a feature
+   claim: which record claims which face is unchanged, and the face still has no owner.
+5. `{"group":"unexplained"}`: no sufficient explanation. Review these faces.
+
+### `supporting`
+
+A round boss's evidence consults its free-end cap: the plane or face beyond the boss's free
+end (both ends when the boss stands free of any body), and the plane a free-end round or
+chamfer meets when that plane is perpendicular to the boss axis. Only that cap counts, not
+the faces of the end round or chamfer themselves, and only for `bosses`. A cap that no record
+claims reads `supporting`, naming each boss that consults it, instead of `unexplained`. A
+cap that a record claims (a step level, a plate, a fillet) stays a feature, and body evidence
+outranks `supporting`. A chamfer whose evidence does not consult the plane it meets leaves
+that plane `unexplained`. Faces in `supporting` still need a reader's judgement exactly as
+`unexplained` ones did: the group says why the face is not a gap in recognition, not that
+anything describes it. Rust callers match `FaceAccounting::Supporting { record_ids }`;
+the enum is `#[non_exhaustive]`.
 
 A face whose geometry resolved but whose area and centroid `haecceity` cannot compute
 (`Part::face_moments` is `None`, for example a cylinder bounded by one closed circle) is
@@ -20,7 +37,7 @@ refused alone: one `unmeasured_face_refusals/N` record (`UnmeasuredFaceRefusal`,
 `unmeasured_face`) names it, and no record that defines it is kept (`blends` and `helical_springs` also drop those that consult it).
 Other faces and records are unaffected.
 
-Thus a refusal cannot erase a feature claim, and body evidence cannot erase either.
+Thus a refusal cannot erase a feature claim, and body evidence cannot erase either; `supporting` yields to all three.
 A feature face may belong to several records but belongs to only one accounting group.
 Refusals overlapping a feature remain available in `records`.
 Sealed cylindrical cavities belong to `interior_voids`, including their closing
@@ -162,10 +179,10 @@ exactly its transverse extent, so the cylinder's end circle is each plane's oute
 in the plane are inner loops). Fins that stop short of the ends, standoffs and a sleeve inside
 change nothing: the barrel rims of a finned motor housing qualify (#307 item 10). Planes wider
 than the cylinder (full-length fins, a boss's support plane), a cylinder closed at one extreme
-only, rounded or chamfered ends and a bore abstain. Boss caps and a counterbore's shoulder
-stay unexplained: a boss's cap is consulted, not claimed, by design (it is outside the boss
-fingerprint, so a chamfer added to a shaft end keeps its boss `carried` in a revision diff), and
-holes claim cylinders and floors only.
+only, rounded or chamfered ends and a bore abstain. A boss's cap is consulted, not claimed, by design (it is outside the boss
+fingerprint, so a chamfer added to a shaft end keeps its boss `carried` in a revision diff), so
+it reads `supporting` (above); a counterbore's shoulder stays unexplained, as holes claim
+cylinders and floors only.
 
 ### `plate_edge`
 
