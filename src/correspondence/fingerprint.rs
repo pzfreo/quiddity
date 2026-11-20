@@ -523,6 +523,23 @@ pub const FAMILIES: &[FamilyFingerprint] = &[
         ],
     },
     FamilyFingerprint {
+        family: "round_grooves",
+        members: None,
+        variants: false,
+        fields: &[
+            ("host", Trait),
+            ("axis", Axis),
+            ("center", Placement),
+            ("ring_diameter", Size),
+            ("bottom_radius", Size),
+            ("width", Size),
+            ("depth", Size),
+            ("host_diameter", Size),
+            ("faces", Ignored),
+            ("host_faces", Ignored),
+        ],
+    },
+    FamilyFingerprint {
         family: "tapers",
         members: None,
         variants: false,

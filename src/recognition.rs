@@ -57,6 +57,7 @@ pub enum BodyReason {
     StockBoxSplit,
     PlateEdge,
     StockWall,
+    StockEnvelope,
 }
 
 /// A named refusal record and its original reason code.
@@ -286,6 +287,7 @@ pub const RECORD_TYPES: &[(&str, &[&str])] = &[
     ("grooves", &["Groove"]),
     ("annular_grooves", &["AnnularGroove"]),
     ("face_grooves", &["FaceGroove"]),
+    ("round_grooves", &["RoundGroove"]),
     ("tapers", &["Taper"]),
     ("v_grooves", &["VGroove"]),
     ("plates", &["Plate"]),

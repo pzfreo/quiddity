@@ -272,6 +272,40 @@ actual angular intervals must cover a complete turn. Counting overlapping arc le
 as a full rim is refused. The cylindrical walls must still each be complete; every floor
 piece is retained in the defining claim and strict ownership proof.
 
+## Round-bottomed grooves (for #307)
+
+The optional `round_grooves` family publishes one `RoundGroove` per annular groove whose
+bottom is a torus: an O-ring gland or a ball groove cut with one torus. It is additive within
+`quiddity-rust/recognition/6` and omitted when empty. No nominal O-ring size, ball size or
+function is inferred. Rectangular-section recesses stay `annular_grooves` or `face_grooves`,
+and radial grooves with a cylindrical floor stay `grooves`.
+
+Fields: `host` (`bore`, `shaft` or `face`), `axis` (the torus axis; for `face` it points from
+the groove bottom out of the face), `center` (the torus centre on the axis), `ring_diameter`
+(the circle through the section centres), `bottom_radius` (the section radius), `width`
+(across the mouth, where the torus meets the host: along the axis for a bore or shaft,
+radially for a face), `depth` (host surface to the deepest point), optional `host_diameter`
+(the bore or shaft diameter beside the groove; absent for `face`), `faces` (the torus faces,
+the whole defining claim) and `host_faces` (the lands, consulted only).
+
+The torus faces sharing one torus surface must close into exactly two complete circular rims
+coaxial with it. Each rim must meet one land through a convex crease: either two coaxial
+cylinders of equal radius that are both bore walls (`bore`) or both shaft surfaces (`shaft`),
+or two coplanar planar faces square to the axis (`face`). A tangent rim (a fillet), a concave
+crease (a bead), unequal lands, a mixed cylinder and plane, a spindle torus, or a torus face
+range that omits the deepest point toward the groove (the host side) is refused. The bore or
+shaft groove must be deeper than the host by more than the length tolerance. The torus and
+lands need strict evidence on one valid solid. An undercut groove (centre circle beyond the
+host surface) reports its mouth width, not its widest chord.
+
+Publication follows `face_grooves`: after the other families, a torus face with another
+accepted claim or a reserved refusal is left alone. The exception is an unproved
+`interior_voids` refusal whose face set equals the groove's torus faces exactly (a subset or a superset suppresses it; the widening
+behind a throat that the groove explains); that refusal is kept. Because only the torus faces
+are claimed, a bore with such a groove reads the same whether its lands form one hole record
+or two. Fingerprint format 3 uses `ring_diameter`, `bottom_radius`, `width`, `depth` and
+`host_diameter` as sizes, `axis` as direction and `center` as placement.
+
 ## Additive duplicate references (#204, #206)
 
 Optional `superseded_by` on `holes` and `bosses` names the accepted annular groove
@@ -501,6 +535,15 @@ consulted, after reconciliation: a plane facing along the boss axis at the recor
 `top`, lying within the side ring's transverse extent. A support face or any wider face the
 ring ends on is not claimed. Feature selection and record fields are unchanged; the boss's
 fingerprint `faces`, area-weighted `position` and `neighbourhood` change within format 3.
+
+## Turned fillets (`turned: true`)
+
+A `Fillet` with `turned: true` is a toroidal round: its `axis` is the torus's axis of
+revolution, not the direction the round runs along, and `radius` is the torus's minor radius.
+It does not mean a lathe feature. Besides rounds on turned bodies and bosses, it covers a convex
+round that follows a concave cylindrical wall of at most a half turn meeting a plane wall along
+its axis: a slot's or arc wall's rounded end, or the top round turning round an inside-corner
+round on a prismatic part (#307 item 7). A whole bore's mouth ring stays a `blends` record.
 
 ## Straight convex fillets (for #120)
 
@@ -909,6 +952,28 @@ axis 30%, open: through; R6 central slot 45%, open: through; R3 cross hole under
 open: flat; two-passage strips 26% and 38%, axis covered: flat.
 A bore whose exit edge is too long to
 be read as an end at all stays `unknown`.
+
+## Bores with an internal groove (#307)
+
+Two coaxial internal cylinders of the same diameter are one bore when only an internal
+groove separates them: the faces reachable from the first land's end without crossing a land
+are at most four, include the second land's end partner, and lie wholly at or beyond the
+bore radius from the axis with some point beyond it. A slot or thin wall open to the outside
+connects on to the outer wall and is not such a set. The gap and the radial reach must each
+be at most a quarter of the bore diameter (that limit decides torus and cone grooves; a
+rectangular groove already joins through its own coaxial cylinder at any width). A web or
+ridge (material inside the bore diameter) or a different diameter keeps the lands separate
+holes.
+
+A toroidal face between two cylinders, wholly beyond the bore radius, whose major radius is
+under the bore radius (which used to read the end as a closing round) is set aside: it says
+nothing about the end. It is excluded where it borders a plane or a cone, as a round at a mouth
+or floor does. An end bordered only by such a groove is `unknown` rather than `flat`. A torus
+with a major radius at or over the bore radius already read the end as open and is unchanged.
+The groove faces remain unexplained until they have a record of their own.
+
+Known miss: a wide torus or cone gallery (over a quarter of the diameter) leaves the two
+lands as separate holes.
 
 ## Partially obstructed through-hole exits
 

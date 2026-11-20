@@ -78,6 +78,8 @@ mod section_recesses;
 mod sections;
 #[path = "shared_analysis.rs"]
 mod shared_analysis;
+#[path = "spoked_rim.rs"]
+mod spoked_rim;
 #[path = "step_levels.rs"]
 mod step_levels;
 #[path = "tie_breaks.rs"]
@@ -98,6 +100,8 @@ mod vector_publication;
 
 #[path = "face_grooves.rs"]
 mod face_grooves;
+#[path = "round_grooves.rs"]
+mod round_grooves;
 #[path = "turned_bodies.rs"]
 mod turned_bodies;
 
@@ -106,6 +110,9 @@ mod edge_trimming;
 
 #[path = "flat_floors.rs"]
 mod flat_floors;
+
+#[path = "flats.rs"]
+mod flats;
 
 #[path = "polygonal_oblique_through_steps.rs"]
 mod polygonal_oblique_through_steps;
@@ -119,5 +126,7 @@ mod pocket_floor_fillets;
 #[path = "prismatic_through_cuts.rs"]
 mod prismatic_through_cuts;
 
+#[path = "grooved_bores.rs"]
+mod grooved_bores;
 #[path = "taper_groove_records.rs"]
 mod taper_groove_records;

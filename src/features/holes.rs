@@ -26,9 +26,9 @@ use super::cylinders::{
 use super::evidence::{self, EvidenceError, Occurrence};
 use super::placed::{Grid, Placed};
 use super::policy;
-use super::stacks::{End, classify_end, end_partners};
+use super::stacks::{End, classify_end, end_partners, reach_beyond_bore};
 use crate::kernel::brep::{Arc, Part};
-use crate::kernel::geom::{self, COORD_FLOOR, Surface, V3};
+use crate::kernel::geom::{self, COORD_FLOOR, Curve, Surface, V3};
 use crate::kernel::py;
 
 /// Two quantised diameters are one diameter within this proportion.
@@ -250,6 +250,13 @@ pub fn recognise_holes(part: &Part, opts: &HoleOptions) -> Vec<HoleRecord> {
 }
 }
 
+/// The widest and deepest an internal groove may be, as a fraction of the bore's diameter,
+/// for the lands either side of it to remain one bore (#307).
+const GROOVE_FRAC: f64 = 0.25;
+
+/// The most faces an internal groove has between its lands.
+const GROOVE_FACES: usize = 4;
+
 fn same_diameter(a: f64, b: f64) -> bool {
     (a - b).abs() <= SAME_DIAMETER_FRAC * a.abs().max(b.abs()).max(DIAMETER_FLOOR)
 }
@@ -317,6 +324,46 @@ fn merge_stacks(part: &Part, stacks: Vec<Vec<Segment>>) -> Vec<Vec<Segment>> {
             })
         })
     };
+    // Two lands of one bore that only an internal groove separates: the faces between them (a
+    // torus, a pair of cones, a plane-cylinder-plane chain) all lie outside the bore diameter,
+    // so no material narrows the bore between the lands, and the groove is narrow and shallow
+    // against the bore (a quarter of its diameter at most; a wider cavity is not a groove).
+    let separated_by_groove = |a: &Segment, b: &Segment| -> bool {
+        let limit = GROOVE_FRAC * a.diameter;
+        if b.s_lo - a.s_hi > limit {
+            return false;
+        }
+        let wanted: BTreeSet<usize> = end_partners(part, b, b.s_lo).into_iter().collect();
+        // The faces reachable from the first land's end without crossing a land. An internal
+        // groove is a small closed set bounded only by lands; a slot or a thin wall open to
+        // the outside connects on to the outer wall and the rest of the part, and is not one.
+        let mut seen: BTreeSet<usize> = BTreeSet::new();
+        let mut front: Vec<usize> = end_partners(part, a, a.s_hi)
+            .into_iter()
+            .filter(|&f| owner_of(a.solid, f).is_none())
+            .collect();
+        if front.is_empty() || wanted.is_empty() {
+            return false;
+        }
+        while let Some(face) = front.pop() {
+            if !seen.insert(face) {
+                continue;
+            }
+            if seen.len() > GROOVE_FACES {
+                return false;
+            }
+            front.extend(
+                part.neighbours(face)
+                    .into_iter()
+                    .filter(|&n| owner_of(a.solid, n).is_none() && !seen.contains(&n)),
+            );
+        }
+        if !seen.iter().any(|f| wanted.contains(f)) {
+            return false;
+        }
+        let faces: Vec<usize> = seen.iter().copied().collect();
+        reach_beyond_bore(part, a, &faces).is_some_and(|reach| reach <= limit)
+    };
     let mut by_line: Vec<(Vec<f64>, Vec<Vec<Segment>>)> = Vec::new();
     for stack in stacks {
         let key = line_key(&stack[0]);
@@ -339,7 +386,7 @@ fn merge_stacks(part: &Part, stacks: Vec<Vec<Segment>>) -> Vec<Vec<Segment>> {
             if same_diameter(a.diameter, b.diameter)
                 && !closed(classify_end(part, a, a.s_hi, true).0)
                 && !closed(classify_end(part, b, b.s_lo, false).0)
-                && shares_interruption(a, b)
+                && (shares_interruption(a, b) || separated_by_groove(a, b))
             {
                 let mut joined = a.clone();
                 joined.s_hi = b.s_hi;
@@ -942,7 +989,117 @@ pub(super) fn hole_stacks(ctx: &Context<'_>) -> Vec<Vec<Segment>> {
         .flat_map(|shell| shell.faces.iter().copied())
         .collect();
     internal.retain(|c| !enclosed.contains(&c.face));
-    merge_stacks(part, merge_runs(&segments(&internal), line_key))
+    let runs = merge_runs(&segments(&internal), line_key)
+        .into_iter()
+        .map(|run| without_enclosing_walls(part, run))
+        .collect();
+    merge_stacks(part, runs)
+}
+
+/// Steps of one hole follow each other along the axis. A wider coaxial wall whose span runs
+/// beside a narrower segment's (more than the stack gap) is a step only if a closed annular
+/// floor leads inwards from one of its ends (a collared recess). Otherwise it bounds a
+/// cavity round material the bore passes through, such as the inner wall of a spoked rim
+/// round a hub, whose end faces are broken by the spokes (#307 item 4), and is left out.
+fn without_enclosing_walls(part: &Part, stack: Vec<Segment>) -> Vec<Segment> {
+    let enclosing = |wall: &Segment| {
+        stack.iter().any(|bore| {
+            bore.diameter < wall.diameter
+                && !same_diameter(bore.diameter, wall.diameter)
+                && bore.s_hi.min(wall.s_hi) - bore.s_lo.max(wall.s_lo)
+                    > policy::length_tol(bore.diameter, STACK_GAP_FRAC)
+                && ![wall.s_lo, wall.s_hi]
+                    .iter()
+                    .any(|&end| closed_floor_inwards(part, wall, end))
+        })
+    };
+    if !stack.iter().any(enclosing) {
+        return stack;
+    }
+    stack.iter().filter(|s| !enclosing(s)).cloned().collect()
+}
+
+/// A transverse plane at *wall*'s end, reached directly or across a coaxial torus or cone
+/// blend (an edge fillet or chamfer between wall and floor), carries a whole circle
+/// narrower than the wall. The circle may be one closed edge or coplanar coaxial arcs
+/// that together make a full turn (faces written in halves). A floor broken by a slot or
+/// ribs has no whole circle and does not count.
+fn closed_floor_inwards(part: &Part, wall: &Segment, end: f64) -> bool {
+    let radius = wall.diameter / 2.0;
+    let tolerance = policy::length_tol(radius, 5e-6);
+    let axial = |p: V3| geom::dot(p, wall.direction);
+    // The floor faces into the wall's span: its outward normal points from the end towards
+    // the wall (a part face beyond a rounded top edge faces away).
+    let inwards = if (end - wall.s_lo).abs() <= (end - wall.s_hi).abs() {
+        1.
+    } else {
+        -1.
+    };
+    let transverse = |f: usize| match part.faces[f].surface {
+        Surface::Plane { frame }
+            if geom::dot(frame.z, wall.direction).abs() > 1. - 1e-9
+                && super::planes::unit_plane_normal(part, f)
+                    .is_some_and(|n| inwards * geom::dot(n, wall.direction) > 0.5) =>
+        {
+            Some(axial(frame.origin))
+        }
+        _ => None,
+    };
+    let mut floors: Vec<usize> = Vec::new();
+    for partner in end_partners(part, wall, end) {
+        match part.faces[partner].surface {
+            Surface::Plane { .. } => {
+                if transverse(partner).is_some_and(|z| (z - end).abs() < tolerance) {
+                    floors.push(partner);
+                }
+            }
+            Surface::Torus { .. } | Surface::Cone { .. } => {
+                // How far the blend runs from the wall's end along the axis.
+                let reach = part
+                    .face_edges(partner)
+                    .into_iter()
+                    .flat_map(|e| {
+                        let e = &part.edges[e];
+                        [e.start, e.end, e.midpoint()]
+                    })
+                    .map(|p| (axial(p) - end).abs())
+                    .fold(0., f64::max);
+                for n in part.neighbours(partner) {
+                    if transverse(n).is_some_and(|z| (z - end).abs() <= reach + tolerance) {
+                        floors.push(n);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    floors.sort_unstable();
+    floors.dedup();
+    // Arcs make one circle only with the same radius, centre and plane.
+    let mut circles: Vec<(f64, V3, Vec<usize>)> = Vec::new();
+    for e in floors.into_iter().flat_map(|f| part.face_edges(f)) {
+        let Curve::Circle { frame, radius: r } = part.edges[e].curve else {
+            continue;
+        };
+        if r < radius - tolerance
+            && geom::dot(frame.z, wall.direction).abs() > 1. - 1e-9
+            && geom::norm(geom::cross(
+                geom::sub(frame.origin, wall.axis_point),
+                wall.direction,
+            )) < tolerance
+        {
+            match circles.iter_mut().find(|(c, o, _)| {
+                (c - r).abs() <= tolerance && geom::dist(*o, frame.origin) <= tolerance
+            }) {
+                Some((_, _, edges)) if !edges.contains(&e) => edges.push(e),
+                Some(_) => {}
+                None => circles.push((r, frame.origin, vec![e])),
+            }
+        }
+    }
+    circles
+        .into_iter()
+        .any(|(_, _, edges)| super::annular_grooves::ring(part, edges, wall.direction).is_some())
 }
 
 internal_entry! {

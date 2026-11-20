@@ -165,8 +165,11 @@ pub fn discover(ctx: &Context<'_>, opts: &FilletOptions) -> Vec<Occurrence<Fille
         }
     }
     let external = turned::external_cylinders(ctx);
+    let internal = internal_cylinders(ctx);
     for face in 0..part.faces.len() {
-        if let Some(found) = turned(part, face, min_radius, max_radius, &external) {
+        if let Some(found) = turned(part, face, min_radius, max_radius, &external)
+            .or_else(|| slot_end(part, face, min_radius, max_radius, &internal))
+        {
             out.push(found);
         }
     }
@@ -307,6 +310,13 @@ pub(super) fn prismatic(
     Some(found)
 }
 
+/// This also refuses a round between a plane and one much tighter cylinder (rare).
+/// A curved wall counts as a much tighter round than the candidate when the candidate's
+/// radius is at least this many times the wall's. The #127 corpus rounds spring from
+/// walls at least their own radius (CTC-05: R6.35 from R19.05); the pocket end wall in
+/// cgb242 (R55) sits between two R3 corner rounds, 18 times tighter.
+const CURVED_WALL_MIN_RATIO: f64 = 4.;
+
 /// A straight inside round can also spring from a parallel cylindrical wall (#127).
 /// Use its tangent plane at the shared straight spring line. Both analytic cylinders
 /// must contain that line at model precision and their oriented normals must agree.
@@ -322,6 +332,7 @@ pub(crate) fn curved_wall_corner(
     let tol = cylinder_support_tolerance(part);
     let mut supports: Vec<(V3, V3)> = Vec::new();
     let mut curved = false;
+    let (mut curved_walls, mut small_walls) = (0, 0);
     for n in part.neighbours(face) {
         let (point, normal) = match part.faces[n].surface {
             Surface::Plane { frame } => (frame.origin, super::planes::unit_plane_normal(part, n)?),
@@ -380,6 +391,10 @@ pub(crate) fn curved_wall_corner(
                     contact = Some((point, normal));
                 }
                 curved = true;
+                curved_walls += 1;
+                if wall_radius * CURVED_WALL_MIN_RATIO < radius {
+                    small_walls += 1;
+                }
                 contact?
             }
             _ => continue,
@@ -405,7 +420,9 @@ pub(crate) fn curved_wall_corner(
     let [(pa, a), (pb, b)] = supports.as_slice() else {
         return None;
     };
-    if !curved {
+    // A round beside walls that are themselves much tighter rounds is a wide wall between
+    // two corner rounds (a pocket end drawn round a hub), not a round springing from them.
+    if !curved || small_walls == curved_walls {
         return None;
     }
     let d = geom::dot(*a, *b);
@@ -610,6 +627,98 @@ fn turned(
     );
     found.record.side = torus_side(part, face)?;
     Some(found)
+}
+
+pub(super) fn internal_cylinders<'c>(
+    ctx: &'c Context<'_>,
+) -> BTreeMap<usize, &'c CylinderEvidence> {
+    ctx.cylinders()
+        .iter()
+        .filter(|c| !c.external)
+        .map(|c| (c.face, c))
+        .collect()
+}
+
+/// A wall spanning more than a half turn is a bore, not a slot end.
+const SLOT_END_MAX_EXTENT: f64 = PI * 1.05;
+
+/// The support of a convex round that follows a concave cylindrical wall (#307): a slot's or
+/// arc wall's rounded end, or the top round turning round an inside-corner round. The coaxial
+/// internal cylinder of at most a half turn the convex torus is tangent to (its major radius is the wall's radius plus
+/// its own minor radius), the transverse face it rounds into, and a plane wall running along
+/// the axis that makes the cylinder a slot end rather than a whole bore (a whole bore's mouth
+/// ring is a `blends` record). Concave tori (grooves) and beads are refused.
+pub(super) fn slot_end_context(
+    part: &Part,
+    torus: usize,
+    neighbours: &[usize],
+    internal: &BTreeMap<usize, &CylinderEvidence>,
+) -> Option<Vec<usize>> {
+    let Surface::Torus {
+        frame,
+        major,
+        minor,
+    } = part.faces[torus].surface
+    else {
+        return None;
+    };
+    if torus_side(part, torus)? != "convex" {
+        return None;
+    }
+    let walls: Vec<&CylinderEvidence> =
+        turned::coaxial_cylinders(neighbours, internal, frame.origin, frame.z)
+            .into_iter()
+            .filter(|c| {
+                (c.diameter / 2. + minor - major).abs() <= super::policy::length_tol(minor, 1e-3)
+                    && c.u_extent < SLOT_END_MAX_EXTENT
+            })
+            .collect();
+    let transverse = turned::transverse_planes(part, neighbours, frame.z);
+    if walls.is_empty() || transverse.is_empty() {
+        return None;
+    }
+    let slot_wall = |c: &CylinderEvidence| {
+        part.neighbours(c.face).into_iter().any(|n| {
+            matches!(part.faces[n].surface, Surface::Plane { frame: pf }
+                if geom::dot(pf.z, frame.z).abs() < 1. - AXIS_ALIGNED_COS)
+        })
+    };
+    if !walls.iter().any(|c| slot_wall(c)) {
+        return None;
+    }
+    let mut context: Vec<usize> = walls.iter().map(|c| c.face).chain(transverse).collect();
+    context.sort_unstable();
+    context.dedup();
+    Some(context)
+}
+
+fn slot_end(
+    part: &Part,
+    face: usize,
+    min_radius: f64,
+    max_radius: f64,
+    internal: &BTreeMap<usize, &CylinderEvidence>,
+) -> Option<Occurrence<Fillet>> {
+    let Surface::Torus { frame, minor, .. } = part.faces[face].surface else {
+        return None;
+    };
+    if minor < min_radius || minor > max_radius {
+        return None;
+    }
+    let (_, _, v0, v1) = part.uv_bounds(face)?;
+    if (v1 - v0).abs() > TURNED_FILLET_MAX_EXTENT {
+        return None;
+    }
+    let edge_axis = principal_axis(frame.z)?;
+    let context = slot_end_context(part, face, &part.neighbours(face), internal)?;
+    Some(occurrence(
+        FilletAxis::Principal(['x', 'y', 'z'][edge_axis]),
+        minor,
+        fillet_anchor(part, face)?,
+        true,
+        face,
+        context,
+    ))
 }
 
 /// Material is inside the tube for a convex torus, outside it for a concave root
