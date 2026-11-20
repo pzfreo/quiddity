@@ -942,7 +942,30 @@ pub(super) fn hole_stacks(ctx: &Context<'_>) -> Vec<Vec<Segment>> {
         .flat_map(|shell| shell.faces.iter().copied())
         .collect();
     internal.retain(|c| !enclosed.contains(&c.face));
-    merge_stacks(part, merge_runs(&segments(&internal), line_key))
+    let runs = merge_runs(&segments(&internal), line_key)
+        .into_iter()
+        .map(without_enclosing_walls)
+        .collect();
+    merge_stacks(part, runs)
+}
+
+/// Steps of one hole follow each other along the axis. A wider coaxial wall whose span runs
+/// beside a narrower segment's (more than the stack gap) is not a step of that bore: it
+/// bounds a cavity round material the bore passes through, such as the inner wall of a
+/// spoked rim round a hub (#307 item 4). Such walls are left out of the stack.
+fn without_enclosing_walls(stack: Vec<Segment>) -> Vec<Segment> {
+    let enclosing = |wall: &Segment| {
+        stack.iter().any(|bore| {
+            bore.diameter < wall.diameter
+                && !same_diameter(bore.diameter, wall.diameter)
+                && bore.s_hi.min(wall.s_hi) - bore.s_lo.max(wall.s_lo)
+                    > policy::length_tol(bore.diameter, STACK_GAP_FRAC)
+        })
+    };
+    if !stack.iter().any(enclosing) {
+        return stack;
+    }
+    stack.iter().filter(|s| !enclosing(s)).cloned().collect()
 }
 
 internal_entry! {

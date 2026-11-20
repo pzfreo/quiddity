@@ -6,6 +6,8 @@ mod common;
 mod slices;
 #[path = "bores_into_tunnel.rs"]
 mod bores_into_tunnel;
+#[path = "spoked_rim.rs"]
+mod spoked_rim;
 #[path = "captured.rs"]
 mod captured;
 #[path = "chamfer_values.rs"]

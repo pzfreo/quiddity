@@ -52,6 +52,8 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
+- The inner wall of a spoked rim is no longer published as a counterbore of the hub bore. A wider coaxial cylinder whose span runs beside a narrower hole segment's (more than the stack gap) bounds a cavity round material, not a step of that hole, and is left out of the hole stack. Real counterbores, which follow the bore along the axis, are unchanged. For #307 (item 4).
+
 - A bore that runs out into a curved wall (the tunnel in a crank block) is no longer published
   as `flat`-bottomed when its end disc leaves only thin crescents of plane at the rim: where
   a curved wall also borders the end, planar supports count as a floor unless no plane face lies
