@@ -137,6 +137,24 @@ on the already normalized part, before records map back into file coordinates;
 face indices survive that mapping. A caller-space parity result supplies no body
 evidence. Motion tests cover Z30, X30 and composed Z17+X23, with translation.
 
+### `stock_envelope`
+
+For parts whose outline or edges are rounded, so that no box corner survives for the two
+rules above. The face is a native principal plane on the solid's bounding box (outward
+normal, entirely on that envelope plane), in a valid solid with the same native-geometry and
+tolerance premises, with its rim at the extremes: in **each** transverse axis a neighbour
+reaches an extreme, either an outward principal plane at that extreme joined convexly or a
+recognised fillet, chamfer or blend (not concave to the face) whose bounds reach it, and at
+least one recognised blend meets the face. The plate's top, bottom and outer sides, and a
+flange side beside rounded edges, qualify. The underlying-platform veto of `stock_box_notched`
+applies in its broader form: a lower parallel platform reaching the extremes vetoes the face,
+and the platform's own non-concave recognised blends count towards reaching them, so rounding
+its edges does not hide it. Records still win: the rule only adds body to faces no record
+claims. It is tried after the `stock_box_*` rules, which keep their codes. A side whose rim
+is bounded by unrecognised cylinders stays unexplained, because a recognised blend is
+required. Fin sides and tips are not covered: the rule needs the face itself on the
+part's envelope, and no fin or rib record supplies the stock premise.
+
 ### `plate_edge`
 
 After box evidence, a recognised plate supplies its own defining face groups and

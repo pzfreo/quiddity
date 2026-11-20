@@ -44,6 +44,7 @@ in [docs/alpha1.md](docs/alpha1.md).
   are unchanged.
 - Stop B-spline boundary cut bisection when the floating-point bracket stops changing,
   and reuse identical cut searches across the integration passes of an open spline face.
+  From #312 (@xu9299).
 - Complex-instance reference checking at STEP import scans packed records for references
   to complex instances and decodes only the records that have one, instead of decoding every
   record whenever a file has a complex instance. Output is unchanged. Follow-up to #290,
@@ -53,11 +54,46 @@ in [docs/alpha1.md](docs/alpha1.md).
 ### Fixed
 
 - The inner wall of a spoked rim is no longer published as a counterbore of the hub bore. A wider coaxial cylinder whose span overlaps a narrower hole segment's (more than the stack gap) is left out of the hole stack unless a closed annular floor leads inwards from one of its ends: a whole coaxial circle (one edge, or coplanar arcs making a full turn) on a transverse plane at the wall's end, or reached across a torus or cone blend. A collared recess with a wall-to-floor fillet or chamfer, or with faces written in halves, keeps its counterbore; a floor broken by a slot or ribs is not a step in that overlapping case. `curved_wall_corner` no longer claims a round whose curved supports are all at least 4 times tighter than it: cgb242's faces 173 and 185 (pocket end walls drawn round a hub, between R3 corner rounds), its long walls 103 (R51) and 203 (R62), and nine R76/R85 slot-wall patches in cgb202 are no longer published as inside rounds (they are reported as residual cylindrical profiles). cgb242's false d110 counterbore on its d22 hole is gone: the floor test accepts only a transverse plane facing into the wall's span, so a top face reached across an edge round no longer counts. For #307 (item 4).
+- `flats` records are no longer published on the sides of ribs, fins and tabs standing on a
+  cylinder. A flat now has to truncate the stock: the chord must straddle the point of the
+  plane nearest the axis (a chord wholly to one side meets the cylinder at a concave edge), and
+  no vertex of the face inside the cylinder's own axial span may lie beyond its outside
+  diameter (before, only "not inside it" was checked, so a fin side running out beyond the
+  stock passed). A tab standing a hair beyond the radius is therefore not a flat either. A flat
+  that runs on past the cylinder into a chamfer, taper, land or hex collar is still a flat,
+  with the same `across`. A block side that a small boss pokes through is not a flat either (the
+  boss's cylinder exists beyond the plane; on a real flat it is cut away). Corpus: 12 flats records on rib or lug sides are removed. For #307.
+- Planar faces that bound the part's stock are `body` with the new reason `stock_envelope`
+  when rounded outlines and edge rounds leave no box corner (a perforated plate's top,
+  bottom and outer sides, a flange's sides), instead of `unexplained`. For #307; fin sides
+  and tips are not covered. Additive: the schema stays `quiddity-rust/recognition/6`.
+- Faces with a very large B-spline net or a long helical edge (threaded fasteners and sweeps
+  along a spline as some writers emit them) took minutes in face integration: the inner
+  integral crossed every knot span (or radian) at every boundary node. A B-spline face with
+  many u spans and few v spans, and a cylinder or cone whose loops run through many radians,
+  now integrate along v, checked against their own half-panels and falling back to the stock
+  form where the check fails; a node moving along a parameter line of a very large net is not
+  evaluated, and a node's knot piece is found by search. Over the 43 springrep files that
+  exceeded 30 s, instructions retired fall 6 to 100 times (49 times in total); recognised
+  values agree to round-off (at most 1e-9). xu9299 independently found the same approach
+  (the other Green's-theorem form) and the narrow-dip counterexample in #302, and found that
+  the stationary-node test scaled motions by the whole knot vector rather than the active
+  domain, which skipped a real edge's nodes when a writer padded the end knots. For #302.
 
 - A bore that runs out into a curved wall (the tunnel in a crank block) is no longer published
   as `flat`-bottomed when its end disc leaves only thin crescents of plane at the rim: where
   a curved wall also borders the end, planar supports count as a floor unless no plane face lies
   under the bore axis and they cover under half the bore's section, in which case the bore is `through` and no floor face is claimed. For #307 (item 2).
+- A bore with an internal groove (a bearing race's ball groove, a V groove in a ring bore)
+  is one hole, not two lands each ending on the groove. Two coaxial equal-diameter internal
+  lands are one bore when only faces lying wholly outside the bore diameter separate them
+  (no material narrows the bore between them) and the groove is an internal one (a small
+  closed set of faces bounded by the lands, not a slot open to the outside) at most a quarter of
+  the bore diameter wide and deep; a toroidal groove between two cylinders with a major radius
+  under the bore radius no longer reads as a round at the bore's end, so it is not a `flat`
+  floor. Lands separated by a web or a
+  different diameter stay separate holes, and an end that borders only such a groove is
+  `unknown`. The groove itself is still unexplained. For #307 (item 3).
 - A planar chamfer is no longer read from the flats of a polygonal section. A bevel between two
   principal-plane walls was published whenever it stood between them, so the flats of a hexagonal
   or irregular polygonal prism whose neighbours happened to lie on principal planes became

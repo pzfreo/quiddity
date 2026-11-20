@@ -177,9 +177,13 @@ fn broken_side(
                 })
         })
     });
-    if !stock_corner && !blended_corner(part, face, bounds, tol, blends) {
+    let blended = blended_corner(part, face, bounds, tol, blends);
+    let rimmed = !stock_corner && !blended && enveloping_rim(part, face, axis, bounds, tol, blends);
+    if !stock_corner && !blended && !rimmed {
         return None;
     }
+    // A rim-only face has no surviving or replaced box corner; apply the broader veto.
+    let stock_corner = stock_corner || rimmed;
     let mut platforms = Vec::new();
     let mut coplanar = 0;
     for &g in &part.solids[solid].faces {
@@ -197,6 +201,16 @@ fn broken_side(
             continue;
         }
         let level = 0.5 * (gb.min[axis] + gb.max[axis]);
+        // A rimmed platform stops a blend short of the extremes: its own non-concave
+        // blends count, so rounding the edges cannot hide it from the veto.
+        let mut gb = gb;
+        if rimmed {
+            for h in part.neighbours(g) {
+                if blends.contains(&h) && part.arc(g, h) != Some(Arc::Concave) {
+                    gb.merge(&part.face_bounds(h));
+                }
+            }
+        }
         // With a certified replaced envelope corner, an opposite block's inward
         // wall is not an underlying platform. Require an actual bridging face
         // incident to both planes. Keep the older surviving-corner veto intact.
@@ -229,11 +243,61 @@ fn broken_side(
         }
         i = j;
     }
-    Some(if coplanar > 1 {
+    Some(if rimmed {
+        BodyReason::StockEnvelope
+    } else if coplanar > 1 {
         BodyReason::StockBoxSplit
     } else {
         BodyReason::StockBoxNotched
     })
+}
+
+/// A face on an outward envelope plane whose rim reaches an extreme of the solid in each
+/// transverse axis, through an outward principal plane at that extreme or a recognised
+/// non-concave fillet/chamfer/blend reaching it. Rounded outlines and edge rounds replace
+/// every box corner with several faces, so none survives for the corner rules, yet the face
+/// still bounds the stock like a notched side. At least one recognised blend must meet the
+/// face: an unrecognised chamfer stays unproved, as for the corner rules. A boss or turned cap has no such planes or
+/// blends at the envelope around it, so it abstains.
+fn enveloping_rim(
+    part: &Part,
+    face: usize,
+    axis: usize,
+    bounds: Bounds,
+    tol: f64,
+    blends: &BTreeSet<usize>,
+) -> bool {
+    let transverse: Vec<_> = (0..3).filter(|&j| j != axis).collect();
+    let mut reached = [[false; 2]; 3];
+    let mut rounded = false;
+    for g in part.neighbours(face) {
+        if part.faces[g].solid != part.faces[face].solid {
+            continue;
+        }
+        let gb = part.face_bounds(g);
+        if let Some((k, n)) = principal_plane(part, g) {
+            let side = usize::from(n[k] > 0.0);
+            let at = if side == 1 {
+                bounds.max[k]
+            } else {
+                bounds.min[k]
+            };
+            if k != axis
+                && (gb.min[k] - at).abs() <= tol
+                && (gb.max[k] - at).abs() <= tol
+                && part.arc(face, g) == Some(Arc::Convex)
+            {
+                reached[k][side] = true;
+            }
+        } else if blends.contains(&g) && part.arc(face, g) != Some(Arc::Concave) {
+            rounded = true;
+            for &k in &transverse {
+                reached[k][0] |= (gb.min[k] - bounds.min[k]).abs() <= tol;
+                reached[k][1] |= (gb.max[k] - bounds.max[k]).abs() <= tol;
+            }
+        }
+    }
+    rounded && transverse.iter().all(|&k| reached[k][0] || reached[k][1])
 }
 
 /// A recognised edge treatment must meet this face and replace an actual box
