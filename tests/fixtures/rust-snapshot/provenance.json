@@ -3230,6 +3230,8 @@
     "tests/fixtures/spindle_flats.step": "b5b390ceae9f76d23da67d2d9fe8e8ee8fd2347137b5778787a33c98547892de",
     "tests/fixtures/spindle_plain.step": "edd539ffd9e05fedb63c15d7cfffd66567227a4b0432bd81680ba336905b5caf",
     "tests/fixtures/split_coplanar_support.step": "084beaffe0fadc052dd7644d1556e2557a69616887adfede148a87c5a63aab32",
+    "tests/fixtures/spoked_rim.README.md": "3f8558497157b7240f50fbacb091f0ddb425051b71e1fe9327b13c11a84c4b23",
+    "tests/fixtures/spoked_rim.step.gz": "37c9bad4d8dde0d140fec055557f8aa9e2d7e1f5d03e1e9ba822d90be8ce60c9",
     "tests/fixtures/spotface_outer_steps.step": "57d97bd5afeaae6b7bfe84b70fd96c49419f3a2c1ee71904429d86db8f1e70da",
     "tests/fixtures/stack.step": "1da640ef610f52637a8b898c744b44ac84b6d1051960f81437bc06a3448eaf38",
     "tests/fixtures/ties/asymmetric_double_mouth.step": "9c9ed59050729db6dd69f1ab1848758b39034a5a7735b91ebc07938465ed0a73",
@@ -3320,7 +3322,7 @@
     "calls/recognise_through_steps.json.gz": "ab6a0b5b06756fa3435099be76e5ab432b867be4d4a1b42c49047ff83b086cca",
     "calls/recognise_turned_steps.json.gz": "37d10e8c5e2ce5dcf6c5bd2fdc7444e86494bb44768e9d32d9a1abfd3f2fbd90",
     "channel_geometry.json.gz": "bd25ff87def7f73b4f119d26614600b141ee4350f45c77cef55aae7ea787e85f",
-    "corpus.json.gz": "2ca58d295fe800bd0124b7afb674fd103afd9780335b1cb1c51e3d4d12b73e82",
+    "corpus.json.gz": "323a831b5cb72a9cecb0385e022e278172ddb2f7929733062efcda1b3c21f122",
     "coverage.json.gz": "c835b80d39757ae5ef556953e11a2d7e8bbde3148a233f2af51ae92e1d23a971",
     "cylindrical_proofs/corpus/cadgenbench/flanged_spool_132.step.json.gz": "b93acca566253df99ab62bb5ac97424226850b3ee3963c8d1025939a7339d823",
     "cylindrical_proofs/corpus/cadgenbench/threaded_connector_109.step.json.gz": "eea12e52bf91a9c762e7cadc1b12994398bf8f3836ab11ab8b58a2bf4c5d9a4e",
@@ -5427,8 +5429,8 @@
     "recess_geometry/test/parts/fb678c49d85e66e7.step.gz.json.gz": "14b891c6f02cfbee7d14a380aa306482e624c888b83b6518492f3014f25b86c9",
     "recess_geometry/test/parts/fc9df6ddac71ebfb.step.gz.json.gz": "d4f46f9e6b2e7d4a91e4beb51f52109203c316cff89437e6b35855d70a473c50",
     "recess_geometry/test/parts/ff1649b74b275e95.step.gz.json.gz": "b3463f9c4a49083d4fa3ddafbb224032e0e5f934eba1ad393c04c2ca80796497",
-    "recognition_evidence.json.gz": "dcbad9dd4dffafae020937f513d3d9e916465b8cb5493f6ae9372941705a4daf",
-    "reconcile.json.gz": "e6853bf3ed27e31a7b67fd2784e380c10af64524fbcd1534a7f7ef4c2a9a6484",
+    "recognition_evidence.json.gz": "db0887d2e1dc152b03ec21a2c9b4fe113f54d96889c4b995015d8e7bc2f9ae03",
+    "reconcile.json.gz": "68f804ea577e648358aa83b442284f98b5de1d5489b06a78d1b57e80ec198c99",
     "reconcile_scenarios.json.gz": "759f629d4d9b14fc4bd8054e42527f203b18abd94c47f0cd94b305b8ed35251f",
     "retry.json.gz": "a59e4d32892a173cf2611832db0b38ce1e292c815dcc7e802e18e330236666e7",
     "retry_publication.json.gz": "9fd65eca77c05ef4ef4c327d70677b92dffa16b2c2e6406c3de68b3d60d39080",
@@ -5978,5 +5980,5 @@
     "step_levels.json.gz": "6ff3ceadb33888e9d529a10b9a880babaf979f4f8d869962215d9d3193902f00",
     "unowned_recesses.json.gz": "604ec266d4c85575165c6822140a3ac79a6637c8d72a3a2bb376e74f86455343"
   },
-  "source_commit": "84e4ac348e1bc5274c8d03ea13e27ab35dfa61fa"
+  "source_commit": "a45d3b644156131772ebd67863eba0b9a618cb57"
 }
