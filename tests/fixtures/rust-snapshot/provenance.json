@@ -3320,7 +3320,7 @@
     "calls/recognise_through_steps.json.gz": "ab6a0b5b06756fa3435099be76e5ab432b867be4d4a1b42c49047ff83b086cca",
     "calls/recognise_turned_steps.json.gz": "37d10e8c5e2ce5dcf6c5bd2fdc7444e86494bb44768e9d32d9a1abfd3f2fbd90",
     "channel_geometry.json.gz": "bd25ff87def7f73b4f119d26614600b141ee4350f45c77cef55aae7ea787e85f",
-    "corpus.json.gz": "2ca58d295fe800bd0124b7afb674fd103afd9780335b1cb1c51e3d4d12b73e82",
+    "corpus.json.gz": "0266c3cb0be3ee104fc1e040d1e64b1cc98c403ec7afc5af8c5287519cee578f",
     "coverage.json.gz": "c835b80d39757ae5ef556953e11a2d7e8bbde3148a233f2af51ae92e1d23a971",
     "cylindrical_proofs/corpus/cadgenbench/flanged_spool_132.step.json.gz": "b93acca566253df99ab62bb5ac97424226850b3ee3963c8d1025939a7339d823",
     "cylindrical_proofs/corpus/cadgenbench/threaded_connector_109.step.json.gz": "eea12e52bf91a9c762e7cadc1b12994398bf8f3836ab11ab8b58a2bf4c5d9a4e",
@@ -3611,7 +3611,7 @@
     "effective_surfaces/corpus/cadgenbench_inputs/cgb217.step.gz.json.gz": "be276ec7d5440ffdbe902ce8b335e0072e1bbc9a87dca21ba4e0371a97dc72df",
     "effective_surfaces/corpus/cadgenbench_inputs/cgb241.step.json.gz": "c56488ac5a154b8949514ad2f19fc6748b32c648d5cdc8e14bdf642801d51abd",
     "effective_surfaces/corpus/cadgenbench_inputs/cgb242.step.gz.json.gz": "b7efd15c932b32f5c970b2cc32c81f0b8fff40825e4dba9739abdca531381612",
-    "effective_surfaces/corpus/cadgenbench_inputs/cgb243.step.gz.json.gz": "36b6ea344fb0d1903b59b0916f6cfaeb118aa154ffb0f65f328aff22c6e43594",
+    "effective_surfaces/corpus/cadgenbench_inputs/cgb243.step.gz.json.gz": "a8cf75047797a4c9011f15791c251a5939def54fe100fffc626ef2e72e339b26",
     "effective_surfaces/corpus/cadgenbench_inputs/cgb245.step.json.gz": "56d267595ee779a0b41a8eba60a93b396a758e53deb60e24c56a336b181a1c46",
     "effective_surfaces/corpus/gramel/GRM-03_thumbwheel_drive_screw.step.json.gz": "7127f4bfc8d8839450844a4a25fbf8a9f94937595ecf398a15d883394b34356d",
     "effective_surfaces/corpus/gramel/GRM-05_depth_lock_bolt.step.json.gz": "3baff16cc2558f841bbc1dd0fc4acd93d589d626939f3728a1a80a37ea104eb0",
@@ -3981,7 +3981,7 @@
     "frames/corpus/cadgenbench_inputs/cgb217.step.gz.json.gz": "faa48492758f97b228a7028bcf152ccf34a2ecd141403b4a77ca6f6672c5ef5d",
     "frames/corpus/cadgenbench_inputs/cgb241.step.json.gz": "c3f94172f9260e9629fb591022fb4465319ceec9308df342f433d432914901f6",
     "frames/corpus/cadgenbench_inputs/cgb242.step.gz.json.gz": "1fb52690c5840de0ddc2c92e169811e921260cabb4c74f66b9b0e1f9ff5bf9fb",
-    "frames/corpus/cadgenbench_inputs/cgb243.step.gz.json.gz": "17dd34f46a49dbd2a836b4636370be4db8e4ddbe10a78d71498e2145660bef98",
+    "frames/corpus/cadgenbench_inputs/cgb243.step.gz.json.gz": "0d206c0f23417d17891a3f10fb58e750071f7f6a7b7f3e974363c5ec05be6a82",
     "frames/corpus/cadgenbench_inputs/cgb245.step.json.gz": "6616d84d87c2f569defbd7cf119ab4002dd9a42acc6a1b6b2bc633506071c48e",
     "frames/corpus/gramel/GRM-03_thumbwheel_drive_screw.step.json.gz": "39b7f138630ea2fe27d528e3aeadd3840cc7ddaf12da928419e474064678f8d8",
     "frames/corpus/gramel/GRM-05_depth_lock_bolt.step.json.gz": "2592de0df50139e25b90442f19071735da19e2582f451f8d7a023330b9155eba",
@@ -4159,7 +4159,7 @@
     "kernel/cadgenbench_inputs/cgb217.step.gz.json.gz": "6c55db71d114f0347f9b86e388a57901c262ccaf9c3ac80e05944ea505845647",
     "kernel/cadgenbench_inputs/cgb241.step.json.gz": "8aac70373513d50bd3433e688f751971e293874f0622a0a068de587d65f05946",
     "kernel/cadgenbench_inputs/cgb242.step.gz.json.gz": "0c250c83a10863217ee98aa02a9d80c3e45b5d51e66d31e06348edf3392c1491",
-    "kernel/cadgenbench_inputs/cgb243.step.gz.json.gz": "8ee912a06a804c24f13b6ffd4b826e2ea3d1cb244b360fcc38f0b96573784d0b",
+    "kernel/cadgenbench_inputs/cgb243.step.gz.json.gz": "4e8c6f5b462216d45e5f7a90ecda174a166c5210100da94963047847ed5fe1a5",
     "kernel/cadgenbench_inputs/cgb245.step.json.gz": "e806c37f20d508b6ac458ed042e177342b05e18ef5d125c948499d69c0c261cd",
     "kernel/gramel/GRM-03_thumbwheel_drive_screw.step.json.gz": "d8d94210af6a887d9c954c3a690be76fe67f3a996ef289f7ddeff0a88d34c24a",
     "kernel/gramel/GRM-05_depth_lock_bolt.step.json.gz": "47bd35911605c691e1ffda1242fbdef68cb3b8b83a7dcea5e2e80c7c3734a143",
@@ -5978,5 +5978,5 @@
     "step_levels.json.gz": "6ff3ceadb33888e9d529a10b9a880babaf979f4f8d869962215d9d3193902f00",
     "unowned_recesses.json.gz": "604ec266d4c85575165c6822140a3ac79a6637c8d72a3a2bb376e74f86455343"
   },
-  "source_commit": "84e4ac348e1bc5274c8d03ea13e27ab35dfa61fa"
+  "source_commit": "236e5a0d96085974e453231368dfbc1fcd27e51e"
 }
