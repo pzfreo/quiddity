@@ -3106,6 +3106,8 @@
     "tests/fixtures/hole_mouth/cbore_chamfer.step": "a6a3289744e2054f6892b4dd04cca5172eed365f1bdb8d0491b2e20162fa67a7",
     "tests/fixtures/hole_mouth/make.py": "7c24fb2fdc7cc1e0cb184bc70d562a74ba9015577ca471a93f88ffda40a91e7c",
     "tests/fixtures/hyperbola_cut_cone.step": "67de49dd4278057e9277e4d8633a8fe49d879e589be224c8429b1d3371168673",
+    "tests/fixtures/integration_budget_sheet.README.md": "36c653973866defa474123ef7782a4fb06ab70a413dfd18c48238a11e5048232",
+    "tests/fixtures/integration_budget_sheet.step.gz": "f95c9acb3c56fb0235eca34941873f88e9773b8714572df3edd2d8ee879a8910",
     "tests/fixtures/internal_bore_round.step": "f6657dbb53573bf24d7fdffd4de74438ea3021129cb4967335cb6cad5c807498",
     "tests/fixtures/interrupted_corner.step": "4677d32a9c655eddfa5ef7f4f8f153007fa5b14abdcd95758b0640605b1691da",
     "tests/fixtures/interrupted_corner_mirror.step": "e11c0dfe7de4f7abaa92a1dd7e35fe5911f23df070f0e5d0078274b5a115a571",
@@ -6035,5 +6037,5 @@
     "step_levels.json.gz": "6ff3ceadb33888e9d529a10b9a880babaf979f4f8d869962215d9d3193902f00",
     "unowned_recesses.json.gz": "604ec266d4c85575165c6822140a3ac79a6637c8d72a3a2bb376e74f86455343"
   },
-  "source_commit": "c7cf97ef6ee27c1702fa7a01e08d188eac26272b"
+  "source_commit": "0116a99f899ccb3d9de520999b9e5c721f3bfe99"
 }
