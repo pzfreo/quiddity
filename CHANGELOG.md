@@ -8,15 +8,47 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Added
 
+- Documented face index order as a contract (OpenCascade `TopExp::MapShapes` traversal, ascending
+  `ADVANCED_FACE` id only when the file lists solids and shell faces in that order) and what
+  `face_sources[].instance` means, with `tests/face_index_order.rs` pinning both.
+- An edge break on the rim of a conical body (the base of a cone, either end of a frustum) is
+  published as a turned `Chamfer`, where it was absorbed as an unexplained cone in the
+  `TurnedBody` profile. A narrow coaxial cone between an end plane and the body's cone, joined
+  convexly and shorter than that cone, with equal legs (a C x 45 degree break; other angles and
+  two-distance cones are left alone), is read like the existing chamfer of a cylindrical body,
+  with the legs taken along the end plane and along the body's cone from the virtual sharp rim.
+  The profile is unchanged and both records list the cone face. Hole mouth cones stay nested in
+  `HoleRecord.mouth_chamfers` (#244). The recognition schema stays at 6. For #298.
 - Owned-snapshot STEP geometry entry points release parsed input bytes before B-rep
   construction; file and recognition snapshot readers preserve the original source digest.
 
+- The recognition document states a part's several solids and its void shells in an additive
+  optional `bodies` field (`solids`, `void_shells`, and with several solids each solid's
+  `solid_faces`), and the CLI and `serve` warn when a part holds more than one solid. Records
+  are still found over the part's faces together, so a caller that needs one body at a time can
+  refuse the part or split it by `solid_faces`. Absent for a single one-shell solid; schema 6
+  and every record are unchanged. `Recognition` and `RecognitionDocument` (non-exhaustive) gain
+  the field, and `recognition::Bodies` is new. For #300.
+
 ### Changed
 
+- Edge fillets are reported at any radius. The absolute 0.6 mm floor is gone: boxes and prisms
+  with every edge rounded at about 0.3 to 0.55 mm, which gave no fillet record at all, now
+  report all twelve rounds, and small rounds elsewhere (R0.2 to 0.55 on CAD parts, root
+  fillets on gears) report as fillets instead of generic blends. The tangent-wall, sweep and
+  material proofs are unchanged; only rounds under 0.0005 mm, which would publish as radius
+  0, stay unreported. For #297.
 - Geometry provenance and declared-unit metadata use lossless packed STEP records,
   decoding selected attributes or the current record without retaining a second
   owned graph. Face and edge identity, reference validation, refusals and assemblies
   are unchanged.
+- Stop B-spline boundary cut bisection when the floating-point bracket stops changing,
+  and reuse identical cut searches across the integration passes of an open spline face.
+- Complex-instance reference checking at STEP import scans packed records for references
+  to complex instances and decodes only the records that have one, instead of decoding every
+  record whenever a file has a complex instance. Output is unchanged. Follow-up to #290,
+  at the maintainer's suggestion. `UnitReader::get` and `real_text` now assert in debug
+  builds that they are not used on a packed graph, where they would return `None`.
 
 ### Fixed
 
@@ -32,6 +64,31 @@ in [docs/alpha1.md](docs/alpha1.md).
   (the other Green's-theorem form) and the narrow-dip counterexample in #302, and found that
   the stationary-node test scaled motions by the whole knot vector rather than the active
   domain, which skipped a real edge's nodes when a writer padded the end knots. For #302.
+
+- A planar chamfer is no longer read from the flats of a polygonal section. A bevel between two
+  principal-plane walls was published whenever it stood between them, so the flats of a hexagonal
+  or irregular polygonal prism whose neighbours happened to lie on principal planes became
+  "chamfers" with the flat's bounding-box legs (2.517 / 1.453 at 30 degrees from the middle of a
+  hexagon flat, where the file's chamfers are 0.524 / 0.524; about 2.8 / 2.7 for one unequal
+  chamfer of 0.823 / 1.601). A bevel whose leg takes a third or more of a wall's width is now kept
+  only if that wall's far end meets a perpendicular wall, another bevel or a blend, or the oblique
+  plane it runs on into does not close a convex section round to the bevel (a groove, dovetail or
+  step is no polygon); a wall that
+  runs on into an oblique plane that is no bevel belongs to a polygonal section, and its bevels
+  and flats are no longer claimed. A short break beside some other oblique face is still a
+  chamfer. The chamfers of 120-degree and other non-perpendicular vertices are still not
+  recognised (a miss, no longer a wrong record); a hexagon with two opposite chamfers still
+  reads as an octagon with four bevels. Chamfers of rectilinear corners, including large ones and
+  an L section's, are unchanged. For #301.
+- A face whose area and centroid cannot be computed (a cylinder bounded by one closed circle,
+  as some converters write a degenerate face) is left out of recognition and published as an
+  `unmeasured_face_refusals` record (`UnmeasuredFaceRefusal`, reason `unmeasured_face`; its
+  face is `refused` in `face_accounting`). Before, a hole could be recognised on it with
+  invented values (depth 0, `flat`). Records that define the face are dropped (and, in `blends` and `helical_springs`, those that consult it);
+  the rest of the part is recognised. Additive in `recognition/6`. The part frame is still
+  refused (`unmeasured-face`) because the volume needs every face, so such a part is
+  recognised in file coordinates. specify-core must stop refusing the whole part on this
+  face (`describe_faces`). For #303.
 - Reading a STEP file no longer sizes per-solid work by every face in the file: the import's
   outward-shell proof and the ray casters keep their face boxes and membership for the
   solid's own faces, the unresolved-face and unresolved-edge lookups search a sorted list, and

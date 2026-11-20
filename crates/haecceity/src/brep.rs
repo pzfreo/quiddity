@@ -339,6 +339,8 @@ pub struct Part {
     face_sources: Vec<Source>,
     edge_sources: Vec<Source>,
     input_repairs: Vec<String>,
+    // Void shells each solid declares in the file (`BREP_WITH_VOIDS`); empty for built parts.
+    declared_voids: Vec<usize>,
     // STEP LINE direction ratios before normalisation, for reader-equivalent rotations.
     line_directions: std::collections::BTreeMap<usize, V3>,
     conics: std::collections::BTreeMap<usize, geom::Conic>,
@@ -383,6 +385,7 @@ impl Part {
             face_sources: Vec::new(),
             edge_sources: Vec::new(),
             input_repairs: Vec::new(),
+            declared_voids: Vec::new(),
             line_directions: Default::default(),
             conics: Default::default(),
             pcurve_splines: Vec::new(),
@@ -587,6 +590,7 @@ impl Part {
         part.face_sources = self.face_sources.clone();
         part.edge_sources = self.edge_sources.clone();
         part.input_repairs = self.input_repairs.clone();
+        part.declared_voids = self.declared_voids.clone();
         part.line_directions = self.line_directions.clone();
         part.conics = self.conics.clone();
         part.pcurve_splines = self.pcurve_splines.clone();
@@ -825,6 +829,19 @@ impl Part {
         self.face_sources = faces;
         self.edge_sources = edges;
         self
+    }
+
+    pub(super) fn with_declared_voids(mut self, voids: Vec<usize>) -> Self {
+        assert_eq!(voids.len(), self.solids.len());
+        self.declared_voids = voids;
+        self
+    }
+
+    /// The void shells solid *solid* declares in the file (`BREP_WITH_VOIDS`); 0 for a solid
+    /// of one outer shell and for a part not read from a file. Unlike [`Part::shell_count`] this
+    /// is what the file states, not a count of edge-connected face groups.
+    pub fn declared_void_shells(&self, solid: usize) -> usize {
+        self.declared_voids.get(solid).copied().unwrap_or(0)
     }
 
     /// The file instance face *face* was read from; `None` for a part not read from a file.

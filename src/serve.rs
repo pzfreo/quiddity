@@ -223,6 +223,13 @@ pub(crate) fn recognition_warnings(
             .iter()
             .map(|repair| format!("{path}: warning: {repair}")),
     );
+    if let Some(bodies) = document.bodies.as_ref().filter(|b| b.solids > 1) {
+        warnings.push(format!(
+            "{path}: warning: {} solids recognised together as one part; records may pair \
+             faces of different solids (see document.bodies.solid_faces)",
+            bodies.solids
+        ));
+    }
     if !document.failures.is_empty() {
         warnings.push(format!("{path}: warning: incomplete recognition ({} failed or blocked families); see document.failures", document.failures.len()));
     }
