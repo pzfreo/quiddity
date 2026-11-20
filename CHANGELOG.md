@@ -8,6 +8,16 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Added
 
+- Tapers and V-grooves of a turned body are records of their own, `tapers` and `v_grooves`,
+  where they were only cone segments in the `turned_bodies` profile (whose profile is unchanged).
+  A taper is one whole coaxial cone, external or internal, between two cylinders, a cylinder and a
+  plane, or two planes, with its large and small diameters, length, included angle, axis (large
+  end to small) and the `turned_bodies` record it belongs to. A V-groove is two whole coaxial
+  cones meeting at a sharp bottom circle or a tiny flat or round, between two equal lands, with
+  width, depth, included angle, mouth and bottom diameters. A cone that another record defines (an
+  edge break, countersink, drill point or thread), a narrow or 45 degree cone at an end plane, an
+  internal cone at a plane over 30 degrees, a groove flank, a ridge and a cone ending at the axis
+  are never published. New optional families; recognition schema `/6` is unchanged. For #307 (item 6).
 - Documented face index order as a contract (OpenCascade `TopExp::MapShapes` traversal, ascending
   `ADVANCED_FACE` id only when the file lists solids and shell faces in that order) and what
   `face_sources[].instance` means, with `tests/face_index_order.rs` pinning both.

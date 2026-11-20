@@ -92,7 +92,7 @@ fn inputs(family: &str, stage: &str) -> &'static [&'static str] {
         ("turned_bodies", "suppress_od_bosses") => &["bosses"],
         // Residual families consume the complete accepted claims and refusals. Missing
         // input claims must never turn into a falsely evaluated residual surface.
-        ("cylindrical_profiles" | "face_grooves", _) => CLAIM_INPUTS,
+        ("cylindrical_profiles" | "face_grooves" | "v_grooves" | "tapers", _) => CLAIM_INPUTS,
         _ => &[],
     }
 }
@@ -144,6 +144,8 @@ const CLAIM_INPUTS: &[&str] = &[
     "section_recesses",
     "cylindrical_profiles",
     "face_grooves",
+    "v_grooves",
+    "tapers",
 ];
 
 pub(super) fn guarded<T: Default>(

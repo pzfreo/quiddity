@@ -108,6 +108,7 @@ pub mod thin_walls;
 pub mod through_steps;
 pub mod turned;
 pub mod turned_bodies;
+pub mod turned_profile_records;
 pub mod turned_steps;
 pub mod volume_probe;
 pub mod wire_seed;
@@ -184,6 +185,12 @@ pub struct Features {
     /// Intrinsic face recesses on otherwise unclaimed faces (for #123).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub face_grooves: Vec<face_grooves::FaceGroove>,
+    /// Conical bands of a turned body, linked to its `turned_bodies` record (#307).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub tapers: Vec<turned_profile_records::Taper>,
+    /// Annular V sections of a turned body (#307).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub v_grooves: Vec<turned_profile_records::VGroove>,
     pub plates: Vec<plates::Plate>,
     /// Complete analytic turned solids (#123), co-owning faces with their features.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -461,6 +468,12 @@ pub(crate) fn recognise_projected(
     });
     post!("face_grooves", "append", || {
         face_grooves::append(ctx, &mut features)
+    });
+    post!("v_grooves", "append", || {
+        turned_profile_records::append_v_grooves(ctx, &mut features)
+    });
+    post!("tapers", "append", || {
+        turned_profile_records::append_tapers(ctx, &mut features)
     });
     // Complete recess floors in this same post-reconciliation completion pass, after
     // append/suppression has finished: added claims must not feed recognition decisions.
@@ -1105,6 +1118,8 @@ fn inventory_in_with(
             }
         },
         face_grooves: Vec::new(),
+        tapers: Vec::new(),
+        v_grooves: Vec::new(),
         plates: kept_shared(&mut defining, "plates", plate_occurrences),
         turned_bodies: {
             let found = discover!("turned_bodies", turned_bodies::discover(ctx));

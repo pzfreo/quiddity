@@ -286,6 +286,8 @@ pub const RECORD_TYPES: &[(&str, &[&str])] = &[
     ("grooves", &["Groove"]),
     ("annular_grooves", &["AnnularGroove"]),
     ("face_grooves", &["FaceGroove"]),
+    ("tapers", &["Taper"]),
+    ("v_grooves", &["VGroove"]),
     ("plates", &["Plate"]),
     ("turned_bodies", &["TurnedBody"]),
     ("round_bottom_blind_slots", &["RoundBottomBlindSlot"]),

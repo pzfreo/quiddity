@@ -569,6 +569,8 @@ fn carry(
         grooves,
         annular_grooves,
         face_grooves,
+        tapers,
+        v_grooves,
         plates,
         turned_bodies,
         round_bottom_blind_slots,
@@ -716,6 +718,25 @@ fn carry(
             face_grooves,
             |out: &mut Out, mut r: crate::features::face_grooves::FaceGroove| {
                 r.axis = out.direction(r.axis);
+                r.axis_point = out.point(r.axis_point);
+                r
+            }
+        ),
+        tapers: each!(
+            "tapers",
+            tapers,
+            |out: &mut Out, mut r: crate::features::turned_profile_records::Taper| {
+                r.axis = out.direction(r.axis);
+                r.axis_point = out.point(r.axis_point);
+                r
+            }
+        ),
+        v_grooves: each!(
+            "v_grooves",
+            v_grooves,
+            |out: &mut Out, mut r: crate::features::turned_profile_records::VGroove| {
+                // The groove is symmetric about its mouth plane: only the line matters.
+                r.axis = crate::features::turned_bodies::canonical(out.direction(r.axis));
                 r.axis_point = out.point(r.axis_point);
                 r
             }

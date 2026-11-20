@@ -92,6 +92,7 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `quiddity::features::through_steps`: `ThroughStep`.
 - `quiddity::features::turned`: `TurnedProfileKey`.
 - `quiddity::features::turned_bodies`: `Bore`, `ProfileSegment`, `TurnedBody`.
+- `quiddity::features::turned_profile_records`: `Taper`, `VGroove`.
 - `quiddity::features::turned_steps`: `TurnedStep`.
 - `quiddity::features::v_channels`: `VChannel`.
 - `quiddity::frames`: `FrameRefusal`, `FramedError`, `FramedRecognition`, `PartFrame`.

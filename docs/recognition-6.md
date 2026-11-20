@@ -1422,3 +1422,49 @@ cone face `[1]`, so the cone is explained without shifting the hole's anchor to 
 No standalone feature is added, and existing hole, pattern and chamfer IDs and
 fingerprints stay unchanged. Consumers can select the nested cone faces for a
 chamfer note while preserving the cylinder as the saved feature reference.
+
+## Tapers and V-grooves (#307 item 6)
+
+The optional `tapers` and `v_grooves` families read the meridian profile that `turned_bodies`
+publishes; the profile itself is unchanged and both families are appended after every other
+family, so no existing record changes. Each record names the `turned_bodies` record it comes
+from by index (`turned_body`), lists its defining cone faces (`faces`) and co-owns them with the
+body. A cone face that any other record defines (a chamfer, countersink, a hole's drill point, a
+thread) is left to that record, and a V-groove claims only its flanks and tiny bottom, never the
+land faces on either side, which stay with their holes or bosses.
+
+A cone counts only when it runs a whole turn (two closed circular rims, any other edge a seam),
+is not flat or cylindrical, and its small end is off the axis (a drill point ends in the axis).
+
+**Taper** (`Taper`: `axis`, `axis_point`, `side`, `large_diameter`, `small_diameter`, `length`,
+`included_angle`, `turned_body`, `faces`). One profile cone whose two ends meet exactly one
+coaxial cylinder of the same side or one plane each. `length` is axial and `included_angle` the full
+cone angle in degrees. `axis` runs from the large end to the small end and `axis_point` is the large
+circle's centre. A cone between a plane and a cylinder (where an edge break, countersink or
+drill point sits) is refused when its legs are equal (a 45 degree break, as `chamfers`
+reads it) or its larger leg is under a tenth of its larger diameter; an internal cone against
+a plane must also be as slender as a socket taper (included angle at most 30 degrees), which
+leaves countersinks and truncated drill points alone. A taper socket or chamber that `holes` and
+`countersinks` already define as a hole's cone stays theirs; a through taper-pin hole, which no hole
+record claims, is an internal taper. A cone that leads down to a cylindrical
+floor that rises again (the flank of a groove) is refused, which also leaves a taper that ends in a
+neck and then a shoulder unpublished. Cones next to cones, tori or spheres (rounded or compound
+transitions), split cones and cones on an axis the body does not share are not published.
+
+**V-groove** (`VGroove`: `axis`, `axis_point`, `side`, `width`, `depth`, `included_angle`,
+`mouth_diameter`, `bottom_diameter`, `turned_body`, `faces`). Two whole cones of one side that
+descend to a common bottom, either as a sharp circle or through one cylinder or torus whose axial
+span is at most a tenth of the groove width, with each flank's outer rim on a land cylinder of
+the same side and the two rims of equal radius (within 0.002 mm). `width` is the axial distance
+between the rims, `depth` the radial distance from rim to the deepest circle (a round's deepest
+point is its tube circle's), and `included_angle` the angle between the two flanks, between 20 and
+140 degrees. `axis` is the turning axis with a positive dominant component and `axis_point` the
+mouth's centre. Flanks with a wider flat (a trapezoid), a peak (a ridge), unequal rims, a
+plane or cone at a rim, or round-bottomed grooves of any size are not V-grooves; a groove
+that is only the sum of two cones that other records define is left to them. A groove whose flat or round
+bottom is already read as `grooves` with `chamfers` (a flat of a few hundredths, for example) keeps
+those records, and gets no V-groove record: its faces are claimed. Round-bottomed
+grooves are a separate matter (item 5).
+
+Fingerprint format 3 takes the diameters, length, width, depth and angles as sizes, `side` as a
+trait and `axis`/`axis_point` as placement; indices are ignored.
