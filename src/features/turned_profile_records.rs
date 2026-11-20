@@ -59,13 +59,14 @@ pub struct VGroove {
 /// groove's width; absolute equality is within the published precision (a 0.001 mm cell).
 const BOTTOM_FRAC: f64 = 0.1;
 const EQUAL_RIMS: f64 = 0.002;
-/// A taper that meets an end plane on one side and a cylinder on the other is an edge
-/// break when narrow (its larger leg under this fraction of its larger diameter) or when
+/// A cone is an edge break, not a taper, when narrow (its larger leg under this fraction of its larger diameter) or when
 /// its legs are equal (a 45 degree break, as `chamfers` reads it).
 const EDGE_BREAK_FRAC: f64 = 0.1;
 /// A bore cone that meets a plane (a mouth or floor) is a seat or a drill point, unless it
 /// is as slender as a taper socket.
 const MAX_BORE_TAPER_DEG: f64 = 30.0;
+/// A taper's included angle is at most this; wider cones are transitions, chamfers or seats.
+const MAX_TAPER_DEG: f64 = 60.0;
 /// A V groove opens between these angles; narrower is a slit, wider a shallow dish.
 const V_ANGLE_RANGE: (f64, f64) = (20.0, 140.0);
 
@@ -383,13 +384,15 @@ fn taper_of(m: &Meridian<'_>, claimed: &BTreeSet<usize>, i: usize, body: usize) 
         }
     }
     let included = 2. * dr.atan2(length).to_degrees();
-    if planes == 1 {
-        // A cone between a plane and a cylinder is where an edge break, a countersink or a
-        // drill point would sit.
-        let big = 2. * p0[1].max(p1[1]);
-        if (length - dr).abs() <= EQUAL_RIMS || length.max(dr) < EDGE_BREAK_FRAC * big {
-            return None;
-        }
+    // A taper is slender: a wider cone is a profile transition, a chamfer or a seat.
+    if included > MAX_TAPER_DEG {
+        return None;
+    }
+    // No edge-break-sized cone is a taper, whatever it joins: equal legs (a 45 degree break,
+    // as `chamfers` reads it) or a larger leg under a tenth of the larger diameter.
+    let big = 2. * p0[1].max(p1[1]);
+    if (length - dr).abs() <= EQUAL_RIMS || length.max(dr) < EDGE_BREAK_FRAC * big {
+        return None;
     }
     if planes > 0 && s < 0. && included > MAX_BORE_TAPER_DEG {
         return None;

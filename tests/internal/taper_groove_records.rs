@@ -46,10 +46,10 @@ fn a_bare_frustum_between_two_end_planes_is_a_taper() {
     let [t] = &f.tapers[..] else {
         panic!("{:?}", f.tapers)
     };
-    near(t.large_diameter, 50.);
+    near(t.large_diameter, 40.);
     near(t.small_diameter, 24.);
     near(t.length, 16.);
-    near(t.included_angle, angle(13., 16.));
+    near(t.included_angle, angle(8., 16.));
     // From the large end to the small one: against +z, as the part is built.
     near(t.axis[2], -1.);
 }
@@ -140,6 +140,9 @@ fn edge_breaks_countersinks_drill_points_trapezoids_and_ridges_publish_neither()
         "taper_control_drill_point",
         "taper_control_trapezoid",
         "taper_control_ridge",
+        "taper_control_wide_frustum",
+        "taper_control_tiny_step",
+        "taper_control_web",
     ] {
         let f = read(name);
         assert!(f.tapers.is_empty(), "{name}: {:?}", f.tapers);

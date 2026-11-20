@@ -1440,13 +1440,16 @@ is not flat or cylindrical, and its small end is off the axis (a drill point end
 `included_angle`, `turned_body`, `faces`). One profile cone whose two ends meet exactly one
 coaxial cylinder of the same side or one plane each. `length` is axial and `included_angle` the full
 cone angle in degrees. `axis` runs from the large end to the small end and `axis_point` is the large
-circle's centre. A cone between a plane and a cylinder (where an edge break, countersink or
-drill point sits) is refused when its legs are equal (a 45 degree break, as `chamfers`
-reads it) or its larger leg is under a tenth of its larger diameter; an internal cone against
-a plane must also be as slender as a socket taper (included angle at most 30 degrees), which
-leaves countersinks and truncated drill points alone. A taper socket or chamber that `holes` and
-`countersinks` already define as a hole's cone stays theirs; a through taper-pin hole, which no hole
-record claims, is an internal taper. A cone that leads down to a cylindrical
+circle's centre. The included angle is at most 60 degrees: a wider cone is a profile transition, a chamfer or a seat,
+not a taper (a 127 degree conical web between two flange planes, or the 78.6 degree frustum of
+d24 to d50 over 16 mm, publish no taper). A cone between two end planes is a taper only under this bound,
+which is what makes it safe. Whatever a cone joins (cylinder, plane or both), it is an edge break and no
+taper when its legs are equal (45 degrees, as `chamfers` reads it) or its larger leg is under a tenth of
+its larger diameter (a 0.5 mm 45 degree step between a d20 and a d21 bore is not a taper). An internal
+cone against a plane must also be as slender as a socket taper (included angle at most 30 degrees),
+which leaves countersinks and truncated drill points alone. A taper socket or chamber that `holes`
+and `countersinks` already define as a hole's cone stays theirs; a through taper-pin hole, which no
+hole record claims, is an internal taper. A cone that leads down to a cylindrical
 floor that rises again (the flank of a groove) is refused, which also leaves a taper that ends in a
 neck and then a shoulder unpublished. Cones next to cones, tori or spheres (rounded or compound
 transitions), split cones and cones on an axis the body does not share are not published.
@@ -1458,7 +1461,8 @@ span is at most a tenth of the groove width, with each flank's outer rim on a la
 the same side and the two rims of equal radius (within 0.002 mm). `width` is the axial distance
 between the rims, `depth` the radial distance from rim to the deepest circle (a round's deepest
 point is its tube circle's), and `included_angle` the angle between the two flanks, between 20 and
-140 degrees. `axis` is the turning axis with a positive dominant component and `axis_point` the
+140 degrees. `axis` is the turning axis with a positive dominant component (made canonical again in framed
+output, since a groove is symmetric; a taper's `axis` stays large end to small end) and `axis_point` the
 mouth's centre. Flanks with a wider flat (a trapezoid), a peak (a ridge), unequal rims, a
 plane or cone at a rim, or round-bottomed grooves of any size are not V-grooves; a groove
 that is only the sum of two cones that other records define is left to them. A groove whose flat or round
