@@ -83,6 +83,19 @@ fn lands_of_different_diameter_are_never_merged() {
 }
 
 #[test]
+fn a_groove_wider_than_a_quarter_of_the_bore_is_not_merged() {
+    // A torus R13.0 r4.0 (8 mm wide, against a quarter diameter of 6.8): two holes, and no
+    // floor claimed on the groove.
+    let found = holes_of("grooved_bore_wide", &IDENTITY);
+    assert_eq!(found.len(), 2, "{found:?}");
+    assert!(
+        found
+            .iter()
+            .all(|h| h.0 == 27.2 && h.1 != holes::Bottom::Flat)
+    );
+}
+
+#[test]
 fn a_cross_hole_leaves_the_bore_through_and_whole() {
     assert_holes(
         "grooved_bore_cross",

@@ -26,7 +26,7 @@ use super::cylinders::{
 use super::evidence::{self, EvidenceError, Occurrence};
 use super::placed::{Grid, Placed};
 use super::policy;
-use super::stacks::{End, classify_end, end_partners, lies_outside_bore};
+use super::stacks::{End, classify_end, end_partners, reach_beyond_bore};
 use crate::kernel::brep::{Arc, Part};
 use crate::kernel::geom::{self, COORD_FLOOR, Surface, V3};
 use crate::kernel::py;
@@ -250,6 +250,10 @@ pub fn recognise_holes(part: &Part, opts: &HoleOptions) -> Vec<HoleRecord> {
 }
 }
 
+/// The widest and deepest an internal groove may be, as a fraction of the bore's diameter,
+/// for the lands either side of it to remain one bore (#307).
+const GROOVE_FRAC: f64 = 0.25;
+
 fn same_diameter(a: f64, b: f64) -> bool {
     (a - b).abs() <= SAME_DIAMETER_FRAC * a.abs().max(b.abs()).max(DIAMETER_FLOOR)
 }
@@ -319,8 +323,13 @@ fn merge_stacks(part: &Part, stacks: Vec<Vec<Segment>>) -> Vec<Vec<Segment>> {
     };
     // Two lands of one bore that only an internal groove separates: the faces between them (a
     // torus, a pair of cones, a plane-cylinder-plane chain) all lie outside the bore diameter,
-    // so no material narrows the bore between the lands.
+    // so no material narrows the bore between the lands, and the groove is narrow and shallow
+    // against the bore (a quarter of its diameter at most; a wider cavity is not a groove).
     let separated_by_groove = |a: &Segment, b: &Segment| -> bool {
+        let limit = GROOVE_FRAC * a.diameter;
+        if b.s_lo - a.s_hi > limit {
+            return false;
+        }
         let wanted: BTreeSet<usize> = end_partners(part, b, b.s_lo).into_iter().collect();
         let mut seen: BTreeSet<usize> = BTreeSet::new();
         let mut front: Vec<usize> = end_partners(part, a, a.s_hi)
@@ -334,7 +343,7 @@ fn merge_stacks(part: &Part, stacks: Vec<Vec<Segment>>) -> Vec<Vec<Segment>> {
             seen.extend(front.iter().copied());
             if seen.iter().any(|f| wanted.contains(f)) {
                 let faces: Vec<usize> = seen.iter().copied().collect();
-                return lies_outside_bore(part, a, &faces);
+                return reach_beyond_bore(part, a, &faces).is_some_and(|reach| reach <= limit);
             }
             front = front
                 .iter()

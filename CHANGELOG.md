@@ -27,8 +27,9 @@ in [docs/alpha1.md](docs/alpha1.md).
 - A bore with an internal groove (a bearing race's ball groove, a V groove in a ring bore)
   is one hole, not two lands each ending on the groove. Two coaxial equal-diameter internal
   lands are one bore when only faces lying wholly outside the bore diameter separate them
-  (no material narrows the bore between them); a toroidal groove of that kind no longer reads
-  as a round at the bore's end, so it is not a `flat` floor. Lands separated by a web or a
+  (no material narrows the bore between them) and the groove is at most a quarter of the
+  bore diameter wide and deep; a toroidal groove between two cylinders no longer reads as a
+  round at the bore's end, so it is not a `flat` floor. Lands separated by a web or a
   different diameter stay separate holes, and an end that borders only such a groove is
   `unknown`. The groove itself is still unexplained. For #307 (item 3).
 - A face whose area and centroid cannot be computed (a cylinder bounded by one closed circle,

@@ -904,10 +904,12 @@ Two coaxial internal cylinders of the same diameter are one bore when the faces 
 them (reached within three adjacent faces from each land's end, never through a land) lie
 wholly at or beyond the bore radius from the axis, with some point beyond it: a ball groove
 (torus), a V groove (two cones), a rectangular groove (plane, cylinder, plane). Material
-inside the bore diameter between the lands (a web, a ridge) or a different diameter keeps
-them separate holes. A toroidal face of that kind says nothing about the end of a bore
-(it is not a round at a floor, which stays within the bore radius), so an end bordered only
-by such a groove is `unknown` rather than `flat`. The groove faces remain unexplained until
+inside the bore diameter between the lands (a web, a ridge), a different diameter, or a gap
+or radial depth over a quarter of the bore diameter (a cavity, not a groove) keeps them
+separate holes. A toroidal face lying outside the bore diameter between two cylinders says
+nothing about the end of a bore (a round at a mouth or floor also borders a plane or cone, and
+stays within the bore radius), so an end bordered only by such a groove is `unknown` rather
+than `flat`. The groove faces remain unexplained until
 they have a record of their own.
 
 ## Partially obstructed through-hole exits

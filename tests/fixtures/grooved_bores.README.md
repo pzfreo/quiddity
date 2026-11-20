@@ -16,4 +16,6 @@ Controls that must not merge or change:
 - `grooved_bore_webgroove`: the race with that web across its groove (two holes).
 - `grooved_bore_cbore`: a d27.2 and a d29.2 land with a plain shoulder (one stepped hole).
 - `grooved_bore_steps`: a d27.2 and a d28.0 land separated by a ball groove (two holes).
+- `grooved_bore_wide`: tube r 13.6..22 with a torus groove R13.0 r4.0 (8 mm wide; a groove may be at
+  most a quarter of the bore diameter wide and deep): two holes.
 - `grooved_bore_cross`: a plate with a d27.2 bore and a d3 cross hole (a through bore, whole).

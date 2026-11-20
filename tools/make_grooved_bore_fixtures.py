@@ -16,6 +16,8 @@ Controls, which must keep their existing readings:
                        stepped hole, never merged
   grooved_bore_steps   a d27.2 land and a d28.0 land separated by a ball groove (torus R13.3
                        r1.3): different diameters, never merged
+  grooved_bore_wide    tube r 13.6..22, z -8..6, minus a torus R13.0 r4.0 at z -1: a groove
+                       wider than a quarter of the bore diameter, so not merged; two holes
   grooved_bore_cross   a 60 x 60 x 5 plate with a d27.2 bore and a d3 cross hole along x at z -1
 """
 import gzip
@@ -53,13 +55,16 @@ def cbore():
 def steps():
     return tube(13.6, 16.0, -3.5, -1.0) + tube(14.0, 16.0, -1.0, 1.5) - Pos(0, 0, -1.0) * Torus(13.3, 1.3)
 
+def wide():
+    return tube(13.6, 22.0, -8.0, 6.0) - Pos(0, 0, -1.0) * Torus(13.0, 4.0)
+
 def cross():
     block = Pos(0, 0, -3.5) * Box(60, 60, 5, align=C) - Pos(0, 0, -3.5) * Cylinder(13.6, 5, align=C)
     return block - Pos(0, 0, -1.0) * Rot(0, 90, 0) * Cylinder(1.5, 80)
 
 parts = {
     'grooved_bore_race': race(), 'grooved_bore_ring': ring(), 'grooved_bore_web': web(), 'grooved_bore_webgroove': web_in_groove(),
-    'grooved_bore_cbore': cbore(), 'grooved_bore_steps': steps(), 'grooved_bore_cross': cross(),
+    'grooved_bore_cbore': cbore(), 'grooved_bore_steps': steps(), 'grooved_bore_cross': cross(), 'grooved_bore_wide': wide(),
 }
 for name, solid in parts.items():
     target = Path(__file__).resolve().parents[1] / f'tests/fixtures/{name}.step'
