@@ -161,6 +161,13 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
+- haecceity: a face on a closed B-spline surface (one the reader does not mark periodic) whose
+  edge lies on the surface's seam no longer reads `uv_bounds` across the whole closed span when
+  round-off resolves that edge to the far end of the domain. The edge is placed on the side its
+  loop occupies, moved by whole spans only and only while it stays inside the domain. The
+  truck shaft's revolved cap quarters read u in [0, 1] each, so their interior probes land on
+  the face and the boss's free-end cap (and its `supporting` faces) no longer changes with a
+  rigid move or a write/read round trip. For #307 (item 10).
 - The inner wall of a spoked rim is no longer published as a counterbore of the hub bore. A wider coaxial cylinder whose span overlaps a narrower hole segment's (more than the stack gap) is left out of the hole stack unless a closed annular floor leads inwards from one of its ends: a whole coaxial circle (one edge, or coplanar arcs making a full turn) on a transverse plane at the wall's end, or reached across a torus or cone blend. A collared recess with a wall-to-floor fillet or chamfer, or with faces written in halves, keeps its counterbore; a floor broken by a slot or ribs is not a step in that overlapping case. `curved_wall_corner` no longer claims a round whose curved supports are all at least 4 times tighter than it: cgb242's faces 173 and 185 (pocket end walls drawn round a hub, between R3 corner rounds), its long walls 103 (R51) and 203 (R62), and nine R76/R85 slot-wall patches in cgb202 are no longer published as inside rounds (they are reported as residual cylindrical profiles). cgb242's false d110 counterbore on its d22 hole is gone: the floor test accepts only a transverse plane facing into the wall's span, so a top face reached across an edge round no longer counts. For #307 (item 4).
 - A spoked flexure disc or wheel (hub, rim and spokes with open windows) is not a `turned_bodies` record: that family needs the whole boundary to be surfaces of revolution about one axis, with only proved stock flats as the exception, and the spoke walls are not stock flats (they truncate no stock; `flats` no longer publishes them). A regression test pins it on the item 4 spoked-rim fixture, where only the plain stepped disc is a turned body. No output change beyond the flats fix. For #307 (item 4).
 - `flats` records are no longer published on the sides of ribs, fins and tabs standing on a
