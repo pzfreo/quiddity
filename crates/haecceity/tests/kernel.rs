@@ -779,6 +779,32 @@ fn uv_bounds_are_the_range_of_the_boundary_edges() {
     }
 }
 
+/// The truck shaft's end caps are revolved B-spline quarters: each a whole closed (not
+/// periodic) revolution, u in [0, 4], trimmed to one quarter u in [0, 1], its centre collapsed
+/// at v = 1. The radial edge on u = 0 also lies on u = 4, and past the skipped centre round-off
+/// picked which: moved by a right angle, face 19 read u in [0, 4] and its interior probes all
+/// fell outside the face (written and read back, face 14 did instead). Every quarter spans its
+/// own quarter, unmoved and moved.
+#[test]
+fn closed_bspline_seam_edges_take_their_loops_side() {
+    let part = fixture("truck_master_shaft_only.step.gz");
+    let right_angle: haecceity::step::Placement = [
+        [0.0, -1.0, 0.0, 12.5],
+        [0.0, 0.0, -1.0, -7.25],
+        [1.0, 0.0, 0.0, 3.0],
+    ];
+    let moved = part.transformed(&right_angle).unwrap();
+    for (name, p) in [("unmoved", &part), ("moved", &moved)] {
+        for face in [4, 9, 14, 19] {
+            let (u0, u1, _, _) = p.uv_bounds(face).unwrap();
+            assert!(
+                u0.abs() < 1e-9 && (u1 - 1.0).abs() < 1e-9,
+                "{name} face {face}: u in [{u0}, {u1}]"
+            );
+        }
+    }
+}
+
 /// A face's box reaches its edges' and its surface's extremes between their samples: cgb207's
 /// y min lies on B-spline edge 452 (-41.1839642 at 4001 samples; its own samples stopped
 /// 2.7e-4 short) and its z min inside B-spline face 22 (OpenCascade's mesh node -32.4992456;
