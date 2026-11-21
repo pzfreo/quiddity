@@ -55,9 +55,48 @@ pub struct Recognition {
     /// Several solids or void shells, carried into the recognition document.
     #[serde(skip)]
     pub bodies: Option<crate::recognition::Bodies>,
+    /// The caller's per-face integration budget, carried into the recognition document.
+    #[serde(skip)]
+    pub budget: Option<crate::recognition::Budget>,
     /// Positive body evidence in the inferred frame; never a feature claim.
     #[serde(skip)]
     pub(crate) body_evidence: BTreeMap<usize, crate::recognition::BodyReason>,
+}
+
+/// Caller choices for one recognition ([`recognise_with`], [`fingerprints_with`],
+/// [`crate::evidence_view::evidence_with`]). The default gives the plain functions' results.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct RecognitionOptions {
+    /// The most work units (integrand evaluations) any one face's area and moment integration
+    /// may take. A face whose integration would take more is abandoned as soon as it passes the
+    /// limit and refused (`integration_budget_refusals`, accounted `refused`); every other face
+    /// is still integrated, and the document's `budget` names the refused faces. The verdict
+    /// depends only on each face's own geometry, not on face order, threads or the clock, so
+    /// the whole integration is bounded by the limit times the face count. `None`: no budget.
+    pub integration_budget: Option<u64>,
+}
+
+impl RecognitionOptions {
+    /// *part* as recognition under these options reads it: measured against the integration
+    /// budget, when there is one.
+    fn budgeted<'p>(&self, part: &'p Part, budgeted: &'p mut Option<Part>) -> &'p Part {
+        match self.integration_budget {
+            Some(limit) => budgeted.insert(part.with_integration_budget(limit)),
+            None => part,
+        }
+    }
+}
+
+/// [`recognise`] under *options*. The default options give [`recognise`]'s result.
+pub fn recognise_with(part: &Part, options: &RecognitionOptions) -> Recognition {
+    let mut budgeted = None;
+    recognise(options.budgeted(part, &mut budgeted))
+}
+
+/// The fingerprints of [`recognise_with`]'s recognition.
+pub fn fingerprints_with(part: &Part, options: &RecognitionOptions) -> Fingerprints {
+    recognise_with(part, options).fingerprints
 }
 
 /// Recognise a loaded part in its inferred frame and map records back to caller space.
@@ -77,7 +116,7 @@ pub fn recognise(part: &Part) -> Recognition {
 }
 
 fn recognise_in_frame(part: &Part, frame: PartFrame) -> Recognition {
-    let working = match part.transformed(&frame.normalisation()) {
+    let working = match part.transformed_carrying_integrals(&frame.normalisation()) {
         Ok(working) => working,
         Err(_) => {
             // A failed normalisation must never silently publish caller-space features.
@@ -100,6 +139,7 @@ fn normalisation_refused(part: &Part) -> Recognition {
         source_sha256: None,
         input_repairs: part.input_repairs().to_vec(),
         bodies: crate::recognition::Bodies::of(part),
+        budget: crate::recognition::Budget::of(part),
         body_evidence: BTreeMap::new(),
     }
 }
@@ -131,6 +171,7 @@ fn publish(
             source_sha256: None,
             input_repairs: part.input_repairs().to_vec(),
             bodies: crate::recognition::Bodies::of(part),
+            budget: crate::recognition::Budget::of(part),
             body_evidence,
         }
     } else {
@@ -143,6 +184,7 @@ fn publish(
             source_sha256: None,
             input_repairs: part.input_repairs().to_vec(),
             bodies: crate::recognition::Bodies::of(part),
+            budget: crate::recognition::Budget::of(part),
             body_evidence: BTreeMap::new(),
         }
     }
@@ -184,7 +226,7 @@ fn joint_analysis(
     use crate::evidence_view::{self, EvidenceViewError};
 
     let (frame, working) = match frames::infer_part_frame(part) {
-        Ok(frame) => match part.transformed(&frame.normalisation()) {
+        Ok(frame) => match part.transformed_carrying_integrals(&frame.normalisation()) {
             Ok(working) => (RecordFrame::Inferred(frame), Some(working)),
             Err(_) => {
                 return (
@@ -201,15 +243,16 @@ fn joint_analysis(
         // Clone before publication: post-passes expand face claims and can revoke families.
         // The evidence API has always projected the pre-publication physical inventory.
         let recognised = features::recognise_projected(ctx, inventory.clone(), projection.clone());
-        let recognition = publish(part, ctx, recognised, frame.clone());
         // The shared boundary records returned projection errors in the inventory.
         // Keep the same incomplete evidence as the separate evidence call.
         let evidence = evidence_view::project(
             geometry,
             inventory,
             projection.and_then(Result::ok).unwrap_or_default(),
-        )
-        .map(|view| {
+            &recognised,
+        );
+        let recognition = publish(part, ctx, recognised, frame.clone());
+        let evidence = evidence.map(|view| {
             let evidence_frame = match &frame {
                 RecordFrame::Inferred(frame) => Some(*frame),
                 _ => None,
@@ -242,6 +285,7 @@ pub(crate) fn caller_space_recognise(part: &Part) -> Recognition {
             source_sha256: None,
             input_repairs: part.input_repairs().to_vec(),
             bodies: crate::recognition::Bodies::of(part),
+            budget: crate::recognition::Budget::of(part),
             body_evidence: BTreeMap::new(),
         }
     })

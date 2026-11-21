@@ -107,29 +107,127 @@ fn gauss_nodes() -> &'static [(f64, f64)] {
 }
 
 /// ∫ f over the interval running through `cuts` in order, one Gauss panel between each
-/// consecutive pair, for every component of f at once.
-fn integrate<const N: usize>(cuts: &[f64], f: impl Fn(f64) -> [f64; N]) -> [f64; N] {
+/// consecutive pair, for every component of f at once; `None` as soon as f is (the face's
+/// integration budget is spent, [`spend_work`]).
+fn integrate<const N: usize>(
+    cuts: &[f64],
+    f: impl Fn(f64) -> Option<[f64; N]>,
+) -> Option<[f64; N]> {
     let mut total = [0.0; N];
     for w in cuts.windows(2) {
         let (half, centre) = (0.5 * (w[1] - w[0]), 0.5 * (w[1] + w[0]));
         for &(x, weight) in gauss_nodes() {
-            let y = f(centre + half * x);
+            let y = f(centre + half * x)?;
             for k in 0..N {
                 total[k] += weight * half * y[k];
             }
         }
     }
-    total
+    Some(total)
+}
+
+/// The face's shared moment integration, one result per consumer (`Part::face_raw_moments`).
+#[derive(Clone, Copy, Debug)]
+pub(super) struct RawMoments {
+    local: Option<[f64; 26]>,
+    centre: Option<[f64; 26]>,
 }
 
 #[cfg(test)]
 thread_local! {
+    /// Test hook: `Some(true)` makes the face-moment group's integrand non-finite,
+    /// `Some(false)` the centroid group's.
+    static POISONED_GROUP: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
+    /// Test hook: panic at the next metered evaluation (a genuine panic inside a budget pass).
+    static PANIC_WHILE_METERED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// Test hook: (part address, shift, scale factor) moves that part's `moment_frame`
+    /// references, so the carry's change of local reference is not round-off.
+    static MOVED_FRAME: std::cell::Cell<Option<(usize, V3, f64)>> =
+        const { std::cell::Cell::new(None) };
     /// Integrand evaluations of face integrals on this thread: a structural cost for tests.
     static INTEGRAND_EVALUATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
+thread_local! {
+    /// The work meter of the face integration running on this thread, while
+    /// [`Part::with_integration_budget`] measures one: (work units spent, limit).
+    static METER: std::cell::Cell<Option<(u64, u64)>> = const { std::cell::Cell::new(None) };
+}
+
+/// Count one work unit, an integrand evaluation (one surface point and partials) inside face
+/// integration, against the face being metered on this thread. `None` once the count would
+/// pass the limit (the count then stays at `limit + 1`): every integrator returns `None` at
+/// once on it, so the face's integration stops there. Outside metering this always succeeds.
+#[inline]
+pub(super) fn spend_work() -> Option<()> {
+    // Unmetered integration (every call without a budget) pays one relaxed load.
+    if METERS.load(std::sync::atomic::Ordering::Relaxed) == 0 {
+        return Some(());
+    }
+    METER.with(|meter| match meter.get() {
+        None => Some(()),
+        #[cfg(test)]
+        Some(_) if PANIC_WHILE_METERED.with(|p| p.replace(false)) => {
+            panic!("forced panic while metered")
+        }
+        Some((spent, limit)) if spent > limit => None,
+        Some((spent, limit)) => {
+            meter.set(Some((spent + 1, limit)));
+            (spent < limit).then_some(())
+        }
+    })
+}
+
+/// How many threads are metering a face now.
+static METERS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Metering on this thread for as long as it lives: on every exit, a panic included, the
+/// thread's meter is cleared and it no longer counts in [`METERS`], so a later unbudgeted
+/// integration on the same thread (a server's or the Python wheel's, which catch panics and
+/// keep the thread) is not metered against a stale limit.
+struct MeterGuard;
+
+impl MeterGuard {
+    fn new() -> Self {
+        METERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        MeterGuard
+    }
+}
+
+impl Drop for MeterGuard {
+    fn drop(&mut self) {
+        METER.with(|meter| meter.set(None));
+        METERS.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+/// Whether the face being metered on this thread has passed its limit.
+pub(super) fn work_exhausted() -> bool {
+    if METERS.load(std::sync::atomic::Ordering::Relaxed) == 0 {
+        return false;
+    }
+    METER.with(|meter| meter.get().is_some_and(|(spent, limit)| spent > limit))
+}
+
+/// A per-face integration budget applied to a part ([`Part::with_integration_budget`]): the
+/// limit, the work each face's integration took (`limit + 1` for a face abandoned on passing
+/// it) and the faces refused.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct IntegrationBudget {
+    /// The most work units one face's integration may take.
+    pub limit: u64,
+    /// Work units each face's integration took, by face; `limit + 1` where it was abandoned.
+    pub work: Vec<u64>,
+    /// Faces whose integration would exceed the limit, ascending.
+    pub refused: Vec<usize>,
+}
+
 /// Knot spans in u from which a B-spline face's inner integral may run along v instead (#302).
 const LARGE_NET_SPANS: usize = 32;
+
+/// Sub-panels each v knot span is cut into by the cheaper form's second trial.
+const REFINED_PANELS: usize = 4;
 
 /// How small a node's motion across its inner integral's parameter, against its motion along
 /// the other, is not counted (round-off in an edge along a parameter line of the surface).
@@ -141,26 +239,27 @@ const NEGLIGIBLE_MOTION: f64 = 1e-12;
 /// form. The sum is the whole-panel rule's, as [`integrate`]'s.
 fn integrate_checked<const N: usize>(
     cuts: &[f64],
-    f: impl Fn(f64) -> [f64; N],
-) -> ([f64; N], bool) {
+    f: impl Fn(f64) -> Option<[f64; N]>,
+) -> Option<([f64; N], bool)> {
     let mut total = [0.0; N];
     let mut resolved = true;
     let rule = |a: f64, b: f64, y: &mut [f64; N], size: &mut [f64; N]| {
         let (half, centre) = (0.5 * (b - a), 0.5 * (b + a));
         for &(x, weight) in gauss_nodes() {
-            let v = f(centre + half * x);
+            let v = f(centre + half * x)?;
             for k in 0..N {
                 y[k] += weight * half * v[k];
                 size[k] += (weight * half * v[k]).abs();
             }
         }
+        Some(())
     };
     for w in cuts.windows(2) {
         let (mut whole, mut halves, mut size) = ([0.0; N], [0.0; N], [0.0; N]);
-        rule(w[0], w[1], &mut whole, &mut [0.0; N]);
+        rule(w[0], w[1], &mut whole, &mut [0.0; N])?;
         let mid = 0.5 * (w[0] + w[1]);
-        rule(w[0], mid, &mut halves, &mut size);
-        rule(mid, w[1], &mut halves, &mut size);
+        rule(w[0], mid, &mut halves, &mut size)?;
+        rule(mid, w[1], &mut halves, &mut size)?;
         // A component whose terms are all round-off beside the others' (a coordinate near
         // zero) cannot be judged against its own size.
         let largest = size.iter().fold(0.0f64, |m, &x| m.max(x));
@@ -169,7 +268,7 @@ fn integrate_checked<const N: usize>(
             resolved &= (whole[k] - halves[k]).abs() <= 1e-9 * size[k] + 1e-12 * largest;
         }
     }
-    (total, resolved && total.iter().all(|x| x.is_finite()))
+    Some((total, resolved && total.iter().all(|x| x.is_finite())))
 }
 
 /// Most panels or periods an integral is cut into. An angular range is a few turns and a conic's
@@ -199,6 +298,17 @@ fn cuts(a: f64, b: f64, panels: usize, breaks: &[f64]) -> Option<Vec<f64>> {
     });
     out.dedup();
     Some(out)
+}
+
+/// `cuts` with each panel divided into `parts` equal ones.
+fn split_panels(cuts: &[f64], parts: usize) -> Vec<f64> {
+    let mut out = vec![cuts[0]];
+    for w in cuts.windows(2) {
+        // Each panel ends exactly where it did.
+        out.extend((1..parts).map(|k| w[0] + (w[1] - w[0]) * k as f64 / parts as f64));
+        out.push(w[1]);
+    }
+    out
 }
 
 /// How an integral along one surface parameter is cut: in one piece where the integrands are
@@ -333,6 +443,25 @@ fn wrap_closed(surface: &Surface, spans: (f64, f64), (u, v): (f64, f64)) -> (f64
         }
     };
     (wrap(u, u0, u1, spans.0), wrap(v, v0, v1, spans.1))
+}
+
+/// Whether a loop on a surface closed in u (across `span`) winds round it: its parameters, each
+/// step brought to the nearest whole span, add up to more than half of one; or a step is so long
+/// (over a quarter span) that the way round it is not certain.
+fn winds_round(lp: &UvLoop, span: f64) -> bool {
+    if !span.is_finite() {
+        return false;
+    }
+    let mut net = 0.0;
+    for w in lp.points.windows(2) {
+        let d = w[1].0 - w[0].0;
+        let d = d - span * (d / span).round();
+        if d.abs() > 0.25 * span {
+            return true;
+        }
+        net += d;
+    }
+    net.abs() > 0.5 * span
 }
 
 /// A boundary node met on the walk: its curve parameter, its surface parameters and their
@@ -784,6 +913,60 @@ impl FaceMass {
 }
 
 impl Part {
+    /// A copy of this part, with fresh caches, whose faces' integrations were each measured
+    /// against `limit` work units ([`IntegrationBudget`]): one unit is one integrand evaluation
+    /// inside the face's area and moment integration (the one [`Part::face_moments`],
+    /// [`Part::face_mass`] and [`Part::volume_centroid`] share). A face whose integration would
+    /// take more is abandoned as soon as its count passes the limit and refused: its area,
+    /// moments and every integral over it are `None` on the copy and on its
+    /// [`Part::transformed`] copies, as for a face that cannot be integrated. The count depends
+    /// only on the face's geometry in this placement, not on the order faces are measured in,
+    /// threads or the clock. Every other face's integration is kept (cached) on the copy.
+    pub fn with_integration_budget(&self, limit: u64) -> Part {
+        let mut part = self.fresh_copy();
+        part.integration_budget = None;
+        let mut work = Vec::with_capacity(part.faces.len());
+        let mut refused = Vec::new();
+        let guard = MeterGuard::new();
+        for face in 0..part.faces.len() {
+            METER.with(|meter| meter.set(Some((0, limit))));
+            // Each step returns at once (`None`) when the work passes the limit.
+            part.face_moments(face);
+            if !work_exhausted() {
+                part.face_raw_moments(face);
+            }
+            if !work_exhausted() {
+                part.face_terms(face);
+            }
+            let exhausted = work_exhausted();
+            let (spent, _) = METER.with(|meter| meter.take()).unwrap_or((0, limit));
+            if exhausted {
+                refused.push(face);
+            }
+            work.push(spent);
+        }
+        drop(guard);
+        part.integration_budget = Some(std::sync::Arc::new(IntegrationBudget {
+            limit,
+            work,
+            refused,
+        }));
+        part
+    }
+
+    /// The integration budget this part was measured against, if any
+    /// ([`Part::with_integration_budget`]).
+    pub fn integration_budget(&self) -> Option<&IntegrationBudget> {
+        self.integration_budget.as_deref()
+    }
+
+    /// Whether the face's integration was refused by the part's integration budget.
+    pub fn integration_refused(&self, face: usize) -> bool {
+        self.integration_budget
+            .as_ref()
+            .is_some_and(|budget| budget.refused.binary_search(&face).is_ok())
+    }
+
     /// The solid's volume and area (`solid.volume`, `solid.area`). The volume is a third of the
     /// flux of the position vector out through its faces (a void's faces subtract), measured
     /// from the mean of the solid's vertex uses (OpenCascade's `roughBaryCenter`). A file's
@@ -836,6 +1019,9 @@ impl Part {
     /// The face's area, the flux of the position vector through it and its area vector ∬ n dA,
     /// along the surface's natural normal.
     fn face_terms(&self, face: usize) -> Option<[f64; 5]> {
+        if self.integration_refused(face) {
+            return None;
+        }
         self.cache[face]
             .mass
             .get_or_init(|| self.compute_face_mass(face))
@@ -863,7 +1049,7 @@ impl Part {
             components: Components::Prefix(5),
             observe_mass: None,
         };
-        if let Some(value) = self.integrate_face_legacy(face, density, rule, &mut None) {
+        if let Some(value) = self.integrate_face_legacy(face, density, rule, &mut None, true) {
             return FaceMass::legacy(valid_mass(value));
         }
         self.recover_face_mass(face)
@@ -887,8 +1073,12 @@ impl Part {
         &self,
         face: usize,
         mass: [usize; 5],
+        remember: bool,
         f: impl Fn(V3, V3, V3) -> [f64; N],
     ) -> Option<[f64; M]> {
+        if self.integration_refused(face) {
+            return None;
+        }
         let mut shared = None;
         let mut attempted = false;
         let choice = self.cache[face].mass.get_or_init(|| {
@@ -902,6 +1092,7 @@ impl Part {
                     observe_mass: Some(mass),
                 },
                 &mut observed,
+                remember,
             );
             match observed {
                 Some(MassPass::Evaluated(terms)) => FaceMass::legacy(terms),
@@ -936,6 +1127,7 @@ impl Part {
                 observe_mass: None,
             },
             &mut None,
+            remember,
         )
     }
 
@@ -943,32 +1135,54 @@ impl Part {
     /// integral crosses fewer knot spans where that form is eligible (a face with one very
     /// large B-spline net in u and a few spans in v, #302), then, should it refuse or fail
     /// its own check, by the stock form. Only a completed, checked result of the cheaper form
-    /// is returned.
+    /// is returned. A face whose one rule per knot span fails the check is tried once more
+    /// with each span cut into [`REFINED_PANELS`] (its area density is a high-degree
+    /// polynomial in v, which one 16-point rule does not resolve), against the same check. A
+    /// face both refuse is remembered in the face's cache when `remember` (the integrand is
+    /// fixed by the face and the rule: not one that depends on a caller's argument), keyed by
+    /// its width and whether mass is observed, so no later like integration repeats the trials.
     fn integrate_face_legacy<const N: usize>(
         &self,
         face: usize,
         f: impl Fn(V3, V3, V3) -> [f64; N],
         rule: IntegralRule,
         observed: &mut Option<MassPass>,
+        remember: bool,
     ) -> Option<[f64; N]> {
-        if self.cheaper_inner_form(face) {
-            let unresolved = std::cell::Cell::new(false);
-            let mut trial = None;
-            let swapped =
-                self.integrate_face_legacy_in(face, &f, rule, &mut trial, Some(&unresolved));
-            if swapped.is_some()
-                && !unresolved.get()
-                && matches!(trial, None | Some(MassPass::Evaluated(Some(_))))
-            {
-                *observed = trial;
-                return swapped;
+        let key = (N, rule.observe_mass.is_some());
+        let remembered = remember && self.cache[face].trial_refused(key);
+        if self.cheaper_inner_form(face) && !remembered {
+            for split in [1, REFINED_PANELS] {
+                let unresolved = std::cell::Cell::new(false);
+                let mut trial = None;
+                let swapped = self.integrate_face_legacy_in(
+                    face,
+                    &f,
+                    rule,
+                    &mut trial,
+                    Some((&unresolved, split)),
+                );
+                if swapped.is_some()
+                    && !unresolved.get()
+                    && matches!(trial, None | Some(MassPass::Evaluated(Some(_))))
+                {
+                    *observed = trial;
+                    return swapped;
+                }
+                // Only a panel the half-panel check found unresolved is worth cutting finer.
+                if !unresolved.get() {
+                    break;
+                }
+            }
+            if remember {
+                self.cache[face].refuse_trial(key);
             }
         }
         self.integrate_face_legacy_in(face, f, rule, observed, None)
     }
 
     /// Whether the face's inner integral can run along v, where it crosses far fewer panels
-    /// than along u: an open, unpinched B-spline face whose u has at least
+    /// than along u: an unpinched B-spline face, not closed in v, whose u has at least
     /// [`LARGE_NET_SPANS`] spans and eight times those of v; or a cylinder or cone (one panel
     /// along v) whose loops, closed in the lifted parameters, run through at least
     /// [`LARGE_NET_SPANS`] radians of u (a thread's helical edge, which along u costs a panel
@@ -980,8 +1194,11 @@ impl Part {
                 if surface.periodic() != (false, false) {
                     return false;
                 }
-                let (su, sv) = closed_spans(surface);
-                if su.is_finite() || sv.is_finite() || collapsed_sides(surface) != (None, None) {
+                // Closed in u is allowed (the integrand wraps the lifted parameters across the
+                // seam, as the stock form's does); a loop that winds round u never reaches the
+                // cheaper form in `integrate_face_legacy_in`, which runs its own along-v form.
+                let (_, sv) = closed_spans(surface);
+                if sv.is_finite() || collapsed_sides(surface) != (None, None) {
                     return false;
                 }
                 let nu = breaks(&s.knots_u, s.degree_u).len();
@@ -1013,8 +1230,11 @@ impl Part {
         f: impl Fn(V3, V3, V3) -> [f64; N],
         rule: IntegralRule,
         observed: &mut Option<MassPass>,
-        cheaper: Option<&std::cell::Cell<bool>>,
+        cheaper: Option<(&std::cell::Cell<bool>, usize)>,
     ) -> Option<[f64; N]> {
+        if work_exhausted() {
+            return None;
+        }
         let fc = &self.faces[face];
         let surface = &fc.surface;
         let (pu, pv) = surface.periodic();
@@ -1046,6 +1266,12 @@ impl Part {
         // seam (a face's own seam need not lie on it), so the integrands read the surface a
         // whole span round.
         let spans = closed_spans(surface);
+        // The cheaper form reads no loop that winds round a surface closed in u (its parameters
+        // wrap at the seam, so the loop's ends agree whatever it encircles): the stock form
+        // decides such a face.
+        if cheaper.is_some() && uv.iter().any(|lp| winds_round(lp, spans.0)) {
+            return None;
+        }
         let evaluator = match surface {
             Surface::Freeform { surface, .. } => Some(std::cell::RefCell::new(
                 crate::nurbs::SurfaceEvaluation::new(surface),
@@ -1055,12 +1281,13 @@ impl Part {
         let f = |u: f64, v: f64| {
             #[cfg(test)]
             INTEGRAND_EVALUATIONS.with(|n| n.set(n.get() + 1));
+            spend_work()?;
             let (u, v) = wrap_closed(surface, spans, (u, v));
             let (p, su, sv) = match &evaluator {
                 Some(evaluator) => evaluator.borrow_mut().value_and_partials(u, v),
                 None => point_and_partials(surface, u, v),
             };
-            f(p, su, sv)
+            Some(f(p, su, sv))
         };
         let first = (0..fc.loops.len()).find(|&i| fc.loops[i].vertex.is_none())?;
         let start = uv[first].points.first().copied()?;
@@ -1126,12 +1353,15 @@ impl Part {
                 && weight.abs() * other_extent <= NEGLIGIBLE_MOTION * other.abs() * weight_extent
         };
         let term = |u: f64, v: f64, du: f64, dv: f64| {
-            let (weight, y) = if let Some(unresolved) = cheaper {
+            let (weight, y) = if let Some((unresolved, split)) = cheaper {
                 if negligible(du, dv, cheap_spans, true) {
                     return Some([0.0; N]);
                 }
-                let cuts = surface_cuts(surface, spans.1, true, reference, v)?;
-                let (y, resolved) = integrate_checked(&cuts, |s| f(u, s));
+                let mut cuts = surface_cuts(surface, spans.1, true, reference, v)?;
+                if split > 1 {
+                    cuts = split_panels(&cuts, split);
+                }
+                let (y, resolved) = integrate_checked(&cuts, |s| f(u, s))?;
                 if !resolved {
                     unresolved.set(true);
                 }
@@ -1141,13 +1371,13 @@ impl Part {
                     return Some([0.0; N]);
                 }
                 let cuts = surface_cuts(surface, spans.1, true, reference, v)?;
-                (-du, integrate(&cuts, |s| f(u, s)))
+                (-du, integrate(&cuts, |s| f(u, s))?)
             } else {
                 if negligible(dv, du, stock_spans, false) {
                     return Some([0.0; N]);
                 }
                 let cuts = surface_cuts(surface, spans.0, false, reference, u)?;
-                (dv, integrate(&cuts, |s| f(s, v)))
+                (dv, integrate(&cuts, |s| f(s, v))?)
             };
             Some(y.map(|y| weight * y))
         };
@@ -1770,7 +2000,7 @@ impl Part {
             lp.vertex
                 .or_else(|| lp.edges.first().map(|&(e, _)| self.edges[e].start))
         })?;
-        let [area, x, y, z] = self.moment_integral(face, [4, 5, 6, 7, 8], |p, su, sv| {
+        let [area, x, y, z] = self.moment_integral(face, [4, 5, 6, 7, 8], false, |p, su, sv| {
             let n = geom::cross(su, sv);
             let w = geom::dot(n, direction);
             let q = geom::sub(p, origin);
@@ -1801,9 +2031,133 @@ impl Part {
     /// [`Part::face_mass`]; `None` where that cannot integrate the face.
     /// Cached, including `None`, for this immutable part's geometry and placement.
     pub fn face_moments(&self, face: usize) -> Option<FaceMoments> {
+        if self.integration_refused(face) {
+            return None;
+        }
         *self.cache[face]
             .moments
             .get_or_init(|| self.compute_face_moments(face))
+    }
+
+    /// A point on the face and a length scale for its offsets: a boundary vertex moves rigidly
+    /// with the face, and existing edge samples give a cheap length scale without asking for
+    /// extrema (which require surface inversion and can cost more than the integral itself on
+    /// B-splines).
+    fn moment_frame(&self, face: usize) -> Option<(V3, f64)> {
+        let fc = &self.faces[face];
+        let origin = fc.loops.iter().find_map(|lp| {
+            lp.vertex
+                .or_else(|| lp.edges.first().map(|&(e, _)| self.edges[e].start))
+        })?;
+        let scale = fc
+            .loops
+            .iter()
+            .flat_map(|lp| {
+                lp.edges
+                    .iter()
+                    .flat_map(|&(e, _)| self.edges[e].samples.iter().copied())
+                    .chain(lp.vertex)
+            })
+            .map(|p| {
+                let d = geom::sub(p, origin);
+                geom::dot(d, d)
+            })
+            .fold(0.0, f64::max)
+            .sqrt();
+        #[cfg(test)]
+        let (origin, scale) = MOVED_FRAME.with(|m| match m.get() {
+            Some((part, shift, factor)) if part == self as *const Part as usize => {
+                (geom::add(origin, shift), scale * factor)
+            }
+            _ => (origin, scale),
+        });
+        (scale.is_finite() && scale > 0.0).then_some((origin, scale))
+    }
+
+    /// The face's one moment integration, shared by [`Part::face_moments`] and
+    /// [`Part::volume_centroid`] (each used to run its own). Cached, including refusals.
+    /// Components, all on the area scale for quadrature's error test:
+    /// 0 area w; 1..4 n; 4..7 and 7..13 the first and second moments of w about the face's
+    /// own `moment_frame` (dimensionless: offsets over its scale), the face-moment group;
+    /// 13 q·n; 14..23 qᵢnⱼ; 23..26 qᵢ(q·n), with q the offset from the box centre over the
+    /// part's length (see `volume_centroid`), the centroid group; 26 the flux p·n, integrated
+    /// to select the mass boundary and not returned. Each consumer is refused only for its
+    /// own group: when the joint integration is refused, each group is integrated alone
+    /// (the other's components left zero, which no error test reads), as before they were
+    /// shared. A group whose frame is unusable is left zero and its consumer refuses it.
+    fn face_raw_moments(&self, face: usize) -> RawMoments {
+        if self.integration_refused(face) {
+            return RawMoments {
+                local: None,
+                centre: None,
+            };
+        }
+        *self.cache[face]
+            .raw_moments
+            .get_or_init(|| self.compute_face_raw_moments(face))
+    }
+
+    fn compute_face_raw_moments(&self, face: usize) -> RawMoments {
+        if let joint @ Some(_) = self.raw_group_integral(face, true, true) {
+            return RawMoments {
+                local: joint,
+                centre: joint,
+            };
+        }
+        RawMoments {
+            local: self.raw_group_integral(face, true, false),
+            centre: self.raw_group_integral(face, false, true),
+        }
+    }
+
+    fn raw_group_integral(&self, face: usize, local: bool, centre: bool) -> Option<[f64; 26]> {
+        let frame = self.moment_frame(face).filter(|_| local);
+        let bounds = self.bounds();
+        let c0 = bounds.centre();
+        let length = geom::dist(bounds.min, bounds.max);
+        let length = (length.is_finite() && length > 0.0 && centre).then_some(length);
+        // Only the joint integration records a refusal: the per-group fallbacks, run after
+        // it is refused, are other integrands under the same key.
+        self.moment_integral::<27, 26>(face, [0, 26, 1, 2, 3], local && centre, |p, su, sv| {
+            let n = geom::cross(su, sv);
+            let w = geom::norm(n);
+            let mut out = [0.0; 27];
+            out[0] = w;
+            out[1..4].copy_from_slice(&n);
+            out[26] = geom::dot(p, n);
+            if let Some((origin, scale)) = frame {
+                let [x, y, z] = geom::scale(geom::sub(p, origin), 1.0 / scale);
+                out[4..13].copy_from_slice(&[
+                    x * w,
+                    y * w,
+                    z * w,
+                    x * x * w,
+                    y * y * w,
+                    z * z * w,
+                    x * y * w,
+                    x * z * w,
+                    y * z * w,
+                ]);
+            }
+            if let Some(length) = length {
+                let q = geom::scale(geom::sub(p, c0), 1.0 / length);
+                let qn = geom::dot(q, n);
+                out[13] = qn;
+                for i in 0..3 {
+                    out[23 + i] = q[i] * qn;
+                    for j in 0..3 {
+                        out[14 + 3 * i + j] = q[i] * n[j];
+                    }
+                }
+            }
+            #[cfg(test)]
+            POISONED_GROUP.with(|g| match g.get() {
+                Some(true) if frame.is_some() => out[4] = f64::NAN,
+                Some(false) if length.is_some() => out[13] = f64::NAN,
+                _ => {}
+            });
+            out
+        })
     }
 
     fn compute_face_moments(&self, face: usize) -> Option<FaceMoments> {
@@ -1827,63 +2181,17 @@ impl Part {
                 }),
             });
         }
-        // Integrate dimensionless offsets from a point on the face, avoiding subtraction of
-        // large world-coordinate moments. Scaling puts every component on the area scale for
-        // quadrature's error test, including faces with a constant area density.
-        // A boundary vertex moves rigidly with the face. Existing edge samples give a cheap
-        // length scale without asking for extrema (which require surface inversion and can
-        // cost more than the integral itself on B-splines).
-        let origin = fc.loops.iter().find_map(|lp| {
-            lp.vertex
-                .or_else(|| lp.edges.first().map(|&(e, _)| self.edges[e].start))
-        })?;
-        let scale = fc
-            .loops
-            .iter()
-            .flat_map(|lp| {
-                lp.edges
-                    .iter()
-                    .flat_map(|&(e, _)| self.edges[e].samples.iter().copied())
-                    .chain(lp.vertex)
-            })
-            .map(|p| {
-                let d = geom::sub(p, origin);
-                geom::dot(d, d)
-            })
-            .fold(0.0, f64::max)
-            .sqrt();
-        if !scale.is_finite() || scale <= 0.0 {
-            return None;
-        }
-        let [area, mx, my, mz, nx, ny, nz, xx, yy, zz, xy, xz, yz] =
-            self.moment_integral(face, [0, 13, 4, 5, 6], |p, su, sv| {
-                let n = geom::cross(su, sv);
-                let w = geom::norm(n);
-                let [x, y, z] = geom::scale(geom::sub(p, origin), 1.0 / scale);
-                [
-                    w,
-                    x * w,
-                    y * w,
-                    z * w,
-                    n[0],
-                    n[1],
-                    n[2],
-                    x * x * w,
-                    y * y * w,
-                    z * z * w,
-                    x * y * w,
-                    x * z * w,
-                    y * z * w,
-                    geom::dot(p, n),
-                ]
-            })?;
+        let (origin, scale) = self.moment_frame(face)?;
+        let raw = self.face_raw_moments(face).local?;
+        let [area, nx, ny, nz, mx, my, mz, xx, yy, zz, xy, xz, yz] =
+            std::array::from_fn(|k| raw[k]);
         if area <= 0.0 || !area.is_finite() {
             return None;
         }
         let mean = [mx / area, my / area, mz / area];
-        let raw = [[xx, xy, xz], [xy, yy, yz], [xz, yz, zz]];
+        let second = [[xx, xy, xz], [xy, yy, yz], [xz, yz, zz]];
         let second_moments = std::array::from_fn(|i| {
-            std::array::from_fn(|j| (raw[i][j] - area * mean[i] * mean[j]) * scale * scale)
+            std::array::from_fn(|j| (second[i][j] - area * mean[i] * mean[j]) * scale * scale)
         });
         let centroid = geom::add(origin, geom::scale(mean, scale));
         let area_vector = [nx, ny, nz].map(|c| if fc.reversed { -c } else { c });
@@ -1944,33 +2252,16 @@ impl Part {
                     }
                     continue;
                 }
-                // Put the flux and its moments on the area scale too. Unscaled q² terms
-                // amplify projection round-off on tiny faces far from c0: cgb242 face 483
-                // was refused only after translation, although its area was resolved.
-                // Restore physical units after quadrature; the fixed point below uses mm.
-                let f = self.moment_integral::<18, 17>(face, [0, 17, 2, 3, 4], |p, su, sv| {
-                    let n = geom::cross(su, sv);
-                    let q = geom::scale(geom::sub(p, c0), 1.0 / length);
-                    let qn = geom::dot(q, n);
-                    let mut out = [0.0; 18];
-                    out[0] = geom::norm(n);
-                    out[1] = qn;
-                    out[17] = geom::dot(p, n);
-                    for i in 0..3 {
-                        out[2 + i] = n[i];
-                        out[14 + i] = q[i] * qn;
-                        for j in 0..3 {
-                            out[5 + 3 * i + j] = q[i] * n[j];
-                        }
-                    }
-                    out
-                })?;
-                s += sense * f[1] * length;
+                // The shared face integration (`face_raw_moments`) holds the flux and its
+                // moments on the area scale. Restore physical units after quadrature; the
+                // fixed point below uses mm.
+                let f = self.face_raw_moments(face).centre?;
+                s += sense * f[13] * length;
                 for i in 0..3 {
-                    m[i] += sense * f[2 + i];
-                    b[i] += sense * f[14 + i] * length * length;
+                    m[i] += sense * f[1 + i];
+                    b[i] += sense * f[23 + i] * length * length;
                     for j in 0..3 {
-                        a[i][j] += sense * f[5 + 3 * i + j] * length;
+                        a[i][j] += sense * f[14 + 3 * i + j] * length;
                     }
                 }
             }
@@ -1990,6 +2281,143 @@ impl Part {
             }
         }
         Some((volume(d), geom::add(c0, d)))
+    }
+
+    /// Carry this part's face integrals into `moved`, the same part after the proper rigid
+    /// motion `at` (p ↦ Rp + t; [`Part::transformed_carrying_integrals`]), so they are not
+    /// integrated again. Every
+    /// integrand is built from the position p and the natural normal n = sᵤ × sᵥ over the same
+    /// parameter domain, and with R orthonormal and det R = +1, n ↦ Rn and |n| is unchanged, so
+    /// each carried integral is an exact function of the old ones and the motion (round-off
+    /// apart; quadrature visits the same parameter nodes):
+    /// - area ∬|n| is invariant, the area vector ∬n turns by R, and the flux ∬p·n gains t·R∬n;
+    /// - the face-moment group, about the face's `moment_frame` (o, s) and now (o′, s′), with
+    ///   e = Ro + t − o′: M₁′ = (sRM₁ + eA)/s′ and M₂′ = (s²RM₂Rᵀ + s(RM₁eᵀ + eM₁ᵀRᵀ) + Aeeᵀ)/s′²
+    ///   (the parallel-axis terms; e is round-off, as o is a boundary vertex);
+    /// - the centroid group, about the box centre c₀ over the length L and now (c₀′, L′), with
+    ///   d = Rc₀ + t − c₀′ (not small: an axis-aligned box changes as the part turns):
+    ///   s′ = (Ls + d·Rm)/L′, a′ = (L RaRᵀ + d(Rm)ᵀ)/L′ and
+    ///   b′ = (L²Rb + L RaRᵀd + Ls d + (d·Rm) d)/L′².
+    ///
+    /// Every face's shared integration is carried (integrated first where it is missing),
+    /// except a whole sphere's (closed forms) and a face the integration budget refused; with it
+    /// go the mass it selected (and its boundary authority) and the face's along-v refusals.
+    /// Derived face moments are rebuilt from the carried group. A refused group, or one whose
+    /// reference exists in only one of the two parts, carries nothing for that face: it
+    /// integrates again. A placement that is not a proper rotation carries nothing.
+    pub(super) fn carry_integrals(&self, moved: &Part, at: &crate::step::Placement) {
+        if crate::step::validate_placement(at).is_err() || moved.faces.len() != self.faces.len() {
+            return;
+        }
+        let turn = |v: V3| at.map(|r| r[0] * v[0] + r[1] * v[1] + r[2] * v[2]);
+        let shift = at.map(|r| r[3]);
+        let turn_matrix = |m: [[f64; 3]; 3]| -> [[f64; 3]; 3] {
+            // R m Rᵀ
+            let rm: [[f64; 3]; 3] = std::array::from_fn(|i| {
+                std::array::from_fn(|j| (0..3).map(|k| at[i][k] * m[k][j]).sum())
+            });
+            std::array::from_fn(|i| {
+                std::array::from_fn(|j| (0..3).map(|k| rm[i][k] * at[j][k]).sum::<f64>())
+            })
+        };
+        let reference = |part: &Part| {
+            let bounds = part.bounds();
+            let length = geom::dist(bounds.min, bounds.max);
+            (length.is_finite() && length > 0.0).then_some((bounds.centre(), length))
+        };
+        let centres = reference(self).zip(reference(moved));
+        for face in 0..self.faces.len() {
+            // A face the integration budget refused may hold a partial integration: none of
+            // it is carried (the moved part keeps the verdict and refuses the face). A whole
+            // sphere's area and moments are closed forms, not integrals.
+            if self.integration_refused(face)
+                || matches!(self.faces[face].surface, Surface::Sphere { .. })
+                    && self.whole_sphere(face)
+            {
+                continue;
+            }
+            // Every other face's shared integration is carried, made here where it is still
+            // missing, so which faces carry does not depend on what was asked of `self` before.
+            let (from, to) = (&self.cache[face], &moved.cache[face]);
+            let Some(RawMoments {
+                local: Some(local),
+                centre: Some(centre),
+            }) = Some(self.face_raw_moments(face))
+            else {
+                continue;
+            };
+            let common = |raw: &[f64; 26]| {
+                let mut out = [0.0; 26];
+                out[0] = raw[0];
+                out[1..4].copy_from_slice(&turn([raw[1], raw[2], raw[3]]));
+                out
+            };
+            let mut new_local = common(&local);
+            match (self.moment_frame(face), moved.moment_frame(face)) {
+                (Some((o, s)), Some((o2, s2))) => {
+                    let area = local[0];
+                    let m1 = turn([local[4], local[5], local[6]]);
+                    let [xx, yy, zz, xy, xz, yz] = std::array::from_fn(|k| local[7 + k]);
+                    let m2 = turn_matrix([[xx, xy, xz], [xy, yy, yz], [xz, yz, zz]]);
+                    let e = geom::sub(geom::add(turn(o), shift), o2);
+                    let first: V3 = std::array::from_fn(|i| (s * m1[i] + e[i] * area) / s2);
+                    let second = |i: usize, j: usize| {
+                        (s * s * m2[i][j] + s * (m1[i] * e[j] + e[i] * m1[j]) + area * e[i] * e[j])
+                            / (s2 * s2)
+                    };
+                    new_local[4..7].copy_from_slice(&first);
+                    new_local[7..13].copy_from_slice(&[
+                        second(0, 0),
+                        second(1, 1),
+                        second(2, 2),
+                        second(0, 1),
+                        second(0, 2),
+                        second(1, 2),
+                    ]);
+                }
+                // No frame in either: the group is unused (`compute_face_moments` refuses).
+                (None, None) => {}
+                _ => continue,
+            }
+            let mut new_centre = common(&centre);
+            let Some(((c0, length), (c1, length1))) = centres else {
+                continue;
+            };
+            let m = [new_centre[1], new_centre[2], new_centre[3]];
+            let s = centre[13];
+            let a = turn_matrix(std::array::from_fn(|i| {
+                std::array::from_fn(|j| centre[14 + 3 * i + j])
+            }));
+            let b = turn([centre[23], centre[24], centre[25]]);
+            let d = geom::sub(geom::add(turn(c0), shift), c1);
+            let dm = geom::dot(d, m);
+            let ad = [0, 1, 2].map(|i| geom::dot(a[i], d));
+            new_centre[13] = (length * s + dm) / length1;
+            for i in 0..3 {
+                for j in 0..3 {
+                    new_centre[14 + 3 * i + j] = (length * a[i][j] + d[i] * m[j]) / length1;
+                }
+                new_centre[23 + i] =
+                    (length * length * b[i] + length * ad[i] + length * s * d[i] + dm * d[i])
+                        / (length1 * length1);
+            }
+            let _ = to.raw_moments.set(RawMoments {
+                local: Some(new_local),
+                centre: Some(new_centre),
+            });
+            // The mass the shared integration selected (and its boundary authority), and the
+            // along-v refusals, go only with the carried integration.
+            if let Some(mass) = from.mass.get()
+                && let Some([area, flux, nx, ny, nz]) = mass.terms
+            {
+                let n = turn([nx, ny, nz]);
+                let _ = to.mass.set(FaceMass {
+                    terms: Some([area, flux + geom::dot(shift, n), n[0], n[1], n[2]]),
+                    preferred: mass.preferred,
+                });
+            }
+            from.carry_refusals(to);
+        }
     }
 }
 
@@ -2087,7 +2515,10 @@ mod tests {
     #[test]
     fn gauss_rule_is_exact_for_polynomials() {
         let pi = std::f64::consts::PI;
-        let [x7, s] = integrate(&cuts(0.0, pi, 3, &[1.0]).unwrap(), |x| [x.powi(7), x.sin()]);
+        let [x7, s] = integrate(&cuts(0.0, pi, 3, &[1.0]).unwrap(), |x| {
+            Some([x.powi(7), x.sin()])
+        })
+        .unwrap();
         assert!((x7 - pi.powi(8) / 8.0).abs() < 1e-11);
         assert!((s - 2.0).abs() < 1e-15);
         assert_eq!(
@@ -2522,6 +2953,418 @@ mod tests {
         (area, INTEGRAND_EVALUATIONS.with(|n| n.get()))
     }
 
+    fn grooved_solid() -> Part {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/annular_face_groove.step");
+        crate::step::read_step_file(&path).unwrap()
+    }
+
+    fn evaluations_of<T>(run: impl FnOnce() -> T) -> (T, usize) {
+        INTEGRAND_EVALUATIONS.with(|n| n.set(0));
+        let value = run();
+        (value, INTEGRAND_EVALUATIONS.with(|n| n.get()))
+    }
+
+    fn fixture_part(name: &str) -> Part {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures")
+            .join(name);
+        crate::step::read_step_file(&path).unwrap()
+    }
+
+    /// A generic proper rigid motion: a turn of 0.7 rad about (1, 2, 3) and a shift.
+    fn generic_motion() -> crate::step::Placement {
+        let k = geom::unit([1.0, 2.0, 3.0]).unwrap();
+        let (s, c) = 0.7f64.sin_cos();
+        let shift = [123.4, -56.7, 89.1];
+        std::array::from_fn(|i| {
+            let mut row = [0.0; 4];
+            for j in 0..3 {
+                let skew = match (i, j) {
+                    (0, 1) => -k[2],
+                    (0, 2) => k[1],
+                    (1, 0) => k[2],
+                    (1, 2) => -k[0],
+                    (2, 0) => -k[1],
+                    (2, 1) => k[0],
+                    _ => 0.0,
+                };
+                row[j] = if i == j { c } else { 0.0 } + s * skew + (1.0 - c) * k[i] * k[j];
+            }
+            row[3] = shift[i];
+            row
+        })
+    }
+
+    /// Every face integral the recognisers read, in order (all integrated on first use).
+    fn integrate_all(part: &Part) -> Vec<Option<Vec<f64>>> {
+        let mut out = Vec::new();
+        for face in 0..part.faces.len() {
+            out.push(part.face_terms(face).map(|m| m.to_vec()));
+            let raw = part.face_raw_moments(face);
+            out.push(raw.local.map(|m| m[..13].to_vec()));
+            out.push(raw.centre.map(|m| [&m[..4], &m[13..]].concat()));
+            out.push(part.face_moments(face).map(|m| {
+                std::iter::once(m.area)
+                    .chain(m.centroid)
+                    .chain(m.area_vector)
+                    .chain(m.second_moments.into_iter().flatten())
+                    .collect()
+            }));
+        }
+        out.push(
+            part.volume_centroid()
+                .map(|(v, c)| std::iter::once(v).chain(c).collect()),
+        );
+        out
+    }
+
+    /// Integrals carried through a rigid motion equal a fresh integration in the new frame
+    /// to round-off, on plane, cylinder, open and closed-u B-spline faces, and cost no
+    /// integrand evaluation. Each value is compared relative to the largest magnitude in
+    /// its group (the moment groups are on the area scale), to 1e-11.
+    #[test]
+    fn rigid_motion_carries_face_integrals_to_round_off() {
+        let at = generic_motion();
+        let mut kinds = [false; 4];
+        for name in ["cast_bearing_unit.step.gz", "rotated_seam_band.step"] {
+            let warm = fixture_part(name);
+            for fc in &warm.faces {
+                match &fc.surface {
+                    Surface::Plane { .. } => kinds[0] = true,
+                    Surface::Cylinder { .. } => kinds[1] = true,
+                    s @ Surface::Freeform { .. } => {
+                        kinds[if closed_spans(s).0.is_finite() { 3 } else { 2 }] = true
+                    }
+                    _ => {}
+                }
+            }
+            let (_, cost) = evaluations_of(|| integrate_all(&warm));
+            assert!(cost > 0);
+            let moved = warm.transformed_carrying_integrals(&at).unwrap();
+            let (carried, again) = evaluations_of(|| integrate_all(&moved));
+            assert_eq!(again, 0, "{name}: a rigid motion integrates nothing again");
+            let fresh = fixture_part(name).transformed(&at).unwrap();
+            let (expected, cost) = evaluations_of(|| integrate_all(&fresh));
+            assert!(cost > 0);
+            assert_eq!(carried.len(), expected.len());
+            let mut worst = 0.0f64;
+            let mut compared = 0;
+            for (k, (got, want)) in carried.iter().zip(&expected).enumerate() {
+                let (Some(got), Some(want)) = (got, want) else {
+                    assert_eq!(got.is_some(), want.is_some(), "{name} value {k}");
+                    continue;
+                };
+                compared += 1;
+                let size = want.iter().fold(0.0f64, |m, x| m.max(x.abs())).max(1e-300);
+                for (g, w) in got.iter().zip(want) {
+                    worst = worst.max((g - w).abs() / size);
+                }
+            }
+            // Every face's mass, both groups and its moments were compared, not skipped.
+            assert!(
+                compared > 4 * warm.faces.len() - 4,
+                "{name}: {compared} compared"
+            );
+            eprintln!("{name}: worst relative difference {worst:e}");
+            // Both sides evaluate the same integrands at the same parameter nodes, so they
+            // differ only by the round-off of a few dozen products and sums on each value
+            // (about 1e-14 each, 2.4e-13 seen on the bearing unit): 1e-11 leaves that margin
+            // while a wrong term (a missing parallel-axis or shift term) is of order 1.
+            assert!(worst <= 1e-11, "{name}: {worst:e}");
+        }
+        assert_eq!(
+            kinds, [true; 4],
+            "plane, cylinder, B-spline, closed-u B-spline"
+        );
+    }
+
+    /// A face the integration budget refused stays refused through a rigid motion and carries
+    /// nothing, even a partial integration left in its cache; every other face carries its
+    /// integrals and integrates nothing again.
+    #[test]
+    fn a_budget_refused_face_stays_refused_and_carries_nothing() {
+        let part = grooved_solid();
+        let work = part
+            .with_integration_budget(u64::MAX)
+            .integration_budget()
+            .unwrap()
+            .work
+            .clone();
+        let mut sorted = work.clone();
+        sorted.sort_unstable();
+        // Between the cheapest and the dearest face: some faces are refused, not all.
+        let limit = sorted[sorted.len() / 2];
+        let budgeted = part.with_integration_budget(limit);
+        let refused = budgeted.integration_budget().unwrap().refused.clone();
+        assert!(
+            !refused.is_empty() && refused.len() < part.faces.len(),
+            "{refused:?}"
+        );
+        // The budget's verdict on a copy whose every face holds an integration, the refused
+        // faces' standing for a partial one (as a pass abandoned after its mass or one group
+        // could leave): the motion must not carry those.
+        let full = grooved_solid();
+        let budgeted = budgeted.fresh_copy();
+        for f in 0..full.faces.len() {
+            let _ = full.face_moments(f);
+            let cache = &budgeted.cache[f];
+            if let Some(mass) = full.cache[f].mass.get() {
+                let _ = cache.mass.set(FaceMass {
+                    terms: mass.terms,
+                    preferred: mass.preferred,
+                });
+            }
+            if let Some(raw) = full.cache[f].raw_moments.get() {
+                let _ = cache.raw_moments.set(*raw);
+            }
+            if refused.contains(&f) {
+                cache.refuse_trial((27, true));
+            }
+        }
+        assert!(refused.iter().all(|&f| {
+            budgeted.cache[f]
+                .mass
+                .get()
+                .is_some_and(|m| m.terms.is_some())
+                && budgeted.cache[f].raw_moments.get().is_some()
+        }));
+        let moved = budgeted
+            .transformed_carrying_integrals(&generic_motion())
+            .unwrap();
+        for &f in &refused {
+            assert!(moved.integration_refused(f), "face {f}");
+            let cache = &moved.cache[f];
+            assert!(
+                cache.mass.get().is_none() && cache.raw_moments.get().is_none(),
+                "face {f}"
+            );
+            assert!(!cache.trial_refused((27, true)), "face {f}");
+        }
+        let (moments, cost) = evaluations_of(|| {
+            (0..moved.faces.len())
+                .map(|f| moved.face_moments(f))
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(
+            cost, 0,
+            "kept faces carry their integrals; refused ones are not integrated"
+        );
+        for (f, m) in moments.iter().enumerate() {
+            assert_eq!(m.is_none(), refused.contains(&f), "face {f}");
+        }
+    }
+
+    /// `transformed` carries nothing: what a part was asked before never changes what its
+    /// copy answers (only recognition's `transformed_carrying_integrals` carries).
+    #[test]
+    fn a_plain_transform_carries_no_integrals() {
+        let at = generic_motion();
+        let warm = grooved_solid();
+        let _ = integrate_all(&warm);
+        let moved = warm.transformed(&at).unwrap();
+        assert!(moved.cache.iter().all(|c| c.mass.get().is_none()
+            && c.raw_moments.get().is_none()
+            && !c.trial_refused((27, true))));
+        let (warmed, cost) = evaluations_of(|| integrate_all(&moved));
+        assert!(cost > 0);
+        let cold = integrate_all(&grooved_solid().transformed(&at).unwrap());
+        let bits = |v: &[Option<Vec<f64>>]| {
+            v.iter()
+                .map(|x| {
+                    x.as_ref()
+                        .map(|x| x.iter().map(|y| y.to_bits()).collect::<Vec<_>>())
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(bits(&warmed), bits(&cold));
+    }
+
+    /// The face-moment group's change of reference (the shift e = Ro + t − o′ and the scale
+    /// s′/s) carried exactly, where it is not round-off: the moved part's moment frames are
+    /// displaced by (40, −25, 60) mm and scaled by 3 (a test hook), under a motion with a large
+    /// translation, and the carried moments equal a fresh integration about those frames.
+    #[test]
+    fn the_local_reference_change_is_carried_exactly() {
+        let mut at = generic_motion();
+        at[0][3] = 25_000.0;
+        at[1][3] = -40_000.0;
+        let warm = grooved_solid();
+        let _ = integrate_all(&warm);
+        let moved = warm.transformed(&at).unwrap();
+        let fresh = grooved_solid().transformed(&at).unwrap();
+        let displaced = |part: &Part, run: &dyn Fn()| {
+            MOVED_FRAME.with(|m| {
+                m.set(Some((
+                    part as *const Part as usize,
+                    [40.0, -25.0, 60.0],
+                    3.0,
+                )))
+            });
+            run();
+            MOVED_FRAME.with(|m| m.set(None));
+        };
+        displaced(&moved, &|| warm.carry_integrals(&moved, &at));
+        let worst = std::cell::Cell::new(0.0f64);
+        displaced(&fresh, &|| {
+            for f in 0..fresh.faces.len() {
+                let (Some(got), Some(want)) = (
+                    moved.cache[f].raw_moments.get().and_then(|r| r.local),
+                    fresh.face_raw_moments(f).local,
+                ) else {
+                    panic!("face {f}: no local group");
+                };
+                let size = want[..13].iter().fold(0.0f64, |m, x| m.max(x.abs()));
+                for k in 0..13 {
+                    worst.set(worst.get().max((got[k] - want[k]).abs() / size));
+                }
+            }
+        });
+        let worst = worst.get();
+        eprintln!("worst relative difference {worst:e}");
+        // As in `rigid_motion_carries_face_integrals_to_round_off`: round-off of a few dozen
+        // products and sums; a dropped shift or scale term is of order 1 here.
+        assert!(worst <= 1e-11, "{worst:e}");
+    }
+
+    /// Along-v refusals go only with a carried integration: a face whose shared integration is
+    /// not carried (its face-moment group refused here) keeps none.
+    #[test]
+    fn refusals_are_carried_only_with_the_integration() {
+        let part = grooved_solid();
+        POISONED_GROUP.with(|g| g.set(Some(true)));
+        let _ = part.face_raw_moments(0);
+        POISONED_GROUP.with(|g| g.set(None));
+        assert!(part.face_raw_moments(0).local.is_none());
+        part.cache[0].refuse_trial((9, true));
+        let moved = part
+            .transformed_carrying_integrals(&generic_motion())
+            .unwrap();
+        assert!(moved.cache[0].raw_moments.get().is_none());
+        assert!(!moved.cache[0].trial_refused((9, true)));
+        // Another face, whose integration is carried, carries its refusals with it.
+        part.cache[1].refuse_trial((9, true));
+        let moved = part
+            .transformed_carrying_integrals(&generic_motion())
+            .unwrap();
+        assert!(moved.cache[1].raw_moments.get().is_some());
+        assert!(moved.cache[1].trial_refused((9, true)));
+    }
+
+    /// The along-v refusals and the mass boundary choice survive a rigid motion as they are.
+    #[test]
+    fn rigid_motion_carries_trial_refusals() {
+        let part = crate::step::read_step(steep_in_v_face(4, 160.0).as_bytes()).unwrap();
+        let _ = steep_area(&part);
+        assert!(part.cache[0].trial_refused((1, false)));
+        let moved = part
+            .transformed_carrying_integrals(&generic_motion())
+            .unwrap();
+        assert!(moved.cache[0].trial_refused((1, false)));
+        assert_eq!(
+            moved.cache[0].mass.get().map(|m| m.preferred),
+            part.cache[0].mass.get().map(|m| m.preferred)
+        );
+    }
+
+    /// A scale, a mirror or a unit change is not a rigid motion: `transformed` refuses it,
+    /// and nothing is carried by it, so each face integrates again.
+    #[test]
+    fn non_rigid_placements_carry_nothing() {
+        let warm = grooved_solid();
+        let _ = integrate_all(&warm);
+        let diagonal = |d: [f64; 3]| -> crate::step::Placement {
+            std::array::from_fn(|i| {
+                let mut row = [0.0; 4];
+                row[i] = d[i];
+                row[3] = 5.0;
+                row
+            })
+        };
+        for (what, at) in [
+            ("scale", diagonal([2.0, 2.0, 2.0])),
+            ("mirror", diagonal([-1.0, 1.0, 1.0])),
+            ("unit change", diagonal([25.4, 25.4, 25.4])),
+        ] {
+            assert!(warm.transformed_carrying_integrals(&at).is_err(), "{what}");
+            let cold = grooved_solid();
+            warm.carry_integrals(&cold, &at);
+            for c in &cold.cache {
+                assert!(
+                    c.mass.get().is_none() && c.raw_moments.get().is_none(),
+                    "{what}"
+                );
+                assert!(!c.trial_refused((27, true)), "{what}");
+            }
+            let (_, cost) = evaluations_of(|| integrate_all(&cold));
+            assert!(cost > 0, "{what} recomputes");
+        }
+    }
+
+    /// Face moments and the solid's centroid read one integration per face: whichever is
+    /// asked second evaluates no integrand.
+    #[test]
+    fn face_moments_and_volume_centroid_integrate_each_face_once() {
+        let part = grooved_solid();
+        let (_, cost) = evaluations_of(|| {
+            for f in 0..part.faces.len() {
+                let _ = part.face_moments(f);
+            }
+        });
+        assert!(cost > 0);
+        let (centroid, again) = evaluations_of(|| part.volume_centroid());
+        assert!(centroid.is_some());
+        assert_eq!(again, 0, "volume_centroid after face_moments");
+
+        let part = grooved_solid();
+        let (centroid, _) = evaluations_of(|| part.volume_centroid());
+        assert!(centroid.is_some());
+        let (moments, again) = evaluations_of(|| {
+            (0..part.faces.len())
+                .map(|f| part.face_moments(f))
+                .collect::<Vec<_>>()
+        });
+        assert!(moments.iter().all(Option::is_some));
+        assert_eq!(again, 0, "face_moments after volume_centroid");
+    }
+
+    /// A face whose face-moment components cannot be integrated refuses its face moments
+    /// alone, and one whose centroid components cannot refuses the solid's centroid alone
+    /// (forced by making one group's integrand non-finite).
+    #[test]
+    fn a_face_refuses_only_the_consumer_whose_group_is_unresolved() {
+        for (poisoned, moments_refused) in [(true, true), (false, false)] {
+            let part = grooved_solid();
+            POISONED_GROUP.with(|g| g.set(Some(poisoned)));
+            let moments = part.face_moments(0);
+            let centroid = part.volume_centroid();
+            POISONED_GROUP.with(|g| g.set(None));
+            assert_eq!(moments.is_none(), moments_refused);
+            assert_eq!(centroid.is_none(), !moments_refused);
+            // The unpoisoned group equals what an unforced part gives.
+            let clean = grooved_solid();
+            if moments_refused {
+                assert_eq!(centroid, clean.volume_centroid());
+            } else {
+                assert_eq!(moments, clean.face_moments(0));
+            }
+        }
+    }
+
+    /// A panic inside a budget pass leaves no meter behind: a later unbudgeted integration on
+    /// the same thread gives the ordinary result.
+    #[test]
+    fn a_panic_while_metered_leaves_the_thread_unmetered() {
+        let expected = grooved_solid().face_moments(0);
+        assert!(expected.is_some());
+        PANIC_WHILE_METERED.with(|p| p.set(true));
+        // A limit of one: a stale meter would refuse the next integration after one evaluation.
+        let caught = std::panic::catch_unwind(|| grooved_solid().with_integration_budget(1));
+        PANIC_WHILE_METERED.with(|p| p.set(false));
+        assert!(caught.is_err(), "the forced panic happened");
+        assert_eq!(grooved_solid().face_moments(0), expected);
+    }
+
     /// A face with a large B-spline net costs surface evaluations in proportion to its spans,
     /// not their square (#302: integrating along u crossed every u span at every boundary
     /// sample).
@@ -2595,6 +3438,198 @@ mod tests {
         let bound = e.add(format!("FACE_OUTER_BOUND('',#{lp},.T.)"));
         let face = e.add(format!("ADVANCED_FACE('',(#{bound}),#{surface},.T.)"));
         e.finish(face)
+    }
+
+    /// STEP text of S(u, v) = (u, v, `height`·v^`degree`) on the unit square as a B-spline face:
+    /// degree 1 over 40 spans in u, one Bézier span of `degree` in v. Its area density
+    /// √(1 + (height·degree·v^(degree−1))²) is not a polynomial in v, and the nearer its complex
+    /// singularities lie to [0, 1] (the larger `height`), the more panels the cheaper form's
+    /// inner rule needs in v.
+    fn steep_in_v_face(degree: usize, height: f64) -> String {
+        let spans = 40;
+        let at = |i: usize, j: usize| {
+            let z = if j == degree { height } else { 0.0 };
+            [i as f64 / spans as f64, j as f64 / degree as f64, z]
+        };
+        let mut e = Entities::new();
+        let mut grid = Vec::new();
+        for i in 0..=spans {
+            let row: Vec<String> = (0..=degree)
+                .map(|j| format!("#{}", e.point(at(i, j))))
+                .collect();
+            grid.push(format!("({})", row.join(",")));
+        }
+        let mut mult = vec!["2".to_string()];
+        mult.extend(vec!["1".to_string(); spans - 1]);
+        mult.push("2".into());
+        let knots: Vec<String> = (0..=spans)
+            .map(|i| format!("{:?}", i as f64 / spans as f64))
+            .collect();
+        let surface = e.add(format!(
+            "B_SPLINE_SURFACE_WITH_KNOTS('',1,{degree},({}),.UNSPECIFIED.,.F.,.F.,.F.,({}),({degree1},{degree1}),({}),(0.,1.),.UNSPECIFIED.)",
+            grid.join(","),
+            mult.join(","),
+            knots.join(","),
+            degree1 = degree + 1
+        ));
+        // The sides along v are the surface's own curves there, with its control points.
+        let side = |e: &mut Entities, i: usize| {
+            let points: Vec<String> = (0..=degree)
+                .map(|j| format!("#{}", e.point(at(i, j))))
+                .collect();
+            e.add(format!(
+                "B_SPLINE_CURVE_WITH_KNOTS('',{degree},({}),.UNSPECIFIED.,.F.,.F.,({degree1},{degree1}),(0.,1.),.UNSPECIFIED.)",
+                points.join(","),
+                degree1 = degree + 1
+            ))
+        };
+        let (c_left, c_right) = (side(&mut e, 0), side(&mut e, spans));
+        let (low, high): (Vec<usize>, Vec<usize>) = (0..=spans)
+            .map(|i| (e.point(at(i, 0)), e.point(at(i, degree))))
+            .unzip();
+        let (c_low, c_high) = (e.polyline(&low), e.polyline(&high));
+        let v = [
+            e.vertex(at(0, 0)),
+            e.vertex(at(spans, 0)),
+            e.vertex(at(spans, degree)),
+            e.vertex(at(0, degree)),
+        ];
+        let sides = [
+            e.edge(v[0], v[1], c_low, true),
+            e.edge(v[1], v[2], c_right, true),
+            e.edge(v[3], v[2], c_high, false),
+            e.edge(v[0], v[3], c_left, false),
+        ];
+        let sides = sides.map(|s| format!("#{s}")).join(",");
+        let lp = e.add(format!("EDGE_LOOP('',({sides}))"));
+        let bound = e.add(format!("FACE_OUTER_BOUND('',#{lp},.T.)"));
+        let face = e.add(format!("ADVANCED_FACE('',(#{bound}),#{surface},.T.)"));
+        e.finish(face)
+    }
+
+    /// The face's area by [`Part::integrate_face_legacy`] (the cheaper form's trials, then the
+    /// stock form), with the integrand evaluations it costs.
+    fn steep_area(part: &Part) -> (f64, usize) {
+        let area = |_: V3, su: V3, sv: V3| [geom::norm(geom::cross(su, sv))];
+        let rule = IntegralRule {
+            components: Components::Prefix(1),
+            observe_mass: None,
+        };
+        let (value, n) =
+            evaluations_of(|| part.integrate_face_legacy(0, area, rule, &mut None, true));
+        (value.unwrap()[0], n)
+    }
+
+    /// The face's area from the cheaper form cut `split` times finer, whether its check passed,
+    /// and its cost; or by the stock form (`split` 0, which always passes).
+    fn steep_trial(part: &Part, split: usize) -> (f64, bool, usize) {
+        let area = |_: V3, su: V3, sv: V3| [geom::norm(geom::cross(su, sv))];
+        let rule = IntegralRule {
+            components: Components::Prefix(1),
+            observe_mass: None,
+        };
+        let unresolved = std::cell::Cell::new(false);
+        let (value, n) = evaluations_of(|| {
+            let trial = (split > 0).then_some((&unresolved, split));
+            part.integrate_face_legacy_in(0, area, rule, &mut None, trial)
+        });
+        (value.unwrap()[0], !unresolved.get(), n)
+    }
+
+    fn steep_exact(degree: usize, height: f64) -> f64 {
+        let (d, h) = (degree as f64, height);
+        let cuts = cuts(0.0, 1.0, 2048, &[]).unwrap();
+        integrate(&cuts, |v| {
+            Some([(1.0 + (h * d * v.powi(degree as i32 - 1)).powi(2)).sqrt()])
+        })
+        .unwrap()[0]
+    }
+
+    /// A face the cheaper form's one rule per v knot span cannot resolve (its area density is
+    /// no polynomial in v) takes the form once more with each span in four, and keeps that
+    /// result when it passes the same check: the exact area, by the finer trial alone.
+    #[test]
+    fn a_face_unresolved_per_knot_span_is_integrated_with_finer_panels_along_v() {
+        let (degree, height) = (6, 20.0);
+        let part = crate::step::read_step(steep_in_v_face(degree, height).as_bytes()).unwrap();
+        assert!(part.cheaper_inner_form(0));
+        let (_, coarse_ok, coarse_cost) = steep_trial(&part, 1);
+        let (fine, fine_ok, fine_cost) = steep_trial(&part, REFINED_PANELS);
+        assert!(!coarse_ok && fine_ok);
+        let exact = steep_exact(degree, height);
+        assert!((fine - exact).abs() < 1e-11 * exact, "{fine} vs {exact}");
+
+        let (area, cost) = steep_area(&part);
+        assert_eq!(area, fine, "the finer trial's result is the face's");
+        assert_eq!(cost, coarse_cost + fine_cost, "both trials ran, no stock");
+        assert!(!part.cache[0].trial_refused((1, false)));
+        // Once the finer trial has passed, a repeat runs the same two trials (nothing refused).
+        assert_eq!(steep_area(&part).1, cost);
+    }
+
+    /// After the joint integration is refused, the per-group fallbacks (other integrands of the
+    /// same width) neither read nor record a refusal, so each still runs its own trials.
+    #[test]
+    fn group_fallbacks_after_a_joint_refusal_do_not_share_its_refusal() {
+        let part = crate::step::read_step(steep_in_v_face(4, 160.0).as_bytes()).unwrap();
+        POISONED_GROUP.with(|g| g.set(Some(true)));
+        let _ = part.face_moments(0);
+        POISONED_GROUP.with(|g| g.set(None));
+        assert!(part.cache[0].trial_refused((27, true)), "the joint refusal");
+        // The fallbacks integrate at width 26 (the groups' own, unobserved).
+        assert!(
+            !part.cache[0].trial_refused((26, false)),
+            "no group refusal"
+        );
+    }
+
+    /// A refusal is not remembered for `face_projected_moments`, whose integrand depends on the
+    /// direction: another direction still runs its own trials, bit for bit as with no refusal on record.
+    #[test]
+    fn a_refused_projected_direction_does_not_skip_the_trial_for_another() {
+        let part = || crate::step::read_step(steep_in_v_face(4, 160.0).as_bytes()).unwrap();
+        let (first, second) = ([0.0, 0.0, 1.0], [0.0, 0.6, 0.8]);
+        let warm = part();
+        assert!(warm.face_projected_moments(0, first).is_some());
+        assert!(!warm.cache[0].trial_refused((9, true)));
+        let (warm_result, warm_cost) = evaluations_of(|| warm.face_projected_moments(0, second));
+        // The same call on a part that only integrated the face's moments, so that mass is
+        // cached as in `warm` and no projected refusal exists: its trials run.
+        let cold = part();
+        assert!(cold.face_moments(0).is_some());
+        let (cold_result, cold_cost) = evaluations_of(|| cold.face_projected_moments(0, second));
+        assert!(cold_result.is_some());
+        assert_eq!(
+            warm_result.map(|(a, c)| (a.to_bits(), c.map(f64::to_bits))),
+            cold_result.map(|(a, c)| (a.to_bits(), c.map(f64::to_bits)))
+        );
+        assert_eq!(warm_cost, cold_cost);
+    }
+
+    /// A face both trials refuse takes the stock form, and the refusal is remembered: a second
+    /// integration of it runs no trial.
+    #[test]
+    fn a_face_refused_at_both_panel_counts_goes_straight_to_stock_afterwards() {
+        let (degree, height) = (4, 160.0);
+        let part = crate::step::read_step(steep_in_v_face(degree, height).as_bytes()).unwrap();
+        assert!(part.cheaper_inner_form(0));
+        let (_, coarse_ok, coarse_cost) = steep_trial(&part, 1);
+        let (_, fine_ok, fine_cost) = steep_trial(&part, REFINED_PANELS);
+        let (stock, _, stock_cost) = steep_trial(&part, 0);
+        assert!(!coarse_ok && !fine_ok);
+        assert!(!part.cache[0].trial_refused((1, false)));
+
+        let (area, first) = steep_area(&part);
+        assert_eq!(area, stock);
+        assert_eq!(first, coarse_cost + fine_cost + stock_cost);
+        assert!(part.cache[0].trial_refused((1, false)));
+        let (area, second) = steep_area(&part);
+        assert_eq!(area, stock);
+        assert_eq!(second, stock_cost, "no trial on the second integration");
+        // Another consumer's integrand (another width) has not been refused yet.
+        assert!(!part.cache[0].trial_refused((5, false)));
+        let exact = steep_exact(degree, height);
+        assert!((stock - exact).abs() < 1e-9 * exact, "{stock} vs {exact}");
     }
 
     /// The strip's area is right where the cheaper form's inner rule would be 0.263% high on
@@ -2689,12 +3724,12 @@ mod tests {
     /// the stock form (#302).
     #[test]
     fn the_checked_inner_rule_rejects_a_narrow_dip() {
-        let smooth = |s: f64| [(1.0 + s * s).sqrt(), s];
-        let (sum, resolved) = integrate_checked(&[0.0, 1.0], smooth);
+        let smooth = |s: f64| Some([(1.0 + s * s).sqrt(), s]);
+        let (sum, resolved) = integrate_checked(&[0.0, 1.0], smooth).unwrap();
         assert!(resolved);
-        assert_eq!(sum, integrate(&[0.0, 1.0], smooth));
-        let dip = |s: f64| [(1e-6 + (s - 0.3) * (s - 0.3)).sqrt()];
-        assert!(!integrate_checked(&[0.0, 1.0], dip).1);
+        assert_eq!(Some(sum), integrate(&[0.0, 1.0], smooth));
+        let dip = |s: f64| Some([(1e-6 + (s - 0.3) * (s - 0.3)).sqrt()]);
+        assert!(!integrate_checked(&[0.0, 1.0], dip).unwrap().1);
     }
 
     /// The polynomial piece a parameter lies in, by search, is the pair `breaks` gave.
@@ -2785,5 +3820,195 @@ mod tests {
             n20 * 10 < n10 * 25,
             "{n10} -> {n20} evaluations is not linear"
         );
+    }
+
+    /// Per facet, how far the slanted strip of [`prism_face`] rises.
+    const PRISM_SLOPE: f64 = 0.03;
+
+    /// STEP text of part of the lateral surface of a regular `n`-gonal prism (circumradius 5,
+    /// height 2) as a B-spline face closed in u, as a writer emits a cylinder it approximates:
+    /// degree 1 in u over `n` spans, one span in v, its sides of constant u coinciding. The face
+    /// is a strip a unit high rising [`PRISM_SLOPE`] a facet, from facet `from` to facet `to`
+    /// (past `n`, across the surface's seam): a loop that winds round nowhere, whose edges
+    /// along u move in v. Or, `whole`, it is all of the surface, between two loops that wind
+    /// round u.
+    fn prism_face(n: usize, from: usize, to: usize, whole: bool) -> String {
+        let (r, h) = (5.0f64, 2.0f64);
+        let at = |i: usize, z: f64| {
+            let a = std::f64::consts::TAU * i as f64 / n as f64;
+            [r * a.cos(), r * a.sin(), z]
+        };
+        let (from, to) = if whole { (0, n) } else { (from, to) };
+        let rise = |i: usize| PRISM_SLOPE * (i - from) as f64;
+        let list = |items: Vec<String>| items.join(",");
+        let mut e = Entities::new();
+        let grid: Vec<String> = (0..=n)
+            .map(|i| {
+                let (a, b) = (e.point(at(i, 0.0)), e.point(at(i, h)));
+                format!("(#{a},#{b})")
+            })
+            .collect();
+        let mut mult = vec!["2".to_string()];
+        mult.extend(vec!["1".to_string(); n - 1]);
+        mult.push("2".into());
+        let knots = list((0..=n).map(|i| format!("{:?}", i as f64)).collect());
+        let surface = e.add(format!(
+            "B_SPLINE_SURFACE_WITH_KNOTS('',1,1,({}),.UNSPECIFIED.,.F.,.F.,.F.,({}),(2,2),({knots}),(0.,1.),.UNSPECIFIED.)",
+            list(grid),
+            list(mult)
+        ));
+        let row = |e: &mut Entities, from: usize, to: usize, z: &dyn Fn(usize) -> f64| {
+            let points: Vec<usize> = (from..=to).map(|i| e.point(at(i, z(i)))).collect();
+            e.polyline(&points)
+        };
+        let bounds = if whole {
+            // Each ring in two edges, as a writer splits a closed curve.
+            let ring = |e: &mut Entities, z: f64, kind: &str| {
+                let (a, b) = (e.vertex(at(0, z)), e.vertex(at(n / 2, z)));
+                let (first, second) = (row(e, 0, n / 2, &|_| z), row(e, n / 2, n, &|_| z));
+                let edges = [e.edge(a, b, first, true), e.edge(b, a, second, true)];
+                let lp = e.add(format!("EDGE_LOOP('',(#{},#{}))", edges[0], edges[1]));
+                e.add(format!("{kind}('',#{lp},.T.)"))
+            };
+            vec![
+                ring(&mut e, 0.0, "FACE_OUTER_BOUND"),
+                ring(&mut e, h, "FACE_BOUND"),
+            ]
+        } else {
+            let band = 1.0;
+            let (c_low, c_high) = (
+                row(&mut e, from, to, &rise),
+                row(&mut e, from, to, &|i| rise(i) + band),
+            );
+            let v = [
+                e.vertex(at(from, rise(from))),
+                e.vertex(at(to, rise(to))),
+                e.vertex(at(to, rise(to) + band)),
+                e.vertex(at(from, rise(from) + band)),
+            ];
+            let l_end = e.line(at(to, rise(to)), [0.0, 0.0, 1.0]);
+            let l_start = e.line(at(from, rise(from)), [0.0, 0.0, 1.0]);
+            let sides = [
+                e.edge(v[0], v[1], c_low, true),
+                e.edge(v[1], v[2], l_end, true),
+                e.edge(v[3], v[2], c_high, false),
+                e.edge(v[0], v[3], l_start, false),
+            ];
+            let sides = sides.map(|s| format!("#{s}")).join(",");
+            let lp = e.add(format!("EDGE_LOOP('',({sides}))"));
+            vec![e.add(format!("FACE_OUTER_BOUND('',#{lp},.T.)"))]
+        };
+        let bounds: Vec<String> = bounds.iter().map(|b| format!("#{b}")).collect();
+        let face = e.add(format!(
+            "ADVANCED_FACE('',({}),#{surface},.T.)",
+            bounds.join(",")
+        ));
+        e.finish(face)
+    }
+
+    /// The exact area and centroid of the strip of [`prism_face`] over `facets`: each facet is
+    /// a flat parallelogram of side 2·5·sin(π/n) and height 1, its centroid at the apothem
+    /// along its mid-angle, half a unit above its mid-edge. (`whole`: height 2, level.)
+    fn prism_exact(n: usize, facets: std::ops::Range<usize>, whole: bool) -> (f64, V3) {
+        let r = 5.0f64;
+        let (side, apothem) = (
+            2.0 * r * (std::f64::consts::PI / n as f64).sin(),
+            r * (std::f64::consts::PI / n as f64).cos(),
+        );
+        let (height, slope) = if whole {
+            (2.0, 0.0)
+        } else {
+            (1.0, PRISM_SLOPE)
+        };
+        let mut sum = [0.0, 0.0, 0.0];
+        for i in facets.clone() {
+            let a = std::f64::consts::TAU * (i as f64 + 0.5) / n as f64;
+            let z = slope * (i as f64 + 0.5 - facets.start as f64) + 0.5 * height;
+            sum = geom::add(sum, [apothem * a.cos(), apothem * a.sin(), z]);
+        }
+        let facets = facets.len() as f64;
+        (side * height * facets, geom::scale(sum, 1.0 / facets))
+    }
+
+    /// The face's area by the stock form (the integral along u) and by the form the face takes,
+    /// with the integrand evaluations each costs.
+    fn prism_areas(text: &str) -> ((f64, usize), (f64, usize)) {
+        let area = |_: V3, su: V3, sv: V3| [geom::norm(geom::cross(su, sv))];
+        let rule = IntegralRule {
+            components: Components::Prefix(1),
+            observe_mass: None,
+        };
+        let part = crate::step::read_step(text.as_bytes()).unwrap();
+        INTEGRAND_EVALUATIONS.with(|n| n.set(0));
+        let stock = part
+            .integrate_face_legacy_in(0, area, rule, &mut None, None)
+            .unwrap()[0];
+
+        let stock = (stock, INTEGRAND_EVALUATIONS.with(|n| n.get()));
+        INTEGRAND_EVALUATIONS.with(|n| n.set(0));
+        let chosen = part.face_moments(0).unwrap().area;
+        (stock, (chosen, INTEGRAND_EVALUATIONS.with(|n| n.get())))
+    }
+
+    /// A B-spline face closed in u whose loop does not wind round u, with a large net, takes the
+    /// cheaper form (along v), whether or not it crosses the surface's seam, and keeps its area
+    /// and centroid (a casing's closed faces spent most of the file's time along u).
+    #[test]
+    fn a_closed_in_u_face_not_winding_round_u_takes_the_cheaper_form() {
+        let n = 96;
+        for (from, to) in [(8, 40), (80, 112)] {
+            let text = prism_face(n, from, to, false);
+            let part = crate::step::read_step(text.as_bytes()).unwrap();
+            assert!(
+                closed_spans(&part.faces[0].surface).0.is_finite(),
+                "the surface must be closed in u"
+            );
+            assert!(part.cheaper_inner_form(0));
+            let ((stock, n_stock), (area, n_cheap)) = prism_areas(&text);
+            let (exact, centroid) = prism_exact(n, from..to, false);
+            let moments = part.face_moments(0).unwrap();
+            assert!(
+                (area - exact).abs() < 1e-12 * exact,
+                "{from}..{to}: {area} vs {exact}"
+            );
+            assert!((stock - exact).abs() < 1e-12 * exact, "{stock} vs {exact}");
+            for k in 0..3 {
+                assert!(
+                    (moments.centroid[k] - centroid[k]).abs() < 1e-12,
+                    "{from}..{to}: {:?} vs {centroid:?}",
+                    moments.centroid
+                );
+            }
+            assert!(
+                n_cheap * 4 < n_stock,
+                "{from}..{to}: {n_cheap} evaluations against {n_stock} for the stock form"
+            );
+        }
+    }
+
+    /// A closed-in-u face whose loops wind round u is not read by the cheaper form (its
+    /// parameters wrap at the seam, so such a loop looks closed): the form refuses it, and the
+    /// face takes the path it always took (which, for this synthetic face, integrates nothing).
+    #[test]
+    fn a_closed_in_u_face_winding_round_u_keeps_the_stock_form() {
+        let n = 96;
+        let part = crate::step::read_step(prism_face(n, 0, n, true).as_bytes()).unwrap();
+        assert!(part.cheaper_inner_form(0), "the surface alone is eligible");
+        let area = |_: V3, su: V3, sv: V3| [geom::norm(geom::cross(su, sv))];
+        let rule = IntegralRule {
+            components: Components::Prefix(1),
+            observe_mass: None,
+        };
+        let unresolved = std::cell::Cell::new(false);
+        assert!(
+            part.integrate_face_legacy_in(0, area, rule, &mut None, Some((&unresolved, 1)))
+                .is_none(),
+            "the cheaper form must refuse a winding loop"
+        );
+        // As before the cheaper form existed, the stock form does not integrate this face
+        // (its loops close at the seam, and no area results).
+        let stock = part.integrate_face_legacy_in(0, area, rule, &mut None, None);
+        assert!(stock.is_none_or(|y| y[0] == 0.0), "{stock:?}");
+        assert!(part.face_moments(0).is_none());
     }
 }

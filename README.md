@@ -20,7 +20,7 @@ draftwright-editor's `npm run showcase:render`.*
 [Python and Rust](#python-and-rust) · [Limits](#limits) · [Packages](#packages) ·
 [How it's built](#how-its-built) · [Contributing](#contributing) · [History](#history)
 
-Status: **0.5.4** (2026-11-16). See [CHANGELOG.md](CHANGELOG.md).
+Status: **0.5.5** (2026-11-21). See [CHANGELOG.md](CHANGELOG.md).
 
 ## Results
 
@@ -108,7 +108,7 @@ That record is one entry of the output's `document`, the versioned form to build
 - **`records`**: one entry per feature. Each gives its family, the STEP faces it is made of,
   its measured parameters, and whether its evidence is `verified` or `unproved`.
 - **`face_accounting`**: what every face of the part is: part of a feature, part of the body
-  (with the reason), or refused or unexplained.
+  (with the reason), refused, supporting (an unclaimed boss cap) or unexplained.
 - **`source_sha256`**: the input file's hash.
 
 Every coordinate and direction is in the file's own coordinates. quiddity finds the part's
@@ -124,7 +124,7 @@ doesn't promise.
 |---|---|
 | Holes | `holes` (through, blind, counterbored, countersunk, spotfaced), `countersinks`, `hole_patterns`, `double_d_bores`, `modelled_threads` |
 | Pockets and slots | `pockets`, `prismatic_pockets`, `edge_open_circular_pockets`, `edge_open_prismatic_recesses`, `pocket_patterns`, `slots`, `rectangular_blind_slots`, `round_bottom_blind_slots`, `semicircular_blind_slots`, `slot_patterns`, `rectangular_through_notches` |
-| Channels and grooves | `channels`, `v_channels`, `grooves`, `annular_grooves`, `face_grooves` |
+| Channels and grooves | `channels`, `v_channels`, `grooves`, `annular_grooves`, `face_grooves`, `round_grooves`, `v_grooves`, `tapers` |
 | Steps and levels | `through_steps`, `angled_steps`, `oblique_through_steps`, `paired_ramp_steps`, `circular_blind_steps`, `step_levels`, `risers` |
 | Raised features | `bosses`, `polygonal_bosses`, `pads`, `gusset_ribs`, `gusset_rib_patterns` |
 | Edges | `fillets`, `blends`, `chamfers` |

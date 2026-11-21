@@ -92,6 +92,7 @@ pub mod regions;
 pub mod repeating_profiles;
 pub mod rings;
 pub mod round_bottom_slots;
+pub mod round_grooves;
 pub mod section_passages;
 pub mod section_recess;
 pub mod section_recess_discovery;
@@ -108,6 +109,7 @@ pub mod thin_walls;
 pub mod through_steps;
 pub mod turned;
 pub mod turned_bodies;
+pub mod turned_profile_records;
 pub mod turned_steps;
 pub mod volume_probe;
 pub mod wire_seed;
@@ -140,6 +142,10 @@ pub struct Features {
     /// Strict proof on each occurrence's defining AND consulted faces, kept through filtering.
     #[serde(skip)]
     pub evidence_status: BTreeMap<&'static str, Vec<evidence::EvidenceStatus>>,
+    /// Each round boss's consulted free-end cap faces, by the boss's defining faces: faces its
+    /// evidence reads without claiming them (face accounting reports them as supporting).
+    #[serde(skip)]
+    pub(crate) boss_caps: BTreeMap<Vec<usize>, Vec<usize>>,
     /// Complete round-wire helical springs, omitted when absent.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub helical_springs: Vec<helical_springs::HelicalSpring>,
@@ -184,6 +190,16 @@ pub struct Features {
     /// Intrinsic face recesses on otherwise unclaimed faces (for #123).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub face_grooves: Vec<face_grooves::FaceGroove>,
+    /// Round-bottomed (toroidal) annular grooves in a bore, on a shaft or in a planar face
+    /// (for #307).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub round_grooves: Vec<round_grooves::RoundGroove>,
+    /// Conical bands of a turned body, linked to its `turned_bodies` record (#307).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub tapers: Vec<turned_profile_records::Taper>,
+    /// Annular V sections of a turned body (#307).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub v_grooves: Vec<turned_profile_records::VGroove>,
     pub plates: Vec<plates::Plate>,
     /// Complete analytic turned solids (#123), co-owning faces with their features.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -462,6 +478,15 @@ pub(crate) fn recognise_projected(
     post!("face_grooves", "append", || {
         face_grooves::append(ctx, &mut features)
     });
+    post!("round_grooves", "append", || {
+        round_grooves::append(ctx, &mut features)
+    });
+    post!("v_grooves", "append", || {
+        turned_profile_records::append_v_grooves(ctx, &mut features)
+    });
+    post!("tapers", "append", || {
+        turned_profile_records::append_tapers(ctx, &mut features)
+    });
     // Complete recess floors in this same post-reconciliation completion pass, after
     // append/suppression has finished: added claims must not feed recognition decisions.
     if failures.len() == before {
@@ -514,6 +539,11 @@ pub(crate) fn recognise_projected(
             });
         }
     }
+    // Step levels and risers along the frame's x and y, once every other claim is final, and
+    // no level on a fin's or rib's faces along any axis.
+    post!("step_levels", "other_axes", || {
+        other_axis_levels(ctx, &mut features)
+    });
     if failures.len() != before {
         // A post-pass may already have mutated records or claims. Discard everything,
         // then rediscover and reconcile with the failed/blocked families revoked.
@@ -534,6 +564,106 @@ pub(crate) fn recognise_projected(
     }
     duplicate_references::mark(ctx.part, &mut features);
     features
+}
+
+/// The step levels and risers along the frame's x and y ([`levels::other_axes`]), appended
+/// after the z ones, and no z level on the faces of a `repeating_radial_profiles` record (the
+/// sides of fins or ribs swept along another axis are walls, not heights; the z risers drop
+/// such a level from their `body_levels`). A new level or riser avoids every face another
+/// family claims, a refusal names, or body evidence explains.
+fn other_axis_levels(ctx: &Context<'_>, features: &mut Features) {
+    let fins: BTreeSet<usize> = features
+        .defining
+        .get("repeating_radial_profiles")
+        .into_iter()
+        .flatten()
+        .flatten()
+        .copied()
+        .collect();
+    if !fins.is_empty() {
+        let gone: BTreeSet<usize> = features.defining["step_levels"]
+            .iter()
+            .enumerate()
+            .filter(|(_, faces)| faces.iter().any(|f| fins.contains(f)))
+            .map(|(i, _)| i)
+            .collect();
+        if !gone.is_empty() {
+            let dropped: Vec<levels::FaceLevel> = gone
+                .iter()
+                .map(|&i| features.step_levels[i].clone())
+                .collect();
+            drop_rejected(&mut features.step_levels, &gone);
+            drop_rejected(features.defining.get_mut("step_levels").unwrap(), &gone);
+            drop_rejected(
+                features.evidence_status.get_mut("step_levels").unwrap(),
+                &gone,
+            );
+            for riser in &mut features.risers {
+                riser.body_levels.retain(|l| !dropped.contains(l));
+            }
+        }
+    }
+    let mut occupied: BTreeSet<usize> = features
+        .defining
+        .iter()
+        .filter(|(family, _)| !matches!(**family, "step_levels" | "risers"))
+        .flat_map(|(_, claims)| claims.iter().flatten().copied())
+        .collect();
+    occupied.extend(
+        features
+            .discovery_refusals
+            .values()
+            .flatten()
+            .flat_map(|r| r.faces.iter().copied()),
+    );
+    occupied.extend(
+        features
+            .section_recess_refusals
+            .iter()
+            .flat_map(|r| r.evidence().defining_faces().iter().copied()),
+    );
+    occupied.extend(
+        features
+            .interior_void_refusals
+            .iter()
+            .flat_map(|r| r.candidate.void_faces.iter().copied()),
+    );
+    occupied.extend(
+        features
+            .modelled_thread_refusals
+            .iter()
+            .flat_map(|r| r.faces.iter().copied()),
+    );
+    occupied.extend(crate::body::evidence(ctx.part, features).into_keys());
+    let taken: BTreeSet<usize> = ["step_levels", "risers"]
+        .iter()
+        .flat_map(|family| features.defining[family].iter().flatten().copied())
+        .collect();
+    let (new_levels, new_risers) = levels::other_axes(ctx, &occupied, &taken);
+    for (family, found) in [
+        (
+            "step_levels",
+            new_levels.iter().map(|o| &o.defining).collect::<Vec<_>>(),
+        ),
+        ("risers", new_risers.iter().map(|o| &o.defining).collect()),
+    ] {
+        features.evidence_status.get_mut(family).unwrap().extend(
+            found
+                .iter()
+                .map(|d| evidence::strict_status(ctx.part, d, &[])),
+        );
+        features
+            .defining
+            .get_mut(family)
+            .unwrap()
+            .extend(found.into_iter().cloned());
+    }
+    features
+        .step_levels
+        .extend(new_levels.into_iter().map(|o| o.record));
+    features
+        .risers
+        .extend(new_risers.into_iter().map(|o| o.record));
 }
 
 /// Reserve individual manufacturing claims before floor completion. Levels and risers
@@ -842,14 +972,28 @@ fn inventory_in_with(
         discover!("thin_wall_bodies", thin_walls::discover(ctx)),
     );
     let mut discovery_refusals = BTreeMap::new();
-    if !unmeasured.is_empty() {
-        discovery_refusals.insert(
-            "unmeasured_face_refusals",
-            unmeasured
-                .iter()
-                .map(|&face| discovery::DiscoveryRefusal::new("unmeasured_face", [face]))
-                .collect(),
-        );
+    // A face the caller's integration budget refused is left out as an unmeasured face is,
+    // and published under its own reason.
+    let (over_budget, unmeasured): (Vec<usize>, Vec<usize>) = unmeasured
+        .iter()
+        .partition(|&&face| part.integration_refused(face));
+    for (family, reason, faces) in [
+        ("unmeasured_face_refusals", "unmeasured_face", unmeasured),
+        (
+            "integration_budget_refusals",
+            "integration_budget",
+            over_budget,
+        ),
+    ] {
+        if !faces.is_empty() {
+            discovery_refusals.insert(
+                family,
+                faces
+                    .into_iter()
+                    .map(|face| discovery::DiscoveryRefusal::new(reason, [face]))
+                    .collect(),
+            );
+        }
     }
     let (passages, compatibility) =
         isolation::guarded(&mut failures, "section_passages", "discover", || {
@@ -969,6 +1113,7 @@ fn inventory_in_with(
         discovery_refusals.insert("polygonal_boss_refusals", boss_analysis.refusals);
     }
     let pad_analysis = discover!("pads", pads::analyse(ctx, &Default::default()));
+    let mut radial_faces: BTreeSet<usize> = BTreeSet::new();
     let prismatic_analysis = discover!("prismatic_pockets", prismatic_pockets::analyse(ctx));
     if !pad_analysis.refusals.is_empty() {
         discovery_refusals.insert("pad_refusals", pad_analysis.refusals);
@@ -983,6 +1128,7 @@ fn inventory_in_with(
     let mut physical = Features {
         helical_springs,
         discovery_refusals,
+        boss_caps: BTreeMap::new(),
         run_mode: if evidence::local_degradation() {
             evidence::RunMode::LocallyDegraded
         } else {
@@ -1105,6 +1251,9 @@ fn inventory_in_with(
             }
         },
         face_grooves: Vec::new(),
+        round_grooves: Vec::new(),
+        tapers: Vec::new(),
+        v_grooves: Vec::new(),
         plates: kept_shared(&mut defining, "plates", plate_occurrences),
         turned_bodies: {
             let found = discover!("turned_bodies", turned_bodies::discover(ctx));
@@ -1190,14 +1339,14 @@ fn inventory_in_with(
         } else {
             kept(&mut defining, "rectangular_through_notches", notches)
         },
-        repeating_radial_profiles: kept(
-            &mut defining,
-            "repeating_radial_profiles",
-            discover!(
+        repeating_radial_profiles: {
+            let found = discover!(
                 "repeating_radial_profiles",
                 repeating_profiles::discover(ctx)
-            ),
-        ),
+            );
+            radial_faces.extend(found.iter().flat_map(|o| o.defining.iter().copied()));
+            kept(&mut defining, "repeating_radial_profiles", found)
+        },
         freeform_surfaces,
         modelled_threads,
         modelled_thread_refusals: thread_analysis.refusals.clone(),
@@ -1219,7 +1368,17 @@ fn inventory_in_with(
         ),
         oriented_slot_patterns: Vec::new(),
         oriented_slots,
-        pads: kept(&mut defining, "pads", pad_analysis.accepted),
+        // A pad whose faces all belong to one repeating radial profile is that profile's
+        // member (a fin of the array), not a pad of its own.
+        pads: kept(
+            &mut defining,
+            "pads",
+            pad_analysis
+                .accepted
+                .into_iter()
+                .filter(|o| !o.defining.iter().all(|f| radial_faces.contains(f)))
+                .collect(),
+        ),
         step_levels,
         risers,
         section_recesses: Vec::new(),
@@ -1238,6 +1397,10 @@ fn inventory_in_with(
         defining: defining.defining,
         evidence_status: defining.evidence_status,
     };
+    // Bosses were kept, so their analysis completed and is cached.
+    if !physical.bosses.is_empty() {
+        physical.boss_caps = bosses::caps(ctx);
+    }
     // The thin-wall rule reads the risers this inventory carries, in its order.
     let mut evidence = evidence;
     evidence.risers = physical.defining["risers"].clone();

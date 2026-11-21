@@ -542,6 +542,7 @@ fn carry(
         run_mode,
         discovery_refusals,
         evidence_status,
+        boss_caps,
         fillets,
         cylindrical_profiles,
         chamfers,
@@ -569,6 +570,9 @@ fn carry(
         grooves,
         annular_grooves,
         face_grooves,
+        round_grooves,
+        tapers,
+        v_grooves,
         plates,
         turned_bodies,
         round_bottom_blind_slots,
@@ -633,6 +637,7 @@ fn carry(
         run_mode,
         discovery_refusals,
         evidence_status,
+        boss_caps,
         fillets: each!("fillets", fillets, fillet),
         cylindrical_profiles: each!(
             "cylindrical_profiles",
@@ -716,6 +721,34 @@ fn carry(
             face_grooves,
             |out: &mut Out, mut r: crate::features::face_grooves::FaceGroove| {
                 r.axis = out.direction(r.axis);
+                r.axis_point = out.point(r.axis_point);
+                r
+            }
+        ),
+        round_grooves: each!(
+            "round_grooves",
+            round_grooves,
+            |out: &mut Out, mut r: crate::features::round_grooves::RoundGroove| {
+                r.axis = out.direction(r.axis);
+                r.center = out.point(r.center);
+                r
+            }
+        ),
+        tapers: each!(
+            "tapers",
+            tapers,
+            |out: &mut Out, mut r: crate::features::turned_profile_records::Taper| {
+                r.axis = out.direction(r.axis);
+                r.axis_point = out.point(r.axis_point);
+                r
+            }
+        ),
+        v_grooves: each!(
+            "v_grooves",
+            v_grooves,
+            |out: &mut Out, mut r: crate::features::turned_profile_records::VGroove| {
+                // The groove is symmetric about its mouth plane: only the line matters.
+                r.axis = crate::features::turned_bodies::canonical(out.direction(r.axis));
                 r.axis_point = out.point(r.axis_point);
                 r
             }
@@ -2721,23 +2754,25 @@ fn raised_pad(out: &mut Out, r: RaisedPad) -> RaisedPad {
     }
 }
 
-/// Whether the frame's z is the file's, in either sense: face levels and risers are read along
-/// the frame's z by specification (`quiddity.levels`), so carried only then.
-fn z_kept(out: &Out) -> Option<[(usize, f64); 3]> {
-    out.axes.filter(|axes| axes[2].0 == 2)
+/// Whether the frame's z is the file's, in either sense, for a level or riser along the frame's
+/// z: those are carried only then. A level or riser along the frame's x or y is always left
+/// relative, so its published `height_axis`, `x_axis` and `y_axis` name its directions.
+fn z_kept(out: &Out, height_axis: char) -> Option<[(usize, f64); 3]> {
+    out.axes.filter(|axes| axes[2].0 == 2 && height_axis == 'z')
 }
 
-/// A horizontal level: carried when [`z_kept`] (the spans exchanged where the frame's x is the
-/// file's y), and left relative otherwise.
+/// A level: carried when [`z_kept`] (the spans exchanged where the frame's x is the file's y),
+/// and left relative otherwise.
 fn face_level(out: &mut Out, r: FaceLevel) -> FaceLevel {
     let FaceLevel {
         z,
         x_span,
         y_span,
         body_key,
+        height_axis,
     } = r;
     let body_key = out.body_key(body_key, "body_key");
-    let Some(axes) = z_kept(out) else {
+    let Some(axes) = z_kept(out, height_axis) else {
         out.mark("z");
         for (path, span) in [("x_span", x_span), ("y_span", y_span)] {
             if span.is_some() {
@@ -2749,6 +2784,7 @@ fn face_level(out: &mut Out, r: FaceLevel) -> FaceLevel {
             x_span,
             y_span,
             body_key,
+            height_axis,
         };
     };
     let z = out.coordinate(2, z, "z");
@@ -2760,6 +2796,7 @@ fn face_level(out: &mut Out, r: FaceLevel) -> FaceLevel {
         x_span,
         y_span,
         body_key,
+        height_axis,
     }
 }
 
@@ -2779,6 +2816,7 @@ fn riser(out: &mut Out, r: RiserEvidence) -> RiserEvidence {
         tol,
         body_levels,
         body_key,
+        height_axis,
     } = r;
     let body_key = out.body_key(body_key, "body_key");
     let mut levels = Out::new(out.motion, out.publish, "body_levels[].");
@@ -2787,7 +2825,7 @@ fn riser(out: &mut Out, r: RiserEvidence) -> RiserEvidence {
         .map(|l| face_level(&mut levels, l))
         .collect();
     out.relative.extend(levels.done());
-    let Some(axes) = z_kept(out) else {
+    let Some(axes) = z_kept(out, height_axis) else {
         for path in [
             "axis",
             "positions",
@@ -2813,6 +2851,7 @@ fn riser(out: &mut Out, r: RiserEvidence) -> RiserEvidence {
             tol,
             body_levels,
             body_key,
+            height_axis,
         };
     };
     let mut along = |letter: char, values: Vec<Placed<f64>>, path: &str| {
@@ -2849,6 +2888,7 @@ fn riser(out: &mut Out, r: RiserEvidence) -> RiserEvidence {
         tol,
         body_levels,
         body_key,
+        height_axis,
     }
 }
 

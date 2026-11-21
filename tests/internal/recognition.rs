@@ -87,7 +87,10 @@ fn every_family_has_a_record_type() {
                 "modelled_threads",
                 "helical_springs",
                 "annular_grooves",
-                "face_grooves", // Optional intrinsic face-recess family, for #123.
+                "face_grooves",  // Optional intrinsic face-recess family, for #123.
+                "round_grooves", // Optional round-bottomed groove family, for #307.
+                "tapers",        // Optional turned-profile families, for #307.
+                "v_grooves",
                 "v_channels",
                 "semicircular_blind_slots",
                 "rectangular_through_notches",
@@ -942,10 +945,16 @@ fn rejected_candidates_are_absent_from_recognition_and_the_document() {
             *expected_counts.entry(published_family(field)).or_default() += candidates.len() - lost;
         }
         for (family, expected) in expected_counts {
+            // Levels and risers along the frame's x or y (#307 item 10) are read after
+            // reconciliation, on faces no source occurrence claims: they carry `height_axis`.
             let records = document
                 .records
                 .iter()
                 .filter(|r| r.family == family)
+                .filter(|r| {
+                    !matches!(family, "step_levels" | "risers")
+                        || r.parameters.get("height_axis").is_none()
+                })
                 .count();
             if records != expected {
                 problems.push(format!(

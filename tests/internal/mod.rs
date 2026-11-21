@@ -40,6 +40,8 @@ mod local_steps;
 mod mfinstseg;
 #[path = "modelled_threads.rs"]
 mod modelled_threads;
+#[path = "multi_axis_levels.rs"]
+mod multi_axis_levels;
 #[path = "outer_profiles.rs"]
 mod outer_profiles;
 #[path = "pads.rs"]
@@ -52,6 +54,8 @@ mod passages;
 mod prismatic_pockets;
 #[path = "publication.rs"]
 mod publication;
+#[path = "radial_fins.rs"]
+mod radial_fins;
 #[path = "recognition.rs"]
 mod recognition;
 #[path = "recognition_evidence.rs"]
@@ -78,6 +82,8 @@ mod section_recesses;
 mod sections;
 #[path = "shared_analysis.rs"]
 mod shared_analysis;
+#[path = "spoked_rim.rs"]
+mod spoked_rim;
 #[path = "step_levels.rs"]
 mod step_levels;
 #[path = "tie_breaks.rs"]
@@ -98,6 +104,8 @@ mod vector_publication;
 
 #[path = "face_grooves.rs"]
 mod face_grooves;
+#[path = "round_grooves.rs"]
+mod round_grooves;
 #[path = "turned_bodies.rs"]
 mod turned_bodies;
 
@@ -106,6 +114,9 @@ mod edge_trimming;
 
 #[path = "flat_floors.rs"]
 mod flat_floors;
+
+#[path = "flats.rs"]
+mod flats;
 
 #[path = "polygonal_oblique_through_steps.rs"]
 mod polygonal_oblique_through_steps;
@@ -118,3 +129,8 @@ mod pocket_floor_fillets;
 
 #[path = "prismatic_through_cuts.rs"]
 mod prismatic_through_cuts;
+
+#[path = "grooved_bores.rs"]
+mod grooved_bores;
+#[path = "taper_groove_records.rs"]
+mod taper_groove_records;

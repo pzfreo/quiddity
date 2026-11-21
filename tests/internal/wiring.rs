@@ -197,6 +197,31 @@ fn families_are_wired_and_their_records_fingerprinted_field_by_field() {
         "",
         found.entry("face_grooves".into()).or_default(),
     );
+    // For #307, exercise round_grooves without a corpus part that has one; the shaft gland
+    // carries `host_diameter`, which the face gland omits.
+    for fixture in [
+        "round_groove_gland_shaft.step.gz",
+        "round_groove_face_glands.step.gz",
+    ] {
+        let part = quiddity::read_step_file(&super::common::fixtures().join(fixture)).unwrap();
+        let grooves = features::recognise(&part).round_grooves;
+        assert!(!grooves.is_empty());
+        leaves(
+            &serde_json::to_value(&grooves[0]).unwrap(),
+            "",
+            found.entry("round_grooves".into()).or_default(),
+        );
+    }
+    // For #307, the turned-profile families, from original fixtures.
+    for (name, family) in [("taper_morse", "tapers"), ("vgroove_external", "v_grooves")] {
+        let part =
+            quiddity::read_step_file(&common::fixtures().join(format!("{name}.step.gz"))).unwrap();
+        let found_records = features::recognise(&part);
+        let value = serde_json::to_value(&found_records).unwrap();
+        let record = &value[family][0];
+        assert!(record.is_object(), "{family}");
+        leaves(record, "", found.entry(family.into()).or_default());
+    }
     // The array variant of a gusset rib pattern is in no fixture or corpus part.
     let array = gussets::GussetRibPattern::Array {
         ribs: Vec::new(),

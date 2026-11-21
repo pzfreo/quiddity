@@ -228,9 +228,36 @@ pub(super) struct FaceCache {
     pub(super) bounds: OnceLock<Bounds>,
     pub(super) mass: OnceLock<super::mass::FaceMass>,
     pub(super) moments: OnceLock<Option<super::mass::FaceMoments>>,
+    pub(super) raw_moments: OnceLock<super::mass::RawMoments>,
     pub(super) edge_deviation: OnceLock<Vec<(usize, f64)>>,
     pub(super) uv_bounds: OnceLock<Option<(f64, f64, f64, f64)>>,
     pub(super) recovered: OnceLock<Option<Surface>>,
+    /// (integrand width, whether mass was observed) of the integrations whose cheaper along-v
+    /// trials were both refused: only integrands the face and the pair identify.
+    refused_trials: std::sync::Mutex<Vec<(usize, bool)>>,
+}
+
+impl FaceCache {
+    pub(super) fn trial_refused(&self, key: (usize, bool)) -> bool {
+        self.refused_trials
+            .lock()
+            .is_ok_and(|refused| refused.contains(&key))
+    }
+
+    /// Copy the along-v refusals to the same face of a rigidly moved part.
+    pub(super) fn carry_refusals(&self, to: &FaceCache) {
+        if let (Ok(from), Ok(mut into)) = (self.refused_trials.lock(), to.refused_trials.lock()) {
+            into.clone_from(&from);
+        }
+    }
+
+    pub(super) fn refuse_trial(&self, key: (usize, bool)) {
+        if let Ok(mut refused) = self.refused_trials.lock()
+            && !refused.contains(&key)
+        {
+            refused.push(key);
+        }
+    }
 }
 
 impl Edge {
@@ -362,6 +389,8 @@ pub struct Part {
     file_uncertainty: Option<f64>,
     native_faces: Vec<Native<Face>>,
     native_edges: Vec<Native<Edge>>,
+    // The per-face integration budget this part was measured against; carried by transforms.
+    pub(super) integration_budget: Option<std::sync::Arc<super::mass::IntegrationBudget>>,
 }
 
 impl Part {
@@ -399,7 +428,34 @@ impl Part {
             file_uncertainty: None,
             native_faces: Vec::new(),
             native_edges: Vec::new(),
+            integration_budget: None,
         }
+    }
+
+    /// The same part with fresh query caches: every field copied, nothing derived carried.
+    pub(super) fn fresh_copy(&self) -> Self {
+        let mut part = Self::new(self.faces.clone(), self.edges.clone(), self.solids.clone());
+        part.unresolved_faces = self.unresolved_faces.clone();
+        part.unresolved_edges = self.unresolved_edges.clone();
+        part.face_sources = self.face_sources.clone();
+        part.edge_sources = self.edge_sources.clone();
+        part.input_repairs = self.input_repairs.clone();
+        part.declared_voids = self.declared_voids.clone();
+        part.line_directions = self.line_directions.clone();
+        part.conics = self.conics.clone();
+        part.pcurve_splines = self.pcurve_splines.clone();
+        part.face_frames = self.face_frames.clone();
+        part.edge_frames = self.edge_frames.clone();
+        part.swept = self.swept.clone();
+        part.file_pcurves = self.file_pcurves.clone();
+        part.primary_pcurves = self.primary_pcurves.clone();
+        part.file_units = self.file_units;
+        part.declared_length_unit = self.declared_length_unit.clone();
+        part.file_uncertainty = self.file_uncertainty;
+        part.native_faces = self.native_faces.clone();
+        part.native_edges = self.native_edges.clone();
+        part.integration_budget = self.integration_budget.clone();
+        part
     }
 
     /// Copy this loaded part through a finite proper rigid motion, without reading STEP.
@@ -604,6 +660,29 @@ impl Part {
         part.file_uncertainty = self.file_uncertainty;
         part.native_faces = native_faces;
         part.native_edges = native_edges;
+        part.integration_budget = self.integration_budget.clone();
+        Ok(part)
+    }
+
+    /// [`Part::transformed`], keeping this part's face integrals: recognition's move into the
+    /// part frame it inferred, whose inference has just integrated the solids' faces here (it is not
+    /// for general use: recognition-internal, and it may change without a semver bump. `transformed` serves general use with no history: what a part was asked
+    /// before never changes what its copy answers). Each face's shared moment integration
+    /// (made now where missing), the mass it selected and its along-v trial refusals are
+    /// carried through the motion by `Part::carry_integrals`. They integrate p and sᵤ × sᵥ over
+    /// the unchanged parameter domain, and a proper rotation turns both and keeps |sᵤ × sᵥ|, so
+    /// each is an exact function of the old integrals, the motion and the two parts' reference
+    /// points (the faces' moment frames, the box centres and lengths), to round-off. A whole
+    /// sphere's closed forms, refusals, groups whose reference exists in only one part and the
+    /// faces the integration budget refused (whose verdict is carried) carry nothing; those
+    /// integrate again, or stay refused.
+    #[doc(hidden)]
+    pub fn transformed_carrying_integrals(
+        &self,
+        placement: &super::step::Placement,
+    ) -> Result<Self, super::step::StepError> {
+        let part = self.transformed(placement)?;
+        self.carry_integrals(&part, placement);
         Ok(part)
     }
 

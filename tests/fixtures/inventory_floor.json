@@ -19763,6 +19763,462 @@
       "max_lost": 4,
       "reason": "For #297 the 0.6 mm fillet floor is gone: a convex or concave round below it was a generic blend and is now a fillet on the same faces, which supersede the blend. Fillet floors are raised separately.",
       "evidence": "#297: raw blend candidates are unchanged; the accepted blend on faces 2, 3, 7, 8 (R0.2 convex) is now an accepted fillet with the same defining faces and radius (checked with inventory(): physical blends against accepted fillets). It was below the 0.6 mm floor."
+    },
+    {
+      "file": "captured/8de24a6e31096af9.step.gz",
+      "mode": "accepted",
+      "family": "flats",
+      "max_lost": 4,
+      "reason": "Flats are planar truncations of round stock; the sides of ribs, fins and tabs standing on a cylinder are not (a flat's chord must have both ends on the cylinder's outside diameter and straddle the point of its plane nearest the axis; For #307).",
+      "evidence": "Both former flats (and their two mirror-image duplicates in the other recognition paths) are the sides of a lug standing on an R9 cylinder: each plane is 6.71 to 15.00 from the foot of the axis perpendicular, its chord running from the cylinder (radius 9.00) out to radius 16.16, beyond the stock, with its edge to the cylinder concave. Chord t-range 6.71..15.00 does not contain 0."
+    },
+    {
+      "file": "captured/8de24a6e31096af9.step.gz",
+      "mode": "physical",
+      "family": "flats",
+      "max_lost": 4,
+      "reason": "Flats are planar truncations of round stock; the sides of ribs, fins and tabs standing on a cylinder are not (a flat's chord must have both ends on the cylinder's outside diameter and straddle the point of its plane nearest the axis; For #307).",
+      "evidence": "Both former flats (and their two mirror-image duplicates in the other recognition paths) are the sides of a lug standing on an R9 cylinder: each plane is 6.71 to 15.00 from the foot of the axis perpendicular, its chord running from the cylinder (radius 9.00) out to radius 16.16, beyond the stock, with its edge to the cylinder concave. Chord t-range 6.71..15.00 does not contain 0."
+    },
+    {
+      "file": "captured/d6d12c8be5ea1fa0.step.gz",
+      "mode": "accepted",
+      "family": "flats",
+      "max_lost": 4,
+      "reason": "Flats are planar truncations of round stock; the sides of ribs, fins and tabs standing on a cylinder are not (a flat's chord must have both ends on the cylinder's outside diameter and straddle the point of its plane nearest the axis; For #307).",
+      "evidence": "Same geometry as captured/8de24a6e31096af9: two planes on an R9 cylinder whose chords run from radius 9.00 out to 16.16 and lie wholly to one side of the nearest point of the plane, concave to the cylinder. Lug sides."
+    },
+    {
+      "file": "captured/d6d12c8be5ea1fa0.step.gz",
+      "mode": "physical",
+      "family": "flats",
+      "max_lost": 4,
+      "reason": "Flats are planar truncations of round stock; the sides of ribs, fins and tabs standing on a cylinder are not (a flat's chord must have both ends on the cylinder's outside diameter and straddle the point of its plane nearest the axis; For #307).",
+      "evidence": "Same geometry as captured/8de24a6e31096af9: two planes on an R9 cylinder whose chords run from radius 9.00 out to 16.16 and lie wholly to one side of the nearest point of the plane, concave to the cylinder. Lug sides."
+    },
+    {
+      "file": "corpus/cadgenbench/threaded_connector_109.step",
+      "mode": "accepted",
+      "family": "flats",
+      "max_lost": 1,
+      "reason": "Flats are planar truncations of round stock; the sides of ribs, fins and tabs standing on a cylinder are not (a flat's chord must have both ends on the cylinder's outside diameter and straddle the point of its plane nearest the axis; For #307).",
+      "evidence": "Face 139 is a 0.4 x 0.3 mm quadrilateral beside an R51.56 thread cylinder, in a plane through the axis (a sliver of a thread feature, normal 1 degree off radial): its chord runs from radius 51.56 to 51.87 entirely on one side of the axis, so it is a radial tab side, not a truncation. Its across value (52.571) came from the 1.011 offset of its centre along the axis."
+    },
+    {
+      "file": "corpus/cadgenbench/threaded_connector_109.step",
+      "mode": "framed",
+      "family": "flats",
+      "max_lost": 1,
+      "reason": "Flats are planar truncations of round stock; the sides of ribs, fins and tabs standing on a cylinder are not (a flat's chord must have both ends on the cylinder's outside diameter and straddle the point of its plane nearest the axis; For #307).",
+      "evidence": "Face 139 is a 0.4 x 0.3 mm quadrilateral beside an R51.56 thread cylinder, in a plane through the axis (a sliver of a thread feature, normal 1 degree off radial): its chord runs from radius 51.56 to 51.87 entirely on one side of the axis, so it is a radial tab side, not a truncation. Its across value (52.571) came from the 1.011 offset of its centre along the axis."
+    },
+    {
+      "file": "corpus/cadgenbench/threaded_connector_109.step",
+      "mode": "physical",
+      "family": "flats",
+      "max_lost": 1,
+      "reason": "Flats are planar truncations of round stock; the sides of ribs, fins and tabs standing on a cylinder are not (a flat's chord must have both ends on the cylinder's outside diameter and straddle the point of its plane nearest the axis; For #307).",
+      "evidence": "Face 139 is a 0.4 x 0.3 mm quadrilateral beside an R51.56 thread cylinder, in a plane through the axis (a sliver of a thread feature, normal 1 degree off radial): its chord runs from radius 51.56 to 51.87 entirely on one side of the axis, so it is a radial tab side, not a truncation. Its across value (52.571) came from the 1.011 offset of its centre along the axis."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb202.step.gz",
+      "mode": "accepted",
+      "family": "flats",
+      "max_lost": 4,
+      "reason": "Flats are planar truncations of round stock; the sides of ribs, fins and tabs standing on a cylinder are not (a flat's chord must have both ends on the cylinder's outside diameter and straddle the point of its plane nearest the axis; For #307).",
+      "evidence": "Faces 1734/1735 are the 8 mm apart sides of a rib on an R105 cylinder: chords from radius 105 out to 143.2 (38 mm), t 104.9..143.1, one side of the nearest point. Face 1741 (R110, plane 104.6 from the axis) runs t 34.1..55.1, from the cylinder out to radius 118.2, a lug side, with a reported across of 214.587 that is not a stock width. Face 1770 (R12.5, plane 9.66 from the axis) runs from t -72.4 (radius 73.1) to 11.3 (radius 14.8): a flange or lug side, an end beyond the stock."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb202.step.gz",
+      "mode": "framed",
+      "family": "flats",
+      "max_lost": 4,
+      "reason": "Flats are planar truncations of round stock; the sides of ribs, fins and tabs standing on a cylinder are not (a flat's chord must have both ends on the cylinder's outside diameter and straddle the point of its plane nearest the axis; For #307).",
+      "evidence": "Faces 1734/1735 are the 8 mm apart sides of a rib on an R105 cylinder: chords from radius 105 out to 143.2 (38 mm), t 104.9..143.1, one side of the nearest point. Face 1741 (R110, plane 104.6 from the axis) runs t 34.1..55.1, from the cylinder out to radius 118.2, a lug side, with a reported across of 214.587 that is not a stock width. Face 1770 (R12.5, plane 9.66 from the axis) runs from t -72.4 (radius 73.1) to 11.3 (radius 14.8): a flange or lug side, an end beyond the stock."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb202.step.gz",
+      "mode": "physical",
+      "family": "flats",
+      "max_lost": 4,
+      "reason": "Flats are planar truncations of round stock; the sides of ribs, fins and tabs standing on a cylinder are not (a flat's chord must have both ends on the cylinder's outside diameter and straddle the point of its plane nearest the axis; For #307).",
+      "evidence": "Faces 1734/1735 are the 8 mm apart sides of a rib on an R105 cylinder: chords from radius 105 out to 143.2 (38 mm), t 104.9..143.1, one side of the nearest point. Face 1741 (R110, plane 104.6 from the axis) runs t 34.1..55.1, from the cylinder out to radius 118.2, a lug side, with a reported across of 214.587 that is not a stock width. Face 1770 (R12.5, plane 9.66 from the axis) runs from t -72.4 (radius 73.1) to 11.3 (radius 14.8): a flange or lug side, an end beyond the stock."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb242.step.gz",
+      "mode": "accepted",
+      "family": "flats",
+      "max_lost": 5,
+      "reason": "Flats are planar truncations of round stock; the sides of ribs, fins and tabs standing on a cylinder are not (a flat's chord must have both ends on the cylinder's outside diameter and straddle the point of its plane nearest the axis; For #307).",
+      "evidence": "Faces 93/97/123/126 (R55, planes 30 and 50 from the axis) each run from the cylinder (radius 55.0) out to radius 91 to 119 on one side of the nearest point: lug sides, not truncations; the 80 mm 'across' pairs them by coincidence of offsets. Face 237 (R32.49, plane 28.6 from the axis) runs t 15.4..22.1 from radius 32.49 to 36.17, one side of the nearest point and beyond the stock: a lug side."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb242.step.gz",
+      "mode": "framed",
+      "family": "flats",
+      "max_lost": 5,
+      "reason": "Flats are planar truncations of round stock; the sides of ribs, fins and tabs standing on a cylinder are not (a flat's chord must have both ends on the cylinder's outside diameter and straddle the point of its plane nearest the axis; For #307).",
+      "evidence": "Faces 93/97/123/126 (R55, planes 30 and 50 from the axis) each run from the cylinder (radius 55.0) out to radius 91 to 119 on one side of the nearest point: lug sides, not truncations; the 80 mm 'across' pairs them by coincidence of offsets. Face 237 (R32.49, plane 28.6 from the axis) runs t 15.4..22.1 from radius 32.49 to 36.17, one side of the nearest point and beyond the stock: a lug side."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb242.step.gz",
+      "mode": "physical",
+      "family": "flats",
+      "max_lost": 5,
+      "reason": "Flats are planar truncations of round stock; the sides of ribs, fins and tabs standing on a cylinder are not (a flat's chord must have both ends on the cylinder's outside diameter and straddle the point of its plane nearest the axis; For #307).",
+      "evidence": "Faces 93/97/123/126 (R55, planes 30 and 50 from the axis) each run from the cylinder (radius 55.0) out to radius 91 to 119 on one side of the nearest point: lug sides, not truncations; the 80 mm 'across' pairs them by coincidence of offsets. Face 237 (R32.49, plane 28.6 from the axis) runs t 15.4..22.1 from radius 32.49 to 36.17, one side of the nearest point and beyond the stock: a lug side."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb243.step.gz",
+      "mode": "accepted",
+      "family": "flats",
+      "max_lost": 2,
+      "reason": "Flats are planar truncations of round stock; the sides of ribs, fins and tabs standing on a cylinder are not (a flat's chord must have both ends on the cylinder's outside diameter and straddle the point of its plane nearest the axis; For #307).",
+      "evidence": "Faces 255/260 are the 5 mm apart sides of a rib on an R14 cylinder, chords from radius 14.0 out to 31.6 (17.6 mm tall), one side of the nearest point: rib sides, as the corpus geometry suggested."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb243.step.gz",
+      "mode": "framed",
+      "family": "flats",
+      "max_lost": 2,
+      "reason": "Flats are planar truncations of round stock; the sides of ribs, fins and tabs standing on a cylinder are not (a flat's chord must have both ends on the cylinder's outside diameter and straddle the point of its plane nearest the axis; For #307).",
+      "evidence": "Faces 255/260 are the 5 mm apart sides of a rib on an R14 cylinder, chords from radius 14.0 out to 31.6 (17.6 mm tall), one side of the nearest point: rib sides, as the corpus geometry suggested."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb243.step.gz",
+      "mode": "physical",
+      "family": "flats",
+      "max_lost": 2,
+      "reason": "Flats are planar truncations of round stock; the sides of ribs, fins and tabs standing on a cylinder are not (a flat's chord must have both ends on the cylinder's outside diameter and straddle the point of its plane nearest the axis; For #307).",
+      "evidence": "Faces 255/260 are the 5 mm apart sides of a rib on an R14 cylinder, chords from radius 14.0 out to 31.6 (17.6 mm tall), one side of the nearest point: rib sides, as the corpus geometry suggested."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb202.step.gz",
+      "mode": "accepted",
+      "family": "fillets",
+      "max_lost": 9,
+      "reason": "Nine fillet patches were walls of two concentric arc slots, claimed as inside rounds by curved_wall_corner (#127) only because they are tangent to the two R3 corner rounds at the slot ends. A curved support more than four times tighter than the candidate cannot be what the candidate springs from.",
+      "evidence": "cgb202 faces 1966, 1968, 1975, 1982, 1989, 1996, 2003, 2010, 2026, 2032, 2041 were R76 and R85 cylinders (concentric families 9 mm apart), each with only R3 curved supports (ratios 25 and 28). Refused for #307 item 4; they stay unexplained. Radii and neighbour pairing observed from the corner proof; the slot reading is inferred from the concentric radii and has not been checked against a drawing."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb202.step.gz",
+      "mode": "framed",
+      "family": "fillets",
+      "max_lost": 9,
+      "reason": "Nine fillet patches were walls of two concentric arc slots, claimed as inside rounds by curved_wall_corner (#127) only because they are tangent to the two R3 corner rounds at the slot ends. A curved support more than four times tighter than the candidate cannot be what the candidate springs from.",
+      "evidence": "cgb202 faces 1966, 1968, 1975, 1982, 1989, 1996, 2003, 2010, 2026, 2032, 2041 were R76 and R85 cylinders (concentric families 9 mm apart), each with only R3 curved supports (ratios 25 and 28). Refused for #307 item 4; they stay unexplained. Radii and neighbour pairing observed from the corner proof; the slot reading is inferred from the concentric radii and has not been checked against a drawing."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb202.step.gz",
+      "mode": "physical",
+      "family": "fillets",
+      "max_lost": 9,
+      "reason": "Nine fillet patches were walls of two concentric arc slots, claimed as inside rounds by curved_wall_corner (#127) only because they are tangent to the two R3 corner rounds at the slot ends. A curved support more than four times tighter than the candidate cannot be what the candidate springs from.",
+      "evidence": "cgb202 faces 1966, 1968, 1975, 1982, 1989, 1996, 2003, 2010, 2026, 2032, 2041 were R76 and R85 cylinders (concentric families 9 mm apart), each with only R3 curved supports (ratios 25 and 28). Refused for #307 item 4; they stay unexplained. Radii and neighbour pairing observed from the corner proof; the slot reading is inferred from the concentric radii and has not been checked against a drawing."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb242.step.gz",
+      "mode": "accepted",
+      "family": "fillets",
+      "max_lost": 2,
+      "reason": "Faces 173 and 185 are the end walls of a pocket drawn round a hub, about 2.9 mm across between two R3 corner rounds on pocket floor 169, not R55 rounds. curved_wall_corner (#127) claimed them because they are tangent to the R3 rounds; main hid this because holes/0 owned them as a d110 counterbore.",
+      "evidence": "cgb242 faces 173 and 185: concave cylinders R55, each between two R3 cylinders (ratio 18), on pocket floor 169. Refused for #307 item 4."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb242.step.gz",
+      "mode": "framed",
+      "family": "fillets",
+      "max_lost": 2,
+      "reason": "Faces 173 and 185 are the end walls of a pocket drawn round a hub, about 2.9 mm across between two R3 corner rounds on pocket floor 169, not R55 rounds. curved_wall_corner (#127) claimed them because they are tangent to the R3 rounds; main hid this because holes/0 owned them as a d110 counterbore.",
+      "evidence": "cgb242 faces 173 and 185: concave cylinders R55, each between two R3 cylinders (ratio 18), on pocket floor 169. Refused for #307 item 4."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb242.step.gz",
+      "mode": "physical",
+      "family": "fillets",
+      "max_lost": 2,
+      "reason": "Faces 173 and 185 are the end walls of a pocket drawn round a hub, about 2.9 mm across between two R3 corner rounds on pocket floor 169, not R55 rounds. curved_wall_corner (#127) claimed them because they are tangent to the R3 rounds; main hid this because holes/0 owned them as a d110 counterbore.",
+      "evidence": "cgb242 faces 173 and 185: concave cylinders R55, each between two R3 cylinders (ratio 18), on pocket floor 169. Refused for #307 item 4."
+    },
+    {
+      "file": "captured/4c1f9c12b4ecc50a.step.gz",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 2: tilt 8.00 deg, extent 11.134, area 4591.0; 4: tilt 8.00 deg, extent 11.134, area 4800.0; the levels they formed are gone."
+    },
+    {
+      "file": "captured/4c1f9c12b4ecc50a.step.gz",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 2: tilt 8.00 deg, extent 11.134, area 4591.0; 4: tilt 8.00 deg, extent 11.134, area 4800.0; the levels they formed are gone."
+    },
+    {
+      "file": "captured/5b99f08b2a6f5d42.step.gz",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 2,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 2: tilt 8.00 deg, extent 8.350, area 4200.0; 4: tilt 8.00 deg, extent 8.350, area 4800.0; 10: tilt 8.00 deg, extent 2.783, area 600.0; the levels they formed are gone."
+    },
+    {
+      "file": "captured/5b99f08b2a6f5d42.step.gz",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 2,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 2: tilt 8.00 deg, extent 8.350, area 4200.0; 4: tilt 8.00 deg, extent 8.350, area 4800.0; 10: tilt 8.00 deg, extent 2.783, area 600.0; the levels they formed are gone."
+    },
+    {
+      "file": "captured/93bb4b9e34f2a7ef.step.gz",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 4,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 1: tilt 4.56 deg, extent 0.640, area 80.4; 6: tilt 4.56 deg, extent 0.640, area 80.4; 9: tilt 4.56 deg, extent 0.640, area 80.4; 14: tilt 4.56 deg, extent 0.640, area 80.4; the levels they formed are gone."
+    },
+    {
+      "file": "captured/93bb4b9e34f2a7ef.step.gz",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 4,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 1: tilt 4.56 deg, extent 0.640, area 80.4; 6: tilt 4.56 deg, extent 0.640, area 80.4; 9: tilt 4.56 deg, extent 0.640, area 80.4; 14: tilt 4.56 deg, extent 0.640, area 80.4; the levels they formed are gone."
+    },
+    {
+      "file": "captured/a002c0adc2b690f1.step.gz",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 4,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 2: tilt 4.56 deg, extent 0.640, area 80.4; 5: tilt 4.56 deg, extent 0.640, area 80.4; 10: tilt 4.56 deg, extent 0.640, area 80.4; 13: tilt 4.56 deg, extent 0.640, area 80.4; the levels they formed are gone."
+    },
+    {
+      "file": "captured/a002c0adc2b690f1.step.gz",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 4,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 2: tilt 4.56 deg, extent 0.640, area 80.4; 5: tilt 4.56 deg, extent 0.640, area 80.4; 10: tilt 4.56 deg, extent 0.640, area 80.4; 13: tilt 4.56 deg, extent 0.640, area 80.4; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb202.step.gz",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 5,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 1637: tilt 2.94 deg, extent 3.698, area 264.0; 1876: tilt 2.94 deg, extent 0.837, area 2398.2; 1956: tilt 2.94 deg, extent 9.987, area 13047.8; 1958: tilt 2.94 deg, extent 9.987, area 13047.8; 2052: tilt 2.94 deg, extent 2.062, area 2241.2; 2055: tilt 2.94 deg, extent 7.206, area 21007.6; 2059: tilt 2.94 deg, extent 0.977, area 342.8; 2060: tilt 2.94 deg, extent 2.175, area 339.3; 2077: tilt 2.94 deg, extent 2.175, area 339.3; 2079: tilt 2.94 deg, extent 2.062, area 2435.0; 2082: tilt 2.94 deg, extent 1.441, area 224.8; 2083: tilt 2.94 deg, extent 2.175, area 339.3; 2084: tilt 2.94 deg, extent 7.206, area 17032.9; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/cadgenbench_inputs/cgb202.step.gz",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 5,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 1637: tilt 2.94 deg, extent 3.698, area 264.0; 1876: tilt 2.94 deg, extent 0.837, area 2398.2; 1956: tilt 2.94 deg, extent 9.987, area 13047.8; 1958: tilt 2.94 deg, extent 9.987, area 13047.8; 2052: tilt 2.94 deg, extent 2.062, area 2241.2; 2055: tilt 2.94 deg, extent 7.206, area 21007.6; 2059: tilt 2.94 deg, extent 0.977, area 342.8; 2060: tilt 2.94 deg, extent 2.175, area 339.3; 2077: tilt 2.94 deg, extent 2.175, area 339.3; 2079: tilt 2.94 deg, extent 2.062, area 2435.0; 2082: tilt 2.94 deg, extent 1.441, area 224.8; 2083: tilt 2.94 deg, extent 2.175, area 339.3; 2084: tilt 2.94 deg, extent 7.206, area 17032.9; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp/10077.step",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 11: tilt 5.15 deg, extent 3.122, area 636.6; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp/10077.step",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 11: tilt 5.15 deg, extent 3.122, area 636.6; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp/10096.step",
+      "mode": "framed",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Framed reading (the published document): mfcadpp_10096.step step_levels/0 z=-18.89784222628137 faces=[2] (level gone) face 2: tilt 8.07 deg, extent 1.017, area 68.416 mfcadpp_10096.step step_levels/1 z=-18.061506273674368 faces=[1, 35, 36] (level gone) face 1: tilt 8.07 deg, extent 1.017, area 68.416 face 35: tilt 0.00 deg, extent 0.000, area 0.239 face 36: tilt 0.00 deg, extent 0.000, area 1.589"
+    },
+    {
+      "file": "corpus/mfcadpp/10098.step",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 4: tilt 3.26 deg, extent 2.352, area 283.2; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp/10098.step",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 4: tilt 3.26 deg, extent 2.352, area 283.2; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp/10155.step",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 26: tilt 2.53 deg, extent 1.333, area 298.0; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp/10155.step",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 26: tilt 2.53 deg, extent 1.333, area 298.0; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp/10212.step",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 2,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 2: tilt 3.49 deg, extent 1.472, area 50.8; 4: tilt 3.49 deg, extent 1.472, area 50.8; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp/10212.step",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 2,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 2: tilt 3.49 deg, extent 1.472, area 50.8; 4: tilt 3.49 deg, extent 1.472, area 50.8; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp_holdout/203.step",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 19: tilt 5.30 deg, extent 0.552, area 33.8; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp_holdout/203.step",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 19: tilt 5.30 deg, extent 0.552, area 33.8; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp_holdout/229.step",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 2,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 2: tilt 7.29 deg, extent 2.223, area 533.8; 4: tilt 7.29 deg, extent 2.223, area 533.8; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp_holdout/229.step",
+      "mode": "framed",
+      "family": "step_levels",
+      "max_lost": 2,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Framed reading (the published document): mfcadpp_holdout_229.step step_levels/3 z=5.399129367294 faces=[4] (level gone) face 4: tilt 7.29 deg, extent 2.223, area 533.842 mfcadpp_holdout_229.step step_levels/5 z=3.175763106529999 faces=[2] (level gone) face 2: tilt 7.29 deg, extent 2.223, area 533.842"
+    },
+    {
+      "file": "corpus/mfcadpp_holdout/229.step",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 2,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 2: tilt 7.29 deg, extent 2.223, area 533.8; 4: tilt 7.29 deg, extent 2.223, area 533.8; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp_holdout/274.step",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 3: tilt 2.12 deg, extent 1.393, area 395.3; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp_holdout/274.step",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 3: tilt 2.12 deg, extent 1.393, area 395.3; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp_holdout/419.step",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 4: tilt 4.50 deg, extent 2.724, area 148.7; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp_holdout/419.step",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 4: tilt 4.50 deg, extent 2.724, area 148.7; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/mfcadpp_regressions/11512.step",
+      "mode": "framed",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Framed reading (the published document): mfcadpp_regressions_11512.step step_levels/0 z=-8.09420897373748 faces=[1, 10] (level gone) face 1: tilt 8.10 deg, extent 1.803, area 150.503 face 10: tilt 8.10 deg, extent 1.803, area 134.221 mfcadpp_regressions_11512.step step_levels/1 z=-6.291380300680478 faces=[3, 12] (flat faces [12] remain in a reshaped level) face 3: tilt 8.10 deg, extent 1.803, area 323.802 face 12: tilt 0.00 deg, extent 0.000, area 143.342"
+    },
+    {
+      "file": "corpus/nist/nist_ctc_02_asme1_rc.stp",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 205: tilt 5.00 deg, extent 6.123, area 10119.7; 323: tilt 5.00 deg, extent 6.123, area 4644.5; 367: tilt 5.00 deg, extent 6.123, area 10119.7; 390: tilt 5.00 deg, extent 6.123, area 4644.5; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/nist/nist_ctc_02_asme1_rc.stp",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 1,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 205: tilt 5.00 deg, extent 6.123, area 10119.7; 323: tilt 5.00 deg, extent 6.123, area 4644.5; 367: tilt 5.00 deg, extent 6.123, area 10119.7; 390: tilt 5.00 deg, extent 6.123, area 4644.5; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/nist/nist_ftc_07_asme1_rd.stp",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 4,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 84: tilt 1.00 deg, extent 2.047, area 34378.0; 87: tilt 1.00 deg, extent 2.047, area 34438.7; 173: tilt 1.00 deg, extent 2.213, area 28641.6; 184: tilt 1.00 deg, extent 2.213, area 28702.3; the levels they formed are gone."
+    },
+    {
+      "file": "corpus/nist/nist_ftc_07_asme1_rd.stp",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 4,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 84: tilt 1.00 deg, extent 2.047, area 34378.0; 87: tilt 1.00 deg, extent 2.047, area 34438.7; 173: tilt 1.00 deg, extent 2.213, area 28641.6; 184: tilt 1.00 deg, extent 2.213, area 28702.3; the levels they formed are gone."
+    },
+    {
+      "file": "fixture/nist_ftc_07_asme1_ap242-e2.stp.gz",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 4,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 203: tilt 1.00 deg, extent 2.213, area 28641.6; 276: tilt 1.00 deg, extent 2.213, area 28702.3; 287: tilt 1.00 deg, extent 2.047, area 34438.7; 289: tilt 1.00 deg, extent 2.047, area 34378.0; the levels they formed are gone."
+    },
+    {
+      "file": "fixture/nist_ftc_07_asme1_ap242-e2.stp.gz",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 4,
+      "reason": "For #307 (item 10) a step level is a plane square to its axis on every axis: a face whose extent along the axis exceeds the 0.5 level band (a drafted or sloping wall the 8-degree alignment tolerance admitted) is no longer read as a level, so a level made only of such faces, or one whose flat faces alone fall below the 1% area floor, is gone.",
+      "evidence": "Caller-space reading: the faces square to Z within 8 degrees but not flat along it are 203: tilt 1.00 deg, extent 2.213, area 28641.6; 276: tilt 1.00 deg, extent 2.213, area 28702.3; 287: tilt 1.00 deg, extent 2.047, area 34438.7; 289: tilt 1.00 deg, extent 2.047, area 34378.0; the levels they formed are gone."
     }
   ]
 }

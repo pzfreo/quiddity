@@ -59,6 +59,7 @@ pub(crate) mod tests {
             "reconciliation_refusals",
             "polygonal_boss_refusals",
             "unmeasured_face_refusals",
+            "integration_budget_refusals",
         ];
         let features = PublishedFeatures::from(Features {
             discovery_refusals: families
@@ -84,6 +85,7 @@ pub(crate) mod tests {
             source_sha256: None,
             input_repairs: Vec::new(),
             bodies: None,
+            budget: None,
             body_evidence: BTreeMap::new(),
         };
         assert!(recognition.fingerprints.features.is_empty());

@@ -57,6 +57,7 @@ pub enum BodyReason {
     StockBoxSplit,
     PlateEdge,
     StockWall,
+    StockEnvelope,
 }
 
 /// A named refusal record and its original reason code.
@@ -67,15 +68,27 @@ pub struct FaceRefusal {
     pub reason: String,
 }
 
-/// Exactly one group per face. Feature claims take precedence over refusals, then body.
+/// Exactly one group per face. Feature claims take precedence over refusals, then body, then
+/// supporting faces.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "group", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum FaceAccounting {
-    Feature { record_ids: Vec<String> },
-    Body { reason: BodyReason },
-    Refused { refusals: Vec<FaceRefusal> },
+    Feature {
+        record_ids: Vec<String>,
+    },
+    Body {
+        reason: BodyReason,
+    },
+    Refused {
+        refusals: Vec<FaceRefusal>,
+    },
     Unexplained,
+    /// No record claims the face, but these records' evidence consults it: a round boss's
+    /// free-end cap. Declared last so the existing variants keep their discriminants.
+    Supporting {
+        record_ids: Vec<String>,
+    },
 }
 
 /// One part's recognition, as draftwright reads it.
@@ -114,6 +127,39 @@ pub struct RecognitionDocument {
     /// Present only when the part has several solids or a solid with void shells (#300).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bodies: Option<Bodies>,
+    /// Present only when the caller set a per-face integration budget
+    /// ([`crate::RecognitionOptions::integration_budget`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub budget: Option<Budget>,
+}
+
+/// The caller's per-face integration budget and the faces it refused (each also published as
+/// an `integration_budget_refusals` record and accounted `refused`).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct Budget {
+    /// The most work units (integrand evaluations) one face's integration may take.
+    pub limit: u64,
+    /// Faces whose integration would take more, ascending.
+    pub refused_faces: Vec<usize>,
+    /// How many faces were refused.
+    pub count: usize,
+    /// Whether the part frame was refused because it needs a refused face (its origin is the
+    /// volume centroid over every face): the records are then in file coordinates.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub frame_refused: bool,
+}
+
+impl Budget {
+    /// The budget *part* was measured against, if any.
+    pub fn of(part: &crate::kernel::brep::Part) -> Option<Self> {
+        part.integration_budget().map(|budget| Self {
+            limit: budget.limit,
+            refused_faces: budget.refused.clone(),
+            count: budget.refused.len(),
+            frame_refused: false,
+        })
+    }
 }
 
 /// The solids of a part that is not a single one-shell solid. Recognition runs over every
@@ -239,6 +285,7 @@ impl Record {
                 | "ReconciliationRefusal"
                 | "PolygonalBossRefusal"
                 | "UnmeasuredFaceRefusal"
+                | "IntegrationBudgetRefusal"
         )
     }
 }
@@ -286,6 +333,9 @@ pub const RECORD_TYPES: &[(&str, &[&str])] = &[
     ("grooves", &["Groove"]),
     ("annular_grooves", &["AnnularGroove"]),
     ("face_grooves", &["FaceGroove"]),
+    ("round_grooves", &["RoundGroove"]),
+    ("tapers", &["Taper"]),
+    ("v_grooves", &["VGroove"]),
     ("plates", &["Plate"]),
     ("turned_bodies", &["TurnedBody"]),
     ("round_bottom_blind_slots", &["RoundBottomBlindSlot"]),
@@ -340,6 +390,7 @@ const DISCOVERY_REFUSAL_TYPES: &[(&str, &[&str])] = &[
     ("reconciliation_refusals", &["ReconciliationRefusal"]),
     ("polygonal_boss_refusals", &["PolygonalBossRefusal"]),
     ("unmeasured_face_refusals", &["UnmeasuredFaceRefusal"]),
+    ("integration_budget_refusals", &["IntegrationBudgetRefusal"]),
 ];
 
 /// The record class names a family's records can have.
@@ -567,7 +618,19 @@ pub fn document(recognition: &Recognition, face_count: usize) -> RecognitionDocu
             });
         }
     }
-    let face_accounting = account_faces(&records, &recognition.body_evidence, face_count);
+    let supports: Vec<(String, &[usize])> = records
+        .iter()
+        .filter(|r| r.family == "bosses")
+        .filter_map(|r| {
+            let n: usize = r.id.strip_prefix("bosses/")?.parse().ok()?;
+            let cap = working
+                .boss_caps
+                .get(working.defining.get("bosses")?.get(n)?)?;
+            Some((r.id.clone(), cap.as_slice()))
+        })
+        .collect();
+    let face_accounting =
+        account_faces(&records, &recognition.body_evidence, &supports, face_count);
     RecognitionDocument {
         failures: working.failures.clone(),
         complete: (!working.failures.is_empty()).then_some(false),
@@ -585,6 +648,15 @@ pub fn document(recognition: &Recognition, face_count: usize) -> RecognitionDocu
         run_mode: working.run_mode,
         input_repairs: recognition.input_repairs.clone(),
         bodies: recognition.bodies.clone(),
+        budget: recognition.budget.clone().map(|mut budget| {
+            budget.frame_refused = matches!(
+                recognition.frame,
+                RecordFrame::Refused {
+                    reason: crate::frames::FrameRefusal::IntegrationBudget
+                }
+            );
+            budget
+        }),
     }
 }
 
@@ -648,10 +720,12 @@ fn record_status(
     status(family, n)
 }
 
-/// Partition core defining faces and proved nested treatment claims.
+/// Partition core defining faces and proved nested treatment claims. `supports` lists records
+/// and the faces their evidence consults without claiming them.
 fn account_faces(
     records: &[Record],
     body_evidence: &BTreeMap<usize, BodyReason>,
+    supports: &[(String, &[usize])],
     face_count: usize,
 ) -> Vec<FaceAccounting> {
     let mut by_face: Vec<Vec<&Record>> = vec![Vec::new(); face_count];
@@ -691,11 +765,19 @@ fn account_faces(
             if !refusals.is_empty() {
                 return FaceAccounting::Refused { refusals };
             }
-            body_evidence
-                .get(&face)
-                .map_or(FaceAccounting::Unexplained, |&reason| {
-                    FaceAccounting::Body { reason }
-                })
+            if let Some(&reason) = body_evidence.get(&face) {
+                return FaceAccounting::Body { reason };
+            }
+            let record_ids: Vec<_> = supports
+                .iter()
+                .filter(|(_, faces)| faces.contains(&face))
+                .map(|(id, _)| id.clone())
+                .collect();
+            if record_ids.is_empty() {
+                FaceAccounting::Unexplained
+            } else {
+                FaceAccounting::Supporting { record_ids }
+            }
         })
         .collect()
 }
@@ -717,7 +799,7 @@ mod accounting_tests {
         assert_eq!(record.faces.iter().min(), Some(&3));
         assert!(record.claimed_faces().any(|f| f == 1));
         assert!(!record.claimed_faces().any(|f| f == 5));
-        let groups = account_faces(&[record], &BTreeMap::new(), 11);
+        let groups = account_faces(&[record], &BTreeMap::new(), &[], 11);
         assert_eq!(
             groups[1],
             FaceAccounting::Feature {
@@ -754,7 +836,7 @@ mod accounting_tests {
             record("refusal/1", true, vec![1]),
         ];
         let body = (0..3).map(|f| (f, BodyReason::StockBoxSide)).collect();
-        let groups = account_faces(&records, &body, 4);
+        let groups = account_faces(&records, &body, &[], 4);
         assert_eq!(
             groups[0],
             FaceAccounting::Feature {
@@ -783,6 +865,44 @@ mod accounting_tests {
             }
         );
         assert_eq!(groups[3], FaceAccounting::Unexplained);
-        assert!(account_faces(&[], &BTreeMap::new(), 0).is_empty());
+        assert!(account_faces(&[], &BTreeMap::new(), &[], 0).is_empty());
+    }
+
+    #[test]
+    fn supporting_ranks_below_feature_refused_and_body() {
+        let record = |id: &str, faces: Vec<usize>| Record {
+            id: id.into(),
+            family: "bosses".into(),
+            record_type: "BossRecord".into(),
+            faces,
+            evidence_status: EvidenceStatus::Verified,
+            parameters: Map::new(),
+        };
+        let records = [record("bosses/0", vec![0]), record("bosses/1", vec![1])];
+        let body = BTreeMap::from([(2, BodyReason::StockEnvelope)]);
+        let supports: [(String, &[usize]); 2] =
+            [("bosses/0".into(), &[1, 2, 3]), ("bosses/1".into(), &[3])];
+        let groups = account_faces(&records, &body, &supports, 5);
+        // Claimed by bosses/1, and consulted by bosses/0: a feature.
+        assert_eq!(
+            groups[1],
+            FaceAccounting::Feature {
+                record_ids: vec!["bosses/1".into()]
+            }
+        );
+        assert_eq!(
+            groups[2],
+            FaceAccounting::Body {
+                reason: BodyReason::StockEnvelope
+            }
+        );
+        // Every supporting record is named, in document order.
+        assert_eq!(
+            groups[3],
+            FaceAccounting::Supporting {
+                record_ids: vec!["bosses/0".into(), "bosses/1".into()]
+            }
+        );
+        assert_eq!(groups[4], FaceAccounting::Unexplained);
     }
 }

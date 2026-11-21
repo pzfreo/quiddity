@@ -19,6 +19,7 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `haecceity::express`: `Violation`.
 - `haecceity::express_rules`: `RuleViolation`.
 - `haecceity::gvp`: `ValidationProperty`.
+- `haecceity::mass`: `IntegrationBudget`.
 - `haecceity::json::presentation`: `Graphic`, `Presentation`, `TextPlacement`, `PolylineRole`.
 - `haecceity::presentation`: `Callout`.
 - `haecceity::mesh`: `FaceMesh`, `MeshRefusal`.
@@ -30,7 +31,7 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `haecceity::removal`: `Blocker`, `Emptied`, `RemovalPlan`, `RemovalRefusal`, `RemovalReport`.
 - `haecceity::step`: `Assembly`, `Component`, `PartDefinition`, `PartPlacement`, `StepError`, `StepFile`.
 - `haecceity::step::manifest`: `Common`, `Instance`, `Manifest`, `Product`, `Ranges`, `ReaderVersion`, `Refusal`, `ScanOptions`, `Source`, `Unowned`.
-- `quiddity::correspondence`: `Change`, `Entry`, `FaceFingerprint`, `FeatureFingerprint`, `Recognition`, `RecognitionWithEvidence`, `Thresholds`.
+- `quiddity::correspondence`: `Change`, `Entry`, `FaceFingerprint`, `FeatureFingerprint`, `Recognition`, `RecognitionOptions`, `RecognitionWithEvidence`, `Thresholds`.
 - `quiddity::evidence_view`: `EvidenceCandidate`, `EvidenceDocument`, `EvidenceFeature`, `EvidenceRecord`.
 - `quiddity::features::angled_steps`: `AngledStep`.
 - `quiddity::features::annular_grooves`: `AnnularGroove`.
@@ -50,6 +51,7 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `quiddity::features::evidence`: `EvidenceError`, `EvidenceStatus`, `Occurrence`, `RunMode`.
 - `quiddity::features::face_grooves`: `FaceGroove`.
 - `quiddity::features::fillets`: `Fillet`, `FilletOptions`.
+- `quiddity::features::round_grooves`: `RoundGroove`, `RoundGrooveHost`.
 - `quiddity::features::flats`: `Flat`.
 - `quiddity::features::freeform_surfaces`: `BSplineSurfaceSupport`, `FreeformSurface`, `SurfaceContinuityLink`.
 - `quiddity::features::grooves`: `Groove`.
@@ -92,11 +94,12 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `quiddity::features::through_steps`: `ThroughStep`.
 - `quiddity::features::turned`: `TurnedProfileKey`.
 - `quiddity::features::turned_bodies`: `Bore`, `ProfileSegment`, `TurnedBody`.
+- `quiddity::features::turned_profile_records`: `Taper`, `VGroove`.
 - `quiddity::features::turned_steps`: `TurnedStep`.
 - `quiddity::features::v_channels`: `VChannel`.
 - `quiddity::frames`: `FrameRefusal`, `FramedError`, `FramedRecognition`, `PartFrame`.
 - `quiddity::published_records`: `PublishedFeatures`.
-- `quiddity::recognition`: `Bodies`, `BodyReason`, `FaceAccounting`, `FaceRefusal`, `RecognitionDocument`, `Record`.
+- `quiddity::recognition`: `Bodies`, `BodyReason`, `Budget`, `FaceAccounting`, `FaceRefusal`, `RecognitionDocument`, `Record`.
 - `quiddity::serve`: `Failure`, `RecognitionOutput`.
 
 Types re-exported at the crate root retain those names too: for example,

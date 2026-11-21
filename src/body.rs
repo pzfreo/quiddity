@@ -125,6 +125,64 @@ pub(crate) fn evidence(part: &Part, features: &Features) -> BTreeMap<usize, Body
                 out.insert(f, BodyReason::StockWall);
             }
         }
+        for f in bar_ends(part, solid, bounds, tol) {
+            out.entry(f).or_insert(BodyReason::StockEnvelope);
+        }
+    }
+    out
+}
+
+/// The end planes of a round bar or tube: an external native cylinder that spans the solid's
+/// whole extent along its principal axis, closed at both ends by planes that join it convexly
+/// and span exactly its transverse extent (its end circle is each plane's outer boundary), one
+/// at each axial extreme. Whatever stands on the cylinder (fins, standoffs) stops short of
+/// those planes or lies inside them. A cylinder that ends at one extreme only, a boss on a
+/// plate, or a bore (its end planes are wider) has no such pair and claims nothing.
+fn bar_ends(part: &Part, solid: usize, bounds: Bounds, tol: f64) -> Vec<usize> {
+    let mut out = Vec::new();
+    for &c in &part.solids[solid].faces {
+        let Surface::Cylinder { frame, .. } = part.faces[c].surface else {
+            continue;
+        };
+        let Some(axis) = (0..3).find(|&k| frame.z[k].abs() >= 1. - 1e-12) else {
+            continue;
+        };
+        if part.frame_points_outward(c) != Some(true) {
+            continue;
+        }
+        let cb = part.face_bounds(c);
+        if (cb.min[axis] - bounds.min[axis]).abs() > tol
+            || (cb.max[axis] - bounds.max[axis]).abs() > tol
+        {
+            continue;
+        }
+        let mut ends: [Vec<usize>; 2] = [Vec::new(), Vec::new()];
+        for p in part.neighbours(c) {
+            let Some((k, normal)) = principal_plane(part, p) else {
+                continue;
+            };
+            let side = usize::from(normal[k] > 0.);
+            let at = if side == 1 {
+                bounds.max[k]
+            } else {
+                bounds.min[k]
+            };
+            let pb = part.face_bounds(p);
+            if k == axis
+                && part.faces[p].solid == Some(solid)
+                && part.arc(c, p) == Some(Arc::Convex)
+                && (pb.min[k] - at).abs() <= tol
+                && (pb.max[k] - at).abs() <= tol
+                && (0..3).filter(|&j| j != axis).all(|j| {
+                    (pb.min[j] - cb.min[j]).abs() <= tol && (pb.max[j] - cb.max[j]).abs() <= tol
+                })
+            {
+                ends[side].push(p);
+            }
+        }
+        if let ([low], [high]) = (&ends[0][..], &ends[1][..]) {
+            out.extend([*low, *high]);
+        }
     }
     out
 }
@@ -177,9 +235,13 @@ fn broken_side(
                 })
         })
     });
-    if !stock_corner && !blended_corner(part, face, bounds, tol, blends) {
+    let blended = blended_corner(part, face, bounds, tol, blends);
+    let rimmed = !stock_corner && !blended && enveloping_rim(part, face, axis, bounds, tol, blends);
+    if !stock_corner && !blended && !rimmed {
         return None;
     }
+    // A rim-only face has no surviving or replaced box corner; apply the broader veto.
+    let stock_corner = stock_corner || rimmed;
     let mut platforms = Vec::new();
     let mut coplanar = 0;
     for &g in &part.solids[solid].faces {
@@ -197,6 +259,16 @@ fn broken_side(
             continue;
         }
         let level = 0.5 * (gb.min[axis] + gb.max[axis]);
+        // A rimmed platform stops a blend short of the extremes: its own non-concave
+        // blends count, so rounding the edges cannot hide it from the veto.
+        let mut gb = gb;
+        if rimmed {
+            for h in part.neighbours(g) {
+                if blends.contains(&h) && part.arc(g, h) != Some(Arc::Concave) {
+                    gb.merge(&part.face_bounds(h));
+                }
+            }
+        }
         // With a certified replaced envelope corner, an opposite block's inward
         // wall is not an underlying platform. Require an actual bridging face
         // incident to both planes. Keep the older surviving-corner veto intact.
@@ -229,11 +301,61 @@ fn broken_side(
         }
         i = j;
     }
-    Some(if coplanar > 1 {
+    Some(if rimmed {
+        BodyReason::StockEnvelope
+    } else if coplanar > 1 {
         BodyReason::StockBoxSplit
     } else {
         BodyReason::StockBoxNotched
     })
+}
+
+/// A face on an outward envelope plane whose rim reaches an extreme of the solid in each
+/// transverse axis, through an outward principal plane at that extreme or a recognised
+/// non-concave fillet/chamfer/blend reaching it. Rounded outlines and edge rounds replace
+/// every box corner with several faces, so none survives for the corner rules, yet the face
+/// still bounds the stock like a notched side. At least one recognised blend must meet the
+/// face: an unrecognised chamfer stays unproved, as for the corner rules. A boss or turned cap has no such planes or
+/// blends at the envelope around it, so it abstains.
+fn enveloping_rim(
+    part: &Part,
+    face: usize,
+    axis: usize,
+    bounds: Bounds,
+    tol: f64,
+    blends: &BTreeSet<usize>,
+) -> bool {
+    let transverse: Vec<_> = (0..3).filter(|&j| j != axis).collect();
+    let mut reached = [[false; 2]; 3];
+    let mut rounded = false;
+    for g in part.neighbours(face) {
+        if part.faces[g].solid != part.faces[face].solid {
+            continue;
+        }
+        let gb = part.face_bounds(g);
+        if let Some((k, n)) = principal_plane(part, g) {
+            let side = usize::from(n[k] > 0.0);
+            let at = if side == 1 {
+                bounds.max[k]
+            } else {
+                bounds.min[k]
+            };
+            if k != axis
+                && (gb.min[k] - at).abs() <= tol
+                && (gb.max[k] - at).abs() <= tol
+                && part.arc(face, g) == Some(Arc::Convex)
+            {
+                reached[k][side] = true;
+            }
+        } else if blends.contains(&g) && part.arc(face, g) != Some(Arc::Concave) {
+            rounded = true;
+            for &k in &transverse {
+                reached[k][0] |= (gb.min[k] - bounds.min[k]).abs() <= tol;
+                reached[k][1] |= (gb.max[k] - bounds.max[k]).abs() <= tol;
+            }
+        }
+    }
+    rounded && transverse.iter().all(|&k| reached[k][0] || reached[k][1])
 }
 
 /// A recognised edge treatment must meet this face and replace an actual box
@@ -1093,5 +1215,54 @@ mod tests {
         }
         let shell = Part::new(hole.faces.clone(), hole.edges.clone(), vec![]);
         assert!(evidence(&shell).is_empty());
+    }
+
+    /// The plane faces `bar_ends` finds on a fixture (already in its principal frame).
+    fn bar(name: &str) -> Vec<usize> {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures")
+            .join(name);
+        let part = crate::read_step_file(&path).unwrap();
+        let bounds = part.solid_bounds(0);
+        let mut found = bar_ends(&part, 0, bounds, 1e-7 * bounds.max_extent());
+        found.sort_unstable();
+        found
+    }
+
+    #[test]
+    fn a_bar_or_tube_closed_at_both_extremes_has_stock_ends() {
+        // The finned housing's barrel is the whole axial extent: its rims are the bar's ends
+        // (the fins stop short of them, the standoffs and sleeve stand inside).
+        let housing = crate::read_step_file(
+            &Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/radial_fin_housing.step.gz"),
+        )
+        .unwrap();
+        let found = bar("radial_fin_housing.step.gz");
+        assert_eq!(found.len(), 2);
+        let levels: Vec<f64> = found
+            .iter()
+            .map(|&f| housing.face_bounds(f).min[2])
+            .collect();
+        assert!(levels.iter().any(|z| (z + 31.0).abs() < 1e-6));
+        assert!(levels.iter().any(|z| (z - 29.0).abs() < 1e-6));
+        // A short-finned tube likewise.
+        assert_eq!(bar("radial_fin_short.step.gz").len(), 2);
+        // A plain tube: both annular ends.
+        assert_eq!(bar("bar_tube.step.gz").len(), 2);
+    }
+
+    #[test]
+    fn bar_ends_abstain_where_the_planes_are_wider_or_only_one_end_closes() {
+        // Full-length fins put the fin outline on both end planes: wider than the cylinder.
+        assert!(bar("radial_fin_tube.step.gz").is_empty());
+        // A boss on a block ends at one extreme only; a block's own faces are not cylinders.
+        assert!(bar("golden_simple_through_hole.step").is_empty());
+        // Rounded ends have no plane joining the cylinder.
+        assert!(bar("boss_end_round.step.gz").is_empty());
+        // Chamfered ends: no end plane meets the cylinder.
+        assert!(bar("bar_chamfered.step.gz").is_empty());
+        // Polygons between round sections: no one cylinder spans the part.
+        assert!(bar("radial_fin_hex.step.gz").is_empty());
     }
 }

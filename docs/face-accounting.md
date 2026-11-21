@@ -12,15 +12,37 @@ fingerprints or evidence status. Precedence is:
 2. `{"group":"refused","refusals":[{"record_id":"...","reason":"..."}]}`:
    every named refusal covering the face, in document order, retaining its reason.
 3. `{"group":"body","reason":"..."}`: one of the positive evidence codes below.
-4. `{"group":"unexplained"}`: no sufficient explanation. Review these faces.
+4. `{"group":"supporting","record_ids":[...]}`: no record claims the face, but the evidence
+   of these `bosses` records consults it as the boss's cap (below). It is not a feature
+   claim: which record claims which face is unchanged, and the face still has no owner.
+5. `{"group":"unexplained"}`: no sufficient explanation. Review these faces.
+
+### `supporting`
+
+A round boss's evidence consults its free-end cap: the plane or face beyond the boss's free
+end (both ends when the boss stands free of any body), and the plane a free-end round or
+chamfer meets when that plane is perpendicular to the boss axis (the round's plane is read at
+the boss's top end only). Only that cap counts, not
+the faces of the end round or chamfer themselves, and only for `bosses`. A cap that no record
+claims reads `supporting`, naming each boss that consults it, instead of `unexplained`. A
+cap that a record claims (a step level, a plate, a fillet) stays a feature, and body evidence
+outranks `supporting`. A chamfer whose evidence does not consult the plane it meets leaves
+that plane `unexplained`. Faces in `supporting` still need a reader's judgement exactly as
+`unexplained` ones did: the group says why the face is not a gap in recognition, not that
+anything describes it. The group is not exclusive: a `supporting` face names the records
+that consult it, and may also border other features (a hole drilled into a boss's top, or
+another boss standing on it). Rust callers match `FaceAccounting::Supporting { record_ids }`;
+the enum is `#[non_exhaustive]`.
 
 A face whose geometry resolved but whose area and centroid `haecceity` cannot compute
 (`Part::face_moments` is `None`, for example a cylinder bounded by one closed circle) is
 refused alone: one `unmeasured_face_refusals/N` record (`UnmeasuredFaceRefusal`, reason
 `unmeasured_face`) names it, and no record that defines it is kept (`blends` and `helical_springs` also drop those that consult it).
-Other faces and records are unaffected.
+Other faces and records are unaffected. A face the caller's integration budget refuses
+(`integration_budget`, see `docs/recognition-6.md`) is refused the same way, under its own
+`integration_budget_refusals/N` record (`IntegrationBudgetRefusal`, reason `integration_budget`).
 
-Thus a refusal cannot erase a feature claim, and body evidence cannot erase either.
+Thus a refusal cannot erase a feature claim, and body evidence cannot erase either; `supporting` yields to all three.
 A feature face may belong to several records but belongs to only one accounting group.
 Refusals overlapping a feature remain available in `records`.
 Sealed cylindrical cavities belong to `interior_voids`, including their closing
@@ -125,10 +147,10 @@ feature count or dataset identity selects body evidence. Recognised corner treat
 and plates supply only the geometric premises specified here.
 
 This is conservative evidence for box stock, not a reconstruction of design intent.
-Unusual profiles still need review. There is no turned-body rule: maximum radius
-can also describe a flange or an unrecognised boss, and the stronger full-axial-span
-cylinder candidate supplied no unclaimed corpus examples with two complete end
-rings. Cones can themselves be drawn tapers/chamfers. Curved faces remain unexplained
+Unusual profiles still need review. Maximum radius alone is no turned-body rule: it
+can also describe a flange or an unrecognised boss. The one turned rule is the
+full-axial-span cylinder closed by its two end planes (round bar or tube ends, under
+`stock_envelope`); it supplied no corpus examples. Cones can themselves be drawn tapers/chamfers. Curved faces remain unexplained
 unless a record or refusal accounts for them. Invalid, shell-only,
 freeform-bearing, degenerate, or frame-refused input supplies no body evidence.
 
@@ -136,6 +158,36 @@ The rules are symmetric under frame axis permutation and reversal. It is evaluat
 on the already normalized part, before records map back into file coordinates;
 face indices survive that mapping. A caller-space parity result supplies no body
 evidence. Motion tests cover Z30, X30 and composed Z17+X23, with translation.
+
+### `stock_envelope`
+
+For parts whose outline or edges are rounded, so that no box corner survives for the two
+rules above. The face is a native principal plane on the solid's bounding box (outward
+normal, entirely on that envelope plane), in a valid solid with the same native-geometry and
+tolerance premises, with its rim at the extremes: in **each** transverse axis a neighbour
+reaches an extreme, either an outward principal plane at that extreme joined convexly or a
+recognised fillet, chamfer or blend (not concave to the face) whose bounds reach it, and at
+least one recognised blend meets the face. The plate's top, bottom and outer sides, and a
+flange side beside rounded edges, qualify. The underlying-platform veto of `stock_box_notched`
+applies in its broader form: a lower parallel platform reaching the extremes vetoes the face,
+and the platform's own non-concave recognised blends count towards reaching them, so rounding
+its edges does not hide it. Records still win: the rule only adds body to faces no record
+claims. It is tried after the `stock_box_*` rules, which keep their codes. A side whose rim
+is bounded by unrecognised cylinders stays unexplained, because a recognised blend is
+required. Fin sides and tips are not covered: the rule needs the face itself on the
+part's envelope, and no fin or rib record supplies the stock premise.
+
+**Round bar or tube ends.** The end planes of a round bar or tube are `stock_envelope` too,
+without any recognised blend. An external native cylinder spans the solid's whole extent along
+its principal axis, and exactly one plane at each axial extreme joins it convexly and spans
+exactly its transverse extent, so the cylinder's end circle is each plane's outer boundary (holes
+in the plane are inner loops). Fins that stop short of the ends, standoffs and a sleeve inside
+change nothing: the barrel rims of a finned motor housing qualify (#307 item 10). Planes wider
+than the cylinder (full-length fins, a boss's support plane), a cylinder closed at one extreme
+only, rounded or chamfered ends and a bore abstain. A boss's cap is consulted, not claimed, by design (it is outside the boss
+fingerprint, so a chamfer added to a shaft end keeps its boss `carried` in a revision diff), so
+it reads `supporting` (above); a counterbore's shoulder stays unexplained, as holes claim
+cylinders and floors only.
 
 ### `plate_edge`
 
