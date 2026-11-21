@@ -888,6 +888,7 @@ impl Part {
                 pts.iter().map(|p| p.1).sum::<f64>() / n,
             );
             let placed = near(periodic, mean, loop_centre);
+            let placed = closed_side(f, periodic, &pts, mean, placed, loop_centre);
             let (du, dv) = (placed.0 - mean.0, placed.1 - mean.1);
             pts.iter_mut().for_each(|p| *p = (p.0 + du, p.1 + dv));
             // Not empty (checked above).
@@ -1059,6 +1060,57 @@ fn near(periodic: (bool, bool), (u, v): (f64, f64), (ru, rv): (f64, f64)) -> (f6
         } else {
             v
         },
+    )
+}
+
+/// An edge's placement *placed* (its samples *pts* average *mean*) on face *f*, moved to the side
+/// of a closed B-spline's seam that its loop (centred at *centre*) occupies. Such a surface (one
+/// the reader does not mark periodic) gives a point on its seam two parameter values, the two
+/// ends of its domain, and across a skipped collapsed side (a revolved face's centre) continuity
+/// alone cannot tell which: round-off picks. The edge moves by whole spans only, towards the
+/// loop, and only where every sample stays inside the domain, so it never leaves the surface's
+/// parameter range nor moves an edge that genuinely lies across the seam.
+fn closed_side(
+    f: &Face,
+    periodic: (bool, bool),
+    pts: &[(f64, f64)],
+    mean: (f64, f64),
+    placed: (f64, f64),
+    centre: (f64, f64),
+) -> (f64, f64) {
+    let Surface::Freeform { surface, .. } = &f.surface else {
+        return placed;
+    };
+    let (su, sv) = crate::mass::closed_spans(&f.surface);
+    let (u0, u1, v0, v1) = surface.domain();
+    // Seam aliases differ by exactly one span; 1e-9 of it admits only parameter round-off at
+    // the domain's ends, the same relative floor `closed_spans` proves the closure to.
+    let side = |wraps: bool,
+                span: f64,
+                at: f64,
+                mean: f64,
+                centre: f64,
+                lo: f64,
+                hi: f64,
+                of: fn(&(f64, f64)) -> f64| {
+        if wraps || !span.is_finite() {
+            return at;
+        }
+        let shift = ((centre - mean) / span).round() * span;
+        let tol = 1e-9 * span;
+        if shift != 0.0
+            && pts
+                .iter()
+                .all(|p| (lo - tol..=hi + tol).contains(&(of(p) + shift)))
+        {
+            mean + shift
+        } else {
+            at
+        }
+    };
+    (
+        side(periodic.0, su, placed.0, mean.0, centre.0, u0, u1, |p| p.0),
+        side(periodic.1, sv, placed.1, mean.1, centre.1, v0, v1, |p| p.1),
     )
 }
 
