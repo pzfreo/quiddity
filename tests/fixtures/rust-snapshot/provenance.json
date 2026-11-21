@@ -271,8 +271,6 @@
     "tests/fixtures/ap242/write/thumbwheel_notes_add.step.gz": "a9fd500a6f2f1f37d8dd11d96256ca4b8d86e86a5eaa4b4521d938ab014d3572",
     "tests/fixtures/ap242/write/thumbwheel_thread_knurl_intent.occt.json.gz": "b0f35d4171c4b1afd077d317e495ab0368aea29932bfef732a0b5011e0b76e48",
     "tests/fixtures/ap242/write/thumbwheel_thread_knurl_intent.step.gz": "8b490895558a0786853b725d243ddf8f14a66ea6b2c1d88f3d4ebab5ac8cdf37",
-    "tests/fixtures/bar_chamfered.step.gz": "ac22df343461ce6668276ab37426a22c960d06f8ef3ab29e1c06234ceab14248",
-    "tests/fixtures/bar_tube.step.gz": "df91113f3e46c3e4b78fb63e277af14c2acb7172aa8f5419bbc747d1ef7174d0",
     "tests/fixtures/blend_r5.step": "91decec860d19ea407af10ac1a10935e55e287200cb3611d17fd8705bac2f359",
     "tests/fixtures/blend_r5_enlarged.step": "84a6c6f0b9a3db468f14af4cdb197e46f2223b2b407c1f84cd893195fa28def5",
     "tests/fixtures/blind_hole_floor_removed_under_axis.step.gz": "2be3cd7561d1020fff2bf12ef2d91c844a472b349260745cc1034964f3c90cf0",
@@ -3183,7 +3181,7 @@
     "tests/fixtures/radial_fin_star.step.gz": "64a51f347049c2f6f17cb677ab69e0ad2d999367692ab11742ff92e42cd74450",
     "tests/fixtures/radial_fin_tube.step.gz": "ec4a81981322d14bb5a4c752662da7b5557727fda91ef4dbddce8dbce8716616",
     "tests/fixtures/radial_fin_walls.step.gz": "5bf3058b2d5d2080cad9284cdeda541e346c1b6fd33bd04d2865f90b1c8276e6",
-    "tests/fixtures/radial_fins.README.md": "d8f249e4f06ecd46db6ab0d81a487d8a5fe6133c1221ad3051d31f9bb21f7d0b",
+    "tests/fixtures/radial_fins.README.md": "abbcf2a9765128607ac7b509f26adbfa69509e0ccc6c266afe76777509096aba",
     "tests/fixtures/recognition011_oriented.json.gz": "8e35a9e6375b3e718ede46a79aa6e8a414833ea2533561f6a2c05472c0f9d576",
     "tests/fixtures/references/body_measurement_evidence.json": "d499c04fd0f74b6b668be4e0d45cd1cc4270f5d678a5a7748c7d0472416b711f",
     "tests/fixtures/references/body_measurements.json.gz": "4e29f03e5e6b76964d80b6a78a4fb75499d191cdc46f891469b9951e96c46f7b",
@@ -6048,5 +6046,5 @@
     "step_levels.json.gz": "6ff3ceadb33888e9d529a10b9a880babaf979f4f8d869962215d9d3193902f00",
     "unowned_recesses.json.gz": "604ec266d4c85575165c6822140a3ac79a6637c8d72a3a2bb376e74f86455343"
   },
-  "source_commit": "faa7391273112497e8bd9e6f3220735c185813d4"
+  "source_commit": "d88c26f95403a42f480b871af2a809e55a005383"
 }
