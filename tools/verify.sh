@@ -76,15 +76,19 @@ skip() { # skip NAME REASON: a job not reproduced here; never counts as a pass
   SKIPPED+=("$1")
 }
 
-need() { # need NAME TOOL: a tool the host should have; absence fails the run, loudly
+need() { # need NAME TOOL: true when TOOL is on PATH; the caller turns absence into a failing step
   command -v "$2" >/dev/null 2>&1
 }
 
 # ---- step bodies that are more than one command -------------------------------------------
 
 dco() { # dco.yml: every commit since origin/main is signed off
-  local missing=0 c
-  for c in $(git rev-list --no-merges HEAD --not origin/main); do
+  local missing=0 c commits
+  # Without a resolvable base, rev-list would list nothing and the step would pass vacuously.
+  git fetch -q origin main || { echo "cannot fetch origin/main"; return 1; }
+  git rev-parse -q --verify origin/main >/dev/null || { echo "origin/main does not resolve"; return 1; }
+  commits=$(git rev-list --no-merges HEAD --not origin/main) || { echo "git rev-list failed"; return 1; }
+  for c in $commits; do
     if ! git log -1 --format='%(trailers:key=Signed-off-by,valueonly)' "$c" |
       grep -Eq '^[^<>]*[^<> ][^<>]* <[^<>@ ]+@[^<> ]+>$'; then
       echo "no Signed-off-by: $(git log -1 --format='%h %s' "$c")"
@@ -113,6 +117,11 @@ corpus_pin() {
 }
 
 nextest_full() { # suite.yml test job, whole suite in one run, with snapshot verification records
+  local ci_nextest host_nextest
+  ci_nextest=$(grep -ho 'nextest@[0-9.]*' .github/workflows/suite.yml | head -1 | cut -d@ -f2)
+  host_nextest=$(cargo nextest --version | awk '{print $2}')
+  [ "$ci_nextest" = "$host_nextest" ] ||
+    echo "NOTE: cargo-nextest $host_nextest here, CI pins $ci_nextest (test selection and results do not depend on it)"
   rm -rf "$SNAP"
   mkdir -p "$SNAP"
   QUIDDITY_CORPUS_REQUIRED=1 QUIDDITY_SNAPSHOT_VERIFY_DIR=$SNAP \
@@ -126,7 +135,8 @@ snapshot_coverage() { # suite.yml snapshot-coverage job, exactly
 python_venv() {
   rm -rf "$VENV" "$DIST"
   mkdir -p "$DIST"
-  uv venv --python 3.11 "$VENV" || uv venv "$VENV"
+  # CI pins Python 3.11; a different interpreter would not be the same check.
+  uv venv --python 3.11 "$VENV" || { echo "Python 3.11 not available to uv"; return 1; }
   uv pip install --python "$VENV" pytest maturin==1.12.0
 }
 
@@ -183,6 +193,8 @@ step "lint: cargo fmt --check" cargo fmt --all --check
 step "lint: cargo clippy -D warnings" cargo clippy --workspace --all-targets --release --locked -- -D warnings
 if [ $QUICK -eq 0 ]; then
   step "lint: cargo check --features f3d" cargo check --workspace --all-targets --release --locked --features f3d
+else
+  skip "lint: cargo check --features f3d" "--quick"
 fi
 step "lint: haecceity pmi_write, no default features" cargo test -p haecceity --release --locked --no-default-features --test pmi_write
 step "lint: quiddity check, presentation only" cargo check -p quiddity --release --locked --no-default-features --features presentation
@@ -207,10 +219,10 @@ else
 fi
 
 # ci.yml advisories job
-if command -v cargo-audit >/dev/null 2>&1; then
-  step "advisories: cargo audit" audit
+if command -v cargo-audit >/dev/null 2>&1 && [ "$(cargo audit --version | awk '{print $2}')" = 0.22.2 ]; then
+  step "advisories: cargo audit (cargo-audit 0.22.2)" audit
 else
-  step "advisories: cargo-audit installed (cargo install cargo-audit --version 0.22.2 --locked)" false
+  step "advisories: cargo-audit 0.22.2 installed (as CI)" false
 fi
 
 if [ $QUICK -eq 0 ]; then
