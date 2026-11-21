@@ -3855,7 +3855,7 @@
     "effective_surfaces/test/parts/42f5b21f824845e0.step.gz.json.gz": "9d08dbdeeb8027895b35aa9da738931708e758f319f315e0e40565499cd1e7eb",
     "effective_surfaces/test/parts/44be1397228b6385.step.gz.json.gz": "c9f9b75c7073a4f24cea228808565185eced4c6432e794e637f4c43c7d218af3",
     "effective_surfaces/test/parts/489ab3b452bb7858.step.gz.json.gz": "7f2f1f016a4d7e89389babb13f8d3ae8840324c4aae3db44c5072d1b37942ff2",
-    "effective_surfaces/test/parts/49b3ceab51182892.step.gz.json.gz": "ec92ce67902e6e1f00dc8d517373d9687ffda16a69465e206b35acbcaafc5a8b",
+    "effective_surfaces/test/parts/49b3ceab51182892.step.gz.json.gz": "96d68597061dfcad98abcd3e69c44a44790fe9576494b58d530078506fb689c9",
     "effective_surfaces/test/parts/4a5479bd1b7cdad4.step.gz.json.gz": "04b315f8a59e7a9997fc894eeade45bb5e0dd8e72899af622ffee9601db587e1",
     "effective_surfaces/test/parts/4a705fc57e02c7bb.step.gz.json.gz": "f949fddeb062cf4d6adfc540e762a95d44e2507817eb27e618da1b448f539c09",
     "effective_surfaces/test/parts/4cf37a3eb86f7ec2.step.gz.json.gz": "d7f18ada36302b951270c848ccb9dc35d7c1ca311da6eb5a94016326351859ca",
@@ -3877,7 +3877,7 @@
     "effective_surfaces/test/parts/6332995f3e949608.step.gz.json.gz": "480ec7e86225b0139fc4277770069d5636f49049bb8c2a4ffcd6bda938a03403",
     "effective_surfaces/test/parts/637ed79dbabf6c8b.step.gz.json.gz": "12ae4bc523ba79890d721fbfc21e1e8afd6787ce5524e1f3e2a44eccef46dba3",
     "effective_surfaces/test/parts/63fb20d4c9e73122.step.gz.json.gz": "480ec7e86225b0139fc4277770069d5636f49049bb8c2a4ffcd6bda938a03403",
-    "effective_surfaces/test/parts/64862b6e5b1d3b0b.step.gz.json.gz": "ec92ce67902e6e1f00dc8d517373d9687ffda16a69465e206b35acbcaafc5a8b",
+    "effective_surfaces/test/parts/64862b6e5b1d3b0b.step.gz.json.gz": "96d68597061dfcad98abcd3e69c44a44790fe9576494b58d530078506fb689c9",
     "effective_surfaces/test/parts/648cf777f910c49f.step.gz.json.gz": "499d74d9e7b3d93a51c9d333d338340be88064a838541293ea1375f807b7021e",
     "effective_surfaces/test/parts/667d06725150b0fa.step.gz.json.gz": "fcf7c86d1bd30cd68bfbddef12698fd982d9be66e8ae635d50e7f78c33c88c29",
     "effective_surfaces/test/parts/66f77f4d5e7fba5f.step.gz.json.gz": "4dff3b480f33c47c8cb895f8a7d6673e473c39e5c64a30a358e37f366d93a421",
@@ -3917,7 +3917,7 @@
     "effective_surfaces/test/parts/8fc1970e96321f28.step.gz.json.gz": "66958c5b60536cf05d8d46a03c77f9d251603521f18fbd2a2fd1de6e9b091245",
     "effective_surfaces/test/parts/90f62e023ca2c31d.step.gz.json.gz": "0e25d27f41e5a3b9af1590a8595e78a6054d7ce06d712e6b8155dbf1dd72c178",
     "effective_surfaces/test/parts/9134882dd1fd25df.step.gz.json.gz": "480ec7e86225b0139fc4277770069d5636f49049bb8c2a4ffcd6bda938a03403",
-    "effective_surfaces/test/parts/937f013e6498ae16.step.gz.json.gz": "77ccce0597a5af6f939664f63086bee40acc5d786e04b237268cb40aa6711424",
+    "effective_surfaces/test/parts/937f013e6498ae16.step.gz.json.gz": "015915fc61a6d4f41405d95f11b202249ade19692609a40d41f7710affb7c4f3",
     "effective_surfaces/test/parts/947016e6a1076524.step.gz.json.gz": "f47cae62b8ecedbc62bcea750540351397edf01c1a019a50b592aeb370ebf9a6",
     "effective_surfaces/test/parts/94c9bdaf541921aa.step.gz.json.gz": "480ec7e86225b0139fc4277770069d5636f49049bb8c2a4ffcd6bda938a03403",
     "effective_surfaces/test/parts/95052d0e6e08b35f.step.gz.json.gz": "480ec7e86225b0139fc4277770069d5636f49049bb8c2a4ffcd6bda938a03403",
@@ -4224,7 +4224,7 @@
     "frames/fixture/two_solids.step.json.gz": "c33dec999869a18e39d10d106c4581232878b43c916d7610b6e43dca4f972e24",
     "frames/fixture/unequal_radii.step.json.gz": "7dad39450fae233ffa16600f20f601c4751d0f4dc7a739c9e29d04951bc22499",
     "kernel/cadgenbench/flanged_spool_132.step.json.gz": "22c48209dac6c712427d09fa68c2ebc60ebede3aece7bc03b8d5df1b0ab5e1aa",
-    "kernel/cadgenbench/threaded_connector_109.step.json.gz": "e7fe9c7312676a87913d2cebbec59e083c037a0f65a0781c14a820092a981d4d",
+    "kernel/cadgenbench/threaded_connector_109.step.json.gz": "f4585a2287dfbbb5626fc3ee1f4e9d7ddba0f082571cc111dc77874543c5aed4",
     "kernel/cadgenbench_inputs/cgb202.step.gz.json.gz": "4cadbded07fcf2c1d073b870dad5fc9e14ebb194abffeeff040f0a8a46ef1104",
     "kernel/cadgenbench_inputs/cgb203.step.json.gz": "7adac0fe16e3e7905da310db3e0494b5c33851053b6e9ef3310fe7b703a5cc4b",
     "kernel/cadgenbench_inputs/cgb207.step.json.gz": "44a118a016d148e42dabc587d670913a8d86b84aa2a347dc7d97ffcd74ee0526",
@@ -4235,8 +4235,8 @@
     "kernel/cadgenbench_inputs/cgb245.step.json.gz": "e806c37f20d508b6ac458ed042e177342b05e18ef5d125c948499d69c0c261cd",
     "kernel/gramel/GRM-03_thumbwheel_drive_screw.step.json.gz": "d8d94210af6a887d9c954c3a690be76fe67f3a996ef289f7ddeff0a88d34c24a",
     "kernel/gramel/GRM-05_depth_lock_bolt.step.json.gz": "47bd35911605c691e1ffda1242fbdef68cb3b8b83a7dcea5e2e80c7c3734a143",
-    "kernel/gramel/string_post.step.json.gz": "2f620a3694d1d301f7e98e5c9635742fa4a3669aa307d9c5399df97f4d1ef365",
-    "kernel/inventory_refusal/13975.step.gz.json.gz": "08ab2ca0b7fad05af964de4e4a9f63d0d3d8db87b8b71166045a234c317ab1d3",
+    "kernel/gramel/string_post.step.json.gz": "28fdb3ee9d753fe866f4cd0b421a49eb6f5fe88c9b1bca09b323e5ade7aae578",
+    "kernel/inventory_refusal/13975.step.gz.json.gz": "39b7e3878952ae944471577e3bf89eed798d685cb41a7fd3f31de0d09290670f",
     "kernel/inventory_refusal/14052.step.gz.json.gz": "8a211e2c18a829e9cbc42ca702bd6786d144c96c42ccb2ffd67d9aa14e17ae7d",
     "kernel/mfcadpp/1000.step.json.gz": "673a1d0c977e6803a0b5f5f048c149a482ff74d3d02d030216bb3903d3fc7a6d",
     "kernel/mfcadpp/10000.step.json.gz": "fc0bbb45f64d7c7fee5e9f71fb886f4c58e9fc74b1403dd984fdcf0fec08c79c",
@@ -6050,5 +6050,5 @@
     "step_levels.json.gz": "5e4395504560dada2abb27b2594500b6400bccea48989cfda5d3deeef596ace5",
     "unowned_recesses.json.gz": "604ec266d4c85575165c6822140a3ac79a6637c8d72a3a2bb376e74f86455343"
   },
-  "source_commit": "fbbac73c8a0e83adb7787f84e89bec8e0d5d7c00"
+  "source_commit": "9767be42f4c19addd03a06737ab44dafafc7c3dd"
 }
