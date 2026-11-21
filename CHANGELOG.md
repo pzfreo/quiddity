@@ -106,6 +106,10 @@ in [docs/alpha1.md](docs/alpha1.md).
   cylindrical host and be one straight extrusion between its two levels (docs/recognition-6.md).
   For #307 (item 10).
 
+- Documented face index order as a contract (OpenCascade `TopExp::MapShapes` traversal, ascending
+  `ADVANCED_FACE` id only when the file lists solids and shell faces in that order) and what
+  `face_sources[].instance` means, with `tests/face_index_order.rs` pinning both.
+
 **Changed**
 
 - Recognition no longer integrates a part twice (once in file coordinates to infer its frame,
@@ -174,13 +178,29 @@ in [docs/alpha1.md](docs/alpha1.md).
   `unknown`. The groove itself is a `round_grooves` or `v_grooves` record where it qualifies
   (items 5 and 6). For #307 (item 3).
 
-### Xu, #302 and #312
+### Xu, #290, #302 and #312
+
+**Added**
+
+- Owned-snapshot STEP geometry entry points release parsed input bytes before B-rep
+  construction; file and recognition snapshot readers preserve the original source digest.
 
 **Changed**
 
 - Stop B-spline boundary cut bisection when the floating-point bracket stops changing,
   and reuse identical cut searches across the integration passes of an open spline face.
   From #312 (@xu9299).
+
+- Geometry provenance and declared-unit metadata use lossless packed STEP records,
+  decoding selected attributes or the current record without retaining a second
+  owned graph. Face and edge identity, reference validation, refusals and assemblies
+  are unchanged.
+
+- Complex-instance reference checking at STEP import scans packed records for references
+  to complex instances and decodes only the records that have one, instead of decoding every
+  record whenever a file has a complex instance. Output is unchanged. Follow-up to #290,
+  at the maintainer's suggestion. `UnitReader::get` and `real_text` now assert in debug
+  builds that they are not used on a packed graph, where they would return `None`.
 
 **Fixed**
 
@@ -236,10 +256,6 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 **Added**
 
-- Documented face index order as a contract (OpenCascade `TopExp::MapShapes` traversal, ascending
-  `ADVANCED_FACE` id only when the file lists solids and shell faces in that order) and what
-  `face_sources[].instance` means, with `tests/face_index_order.rs` pinning both.
-
 - An edge break on the rim of a conical body (the base of a cone, either end of a frustum) is
   published as a turned `Chamfer`, where it was absorbed as an unexplained cone in the
   `TurnedBody` profile. A narrow coaxial cone between an end plane and the body's cone, joined
@@ -248,9 +264,6 @@ in [docs/alpha1.md](docs/alpha1.md).
   with the legs taken along the end plane and along the body's cone from the virtual sharp rim.
   The profile is unchanged and both records list the cone face. Hole mouth cones stay nested in
   `HoleRecord.mouth_chamfers` (#244). The recognition schema stays at 6. For #298.
-
-- Owned-snapshot STEP geometry entry points release parsed input bytes before B-rep
-  construction; file and recognition snapshot readers preserve the original source digest.
 
 - The recognition document states a part's several solids and its void shells in an additive
   optional `bodies` field (`solids`, `void_shells`, and with several solids each solid's
@@ -268,17 +281,6 @@ in [docs/alpha1.md](docs/alpha1.md).
   fillets on gears) report as fillets instead of generic blends. The tangent-wall, sweep and
   material proofs are unchanged; only rounds under 0.0005 mm, which would publish as radius
   0, stay unreported. For #297.
-
-- Geometry provenance and declared-unit metadata use lossless packed STEP records,
-  decoding selected attributes or the current record without retaining a second
-  owned graph. Face and edge identity, reference validation, refusals and assemblies
-  are unchanged.
-
-- Complex-instance reference checking at STEP import scans packed records for references
-  to complex instances and decodes only the records that have one, instead of decoding every
-  record whenever a file has a complex instance. Output is unchanged. Follow-up to #290,
-  at the maintainer's suggestion. `UnitReader::get` and `real_text` now assert in debug
-  builds that they are not used on a packed graph, where they would return `None`.
 
 **Fixed**
 
