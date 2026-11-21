@@ -154,8 +154,13 @@ sdist_test() { # python.yml sdist + test-sdist jobs
   "$VENV/bin/maturin" sdist -m crates/quiddity-py/Cargo.toml --out "$DIST" || return 1
   uv pip install --python "$VENV" --reinstall "$DIST"/*.tar.gz || return 1
   "$VENV/bin/python" -m pytest tests/python -q || return 1
-  VIRTUAL_ENV=$VENV "$VENV/bin/maturin" develop --release --locked \
-    -m crates/quiddity-py/Cargo.toml --features test-panic || return 1
+  # CI runs `maturin develop` here; on a uv-managed Python that resolves the venv's interpreter to
+  # the uv install and refuses to modify it, so build the same wheel and install it instead.
+  local panic=$WORK/panic-wheel
+  rm -rf "${panic:?}"
+  "$VENV/bin/maturin" build --release --locked -m crates/quiddity-py/Cargo.toml \
+    --features test-panic --out "$panic" || return 1
+  uv pip install --python "$VENV" --reinstall --no-deps "$panic"/*.whl || return 1
   QUIDDITY_TEST_PANIC=1 "$VENV/bin/python" -m pytest tests/python/test_package.py -q -k internal_panic
 }
 
