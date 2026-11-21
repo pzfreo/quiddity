@@ -83,12 +83,12 @@ pub enum FaceAccounting {
     Refused {
         refusals: Vec<FaceRefusal>,
     },
+    Unexplained,
     /// No record claims the face, but these records' evidence consults it: a round boss's
-    /// free-end cap.
+    /// free-end cap. Declared last so the existing variants keep their discriminants.
     Supporting {
         record_ids: Vec<String>,
     },
-    Unexplained,
 }
 
 /// One part's recognition, as draftwright reads it.
