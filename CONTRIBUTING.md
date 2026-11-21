@@ -72,6 +72,13 @@ This also applies while current = published. The release PR moves those entries 
 `## X.Y.Z (date)`; while X.Y.Z is the manifest version and is not yet published, that
 section's Breaking (Rust API) subsection is the override. CI also runs cargo-audit against Cargo.lock.
 
+A draft pull request runs only fmt, the lints (clippy and the feature-set `cargo check`s) and
+the DCO check; its tests wait. Full CI runs when you mark the pull request ready for review,
+and on every later push while it is ready (re-running a run from the draft stage stays
+lint-only: push or mark ready again). Pushes to main and manual runs run everything as before;
+a release* pull request does too once it is ready. Run `tools/verify.sh` before you push; a
+draft's green lint is not a full pass.
+
 ## Test files and data
 
 Add only files you created yourself or whose licence allows redistribution, and record each
