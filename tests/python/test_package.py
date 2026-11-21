@@ -153,6 +153,49 @@ def test_anchor_and_fingerprints():
         quiddity.anchor(str(PLATE), -1)
 
 
+def test_anchors_batch_equals_single_calls():
+    rows = json.loads(quiddity.anchors(str(PLATE)))
+    assert len(rows) > 10
+    assert rows == json.loads(quiddity.anchors(PLATE.read_bytes()))
+    for face, row in enumerate(rows):
+        assert row == json.loads(quiddity.anchor(str(PLATE), face))
+    picked = json.loads(quiddity.anchors(str(PLATE), [3, 0, 3]))
+    assert [r["face"] for r in picked] == [3, 0, 3]
+    assert picked == [rows[3], rows[0], rows[3]]
+    assert json.loads(quiddity.anchors(str(PLATE), [])) == []
+    with pytest.raises(ValueError, match="out of range"):
+        quiddity.anchors(str(PLATE), [0, 100000])
+    with pytest.raises(OverflowError):
+        quiddity.anchors(str(PLATE), [-1])
+
+
+def test_anchors_refused_face_row():
+    open_step = FIXTURES / "unmeasured_face_open.step"
+    with pytest.raises(ValueError) as why:
+        quiddity.anchor(str(open_step), 6)
+    (row,) = json.loads(quiddity.anchors(str(open_step), [6]))
+    assert row == {"face": 6, "point": None, "uv": None, "refused": str(why.value)}
+
+
+def test_integration_budget_round_trip():
+    sheet = FIXTURES / "integration_budget_sheet.step.gz"
+    plain = quiddity.recognise(str(sheet))
+    assert quiddity.recognise(str(sheet), integration_budget=None) == plain
+    assert "budget" not in json.loads(plain)["document"]
+    # The B-spline sheet (face 2) takes far more work than the bore or the planes.
+    budgeted = json.loads(quiddity.recognise(gzip.decompress(sheet.read_bytes()), integration_budget=400_000))
+    assert budgeted["document"]["budget"] == {"limit": 400_000, "refused_faces": [2], "count": 1, "frame_refused": True}
+    (refusal,) = [r for r in budgeted["document"]["records"] if r["family"] == "integration_budget_refusals"]
+    assert refusal["faces"] == [2] and refusal["parameters"]["reason"] == "integration_budget"
+    run = cli(sheet, "--integration-budget", 400_000)
+    assert run.returncode == 0, run.stderr
+    assert json.loads(run.stdout)["document"]["budget"] == budgeted["document"]["budget"]
+    evidence = json.loads(quiddity.evidence(str(sheet), integration_budget=400_000))
+    assert evidence["budget"]["refused_faces"] == [2]
+    assert json.loads(quiddity.fingerprints(str(sheet), integration_budget=400_000)) == budgeted["fingerprints"]
+    assert quiddity.fingerprints(str(sheet)) == quiddity.fingerprints(str(sheet), integration_budget=None)
+
+
 def test_correspond():
     before = gzip.decompress((FIXTURES / "revisions/hole_moved.old.step.gz").read_bytes())
     after = gzip.decompress((FIXTURES / "revisions/hole_moved.new.step.gz").read_bytes())
@@ -162,7 +205,7 @@ def test_correspond():
 
 
 def test_capabilities_version_and_console_script():
-    assert quiddity.__version__ == "0.5.4"
+    assert quiddity.__version__ == "0.5.5"
     assert not importlib.metadata.requires("quiddity")
     assert importlib.metadata.metadata("quiddity")["Requires-Python"] == ">=3.11"
     caps = json.loads(quiddity.capabilities())

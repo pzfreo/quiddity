@@ -6,7 +6,264 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
-### Added
+### Fixed
+
+- Face area, moments and volume flux now use the finite boundary selected by
+  STEP's `PCURVE_S1` or `PCURVE_S2` when it can be integrated, including when
+  projecting the 3D edge would also give an area. A `CURVE_3D` edge still uses
+  its spatial curve. An unusable selected boundary falls back to projection
+  (#317). The mesher still triangulates the projected boundary until its own PR lands,
+  so cgb243 face #60132's mesh area differs from its face area by 13%.
+
+## 0.5.5 (2026-11-21)
+
+### #307, reported by @earthtojake (text-to-cad)
+
+**Added**
+
+- A caller-set per-face integration budget: `RecognitionOptions { integration_budget }` with
+  `recognise_with`, `fingerprints_with` and `evidence_with` (Rust), `--integration-budget N` on
+  `quiddity <file>`, `quiddity evidence`, `quiddity fingerprints` and the manifest
+  `quiddity recognise`, an optional `integration_budget` in `serve`'s recognise request, and
+  `integration_budget=None` on Python `recognise`, `evidence` and `fingerprints`. A work unit is
+  one integrand evaluation in a face's area and moment integration (deterministic: independent
+  of clock, threads and face order). A face whose integration would pass the budget is abandoned
+  at that point (the integrators return, nothing unwinds) and refused alone, as an
+  unmeasured face is: an `integration_budget_refusals`
+  record (`IntegrationBudgetRefusal`, reason `integration_budget`), `refused` in
+  `face_accounting`, records defining it dropped, and the part frame refused
+  (`integration-budget`) when it needs the face. The document gains an optional
+  `budget: {limit, refused_faces, count, frame_refused}` (also on evidence) only when a
+  budget is set; any refused face refuses the frame, since its origin needs every face's
+  volume. Without
+  a budget the output is byte-identical. Haecceity adds `Part::with_integration_budget`,
+  `Part::integration_budget`, `Part::integration_refused` and `mass::IntegrationBudget`.
+  Additive in `recognition/6`. Cancellation is not included. For #307 (item 1).
+
+- `step_levels` and `risers` are read along every axis of the recognition frame, not only its z:
+  each plane square to the frame's x or y that passes the same area (in that axis's own
+  cross-section) and end-margin rules is a level along that axis, published after the z records
+  with its `height_axis`, `x_axis` and `y_axis` (risers with `height_axis`); its `z` and spans are
+  measured along those axes. A face is in at most one level (a plane has one normal). On every
+  axis, z included, a level's face must be flat along the axis (extent at most the 0.5 level
+  band): a drafted or sloping face is no level, so 22 corpus z levels that held one are gone or
+  lose that face. The new x and y records are not published on any face another family claims,
+  a refusal names or body evidence explains, nor on a z level's or z riser's face, nor where a
+  level face is one wall of a slot or pocket (an anti-parallel flat face across empty space,
+  overlapping it by half, nearer than the pair is long); risers along x or y need a level on that
+  axis and are not read from a face that would rise along both. No level on any axis is read
+  from a fin or rib face of a `repeating_radial_profiles` record. On the finned housing the rear
+  wall faces, the bore shoulder and the sleeve shoulder (left unexplained by the bar-end entry
+  below) become levels along the barrel's axis, and the fin sides are no longer levels. Corpus:
+  step levels 335 → 487, risers 129 → 131, unexplained faces 2178 → 1851, every other family
+  unchanged. `quiddity evidence` (framed and in file coordinates) reports the same step
+  levels and risers as the recognition of that reading. Readers that assumed one height axis: see
+  [recognition 6](docs/recognition-6.md#levels-and-risers-along-every-frame-axis-for-307-item-10).
+  For #307 (item 10).
+
+- The end planes of a round bar or tube are `body` (`stock_envelope`) where they were unexplained:
+  an external cylinder spanning the part's whole extent along its axis, closed at each end by one
+  plane that joins it convexly and spans exactly its transverse extent. On a finned motor housing
+  this accounts for the barrel's two rims. Standoff tops, the sleeve's end, the counterbore
+  shoulder and the rear recess and wall faces are left unexplained: a boss's cap is deliberately
+  not claimed (a chamfer added to a shaft end must keep its boss `carried`), holes claim no
+  shoulders, and no family describes the recess. For #307 (item 10).
+
+- Tapers and V-grooves of a turned body are records of their own, `tapers` and `v_grooves`,
+  where they were only cone segments in the `turned_bodies` profile (whose profile is unchanged).
+  A taper is one whole coaxial cone, external or internal, between two cylinders, a cylinder and a
+  plane, or two planes, with its large and small diameters, length, included angle, axis (large
+  end to small) and the `turned_bodies` record it belongs to. A V-groove is two whole coaxial
+  cones meeting at a sharp bottom circle or a tiny flat or round, between two equal lands, with
+  width, depth, included angle, mouth and bottom diameters. A cone that another record defines (an
+  edge break, countersink, drill point or thread), any narrow or 45 degree cone, a cone of 90
+  degrees or more included, an internal cone at a plane over 30 degrees, a groove flank, a ridge and a cone ending at the axis
+  are never published. New optional families; recognition schema `/6` is unchanged. For #307 (item 6).
+
+- `file_api::anchors` and Python `quiddity.anchors(step, faces=None)` answer many face anchors from
+  one parse (`anchor` parses the whole file on every call: 54.9 ms median per face on a 379-face
+  part, 1.45 s on a 21 MB one). Rows equal the single-call results; a face with no provable point
+  has null `point`/`uv` and a `refused` reason instead of failing the call. `anchor` is unchanged. Where a face's centre lies outside it,
+  `face_anchor` falls back to `Part::bounds()` per face, so a whole-part batch on curve-heavy parts
+  still does O(faces) work per face.
+  For #307 (item 8).
+
+- A convex toroidal edge round that follows a concave cylindrical wall (a slot's or arc wall's
+  rounded end, or the top round turning round an inside-corner round): a coaxial internal
+  cylinder wall of at most a half turn that meets a plane wall running along its axis, rounded
+  into a transverse face, with the torus's major radius the wall's radius plus its minor
+  radius, is published as a turned
+  `Fillet` of the minor radius, where it was left unexplained beside the straight rounds along
+  the slot's sides. A whole bore's mouth ring (still a `blends` record), concave grooves and
+  convex ridges inside a bore are not claimed. For #307 (item 7).
+
+- New optional `round_grooves` family: a round-bottomed (toroidal) annular groove, such as an
+  O-ring gland or a bearing's ball groove, cut into a bore, onto a shaft or into a planar face,
+  with its mouth width, depth, bottom radius and ring diameter. The groove's torus faces are
+  its only defining faces; the bore, shaft or planar lands are consulted evidence, so the record
+  does not depend on how a bore's holes are split and never claims their faces. These faces
+  were unexplained or only in `turned_bodies`. A torus tangent to its neighbours (a fillet) or
+  convex (a bead) is not a groove. Schema 6 and every existing record are unchanged. For #307
+  (item 5).
+
+- Radial fins that stop short of a barrel's ends (a finned motor housing's 64 fins) are one
+  `repeating_radial_profiles` record, as full-length fins already were: the two interior levels
+  at which the fins start and end, each with the host circle between the fins, form the profile
+  (64 repeats, 256 edges), and the record claims every fin cap, side and tip (320 faces) and
+  nothing of the barrel, rear wall, sleeve or standoffs. The four axis-aligned fins are no
+  longer reported also as `pads`. Same record shape; a profile of this kind must stand on a
+  cylindrical host and be one straight extrusion between its two levels (docs/recognition-6.md).
+  For #307 (item 10).
+
+- Documented face index order as a contract (OpenCascade `TopExp::MapShapes` traversal, ascending
+  `ADVANCED_FACE` id only when the file lists solids and shell faces in that order) and what
+  `face_sources[].instance` means, with `tests/face_index_order.rs` pinning both.
+
+**Changed**
+
+- Recognition no longer integrates a part twice (once in file coordinates to infer its frame,
+  once in that frame): its move into the inferred frame carries each face's moment
+  integration, the mass it selected and its along-v trial refusals through the rigid motion
+  instead of integrating every face again. Each carried value is an exact function of the old
+  integrals and the motion: area kept, first moments turned and shifted, second moments
+  R·M·Rᵀ with parallel-axis terms, the centroid group re-referred to the moved box centre.
+  Refusals and budget-refused faces are not carried. `Part::transformed` itself still carries
+  nothing. Values agree with a fresh integration in the frame to round-off. For #307.
+
+**Changed output: face accounting**
+
+- A new face-accounting group, `supporting`: a face that no record claims but that a round
+  boss's evidence consults as its cap reads `{"group": "supporting", "record_ids": ["bosses/3"]}`
+  instead of `unexplained`, in the same recognition/6 schema (an additive JSON value). Which
+  record claims which face does not change, and feature, refused and body still outrank it. The
+  six standoff tops of the finned motor housing now read `supporting`, each with its own boss,
+  and the counts of `unexplained` faces fall by the faces that move. Rust callers' wildcard arm
+  receives `FaceAccounting::Supporting { record_ids }`: the enum is `#[non_exhaustive]`, so
+  nothing stops compiling. For #307 (item 10).
+
+**Fixed**
+
+- haecceity: a face on a closed B-spline surface (one the reader does not mark periodic) whose
+  edge lies on the surface's seam no longer reads `uv_bounds` across the whole closed span when
+  round-off resolves that edge to the far end of the domain. The edge is placed on the side its
+  loop occupies, moved by whole spans only and only while it stays inside the domain. The
+  truck shaft's revolved cap quarters read u in [0, 1] each, so their interior probes land on
+  the face and the boss's free-end cap (and its `supporting` faces) no longer changes with a
+  rigid move or a write/read round trip. For #307 (item 10).
+
+- The inner wall of a spoked rim is no longer published as a counterbore of the hub bore. A wider coaxial cylinder whose span overlaps a narrower hole segment's (more than the stack gap) is left out of the hole stack unless a closed annular floor leads inwards from one of its ends: a whole coaxial circle (one edge, or coplanar arcs making a full turn) on a transverse plane at the wall's end, or reached across a torus or cone blend. A collared recess with a wall-to-floor fillet or chamfer, or with faces written in halves, keeps its counterbore; a floor broken by a slot or ribs is not a step in that overlapping case. `curved_wall_corner` no longer claims a round whose curved supports are all at least 4 times tighter than it: cgb242's faces 173 and 185 (pocket end walls drawn round a hub, between R3 corner rounds), its long walls 103 (R51) and 203 (R62), and nine R76/R85 slot-wall patches in cgb202 are no longer published as inside rounds (they are reported as residual cylindrical profiles). cgb242's false d110 counterbore on its d22 hole is gone: the floor test accepts only a transverse plane facing into the wall's span, so a top face reached across an edge round no longer counts. For #307 (item 4).
+
+- A spoked flexure disc or wheel (hub, rim and spokes with open windows) is not a `turned_bodies` record: that family needs the whole boundary to be surfaces of revolution about one axis, with only proved stock flats as the exception, and the spoke walls are not stock flats (they truncate no stock; `flats` no longer publishes them). A regression test pins it on the item 4 spoked-rim fixture, where only the plain stepped disc is a turned body. No output change beyond the flats fix. For #307 (item 4).
+
+- `flats` records are no longer published on the sides of ribs, fins and tabs standing on a
+  cylinder. A flat now has to truncate the stock: the chord must straddle the point of the
+  plane nearest the axis (a chord wholly to one side meets the cylinder at a concave edge), and
+  no vertex of the face inside the cylinder's own axial span may lie beyond its outside
+  diameter (before, only "not inside it" was checked, so a fin side running out beyond the
+  stock passed). A tab standing a hair beyond the radius is therefore not a flat either. A flat
+  that runs on past the cylinder into a chamfer, taper, land or hex collar is still a flat,
+  with the same `across`. A block side that a small boss pokes through is not a flat either (the
+  boss's cylinder exists beyond the plane; on a real flat it is cut away). Corpus: 12 flats records on rib or lug sides are removed. For #307.
+
+- Planar faces that bound the part's stock are `body` with the new reason `stock_envelope`
+  when rounded outlines and edge rounds leave no box corner (a perforated plate's top,
+  bottom and outer sides, a flange's sides), instead of `unexplained`. For #307; fin sides
+  and tips are not covered. Additive: the schema stays `quiddity-rust/recognition/6`.
+
+- A bore that runs out into a curved wall (the tunnel in a crank block) is no longer published
+  as `flat`-bottomed when its end disc leaves only thin crescents of plane at the rim: where
+  a curved wall also borders the end, planar supports count as a floor unless no plane face lies
+  under the bore axis and they cover under half the bore's section, in which case the bore is `through` and no floor face is claimed. For #307 (item 2).
+
+- A bore with an internal groove (a bearing race's ball groove, a V groove in a ring bore)
+  is one hole, not two lands each ending on the groove. Two coaxial equal-diameter internal
+  lands are one bore when only faces lying wholly outside the bore diameter separate them
+  (no material narrows the bore between them) and the groove is an internal one (a small
+  closed set of faces bounded by the lands, not a slot open to the outside) at most a quarter of
+  the bore diameter wide and deep; a toroidal groove between two cylinders with a major radius
+  under the bore radius no longer reads as a round at the bore's end, so it is not a `flat`
+  floor. Lands separated by a web or a
+  different diameter stay separate holes, and an end that borders only such a groove is
+  `unknown`. The groove itself is a `round_grooves` or `v_grooves` record where it qualifies
+  (items 5 and 6). For #307 (item 3).
+
+### #290, #302 and #312, from @xu9299
+
+**Added**
+
+- Owned-snapshot STEP geometry entry points release parsed input bytes before B-rep
+  construction; file and recognition snapshot readers preserve the original source digest.
+
+**Changed**
+
+- Stop B-spline boundary cut bisection when the floating-point bracket stops changing,
+  and reuse identical cut searches across the integration passes of an open spline face.
+  From #312 (@xu9299).
+
+- Geometry provenance and declared-unit metadata use lossless packed STEP records,
+  decoding selected attributes or the current record without retaining a second
+  owned graph. Face and edge identity, reference validation, refusals and assemblies
+  are unchanged.
+
+- Complex-instance reference checking at STEP import scans packed records for references
+  to complex instances and decodes only the records that have one, instead of decoding every
+  record whenever a file has a complex instance. Output is unchanged. Follow-up to #290,
+  at the maintainer's suggestion. `UnitReader::get` and `real_text` now assert in debug
+  builds that they are not used on a packed graph, where they would return `None`.
+
+**Fixed**
+
+- Faces with a very large B-spline net or a long helical edge (threaded fasteners and sweeps
+  along a spline as some writers emit them) took minutes in face integration: the inner
+  integral crossed every knot span (or radian) at every boundary node. A B-spline face with
+  many u spans and few v spans, and a cylinder or cone whose loops run through many radians,
+  now integrate along v, checked against their own half-panels and falling back to the stock
+  form where the check fails; a node moving along a parameter line of a very large net is not
+  evaluated, and a node's knot piece is found by search. Over the 43 springrep files that
+  exceeded 30 s, instructions retired fall 6 to 100 times (49 times in total); recognised
+  values agree to round-off (at most 1e-9). xu9299 independently found the same approach
+  (the other Green's-theorem form) and the narrow-dip counterexample in #302, and found that
+  the stationary-node test scaled motions by the whole knot vector rather than the active
+  domain, which skipped a real edge's nodes when a writer padded the end knots. For #302.
+
+### #293, reported by @vahid8
+
+**Fixed**
+
+- Reading a STEP file no longer sizes per-solid work by every face in the file: the import's
+  outward-shell proof and the ray casters keep their face boxes and membership for the
+  solid's own faces, the unresolved-face and unresolved-edge lookups search a sorted list, and
+  the part list built from a file's instances, faces and assemblies is looked up once for the
+  file, not searched per part (it grew faster than the number of parts). Output is unchanged.
+  For #293.
+
+- `StepFile::part(index)` no longer rebuilds against the whole file for every part. It reads the
+  part from a document of that part's own entities (its product chain, shape representations
+  and what they reach, with the file's unit context), so reading every part costs in proportion
+  to the parts, not parts times file size; a part that document cannot reproduce exactly is
+  read from the whole file as before. Output is unchanged. For #293.
+
+- The manifest's `common` no longer grows with the number of products. A shape representation's
+  context and units, and a product's own product and definition contexts, that only one product
+  reaches now travel in that product's ranges, as geometry-only contexts already did. The
+  contexts of assembly products (the writer gives each its own) are read only for the placement
+  document and stay unowned, like the assembly entities that reference them. `common` keeps what
+  several products share. Each `read_product` therefore parses the product and the truly shared
+  records, not every product's and sub-assembly's contexts (reading every product grew about 3.5
+  times per doubling of the products). Reads are unchanged, and the format stays
+  `quiddity-manifest/2`: the reader version check already refuses a manifest from another
+  haecceity version, and a product read joins `common` and the product's ranges whatever they
+  hold. Code that reads `Manifest::common` directly, as `examples/support/assembly_layout.rs`
+  did, must look in the product ranges for a product's contexts. For #293.
+
+- `Manifest::read_product` reads its ranges by position on Unix and Windows (`read_at`,
+  `seek_read`), so one `&File` can be shared by threads reading different products. On Unix the
+  `File`'s cursor is neither used nor moved; on Windows `seek_read` moves it, which does no
+  harm because every read is positional. The signature is unchanged. For #293.
+
+### Other
+
+**Added**
 
 - An edge break on the rim of a conical body (the base of a cone, either end of a frustum) is
   published as a turned `Chamfer`, where it was absorbed as an unexplained cone in the
@@ -16,10 +273,16 @@ in [docs/alpha1.md](docs/alpha1.md).
   with the legs taken along the end plane and along the body's cone from the virtual sharp rim.
   The profile is unchanged and both records list the cone face. Hole mouth cones stay nested in
   `HoleRecord.mouth_chamfers` (#244). The recognition schema stays at 6. For #298.
-- Owned-snapshot STEP geometry entry points release parsed input bytes before B-rep
-  construction; file and recognition snapshot readers preserve the original source digest.
 
-### Changed
+- The recognition document states a part's several solids and its void shells in an additive
+  optional `bodies` field (`solids`, `void_shells`, and with several solids each solid's
+  `solid_faces`), and the CLI and `serve` warn when a part holds more than one solid. Records
+  are still found over the part's faces together, so a caller that needs one body at a time can
+  refuse the part or split it by `solid_faces`. Absent for a single one-shell solid; schema 6
+  and every record are unchanged. `Recognition` and `RecognitionDocument` (non-exhaustive) gain
+  the field, and `recognition::Bodies` is new. For #300.
+
+**Changed**
 
 - Edge fillets are reported at any radius. The absolute 0.6 mm floor is gone: boxes and prisms
   with every edge rounded at about 0.3 to 0.55 mm, which gave no fillet record at all, now
@@ -27,22 +290,8 @@ in [docs/alpha1.md](docs/alpha1.md).
   fillets on gears) report as fillets instead of generic blends. The tangent-wall, sweep and
   material proofs are unchanged; only rounds under 0.0005 mm, which would publish as radius
   0, stay unreported. For #297.
-- Geometry provenance and declared-unit metadata use lossless packed STEP records,
-  decoding selected attributes or the current record without retaining a second
-  owned graph. Face and edge identity, reference validation, refusals and assemblies
-  are unchanged.
-- Complex-instance reference checking at STEP import scans packed records for references
-  to complex instances and decodes only the records that have one, instead of decoding every
-  record whenever a file has a complex instance. Output is unchanged. Follow-up to #290,
-  at the maintainer's suggestion. `UnitReader::get` and `real_text` now assert in debug
-  builds that they are not used on a packed graph, where they would return `None`.
 
-### Fixed
-
-- Face area, moments and volume flux now use the finite boundary selected by
-  STEP's `PCURVE_S1` or `PCURVE_S2` when it can be integrated, including when
-  projecting the 3D edge would also give an area. A `CURVE_3D` edge still uses
-  its spatial curve. An unusable selected boundary falls back to projection.
+**Fixed**
 
 - A planar chamfer is no longer read from the flats of a polygonal section. A bevel between two
   principal-plane walls was published whenever it stood between them, so the flats of a hexagonal
@@ -59,6 +308,7 @@ in [docs/alpha1.md](docs/alpha1.md).
   recognised (a miss, no longer a wrong record); a hexagon with two opposite chamfers still
   reads as an octagon with four bevels. Chamfers of rectilinear corners, including large ones and
   an L section's, are unchanged. For #301.
+
 - A face whose area and centroid cannot be computed (a cylinder bounded by one closed circle,
   as some converters write a degenerate face) is left out of recognition and published as an
   `unmeasured_face_refusals` record (`UnmeasuredFaceRefusal`, reason `unmeasured_face`; its
@@ -68,33 +318,6 @@ in [docs/alpha1.md](docs/alpha1.md).
   refused (`unmeasured-face`) because the volume needs every face, so such a part is
   recognised in file coordinates. specify-core must stop refusing the whole part on this
   face (`describe_faces`). For #303.
-- Reading a STEP file no longer sizes per-solid work by every face in the file: the import's
-  outward-shell proof and the ray casters keep their face boxes and membership for the
-  solid's own faces, the unresolved-face and unresolved-edge lookups search a sorted list, and
-  the part list built from a file's instances, faces and assemblies is looked up once for the
-  file, not searched per part (it grew faster than the number of parts). Output is unchanged.
-  For #293.
-- `StepFile::part(index)` no longer rebuilds against the whole file for every part. It reads the
-  part from a document of that part's own entities (its product chain, shape representations
-  and what they reach, with the file's unit context), so reading every part costs in proportion
-  to the parts, not parts times file size; a part that document cannot reproduce exactly is
-  read from the whole file as before. Output is unchanged. For #293.
-- The manifest's `common` no longer grows with the number of products. A shape representation's
-  context and units, and a product's own product and definition contexts, that only one product
-  reaches now travel in that product's ranges, as geometry-only contexts already did. The
-  contexts of assembly products (the writer gives each its own) are read only for the placement
-  document and stay unowned, like the assembly entities that reference them. `common` keeps what
-  several products share. Each `read_product` therefore parses the product and the truly shared
-  records, not every product's and sub-assembly's contexts (reading every product grew about 3.5
-  times per doubling of the products). Reads are unchanged, and the format stays
-  `quiddity-manifest/2`: the reader version check already refuses a manifest from another
-  haecceity version, and a product read joins `common` and the product's ranges whatever they
-  hold. Code that reads `Manifest::common` directly, as `examples/support/assembly_layout.rs`
-  did, must look in the product ranges for a product's contexts. For #293.
-- `Manifest::read_product` reads its ranges by position on Unix and Windows (`read_at`,
-  `seek_read`), so one `&File` can be shared by threads reading different products. On Unix the
-  `File`'s cursor is neither used nor moved; on Windows `seek_read` moves it, which does no
-  harm because every read is positional. The signature is unchanged. For #293.
 
 ## 0.5.4 (2026-11-16)
 

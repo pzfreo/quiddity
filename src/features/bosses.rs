@@ -87,6 +87,8 @@ fn free_end(lo: End, hi: End, relative_body_origin: Option<f64>) -> (bool, bool)
 pub(super) struct Analysis {
     found: Vec<Occurrence<BossRecord>>,
     midpoints: Vec<V3>,
+    /// Each boss's consulted free-end cap faces, by its defining faces. Not the treatment faces.
+    caps: BTreeMap<Vec<usize>, Vec<usize>>,
 }
 
 struct Treatment {
@@ -239,6 +241,11 @@ pub(crate) fn midpoint(ctx: &Context<'_>, boss: &BossRecord, faces: &[usize]) ->
     )
 }
 
+/// The faces each boss consults as its free-end cap, keyed by the boss's defining faces.
+pub(super) fn caps(ctx: &Context<'_>) -> BTreeMap<Vec<usize>, Vec<usize>> {
+    ctx.boss_analysis().caps.clone()
+}
+
 internal_entry! {
 pub fn discover(ctx: &Context<'_>) -> Vec<Occurrence<BossRecord>> {
     ctx.boss_analysis().found.clone()
@@ -267,6 +274,7 @@ pub(super) fn analyse(ctx: &Context<'_>) -> Analysis {
         }
     }
     let mut midpoints = Vec::new();
+    let mut caps = BTreeMap::new();
     for (seg, treatments) in segments.iter().zip(candidates) {
         let (lo_state, lo_faces) = classify_end(part, seg, seg.s_lo, false);
         let (hi_state, hi_faces) = classify_end(part, seg, seg.s_hi, true);
@@ -298,6 +306,8 @@ pub(super) fn analyse(ctx: &Context<'_>) -> Analysis {
         let d = seg.direction;
         let (mut lo, mut hi) = (seg.s_lo, seg.s_hi);
         let mut treatment_faces = Vec::new();
+        // The plane a free-end round or chamfer meets is that end's cap.
+        let mut treated_caps = Vec::new();
         for treatment in treatments {
             // Ambiguity cannot make one physical span lengthen two bosses.
             if owners[&treatment.face] != 1 {
@@ -305,16 +315,38 @@ pub(super) fn analyse(ctx: &Context<'_>) -> Analysis {
             }
             lo = lo.min(treatment.lo);
             hi = hi.max(treatment.hi);
+            let at_free_end = if from_hi {
+                treatment.lo >= seg.s_hi - COORD_FLOOR
+            } else {
+                treatment.hi <= seg.s_lo + COORD_FLOOR
+            };
+            if at_free_end {
+                treated_caps.extend(treatment.context.iter().copied().filter(|&f| {
+                    !seg.faces.contains(&f)
+                        && matches!(part.faces[f].surface, Surface::Plane { .. })
+                        && super::graph::normal(part, f).is_some_and(|n| {
+                            geom::dot(n, d).abs() >= super::policy::AXIS_ALIGNED_COS
+                        })
+                }));
+            }
             treatment_faces.extend(treatment.context);
         }
         midpoints.push(axis_point_at(seg, (lo + hi) / 2.));
-        treatment_faces.extend(if presentation && free_state == End::Open {
+        let cap = if presentation && free_state == End::Open {
             gauge_faces
         } else if free_state == End::Open {
             free_faces
         } else {
             vec![]
-        });
+        };
+        let mut cap = cap;
+        cap.extend(treated_caps);
+        cap.sort_unstable();
+        cap.dedup();
+        if !cap.is_empty() {
+            caps.insert(seg.faces.clone(), cap.clone());
+        }
+        treatment_faces.extend(cap);
         treatment_faces.sort_unstable();
         treatment_faces.dedup();
         out.push(Occurrence {
@@ -332,5 +364,6 @@ pub(super) fn analyse(ctx: &Context<'_>) -> Analysis {
     Analysis {
         found: out,
         midpoints,
+        caps,
     }
 }

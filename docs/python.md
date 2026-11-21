@@ -25,12 +25,13 @@ with open("part.step", "rb") as stream:
 | `recognise_with_evidence(step: str \| bytes)` | [Shared analysis](shared-analysis.md): complete recognition, evidence and an explicit evidence error from one shared analysis |
 | `evidence(step, framed=False)` | [Evidence/1](evidence.md): family, record, defining/constituent faces, instance groups, hosts, pattern members and rejected candidates |
 | `anchor(step, face: int)` | `{face, point: [x,y,z], uv: [u,v]}` from haecceity's proved trimmed-face anchor, in file coordinates |
+| `anchors(step, faces=None)` | `anchor` for many faces from one parse: a JSON array of `{face, point, uv}` in the order asked (every face in index order when `faces` is omitted; each result equals the single `anchor` call's). A face with no provable point gets `point` and `uv` null and the reason in `refused`; an out-of-range index raises `ValueError` for the whole call. Use it instead of looping over `anchor`, which parses the file on every call |
 | `fingerprints(step)` | The existing fingerprints/3 document |
 | `correspond(old_step, new_step)` | The existing Rust revision correspondence document |
 | `parts(step)` | Exactly `quiddity parts`: each distinct part's index, name, face and edge counts and placements, and the binding, including stdout's trailing newline |
 | `step_entities(step)` | Every DATA instance in file order, as compact JSON `[{id, types, refs}]`: `id` is the `#N`, `types` the upper-case entity name (each leaf of a complex instance, in written order) and `refs` the referenced `#N`s in attribute order, repeats kept |
 | `capabilities()` | Versioned supported formats, inputs, operations and PMI import availability |
-| `__version__` | the package version, e.g. `"0.5.4"` (a Python string) |
+| `__version__` | the package version, e.g. `"0.5.5"` (a Python string) |
 
 Every geometry argument accepts a string path or STEP bytes. A string is always a
 path, never inline STEP text. Path inputs also accept the existing `.step.gz` /
@@ -203,14 +204,21 @@ Build targets from `evidence["features"]`: retain `family`, `index`, `record`,
 `defining_faces` and `constituent_faces`, and resolve indices through a verified
 STEP-to-live-face mapping. Keep pattern aggregates read-only as before. Replace
 the old association report with the recognition document's `face_accounting`;
-feature, body, refused and unexplained are distinct groups. Do not treat
+feature, body, refused, supporting (a boss's unclaimed cap) and unexplained are distinct groups. Do not treat
 unproved/refusal records as permission to edit. Retain the consumer's existing
 valid-solid, plain-through-hole and stale-source checks, then re-export and
 re-recognise after each edit. Use `correspond` for revision matching.
 
+Face index order is a contract: the reader's traversal order, `TopExp::MapShapes` for solids
+(solids in assembly traversal order, each shell's faces as listed: ascending `ADVANCED_FACE` id
+only for files written that way). `face_sources[i].entity` is the cross-check, and the route when
+names are partial. `face_sources[i].instance` is the placed instance (on a single-part multi-solid
+file, the solid index); it never restarts the face index, and a part placed repeatedly repeats its
+entities per instance. See [evidence.md](evidence.md#face-index-order-is-a-contract).
+
 The face-order trial and reproducible procedure are in
-[the trial report](python-face-order.md). Do not assume an exporter version's
-observed ordering is a durable contract. The trial verified a complete geometric bijection using unique anchor membership,
+[the trial report](python-face-order.md). The trial concerns another exporter's (build123d/OCC) face order, which quiddity does not control, so
+verify that mapping on each export. The trial verified a complete geometric bijection using unique anchor membership,
 area and centroid agreement. Apply those checks to each export before issuing
 edit handles. Names can also be joined through `face_sources[face].entity` (and edges through
 `edge_sources[edge].entity`) when

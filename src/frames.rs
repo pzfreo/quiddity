@@ -64,6 +64,9 @@ pub enum FrameRefusal {
     UnmeasuredFace,
     /// The inferred normalisation could not be applied as a finite proper rigid motion.
     NonrigidFrame,
+    /// The frame needs a face the caller's integration budget refused
+    /// ([`crate::RecognitionOptions::integration_budget`]).
+    IntegrationBudget,
 }
 
 impl FrameRefusal {
@@ -75,6 +78,7 @@ impl FrameRefusal {
             FrameRefusal::NonfiniteGeometry => "nonfinite-geometry",
             FrameRefusal::UnmeasuredFace => "unmeasured-face",
             FrameRefusal::NonrigidFrame => "nonrigid-frame",
+            FrameRefusal::IntegrationBudget => "integration-budget",
         }
     }
 }
@@ -261,7 +265,19 @@ fn material_origin(part: &Part) -> Result<V3, FrameRefusal> {
     if part.solids.is_empty() {
         return Err(FrameRefusal::NoMaterial);
     }
-    let (mass, centre) = part.volume_centroid().ok_or(FrameRefusal::UnmeasuredFace)?;
+    let (mass, centre) = part.volume_centroid().ok_or_else(|| {
+        // The volume needs every face of every solid.
+        let refused = part
+            .solids
+            .iter()
+            .flat_map(|solid| &solid.faces)
+            .any(|&face| part.integration_refused(face));
+        if refused {
+            FrameRefusal::IntegrationBudget
+        } else {
+            FrameRefusal::UnmeasuredFace
+        }
+    })?;
     if !mass.is_finite() {
         return Err(FrameRefusal::NonfiniteGeometry);
     }
@@ -310,7 +326,11 @@ pub fn infer_part_frame(part: &Part) -> Result<PartFrame, FrameRefusal> {
         };
         let moments = part
             .face_moments(index)
-            .ok_or(FrameRefusal::UnmeasuredFace)?;
+            .ok_or(if part.integration_refused(index) {
+                FrameRefusal::IntegrationBudget
+            } else {
+                FrameRefusal::UnmeasuredFace
+            })?;
         let (area, centre) = (moments.area, moments.centroid);
         if !area.is_finite() || !centre.iter().all(|c| c.is_finite()) {
             return Err(FrameRefusal::NonfiniteGeometry);

@@ -39,11 +39,13 @@ pub mod serve;
 /// The geometry kernel, [`haecceity`], under the name the recognisers use.
 pub use haecceity as kernel;
 
-pub use correspondence::{Correspondence, Fingerprints, correspond};
-pub use evidence_view::RecognitionEvidence;
+pub use correspondence::{
+    Correspondence, Fingerprints, RecognitionOptions, correspond, fingerprints_with, recognise_with,
+};
 #[cfg(test)]
 #[allow(unused_imports)]
 pub(crate) use evidence_view::build_recognition_evidence;
+pub use evidence_view::{RecognitionEvidence, evidence_with};
 pub use features::angled_steps::AngledStep;
 pub use features::blends::{Blend, BlendPath, CircularBlendPath, StraightBlendPath};
 pub use features::bosses::BossRecord;

@@ -497,9 +497,11 @@ fn ctc05_inside_rounds_and_spherical_corners_are_claimed() {
         assert_eq!(neighbours.len(), 2);
         assert!(neighbours.iter().all(|f| [205, 206, 207].contains(f)));
     }
+    // #307 item 10: interior planes square to the frame's x and y that no record claims are
+    // step levels along those axes (unexplained 30 framed, 20 caller-space, before).
     for (reading, unexplained) in [
-        (quiddity::correspondence::recognise(&part), 30),
-        (quiddity::correspondence::caller_space_recognise(&part), 20),
+        (quiddity::correspondence::recognise(&part), 12),
+        (quiddity::correspondence::caller_space_recognise(&part), 12),
     ] {
         let d = quiddity::recognition::document(&reading, part.faces.len());
         assert!(d.records.iter().any(|r| {
@@ -550,4 +552,20 @@ fn ctc05_inside_rounds_and_spherical_corners_are_claimed() {
             unexplained
         );
     }
+}
+
+#[test]
+fn a_pocket_end_wall_between_two_tighter_corner_rounds_is_no_inside_round() {
+    // cgb242 faces 173 and 185 are R55 pocket end walls (about 2.9 mm across) drawn round a
+    // hub, each tangent to two R3 corner rounds. They are not R55 rounds springing from them.
+    let Some(dir) = common::corpus_dir() else {
+        return;
+    };
+    let part = quiddity::read_step_file(&dir.join("cadgenbench_inputs/cgb242.step.gz")).unwrap();
+    let rounds = fillets::discover_verified(&Context::new(&part), &Default::default()).unwrap();
+    assert!(
+        rounds
+            .iter()
+            .all(|o| !o.defining.contains(&173) && !o.defining.contains(&185))
+    );
 }

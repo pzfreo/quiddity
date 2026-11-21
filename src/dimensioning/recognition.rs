@@ -29,7 +29,7 @@ impl Input {
             .map_err(|r| format!("dimensioning frame: {}", r.as_str()))?;
         let frame = super::levels::planning_frame(inferred);
         let local = part
-            .transformed(&frame.normalisation())
+            .transformed_carrying_integrals(&frame.normalisation())
             .map_err(|e| format!("dimensioning frame transform: {e:?}"))?;
         // Keep the accepted run's constituent faces: pocket floors are consulted evidence,
         // not defining walls, so the public record projection alone cannot assign ownership.

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use quiddity::recognition::{FaceAccounting, RecognitionDocument};
 
-fn check(doc: &RecognitionDocument) -> [usize; 5] {
+fn check(doc: &RecognitionDocument) -> [usize; 6] {
     let groups = doc.face_accounting.as_ref().unwrap();
     assert_eq!(groups.len(), doc.face_count);
     // A nested cone must be claimed while preserving the parent's core face set.
@@ -27,7 +27,7 @@ fn check(doc: &RecognitionDocument) -> [usize; 5] {
             }
         }
     }
-    let mut counts = [0; 5]; // feature, body, refused, unexplained, unclaimed before
+    let mut counts = [0; 6]; // feature, body, refused, unexplained, unclaimed before, supporting
     for (face, group) in groups.iter().enumerate() {
         let records: Vec<_> = doc
             .records
@@ -70,10 +70,20 @@ fn check(doc: &RecognitionDocument) -> [usize; 5] {
                 assert!(records.is_empty());
                 counts[3] += 1;
             }
+            FaceAccounting::Supporting { record_ids } => {
+                // Consulted, never claimed: no record names the face, and each supporter is a boss.
+                assert!(records.is_empty());
+                assert!(!record_ids.is_empty());
+                assert!(record_ids.iter().all(|id| id.starts_with("bosses/")));
+                counts[5] += 1;
+            }
             other => panic!("unknown face accounting group: {other:?}"),
         }
     }
-    assert_eq!(counts[..4].iter().sum::<usize>(), doc.face_count);
+    assert_eq!(
+        counts[..4].iter().sum::<usize>() + counts[5],
+        doc.face_count
+    );
     counts
 }
 
@@ -109,7 +119,7 @@ fn complete_partition_on_all_goldens_and_recorded_corpus() {
             "QUIDDITY_CORPUS required"
         );
     }
-    let mut total = [0; 5];
+    let mut total = [0; 6];
     for path in paths {
         let (part, recognition, _) = quiddity::serve::recognise_step(
             path.to_str().unwrap(),
@@ -220,7 +230,7 @@ fn ctc01_e1_accounting_records_and_main_correspondence() {
     let doc = &output.document;
     assert_eq!(doc.schema_version, "quiddity-rust/recognition/6");
     use quiddity::recognition::BodyReason;
-    assert_eq!(check(doc), [97, 20, 0, 0, 20]);
+    assert_eq!(check(doc), [97, 20, 0, 0, 20, 0]);
     // Main had 90 feature faces; the V-notch flanks (11, 13, 15, 17), the through-notch
     // bottoms (33, 39) and the hexagon boss top (104) are now claimed too.
     let feature_faces = [
@@ -673,4 +683,80 @@ fn an_unmeasurable_face_is_refused_alone() {
     // Open shell: the wall is still reported by name.
     let doc = load("unmeasured_face_open.step");
     refused_face(&doc);
+}
+
+/// Rounded outlines and edge rounds leave no box corner for the box rules (#307): the plate's
+/// top, bottom and outer sides, and a flange's sides, still bound the stock.
+#[test]
+fn rounded_stock_planes_are_body_by_envelope() {
+    use quiddity::recognition::BodyReason;
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    let load = |name: &str| {
+        quiddity::serve::recognise_file(dir.join(name).to_str().unwrap())
+            .unwrap()
+            .0
+            .document
+    };
+    let envelope = FaceAccounting::Body {
+        reason: BodyReason::StockEnvelope,
+    };
+    let doc = load("stock_envelope_plate.step.gz");
+    check(&doc);
+    let groups = doc.face_accounting.as_ref().unwrap();
+    for face in [0, 5, 8, 10, 12, 37] {
+        assert_eq!(groups[face], envelope, "plate face {face}");
+    }
+    let body = groups
+        .iter()
+        .filter(|g| matches!(g, FaceAccounting::Body { .. }))
+        .count();
+    assert_eq!(body, 6);
+    assert!(
+        groups
+            .iter()
+            .all(|g| !matches!(g, FaceAccounting::Unexplained))
+    );
+
+    let doc = load("stock_envelope_housing.step.gz");
+    check(&doc);
+    let groups = doc.face_accounting.as_ref().unwrap();
+    for face in [14, 17, 18, 21] {
+        assert_eq!(groups[face], envelope, "flange side {face}");
+    }
+    // The housing top is a cap inside the flange's envelope, and the fins are not stock. It is
+    // the cap its boss consults without claiming, so it reads `supporting` (was `unexplained`).
+    assert_eq!(
+        groups[23],
+        FaceAccounting::Supporting {
+            record_ids: vec!["bosses/0".into()]
+        }
+    );
+    // Nothing a record claims is moved to body: the rule only adds body to unclaimed faces.
+    let envelope_faces: Vec<_> = (0..groups.len())
+        .filter(|&f| groups[f] == envelope)
+        .collect();
+    assert_eq!(envelope_faces, [14, 17, 18, 21]);
+}
+
+/// A step, pad or rib top is a feature surface: rounding every edge must not turn it into stock
+/// (the platform veto counts the platform's own blends).
+#[test]
+fn rounded_feature_tops_are_not_stock_envelope() {
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    for (name, face) in [
+        ("stock_envelope_step_allround.step.gz", 29),
+        ("stock_envelope_pad_allround.step.gz", 36),
+        ("stock_envelope_rib_allround.step.gz", 12),
+    ] {
+        let doc = quiddity::serve::recognise_file(dir.join(name).to_str().unwrap())
+            .unwrap()
+            .0
+            .document;
+        check(&doc);
+        assert_eq!(
+            doc.face_accounting.as_ref().unwrap()[face],
+            FaceAccounting::Unexplained,
+            "{name} face {face}"
+        );
+    }
 }

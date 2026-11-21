@@ -4,10 +4,17 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 permissions:
   contents: read
+
+# A new push to a pull request supersedes the run on its previous commit. Main pushes and
+# dispatches are never cancelled: each has its own group.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -29,9 +36,17 @@ env:
 # Changed-test costs are estimates, not fresh CI measurements: generic-frame readings
 # halved; rigid-transform 45%, publication 50%, corpus replay 75%, determinism 25%;
 # merged tests reuse the measured motion/quality work plus their small extra assertions.
+# Maintainer decision, 2026-11-20: macOS PR pins run in 2 shards, not 15. Run 44713366290
+# (a PR): each of the 15 macOS shards ran 45-81 s and waited 18-62 minutes for one of the five
+# account runners, so the run took over an hour for ~15 runner-minutes of tests. The same
+# tests in two jobs fit the runner limit at once. shards.py deals by the job total, so
+# every test still runs. Full macOS (main, dispatch, release*) keeps 15 shards.
 # Lint (fmt, clippy, doc-tests) runs alongside each platform's build.
+# Maintainer decision, 2026-11-21: a draft pull request runs only lint (and the DCO check);
+# everything else runs when it is marked ready for review and on later pushes while ready.
 jobs:
   advisories:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -44,6 +59,7 @@ jobs:
   # The library as browser builds use it: no command line, no assembly scan (no tempfile or mmap),
   # for wasm32-unknown-unknown. Draftwright's and Specify's WASM engines depend on this.
   wasm:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -69,9 +85,13 @@ jobs:
       # The toolchain comes from rust-toolchain.toml.
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      # A draft runs fmt and the lints (clippy, feature checks) only; tests wait for ready.
       - run: python3 -m unittest discover -s .github -p 'test_*.py'
+        if: github.event.pull_request.draft != true
       - run: python3 -I tools/as_compare/test_score.py
+        if: github.event.pull_request.draft != true
       - run: python3 -I tools/as_compare/test_score_mfcadpp.py
+        if: github.event.pull_request.draft != true
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --release --locked -- -D warnings
       # Keep optional Fusion coverage on the existing Linux runner, without another archive
@@ -82,7 +102,7 @@ jobs:
       # One serial Linux binary exercises feature-off goldens and removal, without a
       # second matrix, archive or shard build. Reuse this runner's release dependencies.
       - run: cargo test -p haecceity --release --locked --no-default-features --test pmi_write
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && github.event.pull_request.draft != true
       # The library without the command line (and clap), as specify-core's WASM build uses it.
       - run: cargo check -p quiddity --release --locked --no-default-features --features presentation
         if: runner.os == 'Linux'
@@ -90,19 +110,22 @@ jobs:
       # The workspace archive unifies json-import through quiddity-py (including
       # the source-presentation binary); keep this strict NIST gate explicit.
       - run: cargo test -p haecceity --release --locked --features json-import --test pmi_json_roundtrip nist_roundtrip -- --exact
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && github.event.pull_request.draft != true
       # nextest does not run doc-tests.
       - run: cargo test --doc --workspace --release --locked
+        if: github.event.pull_request.draft != true
 
   linux:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     uses: ./.github/workflows/suite.yml
     with:
       os: ubuntu-latest
       shards: "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]"
 
   macos:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     uses: ./.github/workflows/suite.yml
     with:
       os: macos-latest
       tier: ${{ github.event_name == 'pull_request' && !startsWith(github.head_ref, 'release') && 'macos-pr' || 'ci' }}
-      shards: "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]"
+      shards: ${{ github.event_name == 'pull_request' && !startsWith(github.head_ref, 'release') && '[1, 2]' || '[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]' }}

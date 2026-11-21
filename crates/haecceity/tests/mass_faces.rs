@@ -561,3 +561,34 @@ fn truck_master_shaft_has_outward_mass_and_exact_caps() {
     ];
     assert!(geom::dist(c, occt_c) > 1e-6 * geom::dist(part.bounds().min, part.bounds().max));
 }
+
+/// Face moments and the solid's volume and centroid share one integration per face; neither
+/// depends on which is asked first, and both keep the values the two separate integrations
+/// gave (pinned from before they were shared, to round-off).
+#[test]
+fn face_moments_and_volume_centroid_share_one_integration() {
+    let path = common::fixtures().join("ap242/nist/nist_stc_10_asme1_ap242-e2.stp.gz");
+    let fresh = || read_step_file(&path).unwrap();
+    let moments_first = fresh();
+    let all: Vec<_> = (0..moments_first.faces.len())
+        .map(|f| moments_first.face_moments(f))
+        .collect();
+    let centroid_first = fresh();
+    let (volume, centre) = centroid_first.volume_centroid().unwrap();
+    assert_eq!(moments_first.volume_centroid(), Some((volume, centre)));
+    for (face, want) in all.iter().enumerate() {
+        assert_eq!(centroid_first.face_moments(face), *want, "face {face}");
+    }
+    let close = |a: f64, b: f64| (a - b).abs() <= 1e-12 * b.abs().max(1.0);
+    assert!(close(volume, 188312.77072775364));
+    for (a, b) in centre
+        .iter()
+        .zip([84.00764760460824, 14.608745222541721, 37.4990086816463])
+    {
+        assert!(close(*a, b), "{centre:?}");
+    }
+    let m = all[0].unwrap();
+    assert!(close(m.area, 908.0473234821043));
+    assert!(close(m.centroid[1], 15.946107488877757));
+    assert!(close(m.second_moments[2][2], 392675.6831400961));
+}

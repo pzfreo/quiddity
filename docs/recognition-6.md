@@ -44,11 +44,48 @@ same published height direction. `open_sign`, `depth_sign`, pad direction
 and gusset support-side signs refer to their published directions. Empty position arrays
 remain empty. Nested levels and pattern members use the same decoding rules independently.
 An unconverted record without `origin` retains the existing absolute file-coordinate rules.
+
 Flat `axis_line` gives the two coordinates along `section_axes`. Start at
 `q = origin + axis_line[0] * section_axes[0] + axis_line[1] * section_axes[1]`, then move
 along `axis` until `dot(q - origin, axis_direction) = 0`. This also handles a stock cylinder
 slightly inclined to its principal measuring axis. The resulting point lies on the stock axis.
 Flat `stock_span` already uses `axis_direction` from the file origin and retains that rule.
+
+### Levels and risers along every frame axis (for #307 item 10)
+
+`step_levels` and `risers` are read along each axis of the recognition frame: its z first, then
+its x, then its y, appended in that order. A plane is a level along the one frame axis its normal
+lies along, so a face is in at most one level. Along every axis, z included, the same rules apply:
+a level's face is flat along the axis (its extent along it at most the 0.5 level band, so a
+drafted or sloping face within the 8° alignment tolerance is no level), its faces cover at least
+1% of the body's cross-section across that axis, and it lies strictly inside the body's extent
+along it by the end margin (0.6, at most a quarter of the extent); risers use the same area
+floors and tolerance. No level on any axis is read from a `repeating_radial_profiles` record's
+faces (fin and rib sides are walls, not heights); z risers drop such a level from `body_levels`.
+For a reader of z levels (draftwright), the flatness rule is a change: a z level that included a
+drafted or sloping face is no longer published, or is published without that face (and with
+the height and spans of its flat faces), and z risers' `body_levels` follow.
+
+Along the frame's x and y a level or riser is a miss rather than a second description: none is
+published when any of its faces is claimed by another family, named by a refusal, explained as
+`body`, or already a z level or z riser face. Nor is a level one of whose faces is a slot or
+pocket wall: another flat plane of the body faces it, anti-parallel, from its outward side, less
+than the body's extent away; their boxes across the axis overlap by at least half of each; the
+gap is shorter than that overlap's longer side; and nine points spaced along the gap through the
+overlap's centre all classify outside the body. Risers along x or y are read only where their
+body has a level on that axis, never from a level's face, and not from a face that would be a
+riser along both x and y (which axis it rises along is ambiguous).
+
+What changes for a reader that assumed one height axis: a record along the frame's x or y always
+carries `height_axis` (with `origin`; levels also `x_axis` and `y_axis`), even where the frame's
+z is the file's. Then `z` is the height along `height_axis`, not file Z; `x_span` and `y_span` are
+extents along `x_axis` and `y_axis`, the two axes across it in cyclic frame order (y then z for an
+x level, z then x for a y level), not file X and Y. A riser's `z_lo`/`z_hi`, `vertical` and
+`lo_at_envelope`/`hi_at_envelope` refer to its `height_axis`, its `axis`/`other_axis` may name
+file Z, and its `body_levels` are levels along the same axis. A record without `height_axis`
+keeps its existing meaning. A reader that ignores `height_axis` misplaces these records, so it
+should skip records whose `height_axis` it does not handle. Without an inferred frame, records are
+unconverted: `height_axis` is a file letter and the spans follow the same cyclic file order.
 
 A converted `body_key` becomes `{origin, axes, bounds, volume, area}`. `axes` is an ordered
 three-direction basis; `bounds` is three `[lo,hi]` distance intervals from this origin.
@@ -222,6 +259,13 @@ reference described below (#206). See [face accounting](face-accounting.md) for
 ownership precedence and the distinction between discovery evidence and
 completed claims.
 
+`face_accounting` has a fifth group within recognition/6, an additive JSON value:
+`{"group":"supporting","record_ids":["bosses/3"]}`. A face that no record claims but that a
+round boss's evidence consults as its cap reads `supporting` with the boss records that
+consult it, in place of `unexplained`. Precedence is feature, refused, body, supporting,
+unexplained. No record, claim, fingerprint or evidence status changes. Consumers that
+reject unknown groups must accept it ([face accounting](face-accounting.md#supporting)).
+
 ## Slot precision correction (for #92)
 
 The plain recess recogniser retains its legacy two-decimal positions, for stable
@@ -271,6 +315,40 @@ A rim may contain several circular edges, but their centres/radii must agree and
 actual angular intervals must cover a complete turn. Counting overlapping arc lengths
 as a full rim is refused. The cylindrical walls must still each be complete; every floor
 piece is retained in the defining claim and strict ownership proof.
+
+## Round-bottomed grooves (for #307)
+
+The optional `round_grooves` family publishes one `RoundGroove` per annular groove whose
+bottom is a torus: an O-ring gland or a ball groove cut with one torus. It is additive within
+`quiddity-rust/recognition/6` and omitted when empty. No nominal O-ring size, ball size or
+function is inferred. Rectangular-section recesses stay `annular_grooves` or `face_grooves`,
+and radial grooves with a cylindrical floor stay `grooves`.
+
+Fields: `host` (`bore`, `shaft` or `face`), `axis` (the torus axis; for `face` it points from
+the groove bottom out of the face), `center` (the torus centre on the axis), `ring_diameter`
+(the circle through the section centres), `bottom_radius` (the section radius), `width`
+(across the mouth, where the torus meets the host: along the axis for a bore or shaft,
+radially for a face), `depth` (host surface to the deepest point), optional `host_diameter`
+(the bore or shaft diameter beside the groove; absent for `face`), `faces` (the torus faces,
+the whole defining claim) and `host_faces` (the lands, consulted only).
+
+The torus faces sharing one torus surface must close into exactly two complete circular rims
+coaxial with it. Each rim must meet one land through a convex crease: either two coaxial
+cylinders of equal radius that are both bore walls (`bore`) or both shaft surfaces (`shaft`),
+or two coplanar planar faces square to the axis (`face`). A tangent rim (a fillet), a concave
+crease (a bead), unequal lands, a mixed cylinder and plane, a spindle torus, or a torus face
+range that omits the deepest point toward the groove (the host side) is refused. The bore or
+shaft groove must be deeper than the host by more than the length tolerance. The torus and
+lands need strict evidence on one valid solid. An undercut groove (centre circle beyond the
+host surface) reports its mouth width, not its widest chord.
+
+Publication follows `face_grooves`: after the other families, a torus face with another
+accepted claim or a reserved refusal is left alone. The exception is an unproved
+`interior_voids` refusal whose face set equals the groove's torus faces exactly (a subset or a superset suppresses it; the widening
+behind a throat that the groove explains); that refusal is kept. Because only the torus faces
+are claimed, a bore with such a groove reads the same whether its lands form one hole record
+or two. Fingerprint format 3 uses `ring_diameter`, `bottom_radius`, `width`, `depth` and
+`host_diameter` as sizes, `axis` as direction and `center` as placement.
 
 ## Additive duplicate references (#204, #206)
 
@@ -501,6 +579,15 @@ consulted, after reconciliation: a plane facing along the boss axis at the recor
 `top`, lying within the side ring's transverse extent. A support face or any wider face the
 ring ends on is not claimed. Feature selection and record fields are unchanged; the boss's
 fingerprint `faces`, area-weighted `position` and `neighbourhood` change within format 3.
+
+## Turned fillets (`turned: true`)
+
+A `Fillet` with `turned: true` is a toroidal round: its `axis` is the torus's axis of
+revolution, not the direction the round runs along, and `radius` is the torus's minor radius.
+It does not mean a lathe feature. Besides rounds on turned bodies and bosses, it covers a convex
+round that follows a concave cylindrical wall of at most a half turn meeting a plane wall along
+its axis: a slot's or arc wall's rounded end, or the top round turning round an inside-corner
+round on a prismatic part (#307 item 7). A whole bore's mouth ring stays a `blends` record.
 
 ## Straight convex fillets (for #120)
 
@@ -892,6 +979,46 @@ record parameters. Draftwright can use `free_length` and `outer_diameter` for it
 simplified view dimensions, and the remaining measurements for its spring data
 table, retaining unknown active coils and omitting unstated rate.
 
+## Bores running out into a curved wall (#307)
+
+A bore that ends by opening into a curved face, such as a tunnel, can leave slivers of
+plane at the rim where its end disc cuts the wall's edge. Such a sliver is not a floor.
+When a curved wall also borders an internal bore's end, planar supports are set aside only
+if BOTH no plane face lies under the bore axis at that end (the axis point there is air past
+the end) AND the plane faces together cover less than half of the bore's section (sampled
+with 1024 equal-area points). Then the curved wall reads the end as open: the bore is
+`through` with no floor face claimed. Either condition alone keeps the floor, so a thin
+passage crossing the axis under a floor, or a strip of floor left across the axis, does not
+turn a blind hole into a through hole. A floor with a smaller hole continuing from it has no
+curved wall at its rim and stays flat. Measured on the synthetic models (axis covered?, floor
+coverage): tunnel crescent 15%, axis open: through; R10 tunnel removing the floor under the
+axis 30%, open: through; R6 central slot 45%, open: through; R3 cross hole under the floor 72%,
+open: flat; two-passage strips 26% and 38%, axis covered: flat.
+A bore whose exit edge is too long to
+be read as an end at all stays `unknown`.
+
+## Bores with an internal groove (#307)
+
+Two coaxial internal cylinders of the same diameter are one bore when only an internal
+groove separates them: the faces reachable from the first land's end without crossing a land
+are at most four, include the second land's end partner, and lie wholly at or beyond the
+bore radius from the axis with some point beyond it. A slot or thin wall open to the outside
+connects on to the outer wall and is not such a set. The gap and the radial reach must each
+be at most a quarter of the bore diameter (that limit decides torus and cone grooves; a
+rectangular groove already joins through its own coaxial cylinder at any width). A web or
+ridge (material inside the bore diameter) or a different diameter keeps the lands separate
+holes.
+
+A toroidal face between two cylinders, wholly beyond the bore radius, whose major radius is
+under the bore radius (which used to read the end as a closing round) is set aside: it says
+nothing about the end. It is excluded where it borders a plane or a cone, as a round at a mouth
+or floor does. An end bordered only by such a groove is `unknown` rather than `flat`. A torus
+with a major radius at or over the bore radius already read the end as open and is unchanged.
+The groove faces remain unexplained until they have a record of their own.
+
+Known miss: a wide torus or cone gallery (over a quarter of the diameter) leaves the two
+lands as separate holes.
+
 ## Partially obstructed through-hole exits
 
 A bore spanning its local wall, with exterior planar rim support at both axial ends,
@@ -1256,6 +1383,89 @@ across revisions, just as a `None`→`Some` corner-radius proof does. This chang
 does not introduce a correspondence heuristic or alter other feature ranks.
 
 
+## Integration budget (For #307 item 3)
+
+A caller may bound the work any one face's integration takes: Rust
+`RecognitionOptions { integration_budget: Some(n) }` with `recognise_with`, `evidence_with`
+or `fingerprints_with`; `--integration-budget N` on `quiddity <file>`, `quiddity evidence`,
+`quiddity fingerprints` and the manifest `quiddity recognise`; an optional
+`"integration_budget": N` in `quiddity serve`'s `recognise` request; `integration_budget=N` on
+Python `recognise`, `evidence` and `fingerprints`. `quiddity fingerprints` of a JSON document
+refuses a budget (those fingerprints were made already). The default (`None`) leaves every
+output byte-identical. Cancellation is not offered.
+
+**Work unit.** One integrand evaluation (the surface's point and first partials at one
+quadrature node) inside a face's area and moment integration, the one `Part::face_moments`,
+`Part::face_mass` and `Part::volume_centroid` share, including the cheaper along-v trials and
+the explicit-trim recovery. Before recognition every face is integrated once, on a fresh copy
+of the part in the file's placement, with its own counter (`Part::with_integration_budget`).
+The count depends only on that face's geometry: not on face order, threads or the clock.
+When a face's count passes the limit, the evaluation returns a "budget spent" signal that
+every integrator passes straight back (no unwinding, so `panic = "abort"` builds behave the
+same), and the face's integration stops there; the whole pass is bounded by the limit times
+the face count. The verdict is made once; the part's frame-normalised copy carries it.
+Integrals of accepted faces stay cached; later caller-specific integrals of accepted faces
+(projected moments) are not metered.
+
+**Refused faces** use #304's mechanism for unmeasured faces: one
+`IntegrationBudgetRefusal {reason: "integration_budget", faces: [face]}` per face in the optional
+family `integration_budget_refusals`, the face `refused` in `face_accounting`, records that
+define the face dropped (and in `blends` and `helical_springs` those that consult it), other
+records kept. A family that reads a refused face's area or moments where it has no fallback
+finds nothing there (a miss, never a guessed value).
+
+**Any refused face refuses the part frame.** The frame's origin is the volume centroid, which
+integrates every face of every solid, so one refused face of a solid refuses the frame
+(`integration-budget`) and every record is in file coordinates, placement-dependent as for any
+refused frame. The document (and the evidence document) gains `budget: {limit,
+refused_faces, count, frame_refused}` only when a budget was set: `count` is the number of
+refused faces, and `frame_refused: true` (absent otherwise) says the frame was refused for
+them. Schema `/6` is unchanged.
+
+**Calibration** (Apple M5 Max, `sysctl -n machdep.cpu.brand_string`; one thread; counted
+instructions, not wall-clock). Integrating every face of text-to-cad's gearbox casing (270
+faces, 67 B-spline) takes 74.26M work units and 212.9G instructions beyond parsing, an
+average of about 2,870 instructions (700 cycles) per unit, about 5.5M units per second at this
+core's measured 3.9 GHz. **Units are not uniform in cost**; the average is dominated by
+B-spline faces. Measured one face at a time (instructions beyond reading the part and its
+first integration's shared setup): face 41 (B-spline, 26.81M units) about 3,070 instructions
+per unit; face 45 (B-spline, 6.55M) about 3,340; face 1 (plane, 0.20M) about 580; face 244
+(cylinder, 0.18M) about 280. So a budget converts to time only roughly: for B-spline faces 1M
+units is about 0.2 s, 5M about 1 s, 20M about 4 s; analytic faces cost five to ten times less
+per unit.
+
+**Worked example: the gearbox casing.** Unbounded, its costliest faces (all B-spline) take
+26.81M work units (face 41), 6.55M (45), 6.10M (2), 3.07M (0), 2.97M (49), 1.87M (264), 1.86M
+(3), 1.84M (267), 1.15M (258); every other face takes under 0.7M. Without a budget recognition
+retires 697G instructions: frame inferred; 67 `freeform_surfaces`, 30 `bosses`, 2 `holes`
+(d56 and d52, blind, flat, depth 126), 2 `interior_voids` (refusals, reason
+`widening_behind_throat_unproved`, accounting faces 55, 78, 82, 98, 195 and 196 `refused`), 2
+`step_levels`, 1 `cylindrical_profiles`; accounting 114 feature, 150 unexplained, 6 refused.
+
+| Budget | Refused faces | Instructions | Records that change | Accounting (feature / unexplained / refused) |
+|---|---|---|---|---|
+| none | none | 697G | (frame inferred) | 114 / 150 / 6 |
+| 20M | 41 | 254G | frame refused; 66 freeform surfaces | 113 / 150 / 7 |
+| 5M | 2, 41, 45 | 201G | frame refused; 64 freeform surfaces | 111 / 150 / 9 |
+| 1M | 0, 2, 3, 41, 45, 49, 258, 264, 267 | 136G | frame refused; 58 freeform surfaces; no interior voids | 105 / 156 / 9 |
+
+Every budgeted run refuses the frame (`frame_refused: true`), and its records are in file
+coordinates; the two holes, 30 bosses, 2 step levels and the cylindrical profile are
+unchanged. Most of the drop in instructions comes from the refused frame, not from the
+refused faces: without a frame, recognition runs on the measured copy itself and reuses its
+integrals, where an inferred frame integrates every face twice (once in the file's placement
+for the frame, again on the frame-normalised copy, about 213G instructions each on this part).
+Face 41 alone is 26.8M units (about 82G instructions) of the 74.3M units in one pass. At 1M the two `interior_voids` refusals are no longer
+produced, so faces 55, 78, 82, 98, 195 and 196, which they accounted `refused`, become
+`unexplained` (150 + 6 = 156). The records' own faces include no refused face, so the
+defining-face rule does not drop them: the void analysis no longer forms the candidates. To
+grow a cavity's skin it asks, for each face bordering it, whether a probe from just outside
+escapes (`escapes` in `src/features/interior_voids.rs`), which needs that face's area for its
+probe offset, and an unknown answer abandons the region. Refusing face 49 is what removes
+them: with a budget of 3.0M (faces 0, 2, 41, 45 refused) both refusals remain; with 2.9M (49
+refused as well) neither does; that face 49 reaches the analysis through `escapes` is read
+from the code, not traced.
+
 ## Circular blind steps with conical entries
 
 A native flared quarter-cone can establish the opening of a circular blind step.
@@ -1404,3 +1614,91 @@ cone face `[1]`, so the cone is explained without shifting the hole's anchor to 
 No standalone feature is added, and existing hole, pattern and chamfer IDs and
 fingerprints stay unchanged. Consumers can select the nested cone faces for a
 chamfer note while preserving the cylinder as the saved feature reference.
+
+## Tapers and V-grooves (#307 item 6)
+
+The optional `tapers` and `v_grooves` families read the meridian profile that `turned_bodies`
+publishes; the profile itself is unchanged and both families are appended after every other
+family, so no existing record changes. Each record names the `turned_bodies` record it comes
+from by index (`turned_body`), lists its defining cone faces (`faces`) and co-owns them with the
+body. A cone face that any other record defines (a chamfer, countersink, a hole's drill point, a
+thread) is left to that record, and a V-groove claims only its flanks and tiny bottom, never the
+land faces on either side, which stay with their holes or bosses.
+
+A cone counts only when it runs a whole turn (two closed circular rims, any other edge a seam),
+is not flat or cylindrical, and its small end is off the axis (a drill point ends in the axis).
+
+**Taper** (`Taper`: `axis`, `axis_point`, `side`, `large_diameter`, `small_diameter`, `length`,
+`included_angle`, `turned_body`, `faces`). One profile cone whose two ends meet exactly one
+coaxial cylinder of the same side or one plane each. `length` is axial and `included_angle` the full
+cone angle in degrees. `axis` runs from the large end to the small end and `axis_point` is the large
+circle's centre. The included angle is strictly below 90 degrees: a cone of 90 and up is a profile transition, a web, a chamfer or a seat,
+not a taper (a 127 degree conical web between two flange planes, or a 100 degree frustum, publish no taper; the
+78.2 degree d24 to d50 shank over 16 mm is one). A cone between two end planes is a taper only under this bound,
+which is what makes it safe. Whatever a cone joins (cylinder, plane or both), it is an edge break and no
+taper when its legs are equal (45 degrees, as `chamfers` reads it) or its larger leg is under a tenth of
+its larger diameter (a 0.5 mm 45 degree step between a d20 and a d21 bore is not a taper). An internal
+cone against a plane must also be as slender as a socket taper (included angle at most 30 degrees),
+which leaves countersinks and truncated drill points alone. A taper socket or chamber that `holes`
+and `countersinks` already define as a hole's cone stays theirs; a through taper-pin hole, which no
+hole record claims, is an internal taper. A cone that leads down to a cylindrical
+floor that rises again (the flank of a groove) is refused, which also leaves a taper that ends in a
+neck and then a shoulder unpublished. Cones next to cones, tori or spheres (rounded or compound
+transitions), split cones and cones on an axis the body does not share are not published.
+
+**V-groove** (`VGroove`: `axis`, `axis_point`, `side`, `width`, `depth`, `included_angle`,
+`mouth_diameter`, `bottom_diameter`, `turned_body`, `faces`). Two whole cones of one side that
+descend to a common bottom, either as a sharp circle or through one cylinder or torus whose axial
+span is at most a tenth of the groove width, with each flank's outer rim on a land cylinder of
+the same side and the two rims of equal radius (within 0.002 mm). `width` is the axial distance
+between the rims, `depth` the radial distance from rim to the deepest circle (a round's deepest
+point is its tube circle's), and `included_angle` the angle between the two flanks, between 20 and
+140 degrees. `axis` is the turning axis with a positive dominant component (made canonical again in framed
+output, since a groove is symmetric; a taper's `axis` stays large end to small end) and `axis_point` the
+mouth's centre. Flanks with a wider flat (a trapezoid), a peak (a ridge), unequal rims, a
+plane or cone at a rim, or round-bottomed grooves of any size are not V-grooves; a groove
+that is only the sum of two cones that other records define is left to them. A groove whose flat or round
+bottom is already read as `grooves` with `chamfers` (a flat of a few hundredths, for example) keeps
+those records, and gets no V-groove record: its faces are claimed. Round-bottomed
+grooves are a separate matter (item 5).
+
+Fingerprint format 3 takes the diameters, length, width, depth and angles as sizes, `side` as a
+trait and `axis`/`axis_point` as placement; indices are ignored.
+
+## Radial fins as repeating radial profiles (#307 item 10)
+
+`repeating_radial_profiles` (a profile of at least five identical sectors about one axis, no
+gear semantics) is read from the outer wire of an extremal principal plane face and the same
+wire on the opposite extremal face. It also reads a profile whose two ends are *interior*
+levels, a finned barrel whose fins stop short of both ends, with the same record
+(`axis`, `centre`, `span`, `repeat_count`, `edge_count`, `sector_signature`; nothing is added).
+The record is the same as the one a barrel with full-length fins gives; `span` is the profile's
+own extent between its two levels.
+
+A profile of this second kind is accepted only when all of this holds, on one solid:
+
+- At each end, five or more *caps*: planar faces square to the axis at an interior level, one
+  loop of straight edges (two or more) and arcs of one circle, a whole turn or less each, every
+  arc bordering the same cylindrical face (the host, on that axis, of the circle's radius). The
+  outward normals along the axis are negative at the lower level and positive at the upper:
+  the profile stands on the host, it is not cut into it.
+- Each cap's two ends on the host circle are less than a half turn apart. The caps' straight
+  edges, with the arcs of the host circle between consecutive caps, form one closed wire, and
+  that wire meets the extremal-face rule unchanged: every edge in a bijective orbit of one
+  sector rotation about the host axis, the largest repeat count of at least five, one sector
+  inventory.
+- The two ends correspond one to one (axis, centre, host radius, repeat count, edge count and
+  sector inventory), and every straight edge of every cap is shared with exactly one other
+  planar face parallel to the axis, the caps at the two ends reaching the same set of such faces
+  (the profile is one straight extrusion between its levels).
+
+The record's faces are the caps at both levels and those swept faces (for 64 box fins: 128
+caps, 128 sides and 64 tips). The host cylinder, rear walls, sleeves, standoffs and flanges
+are never claimed. A single rib, a few unequal walls, fins off their pitch and notches cut
+into a wall (their caps face the other way) give no record.
+
+Two identical fin bands on one tube give no record (each lower level matches two upper levels). The path claims every fin face (cap, side, tip), where the end-face path claims only the two end faces, so the same fins are counted differently by whether they reach the part's ends.
+
+A `pads` record whose five faces all belong to one repeating radial profile is that profile's
+member (a fin of the array on an axis) and is not published as a pad: four of a housing's 64
+fins used to be reported as pads. A pad on a part with no such profile is unchanged.

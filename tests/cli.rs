@@ -56,7 +56,11 @@ fn help_prints_usage_and_succeeds() {
         let out = quiddity(&[flag]);
         assert!(out.status.success(), "{flag}");
         let usage = String::from_utf8_lossy(&out.stdout);
-        assert!(usage.contains("Usage: quiddity [FILE.STEP]"), "{usage}");
+        // `[OPTIONS]`: `--integration-budget N` (#307 item 3).
+        assert!(
+            usage.contains("Usage: quiddity [OPTIONS] [FILE.STEP]"),
+            "{usage}"
+        );
         for command in [
             "correspond",
             "evidence",
