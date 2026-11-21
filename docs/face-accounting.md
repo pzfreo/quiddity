@@ -21,14 +21,17 @@ fingerprints or evidence status. Precedence is:
 
 A round boss's evidence consults its free-end cap: the plane or face beyond the boss's free
 end (both ends when the boss stands free of any body), and the plane a free-end round or
-chamfer meets when that plane is perpendicular to the boss axis. Only that cap counts, not
+chamfer meets when that plane is perpendicular to the boss axis (the round's plane is read at
+the boss's top end only). Only that cap counts, not
 the faces of the end round or chamfer themselves, and only for `bosses`. A cap that no record
 claims reads `supporting`, naming each boss that consults it, instead of `unexplained`. A
 cap that a record claims (a step level, a plate, a fillet) stays a feature, and body evidence
 outranks `supporting`. A chamfer whose evidence does not consult the plane it meets leaves
 that plane `unexplained`. Faces in `supporting` still need a reader's judgement exactly as
 `unexplained` ones did: the group says why the face is not a gap in recognition, not that
-anything describes it. Rust callers match `FaceAccounting::Supporting { record_ids }`;
+anything describes it. The group is not exclusive: a `supporting` face names the records
+that consult it, and may also border other features (a hole drilled into a boss's top, or
+another boss standing on it). Rust callers match `FaceAccounting::Supporting { record_ids }`;
 the enum is `#[non_exhaustive]`.
 
 A face whose geometry resolved but whose area and centroid `haecceity` cannot compute
