@@ -151,3 +151,75 @@ fn slot_walls_are_no_level() {
         assert!(!faces.contains(&f), "slot wall {f} is a level");
     }
 }
+
+/// Step levels and risers in `quiddity evidence` are the recognition document's, part by part
+/// over the corpus: framed evidence against the published (framed) document, file-coordinate
+/// evidence against the caller-space recognition of the same part.
+#[test]
+fn evidence_step_levels_and_risers_match_the_documents() {
+    let Some(dir) = common::corpus_dir() else {
+        assert!(
+            std::env::var_os("QUIDDITY_CORPUS_REQUIRED").is_none(),
+            "QUIDDITY_CORPUS_REQUIRED is set but the corpus was not found"
+        );
+        return;
+    };
+    let files: Vec<String> = common::load("corpus.json")["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["file"].as_str().unwrap().to_string())
+        .collect();
+    let sorted = |mut faces: Vec<Vec<usize>>| {
+        for f in &mut faces {
+            f.sort_unstable();
+        }
+        faces.sort();
+        faces
+    };
+    let differ = common::parallel::map(&files, |file| {
+        let p = quiddity::read_step_file(&dir.join(file)).unwrap();
+        let mut differ = Vec::new();
+        for framed in [true, false] {
+            let recognition = if framed {
+                quiddity::correspondence::recognise(&p)
+            } else {
+                quiddity::correspondence::caller_space_recognise(&p)
+            };
+            let document = quiddity::recognition::document(&recognition, p.faces.len());
+            let evidence = quiddity::evidence_view::document(&p, framed).unwrap();
+            for family in ["step_levels", "risers"] {
+                let published = sorted(
+                    document
+                        .records
+                        .iter()
+                        .filter(|r| r.family == family)
+                        .map(|r| r.faces.clone())
+                        .collect(),
+                );
+                let found = sorted(
+                    evidence
+                        .features
+                        .iter()
+                        .filter(|f| f.family == family)
+                        .map(|f| f.defining_faces.clone())
+                        .collect(),
+                );
+                if found != published {
+                    differ.push(format!("{file} {family} framed {framed}"));
+                }
+            }
+        }
+        differ
+    });
+    let differ: Vec<String> = differ.into_iter().flatten().collect();
+    let parts: std::collections::BTreeSet<&str> = differ
+        .iter()
+        .map(|d| d.split(' ').next().unwrap())
+        .collect();
+    assert!(
+        differ.is_empty(),
+        "{} parts differ: {differ:?}",
+        parts.len()
+    );
+}

@@ -272,3 +272,41 @@ fn a_rounded_boss_on_a_block_reads_its_unclaimed_top_as_supporting() {
             .all(|g| !matches!(g, FaceAccounting::Unexplained))
     );
 }
+
+/// `quiddity evidence`, framed and in file coordinates, reports the housing's step levels and
+/// risers on the faces the recognition document publishes: the three levels along the barrel's
+/// axis, none on the fin sides or fin ends.
+#[test]
+fn housing_evidence_lists_the_published_step_levels() {
+    let p = part("radial_fin_housing.step.gz");
+    let recognition = quiddity::correspondence::recognise(&p);
+    let document = quiddity::recognition::document(&recognition, p.faces.len());
+    let published = |family: &str| -> Vec<Vec<usize>> {
+        let mut found: Vec<Vec<usize>> = document
+            .records
+            .iter()
+            .filter(|r| r.family == family)
+            .map(|r| {
+                let mut faces = r.faces.clone();
+                faces.sort_unstable();
+                faces
+            })
+            .collect();
+        found.sort();
+        found
+    };
+    assert_eq!(published("step_levels").len(), 3);
+    for framed in [true, false] {
+        let evidence = quiddity::evidence_view::document(&p, framed).unwrap();
+        for family in ["step_levels", "risers"] {
+            let mut found: Vec<Vec<usize>> = evidence
+                .features
+                .iter()
+                .filter(|f| f.family == family)
+                .map(|f| f.defining_faces.clone())
+                .collect();
+            found.sort();
+            assert_eq!(found, published(family), "{family}, framed {framed}");
+        }
+    }
+}
