@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'crates/quiddity-py/**'
       - 'tests/python/**'
@@ -29,6 +30,7 @@ permissions:
 
 jobs:
   wheels:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     strategy:
       fail-fast: false
       # Pull requests skip the macOS wheels: the account shares five macOS runners, and
@@ -63,6 +65,7 @@ jobs:
           if-no-files-found: error
 
   sdist:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6

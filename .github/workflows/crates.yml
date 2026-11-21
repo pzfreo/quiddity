@@ -2,6 +2,7 @@ name: crates.io
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'src/**'
       - 'crates/haecceity/**'
@@ -40,7 +41,7 @@ jobs:
   # Packages both crates as crates.io would build them, with quiddity resolving the haecceity
   # being packaged beside it, so a packaging break shows before a release.
   package:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -50,7 +51,7 @@ jobs:
       - run: cargo publish --dry-run --locked -p haecceity -p quiddity
 
   semver:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

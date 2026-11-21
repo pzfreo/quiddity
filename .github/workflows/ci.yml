@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 permissions:
@@ -41,8 +42,11 @@ env:
 # tests in two jobs fit the runner limit at once. shards.py deals by the job total, so
 # every test still runs. Full macOS (main, dispatch, release*) keeps 15 shards.
 # Lint (fmt, clippy, doc-tests) runs alongside each platform's build.
+# Maintainer decision, 2026-11-21: a draft pull request runs only lint (and the DCO check);
+# everything else runs when it is marked ready for review and on later pushes while ready.
 jobs:
   advisories:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -55,6 +59,7 @@ jobs:
   # The library as browser builds use it: no command line, no assembly scan (no tempfile or mmap),
   # for wasm32-unknown-unknown. Draftwright's and Specify's WASM engines depend on this.
   wasm:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -106,12 +111,14 @@ jobs:
       - run: cargo test --doc --workspace --release --locked
 
   linux:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     uses: ./.github/workflows/suite.yml
     with:
       os: ubuntu-latest
       shards: "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]"
 
   macos:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     uses: ./.github/workflows/suite.yml
     with:
       os: macos-latest
