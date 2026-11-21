@@ -44,11 +44,48 @@ same published height direction. `open_sign`, `depth_sign`, pad direction
 and gusset support-side signs refer to their published directions. Empty position arrays
 remain empty. Nested levels and pattern members use the same decoding rules independently.
 An unconverted record without `origin` retains the existing absolute file-coordinate rules.
+
 Flat `axis_line` gives the two coordinates along `section_axes`. Start at
 `q = origin + axis_line[0] * section_axes[0] + axis_line[1] * section_axes[1]`, then move
 along `axis` until `dot(q - origin, axis_direction) = 0`. This also handles a stock cylinder
 slightly inclined to its principal measuring axis. The resulting point lies on the stock axis.
 Flat `stock_span` already uses `axis_direction` from the file origin and retains that rule.
+
+### Levels and risers along every frame axis (for #307 item 10)
+
+`step_levels` and `risers` are read along each axis of the recognition frame: its z first, then
+its x, then its y, appended in that order. A plane is a level along the one frame axis its normal
+lies along, so a face is in at most one level. Along every axis, z included, the same rules apply:
+a level's face is flat along the axis (its extent along it at most the 0.5 level band, so a
+drafted or sloping face within the 8° alignment tolerance is no level), its faces cover at least
+1% of the body's cross-section across that axis, and it lies strictly inside the body's extent
+along it by the end margin (0.6, at most a quarter of the extent); risers use the same area
+floors and tolerance. No level on any axis is read from a `repeating_radial_profiles` record's
+faces (fin and rib sides are walls, not heights); z risers drop such a level from `body_levels`.
+For a reader of z levels (draftwright), the flatness rule is a change: a z level that included a
+drafted or sloping face is no longer published, or is published without that face (and with
+the height and spans of its flat faces), and z risers' `body_levels` follow.
+
+Along the frame's x and y a level or riser is a miss rather than a second description: none is
+published when any of its faces is claimed by another family, named by a refusal, explained as
+`body`, or already a z level or z riser face. Nor is a level one of whose faces is a slot or
+pocket wall: another flat plane of the body faces it, anti-parallel, from its outward side, less
+than the body's extent away; their boxes across the axis overlap by at least half of each; the
+gap is shorter than that overlap's longer side; and nine points spaced along the gap through the
+overlap's centre all classify outside the body. Risers along x or y are read only where their
+body has a level on that axis, never from a level's face, and not from a face that would be a
+riser along both x and y (which axis it rises along is ambiguous).
+
+What changes for a reader that assumed one height axis: a record along the frame's x or y always
+carries `height_axis` (with `origin`; levels also `x_axis` and `y_axis`), even where the frame's
+z is the file's. Then `z` is the height along `height_axis`, not file Z; `x_span` and `y_span` are
+extents along `x_axis` and `y_axis`, the two axes across it in cyclic frame order (y then z for an
+x level, z then x for a y level), not file X and Y. A riser's `z_lo`/`z_hi`, `vertical` and
+`lo_at_envelope`/`hi_at_envelope` refer to its `height_axis`, its `axis`/`other_axis` may name
+file Z, and its `body_levels` are levels along the same axis. A record without `height_axis`
+keeps its existing meaning. A reader that ignores `height_axis` misplaces these records, so it
+should skip records whose `height_axis` it does not handle. Without an inferred frame, records are
+unconverted: `height_axis` is a file letter and the spans follow the same cyclic file order.
 
 A converted `body_key` becomes `{origin, axes, bounds, volume, area}`. `axes` is an ordered
 three-direction basis; `bounds` is three `[lo,hi]` distance intervals from this origin.
@@ -221,6 +258,13 @@ Section-recess claims are retained; exact duplicates carry the optional `source`
 reference described below (#206). See [face accounting](face-accounting.md) for
 ownership precedence and the distinction between discovery evidence and
 completed claims.
+
+`face_accounting` has a fifth group within recognition/6, an additive JSON value:
+`{"group":"supporting","record_ids":["bosses/3"]}`. A face that no record claims but that a
+round boss's evidence consults as its cap reads `supporting` with the boss records that
+consult it, in place of `unexplained`. Precedence is feature, refused, body, supporting,
+unexplained. No record, claim, fingerprint or evidence status changes. Consumers that
+reject unknown groups must accept it ([face accounting](face-accounting.md#supporting)).
 
 ## Slot precision correction (for #92)
 
@@ -1537,3 +1581,41 @@ grooves are a separate matter (item 5).
 
 Fingerprint format 3 takes the diameters, length, width, depth and angles as sizes, `side` as a
 trait and `axis`/`axis_point` as placement; indices are ignored.
+
+## Radial fins as repeating radial profiles (#307 item 10)
+
+`repeating_radial_profiles` (a profile of at least five identical sectors about one axis, no
+gear semantics) is read from the outer wire of an extremal principal plane face and the same
+wire on the opposite extremal face. It also reads a profile whose two ends are *interior*
+levels, a finned barrel whose fins stop short of both ends, with the same record
+(`axis`, `centre`, `span`, `repeat_count`, `edge_count`, `sector_signature`; nothing is added).
+The record is the same as the one a barrel with full-length fins gives; `span` is the profile's
+own extent between its two levels.
+
+A profile of this second kind is accepted only when all of this holds, on one solid:
+
+- At each end, five or more *caps*: planar faces square to the axis at an interior level, one
+  loop of straight edges (two or more) and arcs of one circle, a whole turn or less each, every
+  arc bordering the same cylindrical face (the host, on that axis, of the circle's radius). The
+  outward normals along the axis are negative at the lower level and positive at the upper:
+  the profile stands on the host, it is not cut into it.
+- Each cap's two ends on the host circle are less than a half turn apart. The caps' straight
+  edges, with the arcs of the host circle between consecutive caps, form one closed wire, and
+  that wire meets the extremal-face rule unchanged: every edge in a bijective orbit of one
+  sector rotation about the host axis, the largest repeat count of at least five, one sector
+  inventory.
+- The two ends correspond one to one (axis, centre, host radius, repeat count, edge count and
+  sector inventory), and every straight edge of every cap is shared with exactly one other
+  planar face parallel to the axis, the caps at the two ends reaching the same set of such faces
+  (the profile is one straight extrusion between its levels).
+
+The record's faces are the caps at both levels and those swept faces (for 64 box fins: 128
+caps, 128 sides and 64 tips). The host cylinder, rear walls, sleeves, standoffs and flanges
+are never claimed. A single rib, a few unequal walls, fins off their pitch and notches cut
+into a wall (their caps face the other way) give no record.
+
+Two identical fin bands on one tube give no record (each lower level matches two upper levels). The path claims every fin face (cap, side, tip), where the end-face path claims only the two end faces, so the same fins are counted differently by whether they reach the part's ends.
+
+A `pads` record whose five faces all belong to one repeating radial profile is that profile's
+member (a fin of the array on an axis) and is not published as a pad: four of a housing's 64
+fins used to be reported as pads. A pad on a part with no such profile is unchanged.
