@@ -666,7 +666,7 @@ impl Part {
 
     /// [`Part::transformed`], keeping this part's face integrals: recognition's move into the
     /// part frame it inferred, whose inference has just integrated the solids' faces here (it is not
-    /// for general use, which `transformed` serves with no history: what a part was asked
+    /// for general use: recognition-internal, and it may change without a semver bump. `transformed` serves general use with no history: what a part was asked
     /// before never changes what its copy answers). Each face's shared moment integration
     /// (made now where missing), the mass it selected and its along-v trial refusals are
     /// carried through the motion by `Part::carry_integrals`. They integrate p and sᵤ × sᵥ over
