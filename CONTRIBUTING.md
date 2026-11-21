@@ -32,6 +32,14 @@ cargo clippy --workspace --all-targets --release -- -D warnings
 QUIDDITY_CORPUS_REQUIRED=1 cargo test --workspace --release
 ```
 
+`tools/verify.sh` runs everything CI runs on a pull request (every workflow under
+`.github/workflows/`, on this host) and ends with `VERIFY: PASS` or `VERIFY: FAIL`. Export
+`QUIDDITY_CORPUS` (a checkout of pzfreo/quiddity-corpus at the revision `suite.yml` pins) first.
+It needs `cargo-nextest`, `cargo-semver-checks` 0.51.0, `cargo-audit`, `uv` and the
+`wasm32-unknown-unknown` target; a missing tool fails the run. Jobs it cannot reproduce (other
+operating systems, release-only publishing) print `SKIP ... NOT RUN`. `--quick` runs only the
+lint, wasm, packaging and semver steps and ends `VERIFY: PARTIAL`, never PASS.
+
 ## Public Rust API and releases
 
 Before 1.0, any breaking public API change requires a **minor** version bump
