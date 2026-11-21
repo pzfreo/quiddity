@@ -588,6 +588,7 @@ fn snapped_reversed_height_orders_body_levels_and_end_flags_in_the_published_sen
             x_span: Some((-4., 4.)),
             y_span: Some((-1., 1.)),
             body_key: None,
+            height_axis: 'z',
         })
         .collect();
     let raw = Features {
@@ -604,6 +605,7 @@ fn snapped_reversed_height_orders_body_levels_and_end_flags_in_the_published_sen
             tol: 0.5,
             body_levels: levels,
             body_key: None,
+            height_axis: 'z',
         }],
         ..Features::default()
     };
@@ -629,6 +631,87 @@ fn snapped_reversed_height_orders_body_levels_and_end_flags_in_the_published_sen
     for level in levels {
         assert_eq!(level["height_axis"], "x");
     }
+}
+
+/// A level and a riser along the frame's x (#307 item 10) are published relative, measured
+/// along their own height axis and the two axes across it in cyclic order (y, then z), even
+/// where the frame's z is the file's.
+#[test]
+fn levels_along_the_frames_x_publish_their_own_axes() {
+    use quiddity::features::{
+        Features,
+        levels::{FaceLevel, RiserEvidence},
+    };
+    use quiddity::framed_records::{Rigid, map_features};
+    let level = FaceLevel {
+        z: 3.,
+        x_span: Some((-4., 4.)),
+        y_span: Some((1., 2.)),
+        body_key: None,
+        height_axis: 'x',
+    };
+    let raw = Features {
+        step_levels: vec![level.clone()],
+        risers: vec![RiserEvidence {
+            vertical: true,
+            axis: 'y',
+            positions: vec![quiddity::features::placed::Placed::exact(5.)],
+            other_axis: 'z',
+            other_positions: vec![],
+            z_lo: 1.,
+            z_hi: 6.,
+            lo_at_envelope: true,
+            hi_at_envelope: false,
+            tol: 0.5,
+            body_levels: vec![level],
+            body_key: None,
+            height_axis: 'x',
+        }],
+        ..Features::default()
+    };
+    // The frame's x is the file's z, its y the file's y, its z the file's -x (a barrel along
+    // the file's z read across it, as the finned housing is).
+    let motion = Rigid {
+        rotation: [[0., 0., -1.], [0., 1., 0.], [1., 0., 0.]],
+        translation: [10., 20., 30.],
+    };
+    let mapped = map_features(raw, &motion);
+    let json = serde_json::to_value(&mapped.features).unwrap();
+    let l = &json["step_levels"][0];
+    assert_eq!(l["height_axis"], "z");
+    assert_eq!(l["x_axis"], "y");
+    assert_eq!(l["y_axis"], "x");
+    assert_eq!(number(&l["z"]), 3.);
+    assert_eq!(l["x_span"], json!([-4., 4.]));
+    assert_eq!(l["y_span"], json!([-2., -1.]));
+    assert_eq!(l["origin"], json!([10., 20., 30.]));
+    let r = &json["risers"][0];
+    assert_eq!(r["height_axis"], "z");
+    assert_eq!(r["axis"], "y");
+    assert_eq!(r["other_axis"], "x");
+    assert_eq!((number(&r["z_lo"]), number(&r["z_hi"])), (1., 6.));
+    assert_eq!(r["body_levels"][0]["height_axis"], "z");
+    assert_eq!(r["body_levels"][0]["y_span"], json!([-2., -1.]));
+    // A level along the frame's z, where the frame's z is the file's, is carried as before:
+    // no axis fields.
+    let carried = map_features(
+        Features {
+            step_levels: vec![FaceLevel {
+                z: 3.,
+                x_span: Some((-4., 4.)),
+                y_span: Some((1., 2.)),
+                body_key: None,
+                height_axis: 'z',
+            }],
+            ..Features::default()
+        },
+        &Rigid {
+            rotation: [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]],
+            translation: [0., 0., 0.],
+        },
+    );
+    let c = serde_json::to_value(&carried.features).unwrap();
+    assert!(c["step_levels"][0].get("height_axis").is_none());
 }
 
 #[test]

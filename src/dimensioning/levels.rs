@@ -701,8 +701,10 @@ mod tests {
                 x_span: None,
                 y_span: None,
                 body_key: None,
+                height_axis: 'z',
             }],
             body_key: None,
+            height_axis: 'z',
         };
         let project_one = |r| project(&[(r, vec![12])], &[4.]);
         assert_eq!(project_one(r.clone()), vec![(0, 20., vec![12])]);

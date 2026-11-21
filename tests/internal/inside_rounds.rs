@@ -497,9 +497,11 @@ fn ctc05_inside_rounds_and_spherical_corners_are_claimed() {
         assert_eq!(neighbours.len(), 2);
         assert!(neighbours.iter().all(|f| [205, 206, 207].contains(f)));
     }
+    // #307 item 10: interior planes square to the frame's x and y that no record claims are
+    // step levels along those axes (unexplained 30 framed, 20 caller-space, before).
     for (reading, unexplained) in [
-        (quiddity::correspondence::recognise(&part), 30),
-        (quiddity::correspondence::caller_space_recognise(&part), 20),
+        (quiddity::correspondence::recognise(&part), 12),
+        (quiddity::correspondence::caller_space_recognise(&part), 12),
     ] {
         let d = quiddity::recognition::document(&reading, part.faces.len());
         assert!(d.records.iter().any(|r| {

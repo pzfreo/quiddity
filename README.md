@@ -108,7 +108,7 @@ That record is one entry of the output's `document`, the versioned form to build
 - **`records`**: one entry per feature. Each gives its family, the STEP faces it is made of,
   its measured parameters, and whether its evidence is `verified` or `unproved`.
 - **`face_accounting`**: what every face of the part is: part of a feature, part of the body
-  (with the reason), or refused or unexplained.
+  (with the reason), refused, supporting (an unclaimed boss cap) or unexplained.
 - **`source_sha256`**: the input file's hash.
 
 Every coordinate and direction is in the file's own coordinates. quiddity finds the part's
