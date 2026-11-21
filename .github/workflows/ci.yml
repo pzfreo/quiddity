@@ -85,9 +85,13 @@ jobs:
       # The toolchain comes from rust-toolchain.toml.
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      # A draft runs fmt and the lints (clippy, feature checks) only; tests wait for ready.
       - run: python3 -m unittest discover -s .github -p 'test_*.py'
+        if: github.event.pull_request.draft != true
       - run: python3 -I tools/as_compare/test_score.py
+        if: github.event.pull_request.draft != true
       - run: python3 -I tools/as_compare/test_score_mfcadpp.py
+        if: github.event.pull_request.draft != true
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --release --locked -- -D warnings
       # Keep optional Fusion coverage on the existing Linux runner, without another archive
@@ -98,7 +102,7 @@ jobs:
       # One serial Linux binary exercises feature-off goldens and removal, without a
       # second matrix, archive or shard build. Reuse this runner's release dependencies.
       - run: cargo test -p haecceity --release --locked --no-default-features --test pmi_write
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && github.event.pull_request.draft != true
       # The library without the command line (and clap), as specify-core's WASM build uses it.
       - run: cargo check -p quiddity --release --locked --no-default-features --features presentation
         if: runner.os == 'Linux'
@@ -106,9 +110,10 @@ jobs:
       # The workspace archive unifies json-import through quiddity-py (including
       # the source-presentation binary); keep this strict NIST gate explicit.
       - run: cargo test -p haecceity --release --locked --features json-import --test pmi_json_roundtrip nist_roundtrip -- --exact
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && github.event.pull_request.draft != true
       # nextest does not run doc-tests.
       - run: cargo test --doc --workspace --release --locked
+        if: github.event.pull_request.draft != true
 
   linux:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
