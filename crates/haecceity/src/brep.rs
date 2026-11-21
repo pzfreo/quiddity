@@ -565,6 +565,8 @@ impl Part {
         part.swept = self.swept.clone();
         part.file_pcurves = self.file_pcurves.clone();
         part.primary_pcurves = self.primary_pcurves.clone();
+        part.measure_trims = self.measure_trims.clone();
+        part.outer_bounds = self.outer_bounds.clone();
         part.file_units = self.file_units;
         part.declared_length_unit = self.declared_length_unit.clone();
         part.file_uncertainty = self.file_uncertainty;
