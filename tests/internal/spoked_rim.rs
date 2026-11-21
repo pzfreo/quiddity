@@ -58,3 +58,23 @@ fn collared_counterbores_with_a_blended_or_split_floor_are_kept() {
         assert_eq!((cbore.diameter, cbore.depth), (40., depth), "x={x}");
     }
 }
+
+/// quiddity#307 item 4 (leftover): a spoked flexure disc or wheel is not axisymmetric, so it is
+/// no `turned_bodies` record. Its spoke walls only passed the flats exception while they were
+/// wrongly read as stock flats; they truncate no stock (a spoke is a rib between hub and rim), so
+/// `flats` leaves them alone and the whole-boundary revolution proof refuses the solid.
+#[test]
+fn a_spoked_disc_is_no_turned_body_but_the_plain_stepped_disc_is() {
+    let part = quiddity::read_step_file(&common::fixtures().join("spoked_rim.step.gz")).unwrap();
+    let ctx = Context::new(&part);
+    assert!(
+        quiddity::features::flats::discover(&ctx).is_empty(),
+        "spoke walls are not stock flats"
+    );
+    let bodies = quiddity::features::turned_bodies::discover(&ctx);
+    // Discs at x = 0 (flexure), 80 (wheel with counterbore) and 160 (plus a cross hole) are
+    // refused; only the plain stepped disc at x = 240 is a turned body.
+    assert_eq!(bodies.len(), 1);
+    let at = bodies[0].record.axis_point.raw();
+    assert!((at[0] - 240.).abs() < 1., "{at:?}");
+}

@@ -258,14 +258,18 @@ fn source_refusals_never_become_verified_features() {
 fn clean_source_refusals_remain_published_without_a_feature_evidence_warning() {
     use quiddity::recognition::EvidenceStatus;
     use std::process::Command;
-    for (name, kind) in [
+    // The section-recess part's ninth record is a step level along the frame's x on a face no
+    // record or refusal names (#307 item 10).
+    for (name, kind, records) in [
         (
             "captured/section_recesses/parts/1354b0665897eeba.step.gz",
             "SectionRecessRefusal",
+            9,
         ),
         (
             "modelled_threads/varying_pitch_sweep.step.gz",
             "ModelledThreadRefusal",
+            8,
         ),
     ] {
         let path = common::fixtures().join(name);
@@ -274,7 +278,7 @@ fn clean_source_refusals_remain_published_without_a_feature_evidence_warning() {
         assert!((0..part.solids.len()).all(|s| part.solid_is_geometrically_valid(s)));
         let (output, warnings) = serve::recognise_file(path.to_str().unwrap()).unwrap();
         assert_eq!(output.document.run_mode, RunMode::Strict);
-        assert_eq!(output.document.records.len(), 8, "{name}");
+        assert_eq!(output.document.records.len(), records, "{name}");
         let unproved: Vec<_> = output
             .document
             .records

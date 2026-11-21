@@ -256,10 +256,16 @@ pub(crate) fn project_inventory<'p>(
 ) -> Result<RecognitionEvidence<'p>, EvidenceViewError> {
     // The shared boundary records returned errors as well as panics in the ledger.
     // A failed recess projection must not discard independent families' evidence.
-    let projection = features::project_recesses(ctx, &mut inventory)
-        .and_then(Result::ok)
-        .unwrap_or_default();
-    project(ctx.part, inventory, projection)
+    let projection = features::project_recesses(ctx, &mut inventory);
+    // Step levels and risers are completed after reconciliation (`other_axis_levels`): read
+    // them from the same publication the recognition document makes.
+    let recognised = features::recognise_projected(ctx, inventory.clone(), projection.clone());
+    project(
+        ctx.part,
+        inventory,
+        projection.and_then(Result::ok).unwrap_or_default(),
+        &recognised,
+    )
 }
 
 /// Each physical family's candidates' defining and constituent faces (sorted), by Python family.
@@ -458,12 +464,16 @@ fn faces(part: &Part, inventory: &Inventory) -> Result<Faces, EvidenceViewError>
     })
 }
 
-/// Project one completed inventory (`_project_recognition_evidence`).
-pub(crate) fn project(
-    part: &Part,
+/// Project one completed inventory (`_project_recognition_evidence`). Its accepted step levels
+/// and risers are *recognised*'s, the published records after the post-reconciliation
+/// completion (levels along every frame axis, flatness and the claimed-face and fin
+/// exclusions); their candidates remain the inventory's.
+pub(crate) fn project<'p>(
+    part: &'p Part,
     inventory: Inventory,
     section_recesses: SectionRecessProjection,
-) -> Result<RecognitionEvidence<'_>, EvidenceViewError> {
+    recognised: &Features,
+) -> Result<RecognitionEvidence<'p>, EvidenceViewError> {
     let faces = faces(part, &inventory)?;
     let family_of = |family: Family| -> &'static str {
         PHYSICAL_FAMILIES
@@ -484,6 +494,21 @@ pub(crate) fn project(
     let mut out = Vec::new();
     for family in PHYSICAL_FAMILIES {
         if RECESS_SOURCE_FAMILIES.contains(&family) || family == "section_recesses" {
+            continue;
+        }
+        if matches!(family, "step_levels" | "risers") {
+            for (index, defining) in recognised.defining[family].iter().enumerate() {
+                let defining = sorted(defining);
+                out.push(EvidenceFeature {
+                    family,
+                    index,
+                    constituent: defining.clone(),
+                    defining,
+                    groups: Vec::new(),
+                    hosts: Vec::new(),
+                    members: Vec::new(),
+                });
+            }
             continue;
         }
         let mut accepted = 0;
@@ -534,7 +559,17 @@ pub(crate) fn project(
             members: Vec::new(),
         });
     }
-    let accepted = inventory.clone().accepted();
+    let mut accepted = inventory.clone().accepted();
+    accepted.step_levels = recognised.step_levels.clone();
+    accepted.risers = recognised.risers.clone();
+    for family in ["step_levels", "risers"] {
+        accepted
+            .defining
+            .insert(family, recognised.defining[family].clone());
+        if let Some(status) = recognised.evidence_status.get(family) {
+            accepted.evidence_status.insert(family, status.clone());
+        }
+    }
 
     // Each hole pattern's members are accepted holes, found by their records: Python finds them
     // by identity; the port's patterns hold copies, so a member must equal exactly one hole.

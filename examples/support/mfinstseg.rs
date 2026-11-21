@@ -389,6 +389,8 @@ pub struct Accounting {
     pub labelled_feature_claimed: u64,
     pub body: u64,
     pub refused: u64,
+    #[serde(default)]
+    pub supporting: u64,
     pub unexplained: u64,
 }
 impl Accounting {
@@ -403,6 +405,7 @@ impl Accounting {
         self.labelled_feature_claimed += other.labelled_feature_claimed;
         self.body += other.body;
         self.refused += other.refused;
+        self.supporting += other.supporting;
         self.unexplained += other.unexplained;
     }
     fn measure(groups: &[quiddity::recognition::FaceAccounting], seg: &[usize]) -> Self {
@@ -422,6 +425,7 @@ impl Accounting {
                     out.feature_as_body += u64::from(label != 24);
                 }
                 FaceAccounting::Refused { .. } => out.refused += 1,
+                FaceAccounting::Supporting { .. } => out.supporting += 1,
                 FaceAccounting::Unexplained => {
                     out.unexplained += 1;
                     out.stock_unexplained += u64::from(label == 24);

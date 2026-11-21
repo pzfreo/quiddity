@@ -26,6 +26,35 @@ in [docs/alpha1.md](docs/alpha1.md).
   a budget the output is byte-identical. Haecceity adds `Part::with_integration_budget`,
   `Part::integration_budget`, `Part::integration_refused` and `mass::IntegrationBudget`.
   Additive in `recognition/6`. Cancellation is not included. For #307 (item 3).
+- `step_levels` and `risers` are read along every axis of the recognition frame, not only its z:
+  each plane square to the frame's x or y that passes the same area (in that axis's own
+  cross-section) and end-margin rules is a level along that axis, published after the z records
+  with its `height_axis`, `x_axis` and `y_axis` (risers with `height_axis`); its `z` and spans are
+  measured along those axes. A face is in at most one level (a plane has one normal). On every
+  axis, z included, a level's face must be flat along the axis (extent at most the 0.5 level
+  band): a drafted or sloping face is no level, so 22 corpus z levels that held one are gone or
+  lose that face. The new x and y records are not published on any face another family claims,
+  a refusal names or body evidence explains, nor on a z level's or z riser's face, nor where a
+  level face is one wall of a slot or pocket (an anti-parallel flat face across empty space,
+  overlapping it by half, nearer than the pair is long); risers along x or y need a level on that
+  axis and are not read from a face that would rise along both. No level on any axis is read
+  from a fin or rib face of a `repeating_radial_profiles` record. On the finned housing the rear
+  wall faces, the bore shoulder and the sleeve shoulder (left unexplained by the bar-end entry
+  below) become levels along the barrel's axis, and the fin sides are no longer levels. Corpus:
+  step levels 335 → 487, risers 129 → 131, unexplained faces 2178 → 1851, every other family
+  unchanged. `quiddity evidence` (framed and in file coordinates) reports the same step
+  levels and risers as the recognition of that reading. Readers that assumed one height axis: see
+  [recognition 6](docs/recognition-6.md#levels-and-risers-along-every-frame-axis-for-307-item-10).
+  For #307 (item 10).
+
+- The end planes of a round bar or tube are `body` (`stock_envelope`) where they were unexplained:
+  an external cylinder spanning the part's whole extent along its axis, closed at each end by one
+  plane that joins it convexly and spans exactly its transverse extent. On a finned motor housing
+  this accounts for the barrel's two rims. Standoff tops, the sleeve's end, the counterbore
+  shoulder and the rear recess and wall faces are left unexplained: a boss's cap is deliberately
+  not claimed (a chamfer added to a shaft end must keep its boss `carried`), holes claim no
+  shoulders, and no family describes the recess. For #307 (item 10).
+
 - Tapers and V-grooves of a turned body are records of their own, `tapers` and `v_grooves`,
   where they were only cone segments in the `turned_bodies` profile (whose profile is unchanged).
   A taper is one whole coaxial cone, external or internal, between two cylinders, a cylinder and a
@@ -81,6 +110,15 @@ in [docs/alpha1.md](docs/alpha1.md).
   and every record are unchanged. `Recognition` and `RecognitionDocument` (non-exhaustive) gain
   the field, and `recognition::Bodies` is new. For #300.
 
+- Radial fins that stop short of a barrel's ends (a finned motor housing's 64 fins) are one
+  `repeating_radial_profiles` record, as full-length fins already were: the two interior levels
+  at which the fins start and end, each with the host circle between the fins, form the profile
+  (64 repeats, 256 edges), and the record claims every fin cap, side and tip (320 faces) and
+  nothing of the barrel, rear wall, sleeve or standoffs. The four axis-aligned fins are no
+  longer reported also as `pads`. Same record shape; a profile of this kind must stand on a
+  cylindrical host and be one straight extrusion between its two levels (docs/recognition-6.md).
+  For #307 (item 10).
+
 ### Changed
 
 - Edge fillets are reported at any radius. The absolute 0.6 mm floor is gone: boxes and prisms
@@ -102,9 +140,21 @@ in [docs/alpha1.md](docs/alpha1.md).
   at the maintainer's suggestion. `UnitReader::get` and `real_text` now assert in debug
   builds that they are not used on a packed graph, where they would return `None`.
 
+### Changed output: face accounting
+
+- A new face-accounting group, `supporting`: a face that no record claims but that a round
+  boss's evidence consults as its cap reads `{"group": "supporting", "record_ids": ["bosses/3"]}`
+  instead of `unexplained`, in the same recognition/6 schema (an additive JSON value). Which
+  record claims which face does not change, and feature, refused and body still outrank it. The
+  six standoff tops of the finned motor housing now read `supporting`, each with its own boss,
+  and the counts of `unexplained` faces fall by the faces that move. Rust callers' wildcard arm
+  receives `FaceAccounting::Supporting { record_ids }`: the enum is `#[non_exhaustive]`, so
+  nothing stops compiling. For #307 (item 10).
+
 ### Fixed
 
 - The inner wall of a spoked rim is no longer published as a counterbore of the hub bore. A wider coaxial cylinder whose span overlaps a narrower hole segment's (more than the stack gap) is left out of the hole stack unless a closed annular floor leads inwards from one of its ends: a whole coaxial circle (one edge, or coplanar arcs making a full turn) on a transverse plane at the wall's end, or reached across a torus or cone blend. A collared recess with a wall-to-floor fillet or chamfer, or with faces written in halves, keeps its counterbore; a floor broken by a slot or ribs is not a step in that overlapping case. `curved_wall_corner` no longer claims a round whose curved supports are all at least 4 times tighter than it: cgb242's faces 173 and 185 (pocket end walls drawn round a hub, between R3 corner rounds), its long walls 103 (R51) and 203 (R62), and nine R76/R85 slot-wall patches in cgb202 are no longer published as inside rounds (they are reported as residual cylindrical profiles). cgb242's false d110 counterbore on its d22 hole is gone: the floor test accepts only a transverse plane facing into the wall's span, so a top face reached across an edge round no longer counts. For #307 (item 4).
+- A spoked flexure disc or wheel (hub, rim and spokes with open windows) is not a `turned_bodies` record: that family needs the whole boundary to be surfaces of revolution about one axis, with only proved stock flats as the exception, and the spoke walls are not stock flats (they truncate no stock; `flats` no longer publishes them). A regression test pins it on the item 4 spoked-rim fixture, where only the plain stepped disc is a turned body. No output change beyond the flats fix. For #307 (item 4).
 - `flats` records are no longer published on the sides of ribs, fins and tabs standing on a
   cylinder. A flat now has to truncate the stock: the chord must straddle the point of the
   plane nearest the axis (a chord wholly to one side meets the cylinder at a concave edge), and
