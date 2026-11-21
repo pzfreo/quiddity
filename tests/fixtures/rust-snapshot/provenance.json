@@ -3394,7 +3394,7 @@
     "calls/recognise_through_steps.json.gz": "ab6a0b5b06756fa3435099be76e5ab432b867be4d4a1b42c49047ff83b086cca",
     "calls/recognise_turned_steps.json.gz": "37d10e8c5e2ce5dcf6c5bd2fdc7444e86494bb44768e9d32d9a1abfd3f2fbd90",
     "channel_geometry.json.gz": "bd25ff87def7f73b4f119d26614600b141ee4350f45c77cef55aae7ea787e85f",
-    "corpus.json.gz": "128d18b62dfdf5351c12bd37799575a45ed21be51e2b2442de56b2ed365eb339",
+    "corpus.json.gz": "43f8fbd4df99fa3c3811cfd920b3f3b17d6e75a6bef37b9178570a41d969c2c5",
     "coverage.json.gz": "c835b80d39757ae5ef556953e11a2d7e8bbde3148a233f2af51ae92e1d23a971",
     "cylindrical_proofs/corpus/cadgenbench/flanged_spool_132.step.json.gz": "b93acca566253df99ab62bb5ac97424226850b3ee3963c8d1025939a7339d823",
     "cylindrical_proofs/corpus/cadgenbench/threaded_connector_109.step.json.gz": "eea12e52bf91a9c762e7cadc1b12994398bf8f3836ab11ab8b58a2bf4c5d9a4e",
@@ -6052,5 +6052,5 @@
     "step_levels.json.gz": "5e4395504560dada2abb27b2594500b6400bccea48989cfda5d3deeef596ace5",
     "unowned_recesses.json.gz": "604ec266d4c85575165c6822140a3ac79a6637c8d72a3a2bb376e74f86455343"
   },
-  "source_commit": "b068a540bbf787e063178253d6cf094149c99732"
+  "source_commit": "11650258d4f01d23a208a012c594fd5f3156d948"
 }
