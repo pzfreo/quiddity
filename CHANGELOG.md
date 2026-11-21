@@ -8,7 +8,7 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## 0.5.5 (2026-11-21)
 
-### Jake (text-to-cad), #307
+### #307, reported by @earthtojake (text-to-cad)
 
 **Added**
 
@@ -178,7 +178,7 @@ in [docs/alpha1.md](docs/alpha1.md).
   `unknown`. The groove itself is a `round_grooves` or `v_grooves` record where it qualifies
   (items 5 and 6). For #307 (item 3).
 
-### Xu, #290, #302 and #312
+### #290, #302 and #312, from @xu9299
 
 **Added**
 
@@ -217,7 +217,7 @@ in [docs/alpha1.md](docs/alpha1.md).
   the stationary-node test scaled motions by the whole knot vector rather than the active
   domain, which skipped a real edge's nodes when a writer padded the end knots. For #302.
 
-### vahid8, #293
+### #293, reported by @vahid8
 
 **Fixed**
 
