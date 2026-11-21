@@ -54,5 +54,13 @@
     "verdict": "not-applicable",
     "reason": "For #92 the document motion test now compares every file-coordinate measurement instead of comparing formerly local fields only in their recognition frames. Face [2] has an Axial frame gauge: roll about the turning axis is unconstrained. The two valid frame representatives choose different transverse height directions for the cylindrical riser. Its explicitly published height and other axes therefore describe different support planes of the same face. Frame voting, face identity and intrinsic fingerprints are unchanged; this height-context ambiguity requires the deferred recognition-frame work, not a publication exception. The vector publication tests independently check scalar extrema against the defining face.",
     "max_differing": 1
+  },
+  {
+    "file": "cadgenbench/flanged_spool_132.step",
+    "check": "generic_framed",
+    "family": "step_levels",
+    "verdict": "not-applicable",
+    "reason": "For #307 (item 10) step levels are also read along the frame's x and y. The spool's five flange and end-face levels are square to the turning axis, which is the frame's x under its Axial gauge: roll about that axis is unconstrained, so the two valid frame representatives choose different transverse directions for the levels' x_span and y_span. Each level's faces and its height along the turning axis agree; only the span box, measured in rolled transverse axes, differs. This is the same gauge freedom as GRM-03's riser entry and needs the deferred recognition-frame work, not a publication exception.",
+    "max_differing": 5
   }
 ]

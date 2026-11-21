@@ -201,15 +201,16 @@ fn joint_analysis(
         // Clone before publication: post-passes expand face claims and can revoke families.
         // The evidence API has always projected the pre-publication physical inventory.
         let recognised = features::recognise_projected(ctx, inventory.clone(), projection.clone());
-        let recognition = publish(part, ctx, recognised, frame.clone());
         // The shared boundary records returned projection errors in the inventory.
         // Keep the same incomplete evidence as the separate evidence call.
         let evidence = evidence_view::project(
             geometry,
             inventory,
             projection.and_then(Result::ok).unwrap_or_default(),
-        )
-        .map(|view| {
+            &recognised,
+        );
+        let recognition = publish(part, ctx, recognised, frame.clone());
+        let evidence = evidence.map(|view| {
             let evidence_frame = match &frame {
                 RecordFrame::Inferred(frame) => Some(*frame),
                 _ => None,

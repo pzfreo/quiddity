@@ -204,7 +204,7 @@ Build targets from `evidence["features"]`: retain `family`, `index`, `record`,
 `defining_faces` and `constituent_faces`, and resolve indices through a verified
 STEP-to-live-face mapping. Keep pattern aggregates read-only as before. Replace
 the old association report with the recognition document's `face_accounting`;
-feature, body, refused and unexplained are distinct groups. Do not treat
+feature, body, refused, supporting (a boss's unclaimed cap) and unexplained are distinct groups. Do not treat
 unproved/refusal records as permission to edit. Retain the consumer's existing
 valid-solid, plain-through-hole and stale-source checks, then re-export and
 re-recognise after each edit. Use `correspond` for revision matching.

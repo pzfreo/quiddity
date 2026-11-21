@@ -2,6 +2,10 @@
 //! a solid's extremal principal plane face proved invariant under one sector rotation, every
 //! edge in a bijective orbit, and the same sector inventory on the opposite extremal face.
 //!
+//! A profile standing on a cylindrical host between two *interior* levels (radial fins that stop
+//! short of the barrel's ends) is read the same way, from the caps at its two ends and the host
+//! circle between them (`recognise_sections`; docs/recognition-6.md, "Radial fins").
+//!
 //! No gear semantics are attached: module, pressure angle and tooth form stay authored
 //! requirements. Repeats below five, wires of circular arcs alone, and inner wires are not
 //! profiles. Each edge is read as Python reads it: its curve kind, its length, and nine points
@@ -23,7 +27,7 @@ use super::evidence::{EvidenceError, Occurrence, common_valid_solid};
 use super::profiled_bores::principal_boundary_plane;
 use super::solid_properties;
 use crate::kernel::brep::Part;
-use crate::kernel::geom::{self, Bounds, Curve, V3};
+use crate::kernel::geom::{self, Bounds, Curve, Surface, V3};
 use crate::kernel::py;
 use crate::kernel::sampling::{edge_interval, extremes_along};
 
@@ -113,7 +117,9 @@ pub fn recognise_repeating_radial_profiles(
 }
 
 internal_entry! {
-/// Every profile of every solid with its two opposed source faces, in record order.
+/// Every profile of every solid in record order, with its defining faces: the two opposed
+/// extremal source faces, or, for a profile between interior levels, every cap and swept face
+/// (so the same fins are counted differently by whether they reach the part's ends).
 pub fn discover(ctx: &Context<'_>) -> Vec<Occurrence<RepeatingRadialProfile>> {
     discover_with(ctx.part, RepeatingRadialProfileOptions::default().tol)
 }
@@ -121,7 +127,7 @@ pub fn discover(ctx: &Context<'_>) -> Vec<Occurrence<RepeatingRadialProfile>> {
 
 internal_entry! {
 /// The evidence path (`_discover_repeating_radial_profiles` with a writer): refused when a
-/// profile's two faces are one face, when a face is claimed by two profiles, or when the faces
+/// profile's first two defining faces are one face, when a face is claimed by two profiles, or when the faces
 /// do not share one valid solid.
 pub fn discover_verified(
     ctx: &Context<'_>,
@@ -220,6 +226,7 @@ fn recognise_solid(
             });
         }
     }
+    found.extend(recognise_sections(part, faces, &bbox, metric_tol));
     found
 }
 
@@ -240,20 +247,32 @@ fn prove_boundary(part: &Part, face: usize, bbox: &Bounds, tol: f64) -> Option<B
         let c = wire_bounds(part, &wire).centre();
         (c[plane_axes[0]], c[plane_axes[1]])
     });
+    let (repeat_count, orbits) = repeat_orbits(&edges, centre, tol)?;
+    Some(BoundaryEvidence {
+        face,
+        axis,
+        at,
+        plane_axes,
+        centre,
+        repeat_count,
+        edges,
+        orbits,
+    })
+}
+
+/// The largest repeat count (at least [`MIN_REPEAT_COUNT`]) whose sector rotation about
+/// *centre* maps every edge bijectively, with its orbits.
+fn repeat_orbits(
+    edges: &[CurveEvidence],
+    centre: (f64, f64),
+    tol: f64,
+) -> Option<(usize, Vec<Vec<usize>>)> {
     (MIN_REPEAT_COUNT..edges.len())
         .rev()
-        .filter(|count| edges.len() % count == 0)
+        .filter(|count| edges.len().is_multiple_of(*count))
         .find_map(|repeat_count| {
-            cyclic_edge_orbits(&edges, centre, repeat_count, tol).map(|orbits| BoundaryEvidence {
-                face,
-                axis,
-                at,
-                plane_axes,
-                centre,
-                repeat_count,
-                edges: edges.clone(),
-                orbits,
-            })
+            cyclic_edge_orbits(edges, centre, repeat_count, tol)
+                .map(|orbits| (repeat_count, orbits))
         })
 }
 
@@ -745,4 +764,347 @@ fn sequence_order<T>(a: &[T], b: &[T], order: impl Fn(&T, &T) -> Ordering) -> Or
         .map(|(x, y)| order(x, y))
         .find(|o| o.is_ne())
         .unwrap_or_else(|| a.len().cmp(&b.len()))
+}
+
+// ---------------------------------------------------------------------------------------------
+// Profiles standing on a host cylinder between two interior levels
+// ---------------------------------------------------------------------------------------------
+
+/// One end cap of a feature standing on a cylindrical host: a planar face square to the axis
+/// whose outer wire is straight edges closed by arcs of one host circle.
+struct Cap {
+    face: usize,
+    /// The one cylindrical face every root arc borders.
+    host: usize,
+    axis: usize,
+    at: f64,
+    /// Outward normal along the axis: `-1` for the lower end of a protruding profile.
+    sign: i8,
+    centre: (f64, f64),
+    radius: f64,
+    /// The straight edges (all but the root arcs), as the loop runs them.
+    wire: Vec<(usize, bool)>,
+    /// The root's two ends on the host circle, as polar angles about the centre.
+    root: [f64; 2],
+}
+
+/// The cap's evidence when *face* is one: planar, square to one axis at an interior level of the
+/// solid, a single loop of at least two straight edges and arcs of one circle whose host is a
+/// cylinder on that axis. Anything else is not a cap.
+fn read_cap(part: &Part, face: usize, bbox: &Bounds, tol: f64) -> Option<Cap> {
+    if !matches!(part.faces[face].surface, Surface::Plane { .. }) {
+        return None;
+    }
+    let fbb = part.face_bounds(face);
+    let flat: Vec<usize> = (0..3).filter(|&a| fbb.max[a] - fbb.min[a] <= tol).collect();
+    let [axis] = flat[..] else {
+        return None;
+    };
+    let at = (fbb.min[axis] + fbb.max[axis]) / 2.0;
+    if (at - bbox.min[axis]).abs().min((at - bbox.max[axis]).abs()) <= tol {
+        return None;
+    }
+    let [loop_] = &part.faces[face].loops[..] else {
+        return None;
+    };
+    let plane_axes = plane_axes(axis);
+    let mut lines = Vec::new();
+    let mut arcs = Vec::new();
+    for &(e, forward) in &loop_.edges {
+        match &part.edges[e].curve {
+            Curve::Line { .. } => lines.push((e, forward)),
+            Curve::Circle { .. } if !part.edges[e].is_closed() => arcs.push(e),
+            _ => return None,
+        }
+    }
+    if lines.len() < 2 || arcs.is_empty() {
+        return None;
+    }
+    let (mut centre, mut radius) = ((0.0, 0.0), 0.0);
+    let mut host_face = None;
+    for (i, &e) in arcs.iter().enumerate() {
+        let Curve::Circle {
+            frame: f,
+            radius: r,
+        } = &part.edges[e].curve
+        else {
+            return None;
+        };
+        if f.z[axis].abs() < 1.0 - 1e-6 {
+            return None;
+        }
+        let c = (f.origin[plane_axes[0]], f.origin[plane_axes[1]]);
+        if i == 0 {
+            (centre, radius) = (c, *r);
+        } else if distance(c, centre) > tol || (r - radius).abs() > tol {
+            return None;
+        }
+        // The arc borders the host cylinder, and nothing else but this cap.
+        let [a, b] = part.edge_faces()[e][..] else {
+            return None;
+        };
+        let host = if a == face { b } else { a };
+        if *host_face.get_or_insert(host) != host {
+            return None;
+        }
+        match &part.faces[host].surface {
+            Surface::Cylinder {
+                frame: h,
+                radius: hr,
+            } if (hr - radius).abs() <= tol
+                && h.z[axis].abs() >= 1.0 - 1e-6
+                && distance((h.origin[plane_axes[0]], h.origin[plane_axes[1]]), centre) <= tol => {}
+            _ => return None,
+        }
+    }
+    // The two ends of the straight chain on the host circle are the root's ends.
+    let mut ends = Vec::new();
+    for &(e, _) in &lines {
+        for p in [part.edges[e].start, part.edges[e].end] {
+            let q = (p[plane_axes[0]], p[plane_axes[1]]);
+            if (distance(q, centre) - radius).abs() <= tol {
+                ends.push(q);
+            }
+        }
+    }
+    let [p, q] = ends[..] else {
+        return None;
+    };
+    let angle = |p: (f64, f64)| (p.1 - centre.1).atan2(p.0 - centre.0);
+    let (a, b) = (angle(p), angle(q));
+    let turn = (b - a + PI).rem_euclid(2.0 * PI) - PI;
+    // A root spanning half a turn or more is not a fin's foot.
+    if turn.abs() >= PI - 1e-3 || turn.abs() * radius <= tol {
+        return None;
+    }
+    let root = if turn > 0.0 {
+        [a, a + turn]
+    } else {
+        [b, b - turn]
+    };
+    // The outward normal along the axis.
+    let n = part.face_normal(face, 0.0, 0.0)?;
+    if n[axis].abs() < 1.0 - 1e-6 {
+        return None;
+    }
+    Some(Cap {
+        face,
+        host: host_face?,
+        axis,
+        at,
+        sign: if n[axis] > 0.0 { 1 } else { -1 },
+        centre,
+        radius,
+        wire: lines,
+        root,
+    })
+}
+
+/// A group of caps at one level of one host: the faces, and the closed wire of the section
+/// they leave of the host (their straight edges, and the host circle's arcs between them).
+fn section_boundary(part: &Part, caps: &[&Cap], tol: f64) -> Option<BoundaryEvidence> {
+    let first = caps[0];
+    let plane_axes = plane_axes(first.axis);
+    let mut wire: Vec<(usize, bool)> = caps.iter().flat_map(|c| c.wire.iter().copied()).collect();
+    wire.sort_unstable();
+    wire.dedup_by_key(|w| w.0);
+    let mut edges = sample_wire(part, &wire, plane_axes)?;
+    // Each root as a start in [0, 2 pi) with its end ahead of it.
+    let mut roots: Vec<[f64; 2]> = caps
+        .iter()
+        .map(|c| {
+            let start = c.root[0].rem_euclid(2.0 * PI);
+            [start, start + (c.root[1] - c.root[0])]
+        })
+        .collect();
+    roots.sort_by(|a, b| a[0].total_cmp(&b[0]));
+    for i in 0..roots.len() {
+        let end = roots[i][1];
+        let next = if i + 1 < roots.len() {
+            roots[i + 1][0]
+        } else {
+            roots[0][0] + 2.0 * PI
+        };
+        let gap = next - end;
+        if gap * first.radius < -tol {
+            return None;
+        }
+        if gap * first.radius <= tol {
+            continue;
+        }
+        let points = (0..SAMPLES_PER_CURVE)
+            .map(|k| {
+                let t = end + gap * k as f64 / (SAMPLES_PER_CURVE - 1) as f64;
+                (
+                    first.centre.0 + first.radius * t.cos(),
+                    first.centre.1 + first.radius * t.sin(),
+                )
+            })
+            .collect();
+        edges.push(CurveEvidence {
+            kind: "CIRCLE",
+            length: first.radius * gap,
+            points,
+        });
+    }
+    let (repeat_count, orbits) = repeat_orbits(&edges, first.centre, tol)?;
+    Some(BoundaryEvidence {
+        face: first.face,
+        axis: first.axis,
+        at: first.at,
+        plane_axes,
+        centre: first.centre,
+        repeat_count,
+        edges,
+        orbits,
+    })
+}
+
+/// The host cylinder reaches past both levels along its axis, so the host-circle arcs between
+/// the caps at each level are real host surface (not two different round sections).
+fn host_covers(part: &Part, host: usize, lo: f64, hi: f64, tol: f64) -> bool {
+    let Surface::Cylinder { frame, .. } = &part.faces[host].surface else {
+        return false;
+    };
+    let axis = (0..3)
+        .max_by(|&a, &b| frame.z[a].abs().total_cmp(&frame.z[b].abs()))
+        .unwrap_or(2);
+    let b = part.face_bounds(host);
+    b.min[axis] <= lo - tol && b.max[axis] >= hi + tol
+}
+
+/// The faces swept between the two end caps: every straight edge of every cap is shared with
+/// exactly one other planar face parallel to the axis, and the caps at the two ends reach the
+/// same faces. `None` unless the whole profile is one straight extrusion between the levels.
+fn swept_faces(part: &Part, lower: &[&Cap], upper: &[&Cap]) -> Option<Vec<usize>> {
+    let reach = |caps: &[&Cap]| -> Option<BTreeSet<usize>> {
+        let mut out = BTreeSet::new();
+        for cap in caps {
+            for &(e, _) in &cap.wire {
+                let [a, b] = part.edge_faces()[e][..] else {
+                    return None;
+                };
+                let side = if a == cap.face { b } else { a };
+                let Surface::Plane { frame } = &part.faces[side].surface else {
+                    return None;
+                };
+                if frame.z[cap.axis].abs() > 1e-6 {
+                    return None;
+                }
+                out.insert(side);
+            }
+        }
+        Some(out)
+    };
+    let (lo, hi) = (reach(lower)?, reach(upper)?);
+    (lo == hi).then(|| lo.into_iter().collect())
+}
+
+/// Profiles standing on a host cylinder, whose two ends are interior levels of the solid (a
+/// finned barrel whose fins stop short of both ends). Each end's caps leave, with the host
+/// circle between them, one closed wire; the same acceptance as an extremal face's outer wire
+/// applies to it (every edge in a bijective orbit of one sector rotation, at least five
+/// repeats), the two ends must correspond, and the caps' straight edges must be the edges of
+/// faces swept between the levels.
+fn recognise_sections(
+    part: &Part,
+    faces: &[usize],
+    bbox: &Bounds,
+    tol: f64,
+) -> Vec<Occurrence<RepeatingRadialProfile>> {
+    let caps: Vec<Cap> = faces
+        .iter()
+        .filter_map(|&f| read_cap(part, f, bbox, tol))
+        .collect();
+    // Group by axis, level, end, host circle.
+    let mut groups: Vec<Vec<&Cap>> = Vec::new();
+    for cap in &caps {
+        match groups.iter_mut().find(|g| {
+            let h = g[0];
+            h.axis == cap.axis
+                && h.host == cap.host
+                && h.sign == cap.sign
+                && (h.at - cap.at).abs() <= tol
+                && distance(h.centre, cap.centre) <= tol
+                && (h.radius - cap.radius).abs() <= tol
+        }) {
+            Some(g) => g.push(cap),
+            None => groups.push(vec![cap]),
+        }
+    }
+    groups.retain(|g| g.len() >= MIN_REPEAT_COUNT);
+    let proved: Vec<Option<BoundaryEvidence>> = groups
+        .iter()
+        .map(|g| section_boundary(part, g, tol))
+        .collect();
+    let mut found = Vec::new();
+    for (i, lower) in groups.iter().enumerate() {
+        let Some(low) = &proved[i] else { continue };
+        if lower[0].sign != -1 {
+            continue;
+        }
+        let matches: Vec<usize> = (0..groups.len())
+            .filter(|&j| {
+                let up = &groups[j];
+                proved[j].as_ref().is_some_and(|u| {
+                    up[0].sign == 1
+                        && up[0].axis == lower[0].axis
+                        && up[0].at > lower[0].at + tol
+                        && up[0].host == lower[0].host
+                        && host_covers(part, lower[0].host, lower[0].at, up[0].at, tol)
+                        && distance(up[0].centre, lower[0].centre) <= tol
+                        && (up[0].radius - lower[0].radius).abs() <= tol
+                        && profiles_correspond(low, u, tol)
+                })
+            })
+            .collect();
+        let [j] = matches[..] else { continue };
+        // One-to-one in both directions.
+        let back = groups
+            .iter()
+            .enumerate()
+            .filter(|&(k, g)| {
+                g[0].sign == -1
+                    && proved[k].as_ref().is_some_and(|l| {
+                        profiles_correspond(l, proved[j].as_ref().unwrap(), tol)
+                            && distance(g[0].centre, groups[j][0].centre) <= tol
+                    })
+            })
+            .count();
+        if back != 1 {
+            continue;
+        }
+        let upper = &groups[j];
+        let Some(swept) = swept_faces(part, lower, upper) else {
+            continue;
+        };
+        let axis = lower[0].axis;
+        let mut centre = [0.0; 3];
+        let plane = plane_axes(axis);
+        centre[plane[0]] = low.centre.0;
+        centre[plane[1]] = low.centre.1;
+        let span = [lower[0].at, upper[0].at];
+        centre[axis] = (span[0] + span[1]) / 2.0;
+        let mut defining: Vec<usize> = lower
+            .iter()
+            .chain(upper.iter())
+            .map(|c| c.face)
+            .chain(swept)
+            .collect();
+        defining.sort_unstable();
+        defining.dedup();
+        found.push(Occurrence {
+            record: RepeatingRadialProfile {
+                axis: AXES[axis].to_string(),
+                centre,
+                span,
+                repeat_count: low.repeat_count,
+                edge_count: low.edges.len(),
+                sector_signature: sector_signature(low),
+            },
+            defining,
+            context: Vec::new(),
+        });
+    }
+    found
 }

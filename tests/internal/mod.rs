@@ -40,6 +40,8 @@ mod local_steps;
 mod mfinstseg;
 #[path = "modelled_threads.rs"]
 mod modelled_threads;
+#[path = "multi_axis_levels.rs"]
+mod multi_axis_levels;
 #[path = "outer_profiles.rs"]
 mod outer_profiles;
 #[path = "pads.rs"]
@@ -52,6 +54,8 @@ mod passages;
 mod prismatic_pockets;
 #[path = "publication.rs"]
 mod publication;
+#[path = "radial_fins.rs"]
+mod radial_fins;
 #[path = "recognition.rs"]
 mod recognition;
 #[path = "recognition_evidence.rs"]

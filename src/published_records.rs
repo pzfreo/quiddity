@@ -502,6 +502,14 @@ fn convert(record: &mut Value, paths: &[String], m: &Rigid, family: &str, reach:
         .get("depth_axis")
         .and_then(axis_index)
         .or_else(|| width.zip(long).map(|(w, l)| 3 - w - l));
+    // A level or riser reads `z` along its `height_axis` and its spans across it, in cyclic
+    // order (`levels::plane_axes`): x then y for the frame's z.
+    let [level_u, level_v, level_h] = if family == "step_levels" || family == "risers" {
+        let h = raw.get("height_axis").and_then(axis_index).unwrap_or(2);
+        [(h + 1) % 3, (h + 2) % 3, h]
+    } else {
+        [0, 1, 2]
+    };
     let mut uses_origin = false;
     for &key in &direct {
         assert!(
@@ -571,9 +579,11 @@ fn convert(record: &mut Value, paths: &[String], m: &Rigid, family: &str, reach:
                 .or_else(|| raw.get("thickness_axis").and_then(axis_index)),
             "w_center" => width,
             "d_lo" | "d_hi" => depth,
-            "z" | "z_lo" | "z_hi" => Some(2),
-            "x_span" | "x0" | "x1" => Some(0),
-            "y_span" | "y0" | "y1" => Some(1),
+            "z" | "z_lo" | "z_hi" => Some(level_h),
+            "x_span" => Some(level_u),
+            "y_span" => Some(level_v),
+            "x0" | "x1" => Some(0),
+            "y0" | "y1" => Some(1),
             "z0" | "z1" => Some(2),
             "positions" => axis,
             "other_positions" => raw.get("other_axis").and_then(axis_index),
@@ -680,7 +690,7 @@ fn convert(record: &mut Value, paths: &[String], m: &Rigid, family: &str, reach:
         ("lo", "hi", long.or(axis)),
         ("base", "top", axis),
         ("d_lo", "d_hi", depth),
-        ("z_lo", "z_hi", Some(2)),
+        ("z_lo", "z_hi", Some(level_h)),
         ("x0", "x1", Some(0)),
         ("y0", "y1", Some(1)),
         ("z0", "z1", Some(2)),
@@ -721,13 +731,13 @@ fn convert(record: &mut Value, paths: &[String], m: &Rigid, family: &str, reach:
     }
     if family == "step_levels" || family == "risers" {
         if has("z") || has("z_lo") {
-            obj.insert("height_axis".into(), direction(m, 2, reach).0);
+            obj.insert("height_axis".into(), direction(m, level_h, reach).0);
         }
         if has("x_span") {
-            obj.insert("x_axis".into(), direction(m, 0, reach).0);
+            obj.insert("x_axis".into(), direction(m, level_u, reach).0);
         }
         if has("y_span") {
-            obj.insert("y_axis".into(), direction(m, 1, reach).0);
+            obj.insert("y_axis".into(), direction(m, level_v, reach).0);
         }
     }
     if let Some(i) = axis {
