@@ -7,7 +7,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use quiddity::correspondence::recognise;
 use quiddity::kernel::brep::Arc;
-use quiddity::kernel::geom::{Curve, Surface};
+use quiddity::kernel::geom::{self, Curve, Surface};
 use quiddity::recognition::{RecognitionDocument, Record, document};
 use quiddity::{Part, read_step_file};
 use serde_json::Value;
@@ -24,6 +24,41 @@ fn fixture(name: &str) -> (Part, RecognitionDocument) {
     let part = read_step_file(&common::fixtures().join(name)).unwrap();
     let doc = document(&recognise(&part), part.faces.len());
     (part, doc)
+}
+
+fn blend_radius(surface: &Surface) -> Option<f64> {
+    match *surface {
+        Surface::Cylinder { radius, .. } | Surface::Sphere { radius, .. } => Some(radius),
+        Surface::Torus { minor, .. } => Some(minor),
+        _ => None,
+    }
+}
+
+fn blend_points_outward(part: &Part, face: usize) -> Option<bool> {
+    let Surface::Torus {
+        frame,
+        major,
+        minor,
+    } = part.faces[face].surface
+    else {
+        return part.frame_points_outward(face);
+    };
+    let (u0, u1, v0, v1) = part.uv_bounds(face)?;
+    let outward = |fraction: f64| {
+        let u = u0 + fraction * (u1 - u0);
+        let v = v0 + fraction * (v1 - v0);
+        let rho = major + minor * v.cos();
+        // In parameter coordinates, subtract the closest point on the spine circle.
+        let radial = rho - major.copysign(rho);
+        let from_spine = frame.dir_to_world([radial * u.cos(), radial * u.sin(), minor * v.sin()]);
+        let alignment = geom::dot(part.face_normal(face, u, v)?, from_spine);
+        (alignment.is_finite() && alignment != 0.0).then_some(alignment > 0.0)
+    };
+    let side = outward(0.5)?;
+    [0.25, 0.75]
+        .into_iter()
+        .all(|fraction| outward(fraction) == Some(side))
+        .then_some(side)
 }
 
 fn check_partition(part: &Part, doc: &RecognitionDocument) {
@@ -48,6 +83,7 @@ fn check_partition(part: &Part, doc: &RecognitionDocument) {
             assert!(f < part.faces.len() && owner.insert(f, i).is_none());
         }
     }
+    let tolerance = part.file_uncertainty().unwrap_or(geom::COORD_FLOOR);
     let mut chain_of = BTreeMap::new();
     for (i, chain) in chains.iter().enumerate() {
         let faces = face_list(chain);
@@ -81,6 +117,21 @@ fn check_partition(part: &Part, doc: &RecognitionDocument) {
             let incident = &part.edge_faces()[edge];
             assert_eq!(incident.len(), 2);
             assert_eq!(incident.iter().filter(|f| faces.contains(f)).count(), 1);
+            let (blend, neighbour) = if faces.contains(&incident[0]) {
+                (incident[0], incident[1])
+            } else {
+                (incident[1], incident[0])
+            };
+            let radius = blend_radius(&part.faces[blend].surface).unwrap();
+            let outward = chain.parameters["side"] == "convex";
+            let same_blend = blend_radius(&part.faces[neighbour].surface)
+                .is_some_and(|other| (other - radius).abs() <= tolerance)
+                && blend_points_outward(part, neighbour) == Some(outward);
+            assert!(
+                !same_blend,
+                "{} spring edge {edge} borders equal-radius same-side blend face {neighbour}",
+                chain.id
+            );
         }
     }
     for chain in &chains {

@@ -647,6 +647,48 @@ mod tests {
     }
 
     #[test]
+    fn tangent_equal_radius_patches_on_opposite_sides_stay_separate() {
+        let (start, end) = ([2., 0., 0.], [2., 0., 1.]);
+        let line = Edge {
+            curve: Curve::Line {
+                origin: start,
+                dir: FRAME.z,
+            },
+            start,
+            end,
+            vertices: (0, 1),
+            same_sense: true,
+            samples: vec![start, end],
+        };
+        let (mut part, mut fillets) = patches(&[2., 2.], vec![([0, 1], line)]);
+        // The second axis is across the common generator. Its reversed face keeps the
+        // oriented normals aligned even though its material side is concave.
+        part.faces[1].surface = Surface::Cylinder {
+            frame: Frame {
+                origin: [4., 0., 0.],
+                ..FRAME
+            },
+            radius: 2.,
+        };
+        part.faces[1].reversed = true;
+        fillets[1].side = "concave";
+        assert_eq!(material_side(&part, 0), Some("convex"));
+        assert_eq!(material_side(&part, 1), Some("concave"));
+        assert!(tangent(
+            &part,
+            0,
+            1,
+            &part.edges[0],
+            cylinder_support_tolerance(&part)
+        ));
+        assert_eq!(
+            chain_faces(&part, &fillets),
+            [vec![1], vec![0]],
+            "opposite material sides split even tangent equal-radius patches"
+        );
+    }
+
+    #[test]
     fn sampled_smooth_spline_requires_a_whole_edge_proof() {
         let (start, end) = ([2., 0., 0.], [2., 0., 1.]);
         let edge = |curve| Edge {

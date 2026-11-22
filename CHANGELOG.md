@@ -10,6 +10,11 @@ in [docs/alpha1.md](docs/alpha1.md).
   through spherical and toroidal corners, with their spring edges and groups by radius
   and side that count blend faces and legacy fillet records.
 
+### haecceity
+
+- For #341, add `Part::file_angle_uncertainty()` to read the smallest declared STEP plane
+  angle uncertainty in radians, when present.
+
 ## 0.5.5 (2026-11-21)
 
 ### #307, reported by @earthtojake (text-to-cad)
