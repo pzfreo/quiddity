@@ -4843,7 +4843,7 @@
     "pattern_publication/parts/e66bb72e930f6a46.step.gz.json.gz": "e8493470a06a0395f5802d0f66ba6e257ef8cda6ccbd125201675fc9691e940e",
     "pattern_publication/parts/ef7e51c60e7131c4.step.gz.json.gz": "0cb2e25673259583351d3e309d5a940bb7224ad705f2cf127cd1f24178ea6aeb",
     "pmi.json.gz": "a0e2e6a5ddead71f4ab3b92e6357c16897af2c0a1664ebe32274cad02d3a8018",
-    "pocket_floor_fillets.json.gz": "9325b3e23548cf378e0de7587ae46081d15c0cd2320944fdcc3320986f63c81e",
+    "pocket_floor_fillets.json.gz": "156f708ec8c4293b63776328caa638a60dcf455409b381cb17250b19479cb652",
     "probes.json.gz": "09be0061e3d3a99249c9bc0222e64763cac636f3d038bed86a40ec6256e18aed",
     "quality_recess_publication.json.gz": "b34304d3944ae442982356664254e7dd3f0c28aeecfb019d81c6f262eaa29659",
     "recess_documents/corpus/cadgenbench/flanged_spool_132.step.json.gz": "39e94251e1cf600d61138e58a5b276e799225b767239785f9495270dbecfc09e",
@@ -6056,7 +6056,7 @@
     "sections/test/parts/fa49b36bce6eef83.step.gz.json.gz": "8191a508ab43bcd9f12bfb19af6347bb346cd8530e812088d4331122fba1dfa7",
     "sections/test/parts/fc9cb0ef3d518aa4.step.gz.json.gz": "ad246bd3ca231dda3e7fe1fc54cd798984e7dcd9da376dcb609c3c42001086f8",
     "step_levels.json.gz": "5e4395504560dada2abb27b2594500b6400bccea48989cfda5d3deeef596ace5",
-    "unowned_recesses.json.gz": "52e2d495136578c8efef1e211dbc26df03e37772ca7797c2e92f069726d379b8"
+    "unowned_recesses.json.gz": "e4b2fc1ad12be9d6a18771b1c9bb48c093190e92c23bf89b23b253db13d48a17"
   },
-  "source_commit": "f15be12fe28b1aa5c9c56fef89a0a689dbca9dec"
+  "source_commit": "0da402d52d7d709c1ff9983bf8b9766b514014d5"
 }
