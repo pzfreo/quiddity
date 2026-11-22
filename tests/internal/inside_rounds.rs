@@ -381,7 +381,7 @@ fn procedural_drafted_inside_round_spherical_corners_and_unchanged_convex_rounds
     assert_eq!(
         serde_json::to_value(&convex.record).unwrap(),
         serde_json::json!({
-            "axis":"x", "radius":1., "at":[30.,-2.707,-2.707], "turned":false, "side":"convex"
+            "axis":"x", "radius":1., "at":[30.,-2.707,-2.707], "turned":false, "side":"convex", "faces":[38]
         })
     );
     for o in outside {

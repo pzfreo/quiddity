@@ -251,7 +251,9 @@ impl Record {
 
     /// All claimed faces, including proved hole-mouth treatments. The main `faces`
     /// remain the cylindrical feature's anchor; consulted support planes are not claims.
+    /// Fillet chains and groups reuse their members' physical claims.
     pub fn claimed_faces(&self) -> impl Iterator<Item = usize> + '_ {
+        let owns_faces = !crate::features::is_fillet_aggregate(&self.family);
         let treatments = (self.family == "holes")
             .then(|| {
                 self.parameters
@@ -265,7 +267,11 @@ impl Record {
             .flatten()
             .filter_map(Value::as_u64)
             .filter_map(|f| usize::try_from(f).ok());
-        self.faces.iter().copied().chain(treatments)
+        self.faces
+            .iter()
+            .copied()
+            .filter(move |_| owns_faces)
+            .chain(treatments)
     }
 
     /// A published explanation of a refused projection, rather than a feature claim.
@@ -368,6 +374,8 @@ pub const RECORD_TYPES: &[(&str, &[&str])] = &[
         "section_recesses",
         &["SectionRecess", "SectionRecessRefusal"],
     ),
+    ("fillet_chains", &["FilletChain"]),
+    ("fillet_groups", &["FilletGroup"]),
     (
         "section_recess_patterns",
         &["SectionRecessArray", "SectionRecessGrid"],

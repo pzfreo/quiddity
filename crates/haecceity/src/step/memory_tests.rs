@@ -10,11 +10,13 @@ fn ordinary(bytes: &[u8]) -> Parsed<step_io::parser::Graph> {
     let (model, report) = step_io::read(bytes).unwrap();
     let graph = step_io::parser::parse(bytes).unwrap();
     let declared_units = crate::pmi::declared_length_units(&graph, &graph.header, bytes);
+    let angle_uncertainty = angle_uncertainty(&model, &graph, &graph.header, bytes);
     Parsed {
         model,
         report,
         graph,
         declared_units: declared_units.into(),
+        angle_uncertainty,
     }
 }
 

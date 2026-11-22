@@ -129,6 +129,38 @@ pub(crate) fn declared_length_units(
     declared_units_impl(graph, header, bytes).unwrap_or_default()
 }
 
+/// Read declared angle uncertainty with the same unit resolver used for PMI angles.
+pub(crate) fn declared_angle_uncertainty(
+    graph: &impl RecordGraph,
+    header: &[RawEntity],
+    bytes: &[u8],
+) -> Option<f64> {
+    let mut reader = UnitReader::new(UnitSource::Graph {
+        graph,
+        header,
+        bytes,
+    });
+    // A flattened Part has one bound. The tightest declaration is safe for every context.
+    let mut angles = Vec::new();
+    for id in graph.ids() {
+        if (graph.is_complex(id) || graph.kind(id) == Some("GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT"))
+            && reader.is(id, "global_uncertainty_assigned_context")
+        {
+            let measures =
+                reader.get_refs(id, "global_uncertainty_assigned_context", "uncertainty");
+            angles.extend(measures.into_iter().filter_map(|measure| {
+                if let Ok(Measured::Angle(angle)) = reader.measure(measure) {
+                    let radians = angle.rad();
+                    (radians.is_finite() && radians >= 0.).then_some(radians)
+                } else {
+                    None
+                }
+            }));
+        }
+    }
+    angles.into_iter().min_by(f64::total_cmp)
+}
+
 #[derive(Default)]
 struct ReachedItems {
     faces: Vec<u64>,

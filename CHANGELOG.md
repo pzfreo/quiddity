@@ -6,7 +6,9 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
-### Fixed
+- For #341, add defining faces and chain references to fillets. Publish tangent fillet chains
+  through spherical and toroidal corners, with their spring edges and groups by radius
+  and side that count blend faces and legacy fillet records.
 
 - Face area, moments and volume flux now use the finite boundary selected by
   STEP's `PCURVE_S1` or `PCURVE_S2` when it can be integrated, including when
@@ -14,6 +16,11 @@ in [docs/alpha1.md](docs/alpha1.md).
   its spatial curve. An unusable selected boundary falls back to projection
   (#317). The mesher still triangulates the projected boundary until its own PR lands,
   so cgb243 face #60132's mesh area differs from its face area by 13%.
+
+### haecceity
+
+- For #341, add `Part::file_angle_uncertainty()` to read the smallest declared STEP plane
+  angle uncertainty in radians, when present.
 
 ## 0.5.5 (2026-11-21)
 

@@ -68,6 +68,10 @@ rebind.
 
   The weights, like the thresholds, are tuned on revision pairs.
 - **Assignment:** one to one, by the Hungarian method, with an explicit "unmatched" column.
+  A fillet chain or group can have the same centroid and neighbourhood as another.
+  If every face has a unique geometric coincidence and the complete face set
+  identifies one counterpart in each direction, reserve that pairing before
+  assignment.
 - **Classification:**
   - **carried:** low cost, and the winner clearly ahead of the runner-up;
   - **adapted:** the same feature with changed parameters, reported field by field;

@@ -47,6 +47,12 @@ pub struct Fillet {
     pub at: Placed<V3>,
     pub turned: bool,
     pub side: &'static str,
+    /// Defining faces in part order. Legacy records can already span multiple faces.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub faces: Vec<usize>,
+    /// Indices into the aggregate's fillet chains, when available.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub chains: Vec<usize>,
 }
 
 /// Principal runs keep their existing letter and serialization. Oblique runs carry a
@@ -139,6 +145,8 @@ fn occurrence(
             at: Placed::new(at, Grid::Decimals(3)),
             turned,
             side: "convex",
+            faces: vec![face],
+            chains: Vec::new(),
         },
         defining: vec![face],
         context,
@@ -179,7 +187,11 @@ pub fn discover(ctx: &Context<'_>, opts: &FilletOptions) -> Vec<Occurrence<Fille
         let (ka, kb) = (key(a), key(b));
         ka.0.order(kb.0).then_with(|| py::tuple_order(&ka.1[..], &kb.1[..]))
     });
-    group_turned_arcs(part, out)
+    let mut out = group_turned_arcs(part, out);
+    for fillet in &mut out {
+        fillet.record.faces.clone_from(&fillet.defining);
+    }
+    out
 }
 }
 

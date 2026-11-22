@@ -562,6 +562,8 @@ fn vector_snaps_share_the_coordinate_floor_across_the_whole_basis() {
                     at: Placed::new([0.; 3], Grid::Exact),
                     turned: false,
                     side: "convex",
+                    faces: Vec::new(),
+                    chains: Vec::new(),
                 })
                 .into(),
             ..Features::default()

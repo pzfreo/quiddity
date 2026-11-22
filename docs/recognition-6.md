@@ -580,6 +580,40 @@ consulted, after reconciliation: a plane facing along the boss axis at the recor
 ring ends on is not claimed. Feature selection and record fields are unchanged; the boss's
 fingerprint `faces`, area-weighted `position` and `neighbourhood` change within format 3.
 
+## Fillet chains and radius groups (for #341)
+
+Legacy `fillets` retain their records and ordering. Each has `faces` (the sorted defining
+face indices) and, in an aggregate result, `chains` (indices into `fillet_chains`). A
+legacy record that already spans disconnected torus arcs can reference several chains.
+
+- `fillet_chains` records have `radius`, `side`, `faces`, `edges` and `fillets`.
+  A chain is a region connected across shared edges by G1 tangent faces of the same
+  radius and material side. Lines and circles admit whole-edge bounds on agreement
+  of oriented normals. The bound uses the file's plane-angle uncertainty when
+  declared, or the kernel smooth-arc tolerance (roughly 45 microradians).
+  Corner tori and spheres can connect any number of branches. They can participate
+  without a legacy fillet record if the region reaches a legacy fillet face.
+  Unowned cylinders may be holes or bosses and are excluded. The proof requires
+  an analytic rolling-ball radius, which planes, cones and freeform surfaces
+  do not provide. Unproved joins split.
+  `faces` includes every face in the region. `fillets` indexes the legacy records
+  represented in the chain, and optional `blend_faces` lists just the faces with
+  no legacy fillet record. `edges` lists the B-rep spring edges where the chain
+  meets tangent support walls. Shared edges between reported blends and edges
+  onto any same-side cylinder, sphere or torus of equal radius are excluded.
+- `fillet_groups` records have `radius`, `side`, `chains`, `faces`, `face_count`,
+  `chain_count` and `fillet_count`. A group's chains share a side, its faces are
+  their union, and `fillet_count` counts distinct legacy records across the member
+  chains. Chains and groups use unrounded surface radii in millimetres. Each
+  radius is the smallest in the record and the full radius span fits the file's
+  length uncertainty, falling back to the kernel coordinate floor when the file
+  omits uncertainty. Groups are formed from the smallest remaining radius per side.
+
+Both families order records by descending face count, then ascending radius, side
+(lexically) and lowest face index. All index lists are ascending and zero-based.
+The two families are omitted when empty. Physical face accounting continues to use
+the legacy fillets. Fingerprints and evidence also carry the two derived families.
+
 ## Turned fillets (`turned: true`)
 
 A `Fillet` with `turned: true` is a toroidal round: its `axis` is the torus's axis of

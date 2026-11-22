@@ -16,7 +16,9 @@
 mod derived;
 pub mod model;
 mod read;
-pub(crate) use read::{DeclaredUnits, agreed_length_unit, declared_length_units};
+pub(crate) use read::{
+    DeclaredUnits, agreed_length_unit, declared_angle_uncertainty, declared_length_units,
+};
 pub(crate) mod sites;
 pub mod standards;
 pub(crate) mod text;
