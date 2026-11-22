@@ -491,9 +491,16 @@ fn ctc01_e1_accounting_records_and_main_correspondence() {
         .filter(|b| !old.features.iter().any(|a| a.id == b.id))
         .map(|b| b.id.as_str())
         .collect();
-    assert_eq!(
-        added,
-        [
+    // The same physical fillets now have 35 singleton chains and four radius/side
+    // groups. They appear in the comparison without claiming additional faces.
+    let aggregate_ids: Vec<_> = (0..35)
+        .map(|i| format!("fillet_chains/{i}"))
+        .chain((0..4).map(|i| format!("fillet_groups/{i}")))
+        .collect();
+    let expected: Vec<_> = aggregate_ids
+        .iter()
+        .map(String::as_str)
+        .chain([
             "fillets/7",
             "fillets/8",
             "fillets/9",
@@ -525,9 +532,10 @@ fn ctc01_e1_accounting_records_and_main_correspondence() {
             "rectangular_through_notches/0",
             "rectangular_through_notches/1",
             "v_channels/0",
-            "v_channels/1"
-        ]
-    );
+            "v_channels/1",
+        ])
+        .collect();
+    assert_eq!(added, expected);
     // Fingerprint floats differ in the last digits between builds and platforms, so
     // everything else is compared exactly and numbers to a relative 1e-9.
     let differing: Vec<_> = old
