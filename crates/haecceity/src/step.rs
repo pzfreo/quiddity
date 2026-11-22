@@ -1971,18 +1971,7 @@ impl Parsed {
         let mut stream = step_io::parser::stream(bytes).map_err(parse_error)?;
         let graph = PackedGraph::from_stream(&mut stream).map_err(parse_error)?;
         let declared_units = crate::pmi::declared_length_units(&graph, stream.header(), bytes);
-        let angle_uncertainty = model
-            .all::<m::UncertaintyMeasureWithUnit>()
-            .any(|(_, u)| {
-                u.value_component.type_name.is_none_or(|name| {
-                    matches!(
-                        model.text(name),
-                        "PLANE_ANGLE_MEASURE" | "POSITIVE_PLANE_ANGLE_MEASURE"
-                    )
-                })
-            })
-            .then(|| crate::pmi::declared_angle_uncertainty(&graph, stream.header(), bytes))
-            .flatten();
+        let angle_uncertainty = angle_uncertainty(&model, &graph, stream.header(), bytes);
         drop(stream);
         let complex_drops = crate::express::complex_reference_drops(&graph);
         refuse_dropped_shapes(&graph, &report, &complex_drops)?;
@@ -1995,6 +1984,26 @@ impl Parsed {
             angle_uncertainty,
         })
     }
+}
+
+fn angle_uncertainty(
+    model: &m::StepModel,
+    graph: &impl RecordGraph,
+    header: &[RawEntity],
+    bytes: &[u8],
+) -> Option<f64> {
+    model
+        .all::<m::UncertaintyMeasureWithUnit>()
+        .any(|(_, u)| {
+            u.value_component.type_name.is_none_or(|name| {
+                matches!(
+                    model.text(name),
+                    "PLANE_ANGLE_MEASURE" | "POSITIVE_PLANE_ANGLE_MEASURE"
+                )
+            })
+        })
+        .then(|| crate::pmi::declared_angle_uncertainty(graph, header, bytes))
+        .flatten()
 }
 
 /// Which shapes [`build`] reads, and where.
