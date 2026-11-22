@@ -65,7 +65,9 @@ fn face_anchor(f: &FaceFingerprint) -> Anchor {
 /// Whether two features could be the same feature unmoved and unchanged: everything but their
 /// placement agrees.
 fn same_feature(a: &FeatureFingerprint, b: &FeatureFingerprint, rel: f64) -> bool {
-    a.family == b.family
+    // The source fillet faces already vote for alignment.
+    !crate::features::is_fillet_aggregate(&a.family)
+        && a.family == b.family
         && a.traits == b.traits
         && a.sizes.len() == b.sizes.len()
         && a.sizes

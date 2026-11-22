@@ -326,13 +326,18 @@ def cases():
             aligned=True,
             expect=[
                 dict(
-                    label="the corner fillet",
-                    family="fillets",
+                    label=label,
+                    family=family,
                     class_="adapted",
                     old_at=[97.0, 57.0, 5.0],
                     new_at=[95.0, 55.0, 5.0],
                     changes=["sizes.radius"],
                 )
+                for label, family in [
+                    ("the corner fillet", "fillets"),
+                    ("the corner chain", "fillet_chains"),
+                    ("the corner radius group", "fillet_groups"),
+                ]
             ],
         )
     )

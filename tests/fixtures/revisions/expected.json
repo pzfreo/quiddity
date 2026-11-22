@@ -385,6 +385,42 @@
           "changes": [
             "sizes.radius"
           ]
+        },
+        {
+          "label": "the corner chain",
+          "family": "fillet_chains",
+          "class": "adapted",
+          "old_at": [
+            97.0,
+            57.0,
+            5.0
+          ],
+          "new_at": [
+            95.0,
+            55.0,
+            5.0
+          ],
+          "changes": [
+            "sizes.radius"
+          ]
+        },
+        {
+          "label": "the corner radius group",
+          "family": "fillet_groups",
+          "class": "adapted",
+          "old_at": [
+            97.0,
+            57.0,
+            5.0
+          ],
+          "new_at": [
+            95.0,
+            55.0,
+            5.0
+          ],
+          "changes": [
+            "sizes.radius"
+          ]
         }
       ]
     },

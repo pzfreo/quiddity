@@ -232,6 +232,10 @@ impl Ctx<'_> {
             .map(|(j, f)| (f.id.as_str(), j))
             .collect();
         for (i, e) in features.iter().enumerate() {
+            // The source fillets seed these faces through their own matches.
+            if crate::features::is_fillet_aggregate(&self.old.features[i].family) {
+                continue;
+            }
             let (Class::Carried | Class::Adapted, Some(id)) = (e.class, &e.new) else {
                 continue;
             };

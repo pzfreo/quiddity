@@ -6,6 +6,9 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+- For #341, add defining faces and chain references to fillets. Publish tangent fillet chains
+  with their spring edges and groups of chains by radius and side.
+
 ## 0.5.5 (2026-11-21)
 
 ### #307, reported by @earthtojake (text-to-cad)

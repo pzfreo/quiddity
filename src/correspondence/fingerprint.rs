@@ -155,6 +155,8 @@ pub const FAMILIES: &[FamilyFingerprint] = &[
             ("side", Trait),
             ("turned", Trait),
             ("at", Placement),
+            ("faces", Ignored),
+            ("chains", Ignored),
         ],
     },
     FamilyFingerprint {
@@ -1192,6 +1194,31 @@ pub const FAMILIES: &[FamilyFingerprint] = &[
             ("geometry.ends.high.surface.radius", Derived),
             ("classification.feature_kind", Trait),
             ("classification.section_shape", Trait),
+        ],
+    },
+    FamilyFingerprint {
+        family: "fillet_chains",
+        members: None,
+        variants: false,
+        fields: &[
+            ("radius", Size),
+            ("side", Trait),
+            ("faces", Count("face_count")),
+            ("edges", Ignored),
+            ("fillets", Ignored),
+        ],
+    },
+    FamilyFingerprint {
+        family: "fillet_groups",
+        members: None,
+        variants: false,
+        fields: &[
+            ("radius", Size),
+            ("side", Trait),
+            ("faces", Ignored),
+            ("chains", Ignored),
+            ("face_count", Size),
+            ("chain_count", Size),
         ],
     },
 ];

@@ -43,6 +43,7 @@ pub mod entry_treatments;
 pub mod evidence;
 pub mod experimental_geometry;
 pub mod face_grooves;
+mod fillet_chains;
 pub mod fillets;
 pub mod flats;
 pub mod freeform_surfaces;
@@ -116,6 +117,7 @@ pub mod wire_seed;
 
 internal_entry! { pub use context::Context; }
 pub use evidence::{EvidenceError, Occurrence};
+pub use fillet_chains::{FilletChain, FilletGroup};
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -272,10 +274,20 @@ pub struct Features {
     /// members' faces are theirs ([`crate::correspondence`]).
     #[serde(skip)]
     pub defining: Defining,
+    /// Tangent runs of accepted fillet faces, in part coordinates.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub fillet_chains: Vec<FilletChain>,
+    /// Radius and side groups over the accepted fillet chains.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub fillet_groups: Vec<FilletGroup>,
 }
 
 /// Defining faces by family field name, then record.
 pub type Defining = BTreeMap<&'static str, Vec<Vec<usize>>>;
+
+pub(crate) fn is_fillet_aggregate(family: &str) -> bool {
+    matches!(family, "fillet_chains" | "fillet_groups")
+}
 
 internal_entry! {
 /// Recognise every ported family on *part* with default options, as Python's aggregate does:
@@ -563,6 +575,7 @@ pub(crate) fn recognise_projected(
         }
     }
     duplicate_references::mark(ctx.part, &mut features);
+    fillet_chains::publish(ctx.part, &mut features);
     features
 }
 
@@ -1395,6 +1408,8 @@ fn inventory_in_with(
         ),
         failures,
         defining: defining.defining,
+        fillet_chains: Vec::new(),
+        fillet_groups: Vec::new(),
         evidence_status: defining.evidence_status,
     };
     // Bosses were kept, so their analysis completed and is cached.

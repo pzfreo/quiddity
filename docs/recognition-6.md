@@ -580,6 +580,33 @@ consulted, after reconciliation: a plane facing along the boss axis at the recor
 ring ends on is not claimed. Feature selection and record fields are unchanged; the boss's
 fingerprint `faces`, area-weighted `position` and `neighbourhood` change within format 3.
 
+## Fillet chains and radius groups (for #341)
+
+Legacy `fillets` retain their records and ordering. Each has `faces` (the sorted defining
+face indices) and, in an aggregate result, `chains` (indices into `fillet_chains`). A
+legacy record that already spans disconnected torus arcs can reference several chains.
+
+- `fillet_chains` records have `radius`, `side`, `faces`, `edges` and `fillets`.
+  Members of a chain share topological edges and have agreeing outward normals along
+  each join. Lines and circles admit whole-edge normal bounds on analytic fillet
+  surfaces. The kernel smooth-arc tolerance gives a normal chord limit of roughly
+  45 microradians. Unproved joins split. A spherical cap has a point spine and may
+  join its legacy owner without connecting independently rounded runs.
+  `edges` lists spring edges on tangent walls outside the fillet inventory, using part
+  edge indices. These are actual trimmed B-rep edges, so a consumer can select them
+  directly. `fillets` indexes the legacy records represented in the chain.
+- `fillet_groups` records have `radius`, `side`, `chains`, `faces`, `face_count`
+  and `chain_count`. A group's chains share a side and its faces are their union.
+  Chains and groups use unrounded surface radii in millimetres. Each radius is the
+  smallest in the record and the full radius span fits the file's length uncertainty,
+  falling back to the kernel coordinate floor when the file omits uncertainty.
+  Groups are formed from the smallest remaining radius per side.
+
+Both families order records by descending face count, then ascending radius, side
+(lexically) and lowest face index. All index lists are ascending and zero-based.
+The two families are omitted when empty. Their faces remain physically accounted for
+by the legacy fillets. Fingerprints and evidence also carry the two derived families.
+
 ## Turned fillets (`turned: true`)
 
 A `Fillet` with `turned: true` is a toroidal round: its `axis` is the torus's axis of

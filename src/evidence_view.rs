@@ -126,7 +126,7 @@ pub struct EvidenceFeature {
     /// Instance groups in order (each sorted), or none.
     pub groups: Vec<Vec<usize>>,
     pub hosts: Vec<usize>,
-    /// A hole pattern's members, as positions in the view's features, in record order.
+    /// A derived record's members, as positions in the view's features, in record order.
     pub members: Vec<usize>,
 }
 
@@ -626,6 +626,60 @@ pub(crate) fn project<'p>(
         out.push(feature);
     }
 
+    // The derived fillet families use published face claims and explicit member indices.
+    let fillet_positions: Vec<_> = (0..out.len())
+        .filter(|&p| out[p].family == "fillets")
+        .collect();
+    accepted.failures.extend(
+        recognised
+            .failures
+            .iter()
+            .filter(|f| features::is_fillet_aggregate(&f.family))
+            .cloned(),
+    );
+    accepted
+        .failures
+        .sort_by(|a, b| (&a.family, &a.stage).cmp(&(&b.family, &b.stage)));
+    accepted.fillet_chains.clone_from(&recognised.fillet_chains);
+    accepted.fillet_groups.clone_from(&recognised.fillet_groups);
+    if !accepted.fillet_chains.is_empty() {
+        if fillet_positions.len() != recognised.fillets.len() {
+            return Err(EvidenceViewError(
+                "accepted fillets do not match their evidence".into(),
+            ));
+        }
+        accepted.fillets.clone_from(&recognised.fillets);
+    }
+    let chain_start = out.len();
+    for (index, chain) in accepted.fillet_chains.iter().enumerate() {
+        let members = chain.fillets.iter().map(|&i| fillet_positions[i]).collect();
+        out.push(fillet_evidence(
+            &out,
+            "fillet_chains",
+            index,
+            &chain.faces,
+            members,
+        ));
+    }
+    for (index, group) in accepted.fillet_groups.iter().enumerate() {
+        let members = group.chains.iter().map(|&i| chain_start + i).collect();
+        out.push(fillet_evidence(
+            &out,
+            "fillet_groups",
+            index,
+            &group.faces,
+            members,
+        ));
+    }
+    for family in ["fillet_chains", "fillet_groups"] {
+        if let Some(faces) = recognised.defining.get(family) {
+            accepted.defining.insert(family, faces.clone());
+            accepted
+                .evidence_status
+                .insert(family, recognised.evidence_status[family].clone());
+        }
+    }
+
     for feature in &mut out {
         feature.hosts = match feature.family {
             "holes" => {
@@ -725,6 +779,41 @@ pub(crate) fn project<'p>(
         candidates,
         rejected_candidates,
     })
+}
+
+fn fillet_evidence(
+    features: &[EvidenceFeature],
+    family: &'static str,
+    index: usize,
+    defining: &[usize],
+    members: Vec<usize>,
+) -> EvidenceFeature {
+    let constituent = members
+        .iter()
+        .flat_map(|&m| features[m].constituent.iter().copied())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let groups = members
+        .iter()
+        .map(|&m| {
+            features[m]
+                .defining
+                .iter()
+                .copied()
+                .filter(|f| defining.binary_search(f).is_ok())
+                .collect()
+        })
+        .collect();
+    EvidenceFeature {
+        family,
+        index,
+        defining: defining.to_vec(),
+        constituent,
+        groups,
+        hosts: Vec::new(),
+        members,
+    }
 }
 
 fn pattern_holes(pattern: &features::hole_patterns::HolePattern) -> &[holes::HoleRecord] {

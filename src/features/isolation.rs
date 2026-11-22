@@ -69,6 +69,8 @@ impl Drop for Scope {
 fn inputs(family: &str, stage: &str) -> &'static [&'static str] {
     match (family, stage) {
         ("holes", _) => &["countersinks"],
+        ("fillet_chains", _) => &["fillets"],
+        ("fillet_groups", _) => &["fillet_chains"],
         ("hole_patterns", _) => &["countersinks", "holes"],
         ("gusset_rib_patterns", _) => &["gusset_ribs"],
         ("slot_patterns", _) => &["slots"],
@@ -451,6 +453,8 @@ mod tests {
                 "slot_patterns",
                 "pocket_patterns",
                 "oriented_slot_patterns",
+                "fillet_chains",
+                "fillet_groups",
             ]);
         for family in families {
             let found = injected(family, "discover", || features::recognise(&part));
@@ -504,12 +508,14 @@ mod tests {
         assert!(found.defining["holes"].is_empty());
         assert!(found.evidence_status["holes"].is_empty());
         // A fresh reconciliation without holes is authoritative, not the earlier decisions.
-        let rebuilt =
-            features::inventory_in_with(&features::Context::new(&part), found.failures.clone())
-                .unwrap()
-                .unwrap()
-                .accepted();
+        let ctx = features::Context::new(&part);
+        let rebuilt = features::inventory_in_with(&ctx, found.failures.clone())
+            .unwrap()
+            .unwrap();
+        let rebuilt = features::recognise_in(&ctx, rebuilt);
         assert_eq!(found.fillets, rebuilt.fillets);
+        assert_eq!(found.fillet_chains, rebuilt.fillet_chains);
+        assert_eq!(found.fillet_groups, rebuilt.fillet_groups);
 
         // This post-pass actually removes an OD boss before the injected panic. Recovery
         // must restore that independent boss and remove the failed body and all its faces.
