@@ -389,6 +389,20 @@ fn compared(doc: &RecognitionDocument, features: &PublishedFeatures) -> Vec<Comp
                         record["width_axis"] =
                             serde_json::json!(features.paired_ramp_steps[n].half_width_axis);
                     }
+                    // A free frame gauge can reorder legacy fillet records. Resolve
+                    // the new indices to their actual face sets in both documents.
+                    if matches!(r.family.as_str(), "fillets" | "fillet_chains" | "fillet_groups") {
+                        for (key, family) in [("chains", "fillet_chains"), ("fillets", "fillets")] {
+                            if let Some(indices) = record.get_mut(key) {
+                                let mut faces: Vec<Vec<usize>> = indices.as_array().unwrap().iter()
+                                    .map(|i| {
+                                        serde_json::from_value(by_family[family][i.as_u64().unwrap() as usize]["faces"].clone()).unwrap()
+                                    }).collect();
+                                faces.sort_unstable();
+                                *indices = serde_json::json!(faces);
+                            }
+                        }
+                    }
                     published_geometry::canonical(&record, &r.family)
                 },
             }

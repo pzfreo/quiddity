@@ -323,6 +323,12 @@ fn the_document_lists_each_feature_with_its_record_type_and_faces() {
             ("holes/1", "HoleRecord", &faces(&[11])),
             ("holes/2", "HoleRecord", &faces(&[12])),
             ("hole_patterns/0", "LinearArray", &faces(&[10, 11, 12])),
+            // Fillet chains are physical-face views; the equal-radius group collects all four.
+            ("fillet_chains/0", "FilletChain", &faces(&[2])),
+            ("fillet_chains/1", "FilletChain", &faces(&[3])),
+            ("fillet_chains/2", "FilletChain", &faces(&[7])),
+            ("fillet_chains/3", "FilletChain", &faces(&[8])),
+            ("fillet_groups/0", "FilletGroup", &faces(&[2, 3, 7, 8])),
             // recognise_blends finds the fillets' faces too, as Python's does (4 blends), and
             // reconciliation rejects each as a chain every face of which is a fillet's
             // (`blend.chain_superseded_by_fillet`), as Python's aggregate does.

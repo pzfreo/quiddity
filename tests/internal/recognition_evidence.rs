@@ -392,8 +392,18 @@ fn rust_snapshot_recognition_evidence_and_view_is_placement_independent() {
         let want = build_recognition_evidence(&part)
             .map(|view| {
                 for f in &view.features {
+                    let member_family = match f.family {
+                        "hole_patterns" => "holes",
+                        "fillet_chains" => "fillets",
+                        "fillet_groups" => "fillet_chains",
+                        _ => {
+                            assert!(f.members.is_empty(), "{file}: {}", f.family);
+                            continue;
+                        }
+                    };
+                    assert!(!f.members.is_empty(), "{file}: {}", f.family);
                     for &m in &f.members {
-                        assert_eq!(view.features[m].family, "holes", "{file}");
+                        assert_eq!(view.features[m].family, member_family, "{file}");
                     }
                 }
                 assert!(view.rejected_candidates.iter().all(|&c| {

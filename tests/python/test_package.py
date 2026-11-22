@@ -205,7 +205,7 @@ def test_correspond():
 
 
 def test_capabilities_version_and_console_script():
-    assert quiddity.__version__ == "0.5.5"
+    assert quiddity.__version__ == "0.5.6"
     assert not importlib.metadata.requires("quiddity")
     assert importlib.metadata.metadata("quiddity")["Requires-Python"] == ">=3.11"
     caps = json.loads(quiddity.capabilities())

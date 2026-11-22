@@ -524,9 +524,10 @@ pub fn correspond_with(
         axis: alignment.axis.map(|[p, d]| (p, d)),
         scale: old.scale.max(new.scale),
     };
+    let coincident = ctx.coincident_faces();
     let mut questions = Vec::new();
-    let (features, new_features) = ctx.match_features(&mut questions);
-    let (faces, new_faces) = ctx.match_faces(&features, &mut questions);
+    let (features, new_features) = ctx.match_features(&coincident, &mut questions);
+    let (faces, new_faces) = ctx.match_faces(&features, &coincident, &mut questions);
     Ok(Correspondence {
         fingerprint_version: FINGERPRINT_VERSION.into(),
         alignment,
@@ -846,7 +847,57 @@ impl Ctx<'_> {
         }
     }
 
-    fn match_features(&self, questions: &mut Vec<String>) -> (Vec<Entry<String>>, Vec<String>) {
+    // Two concentric chains can have indistinguishable centroids and neighbourhoods.
+    // Reserve a counterpart only when every face coincides uniquely and the whole
+    // mapped set identifies one record on each side. Incomplete maps retain the costs
+    // and ambiguity handling used for the other families.
+    fn fillet_face_matches(
+        &self,
+        olds: &[usize],
+        news: &[usize],
+        coincident: &[Option<usize>],
+    ) -> (Vec<Option<usize>>, Vec<Option<usize>>) {
+        let mapped: Vec<_> = olds
+            .iter()
+            .map(|&i| {
+                let faces = &self.old.features[i].faces;
+                let mut target = faces
+                    .iter()
+                    .map(|&f| coincident[f])
+                    .collect::<Option<Vec<_>>>()?;
+                target.sort_unstable();
+                (!target.is_empty()).then_some(target)
+            })
+            .collect();
+        let mut forward = vec![None; olds.len()];
+        let mut back = vec![None; news.len()];
+        for (r, faces) in mapped.iter().enumerate() {
+            let Some(faces) = faces else { continue };
+            let mut candidates = news
+                .iter()
+                .enumerate()
+                .filter(|&(_, &j)| self.new.features[j].faces == *faces);
+            if let Some((c, _)) = candidates.next()
+                && candidates.next().is_none()
+                && mapped
+                    .iter()
+                    .flatten()
+                    .filter(|other| *other == faces)
+                    .count()
+                    == 1
+            {
+                forward[r] = Some(c);
+                back[c] = Some(r);
+            }
+        }
+        (forward, back)
+    }
+
+    fn match_features(
+        &self,
+        coincident: &[Option<usize>],
+        questions: &mut Vec<String>,
+    ) -> (Vec<Entry<String>>, Vec<String>) {
         let families: BTreeSet<&String> = self
             .old
             .features
@@ -863,11 +914,24 @@ impl Ctx<'_> {
             let news: Vec<usize> = (0..self.new.features.len())
                 .filter(|&j| &self.new.features[j].family == family)
                 .collect();
+            let exact = features::is_fillet_aggregate(family)
+                .then(|| self.fillet_face_matches(&olds, &news, coincident));
             let costs: Vec<Vec<f64>> = olds
                 .iter()
-                .map(|&i| {
+                .enumerate()
+                .map(|(r, &i)| {
                     news.iter()
-                        .map(|&j| self.feature_cost(&self.old.features[i], &self.new.features[j]))
+                        .enumerate()
+                        .map(|(c, &j)| {
+                            if exact.as_ref().is_some_and(|(forward, back)| {
+                                forward[r].is_some_and(|other| other != c)
+                                    || back[c].is_some_and(|other| other != r)
+                            }) {
+                                assign::FORBIDDEN
+                            } else {
+                                self.feature_cost(&self.old.features[i], &self.new.features[j])
+                            }
+                        })
                         .collect()
                 })
                 .collect();

@@ -186,9 +186,35 @@ impl Ctx<'_> {
         out
     }
 
+    /// The geometrically coincident faces whose counterpart is unique in both directions.
+    pub(super) fn coincident_faces(&self) -> Vec<Option<usize>> {
+        let mut matches = vec![None; self.old.faces.len()];
+        if !self.aligned || self.axis.is_some() {
+            return matches;
+        }
+        let mut per_old = vec![0; self.old.faces.len()];
+        let mut per_new = vec![0; self.new.faces.len()];
+        for (a, candidate) in matches.iter_mut().enumerate() {
+            for (b, count) in per_new.iter_mut().enumerate() {
+                if self.coincide(a, b) {
+                    *candidate = Some(b);
+                    per_old[a] += 1;
+                    *count += 1;
+                }
+            }
+        }
+        for (a, candidate) in matches.iter_mut().enumerate() {
+            if per_old[a] != 1 || candidate.is_some_and(|b| per_new[b] != 1) {
+                *candidate = None;
+            }
+        }
+        matches
+    }
+
     pub(super) fn match_faces(
         &self,
         features: &[Entry<String>],
+        coincident: &[Option<usize>],
         questions: &mut Vec<String>,
     ) -> (Vec<Entry<usize>>, Vec<usize>) {
         let (n, m) = (self.old.faces.len(), self.new.faces.len());
@@ -202,24 +228,9 @@ impl Ctx<'_> {
                 }
             };
 
-        // Seeds: faces that coincide, one to one.
-        if self.aligned {
-            let mut by_old: Vec<Vec<usize>> = vec![Vec::new(); n];
-            let mut per_new = vec![0usize; m];
-            for (a, list) in by_old.iter_mut().enumerate() {
-                for b in 0..m {
-                    if self.coincide(a, b) {
-                        list.push(b);
-                        per_new[b] += 1;
-                    }
-                }
-            }
-            for (a, list) in by_old.iter().enumerate() {
-                if let [b] = list[..]
-                    && per_new[b] == 1
-                {
-                    link(&mut fwd, &mut back, a, b);
-                }
+        for (a, b) in coincident.iter().copied().enumerate() {
+            if let Some(b) = b {
+                link(&mut fwd, &mut back, a, b);
             }
         }
 
@@ -232,6 +243,10 @@ impl Ctx<'_> {
             .map(|(j, f)| (f.id.as_str(), j))
             .collect();
         for (i, e) in features.iter().enumerate() {
+            // The source fillets seed these faces through their own matches.
+            if crate::features::is_fillet_aggregate(&self.old.features[i].family) {
+                continue;
+            }
             let (Class::Carried | Class::Adapted, Some(id)) = (e.class, &e.new) else {
                 continue;
             };

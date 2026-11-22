@@ -724,7 +724,14 @@ fn correspondence_problems(
                 assert_eq!(profile.sizes["radius"], 10.);
                 assert_eq!(profile.traits["side"], "convex");
             }
-            for round in rounds.into_iter().chain(profiles) {
+            // The six derived R40 chains follow the same permutation as their fillet faces.
+            let chains: Vec<_> = old
+                .features
+                .iter()
+                .filter(|f| f.family == "fillet_chains" && f.sizes["radius"] == 40.)
+                .collect();
+            assert_eq!(chains.len(), 6);
+            for round in rounds.into_iter().chain(profiles).chain(chains) {
                 let carried = c.features.iter().find(|e| e.old == round.id).unwrap();
                 assert_eq!(carried.class, Class::Carried);
                 assert!(carried.changes.is_empty());
@@ -734,7 +741,7 @@ fn correspondence_problems(
                     .find(|f| Some(&f.id) == carried.new.as_ref())
                     .unwrap();
                 assert_eq!(target.traits, round.traits);
-                if round.family == "fillets" {
+                if matches!(round.family.as_str(), "fillets" | "fillet_chains") {
                     assert_eq!(target.sizes, round.sizes);
                 } else {
                     // Profile sweeps use the unchanged correspondence size comparison
@@ -866,12 +873,16 @@ fn plate_thickness_survives_a_fractional_publication_grid_translation() {
 
 /// The reference census excludes world-Z construction levels and risers. Keep their existing
 /// comparison above, but never match them against physical features as alleged reclassifications.
+/// Fillet aggregates also have their own comparison and reuse existing physical occurrences.
 fn physical_occurrences(
     signature: &BTreeMap<&str, Vec<Vec<usize>>>,
 ) -> Vec<motion_breakdown::Occurrence> {
     motion_breakdown::occurrences(signature)
         .into_iter()
-        .filter(|o| !WORLD_Z.contains(&o.family.as_str()))
+        .filter(|o| {
+            !WORLD_Z.contains(&o.family.as_str())
+                && !quiddity::features::is_fillet_aggregate(&o.family)
+        })
         .collect()
 }
 
@@ -1255,7 +1266,8 @@ fn compound_child_order_does_not_change_recognition() {
             .join(name);
         let (output, _) = quiddity::serve::recognise_file(&path.to_string_lossy())
             .unwrap_or_else(|e| panic!("{name}: {}", e.message));
-        serde_json::to_value(&output).unwrap()
+        let edge_count = quiddity::read_step_file(&path).unwrap().edges.len() as u64;
+        (serde_json::to_value(&output).unwrap(), edge_count)
     };
     // `body_key` is `body_signature`'s bounds min (x, y, z), max (x, y, z), volume, area.
     let z_extent = |record: &Value| {
@@ -1263,9 +1275,39 @@ fn compound_child_order_does_not_change_recognition() {
         (key[2].as_f64().unwrap(), key[5].as_f64().unwrap())
     };
     // Records by family, without what follows body order, with faces mapped by `face`.
-    fn records(document: &Value, face: impl Fn(u64) -> u64) -> BTreeMap<String, Vec<Value>> {
+    fn records(
+        document: &Value,
+        face: impl Fn(u64) -> u64,
+        edge: impl Fn(u64) -> u64,
+    ) -> BTreeMap<String, Vec<Value>> {
+        let records = document["records"].as_array().unwrap();
+        let remap = |v: &Value, map: &dyn Fn(u64) -> u64| -> Vec<u64> {
+            let mut ids = v
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|f| map(f.as_u64().unwrap()))
+                .collect::<Vec<_>>();
+            ids.sort_unstable();
+            ids
+        };
+        let members = |family: &str, refs: &Value| -> Value {
+            let by_index = records
+                .iter()
+                .filter(|r| r["family"] == family)
+                .collect::<Vec<_>>();
+            let mut members: Vec<_> = refs
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|i| remap(&by_index[i.as_u64().unwrap() as usize]["faces"], &face))
+                .collect();
+            members.sort_unstable();
+            serde_json::json!(members)
+        };
         let mut out: BTreeMap<String, Vec<Value>> = BTreeMap::new();
-        for record in document["records"].as_array().unwrap() {
+        for record in records {
+            let family = record["family"].as_str().unwrap().to_owned();
             let mut record = record.clone();
             let fields = record.as_object_mut().unwrap();
             fields.remove("id");
@@ -1274,6 +1316,30 @@ fn compound_child_order_does_not_change_recognition() {
             let parameters = fields["parameters"].as_object_mut().unwrap();
             parameters.remove("index");
             parameters.remove("body");
+            if matches!(
+                family.as_str(),
+                "fillets" | "fillet_chains" | "fillet_groups"
+            ) {
+                fields["faces"] = serde_json::json!(remap(&fields["faces"], &|f| f));
+                let parameters = fields["parameters"].as_object_mut().unwrap();
+                parameters.insert(
+                    "faces".into(),
+                    serde_json::json!(remap(&parameters["faces"], &face)),
+                );
+                if let Some(chains) = parameters.get_mut("chains") {
+                    *chains = members("fillet_chains", chains);
+                }
+                if let Some(fillets) = parameters.get_mut("fillets") {
+                    *fillets = members("fillets", fillets);
+                }
+                if let Some(blend_faces) = parameters.get_mut("blend_faces") {
+                    *blend_faces = serde_json::json!(remap(blend_faces, &face));
+                }
+                if let Some(edges) = parameters.get_mut("edges") {
+                    *edges = serde_json::json!(remap(edges, &edge));
+                }
+            }
+            let parameters = fields["parameters"].as_object_mut().unwrap();
             if let Some(evidence) = parameters
                 .get_mut("evidence")
                 .and_then(Value::as_object_mut)
@@ -1283,7 +1349,6 @@ fn compound_child_order_does_not_change_recognition() {
                     *faces = mapped.map(|f| face(f.as_u64().unwrap())).collect();
                 }
             }
-            let family = record["family"].as_str().unwrap().to_owned();
             out.entry(family).or_default().push(record);
         }
         for list in out.values_mut() {
@@ -1308,13 +1373,19 @@ fn compound_child_order_does_not_change_recognition() {
 
     // Every record is the same in both orders apart from body order. Each pair holds two bodies
     // of equal face count, so the face ids of one order are the other's with halves swapped.
-    let same_records = |forward: &Value, reversed: &Value| {
+    let same_records = |(forward, edges): &(Value, u64), (reversed, other_edges): &(Value, u64)| {
         let n = forward["document"]["face_count"].as_u64().unwrap();
+        assert_eq!(edges, other_edges);
+        assert_eq!(edges % 2, 0, "two bodies of equal edge count");
         assert_eq!(reversed["document"]["face_count"].as_u64(), Some(n));
         assert_eq!(n % 2, 0, "two bodies of equal face count");
         let (a, b) = (
-            records(&forward["document"], |f| (f + n / 2) % n),
-            records(&reversed["document"], |f| f),
+            records(
+                &forward["document"],
+                |f| (f + n / 2) % n,
+                |e| (e + edges / 2) % edges,
+            ),
+            records(&reversed["document"], |f| f, |e| e),
         );
         assert_eq!(
             a.keys().collect::<Vec<_>>(),
@@ -1331,7 +1402,7 @@ fn compound_child_order_does_not_change_recognition() {
 
     let ordered = fixture("two_channels_ordered.step");
     let reversed = fixture("two_channels_reversed.step");
-    for output in [&ordered, &reversed] {
+    for (output, _) in [&ordered, &reversed] {
         assert_eq!(output["document"]["face_count"], 20);
         let mut channels: Vec<_> = output["channels"]
             .as_array()
@@ -1353,7 +1424,7 @@ fn compound_child_order_does_not_change_recognition() {
         &fixture("two_solids_reversed.step"),
     );
     // The channels' records name the body they lie on, in either order.
-    for output in [&ordered, &reversed] {
+    for (output, _) in [&ordered, &reversed] {
         for record in output["document"]["records"].as_array().unwrap() {
             if record["family"] == "channels" {
                 let (lo, hi) = z_extent(record);
@@ -1363,7 +1434,7 @@ fn compound_child_order_does_not_change_recognition() {
         }
     }
 
-    let single = fixture("two_channels.step");
+    let (single, _) = fixture("two_channels.step");
     assert_eq!(single["document"]["face_count"], 10);
     let channels = single["channels"].as_array().unwrap();
     assert_eq!(channels.len(), 1);

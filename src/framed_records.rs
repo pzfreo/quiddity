@@ -610,6 +610,8 @@ fn carry(
         section_recess_patterns,
         section_recess_refusal,
         defining,
+        fillet_chains,
+        fillet_groups,
     } = features;
     let mut relative = BTreeMap::new();
     let mut family = |name: &str, n: usize, paths: Vec<String>| {
@@ -869,6 +871,9 @@ fn carry(
             section_recess_pattern
         ),
         section_recess_refusal,
+        // Radius and topology indices are invariant under the frame conversion.
+        fillet_chains,
+        fillet_groups,
         // The working part's faces are the caller's, under the same indices.
         defining,
     };
@@ -885,24 +890,13 @@ fn prismatic_through_cut(
     r
 }
 
-fn fillet(out: &mut Out, r: Fillet) -> Fillet {
-    let Fillet {
-        axis,
-        radius,
-        at,
-        turned,
-        side,
-    } = r;
-    Fillet {
-        axis: match axis {
-            FilletAxis::Principal(axis) => FilletAxis::Principal(out.letter(axis, "axis")),
-            FilletAxis::Direction(direction) => FilletAxis::Direction(out.direction(direction)),
-        },
-        radius,
-        at: out.placed_point(at),
-        turned,
-        side,
-    }
+fn fillet(out: &mut Out, mut r: Fillet) -> Fillet {
+    r.axis = match r.axis {
+        FilletAxis::Principal(axis) => FilletAxis::Principal(out.letter(axis, "axis")),
+        FilletAxis::Direction(direction) => FilletAxis::Direction(out.direction(direction)),
+    };
+    r.at = out.placed_point(r.at);
+    r
 }
 
 fn turned_body(
@@ -3104,6 +3098,8 @@ mod publication_tests {
                 at: Placed::new(at, Grid::Decimals(3)),
                 turned: false,
                 side: "convex",
+                faces: Vec::new(),
+                chains: Vec::new(),
             }],
             ..Features::default()
         }

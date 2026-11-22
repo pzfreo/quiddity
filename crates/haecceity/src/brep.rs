@@ -387,6 +387,7 @@ pub struct Part {
     declared_length_unit: Option<crate::pmi::LengthUnit>,
     // The file's length uncertainty, in millimetres.
     file_uncertainty: Option<f64>,
+    angle_uncertainty: Option<f64>,
     native_faces: Vec<Native<Face>>,
     native_edges: Vec<Native<Edge>>,
     // The per-face integration budget this part was measured against; carried by transforms.
@@ -426,6 +427,7 @@ impl Part {
             file_units: None,
             declared_length_unit: None,
             file_uncertainty: None,
+            angle_uncertainty: None,
             native_faces: Vec::new(),
             native_edges: Vec::new(),
             integration_budget: None,
@@ -452,6 +454,7 @@ impl Part {
         part.file_units = self.file_units;
         part.declared_length_unit = self.declared_length_unit.clone();
         part.file_uncertainty = self.file_uncertainty;
+        part.angle_uncertainty = self.angle_uncertainty;
         part.native_faces = self.native_faces.clone();
         part.native_edges = self.native_edges.clone();
         part.integration_budget = self.integration_budget.clone();
@@ -658,6 +661,7 @@ impl Part {
         part.file_units = self.file_units;
         part.declared_length_unit = self.declared_length_unit.clone();
         part.file_uncertainty = self.file_uncertainty;
+        part.angle_uncertainty = self.angle_uncertainty;
         part.native_faces = native_faces;
         part.native_edges = native_edges;
         part.integration_budget = self.integration_budget.clone();
@@ -776,6 +780,17 @@ impl Part {
     /// millimetres.
     pub fn file_uncertainty(&self) -> Option<f64> {
         self.file_uncertainty
+    }
+
+    /// The smallest declared STEP plane angle uncertainty, in radians.
+    #[must_use]
+    pub fn file_angle_uncertainty(&self) -> Option<f64> {
+        self.angle_uncertainty
+    }
+
+    pub(super) fn with_angle_uncertainty(mut self, uncertainty: Option<f64>) -> Self {
+        self.angle_uncertainty = uncertainty;
+        self
     }
 
     /// Preserve the file's explicit authority without asking an integral to choose it.

@@ -90,6 +90,8 @@ No new independent references are claimed for legacy value-only helpers.
 | `gusset_rib_patterns` | F |
 | `gusset_ribs` | F; analytic cap/slant claims (`tests/internal/evidence.rs`) |
 | `hole_patterns` | F |
+| `fillet_chains` | Analytic tangent, crease, and radius controls plus corpus face coverage and spring-edge checks (`tests/fillet_chains.rs`, `src/features/fillet_chains.rs`) |
+| `fillet_groups` | Radius and side counts and exact face partition on the scored corpus parts (`tests/fillet_chains.rs`) |
 | `holes` | F; L; analytic counterbores + motion (`tests/internal/tie_breaks.rs`) |
 | `interior_voids` | F; analytic bounded-air fixtures (`src/features/interior_voids.rs`) |
 | `local_steps` | original OCCT boolean controls + analytic dimensions, end-face evidence, negatives and motion (`tests/internal/local_steps.rs`); L |
