@@ -3,6 +3,7 @@
 <p>
   <a href="https://pypi.org/project/quiddity/"><img src="https://img.shields.io/pypi/v/quiddity.svg" alt="PyPI"></a>
   <a href="https://pypi.org/project/quiddity/"><img src="https://img.shields.io/pypi/pyversions/quiddity.svg" alt="Python versions"></a>
+  <a href="https://pypistats.org/packages/quiddity"><img src="https://img.shields.io/pypi/dm/quiddity.svg" alt="PyPI downloads per month"></a>
   <a href="https://crates.io/crates/quiddity"><img src="https://img.shields.io/crates/v/quiddity.svg?label=crates.io%20quiddity" alt="crates.io: quiddity"></a>
   <a href="https://crates.io/crates/haecceity"><img src="https://img.shields.io/crates/v/haecceity.svg?label=crates.io%20haecceity" alt="crates.io: haecceity"></a>
   <a href="https://docs.rs/quiddity"><img src="https://img.shields.io/docsrs/quiddity" alt="docs.rs"></a>
