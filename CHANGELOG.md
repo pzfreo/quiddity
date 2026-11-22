@@ -10,8 +10,9 @@ in [docs/alpha1.md](docs/alpha1.md).
   through spherical and toroidal corners, with their spring edges and groups by radius
   and side that count blend faces and legacy fillet records.
 - README: state the cross-platform guarantee precisely. The same features, faces and structure
-  on Windows, macOS and Linux, with numbers that agree to 1e-6 rather than to the last bit
-  (CI checks Linux and macOS against one corpus snapshot at that tolerance).
+  on Windows, macOS and Linux, with numbers that agree to 1e-6 (relative above magnitude 1)
+  rather than to the last bit; CI checks Linux x86_64 and macOS arm64 against one corpus
+  snapshot at that tolerance.
 
 ### haecceity
 
