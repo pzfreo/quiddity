@@ -107,7 +107,49 @@ fn cgb202_pins_side_groups_and_legacy_radius_totals() {
         .iter()
         .filter(|r| r.family == "fillet_chains")
         .collect();
-    assert_eq!(chains.len(), 667, "cgb202 chain count");
+    // Vertex branches are separate chains, and two-run caps connect both runs.
+    assert_eq!(chains.len(), 708, "cgb202 geometric chain count");
+    assert_eq!(
+        chains.iter().filter(|c| c.faces.len() == 1).count(),
+        665,
+        "cgb202 singleton count"
+    );
+    let chain_of = |face| chains.iter().find(|c| c.faces.contains(&face));
+    for (sphere, neighbours) in [(4, [3, 5, 1215]), (10, [9, 11, 1219])] {
+        assert_eq!(chain_of(sphere).unwrap().faces, [sphere]);
+        let mut runs = BTreeSet::new();
+        for neighbour in neighbours {
+            assert_eq!(part.arc(sphere, neighbour), Some(Arc::Smooth));
+            assert!(runs.insert(&chain_of(neighbour).unwrap().id));
+        }
+    }
+    assert_eq!(chain_of(74).unwrap().faces, [74, 76, 887]);
+    assert!(chain_of(72).is_none()); // Another tangent blend, outside the legacy inventory.
+    for face in [72, 76, 887] {
+        assert_eq!(part.arc(74, face), Some(Arc::Smooth));
+    }
+
+    use quiddity::kernel::geom::Surface;
+    assert_eq!(part.edge_faces()[2212], [848, 850]);
+    assert_eq!(part.arc(848, 850), Some(Arc::Smooth));
+    assert_eq!(part.frame_points_outward(850), Some(false));
+    assert!(matches!(
+        part.faces[850].surface,
+        Surface::Sphere { radius: 3.0, .. }
+    ));
+    assert!(matches!(
+        part.faces[848].surface,
+        Surface::Cylinder { radius: 3.0, .. }
+    ));
+    assert_eq!(chain_of(848).unwrap().parameters["side"], "concave");
+    assert!(chain_of(850).is_none());
+    assert!(
+        !chain_of(848).unwrap().parameters["edges"]
+            .as_array()
+            .unwrap()
+            .contains(&Value::from(2212)),
+        "the tangent equal-radius continuation e2212 is not a spring edge"
+    );
     let mut by_side = BTreeMap::new();
     let mut by_radius = BTreeMap::new();
     for g in doc.records.iter().filter(|r| r.family == "fillet_groups") {
@@ -215,4 +257,48 @@ fn accepted_fillet_faces_partition_on_three_corpus_parts() {
             .sum();
         assert_eq!(faces, expected, "{name}");
     }
+}
+
+#[test]
+fn straight_creases_between_equal_rounds_split_on_normal_disagreement() {
+    use quiddity::kernel::geom::Curve;
+
+    let part = read_step_file(&common::fixtures().join("fillet_chain_crease.step.gz")).unwrap();
+    let doc = document(&recognise(&part), part.faces.len());
+    let fillets: Vec<_> = doc
+        .records
+        .iter()
+        .filter(|r| r.family == "fillets")
+        .collect();
+    assert_eq!(
+        fillets
+            .iter()
+            .map(|f| f.faces.as_slice())
+            .collect::<Vec<_>>(),
+        [&[2], &[7]]
+    );
+    for f in fillets {
+        assert_eq!(f.parameters["radius"], 2.0);
+        assert_eq!(f.parameters["side"], "convex");
+    }
+    let shared = part.shared_edges(2, 7);
+    assert_eq!(shared, [12, 14]);
+    assert!(
+        shared
+            .iter()
+            .all(|&e| matches!(part.edges[e].curve, Curve::Line { .. }))
+    );
+    assert_eq!(part.arc(2, 7), Some(Arc::Concave));
+    let chains: Vec<_> = doc
+        .records
+        .iter()
+        .filter(|r| r.family == "fillet_chains")
+        .map(|c| c.faces.as_slice())
+        .collect();
+    assert_eq!(
+        chains,
+        [&[2], &[7]],
+        "straight creases must split equal convex R2 fillets"
+    );
+    check_partition(&part, &doc);
 }

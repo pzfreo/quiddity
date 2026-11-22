@@ -590,11 +590,16 @@ legacy record that already spans disconnected torus arcs can reference several c
   Members of a chain share topological edges and have agreeing outward normals along
   each join. Lines and circles admit whole-edge normal bounds on analytic fillet
   surfaces. The kernel smooth-arc tolerance gives a normal chord limit of roughly
-  45 microradians. Unproved joins split. A spherical cap has a point spine and may
-  join its legacy owner without connecting independently rounded runs.
-  `edges` lists spring edges on tangent walls outside the fillet inventory, using part
-  edge indices. These are actual trimmed B-rep edges, so a consumer can select them
-  directly. `fillets` indexes the legacy records represented in the chain.
+  45 microradians. Unproved joins split. An accepted spherical vertex blend joins
+  its one or two proved tangent runs when their full radius span fits. A vertex
+  blend with three or more distinct incident runs is a singleton chain. Runs are
+  counted before attaching vertex blends, independent of legacy fillet ownership.
+  `edges` lists spring edges at the boundary between a fillet face and a tangent
+  wall face outside the fillet inventory, using part edge indices of the actual
+  trimmed B-rep. A tangent boundary onto an unreported cylinder, sphere or torus
+  with the same material side and radius within the file's length uncertainty
+  continues the blend and is excluded. `fillets` indexes the legacy records
+  represented in the chain.
 - `fillet_groups` records have `radius`, `side`, `chains`, `faces`, `face_count`
   and `chain_count`. A group's chains share a side and its faces are their union.
   Chains and groups use unrounded surface radii in millimetres. Each radius is the
