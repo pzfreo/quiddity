@@ -791,6 +791,7 @@ fn fillet_evidence(
     let constituent = members
         .iter()
         .flat_map(|&m| features[m].constituent.iter().copied())
+        .chain(defining.iter().copied())
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect();

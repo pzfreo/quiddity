@@ -1948,6 +1948,7 @@ struct Parsed<G = PackedGraph> {
     report: step_io::Report,
     graph: G,
     declared_units: std::sync::Arc<crate::pmi::DeclaredUnits>,
+    angle_uncertainty: Option<f64>,
 }
 
 #[cfg(test)]
@@ -1970,6 +1971,18 @@ impl Parsed {
         let mut stream = step_io::parser::stream(bytes).map_err(parse_error)?;
         let graph = PackedGraph::from_stream(&mut stream).map_err(parse_error)?;
         let declared_units = crate::pmi::declared_length_units(&graph, stream.header(), bytes);
+        let angle_uncertainty = model
+            .all::<m::UncertaintyMeasureWithUnit>()
+            .any(|(_, u)| {
+                u.value_component.type_name.is_none_or(|name| {
+                    matches!(
+                        model.text(name),
+                        "PLANE_ANGLE_MEASURE" | "POSITIVE_PLANE_ANGLE_MEASURE"
+                    )
+                })
+            })
+            .then(|| crate::pmi::declared_angle_uncertainty(&graph, stream.header(), bytes))
+            .flatten();
         drop(stream);
         let complex_drops = crate::express::complex_reference_drops(&graph);
         refuse_dropped_shapes(&graph, &report, &complex_drops)?;
@@ -1979,6 +1992,7 @@ impl Parsed {
             report,
             graph,
             declared_units: declared_units.into(),
+            angle_uncertainty,
         })
     }
 }
@@ -2012,6 +2026,7 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
         report,
         graph,
         declared_units,
+        angle_uncertainty,
     } = parsed;
     let outer = match scope {
         Scope::Placed(outer) => outer,
@@ -2444,6 +2459,7 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
             (reader.to_mm, reader.to_rad),
             units.precision.map(|p| p * reader.to_mm),
         )
+        .with_angle_uncertainty(*angle_uncertainty)
         .with_native_geometry(native_faces, native_edges)
         .repair_inverted_shells();
     Ok(Read {
@@ -2658,6 +2674,7 @@ impl StepFile {
             report,
             graph,
             declared_units: self.parsed.declared_units.clone(),
+            angle_uncertainty: self.parsed.angle_uncertainty,
         })
     }
 

@@ -1206,6 +1206,7 @@ pub const FAMILIES: &[FamilyFingerprint] = &[
             ("faces", Count("face_count")),
             ("edges", Ignored),
             ("fillets", Ignored),
+            ("blend_faces", Ignored),
         ],
     },
     FamilyFingerprint {
@@ -1219,6 +1220,7 @@ pub const FAMILIES: &[FamilyFingerprint] = &[
             ("chains", Ignored),
             ("face_count", Size),
             ("chain_count", Size),
+            ("fillet_count", Size),
         ],
     },
 ];

@@ -330,3 +330,29 @@ fn deep_conversion_chains_keep_main_geometry_import_without_using_the_stack() {
     );
     same_geometry(source.as_bytes(), changed.as_bytes());
 }
+
+#[test]
+fn declared_angle_uncertainty_uses_its_own_unit() {
+    let source = assembly();
+    let input = source.replace(
+        "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#31))",
+        "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#31,#20000))",
+    ).replace(
+        "ENDSEC;\nEND-ISO-10303-21;",
+        "#20000 = UNCERTAINTY_MEASURE_WITH_UNIT(PLANE_ANGLE_MEASURE(0.02),#20001,'','');\n\
+         #20001 = ( CONVERSION_BASED_UNIT('degree',#20002) NAMED_UNIT(#20003) PLANE_ANGLE_UNIT() );\n\
+         #20002 = PLANE_ANGLE_MEASURE_WITH_UNIT(PLANE_ANGLE_MEASURE(0.017453292519943295),#29);\n\
+         #20003 = DIMENSIONAL_EXPONENTS(0.,0.,0.,0.,0.,0.,0.);\nENDSEC;\nEND-ISO-10303-21;",
+    );
+    let baseline = read_step(source.as_bytes()).unwrap();
+    assert_eq!(baseline.file_angle_uncertainty(), None);
+    let part = read_step(input.as_bytes()).unwrap();
+    assert_eq!(part.file_uncertainty(), baseline.file_uncertainty());
+    assert_eq!(part.file_angle_uncertainty(), Some(0.02_f64.to_radians()));
+    assert_eq!(
+        part.transformed(&IDENTITY)
+            .unwrap()
+            .file_angle_uncertainty(),
+        part.file_angle_uncertainty()
+    );
+}

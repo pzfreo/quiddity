@@ -1,7 +1,7 @@
 //! Connected, tangent runs and radius groups of accepted fillet faces.
 
 use std::cmp::Ordering;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Serialize;
 
@@ -25,6 +25,9 @@ pub struct FilletChain {
     pub edges: Vec<usize>,
     /// Indices into the legacy fillets array. A record can span multiple chains.
     pub fillets: Vec<usize>,
+    /// Sorted chain faces with no legacy fillet record.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub blend_faces: Vec<usize>,
 }
 
 /// Chains of equal radius and side, irrespective of their location.
@@ -38,6 +41,8 @@ pub struct FilletGroup {
     pub faces: Vec<usize>,
     pub face_count: usize,
     pub chain_count: usize,
+    /// Number of distinct legacy fillet records represented by the member chains.
+    pub fillet_count: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -86,7 +91,8 @@ fn material_side(part: &Part, face: usize) -> Option<&'static str> {
 
 struct Patch {
     face: usize,
-    fillet: usize,
+    fillet: Option<usize>,
+    side: &'static str,
     root: usize,
     radii: Radii,
 }
@@ -99,20 +105,14 @@ fn root(patches: &mut [Patch], mut i: usize) -> usize {
     i
 }
 
-/// Merge all targets together or leave every run separate when the full radius span fails.
-fn merge(patches: &mut [Patch], targets: &[usize], tolerance: f64) {
-    let roots: Vec<_> = targets.iter().map(|&i| root(patches, i)).collect();
-    let first = roots[0];
-    let span = roots
-        .iter()
-        .map(|&i| patches[i].radii)
-        .reduce(Radii::combined)
-        .unwrap();
+/// Keep the full radius span within uncertainty, including transitive joins.
+fn merge(patches: &mut [Patch], [i, j]: [usize; 2], tolerance: f64) {
+    let a = root(patches, i);
+    let b = root(patches, j);
+    let span = patches[a].radii.combined(patches[b].radii);
     if span.fits(tolerance) {
-        for i in roots {
-            patches[i].root = first;
-        }
-        patches[first].radii = span;
+        patches[b].root = a;
+        patches[a].radii = span;
     }
 }
 
@@ -132,51 +132,53 @@ fn derive(part: &Part, fillets: &[Fillet]) -> Result<Vec<(FilletChain, Radii)>, 
             by_face[face] = Some(i);
             patches.push(Patch {
                 face,
-                fillet,
+                fillet: Some(fillet),
+                side: record.side,
                 root: i,
                 radii: Radii { min: r, max: r },
             });
         }
     }
 
-    let mut walls = Vec::new();
+    // Unowned cylinders may belong to holes or bosses. Only spheres and tori
+    // have an eligible rolling-ball radius here. Planes and freeform surfaces
+    // cannot supply that radius and the normal proof used by this pass.
+    for (face, slot) in by_face.iter_mut().enumerate() {
+        let surface = &part.faces[face].surface;
+        if slot.is_some()
+            || !matches!(surface, Surface::Sphere { .. } | Surface::Torus { .. })
+            || part.face_moments(face).is_none()
+        {
+            continue;
+        }
+        let (Ok(r), Some(side)) = (radius(surface), material_side(part, face)) else {
+            continue;
+        };
+        let i = patches.len();
+        *slot = Some(i);
+        patches.push(Patch {
+            face,
+            fillet: None,
+            side,
+            root: i,
+            radii: Radii { min: r, max: r },
+        });
+    }
+
     let mut joins = Vec::new();
-    let mut corners: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
-    let side = |patch: &Patch| fillets[patch.fillet].side;
     for (edge, incident) in part.edge_faces().iter().enumerate() {
         let &[a, b] = incident.as_slice() else {
             continue;
         };
-        let ed = &part.edges[edge];
-        let (i, j) = match (by_face[a], by_face[b]) {
-            (Some(i), Some(j)) => (i, j),
-            (Some(i), None) | (None, Some(i)) => {
-                let patch = &patches[i];
-                let other = if patch.face == a { b } else { a };
-                // A continuation onto an unreported canal patch is not a spring edge.
-                let same_blend = radius(&part.faces[other].surface)
-                    .is_ok_and(|r| (r - patch.radii.min).abs() <= tolerance)
-                    && material_side(part, other) == Some(side(patch));
-                if !same_blend && sample_contact(part, a, b, ed, contact) {
-                    walls.push((i, edge));
-                }
-                continue;
-            }
-            (None, None) => continue,
+        let (Some(i), Some(j)) = (by_face[a], by_face[b]) else {
+            continue;
         };
         let span = patches[i].radii.combined(patches[j].radii);
-        if !span.fits(tolerance)
-            || side(&patches[i]) != side(&patches[j])
-            || !tangent(part, a, b, ed, contact)
+        if span.fits(tolerance)
+            && patches[i].side == patches[j].side
+            && tangent(part, a, b, &part.edges[edge], contact)
         {
-            continue;
-        }
-        // Accepted spherical caps have only cylindrical or toroidal neighbours
-        // (fillets::spherical_corner). Find those runs independently of cap ownership.
-        match (part.faces[a].surface.kind(), part.faces[b].surface.kind()) {
-            (geom::SurfaceType::Sphere, _) => corners.entry(i).or_default().push(j),
-            (_, geom::SurfaceType::Sphere) => corners.entry(j).or_default().push(i),
-            _ => joins.push((span, [i, j])),
+            joins.push((span, [i, j]));
         }
     }
 
@@ -185,65 +187,69 @@ fn derive(part: &Part, fillets: &[Fillet]) -> Result<Vec<(FilletChain, Radii)>, 
     // The constrained partition thus does not depend on STEP edge or face numbering.
     joins.sort_unstable_by(|(a, _), (b, _)| a.order(*b));
     for (_, pair) in joins {
-        merge(&mut patches, &pair, tolerance);
+        merge(&mut patches, pair, tolerance);
     }
 
-    // Count distinct runs before any cap can connect them. A branch face has its
-    // own chain, even if another cap elsewhere later joins two of those runs.
-    let mut continuations = Vec::new();
-    for (sphere, neighbours) in corners {
-        let mut runs: Vec<_> = neighbours
-            .into_iter()
-            .map(|i| root(&mut patches, i))
-            .collect();
-        runs.sort_unstable();
-        runs.dedup();
-        if matches!(runs.len(), 1 | 2) {
-            runs.push(sphere);
-            let span = runs
-                .iter()
-                .map(|&i| patches[i].radii)
-                .reduce(Radii::combined)
-                .unwrap();
-            continuations.push((span, runs));
-        }
-    }
-    continuations.sort_unstable_by(|(a, _), (b, _)| a.order(*b));
-    for (_, runs) in continuations {
-        merge(&mut patches, &runs, tolerance);
-    }
-
+    // A component is reportable only if reachable from a legacy fillet face.
+    let seeds: Vec<_> = (0..patches.len())
+        .filter(|&i| patches[i].fillet.is_some())
+        .collect();
+    let seeded: BTreeSet<_> = seeds.into_iter().map(|i| root(&mut patches, i)).collect();
     let mut components = BTreeMap::new();
     for i in 0..patches.len() {
         let r = root(&mut patches, i);
-        let radii = patches[r].radii;
         let patch = &patches[i];
+        if !seeded.contains(&r) {
+            by_face[patch.face] = None;
+            continue;
+        }
+        let radii = patches[r].radii;
         let (chain, _) = components.entry(r).or_insert_with(|| {
             (
                 FilletChain {
                     radius: radii.min,
-                    side: fillets[patch.fillet].side,
+                    side: patch.side,
                     faces: Vec::new(),
                     edges: Vec::new(),
                     fillets: Vec::new(),
+                    blend_faces: Vec::new(),
                 },
                 radii,
             )
         });
         chain.faces.push(patch.face);
-        chain.fillets.push(patch.fillet);
+        if let Some(fillet) = patch.fillet {
+            chain.fillets.push(fillet);
+        } else {
+            chain.blend_faces.push(patch.face);
+        }
+        by_face[patch.face] = Some(r);
     }
-    for (i, edge) in walls {
-        components
-            .get_mut(&root(&mut patches, i))
-            .unwrap()
-            .0
-            .edges
-            .push(edge);
+    for (edge, incident) in part.edge_faces().iter().enumerate() {
+        let &[a, b] = incident.as_slice() else {
+            continue;
+        };
+        let (chain, blend, other) = match (by_face[a], by_face[b]) {
+            (Some(chain), None) => (chain, a, b),
+            (None, Some(chain)) => (chain, b, a),
+            _ => continue,
+        };
+        let (record, _) = components.get_mut(&chain).unwrap();
+        let r = radius(&part.faces[blend].surface)
+            .map_err(|why| format!("fillet face {blend} {why}"))?;
+        // An equal-radius, same-side analytic blend is never a support wall,
+        // including an unowned cylinder or a patch outside this published region.
+        let same_blend = radius(&part.faces[other].surface)
+            .is_ok_and(|other| (other - r).abs() <= tolerance)
+            && material_side(part, other) == Some(record.side);
+        if !same_blend && sample_contact(part, a, b, &part.edges[edge], contact) {
+            record.edges.push(edge);
+        }
     }
     let mut chains: Vec<_> = components.into_values().collect();
     for (chain, _) in &mut chains {
         chain.faces.sort_unstable();
+        chain.blend_faces.sort_unstable();
         chain.fillets.sort_unstable();
         chain.fillets.dedup();
     }
@@ -289,6 +295,12 @@ pub(super) fn group(part: &Part, chains: &[(FilletChain, Radii)]) -> Vec<FilletG
         group.faces.sort_unstable();
         group.chain_count = group.chains.len();
         group.face_count = group.faces.len();
+        group.fillet_count = group
+            .chains
+            .iter()
+            .flat_map(|&i| chains[i].0.fillets.iter().copied())
+            .collect::<BTreeSet<_>>()
+            .len();
     }
     groups.sort_by(|a, b| {
         b.face_count
@@ -308,14 +320,19 @@ fn empty_group(chain: &FilletChain) -> FilletGroup {
         faces: Vec::new(),
         chain_count: 0,
         face_count: 0,
+        fillet_count: 0,
     }
 }
 
 // The kernel's smooth-arc gap is 1 - cos(theta). Its chord equivalent compares
 // unit-normal distances directly, limiting the first-order cross-edge slope to
 // about 45 microradians for a smooth join, independently of the length tolerance.
-fn normal_gap() -> f64 {
-    (2.0 * geom::SMOOTH_ARC_GAP).sqrt()
+fn normal_gap(part: &Part) -> f64 {
+    part.file_angle_uncertainty().map_or_else(
+        || (2.0 * geom::SMOOTH_ARC_GAP).sqrt(),
+        // Unit normals are at most pi radians apart. Convert angle to chord.
+        |radians| 2.0 * (radians.min(std::f64::consts::PI) / 2.0).sin(),
+    )
 }
 
 fn sample_contact(part: &Part, a: usize, b: usize, edge: &Edge, tol: f64) -> bool {
@@ -338,10 +355,11 @@ fn sample_contact(part: &Part, a: usize, b: usize, edge: &Edge, tol: f64) -> boo
             .then(|| part.face_normal(face, u, v))
             .flatten()
     };
+    let gap = normal_gap(part);
     edge.samples
         .iter()
         .chain([&mid])
-        .all(|&p| matches!((at(a, p), at(b, p)), (Some(x), Some(y)) if dist(x, y) <= normal_gap()))
+        .all(|&p| matches!((at(a, p), at(b, p)), (Some(x), Some(y)) if dist(x, y) <= gap))
 }
 
 /// A circle's ideal normal has a fixed term plus a radial term rotating in its plane.
@@ -469,7 +487,7 @@ fn tangent(part: &Part, a: usize, b: usize, edge: &Edge, tol: f64) -> bool {
         _ => return false,
     };
     matches!(fields, (Some(x), Some(y))
-        if dist(x.fixed, y.fixed) + (x.radial - y.radial).abs() + x.error + y.error <= normal_gap())
+        if dist(x.fixed, y.fixed) + (x.radial - y.radial).abs() + x.error + y.error <= normal_gap(part))
         && sample_contact(part, a, b, edge, tol)
 }
 
@@ -524,7 +542,14 @@ pub(super) fn publish(part: &Part, features: &mut super::Features) {
         for &f in &chain.fillets {
             features.fillets[f].chains.push(i);
         }
-        chain_status.push(inherited(fillet_status, &chain.fillets));
+        let status = inherited(fillet_status, &chain.fillets);
+        chain_status.push(
+            if chain.blend_faces.is_empty() || status != EvidenceStatus::Verified {
+                status
+            } else {
+                super::evidence::strict_status(part, &chain.faces, &[])
+            },
+        );
     }
     let group_status = groups
         .iter()

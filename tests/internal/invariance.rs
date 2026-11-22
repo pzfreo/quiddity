@@ -1332,6 +1332,9 @@ fn compound_child_order_does_not_change_recognition() {
                 if let Some(fillets) = parameters.get_mut("fillets") {
                     *fillets = members("fillets", fillets);
                 }
+                if let Some(blend_faces) = parameters.get_mut("blend_faces") {
+                    *blend_faces = serde_json::json!(remap(blend_faces, &face));
+                }
                 if let Some(edges) = parameters.get_mut("edges") {
                     *edges = serde_json::json!(remap(edges, &edge));
                 }

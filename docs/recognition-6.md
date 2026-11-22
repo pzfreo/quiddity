@@ -587,30 +587,32 @@ face indices) and, in an aggregate result, `chains` (indices into `fillet_chains
 legacy record that already spans disconnected torus arcs can reference several chains.
 
 - `fillet_chains` records have `radius`, `side`, `faces`, `edges` and `fillets`.
-  Members of a chain share topological edges and have agreeing outward normals along
-  each join. Lines and circles admit whole-edge normal bounds on analytic fillet
-  surfaces. The kernel smooth-arc tolerance gives a normal chord limit of roughly
-  45 microradians. Unproved joins split. An accepted spherical vertex blend joins
-  its one or two proved tangent runs when their full radius span fits. A vertex
-  blend with three or more distinct incident runs is a singleton chain. Runs are
-  counted before attaching vertex blends, independent of legacy fillet ownership.
-  `edges` lists spring edges at the boundary between a fillet face and a tangent
-  wall face outside the fillet inventory, using part edge indices of the actual
-  trimmed B-rep. A tangent boundary onto an unreported cylinder, sphere or torus
-  with the same material side and radius within the file's length uncertainty
-  continues the blend and is excluded. `fillets` indexes the legacy records
-  represented in the chain.
-- `fillet_groups` records have `radius`, `side`, `chains`, `faces`, `face_count`
-  and `chain_count`. A group's chains share a side and its faces are their union.
-  Chains and groups use unrounded surface radii in millimetres. Each radius is the
-  smallest in the record and the full radius span fits the file's length uncertainty,
-  falling back to the kernel coordinate floor when the file omits uncertainty.
-  Groups are formed from the smallest remaining radius per side.
+  A chain is a region connected across shared edges by G1 tangent faces of the same
+  radius and material side. Lines and circles admit whole-edge bounds on agreement
+  of oriented normals. The bound uses the file's plane-angle uncertainty when
+  declared, or the kernel smooth-arc tolerance (roughly 45 microradians).
+  Corner tori and spheres can connect any number of branches. They can participate
+  without a legacy fillet record if the region reaches a legacy fillet face.
+  Unowned cylinders may be holes or bosses and are excluded. The proof requires
+  an analytic rolling-ball radius, which planes, cones and freeform surfaces
+  do not provide. Unproved joins split.
+  `faces` includes every face in the region. `fillets` indexes the legacy records
+  represented in the chain, and optional `blend_faces` lists just the faces with
+  no legacy fillet record. `edges` lists the B-rep spring edges where the chain
+  meets tangent support walls. Shared edges between reported blends and edges
+  onto any same-side cylinder, sphere or torus of equal radius are excluded.
+- `fillet_groups` records have `radius`, `side`, `chains`, `faces`, `face_count`,
+  `chain_count` and `fillet_count`. A group's chains share a side, its faces are
+  their union, and `fillet_count` counts distinct legacy records across the member
+  chains. Chains and groups use unrounded surface radii in millimetres. Each
+  radius is the smallest in the record and the full radius span fits the file's
+  length uncertainty, falling back to the kernel coordinate floor when the file
+  omits uncertainty. Groups are formed from the smallest remaining radius per side.
 
 Both families order records by descending face count, then ascending radius, side
 (lexically) and lowest face index. All index lists are ascending and zero-based.
-The two families are omitted when empty. Their faces remain physically accounted for
-by the legacy fillets. Fingerprints and evidence also carry the two derived families.
+The two families are omitted when empty. Physical face accounting continues to use
+the legacy fillets. Fingerprints and evidence also carry the two derived families.
 
 ## Turned fillets (`turned: true`)
 
