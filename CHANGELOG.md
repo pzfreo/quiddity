@@ -17,6 +17,9 @@ in [docs/alpha1.md](docs/alpha1.md).
   (#317). The mesher still triangulates the projected boundary until its own PR lands,
   so cgb243 face #60132's mesh area differs from its face area by 13%.
 
+- Fingerprints use `quiddity-rust/fingerprint/5` because the STEP-selected boundary (#317)
+  changes face and solid measurements. Regenerate earlier fingerprints from STEP before matching.
+
 ### haecceity
 
 - For #341, add `Part::file_angle_uncertainty()` to read the smallest declared STEP plane

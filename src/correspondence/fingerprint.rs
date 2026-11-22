@@ -15,7 +15,7 @@ use crate::kernel::py;
 /// Fingerprint format version: correspondence refuses different formats.
 /// Any change to a fingerprint value bumps this version; stored fingerprints of another
 /// version are re-fingerprinted from their geometry, never migrated (#254).
-pub const FINGERPRINT_VERSION: &str = "quiddity-rust/fingerprint/4";
+pub const FINGERPRINT_VERSION: &str = "quiddity-rust/fingerprint/5";
 
 /// The fingerprints of one recognition result.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

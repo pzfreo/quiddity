@@ -392,9 +392,9 @@ fn ctc01_e1_accounting_records_and_main_correspondence() {
     // checks, so retag it to serve as the old revision for the matcher; real callers
     // re-fingerprint stored /3 data from its geometry instead (#254).
     assert_eq!(old.fingerprint_version, "quiddity-rust/fingerprint/3");
-    old.fingerprint_version = "quiddity-rust/fingerprint/4".into();
+    old.fingerprint_version = "quiddity-rust/fingerprint/5".into();
     let new = &output.recognition.fingerprints;
-    assert_eq!(new.fingerprint_version, "quiddity-rust/fingerprint/4");
+    assert_eq!(new.fingerprint_version, "quiddity-rust/fingerprint/5");
     let by_id = |id: &str| new.features.iter().find(|f| f.id == id);
     // For #127, every old blend is an audited, fully proved concave-fillet move,
     // not an ordinal shift. Pin the exact old/new ids, face and radius against the
