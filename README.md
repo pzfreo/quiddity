@@ -1,5 +1,15 @@
 # quiddity
 
+<p>
+  <a href="https://pypi.org/project/quiddity/"><img src="https://img.shields.io/pypi/v/quiddity.svg" alt="PyPI"></a>
+  <a href="https://pypi.org/project/quiddity/"><img src="https://img.shields.io/pypi/pyversions/quiddity.svg" alt="Python versions"></a>
+  <a href="https://crates.io/crates/quiddity"><img src="https://img.shields.io/crates/v/quiddity.svg?label=crates.io%20quiddity" alt="crates.io: quiddity"></a>
+  <a href="https://crates.io/crates/haecceity"><img src="https://img.shields.io/crates/v/haecceity.svg?label=crates.io%20haecceity" alt="crates.io: haecceity"></a>
+  <a href="https://docs.rs/quiddity"><img src="https://img.shields.io/docsrs/quiddity" alt="docs.rs"></a>
+  <a href="https://github.com/pzfreo/quiddity/actions/workflows/ci.yml"><img src="https://github.com/pzfreo/quiddity/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-Apache--2.0-blue.svg" alt="Licence: Apache-2.0"></a>
+</p>
+
 quiddity reads a STEP model and finds its manufacturing features (holes, pockets, slots, bosses,
 steps, fillets, chamfers, patterns, springs and turned profiles) with their measured sizes and
 positions. It reads and writes AP242 PMI (dimensions, tolerances, datums, notes and their callouts),
