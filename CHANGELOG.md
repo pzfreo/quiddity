@@ -6,6 +6,7 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+- Run fast and touched Rust tests on Linux for ready PRs, with full Linux and macOS CI on main and for `full-ci` PRs.
 - For #341, add defining faces and chain references to fillets. Publish tangent fillet chains
   through spherical and toroidal corners, with their spring edges and groups by radius
   and side that count blend faces and legacy fillet records.

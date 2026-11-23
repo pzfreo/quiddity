@@ -32,8 +32,8 @@ cargo clippy --workspace --all-targets --release -- -D warnings
 QUIDDITY_CORPUS_REQUIRED=1 cargo test --workspace --release
 ```
 
-`tools/verify.sh` runs everything CI runs on a pull request (every workflow under
-`.github/workflows/`, on this host) and ends with `VERIFY: PASS` or `VERIFY: FAIL`. Export
+`tools/verify.sh` runs the full suite and local packaging and lint checks. It ends with
+`VERIFY: PASS` or `VERIFY: FAIL`. Export
 `QUIDDITY_CORPUS` (a checkout of pzfreo/quiddity-corpus at the revision `suite.yml` pins) first.
 It needs `cargo-nextest`, `cargo-semver-checks` 0.51.0, `cargo-audit`, `uv` and the
 `wasm32-unknown-unknown` target; a missing tool fails the run. Jobs it cannot reproduce (other
@@ -72,12 +72,19 @@ This also applies while current = published. The release PR moves those entries 
 `## X.Y.Z (date)`; while X.Y.Z is the manifest version and is not yet published, that
 section's Breaking (Rust API) subsection is the override. CI also runs cargo-audit against Cargo.lock.
 
-A draft pull request runs only fmt, the lints (clippy and the feature-set `cargo check`s) and
-the DCO check; its tests wait. Full CI runs when you mark the pull request ready for review,
-and on every later push while it is ready (re-running a run from the draft stage stays
-lint-only: push or mark ready again). Pushes to main and manual runs run everything as before;
-a release* pull request does too once it is ready. Run `tools/verify.sh` before you push; a
-draft's green lint is not a full pass.
+A draft pull request runs fmt, clippy, feature-set checks and DCO. Ready pull requests also
+run the Linux nextest fast tier. It includes every test recorded at 10 seconds or less,
+every test without a timing record, and tests in touched Rust test binaries or source modules.
+Rust integration test files select their binaries and `tests/internal/` files select their
+regression modules. Shared test helpers select the crate's integration tests. Root helpers
+select workspace integration tests and Quiddity's regression modules.
+Source paths select the directly corresponding Rust unit-test module, with explicit aliases
+for `#[path]` modules. Dependency and fixture consumers get full coverage on main.
+
+Add `full-ci` to a ready PR to run the complete Linux and macOS suites. Main pushes, manual runs
+and ready `release*` PRs use the same full tier, including the macOS float-sensitive tests and
+the Linux snapshot coverage check. Publishing requires successful CI on the exact main push.
+The Linux build's `tests-ubuntu-latest` artifact includes the nextest inventories in `tier-plan/`.
 
 ## Test files and data
 
