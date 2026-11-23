@@ -610,10 +610,9 @@ impl Part {
         part.face_sources = reorder(&self.face_sources, order);
         part.native_faces = reorder(&self.native_faces, order);
         part.pcurve_splines = reorder(&self.pcurve_splines, order);
-        part.integral_origin = self
-            .integral_origin
-            .as_ref()
-            .map(|origin| origin.with_faces_in_order(order));
+        if let Some(origin) = &self.integral_origin {
+            part.integral_origin = Some(origin.with_faces_in_order(order)?);
+        }
         part.face_frames = remap_keys(part.face_frames, &index);
         part.swept = remap_keys(part.swept, &index);
         part.file_pcurves = remap_keys(part.file_pcurves, &index);

@@ -155,13 +155,11 @@ impl IntegralOrigin {
         }
     }
 
-    pub(super) fn with_faces_in_order(&self, order: &[usize]) -> Self {
-        Self::new(
-            self.source
-                .with_faces_in_order(order)
-                .expect("same topology as the placed part"),
+    pub(super) fn with_faces_in_order(&self, order: &[usize]) -> Option<Self> {
+        Some(Self::new(
+            self.source.with_faces_in_order(order)?,
             self.placement,
-        )
+        ))
     }
 }
 
