@@ -1173,9 +1173,10 @@ impl Part {
 
     /// Use the accepted mass boundary for higher moments, regardless of query order.
     pub(super) fn measured_boundary(&self, face: usize) -> Option<&DeclaredBoundary> {
-        let boundary = self.declared_boundary(face)?;
         self.face_terms(face)?;
-        (self.cache[face].mass.get()?.method != BoundaryMethod::Projected).then_some(boundary)
+        (self.cache[face].mass.get()?.method != BoundaryMethod::Projected)
+            .then(|| self.declared_boundary(face))
+            .flatten()
     }
 
     fn projected_face_mass(&self, face: usize) -> FaceMass {
@@ -2649,11 +2650,22 @@ impl Part {
     fn ensure_file_integrals(&self, face: usize) {
         if let Some(origin) = &self.integral_origin {
             self.cache[face].file_integrals_carried.get_or_init(|| {
-                if origin.source.integral_can_carry(face) {
-                    origin
-                        .source
-                        .carry_face_integrals(self, face, &origin.placement, true);
+                let source = &origin.source;
+                if !source.integral_can_carry(face) {
+                    return;
                 }
+                // Select the STEP trim in file coordinates. When recognition
+                // selects projection, integrate in the caller's coordinates
+                // as the projected path does. Budgeted parts retain the
+                // integrals from the measurement made under the budget.
+                if self.boundary_policy == BoundaryPolicy::Recognition
+                    && self.integration_budget.is_none()
+                    && source.declared_boundary(face).is_none()
+                {
+                    let _ = self.cache[face].declared.set(None);
+                    return;
+                }
+                source.carry_face_integrals(self, face, &origin.placement, true);
             });
         }
     }
