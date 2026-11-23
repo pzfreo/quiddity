@@ -2517,7 +2517,7 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
                 swept.insert(out_faces.len(), source);
             }
             if let [outer] = declared_outer.as_slice() {
-                outer_bounds.insert(out_faces.len(), IDENTITY);
+                outer_bounds.insert(out_faces.len(), *outer);
             }
             let (raw, primary) =
                 reader.file_pcurves(&face, &edge_index, out_faces.len(), &mut measure_trims);
