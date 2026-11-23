@@ -133,6 +133,20 @@ pub(super) struct RawMoments {
     centre: Option<[f64; 26]>,
 }
 
+#[derive(Clone, Debug)]
+pub(super) struct IntegralOrigin {
+    placement: crate::step::Placement,
+    reference: Option<(V3, f64)>,
+    faces: std::sync::Arc<[Option<FaceIntegralOrigin>]>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct FaceIntegralOrigin {
+    raw: RawMoments,
+    frame: Option<(V3, f64)>,
+    mass: Option<FaceMass>,
+}
+
 #[cfg(test)]
 thread_local! {
     /// Test hook: `Some(true)` makes the face-moment group's integrand non-finite,
@@ -915,7 +929,7 @@ fn valid_mass(m: [f64; 5]) -> Option<[f64; 5]> {
 
 /// Canonical mass and its boundary authority are published together. A concurrent
 /// first moment query cannot publish a legacy region after mass selected the master trim.
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub(super) struct FaceMass {
     terms: Option<[f64; 5]>,
     method: BoundaryMethod,
@@ -2547,6 +2561,49 @@ impl Part {
         Some((volume(d), geom::add(c0, d)))
     }
 
+    fn integral_reference(&self) -> Option<(V3, f64)> {
+        let bounds = self.bounds();
+        let length = geom::dist(bounds.min, bounds.max);
+        (length.is_finite() && length > 0.0).then_some((bounds.centre(), length))
+    }
+
+    fn integral_can_carry(&self, face: usize) -> bool {
+        !(self.integration_refused(face)
+            || matches!(self.faces[face].surface, Surface::Sphere { .. })
+                && self.whole_sphere(face))
+    }
+
+    fn face_integral_origin(&self, face: usize) -> FaceIntegralOrigin {
+        let raw = self.face_raw_moments(face);
+        FaceIntegralOrigin {
+            raw,
+            frame: raw.local.and_then(|_| self.moment_frame(face)),
+            mass: self.cache[face].mass.get().copied(),
+        }
+    }
+
+    /// Compose outer placements before carrying integrals, like the native STEP geometry.
+    pub(super) fn carry_file_integrals(&self, moved: &mut Part, at: &crate::step::Placement) {
+        let origin = match &self.integral_origin {
+            Some(source) => IntegralOrigin {
+                placement: crate::step::compose(at, &source.placement),
+                ..source.clone()
+            },
+            None => IntegralOrigin {
+                placement: *at,
+                reference: self.integral_reference(),
+                faces: (0..self.faces.len())
+                    .map(|face| {
+                        self.integral_can_carry(face)
+                            .then(|| self.face_integral_origin(face))
+                    })
+                    .collect(),
+            },
+        };
+        self.carry_integrals_from(moved, at, Some(&origin));
+        moved.integral_origin = Some(origin);
+    }
+
     /// Carry this part's face integrals into `moved`, the same part after the proper rigid
     /// motion `at` (p ↦ Rp + t; [`Part::transformed_carrying_integrals`]), so they are not
     /// integrated again. Every
@@ -2573,6 +2630,19 @@ impl Part {
         if crate::step::validate_placement(at).is_err() || moved.faces.len() != self.faces.len() {
             return;
         }
+        self.carry_integrals_from(moved, at, None);
+    }
+
+    fn carry_integrals_from(
+        &self,
+        moved: &Part,
+        placement: &crate::step::Placement,
+        origin: Option<&IntegralOrigin>,
+    ) {
+        let (at, reference) = match origin {
+            Some(source) => (&source.placement, source.reference),
+            None => (placement, self.integral_reference()),
+        };
         let turn = |v: V3| at.map(|r| r[0] * v[0] + r[1] * v[1] + r[2] * v[2]);
         let shift = at.map(|r| r[3]);
         let turn_matrix = |m: [[f64; 3]; 3]| -> [[f64; 3]; 3] {
@@ -2584,27 +2654,28 @@ impl Part {
                 std::array::from_fn(|j| (0..3).map(|k| rm[i][k] * at[j][k]).sum::<f64>())
             })
         };
-        let reference = |part: &Part| {
-            let bounds = part.bounds();
-            let length = geom::dist(bounds.min, bounds.max);
-            (length.is_finite() && length > 0.0).then_some((bounds.centre(), length))
-        };
-        let centres = reference(self).zip(reference(moved));
+        let centres = reference.zip(moved.integral_reference());
         for face in 0..self.faces.len() {
             // A face the integration budget refused may hold a partial integration: none of
             // it is carried (the moved part keeps the verdict and refuses the face). A whole
             // sphere's area and moments are closed forms, not integrals.
-            if self.integration_refused(face)
-                || matches!(self.faces[face].surface, Surface::Sphere { .. })
-                    && self.whole_sphere(face)
-            {
+            if !self.integral_can_carry(face) {
                 continue;
             }
             // Every other face's shared integration is carried, made here where it is still
             // missing, so which faces carry does not depend on what was asked of `self` before.
             let (from, to) = (&self.cache[face], &moved.cache[face]);
-            let raw = self.face_raw_moments(face);
-            self.carry_declared_boundary(face, to, at);
+            let data = match origin {
+                Some(source) => {
+                    let Some(data) = source.faces[face] else {
+                        continue;
+                    };
+                    data
+                }
+                None => self.face_integral_origin(face),
+            };
+            let raw = data.raw;
+            self.carry_declared_boundary(face, to, placement);
             let common = |raw: &[f64; 26]| {
                 let mut out = [0.0; 26];
                 out[0] = raw[0];
@@ -2613,7 +2684,7 @@ impl Part {
             };
             let local = raw.local.and_then(|local| {
                 let mut new_local = common(&local);
-                match (self.moment_frame(face), moved.moment_frame(face)) {
+                match (data.frame, moved.moment_frame(face)) {
                     (Some((o, s)), Some((o2, s2))) => {
                         let area = local[0];
                         let m1 = turn([local[4], local[5], local[6]]);
@@ -2675,7 +2746,7 @@ impl Part {
                 if local.is_some() || centre.is_some() {
                     let _ = to.raw_moments.set(RawMoments { local, centre });
                 }
-                if let Some(mass) = from.mass.get() {
+                if let Some(mass) = data.mass {
                     let terms = mass.terms.map(|[area, flux, nx, ny, nz]| {
                         let n = turn([nx, ny, nz]);
                         [area, flux + geom::dot(shift, n), n[0], n[1], n[2]]

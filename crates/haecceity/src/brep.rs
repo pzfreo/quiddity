@@ -499,6 +499,8 @@ pub struct Part {
     native_edges: Vec<Native<Edge>>,
     // The per-face integration budget this part was measured against; carried by transforms.
     pub(super) integration_budget: Option<std::sync::Arc<super::mass::IntegrationBudget>>,
+    // Keep the file-frame inputs so successive rigid motions only round the integrals once.
+    pub(super) integral_origin: Option<super::mass::IntegralOrigin>,
 }
 
 impl Part {
@@ -540,6 +542,7 @@ impl Part {
             native_faces: Vec::new(),
             native_edges: Vec::new(),
             integration_budget: None,
+            integral_origin: None,
         }
     }
 
@@ -633,15 +636,15 @@ impl Part {
     /// Face, edge, solid, vertex and source indices and parameter-space curves are preserved.
     /// Caller-space geometry caches are rebuilt lazily. For parts with STEP master pcurves,
     /// the resolved boundaries and their integrals are carried from the source coordinates.
-    /// Imported native primitives and their placement chains are retained so composition
-    /// precedes coordinate rounding, including on a part transformed more than once.
+    /// Successive placements compose before applying the motion to native primitives or
+    /// source integrals, avoiding intermediate rounding in both.
     pub fn transformed(
         &self,
         placement: &super::step::Placement,
     ) -> Result<Self, super::step::StepError> {
-        let part = self.transformed_geometry(placement)?;
+        let mut part = self.transformed_geometry(placement)?;
         if !self.measure_trims.is_empty() {
-            self.carry_integrals(&part, placement);
+            self.carry_file_integrals(&mut part, placement);
         }
         Ok(part)
     }
