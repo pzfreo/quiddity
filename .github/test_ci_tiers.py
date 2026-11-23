@@ -1,8 +1,10 @@
 """Regression checks for PR selection and the independently listed tier inventory."""
 
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 
-from ci_tiers import check_tiers, select, touched_tests
+from ci_tiers import check_source_aliases, check_tiers, full_tier_reason, select, touched_tests
 
 
 class CiTiersTest(unittest.TestCase):
@@ -27,6 +29,30 @@ class CiTiersTest(unittest.TestCase):
         self.assertEqual(touched_tests(tests, ["tests/common/parallel.rs"]),
                          {integration, internal, other})
         self.assertEqual(touched_tests(tests, ["crates/haecceity/tests/common/mod.rs"]), {other})
+        self.assertIsNotNone(full_tier_reason(["tests/fixtures/references/example.json"]))
+        self.assertIsNotNone(full_tier_reason(["crates/haecceity/Cargo.lock"]))
+        self.assertIsNone(full_tier_reason([".config/test-times.json"]))
+
+        assembly = ("quiddity::assembly_layout", "layout_test")
+        manifest_cli = ("quiddity::manifest_cli", "layout_test")
+        mfinstseg = ("quiddity", "regression_tests::mfinstseg::scoring_test")
+        examples = ["examples/support/assembly_layout.rs", "examples/support/mfinstseg.rs"]
+        self.assertEqual(
+            touched_tests(tests | {assembly, manifest_cli, mfinstseg}, examples),
+            {assembly, integration, manifest_cli, mfinstseg},
+        )
+
+    def test_path_module_check_rejects_a_mismatched_selector_prefix(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "src/cli.rs"
+            source.parent.mkdir()
+            attr = '#[path = "bin/quiddity/pmi_interchange.rs"]\n'
+            source.write_text(attr + "mod pmi_interchange;\n")
+            check_source_aliases(root, ["src/cli.rs"])
+            source.write_text(attr + "mod renamed;\n")
+            with self.assertRaisesRegex(ValueError, r"src/cli\.rs:1: uncovered"):
+                check_source_aliases(root, ["src/cli.rs"])
 
     def test_coverage_rejects_a_gap_in_either_inventory(self):
         fast = ("quiddity", "fast")

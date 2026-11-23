@@ -22,6 +22,7 @@ jobs:
   build:
     runs-on: ${{ inputs.os }}
     outputs:
+      full: ${{ (inputs.tier == 'ci' || steps.plan.outputs.full == 'true') && 'true' || 'false' }}
       pr-shards: ${{ steps.plan.outputs.shards }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -44,8 +45,7 @@ jobs:
             # The checked-out PR merge commit's first parent is the base actually tested.
             args+=(--base HEAD^1)
           fi
-          shards=$(python3 .github/ci_tiers.py --archive tests-ubuntu-latest.tar.zst --output-dir tier-plan "${args[@]}")
-          echo "shards=$shards" >> "$GITHUB_OUTPUT"
+          python3 .github/ci_tiers.py --archive tests-ubuntu-latest.tar.zst --output-dir tier-plan "${args[@]}" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: tests-${{ inputs.os }}
@@ -59,7 +59,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: ${{ fromJSON(inputs.tier == 'pr' && needs.build.outputs.pr-shards || '[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]') }}
+        shard: ${{ fromJSON(needs.build.outputs.full == 'true' && '[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]' || needs.build.outputs.pr-shards) }}
     name: test (${{ inputs.os }}, ${{ matrix.shard }})
     runs-on: ${{ inputs.os }}
     env:
@@ -91,18 +91,18 @@ jobs:
           name: tests-${{ inputs.os }}
       # The PR jobs reuse the exact filters validated by the build. Full jobs shard the
       # complete ci profile inventory by recorded time as before.
-      - if: inputs.tier == 'ci'
+      - if: needs.build.outputs.full == 'true'
         run: |
           cargo-nextest nextest list $ARCHIVE --profile ci --message-format json > tests.json
           python3 .github/shards.py tests.json .config/test-times.json ${{ runner.os }} \
             ${{ matrix.shard }} ${{ strategy.job-total }} > shard.filter
           echo "QUIDDITY_SNAPSHOT_VERIFY_DIR=$GITHUB_WORKSPACE/snapshot-verified" >> "$GITHUB_ENV"
-      - if: inputs.tier == 'pr'
+      - if: needs.build.outputs.full != 'true'
         run: cp tier-plan/pr-${{ matrix.shard }}.filter shard.filter
       - run: cargo-nextest nextest run --profile ci $ARCHIVE -E "$(cat shard.filter)"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: inputs.os == 'ubuntu-latest' && inputs.tier == 'ci'
+        if: inputs.os == 'ubuntu-latest' && needs.build.outputs.full == 'true'
         with:
           name: snapshot-verified-${{ matrix.shard }}
           path: snapshot-verified/
@@ -110,8 +110,8 @@ jobs:
           retention-days: 1
 
   snapshot-coverage:
-    if: inputs.os == 'ubuntu-latest' && inputs.tier == 'ci'
-    needs: test
+    if: inputs.os == 'ubuntu-latest' && needs.build.outputs.full == 'true'
+    needs: [build, test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6

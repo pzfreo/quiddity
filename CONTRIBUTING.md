@@ -76,10 +76,12 @@ A draft pull request runs fmt, clippy, feature-set checks and DCO. Ready pull re
 run the Linux nextest fast tier. It includes every test recorded at 10 seconds or less,
 every test without a timing record, and tests in touched Rust test binaries or source modules.
 Rust integration test files select their binaries and `tests/internal/` files select their
-regression modules. Shared test helpers select the crate's integration tests. Root helpers
-select workspace integration tests and Quiddity's regression modules.
+regression modules. Crate-local test helpers select the crate's integration tests.
+Rust helpers under `tests/support/` select workspace integration and Quiddity regression tests.
 Source paths select the directly corresponding Rust unit-test module, with explicit aliases
-for `#[path]` modules. Dependency and fixture consumers get full coverage on main.
+for `#[path]` modules.
+
+Changes to `tests/fixtures/**`, `crates/*/tests/fixtures/**`, `tools/as_compare/fixtures/**`, `tests/support/section_recess_parts.txt`, `crates/haecceity/tests/oracle_ledger.json`, any `Cargo.toml`, `Cargo.lock` or `rust-toolchain*`, `.config/nextest.toml`, `.github/shards.py`, `.github/ci_tiers.py` or `tests/common/**` force full Linux CI. Use `full-ci` to force the full tier on other changes.
 
 Add `full-ci` to a ready PR to run the complete Linux and macOS suites. Main pushes, manual runs
 and ready `release*` PRs use the same full tier, including the macOS float-sensitive tests and
