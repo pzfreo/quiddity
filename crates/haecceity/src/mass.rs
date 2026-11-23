@@ -19,7 +19,7 @@
 mod declared;
 mod preferred;
 pub(crate) use declared::{BoundaryPolicy, EdgeDeviations};
-pub(super) use declared::{DeclaredBoundary, TrimCrossings};
+pub(super) use declared::{DeclaredBoundary, EdgeTrim, TrimCrossings, TrimSamples};
 pub(super) use preferred::PreferredPaths;
 
 use std::cell::RefCell;
