@@ -1,7 +1,7 @@
 //! STEP selects the master representation per edge. Each usable selection keeps its
 //! own parameter interval. The 3D edge and a pcurve need not use the same parameter.
 use super::*;
-use crate::brep::{MeasurementPcurve, TrimCarrier};
+use crate::brep::{RawCurve2d, TrimCarrier};
 use std::collections::BTreeMap;
 use std::sync::{Arc, OnceLock};
 mod intersections;
@@ -9,20 +9,21 @@ pub(crate) use intersections::TrimCrossings;
 mod parameters;
 use parameters::Axis;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct ParamCurve {
     source: Curve,
     axes: [Axis; 2],
     transfer: Option<Box<Transfer>>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct Transfer {
     carrier: Arc<Surface>,
     face: Arc<Surface>,
     carrier_spans: (f64, f64),
     face_spans: (f64, f64),
     face_collapsed: (Option<f64>, Option<f64>),
+    placement: crate::step::Placement,
 }
 
 impl Transfer {
@@ -162,7 +163,14 @@ pub(crate) struct DeclaredBoundary {
 impl EdgeTrim {
     pub(crate) fn point(&self, s: &Surface, t: f64) -> V3 {
         if let Some(tr) = &self.curve.transfer {
-            return self.curve.lifted(t, tr).map_or([f64::NAN; 3], |(_, p)| p);
+            return self.curve.lifted(t, tr).map_or([f64::NAN; 3], |(_, p)| {
+                if tr.placement == crate::step::IDENTITY {
+                    p
+                } else {
+                    tr.placement
+                        .map(|r| r[0] * p[0] + r[1] * p[1] + r[2] * p[2] + r[3])
+                }
+            });
         }
         let (u, v) = self.surface_uv(s, t);
         s.value(u, v)
@@ -293,6 +301,45 @@ impl EdgeTrim {
 }
 
 impl Part {
+    /// Keep the resolved master intervals and their source-frame UV transfer.
+    /// Samples in caller coordinates and mixed loops are rebuilt on demand.
+    pub(crate) fn carry_declared_boundary(
+        &self,
+        face: usize,
+        to: &crate::brep::FaceCache,
+        placement: &crate::step::Placement,
+    ) {
+        if let Some(boundary) = self.cache[face].declared.get() {
+            let _ = to.declared.set(boundary.as_ref().map(|boundary| {
+                let edges = boundary
+                    .edges
+                    .iter()
+                    .map(|(&id, trim)| {
+                        let mut curve = trim.curve.clone();
+                        if let Some(transfer) = &mut curve.transfer {
+                            transfer.placement =
+                                crate::step::compose(placement, &transfer.placement);
+                        }
+                        (
+                            id,
+                            EdgeTrim {
+                                curve,
+                                spans: trim.spans,
+                                interval: trim.interval,
+                                samples: OnceLock::new(),
+                                nodes: trim.nodes.clone(),
+                            },
+                        )
+                    })
+                    .collect();
+                Box::new(DeclaredBoundary {
+                    edges,
+                    ..DeclaredBoundary::default()
+                })
+            }));
+        }
+    }
+
     /// A local scale for the integration error budget, independent of the selected trim.
     pub(super) fn trim_reference_length(&self, face: usize) -> f64 {
         let mut bounds = geom::Bounds::empty();
@@ -325,7 +372,7 @@ impl Part {
         }
         let surface = &self.faces[face].surface;
         let units = self.file_units()?;
-        let make_curve = |raw: &MeasurementPcurve, carrier: &Surface, owner: Option<usize>| {
+        let make_curve = |raw: &RawCurve2d, carrier: &Surface, owner: Option<usize>| {
             let (scales, axes) = match carrier.file_parameter_scales(units) {
                 Some(scales) => (scales, [Axis::ID; 2]),
                 None => ((1., 1.), parameters::swept_axes(self, owner?)?),
@@ -373,6 +420,7 @@ impl Part {
                         face_collapsed: *collapsed.get_or_init(|| collapsed_sides(surface)),
                         carrier,
                         face: shared(face),
+                        placement: crate::step::IDENTITY,
                     }));
                     curve
                 }
@@ -386,10 +434,10 @@ impl Part {
     }
 }
 
-fn scaled_pcurve(raw: &MeasurementPcurve, su: f64, sv: f64) -> Option<Curve> {
+fn scaled_pcurve(raw: &RawCurve2d, su: f64, sv: f64) -> Option<Curve> {
     // A plane scales both axes equally. Preserve the circle or ellipse and
     // its angular parameter so its integration interval remains angular.
-    if let MeasurementPcurve::Conic {
+    if let RawCurve2d::Conic {
         origin,
         reference,
         major,

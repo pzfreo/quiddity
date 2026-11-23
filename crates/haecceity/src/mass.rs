@@ -2603,84 +2603,85 @@ impl Part {
             // Every other face's shared integration is carried, made here where it is still
             // missing, so which faces carry does not depend on what was asked of `self` before.
             let (from, to) = (&self.cache[face], &moved.cache[face]);
-            let Some(RawMoments {
-                local: Some(local),
-                centre: Some(centre),
-            }) = Some(self.face_raw_moments(face))
-            else {
-                continue;
-            };
+            let raw = self.face_raw_moments(face);
+            self.carry_declared_boundary(face, to, at);
+            if let Some(mass) = from.mass.get() {
+                let terms = mass.terms.map(|[area, flux, nx, ny, nz]| {
+                    let n = turn([nx, ny, nz]);
+                    [area, flux + geom::dot(shift, n), n[0], n[1], n[2]]
+                });
+                let _ = to.mass.set(FaceMass {
+                    terms,
+                    method: mass.method,
+                });
+            }
+            from.carry_refusals(to);
             let common = |raw: &[f64; 26]| {
                 let mut out = [0.0; 26];
                 out[0] = raw[0];
                 out[1..4].copy_from_slice(&turn([raw[1], raw[2], raw[3]]));
                 out
             };
-            let mut new_local = common(&local);
-            match (self.moment_frame(face), moved.moment_frame(face)) {
-                (Some((o, s)), Some((o2, s2))) => {
-                    let area = local[0];
-                    let m1 = turn([local[4], local[5], local[6]]);
-                    let [xx, yy, zz, xy, xz, yz] = std::array::from_fn(|k| local[7 + k]);
-                    let m2 = turn_matrix([[xx, xy, xz], [xy, yy, yz], [xz, yz, zz]]);
-                    let e = geom::sub(geom::add(turn(o), shift), o2);
-                    let first: V3 = std::array::from_fn(|i| (s * m1[i] + e[i] * area) / s2);
-                    let second = |i: usize, j: usize| {
-                        (s * s * m2[i][j] + s * (m1[i] * e[j] + e[i] * m1[j]) + area * e[i] * e[j])
-                            / (s2 * s2)
-                    };
-                    new_local[4..7].copy_from_slice(&first);
-                    new_local[7..13].copy_from_slice(&[
-                        second(0, 0),
-                        second(1, 1),
-                        second(2, 2),
-                        second(0, 1),
-                        second(0, 2),
-                        second(1, 2),
-                    ]);
+            let local = raw.local.and_then(|local| {
+                let mut new_local = common(&local);
+                match (self.moment_frame(face), moved.moment_frame(face)) {
+                    (Some((o, s)), Some((o2, s2))) => {
+                        let area = local[0];
+                        let m1 = turn([local[4], local[5], local[6]]);
+                        let [xx, yy, zz, xy, xz, yz] = std::array::from_fn(|k| local[7 + k]);
+                        let m2 = turn_matrix([[xx, xy, xz], [xy, yy, yz], [xz, yz, zz]]);
+                        let e = geom::sub(geom::add(turn(o), shift), o2);
+                        let first: V3 = std::array::from_fn(|i| (s * m1[i] + e[i] * area) / s2);
+                        let second = |i: usize, j: usize| {
+                            (s * s * m2[i][j]
+                                + s * (m1[i] * e[j] + e[i] * m1[j])
+                                + area * e[i] * e[j])
+                                / (s2 * s2)
+                        };
+                        new_local[4..7].copy_from_slice(&first);
+                        new_local[7..13].copy_from_slice(&[
+                            second(0, 0),
+                            second(1, 1),
+                            second(2, 2),
+                            second(0, 1),
+                            second(0, 2),
+                            second(1, 2),
+                        ]);
+                    }
+                    // No frame in either: the group is unused (`compute_face_moments` refuses).
+                    (None, None) => {}
+                    _ => return None,
                 }
-                // No frame in either: the group is unused (`compute_face_moments` refuses).
-                (None, None) => {}
-                _ => continue,
-            }
-            let mut new_centre = common(&centre);
-            let Some(((c0, length), (c1, length1))) = centres else {
-                continue;
-            };
-            let m = [new_centre[1], new_centre[2], new_centre[3]];
-            let s = centre[13];
-            let a = turn_matrix(std::array::from_fn(|i| {
-                std::array::from_fn(|j| centre[14 + 3 * i + j])
-            }));
-            let b = turn([centre[23], centre[24], centre[25]]);
-            let d = geom::sub(geom::add(turn(c0), shift), c1);
-            let dm = geom::dot(d, m);
-            let ad = [0, 1, 2].map(|i| geom::dot(a[i], d));
-            new_centre[13] = (length * s + dm) / length1;
-            for i in 0..3 {
-                for j in 0..3 {
-                    new_centre[14 + 3 * i + j] = (length * a[i][j] + d[i] * m[j]) / length1;
-                }
-                new_centre[23 + i] =
-                    (length * length * b[i] + length * ad[i] + length * s * d[i] + dm * d[i])
-                        / (length1 * length1);
-            }
-            let _ = to.raw_moments.set(RawMoments {
-                local: Some(new_local),
-                centre: Some(new_centre),
+                Some(new_local)
             });
-            // The mass the shared integration selected (and its boundary authority), and the
-            // along-v refusals, go only with the carried integration.
-            if let Some(mass) = from.mass.get()
-                && let Some([area, flux, nx, ny, nz]) = mass.terms
-            {
-                let n = turn([nx, ny, nz]);
-                let _ = to.mass.set(FaceMass {
-                    terms: Some([area, flux + geom::dot(shift, n), n[0], n[1], n[2]]),
-                    method: mass.method,
+            let centre = raw
+                .centre
+                .zip(centres)
+                .map(|(centre, ((c0, length), (c1, length1)))| {
+                    let mut new_centre = common(&centre);
+                    let m = [new_centre[1], new_centre[2], new_centre[3]];
+                    let s = centre[13];
+                    let a = turn_matrix(std::array::from_fn(|i| {
+                        std::array::from_fn(|j| centre[14 + 3 * i + j])
+                    }));
+                    let b = turn([centre[23], centre[24], centre[25]]);
+                    let d = geom::sub(geom::add(turn(c0), shift), c1);
+                    let dm = geom::dot(d, m);
+                    let ad = [0, 1, 2].map(|i| geom::dot(a[i], d));
+                    new_centre[13] = (length * s + dm) / length1;
+                    for i in 0..3 {
+                        for j in 0..3 {
+                            new_centre[14 + 3 * i + j] = (length * a[i][j] + d[i] * m[j]) / length1;
+                        }
+                        new_centre[23 + i] = (length * length * b[i]
+                            + length * ad[i]
+                            + length * s * d[i]
+                            + dm * d[i])
+                            / (length1 * length1);
+                    }
+                    new_centre
                 });
-            }
-            from.carry_refusals(to);
+            let _ = to.raw_moments.set(RawMoments { local, centre });
         }
     }
 }

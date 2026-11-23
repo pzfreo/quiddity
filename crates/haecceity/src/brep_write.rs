@@ -1112,6 +1112,31 @@ impl<'p> Writer<'p> {
                         m::VectorRef::Vector(v),
                     )?)
                 }
+                RawCurve2d::Conic {
+                    origin,
+                    reference,
+                    major,
+                    minor,
+                } => {
+                    let a = self.b.author();
+                    let p = a.add_cartesian_point("", (*origin).into())?;
+                    let direction = reference
+                        .map(|ratios| {
+                            a.add_direction("", ratios.into())
+                                .map(m::DirectionRef::Direction)
+                        })
+                        .transpose()?;
+                    let at = m::Axis2PlacementRef::Axis2Placement2d(a.add_axis2_placement2d(
+                        "",
+                        m::CartesianPointRef::CartesianPoint(p),
+                        direction,
+                    )?);
+                    if let Some(minor) = minor {
+                        m::RepresentationItemRef::Ellipse(a.add_ellipse("", at, *major, *minor)?)
+                    } else {
+                        m::RepresentationItemRef::Circle(a.add_circle("", at, *major)?)
+                    }
+                }
                 RawCurve2d::BSpline {
                     degree,
                     points,

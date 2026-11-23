@@ -21,9 +21,8 @@ use step_io::parser::{Attribute, RawEntity};
 use step_io::scene::{Edge as StepEdge, Face as StepFace, SurfaceKind};
 
 use super::brep::{
-    Edge, Face, GeometryPlacement, InstanceTransform, Loop, MeasurementPcurve, Part, Pcurve,
-    PcurveSpline, ProductLabel, RawCurve2d, RawFrame, RawProfile, Solid, Source, SweptSource,
-    TrimCarrier,
+    Edge, Face, GeometryPlacement, InstanceTransform, Loop, Part, Pcurve, PcurveSpline,
+    ProductLabel, RawCurve2d, RawFrame, RawProfile, Solid, Source, SweptSource, TrimCarrier,
 };
 use super::geom::{self, Curve, Frame, Surface, V3};
 use super::nurbs::{NurbsCurve, NurbsSurface};
@@ -191,7 +190,7 @@ pub(crate) fn compose(outer: &Placement, inner: &Placement) -> Placement {
 struct PendingTrim {
     surface: m::SurfaceRef,
     owners: Vec<usize>,
-    curve: MeasurementPcurve,
+    curve: RawCurve2d,
 }
 
 type PendingTrims = std::collections::BTreeMap<usize, Option<PendingTrim>>;
@@ -442,6 +441,25 @@ impl Reader<'_> {
             let c = self.raw_point(r)?;
             Some([c[0], c[1]])
         };
+        let conic = |placement: &m::Axis2PlacementRef, major, minor| {
+            let m::Axis2PlacementRef::Axis2Placement2d(id) = placement else {
+                return None;
+            };
+            let at = model.get(m::Axis2Placement2dId(id.0))?;
+            let reference = match &at.ref_direction {
+                Some(d) => {
+                    let r = self.raw_ratios(d)?;
+                    Some([r[0], r[1]])
+                }
+                None => None,
+            };
+            Some(RawCurve2d::Conic {
+                origin: point(&at.location)?,
+                reference,
+                major,
+                minor,
+            })
+        };
         Some(match item {
             m::RepresentationItemRef::Line(i) => {
                 let l = model.get(m::LineId(i.0))?;
@@ -485,46 +503,35 @@ impl Reader<'_> {
                     weights,
                 }
             }
+            m::RepresentationItemRef::Circle(i) => {
+                let c = model.get(m::CircleId(i.0))?;
+                conic(&c.position, c.radius, None)?
+            }
+            m::RepresentationItemRef::Ellipse(i) => {
+                let c = model.get(m::EllipseId(i.0))?;
+                conic(&c.position, c.semi_axis_1, Some(c.semi_axis_2))?
+            }
             _ => return None,
         })
     }
 
     /// A parameter-space curve in file coordinates.
-    fn measurement_pcurve(&self, item: &m::RepresentationItemRef) -> Option<MeasurementPcurve> {
+    fn measurement_pcurve(&self, item: &m::RepresentationItemRef) -> Option<RawCurve2d> {
         let model = self.model;
         let point = |r: &m::CartesianPointRef| {
             let c = self.raw_point(r)?;
             Some([c[0], c[1]])
         };
-        let conic = |placement: &m::Axis2PlacementRef, major, minor| {
-            let m::Axis2PlacementRef::Axis2Placement2d(id) = placement else {
-                return None;
-            };
-            let at = model.get(m::Axis2Placement2dId(id.0))?;
-            let reference = match &at.ref_direction {
-                Some(d) => {
-                    let r = self.raw_ratios(d)?;
-                    Some([r[0], r[1]])
-                }
-                None => None,
-            };
-            Some(MeasurementPcurve::Conic {
-                origin: point(&at.location)?,
-                reference,
-                major,
-                minor,
-            })
-        };
         // ISO knot families specify their knot vector by degree and pole count.
         let family = |degree: i64, controls: &[m::CartesianPointRef], interior: Option<i64>| {
             let (knots, mult) = trim_carrier::standard_knots(degree, controls.len(), interior)?;
-            Some(MeasurementPcurve::Raw(RawCurve2d::BSpline {
+            Some(RawCurve2d::BSpline {
                 degree,
                 points: controls.iter().map(point).collect::<Option<_>>()?,
                 knots,
                 multiplicities: mult,
                 weights: None,
-            }))
+            })
         };
         Some(match item {
             m::RepresentationItemRef::BezierCurve(i) => {
@@ -539,15 +546,7 @@ impl Reader<'_> {
                 let c = model.get(m::UniformCurveId(i.0))?;
                 family(c.degree, &c.control_points_list, None)?
             }
-            m::RepresentationItemRef::Circle(i) => {
-                let c = model.get(m::CircleId(i.0))?;
-                conic(&c.position, c.radius, None)?
-            }
-            m::RepresentationItemRef::Ellipse(i) => {
-                let c = model.get(m::EllipseId(i.0))?;
-                conic(&c.position, c.semi_axis_1, Some(c.semi_axis_2))?
-            }
-            _ => return self.raw_curve_2d(item).map(MeasurementPcurve::Raw),
+            _ => return self.raw_curve_2d(item),
         })
     }
 
@@ -676,8 +675,7 @@ impl Reader<'_> {
                                 (master, slot),
                                 (m::PreferredSurfaceCurveRepresentation::PcurveS1, 0)
                                     | (m::PreferredSurfaceCurveRepresentation::PcurveS2, 1)
-                            )
-                            {
+                            ) {
                                 primary.push(out.len());
                             }
                             out.push((index, curve));
@@ -2044,7 +2042,8 @@ pub fn read_step(bytes: &[u8]) -> Result<Part, StepError> {
 /// Read a STEP file's bytes into a [`Part`] moved by *outer*, a proper rigid motion applied
 /// above every instance placement, as if the file's roots were placed by it.
 pub fn read_step_placed(bytes: &[u8], outer: &Placement) -> Result<Part, StepError> {
-    read_placed(bytes, outer).map(|read| read.part)
+    validate_placement(outer)?;
+    build_placed(&Parsed::new(bytes)?, outer)
 }
 
 /// Read an owned STEP byte snapshot, releasing its bytes after provenance
@@ -2057,7 +2056,7 @@ pub fn read_step_owned(bytes: Vec<u8>) -> Result<Part, StepError> {
 /// [`read_step_owned`] moved by *outer*, as [`read_step_placed`] places it.
 pub fn read_step_placed_owned(bytes: Vec<u8>, outer: &Placement) -> Result<Part, StepError> {
     validate_placement(outer)?;
-    build(&Parsed::owned(bytes)?, Scope::Placed(*outer)).map(|read| read.part)
+    build_placed(&Parsed::owned(bytes)?, outer)
 }
 
 /// A product definition the reader placed (an assembly or a part), as file instances.
@@ -2083,9 +2082,15 @@ struct Read {
     placed: Vec<PlacedDefinition>,
 }
 
-fn read_placed(bytes: &[u8], outer: &Placement) -> Result<Read, StepError> {
-    validate_placement(outer)?;
-    build(&Parsed::new(bytes)?, Scope::Placed(*outer))
+fn build_placed(parsed: &Parsed<impl RecordGraph>, outer: &Placement) -> Result<Part, StepError> {
+    // Resolve STEP's master boundaries in the file's coordinates. The same
+    // outer motion applied to the face and its edge cannot change their trim.
+    let part = build(parsed, Scope::Placed)?.part;
+    if *outer == IDENTITY {
+        Ok(part)
+    } else {
+        part.transformed(outer)
+    }
 }
 
 /// A STEP file parsed, its shapes checked complete, before any geometry is built.
@@ -2155,8 +2160,8 @@ fn angle_uncertainty(
 /// Which shapes [`build`] reads, and where.
 #[derive(Clone, Copy)]
 enum Scope<'a> {
-    /// Every instance, the file's roots placed by this proper rigid motion.
-    Placed(Placement),
+    /// Every instance at its file placement.
+    Placed,
     /// Only these whole-file instance numbers, at their original placements.
     Selected(&'a [usize]),
     /// Only the instances of product definition `#N` where it is first placed, in its own
@@ -2183,11 +2188,6 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
         declared_units,
         angle_uncertainty,
     } = parsed;
-    let outer = match scope {
-        Scope::Placed(outer) => outer,
-        Scope::Own(_) | Scope::Sub(..) | Scope::Selected(_) => IDENTITY,
-    };
-    let outer = &outer;
     let mut ids = FileIds::new(graph, model, report);
     let scene = model.scene();
     let units = scene.units();
@@ -2222,7 +2222,7 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
     for root in scene.root_definitions() {
         collect_instances(
             root,
-            *outer,
+            IDENTITY,
             reader.to_mm,
             &mut instances,
             &mut placed,
@@ -2231,7 +2231,7 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
         )?;
     }
     if instances.is_empty() {
-        instances = scene.all_solids().map(|s| (s, *outer, None)).collect();
+        instances = scene.all_solids().map(|s| (s, IDENTITY, None)).collect();
     }
     for (solid, placement, def) in instances {
         // The outer shell, then each void shell (whose faces face inward, hence the flip).
@@ -2256,7 +2256,7 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
             .map(|(i, (_, p))| (*p, Some(i)))
             .collect();
         if placements.is_empty() {
-            placements.push((*outer, None));
+            placements.push((IDENTITY, None));
         }
         for (placement, def) in placements {
             let instance = instance_of.len();
@@ -2318,7 +2318,7 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
     // Own frame: only the shells of the definition's first placement are read, unplaced; every
     // instance keeps the number the whole file's read gives it.
     let own = match scope {
-        Scope::Placed(_) | Scope::Selected(_) => None,
+        Scope::Placed | Scope::Selected(_) => None,
         Scope::Own(definition) | Scope::Sub(definition, _) => {
             let mut first = None;
             for (index, (def, _)) in placed.iter().enumerate() {
@@ -2363,7 +2363,7 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
             Some(_) => continue,
         };
         let context = std::sync::Arc::new(GeometryPlacement::new(
-            if own.is_some() { IDENTITY } else { *outer },
+            if own.is_some() { IDENTITY } else { IDENTITY },
             if own.is_some() {
                 std::sync::Arc::from([])
             } else {
@@ -2517,14 +2517,10 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
                 swept.insert(out_faces.len(), source);
             }
             if let [outer] = declared_outer.as_slice() {
-                outer_bounds.insert(out_faces.len(), *outer);
+                outer_bounds.insert(out_faces.len(), IDENTITY);
             }
-            let (raw, primary) = reader.file_pcurves(
-                &face,
-                &edge_index,
-                out_faces.len(),
-                &mut measure_trims,
-            );
+            let (raw, primary) =
+                reader.file_pcurves(&face, &edge_index, out_faces.len(), &mut measure_trims);
             if !primary.is_empty() {
                 primary_pcurves.insert(out_faces.len(), primary);
             }
@@ -2762,7 +2758,7 @@ impl StepFile {
         let parsed = Parsed::new(bytes)?;
         let assemblies = assemblies(&parsed.graph);
         let parts = part_definitions(
-            build(&parsed, Scope::Placed(IDENTITY))?,
+            build(&parsed, Scope::Placed)?,
             &assemblies,
             &parsed.declared_units,
         )?;

@@ -73,6 +73,7 @@ pub(super) fn integrate_inner<const N: usize>(
 }
 pub(super) fn raw_param_curve(pc: &crate::brep::RawCurve2d) -> Option<Curve> {
     match pc {
+        crate::brep::RawCurve2d::Conic { .. } => None,
         crate::brep::RawCurve2d::Line {
             point,
             direction,
@@ -704,10 +705,7 @@ mod tests {
             for (&face, slots) in &primary {
                 for &slot in slots {
                     let (edge, raw) = &pcurves[&face][slot];
-                    let selected = (
-                        crate::brep::TrimCarrier::Faces(vec![face]),
-                        crate::brep::MeasurementPcurve::Raw(raw.clone()),
-                    );
+                    let selected = (crate::brep::TrimCarrier::Faces(vec![face]), raw.clone());
                     if trims.insert(*edge, Some(selected)).is_some() {
                         trims.insert(*edge, None);
                     }

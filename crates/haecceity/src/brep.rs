@@ -130,12 +130,6 @@ pub(crate) enum RawCurve2d {
         knots: Vec<f64>,
         weights: Option<Vec<f64>>,
     },
-}
-
-/// File coordinates of a pcurve selected for numerical integration.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) enum MeasurementPcurve {
-    Raw(RawCurve2d),
     Conic {
         origin: [f64; 2],
         reference: Option<[f64; 2]>,
@@ -150,7 +144,7 @@ pub(super) enum TrimCarrier {
     Detached(Box<Surface>),
 }
 
-impl MeasurementPcurve {
+impl RawCurve2d {
     /// Change units independently on the two parameter axes. Unequal scaling
     /// of a rotated conic is represented by its exact rational quadrants.
     pub(crate) fn scaled(&self, su: f64, sv: f64) -> Option<RawCurve2d> {
@@ -159,11 +153,11 @@ impl MeasurementPcurve {
             return None;
         }
         Some(match self {
-            Self::Raw(RawCurve2d::Line {
+            Self::Line {
                 point,
                 direction,
                 magnitude,
-            }) => {
+            } => {
                 let norm = direction[0].hypot(direction[1]);
                 if !norm.is_finite() || norm == 0. || !magnitude.is_finite() || *magnitude <= 0. {
                     return None;
@@ -176,13 +170,13 @@ impl MeasurementPcurve {
                     magnitude: magnitude * factor,
                 }
             }
-            Self::Raw(RawCurve2d::BSpline {
+            Self::BSpline {
                 degree,
                 points,
                 multiplicities,
                 knots,
                 weights,
-            }) => RawCurve2d::BSpline {
+            } => RawCurve2d::BSpline {
                 degree: *degree,
                 points: points.iter().copied().map(scale).collect(),
                 multiplicities: multiplicities.clone(),
@@ -493,8 +487,7 @@ pub struct Part {
     // Slots in file_pcurves explicitly selected as the master representation by STEP.
     primary_pcurves: std::collections::BTreeMap<usize, Vec<usize>>,
     // An entry with no operand records an unreadable S1/S2: the whole face falls back.
-    pub(super) measure_trims:
-        std::collections::BTreeMap<usize, Option<(TrimCarrier, MeasurementPcurve)>>,
+    pub(super) measure_trims: std::collections::BTreeMap<usize, Option<(TrimCarrier, RawCurve2d)>>,
     pub(super) outer_bounds: std::collections::BTreeMap<usize, usize>,
     // The file's length and plane angle units in millimetres and radians.
     file_units: Option<(f64, f64)>,
@@ -550,7 +543,7 @@ impl Part {
         }
     }
 
-    /// The same part with fresh query caches: every field copied, nothing derived carried.
+    /// The same part with fresh measurement caches and any resolved STEP master intervals.
     pub(super) fn fresh_copy(&self) -> Self {
         let mut part = Self::new(self.faces.clone(), self.edges.clone(), self.solids.clone());
         part.unresolved_faces = self.unresolved_faces.clone();
@@ -576,16 +569,84 @@ impl Part {
         part.native_faces = self.native_faces.clone();
         part.native_edges = self.native_edges.clone();
         part.integration_budget = self.integration_budget.clone();
+        for (face, to) in part.cache.iter().enumerate() {
+            self.carry_declared_boundary(face, to, &super::step::IDENTITY);
+        }
         part
+    }
+
+    /// Reindex this part's faces, carrying their STEP provenance and master boundaries.
+    /// `order[new]` is the old face index and must be a permutation of all faces.
+    pub fn with_faces_in_order(&self, order: &[usize]) -> Option<Self> {
+        if order.len() != self.faces.len() {
+            return None;
+        }
+        let mut index = vec![usize::MAX; order.len()];
+        for (new, &old) in order.iter().enumerate() {
+            if std::mem::replace(index.get_mut(old)?, new) != usize::MAX {
+                return None;
+            }
+        }
+        let mut part = self.fresh_copy();
+        let remap = |old: usize| index[old];
+        part.faces = reorder(&self.faces, order);
+        part.cache = order.iter().map(|_| FaceCache::default()).collect();
+        for (new, &old) in order.iter().enumerate() {
+            self.carry_declared_boundary(old, &part.cache[new], &super::step::IDENTITY);
+        }
+        for solid in &mut part.solids {
+            for face in &mut solid.faces {
+                *face = remap(*face);
+            }
+        }
+        part.face_sources = reorder(&self.face_sources, order);
+        part.native_faces = reorder(&self.native_faces, order);
+        part.pcurve_splines = reorder(&self.pcurve_splines, order);
+        part.face_frames = remap_keys(part.face_frames, &index);
+        part.swept = remap_keys(part.swept, &index);
+        part.file_pcurves = remap_keys(part.file_pcurves, &index);
+        part.primary_pcurves = remap_keys(part.primary_pcurves, &index);
+        part.outer_bounds = remap_keys(part.outer_bounds, &index);
+        for (carrier, _) in part.measure_trims.values_mut().flatten() {
+            if let TrimCarrier::Faces(owners) = carrier {
+                for face in owners {
+                    *face = remap(*face);
+                }
+            }
+        }
+        let remap_sorted = |faces: &mut Vec<usize>| {
+            for face in faces.iter_mut() {
+                *face = remap(*face);
+            }
+            faces.sort_unstable();
+        };
+        remap_sorted(&mut part.unresolved_faces);
+        if let Some(budget) = &mut part.integration_budget {
+            let budget = std::sync::Arc::make_mut(budget);
+            budget.work = reorder(&budget.work, order);
+            remap_sorted(&mut budget.refused);
+        }
+        Some(part)
     }
 
     /// Copy this loaded part through a finite proper rigid motion, without reading STEP.
     /// Face, edge, solid, vertex and source indices and parameter-space curves are preserved.
-    /// Derived boxes, quadratures, inversion grids and classification caches are invalidated
-    /// and rebuilt lazily from the transformed geometry; no cached caller-space data survives.
+    /// Caller-space geometry caches are rebuilt lazily. For parts with STEP master pcurves,
+    /// the resolved boundaries and their integrals are carried from the source coordinates.
     /// Imported native primitives and their placement chains are retained so composition
     /// precedes coordinate rounding, including on a part transformed more than once.
     pub fn transformed(
+        &self,
+        placement: &super::step::Placement,
+    ) -> Result<Self, super::step::StepError> {
+        let part = self.transformed_geometry(placement)?;
+        if !self.measure_trims.is_empty() {
+            self.carry_integrals(&part, placement);
+        }
+        Ok(part)
+    }
+
+    fn transformed_geometry(
         &self,
         placement: &super::step::Placement,
     ) -> Result<Self, super::step::StepError> {
@@ -805,7 +866,7 @@ impl Part {
         &self,
         placement: &super::step::Placement,
     ) -> Result<Self, super::step::StepError> {
-        let part = self.transformed(placement)?;
+        let part = self.transformed_geometry(placement)?;
         self.carry_integrals(&part, placement);
         Ok(part)
     }
@@ -1664,6 +1725,23 @@ impl Part {
         let first = roots.next().map(|f| root(&mut set, f));
         roots.all(|f| Some(root(&mut set, f)) == first)
     }
+}
+
+fn reorder<T: Clone>(items: &[T], order: &[usize]) -> Vec<T> {
+    order
+        .iter()
+        .filter_map(|&old| items.get(old).cloned())
+        .collect()
+}
+
+fn remap_keys<T>(
+    values: std::collections::BTreeMap<usize, T>,
+    index: &[usize],
+) -> std::collections::BTreeMap<usize, T> {
+    values
+        .into_iter()
+        .map(|(old, value)| (index[old], value))
+        .collect()
 }
 
 /// Bit-equal defining geometry, for [`Part::same_brep`].

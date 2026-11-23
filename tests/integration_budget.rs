@@ -5,7 +5,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use quiddity::kernel::brep::{Part, Solid};
+use quiddity::kernel::brep::Part;
 use quiddity::recognition::{FaceAccounting, RecognitionDocument};
 use quiddity::{RecognitionOptions, read_step_file};
 use serde_json::Value;
@@ -115,25 +115,6 @@ fn only_the_expensive_face_is_refused() {
     );
 }
 
-/// The faces of *part* in the order `order` (new face i is old face `order[i]`), one solid.
-fn reordered(part: &Part, order: &[usize]) -> Part {
-    let mut position = vec![0; order.len()];
-    for (new, &old) in order.iter().enumerate() {
-        position[old] = new;
-    }
-    let faces = order.iter().map(|&old| part.faces[old].clone()).collect();
-    let solids = part
-        .solids
-        .iter()
-        .map(|s| {
-            let mut solid: Solid = s.clone();
-            solid.faces = s.faces.iter().map(|&f| position[f]).collect();
-            solid
-        })
-        .collect();
-    Part::new(faces, part.edges.clone(), solids)
-}
-
 #[test]
 fn the_verdict_follows_the_face_not_its_order_or_placement() {
     let part = read_step_file(&fixture(EXPENSIVE)).unwrap();
@@ -141,10 +122,13 @@ fn the_verdict_follows_the_face_not_its_order_or_placement() {
     let n = part.faces.len();
 
     // Face order: each face's work is its own, wherever it is listed.
-    let forward = reordered(&part, &(0..n).collect::<Vec<_>>());
+    let forward = part
+        .with_faces_in_order(&(0..n).collect::<Vec<_>>())
+        .unwrap();
     let reverse_order: Vec<usize> = (0..n).rev().collect();
-    let reversed = reordered(&part, &reverse_order);
+    let reversed = part.with_faces_in_order(&reverse_order).unwrap();
     let (a, b) = (work(&forward), work(&reversed));
+    assert_eq!(a, work(&part));
     for (new, &old) in reverse_order.iter().enumerate() {
         assert_eq!(b[new], a[old], "face {old}");
     }
