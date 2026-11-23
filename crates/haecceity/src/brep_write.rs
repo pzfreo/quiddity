@@ -97,7 +97,7 @@ pub struct WriteReport {
     pub edges: usize,
     pub vertices: usize,
     pub pcurves_written: usize,
-    /// Pcurves the part holds that were not written, each with its face, edge and reason.
+    /// Pcurves or STEP master selections the writer could not preserve, with identifiers and reasons.
     pub pcurves_not_written: Vec<String>,
     /// Freeform faces whose surface was another kind than a B-spline (a surface of revolution,
     /// an extrusion, a Bézier patch…), written as their exact B-spline form: face index and
@@ -1560,6 +1560,20 @@ impl<'p> Writer<'p> {
                         .pcurves_not_written
                         .push(format!("face {f} edge {i}: {why}")),
                 }
+            }
+            if master == m::PreferredSurfaceCurveRepresentation::Curve3d
+                && let Some(selected) = part.measure_trims.get(&i)
+            {
+                let why = match selected {
+                    None => "its selected pcurve could not be decoded",
+                    Some((crate::brep::TrimCarrier::Detached(_), _)) => {
+                        "its selected pcurve is on a detached carrier"
+                    }
+                    Some(_) => "its selected pcurve could not be written in the file parameters",
+                };
+                report.pcurves_not_written.push(format!(
+                    "edge {i}: STEP master replaced by CURVE_3D because {why}"
+                ));
             }
             report.pcurves_written += pcurves.len();
             let a = self.b.author();
