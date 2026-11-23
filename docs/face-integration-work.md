@@ -101,10 +101,11 @@ failures; no new numerical answer is invented.
 ## Choosing the STEP boundary for measurement
 
 A STEP surface curve can provide several descriptions of one edge. Its master
-representation selects the spatial curve or a numbered pcurve. For each coedge
-haecceity uses that selection when integrating face area, the normal and position
-fluxes, and first and second moments. The shell and solid sums use those same
-face terms. Edges with no selected pcurve contribute their spatial projection.
+representation selects the spatial curve or a numbered pcurve. Public haecceity mass
+properties use those selections for face areas, fluxes and moments and their shell and
+solid sums. Recognition uses the master boundary only when a selected pcurve deviates
+from its 3D edge beyond the face's STEP uncertainty. Otherwise it integrates the
+projected 3D boundary in caller coordinates, including under an integration budget.
 
 A pcurve is evaluated in the units and parameter interval of its named carrier.
 If that carrier differs from the face being measured, the point and tangent
@@ -115,7 +116,7 @@ edges. Mass and moments share the accepted choice across query orders.
 
 The selected boundary goes through the same integration as the projected one: the
 cheaper along-v form and its retry for a face with one very large net, the per-face
-integration budget (every integrand and selected-boundary gap evaluation spends work),
+integration budget (integrand, deviation sample and selected-boundary gap evaluations spend work),
 and the shared moment integration. A remembered refused along-v trial is keyed by the
 integrand's width, whether mass is observed and whether the loops are the selected trim,
 since the two boundaries are different loops. The choice is parameter-space data (each

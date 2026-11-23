@@ -209,9 +209,10 @@ snapshots own the regression record; see [development](development.md#regression
 
 ### Fingerprints (`fingerprint.rs`, version `quiddity-rust/fingerprint/5`)
 
-Version 5 covers measurements from the boundary selected by the STEP master representation (#317). Face
-areas, moments and solid measurements can change, which also changes dependent
-fingerprints. Regenerate earlier fingerprints from their STEP geometry before matching.
+Version 5 fingerprints use recognition's boundary policy: a face uses its STEP master trims
+when a selected pcurve deviates from the 3D edge beyond the face's STEP uncertainty, and uses
+projected 3D edges otherwise. Public mass properties use the declared masters; regenerate
+earlier fingerprints from their STEP geometry before matching.
 
 
 - **Features** are read from each family's serialised records through an explicit table,
