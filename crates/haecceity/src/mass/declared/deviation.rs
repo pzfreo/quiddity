@@ -129,6 +129,7 @@ impl Part {
                 interval,
                 samples: OnceLock::new(),
                 nodes: OnceLock::new(),
+                length: OnceLock::new(),
             };
             max_deviation(surface, &trim, edge, spatial, spend)
         })();

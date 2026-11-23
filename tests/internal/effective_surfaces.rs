@@ -55,7 +55,7 @@ fn port_face(effective: &EffectiveFaces, part: &Part, face: usize) -> Value {
         _ => json!({"refused": true}),
     };
     // What the nominal is made of, for the message.
-    lengths["area"] = json!(part.face_mass(face).map(|m| m[0]));
+    lengths["area"] = json!(part.recognition_part().face_mass(face).map(|m| m[0]));
     lengths["perimeter"] = json!(physical_boundary_length(part, face));
     // Independent of Python: the face itself is oriented (a recovered primitive is not, but the
     // face's own surface and orientation still are), so its outward normal at each sample must

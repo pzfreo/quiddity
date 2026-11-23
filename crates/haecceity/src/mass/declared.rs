@@ -157,6 +157,7 @@ pub(crate) struct EdgeTrim {
     pub(crate) interval: (f64, f64),
     samples: OnceLock<Option<TrimSamples>>,
     nodes: OnceLock<Option<Vec<f64>>>,
+    length: OnceLock<Option<f64>>,
 }
 
 #[derive(Debug)]
@@ -173,6 +174,25 @@ pub(crate) struct DeclaredBoundary {
 }
 
 impl EdgeTrim {
+    pub(super) fn length(&self, surface: &Surface) -> Option<f64> {
+        *self.length.get_or_init(|| {
+            let nodes = self.nodes()?;
+            let mut panel = |(), a, b, _| {
+                let rule = kronrod((), a, b, |(), t| {
+                    let (p, d) = self.checked_uv_and_derivative(surface, t)?;
+                    let (u, v) = wrap_closed(surface, self.spans, (p[0], p[1]));
+                    let (su, sv) = surface.partials(u, v);
+                    let speed = geom::norm(geom::add(geom::scale(su, d[0]), geom::scale(sv, d[1])));
+                    speed.is_finite().then_some([speed])
+                })?;
+                Some((rule, None))
+            };
+            let ([length], excess, _, ()) =
+                adaptive(&nodes, (), Some(geom::COORD_FLOOR), true, &mut panel)?;
+            (excess <= geom::COORD_FLOOR).then_some(length.abs())
+        })
+    }
+
     pub(crate) fn point(&self, s: &Surface, t: f64) -> V3 {
         if let Some(tr) = &self.curve.transfer {
             return self.curve.lifted(t, tr).map_or([f64::NAN; 3], |(_, p)| {
@@ -340,6 +360,7 @@ impl Part {
                                 interval: trim.interval,
                                 samples: OnceLock::new(),
                                 nodes: trim.nodes.clone(),
+                                length: trim.length.clone(),
                             },
                         )
                     })
@@ -514,6 +535,7 @@ fn resolve(
         interval,
         samples: OnceLock::new(),
         nodes: OnceLock::new(),
+        length: OnceLock::new(),
     };
     let (a, b) = interval;
     // Check the selected curve on the finite parameter range it actually uses.

@@ -675,7 +675,6 @@ fn estimate<const N: usize>(
     }
 }
 
-#[cfg(test)]
 fn kronrod<S, const N: usize>(
     state: S,
     a: f64,
@@ -1198,6 +1197,34 @@ impl Part {
         (self.cache[face].mass.get()?.method != BoundaryMethod::Projected)
             .then(|| self.declared_boundary(face))
             .flatten()
+    }
+
+    /// Length of the boundary accepted for mass, excluding seams and poles.
+    /// `spatial_length` supplies the exact 3D edge path for unselected edges.
+    #[doc(hidden)]
+    pub fn measured_boundary_length(
+        &self,
+        face: usize,
+        spatial_length: impl Fn(usize) -> f64,
+    ) -> Option<f64> {
+        self.face_terms(face)?;
+        let boundary = self.measured_boundary(face);
+        let surface = &self.faces[face].surface;
+        let mut uses = std::collections::BTreeMap::<usize, usize>::new();
+        for &(edge, _) in self.faces[face].loops.iter().flat_map(|lp| &lp.edges) {
+            *uses.entry(edge).or_default() += 1;
+        }
+        let lengths = uses
+            .into_iter()
+            .filter(|&(_, count)| count == 1)
+            .map(
+                |(edge, _)| match boundary.and_then(|b| b.edges.get(&edge)) {
+                    Some(trim) => trim.length(surface),
+                    None => Some(spatial_length(edge)),
+                },
+            )
+            .collect::<Option<Vec<_>>>()?;
+        Some(crate::py::fsum(lengths))
     }
 
     fn projected_face_mass(&self, face: usize) -> FaceMass {

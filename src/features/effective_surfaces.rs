@@ -363,7 +363,7 @@ pub fn recovery_nominal(part: &Part, face: usize) -> Option<f64> {
     if !(area.is_finite() && area > 0.0) {
         return None;
     }
-    let perimeter = physical_boundary_length(part, face);
+    let perimeter = physical_boundary_length(part, face)?;
     if !(perimeter.is_finite() && perimeter >= 0.0) {
         return None;
     }
@@ -378,18 +378,9 @@ pub fn recovery_nominal(part: &Part, face: usize) -> Option<f64> {
 
 /// `_physical_boundary_length`: the face's trim perimeter, without its seams (edges its loops use
 /// twice). A degenerate edge (a pole) has no length.
-pub(crate) fn physical_boundary_length(part: &Part, face: usize) -> f64 {
-    let mut uses = std::collections::BTreeMap::<usize, usize>::new();
-    for lp in &part.faces[face].loops {
-        for &(e, _) in &lp.edges {
-            *uses.entry(e).or_default() += 1;
-        }
-    }
-    py::fsum(
-        uses.iter()
-            .filter(|&(_, &n)| n == 1)
-            .map(|(&e, _)| arc_length(part, e)),
-    )
+pub(crate) fn physical_boundary_length(part: &Part, face: usize) -> Option<f64> {
+    let part = part.recognition_part();
+    part.measured_boundary_length(face, |edge| arc_length(part, edge))
 }
 
 /// An edge's length (`Edge.length`, `GCPnts_AbscissaPoint`): exact for lines and circular arcs,
