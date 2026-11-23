@@ -69,7 +69,6 @@ pub struct Context<'a> {
 impl<'a> Context<'a> {
 internal_entry! {
     pub fn new(part: &'a Part) -> Self {
-        let part = part.recognition_part();
         Context {
             part,
             floor_blends: part.solids.iter().map(|_| Default::default()).collect(),

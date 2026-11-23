@@ -95,7 +95,8 @@ fn closed_floor_rounds_belong_to_a_full_depth_pocket() {
                 _ => panic!("nonanalytic floor transition"),
             }
         }
-        let direct = pockets::discover_verified(&Context::new(&part)).unwrap();
+        // Compare the direct detector to the inventory on the same boundary policy.
+        let direct = pockets::discover_verified(&Context::new(part.recognition_part())).unwrap();
         assert_eq!(direct.len(), 1);
         assert_eq!(direct[0].record, *p);
         let published = quiddity::correspondence::recognise(&part);
