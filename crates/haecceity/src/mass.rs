@@ -1767,8 +1767,7 @@ impl Part {
             // One node: its parameters, unwrapped against the walk's, and their velocity.
             let node = |walk: &mut Walk, t: f64| -> Option<((f64, f64), (f64, f64))> {
                 if let Some(trim) = trim {
-                    let p = trim.checked_uv(surface, t)?;
-                    let v = trim.curve.derivative(t);
+                    let (p, v) = trim.checked_uv_and_derivative(surface, t)?;
                     if !(p[0].is_finite()
                         && p[1].is_finite()
                         && v[0].is_finite()
@@ -2199,8 +2198,7 @@ impl Part {
                 if let Some(trim) = boundary.and_then(|b| b.edges.get(&e)) {
                     let (a, b) = trim.interval;
                     let t = 0.5 * (a + b);
-                    let q = trim.curve.value(t);
-                    let d = trim.curve.derivative(t);
+                    let (q, d) = trim.curve.value_and_derivative(t);
                     (q[0], q[1], d[0], d[1], b >= a)
                 } else {
                     let (a, b) =

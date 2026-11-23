@@ -100,27 +100,27 @@ impl ParamCurve {
             self.carrier_uv(t)
         }
     }
-    pub(crate) fn derivative(&self, t: f64) -> V3 {
+    /// Evaluate the point and tangent from the same inverse on the receiving face.
+    pub(crate) fn value_and_derivative(&self, t: f64) -> (V3, V3) {
         let p = self.source.value(t);
         let d = self.source.derivative(t);
-        let velocity = [
-            self.axes[0].at(p[0]).1 * d[0],
-            self.axes[1].at(p[1]).1 * d[1],
-            0.,
-        ];
+        let (u, du) = self.axes[0].at(p[0]);
+        let (v, dv) = self.axes[1].at(p[1]);
+        let velocity = [du * d[0], dv * d[1], 0.];
         let Some(tr) = &self.transfer else {
-            return velocity;
+            return ([u, v, 0.], velocity);
         };
-        let Some(((u, v), xyz)) = self.lifted(t, tr) else {
-            return [f64::NAN; 3];
+        let Some((u, v)) = on_carrier(&tr.carrier, tr.carrier_spans, [u, v, 0.]) else {
+            return ([f64::NAN; 3], [f64::NAN; 3]);
         };
+        let xyz = tr.carrier.value(u, v);
         let (su, sv) = tr.carrier.partials(u, v);
         let tangent = geom::add(geom::scale(su, velocity[0]), geom::scale(sv, velocity[1]));
         let Some((u, v)) = tr.face_uv(xyz) else {
-            return [f64::NAN; 3];
+            return ([f64::NAN; 3], [f64::NAN; 3]);
         };
         let (du, dv) = uv_velocity(&tr.face, tr.face_spans, u, v, xyz, tangent);
-        [du, dv, 0.]
+        ([u, v, 0.], [du, dv, 0.])
     }
     fn parameter(&self, q: V3) -> f64 {
         let q = if let Some(tr) = &self.transfer {
@@ -214,10 +214,10 @@ impl EdgeTrim {
         let p = self.curve.value(t);
         wrap_closed(s, self.spans, (p[0], p[1]))
     }
-    pub(super) fn checked_uv(&self, s: &Surface, t: f64) -> Option<V3> {
-        let p = self.curve.value(t);
+    pub(super) fn checked_uv_and_derivative(&self, s: &Surface, t: f64) -> Option<(V3, V3)> {
+        let (p, d) = self.curve.value_and_derivative(t);
         on_carrier(s, self.spans, p)?;
-        Some(p)
+        Some((p, d))
     }
     pub(crate) fn nodes(&self) -> Option<Vec<f64>> {
         self.nodes.get_or_init(|| self.compute_nodes()).clone()

@@ -297,7 +297,7 @@ impl<'a> FiniteCurve<'a> {
 
     fn value(&self, surface: &Surface, closed: (f64, f64), t: f64, seed: V3) -> Option<(V3, V3)> {
         if let Some(trim) = self.trim {
-            return Some((trim.curve.value(t), trim.curve.derivative(t)));
+            return Some(trim.curve.value_and_derivative(t));
         }
         let p = self.edge.curve.value(t);
         let d = self.edge.curve.derivative(t);
