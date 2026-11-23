@@ -2363,7 +2363,7 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
             Some(_) => continue,
         };
         let context = std::sync::Arc::new(GeometryPlacement::new(
-            if own.is_some() { IDENTITY } else { IDENTITY },
+            IDENTITY,
             if own.is_some() {
                 std::sync::Arc::from([])
             } else {

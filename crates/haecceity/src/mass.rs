@@ -2605,17 +2605,6 @@ impl Part {
             let (from, to) = (&self.cache[face], &moved.cache[face]);
             let raw = self.face_raw_moments(face);
             self.carry_declared_boundary(face, to, at);
-            if let Some(mass) = from.mass.get() {
-                let terms = mass.terms.map(|[area, flux, nx, ny, nz]| {
-                    let n = turn([nx, ny, nz]);
-                    [area, flux + geom::dot(shift, n), n[0], n[1], n[2]]
-                });
-                let _ = to.mass.set(FaceMass {
-                    terms,
-                    method: mass.method,
-                });
-            }
-            from.carry_refusals(to);
             let common = |raw: &[f64; 26]| {
                 let mut out = [0.0; 26];
                 out[0] = raw[0];
@@ -2681,7 +2670,25 @@ impl Part {
                     }
                     new_centre
                 });
-            let _ = to.raw_moments.set(RawMoments { local, centre });
+            let complete = local.is_some() && centre.is_some();
+            if complete || !self.measure_trims.is_empty() {
+                if local.is_some() || centre.is_some() {
+                    let _ = to.raw_moments.set(RawMoments { local, centre });
+                }
+                if let Some(mass) = from.mass.get() {
+                    let terms = mass.terms.map(|[area, flux, nx, ny, nz]| {
+                        let n = turn([nx, ny, nz]);
+                        [area, flux + geom::dot(shift, n), n[0], n[1], n[2]]
+                    });
+                    let _ = to.mass.set(FaceMass {
+                        terms,
+                        method: mass.method,
+                    });
+                }
+            }
+            if complete {
+                from.carry_refusals(to);
+            }
         }
     }
 }
@@ -3310,7 +3317,9 @@ mod tests {
             let moved = warm.transformed_carrying_integrals(&at).unwrap();
             let (carried, again) = evaluations_of(|| integrate_all(&moved));
             assert_eq!(again, 0, "{name}: a rigid motion integrates nothing again");
-            let fresh = fixture_part(name).transformed(&at).unwrap();
+            // A cold quadrature over the same geometry independently checks the carried
+            // moments. The public STEP transform now carries rather than reintegrating.
+            let fresh = fixture_part(name).transformed_geometry(&at).unwrap();
             let (expected, cost) = evaluations_of(|| integrate_all(&fresh));
             assert!(cost > 0);
             assert_eq!(carried.len(), expected.len());

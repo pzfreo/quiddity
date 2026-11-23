@@ -646,7 +646,7 @@ impl Part {
         Ok(part)
     }
 
-    fn transformed_geometry(
+    pub(crate) fn transformed_geometry(
         &self,
         placement: &super::step::Placement,
     ) -> Result<Self, super::step::StepError> {
