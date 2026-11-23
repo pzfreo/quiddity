@@ -464,17 +464,21 @@ fn varying_pitch_sweep_closes_open_uv_wires() {
     let (volume, area) = part.solid_mass(0).unwrap();
     // Whole-shape OCCT values retain the open-wire fluxes, so numerical
     // refinement cannot meet a 1e-6 comparison with that reference.
-    relative(volume - 2535.1985709713267, -105.6924497816597, 1e-6);
-    relative(area - 1531.3435624916838, -31.7042806581519, 1e-6);
+    // Independent UV strips on face 2 (#576), assembled from the trimmed
+    // STEP master pcurves, give area 152.81565409318 mm². Substituting its
+    // flux and first-moment tensors changes the master solid centroid by
+    // 7.1e-13 mm. The projected boundary gives 152.8157192874 mm² there.
+    relative(volume - 2535.1985709713267, -105.69257968032434, 1e-6);
+    relative(area - 1531.3435624916838, -31.704345650956384, 1e-6);
     let (v, c) = part.volume_centroid().unwrap();
-    relative(v, 2429.5088550056716, 1e-9);
+    relative(v, 2429.508722080353, 1e-9);
     assert!(
         geom::dist(
             c,
             [
-                2.1085896316760242e-5,
-                5.4552655362173995e-8,
-                3.999138497140011
+                2.1062804706439307e-5,
+                3.1714680413300244e-8,
+                3.9991386278060883
             ]
         ) < 1e-9
     );
