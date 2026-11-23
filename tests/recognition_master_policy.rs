@@ -39,10 +39,10 @@ fn recognition_matches_the_reverse_probe_byte_for_byte() {
             .output()
             .unwrap();
         assert!(output.status.success(), "{name}: {:?}", output.stderr);
-        assert_eq!(
-            format!("{:x}", Sha256::digest(&output.stdout)),
-            expected,
-            "{name}"
-        );
+        let digest = Sha256::digest(&output.stdout)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        assert_eq!(digest, expected, "{name}");
     }
 }
