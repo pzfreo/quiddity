@@ -15,8 +15,10 @@ quiddity reads a STEP model and finds its manufacturing features (holes, pockets
 steps, fillets, chamfers, patterns, springs and turned profiles) with their measured sizes and
 positions. It reads and writes AP242 PMI (dimensions, tolerances, datums, notes and their callouts),
 and matches features between two revisions of a part. It works from the B-rep geometry alone, with no
-CAD system, feature tree or OpenCascade: pure Rust, the same output for the same input, on Windows,
-macOS, Linux and in the browser, as a Python package, a command line or a Rust library.
+CAD system, feature tree or OpenCascade: pure Rust, as a Python package, a command line or a Rust
+library, and in the browser. For the same input it gives the same features, faces and structure on
+Windows, macOS and Linux, with numbers that agree to 1e-6 (relative above magnitude 1) rather than
+to the last bit; CI holds Linux x86_64 and macOS arm64 to a single corpus snapshot at that tolerance.
 
 ![Eight public parts turning while quiddity's recognised features light up family by family: holes and counterbores, teeth, grooves, sheet-metal bends and flanges, pockets, slots, chamfers, fillets and V-channels](docs/images/showcase.gif)
 
