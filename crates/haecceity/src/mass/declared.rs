@@ -4,7 +4,9 @@ use super::*;
 use crate::brep::{RawCurve2d, TrimCarrier};
 use std::collections::BTreeMap;
 use std::sync::{Arc, OnceLock};
+mod deviation;
 mod intersections;
+pub(crate) use deviation::{BoundaryPolicy, EdgeDeviations};
 pub(crate) use intersections::TrimCrossings;
 mod parameters;
 use parameters::Axis;
@@ -49,6 +51,15 @@ impl Transfer {
 /// patch has no point or tangent there. Crossing a genuinely closed seam is
 /// different and is handled by wrapping before checking the domain.
 fn on_carrier(surface: &Surface, spans: (f64, f64), q: V3) -> Option<(f64, f64)> {
+    carrier_uv(surface, spans, q, || Some(()))
+}
+
+fn carrier_uv(
+    surface: &Surface,
+    spans: (f64, f64),
+    q: V3,
+    spend: impl Fn() -> Option<()>,
+) -> Option<(f64, f64)> {
     if !q[0].is_finite() || !q[1].is_finite() {
         return None;
     }
@@ -71,6 +82,7 @@ fn on_carrier(surface: &Surface, spans: (f64, f64), q: V3) -> Option<(f64, f64)>
             if !near(u, uc, u0, u1) || !near(v, vc, v0, v1) {
                 return None;
             }
+            spend()?;
             let (_, su, sv) = surface.value_and_partials(uc, vc);
             let distance = (u - uc).abs() * geom::norm(su) + (v - vc).abs() * geom::norm(sv);
             if !distance.is_finite() || distance > geom::COORD_FLOOR {
@@ -364,6 +376,12 @@ impl Part {
     }
 
     fn read_declared_boundary(&self, face: usize) -> Option<DeclaredBoundary> {
+        match self.boundary_policy {
+            BoundaryPolicy::Master => {}
+            BoundaryPolicy::Projected => return None,
+            BoundaryPolicy::Recognition if !self.declares_disagreeing_edge(face)? => return None,
+            BoundaryPolicy::Recognition => {}
+        }
         let coedges = || self.faces[face].loops.iter().flat_map(|lp| &lp.edges);
         if self.measure_trims.is_empty()
             || !coedges().any(|(e, _)| self.measure_trims.contains_key(e))
@@ -488,73 +506,8 @@ fn resolve(
         edge.is_closed(),
     );
     let spans = closed_spans(surface);
-    let lift = |t| {
-        let q = curve.value(t);
-        let (u, v) = wrap_closed(surface, spans, (q[0], q[1]));
-        surface.value(u, v)
-    };
-    let natural = match &curve.source {
-        Curve::Nurbs(c) => Some(c.domain()),
-        _ => None,
-    };
     let period = curve.source.period();
-    let valid = |(a, b): (f64, f64)| {
-        if !a.is_finite() || !b.is_finite() || a == b {
-            return false;
-        }
-        let in_domain = natural.is_none_or(|(lo, hi)| {
-            let eps = 64. * f64::EPSILON * lo.abs().max(hi.abs()).max(hi - lo);
-            if period.is_some() {
-                (b - a).abs() <= hi - lo + eps
-            } else {
-                a.min(b) >= lo - eps && a.max(b) <= hi + eps
-            }
-        });
-        // A bounded NURBS evaluator clamps outside parameters to its endpoint.
-        // Such a match must not suppress inversion of the pcurve's own endpoints.
-        let on_surface = |t| on_carrier(surface, spans, curve.value(t)).is_some();
-        in_domain
-            && on_surface(a)
-            && on_surface(b)
-            && geom::dist(lift(a), edge.start) <= tolerance
-            && geom::dist(lift(b), edge.end) <= tolerance
-    };
-    let (pu, pv) = surface.periodic();
-    let periods = [
-        if pu { std::f64::consts::TAU } else { spans.0 },
-        if pv { std::f64::consts::TAU } else { spans.1 },
-    ];
-    let guess = |p, near: V3| {
-        let (u, v) = surface.parameters(p, Some((near[0], near[1])))?;
-        let mut q = [u, v, 0.];
-        for k in 0..2 {
-            if periods[k].is_finite() {
-                q[k] += periods[k] * ((near[k] - q[k]) / periods[k]).round();
-            }
-        }
-        Some(curve.parameter(q))
-    };
-    let guessed = || {
-        let a = guess(edge.start, curve.value(natural.map_or(0., |ab| ab.0)))?;
-        let mut b = guess(edge.end, curve.value(a))?;
-        if let Some(period) = period {
-            if edge.is_closed() {
-                b = a + if edge.same_sense { period } else { -period };
-            } else if (b > a) != edge.same_sense {
-                b += if edge.same_sense { period } else { -period };
-            }
-        }
-        Some((a, b))
-    };
-    let interval = [
-        Some(spatial),
-        natural.filter(|_| edge.same_sense),
-        natural.map(|(a, b)| (b, a)).filter(|_| !edge.same_sense),
-    ]
-    .into_iter()
-    .flatten()
-    .find(|&ab| valid(ab))
-    .or_else(|| guessed().filter(|&ab| valid(ab)))?;
+    let interval = resolve_interval(surface, edge, &curve, spatial, tolerance, || Some(()))?;
     let trim = EdgeTrim {
         curve,
         spans,
@@ -588,6 +541,85 @@ fn resolve(
         }
     }
     Some(trim)
+}
+
+fn resolve_interval(
+    surface: &Surface,
+    edge: &crate::brep::Edge,
+    curve: &ParamCurve,
+    spatial: (f64, f64),
+    tolerance: f64,
+    spend: impl Fn() -> Option<()>,
+) -> Option<(f64, f64)> {
+    let spans = closed_spans(surface);
+    let lift = |t| {
+        let q = curve.value(t);
+        let (u, v) = wrap_closed(surface, spans, (q[0], q[1]));
+        spend()?;
+        Some(surface.value(u, v))
+    };
+    let natural = match &curve.source {
+        Curve::Nurbs(c) => Some(c.domain()),
+        _ => None,
+    };
+    let period = curve.source.period();
+    let valid = |(a, b): (f64, f64)| {
+        if !a.is_finite() || !b.is_finite() || a == b {
+            return false;
+        }
+        let in_domain = natural.is_none_or(|(lo, hi)| {
+            let eps = 64. * f64::EPSILON * lo.abs().max(hi.abs()).max(hi - lo);
+            if period.is_some() {
+                (b - a).abs() <= hi - lo + eps
+            } else {
+                a.min(b) >= lo - eps && a.max(b) <= hi + eps
+            }
+        });
+        // A bounded NURBS evaluator clamps outside parameters to its endpoint.
+        // Such a match must not suppress inversion of the pcurve's own endpoints.
+        let on_surface = |t| carrier_uv(surface, spans, curve.value(t), &spend).is_some();
+        in_domain
+            && on_surface(a)
+            && on_surface(b)
+            && lift(a).is_some_and(|p| geom::dist(p, edge.start) <= tolerance)
+            && lift(b).is_some_and(|p| geom::dist(p, edge.end) <= tolerance)
+    };
+    let (pu, pv) = surface.periodic();
+    let periods = [
+        if pu { std::f64::consts::TAU } else { spans.0 },
+        if pv { std::f64::consts::TAU } else { spans.1 },
+    ];
+    let guess = |p, near: V3| {
+        let (u, v) = surface.parameters(p, Some((near[0], near[1])))?;
+        let mut q = [u, v, 0.];
+        for k in 0..2 {
+            if periods[k].is_finite() {
+                q[k] += periods[k] * ((near[k] - q[k]) / periods[k]).round();
+            }
+        }
+        Some(curve.parameter(q))
+    };
+    let guessed = || {
+        let a = guess(edge.start, curve.value(natural.map_or(0., |ab| ab.0)))?;
+        let mut b = guess(edge.end, curve.value(a))?;
+        if let Some(period) = period {
+            if edge.is_closed() {
+                b = a + if edge.same_sense { period } else { -period };
+            } else if (b > a) != edge.same_sense {
+                b += if edge.same_sense { period } else { -period };
+            }
+        }
+        Some((a, b))
+    };
+    [
+        Some(spatial),
+        natural.filter(|_| edge.same_sense),
+        natural.map(|(a, b)| (b, a)).filter(|_| !edge.same_sense),
+    ]
+    .into_iter()
+    .flatten()
+    .find(|&ab| valid(ab))
+    .or_else(|| guessed().filter(|&ab| valid(ab)))
 }
 
 #[cfg(test)]

@@ -376,3 +376,54 @@ fn an_unreadable_selected_slot_rejects_the_entire_loop() {
     assert!(part.measured_boundary(0).is_none());
     assert!((part.face_mass(0).unwrap()[0] - 1.).abs() < 1e-12);
 }
+
+#[test]
+fn recognition_keeps_agreeing_trims_out_of_the_master_integrator() {
+    let part = crate::read_step(SQUARE.as_bytes()).unwrap();
+    let recognition = part.recognition_part();
+    assert!(part.master_deviations.get().is_none());
+    assert!(recognition.master_deviations.get().is_none());
+
+    MASTER_INTEGRATIONS.with(|calls| calls.set(0));
+    let projected = recognition.face_moments(0).unwrap().area;
+    assert!((projected - 1.).abs() < 1e-12);
+    assert_eq!(MASTER_INTEGRATIONS.with(|calls| calls.get()), 0);
+    assert!(recognition.master_deviations.get().is_some());
+    assert!(part.cache[0].mass.get().is_none());
+
+    // The checks also count against the face budget after the edges are cached.
+    let report = |p: &Part| {
+        p.with_integration_budget(u64::MAX)
+            .integration_budget()
+            .unwrap()
+            .work[0]
+    };
+    let spatial = crate::read_step(SQUARE.replace(".PCURVE_S1.", ".CURVE_3D.").as_bytes()).unwrap();
+    let edge_work: u64 = recognition
+        .master_deviations
+        .get()
+        .unwrap()
+        .iter()
+        .filter_map(OnceLock::get)
+        .map(|e| e.work_for_test())
+        .sum();
+    assert!(edge_work > 0);
+    assert_eq!(report(recognition), report(&spatial) + edge_work);
+    let bounded = recognition.with_integration_budget(1);
+    assert_eq!(bounded.integration_budget().unwrap().work, [2]);
+    assert_eq!(bounded.integration_budget().unwrap().refused, [0]);
+    assert_eq!(MASTER_INTEGRATIONS.with(|calls| calls.get()), 0);
+
+    let master = part.face_moments(0).unwrap().area;
+    assert!((master - (1. - 0.0004 / 3.)).abs() < 1e-12);
+    assert_eq!(MASTER_INTEGRATIONS.with(|calls| calls.get()), 1);
+    assert_eq!(part.face_mass(0).unwrap()[0], master);
+    assert_eq!(recognition.face_mass(0).unwrap()[0], projected);
+    assert_eq!(MASTER_INTEGRATIONS.with(|calls| calls.get()), 1);
+
+    let mut at = crate::step::IDENTITY;
+    at[0][3] = 5.;
+    let moved = part.transformed(&at).unwrap();
+    assert_eq!(moved.recognition_part().face_mass(0).unwrap()[0], projected);
+    assert_eq!(moved.face_mass(0).unwrap()[0], master);
+}

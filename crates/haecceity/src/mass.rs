@@ -18,6 +18,7 @@
 
 mod declared;
 mod preferred;
+pub(crate) use declared::{BoundaryPolicy, EdgeDeviations};
 pub(super) use declared::{DeclaredBoundary, TrimCrossings};
 pub(super) use preferred::PreferredPaths;
 
@@ -148,6 +149,13 @@ impl IntegralOrigin {
         }
     }
 
+    pub(super) fn for_recognition(&self) -> Self {
+        Self {
+            placement: self.placement,
+            source: self.source.recognition_source(),
+        }
+    }
+
     pub(super) fn placed(&self, outer: &crate::step::Placement) -> Self {
         Self {
             placement: crate::step::compose(outer, &self.placement),
@@ -176,6 +184,7 @@ thread_local! {
         const { std::cell::Cell::new(None) };
     /// Integrand evaluations of face integrals on this thread: a structural cost for tests.
     static INTEGRAND_EVALUATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static MASTER_INTEGRATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 thread_local! {
@@ -190,6 +199,13 @@ thread_local! {
 /// once on it, so the face's integration stops there. Outside metering this always succeeds.
 #[inline]
 pub(super) fn spend_work() -> Option<()> {
+    spend_work_units(1)
+}
+
+fn spend_work_units(work: u64) -> Option<()> {
+    if work == 0 {
+        return Some(());
+    }
     // Unmetered integration (every call without a budget) pays one relaxed load.
     if METERS.load(std::sync::atomic::Ordering::Relaxed) == 0 {
         return Some(());
@@ -202,10 +218,21 @@ pub(super) fn spend_work() -> Option<()> {
         }
         Some((spent, limit)) if spent > limit => None,
         Some((spent, limit)) => {
-            meter.set(Some((spent + 1, limit)));
-            (spent < limit).then_some(())
+            if work <= limit - spent {
+                meter.set(Some((spent + work, limit)));
+                Some(())
+            } else {
+                meter.set(Some((limit + 1, limit)));
+                None
+            }
         }
     })
+}
+
+#[inline]
+fn work_meter_active() -> bool {
+    METERS.load(std::sync::atomic::Ordering::Relaxed) != 0
+        && METER.with(|meter| meter.get().is_some())
 }
 
 /// How many threads are metering a face now.
@@ -986,6 +1013,13 @@ impl Part {
             return part;
         }
         part.integration_budget = None;
+        // A cached boundary includes the recognition decision. Re-enter it
+        // under this budget so that already sampled edges still cost work.
+        if part.boundary_policy == BoundaryPolicy::Recognition {
+            for cache in &mut part.cache {
+                cache.declared = std::sync::OnceLock::new();
+            }
+        }
         let mut work = Vec::with_capacity(part.faces.len());
         let mut refused = Vec::new();
         let guard = MeterGuard::new();
@@ -1102,6 +1136,8 @@ impl Part {
 
     fn preferred_face_mass(&self, face: usize) -> Option<FaceMass> {
         let boundary = self.declared_boundary(face)?;
+        #[cfg(test)]
+        MASTER_INTEGRATIONS.with(|calls| calls.set(calls.get() + 1));
         if let Some(terms) = self
             .integrate_preferred_face(face, mass_density, Components::Prefix(5), true)
             .and_then(valid_mass)

@@ -10,12 +10,11 @@ in [docs/alpha1.md](docs/alpha1.md).
   through spherical and toroidal corners, with their spring edges and groups by radius
   and side that count blend faces and legacy fillet records.
 
-- Face area, moments and volume flux now use the finite boundary selected by
-  STEP's `PCURVE_S1` or `PCURVE_S2` when it can be integrated, including when
-  projecting the 3D edge would also give an area. A `CURVE_3D` edge still uses
-  its spatial curve. An unusable selected boundary falls back to projection
-  (#317). The mesher still triangulates the projected boundary until its own PR lands,
-  so cgb243 face #60132's mesh area differs from its face area by 13%.
+- Public face and solid mass queries integrate STEP's declared master boundary on
+  demand, with projected 3D edges as the fallback for unusable trims (#317).
+  Recognition, evidence and fingerprints use separate caches and integrate the
+  master only on faces with a measured master edge beyond STEP's length uncertainty.
+  Recognition charges the deviation samples to the face's integration budget.
 
 - Fingerprints use `quiddity-rust/fingerprint/5` because the STEP-selected boundary (#317)
   changes face and solid measurements. Regenerate earlier fingerprints from STEP before matching.

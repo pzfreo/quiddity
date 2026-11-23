@@ -358,6 +358,7 @@ internal_entry! {
 /// perimeter being its physical trim (seams, used twice by the face, left out); `None` where
 /// Python raises (no finite positive area).
 pub fn recovery_nominal(part: &Part, face: usize) -> Option<f64> {
+    let part = part.recognition_part();
     let area = part.face_mass(face)?[0];
     if !(area.is_finite() && area > 0.0) {
         return None;

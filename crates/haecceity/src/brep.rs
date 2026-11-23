@@ -490,6 +490,10 @@ pub struct Part {
     primary_pcurves: std::collections::BTreeMap<usize, Vec<usize>>,
     // An entry with no operand records an unreadable S1/S2: the whole face falls back.
     pub(super) measure_trims: std::collections::BTreeMap<usize, Option<(TrimCarrier, RawCurve2d)>>,
+    pub(super) measure_uncertainty: std::collections::BTreeMap<usize, f64>,
+    pub(super) boundary_policy: super::mass::BoundaryPolicy,
+    pub(super) master_deviations: OnceLock<super::mass::EdgeDeviations>,
+    recognition_view: OnceLock<std::sync::Arc<Part>>,
     pub(super) outer_bounds: std::collections::BTreeMap<usize, usize>,
     // The file's length and plane angle units in millimetres and radians.
     file_units: Option<(f64, f64)>,
@@ -537,6 +541,10 @@ impl Part {
             file_pcurves: Default::default(),
             primary_pcurves: Default::default(),
             measure_trims: Default::default(),
+            measure_uncertainty: Default::default(),
+            boundary_policy: Default::default(),
+            master_deviations: OnceLock::new(),
+            recognition_view: OnceLock::new(),
             outer_bounds: Default::default(),
             file_units: None,
             declared_length_unit: None,
@@ -552,6 +560,10 @@ impl Part {
 
     /// The same part with fresh measurement caches and any resolved STEP master intervals.
     pub(super) fn fresh_copy(&self) -> Self {
+        self.copy_with_boundary(self.boundary_policy)
+    }
+
+    fn copy_with_boundary(&self, policy: super::mass::BoundaryPolicy) -> Self {
         let mut part = Self::new(self.faces.clone(), self.edges.clone(), self.solids.clone());
         part.unresolved_faces = self.unresolved_faces.clone();
         part.unresolved_edges = self.unresolved_edges.clone();
@@ -568,6 +580,7 @@ impl Part {
         part.file_pcurves = self.file_pcurves.clone();
         part.primary_pcurves = self.primary_pcurves.clone();
         part.measure_trims = self.measure_trims.clone();
+        part.measure_uncertainty = self.measure_uncertainty.clone();
         part.outer_bounds = self.outer_bounds.clone();
         part.file_units = self.file_units;
         part.declared_length_unit = self.declared_length_unit.clone();
@@ -575,12 +588,68 @@ impl Part {
         part.angle_uncertainty = self.angle_uncertainty;
         part.native_faces = self.native_faces.clone();
         part.native_edges = self.native_edges.clone();
-        part.integration_budget = self.integration_budget.clone();
-        part.integral_origin = self.integral_origin.clone();
-        for (face, to) in part.cache.iter().enumerate() {
-            self.carry_declared_boundary(face, to, &super::step::IDENTITY);
+        part.boundary_policy = policy;
+        if policy == self.boundary_policy {
+            part.integration_budget = self.integration_budget.clone();
+            part.integral_origin = self.integral_origin.clone();
+            part.master_deviations = self.master_deviations.clone();
+            for (face, to) in part.cache.iter().enumerate() {
+                self.carry_declared_boundary(face, to, &super::step::IDENTITY);
+            }
+        } else {
+            part.integral_origin = self
+                .integral_origin
+                .as_ref()
+                .map(super::mass::IntegralOrigin::for_recognition);
         }
         part
+    }
+
+    /// Geometry with its own recognition caches, for quiddity's inventory and frame.
+    /// Public mass queries on the original part keep their STEP boundary.
+    #[doc(hidden)]
+    pub fn recognition_part(&self) -> &Self {
+        if self.boundary_policy != super::mass::BoundaryPolicy::Master
+            || self.measure_trims.is_empty()
+        {
+            return self;
+        }
+        self.recognition_view.get_or_init(|| {
+            let part = self.copy_with_boundary(super::mass::BoundaryPolicy::Recognition);
+            std::sync::Arc::new(match &self.integration_budget {
+                Some(budget) => part.with_integration_budget(budget.limit),
+                None => part,
+            })
+        })
+    }
+
+    pub(super) fn recognition_source(&self) -> std::sync::Arc<Self> {
+        self.recognition_part();
+        self.recognition_view
+            .get()
+            .cloned()
+            .unwrap_or_else(|| std::sync::Arc::new(self.copy_integral_source()))
+    }
+
+    /// Use the recognition caches for a newly loaded STEP part without cloning its geometry.
+    #[doc(hidden)]
+    pub fn into_recognition_part(mut self) -> Self {
+        if self.boundary_policy != super::mass::BoundaryPolicy::Master
+            || self.measure_trims.is_empty()
+        {
+            return self;
+        }
+        self.cache = self.faces.iter().map(|_| FaceCache::default()).collect();
+        self.boundary_policy = super::mass::BoundaryPolicy::Recognition;
+        self.integral_origin = self
+            .integral_origin
+            .as_ref()
+            .map(super::mass::IntegralOrigin::for_recognition);
+        self.recognition_view = OnceLock::new();
+        match self.integration_budget.take() {
+            Some(budget) => self.with_integration_budget(budget.limit),
+            None => self,
+        }
     }
 
     /// Reindex this part's faces, carrying their STEP provenance and master boundaries.
@@ -618,6 +687,7 @@ impl Part {
         part.file_pcurves = remap_keys(part.file_pcurves, &index);
         part.primary_pcurves = remap_keys(part.primary_pcurves, &index);
         part.outer_bounds = remap_keys(part.outer_bounds, &index);
+        part.measure_uncertainty = remap_keys(part.measure_uncertainty, &index);
         for (carrier, _) in part.measure_trims.values_mut().flatten() {
             if let TrimCarrier::Faces(owners) = carrier {
                 for face in owners {
@@ -638,6 +708,21 @@ impl Part {
             remap_sorted(&mut budget.refused);
         }
         Some(part)
+    }
+
+    pub(super) fn repair_import_orientation(mut self) -> Self {
+        if self.measure_trims.is_empty() {
+            return self.repair_inverted_shells();
+        }
+        self.boundary_policy = super::mass::BoundaryPolicy::Projected;
+        let mut part = self.repair_inverted_shells();
+        part.boundary_policy = super::mass::BoundaryPolicy::Master;
+        for cache in &mut part.cache {
+            if cache.mass.get().is_some() || cache.declared.get().is_some() {
+                *cache = FaceCache::default();
+            }
+        }
+        part
     }
 
     /// Copy this loaded part through a finite proper rigid motion, without reading STEP.
@@ -863,6 +948,7 @@ impl Part {
         part.file_pcurves = self.file_pcurves.clone();
         part.primary_pcurves = self.primary_pcurves.clone();
         part.measure_trims = self.measure_trims.clone();
+        part.measure_uncertainty = self.measure_uncertainty.clone();
         part.outer_bounds = self.outer_bounds.clone();
         part.file_units = self.file_units;
         part.declared_length_unit = self.declared_length_unit.clone();
@@ -870,6 +956,8 @@ impl Part {
         part.angle_uncertainty = self.angle_uncertainty;
         part.native_faces = native_faces;
         part.native_edges = native_edges;
+        part.boundary_policy = self.boundary_policy;
+        part.master_deviations = self.master_deviations.clone();
         part.integration_budget = self.integration_budget.clone();
         Ok(part)
     }

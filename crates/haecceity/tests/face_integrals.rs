@@ -392,3 +392,54 @@ fn solid_centroid_flux_moments_stay_measured_under_motion() {
         );
     }
 }
+
+/// Closed-form square and torus, plus independent selected-boundary patch integrals.
+#[test]
+fn public_mass_queries_match_six_independent_master_areas() {
+    let square = include_bytes!("fixtures/master-trim-square.step");
+    let part = haecceity::read_step(square).unwrap();
+    let area = 1. - 0.0004 / 3.;
+    assert!((part.face_mass(0).unwrap()[0] - area).abs() < 1e-12);
+    assert!((part.face_moments(0).unwrap().area - area).abs() < 1e-12);
+
+    let Some(corpus) = common::corpus_dir() else {
+        assert!(std::env::var_os("QUIDDITY_CORPUS_REQUIRED").is_none());
+        return;
+    };
+    for (file, cases) in [
+        (
+            "cgb242",
+            &[
+                (65, 16214, 0.032706929563026, 1e-12),
+                (440, 72751, 0.155480500339, 1e-7 * 0.155480500339),
+                (468, 74882, 19.874517329223, 1e-7 * 19.874517329223),
+            ][..],
+        ),
+        (
+            "cgb243",
+            &[
+                (381, 54412, 6.283905180147, 1e-7 * 6.283905180147),
+                (543, 60132, 0.481554763985622, 1e-7 * 0.481554763985622),
+            ][..],
+        ),
+    ] {
+        let part =
+            haecceity::read_step_file(&corpus.join(format!("cadgenbench_inputs/{file}.step.gz")))
+                .unwrap();
+        // Query the recognition boundary first to catch cross-policy cache reuse.
+        let recognition = part.recognition_part();
+        for &(f, entity, area, tolerance) in cases {
+            assert_eq!(part.face_source(f).unwrap().entity, entity);
+            let _ = recognition.face_moments(f);
+            for measured in [
+                part.face_mass(f).unwrap()[0],
+                part.face_moments(f).unwrap().area,
+            ] {
+                assert!(
+                    (measured - area).abs() < tolerance,
+                    "{file}/{f} #{entity}: {measured} vs {area}"
+                );
+            }
+        }
+    }
+}

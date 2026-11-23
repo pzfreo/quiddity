@@ -262,6 +262,7 @@ pub fn recognise_part_with_options(
     label: &str,
     options: &RecognitionOptions,
 ) -> Result<(String, Vec<String>), String> {
+    let part = part.recognition_part();
     let mut recognition = crate::correspondence::recognise_with(part, options);
     recognition.source_sha256 = Some(source_sha256.to_owned());
     let document = crate::recognition::document(&recognition, part.faces.len());

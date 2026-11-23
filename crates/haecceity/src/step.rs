@@ -2643,7 +2643,16 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
             (edge, operand)
         })
         .collect();
-    let part = part.repair_inverted_shells();
+    part.measure_uncertainty = (0..part.faces.len())
+        .filter_map(|face| {
+            let source = part.face_source(face)?;
+            Some((
+                face,
+                *declared_units.face_uncertainty_mm.get(&source.entity)?,
+            ))
+        })
+        .collect();
+    let part = part.repair_import_orientation();
     Ok(Read {
         part,
         instances: instance_of,

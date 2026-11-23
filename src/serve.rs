@@ -216,8 +216,9 @@ fn recognise_bytes_placed(
         decode_step_file_bytes(std::path::Path::new(path), bytes)
             .map_err(|e| read_failure(path, &e))?
     };
-    let mut part =
-        read_step_placed_owned(step_bytes, placement).map_err(|e| read_failure(path, &e))?;
+    let mut part = read_step_placed_owned(step_bytes, placement)
+        .map_err(|e| read_failure(path, &e))?
+        .into_recognition_part();
     if let Some(limit) = options.integration_budget {
         part = part.with_integration_budget(limit);
     }

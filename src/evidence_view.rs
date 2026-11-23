@@ -924,6 +924,7 @@ pub struct EvidenceRecord {
 /// Framed requests refuse explicitly when a frame cannot be inferred. Neither mode renumbers
 /// faces. This is additive to the recognition/6 publication contract.
 pub fn document(part: &Part, framed: bool) -> Result<EvidenceDocument, EvidenceViewError> {
+    let part = part.recognition_part();
     let frame = if framed {
         Some(
             crate::frames::infer_part_frame(part)
@@ -949,6 +950,7 @@ pub fn evidence_with(
     framed: bool,
     options: &crate::RecognitionOptions,
 ) -> Result<EvidenceDocument, EvidenceViewError> {
+    let part = part.recognition_part();
     match options.integration_budget {
         Some(limit) => document(&part.with_integration_budget(limit), framed),
         None => document(part, framed),

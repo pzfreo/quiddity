@@ -296,17 +296,61 @@ impl NurbsCurve {
         geom::dist(self.value(lo), self.value(hi)) <= 1e-9 * size
     }
 
-    /// The parameter of the curve point nearest *p*: the closest of a dense sampling, refined
-    /// by Newton steps on the squared distance.
-    pub fn invert(&self, p: V3) -> f64 {
-        let (lo, hi) = self.domain();
-        let table = self.table.get_or_init(|| {
+    fn inverse_table(&self) -> &[(f64, V3)] {
+        self.table.get_or_init(|| {
+            let (lo, hi) = self.domain();
             let n = 512;
             (0..=n)
                 .map(|i| lo + (hi - lo) * i as f64 / n as f64)
                 .map(|t| (t, self.value(t)))
                 .collect()
-        });
+        })
+    }
+
+    /// Closest sampled seed and its refined foot within a single native parameter interval.
+    pub(crate) fn trimmed_distance(&self, p: V3, lo: f64, hi: f64, ends: [V3; 2]) -> f64 {
+        let squared = |q| {
+            let delta = geom::sub(p, q);
+            geom::dot(delta, delta)
+        };
+        let (mut minimum, mut t) = (squared(ends[0]), lo);
+        let upper = squared(ends[1]);
+        if upper < minimum {
+            (minimum, t) = (upper, hi);
+        }
+        let table = self.inverse_table();
+        let first = table.partition_point(|&(t, _)| t <= lo);
+        let last = table.partition_point(|&(t, _)| t < hi);
+        for &(candidate, q) in &table[first.min(last)..last] {
+            let distance = squared(q);
+            if distance < minimum {
+                (minimum, t) = (distance, candidate);
+            }
+        }
+        // Gauss–Newton linearizes C(t) along its tangent. Keep the best actual
+        // point along the way, including the endpoints and the discrete seed.
+        for _ in 0..30 {
+            let q = self.value(t);
+            minimum = minimum.min(squared(q));
+            let d = self.derivative(t);
+            let dd = geom::dot(d, d);
+            if dd < 1e-300 {
+                break;
+            }
+            let next = (t + geom::dot(geom::sub(p, q), d) / dd).clamp(lo, hi);
+            if (next - t).abs() < 1e-15 * (1.0 + t.abs()) {
+                break;
+            }
+            t = next;
+        }
+        minimum.sqrt()
+    }
+
+    /// The parameter of the curve point nearest *p*: the closest of a dense sampling, refined
+    /// by Newton steps on the squared distance.
+    pub fn invert(&self, p: V3) -> f64 {
+        let (lo, hi) = self.domain();
+        let table = self.inverse_table();
         let mut t = table
             .iter()
             .map(|&(t, q)| (geom::dist(q, p), t))

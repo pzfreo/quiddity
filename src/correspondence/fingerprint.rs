@@ -1255,6 +1255,7 @@ pub fn classify(key: &str, path: &str) -> Option<(&'static str, Role)> {
 /// Panics on a family missing from [`FAMILIES`], or one with neither defining faces in
 /// `features.defining` nor members: a wiring defect, not an input.
 pub fn fingerprint(part: &Part, features: &Features) -> Fingerprints {
+    let part = part.recognition_part();
     fingerprint_with_axes(
         &crate::features::Context::new(part),
         part,

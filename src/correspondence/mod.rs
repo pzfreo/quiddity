@@ -81,6 +81,7 @@ impl RecognitionOptions {
     /// *part* as recognition under these options reads it: measured against the integration
     /// budget, when there is one.
     fn budgeted<'p>(&self, part: &'p Part, budgeted: &'p mut Option<Part>) -> &'p Part {
+        let part = part.recognition_part();
         match self.integration_budget {
             Some(limit) => budgeted.insert(part.with_integration_budget(limit)),
             None => part,
@@ -104,6 +105,7 @@ pub fn fingerprints_with(part: &Part, options: &RecognitionOptions) -> Fingerpri
 /// If frame inference is refused, records are caller-space and `frame` carries the reason.
 /// This performs no STEP reads and preserves face and edge indices.
 pub fn recognise(part: &Part) -> Recognition {
+    let part = part.recognition_part();
     let frame = match frames::infer_part_frame(part) {
         Ok(frame) => frame,
         Err(reason) => {
@@ -201,6 +203,7 @@ fn publish(
 /// Evidence failure does not erase recognition.
 /// Strict/local-degradation retries and publication post-pass retries remain intact.
 pub fn recognise_with_evidence(part: &Part) -> RecognitionWithEvidence {
+    let part = part.recognition_part();
     let (recognition, evidence) = joint_analysis(part);
     RecognitionWithEvidence {
         recognition,
@@ -275,6 +278,7 @@ fn joint_analysis(
 /// Caller-space recognition for internal regression and geometry tests.
 #[cfg(test)]
 pub(crate) fn caller_space_recognise(part: &Part) -> Recognition {
+    let part = part.recognition_part();
     features::recognise_with(part, |ctx, features| {
         let features: PublishedFeatures = features.into();
         let fingerprints = fingerprint::published_fingerprint_in(part, &features, ctx);
