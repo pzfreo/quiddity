@@ -60,7 +60,8 @@ fn document(path: &Path, budget: Option<u64>) -> RecognitionDocument {
 #[test]
 fn only_the_expensive_face_is_refused() {
     let path = fixture(EXPENSIVE);
-    let part = read_step_file(&path).unwrap();
+    let part = read_step_file(&path).unwrap().into_recognition_part();
+    // Pick the midpoint from the same boundary policy the recognition entry point uses.
     let (face, budget) = expensive_face(&part);
     let budgeted = part.with_integration_budget(budget);
     let report = budgeted.integration_budget().unwrap();
@@ -118,7 +119,13 @@ fn only_the_expensive_face_is_refused() {
 #[test]
 fn the_verdict_follows_the_face_not_its_order_or_placement() {
     let part = read_step_file(&fixture(EXPENSIVE)).unwrap();
-    let (face, budget) = expensive_face(&part);
+    for policy in [&part, part.recognition_part()] {
+        check_verdict_under_order_and_placement(policy);
+    }
+}
+
+fn check_verdict_under_order_and_placement(part: &Part) {
+    let (face, budget) = expensive_face(part);
     let n = part.faces.len();
 
     // Face order: each face's work is its own, wherever it is listed.
@@ -128,7 +135,7 @@ fn the_verdict_follows_the_face_not_its_order_or_placement() {
     let reverse_order: Vec<usize> = (0..n).rev().collect();
     let reversed = part.with_faces_in_order(&reverse_order).unwrap();
     let (a, b) = (work(&forward), work(&reversed));
-    assert_eq!(a, work(&part));
+    assert_eq!(a, work(part));
     for (new, &old) in reverse_order.iter().enumerate() {
         assert_eq!(b[new], a[old], "face {old}");
     }
@@ -215,7 +222,7 @@ fn a_budget_that_refuses_nothing_reports_an_empty_list() {
 #[test]
 fn the_command_line_takes_a_budget() {
     let path = fixture(EXPENSIVE);
-    let part = read_step_file(&path).unwrap();
+    let part = read_step_file(&path).unwrap().into_recognition_part();
     let (face, budget) = expensive_face(&part);
     let run = |args: &[&str]| {
         let out = Command::new(env!("CARGO_BIN_EXE_quiddity"))
@@ -254,7 +261,7 @@ fn the_command_line_takes_a_budget() {
 #[test]
 fn serve_manifest_and_json_fingerprints_honour_the_budget() {
     let path = fixture(EXPENSIVE);
-    let part = read_step_file(&path).unwrap();
+    let part = read_step_file(&path).unwrap().into_recognition_part();
     let (face, budget) = expensive_face(&part);
     let dir = tempfile::tempdir().unwrap();
     // The manifest reads uncompressed sources by ranges.
