@@ -332,6 +332,7 @@ pub(super) struct FaceCache {
     pub(super) mass: OnceLock<super::mass::FaceMass>,
     pub(super) moments: OnceLock<Option<super::mass::FaceMoments>>,
     pub(super) raw_moments: OnceLock<super::mass::RawMoments>,
+    pub(super) file_integrals_carried: OnceLock<()>,
     pub(super) edge_deviation: OnceLock<Vec<(usize, f64)>>,
     pub(super) uv_bounds: OnceLock<Option<(f64, f64, f64, f64)>>,
     pub(super) recovered: OnceLock<Option<Surface>>,
@@ -501,6 +502,7 @@ pub struct Part {
     pub(super) integration_budget: Option<std::sync::Arc<super::mass::IntegrationBudget>>,
     // Keep the file-frame inputs so successive rigid motions only round the integrals once.
     pub(super) integral_origin: Option<super::mass::IntegralOrigin>,
+    pub(super) integral_reference: OnceLock<Option<(V3, f64)>>,
 }
 
 impl Part {
@@ -543,6 +545,7 @@ impl Part {
             native_edges: Vec::new(),
             integration_budget: None,
             integral_origin: None,
+            integral_reference: OnceLock::new(),
         }
     }
 
@@ -572,6 +575,7 @@ impl Part {
         part.native_faces = self.native_faces.clone();
         part.native_edges = self.native_edges.clone();
         part.integration_budget = self.integration_budget.clone();
+        part.integral_origin = self.integral_origin.clone();
         for (face, to) in part.cache.iter().enumerate() {
             self.carry_declared_boundary(face, to, &super::step::IDENTITY);
         }
@@ -605,6 +609,10 @@ impl Part {
         part.face_sources = reorder(&self.face_sources, order);
         part.native_faces = reorder(&self.native_faces, order);
         part.pcurve_splines = reorder(&self.pcurve_splines, order);
+        part.integral_origin = self
+            .integral_origin
+            .as_ref()
+            .map(|origin| origin.with_faces_in_order(order));
         part.face_frames = remap_keys(part.face_frames, &index);
         part.swept = remap_keys(part.swept, &index);
         part.file_pcurves = remap_keys(part.file_pcurves, &index);
@@ -635,7 +643,7 @@ impl Part {
     /// Copy this loaded part through a finite proper rigid motion, without reading STEP.
     /// Face, edge, solid, vertex and source indices and parameter-space curves are preserved.
     /// Caller-space geometry caches are rebuilt lazily. For parts with STEP master pcurves,
-    /// the resolved boundaries and their integrals are carried from the source coordinates.
+    /// the resolved boundaries and integrals come from the source coordinates on demand.
     /// Successive placements compose before applying the motion to native primitives or
     /// source integrals, avoiding intermediate rounding in both.
     pub fn transformed(
@@ -644,7 +652,21 @@ impl Part {
     ) -> Result<Self, super::step::StepError> {
         let mut part = self.transformed_geometry(placement)?;
         if !self.measure_trims.is_empty() {
-            self.carry_file_integrals(&mut part, placement);
+            part.integral_origin = Some(match &self.integral_origin {
+                Some(origin) => origin.placed(placement),
+                None => super::mass::IntegralOrigin::new(self.copy_integral_source(), *placement),
+            });
+        }
+        Ok(part)
+    }
+
+    pub(super) fn into_file_placement(
+        self,
+        placement: &super::step::Placement,
+    ) -> Result<Self, super::step::StepError> {
+        let mut part = self.transformed_geometry(placement)?;
+        if !self.measure_trims.is_empty() {
+            part.integral_origin = Some(super::mass::IntegralOrigin::new(self, *placement));
         }
         Ok(part)
     }
@@ -1207,6 +1229,7 @@ impl Part {
     }
 
     pub(super) fn record_inverted_shell_repair(&mut self, solid: usize, reverse_wires: bool) {
+        self.integral_origin = None;
         self.input_repairs
             .push(format!("solid {solid}: inverted closed shell repaired"));
         // Domains can use the face sense to choose a periodic band; no derived answer from
@@ -1247,6 +1270,7 @@ impl Part {
             part.ray_face_boxes = OnceLock::new();
             part.ray_edges = OnceLock::new();
         };
+        let original_origin = self.integral_origin.take();
         toggle(self);
         if proved(self) {
             self.input_repairs.push(format!(
@@ -1255,6 +1279,7 @@ impl Part {
             ));
         } else {
             toggle(self);
+            self.integral_origin = original_origin;
         }
     }
 

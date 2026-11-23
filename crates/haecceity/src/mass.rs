@@ -136,15 +136,32 @@ pub(super) struct RawMoments {
 #[derive(Clone, Debug)]
 pub(super) struct IntegralOrigin {
     placement: crate::step::Placement,
-    reference: Option<(V3, f64)>,
-    faces: std::sync::Arc<[Option<FaceIntegralOrigin>]>,
+    source: std::sync::Arc<Part>,
 }
 
-#[derive(Clone, Copy, Debug)]
-struct FaceIntegralOrigin {
-    raw: RawMoments,
-    frame: Option<(V3, f64)>,
-    mass: Option<FaceMass>,
+impl IntegralOrigin {
+    pub(super) fn new(source: Part, placement: crate::step::Placement) -> Self {
+        Self {
+            placement,
+            source: std::sync::Arc::new(source),
+        }
+    }
+
+    pub(super) fn placed(&self, outer: &crate::step::Placement) -> Self {
+        Self {
+            placement: crate::step::compose(outer, &self.placement),
+            source: self.source.clone(),
+        }
+    }
+
+    pub(super) fn with_faces_in_order(&self, order: &[usize]) -> Self {
+        Self::new(
+            self.source
+                .with_faces_in_order(order)
+                .expect("same topology as the placed part"),
+            self.placement,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -963,6 +980,12 @@ impl Part {
     /// threads or the clock. Every other face's integration is kept (cached) on the copy.
     pub fn with_integration_budget(&self, limit: u64) -> Part {
         let mut part = self.fresh_copy();
+        if let Some(origin) = &mut part.integral_origin {
+            let source = origin.source.with_integration_budget(limit);
+            part.integration_budget = source.integration_budget.clone();
+            origin.source = std::sync::Arc::new(source);
+            return part;
+        }
         part.integration_budget = None;
         let mut work = Vec::with_capacity(part.faces.len());
         let mut refused = Vec::new();
@@ -1061,6 +1084,7 @@ impl Part {
         if self.integration_refused(face) {
             return None;
         }
+        self.ensure_file_integrals(face);
         self.cache[face]
             .mass
             .get_or_init(|| {
@@ -1158,6 +1182,7 @@ impl Part {
         if self.integration_refused(face) {
             return None;
         }
+        self.ensure_file_integrals(face);
         let mut shared = None;
         let mut attempted = false;
         let choice = self.cache[face].mass.get_or_init(|| {
@@ -2320,6 +2345,7 @@ impl Part {
                 centre: None,
             };
         }
+        self.ensure_file_integrals(face);
         *self.cache[face]
             .raw_moments
             .get_or_init(|| self.compute_face_raw_moments(face))
@@ -2562,9 +2588,11 @@ impl Part {
     }
 
     fn integral_reference(&self) -> Option<(V3, f64)> {
-        let bounds = self.bounds();
-        let length = geom::dist(bounds.min, bounds.max);
-        (length.is_finite() && length > 0.0).then_some((bounds.centre(), length))
+        *self.integral_reference.get_or_init(|| {
+            let bounds = self.bounds();
+            let length = geom::dist(bounds.min, bounds.max);
+            (length.is_finite() && length > 0.0).then_some((bounds.centre(), length))
+        })
     }
 
     fn integral_can_carry(&self, face: usize) -> bool {
@@ -2573,35 +2601,32 @@ impl Part {
                 && self.whole_sphere(face))
     }
 
-    fn face_integral_origin(&self, face: usize) -> FaceIntegralOrigin {
-        let raw = self.face_raw_moments(face);
-        FaceIntegralOrigin {
-            raw,
-            frame: raw.local.and_then(|_| self.moment_frame(face)),
-            mass: self.cache[face].mass.get().copied(),
+    /// A borrowed transform keeps resolved source data and any completed integrations.
+    /// In-flight and unqueried faces start cold in the new source, with independent caches.
+    pub(super) fn copy_integral_source(&self) -> Part {
+        let source = self.fresh_copy();
+        for (from, to) in self.cache.iter().zip(&source.cache) {
+            if let Some(raw) = from.raw_moments.get() {
+                let _ = to.raw_moments.set(*raw);
+            }
+            if let Some(mass) = from.mass.get() {
+                let _ = to.mass.set(*mass);
+            }
+            from.carry_refusals(to);
         }
+        source
     }
 
-    /// Compose outer placements before carrying integrals, like the native STEP geometry.
-    pub(super) fn carry_file_integrals(&self, moved: &mut Part, at: &crate::step::Placement) {
-        let origin = match &self.integral_origin {
-            Some(source) => IntegralOrigin {
-                placement: crate::step::compose(at, &source.placement),
-                ..source.clone()
-            },
-            None => IntegralOrigin {
-                placement: *at,
-                reference: self.integral_reference(),
-                faces: (0..self.faces.len())
-                    .map(|face| {
-                        self.integral_can_carry(face)
-                            .then(|| self.face_integral_origin(face))
-                    })
-                    .collect(),
-            },
-        };
-        self.carry_integrals_from(moved, at, Some(&origin));
-        moved.integral_origin = Some(origin);
+    fn ensure_file_integrals(&self, face: usize) {
+        if let Some(origin) = &self.integral_origin {
+            self.cache[face].file_integrals_carried.get_or_init(|| {
+                if origin.source.integral_can_carry(face) {
+                    origin
+                        .source
+                        .carry_face_integrals(self, face, &origin.placement, true);
+                }
+            });
+        }
     }
 
     /// Carry this part's face integrals into `moved`, the same part after the proper rigid
@@ -2630,19 +2655,20 @@ impl Part {
         if crate::step::validate_placement(at).is_err() || moved.faces.len() != self.faces.len() {
             return;
         }
-        self.carry_integrals_from(moved, at, None);
+        for face in 0..self.faces.len() {
+            if self.integral_can_carry(face) {
+                self.carry_face_integrals(moved, face, at, false);
+            }
+        }
     }
 
-    fn carry_integrals_from(
+    fn carry_face_integrals(
         &self,
         moved: &Part,
-        placement: &crate::step::Placement,
-        origin: Option<&IntegralOrigin>,
+        face: usize,
+        at: &crate::step::Placement,
+        from_file: bool,
     ) {
-        let (at, reference) = match origin {
-            Some(source) => (&source.placement, source.reference),
-            None => (placement, self.integral_reference()),
-        };
         let turn = |v: V3| at.map(|r| r[0] * v[0] + r[1] * v[1] + r[2] * v[2]);
         let shift = at.map(|r| r[3]);
         let turn_matrix = |m: [[f64; 3]; 3]| -> [[f64; 3]; 3] {
@@ -2654,112 +2680,89 @@ impl Part {
                 std::array::from_fn(|j| (0..3).map(|k| rm[i][k] * at[j][k]).sum::<f64>())
             })
         };
-        let centres = reference.zip(moved.integral_reference());
-        for face in 0..self.faces.len() {
-            // A face the integration budget refused may hold a partial integration: none of
-            // it is carried (the moved part keeps the verdict and refuses the face). A whole
-            // sphere's area and moments are closed forms, not integrals.
-            if !self.integral_can_carry(face) {
-                continue;
-            }
-            // Every other face's shared integration is carried, made here where it is still
-            // missing, so which faces carry does not depend on what was asked of `self` before.
-            let (from, to) = (&self.cache[face], &moved.cache[face]);
-            let data = match origin {
-                Some(source) => {
-                    let Some(data) = source.faces[face] else {
-                        continue;
+        let centres = self.integral_reference().zip(moved.integral_reference());
+        let (from, to) = (&self.cache[face], &moved.cache[face]);
+        let raw = self.face_raw_moments(face);
+        self.carry_declared_boundary(face, to, at);
+        let common = |raw: &[f64; 26]| {
+            let mut out = [0.0; 26];
+            out[0] = raw[0];
+            out[1..4].copy_from_slice(&turn([raw[1], raw[2], raw[3]]));
+            out
+        };
+        let local = raw.local.and_then(|local| {
+            let mut new_local = common(&local);
+            match (self.moment_frame(face), moved.moment_frame(face)) {
+                (Some((o, s)), Some((o2, s2))) => {
+                    let area = local[0];
+                    let m1 = turn([local[4], local[5], local[6]]);
+                    let [xx, yy, zz, xy, xz, yz] = std::array::from_fn(|k| local[7 + k]);
+                    let m2 = turn_matrix([[xx, xy, xz], [xy, yy, yz], [xz, yz, zz]]);
+                    let e = geom::sub(geom::add(turn(o), shift), o2);
+                    let first: V3 = std::array::from_fn(|i| (s * m1[i] + e[i] * area) / s2);
+                    let second = |i: usize, j: usize| {
+                        (s * s * m2[i][j] + s * (m1[i] * e[j] + e[i] * m1[j]) + area * e[i] * e[j])
+                            / (s2 * s2)
                     };
-                    data
+                    new_local[4..7].copy_from_slice(&first);
+                    new_local[7..13].copy_from_slice(&[
+                        second(0, 0),
+                        second(1, 1),
+                        second(2, 2),
+                        second(0, 1),
+                        second(0, 2),
+                        second(1, 2),
+                    ]);
                 }
-                None => self.face_integral_origin(face),
-            };
-            let raw = data.raw;
-            self.carry_declared_boundary(face, to, placement);
-            let common = |raw: &[f64; 26]| {
-                let mut out = [0.0; 26];
-                out[0] = raw[0];
-                out[1..4].copy_from_slice(&turn([raw[1], raw[2], raw[3]]));
-                out
-            };
-            let local = raw.local.and_then(|local| {
-                let mut new_local = common(&local);
-                match (data.frame, moved.moment_frame(face)) {
-                    (Some((o, s)), Some((o2, s2))) => {
-                        let area = local[0];
-                        let m1 = turn([local[4], local[5], local[6]]);
-                        let [xx, yy, zz, xy, xz, yz] = std::array::from_fn(|k| local[7 + k]);
-                        let m2 = turn_matrix([[xx, xy, xz], [xy, yy, yz], [xz, yz, zz]]);
-                        let e = geom::sub(geom::add(turn(o), shift), o2);
-                        let first: V3 = std::array::from_fn(|i| (s * m1[i] + e[i] * area) / s2);
-                        let second = |i: usize, j: usize| {
-                            (s * s * m2[i][j]
-                                + s * (m1[i] * e[j] + e[i] * m1[j])
-                                + area * e[i] * e[j])
-                                / (s2 * s2)
-                        };
-                        new_local[4..7].copy_from_slice(&first);
-                        new_local[7..13].copy_from_slice(&[
-                            second(0, 0),
-                            second(1, 1),
-                            second(2, 2),
-                            second(0, 1),
-                            second(0, 2),
-                            second(1, 2),
-                        ]);
+                // No frame in either: the group is unused (`compute_face_moments` refuses).
+                (None, None) => {}
+                _ => return None,
+            }
+            Some(new_local)
+        });
+        let centre = raw
+            .centre
+            .zip(centres)
+            .map(|(centre, ((c0, length), (c1, length1)))| {
+                let mut new_centre = common(&centre);
+                let m = [new_centre[1], new_centre[2], new_centre[3]];
+                let s = centre[13];
+                let a = turn_matrix(std::array::from_fn(|i| {
+                    std::array::from_fn(|j| centre[14 + 3 * i + j])
+                }));
+                let b = turn([centre[23], centre[24], centre[25]]);
+                let d = geom::sub(geom::add(turn(c0), shift), c1);
+                let dm = geom::dot(d, m);
+                let ad = [0, 1, 2].map(|i| geom::dot(a[i], d));
+                new_centre[13] = (length * s + dm) / length1;
+                for i in 0..3 {
+                    for j in 0..3 {
+                        new_centre[14 + 3 * i + j] = (length * a[i][j] + d[i] * m[j]) / length1;
                     }
-                    // No frame in either: the group is unused (`compute_face_moments` refuses).
-                    (None, None) => {}
-                    _ => return None,
-                }
-                Some(new_local)
-            });
-            let centre = raw
-                .centre
-                .zip(centres)
-                .map(|(centre, ((c0, length), (c1, length1)))| {
-                    let mut new_centre = common(&centre);
-                    let m = [new_centre[1], new_centre[2], new_centre[3]];
-                    let s = centre[13];
-                    let a = turn_matrix(std::array::from_fn(|i| {
-                        std::array::from_fn(|j| centre[14 + 3 * i + j])
-                    }));
-                    let b = turn([centre[23], centre[24], centre[25]]);
-                    let d = geom::sub(geom::add(turn(c0), shift), c1);
-                    let dm = geom::dot(d, m);
-                    let ad = [0, 1, 2].map(|i| geom::dot(a[i], d));
-                    new_centre[13] = (length * s + dm) / length1;
-                    for i in 0..3 {
-                        for j in 0..3 {
-                            new_centre[14 + 3 * i + j] = (length * a[i][j] + d[i] * m[j]) / length1;
-                        }
-                        new_centre[23 + i] = (length * length * b[i]
-                            + length * ad[i]
-                            + length * s * d[i]
-                            + dm * d[i])
+                    new_centre[23 + i] =
+                        (length * length * b[i] + length * ad[i] + length * s * d[i] + dm * d[i])
                             / (length1 * length1);
-                    }
-                    new_centre
+                }
+                new_centre
+            });
+        let complete = local.is_some() && centre.is_some();
+        if complete || !self.measure_trims.is_empty() {
+            if from_file || local.is_some() || centre.is_some() {
+                let _ = to.raw_moments.set(RawMoments { local, centre });
+            }
+            if let Some(mass) = from.mass.get() {
+                let terms = mass.terms.map(|[area, flux, nx, ny, nz]| {
+                    let n = turn([nx, ny, nz]);
+                    [area, flux + geom::dot(shift, n), n[0], n[1], n[2]]
                 });
-            let complete = local.is_some() && centre.is_some();
-            if complete || !self.measure_trims.is_empty() {
-                if local.is_some() || centre.is_some() {
-                    let _ = to.raw_moments.set(RawMoments { local, centre });
-                }
-                if let Some(mass) = data.mass {
-                    let terms = mass.terms.map(|[area, flux, nx, ny, nz]| {
-                        let n = turn([nx, ny, nz]);
-                        [area, flux + geom::dot(shift, n), n[0], n[1], n[2]]
-                    });
-                    let _ = to.mass.set(FaceMass {
-                        terms,
-                        method: mass.method,
-                    });
-                }
+                let _ = to.mass.set(FaceMass {
+                    terms,
+                    method: mass.method,
+                });
             }
-            if complete {
-                from.carry_refusals(to);
-            }
+        }
+        if complete {
+            from.carry_refusals(to);
         }
     }
 }
@@ -3313,6 +3316,48 @@ mod tests {
             .join("../../tests/fixtures")
             .join(name);
         crate::step::read_step_file(&path).unwrap()
+    }
+
+    #[test]
+    fn placed_master_integrals_are_lazy_and_metered_in_file_coordinates() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/integration_budget_sheet.step.gz");
+        let mut at = crate::step::IDENTITY;
+        at[0][3] = 5.0;
+        let source = crate::step::read_step_file(&path).unwrap();
+        assert!(!source.measure_trims.is_empty());
+        let face = 2;
+        assert_eq!(source.face_source(face).unwrap().entity, 1315);
+
+        let (moved, work) = evaluations_of(|| source.transformed(&at).unwrap());
+        assert_eq!(work, 0, "a cold transform must not integrate");
+        let (placed, work) =
+            evaluations_of(|| crate::step::read_step_file_placed(&path, &at).unwrap());
+        assert_eq!(work, 0, "a placed read must not integrate");
+        assert!(placed.cache.iter().all(|cache| cache.mass.get().is_none()));
+
+        // The first query does real work on this spline. Queries on the same part reuse it.
+        let (moment, work) = evaluations_of(|| moved.face_moments(face).unwrap());
+        assert!(work > 0, "the requested spline must actually integrate");
+        assert_eq!(moment.area, source.face_moments(face).unwrap().area);
+        assert_eq!(evaluations_of(|| moved.face_mass(face)).1, 0);
+
+        // One evaluation permits entry into quadrature but cannot finish this face.
+        // Start the per-face budget after the placed read, as the serve path does.
+        let budget = 1;
+        let bounded = placed.with_integration_budget(budget);
+        let report = bounded.integration_budget().unwrap();
+        assert_eq!(report.work[face], budget + 1);
+        assert_eq!(
+            report.work,
+            source
+                .with_integration_budget(budget)
+                .integration_budget()
+                .unwrap()
+                .work
+        );
+        assert!(bounded.integration_refused(face));
+        assert_eq!(evaluations_of(|| bounded.face_mass(face)), (None, 0));
     }
 
     /// A generic proper rigid motion: a turn of 0.7 rad about (1, 2, 3) and a shift.

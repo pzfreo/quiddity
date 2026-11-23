@@ -2089,7 +2089,7 @@ fn build_placed(parsed: &Parsed<impl RecordGraph>, outer: &Placement) -> Result<
     if *outer == IDENTITY {
         Ok(part)
     } else {
-        part.transformed(outer)
+        part.into_file_placement(outer)
     }
 }
 
