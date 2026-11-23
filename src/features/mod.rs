@@ -885,7 +885,6 @@ pub(crate) fn take_inventory<'p, T>(
     part: &'p Part,
     then: impl FnOnce(&Context<'p>, Inventory) -> T,
 ) -> Result<T, reconcile::ReconcileError> {
-    let part = part.recognition_part();
     if !evidence::local_degradation() {
         let ctx = Context::new(part);
         if let Some(inventory) = inventory_in(&ctx)? {
