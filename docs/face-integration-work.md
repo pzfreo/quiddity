@@ -1,6 +1,6 @@
 # Reducing work without changing face-integral decisions
 
-This change retains the integration densities, quadrature nodes, operation order,
+The original work-reuse optimizations retained the integration densities, quadrature nodes, operation order,
 initial cuts, error criteria, depth limit and kink budget. It does not infer failure
 from elapsed time, face size, spline degree or a large parent-panel error.
 
@@ -98,11 +98,46 @@ ordered `E > F` guard cannot trigger. Once it does trigger, Rust's `f64::max` ca
 reduce the non-NaN `E`, even if a later estimate is NaN. Evaluation failures remain
 failures; no new numerical answer is invented.
 
-## Recovery from an explicit master trim
+## Choosing the STEP boundary for measurement
 
-A refused 3D projection may retry one complete, explicit STEP master-pcurve loop
-on a native, nonperiodic, noncollapsed B-spline or Bézier surface. Successful legacy
-integrals retain their operation order and values. Near parallel surface tangents
+A STEP surface curve can provide several descriptions of one edge. Its master
+representation selects the spatial curve or a numbered pcurve. Public haecceity mass
+properties use those selections for face areas, fluxes and moments and their shell and
+solid sums. Recognition uses the master boundary only when a selected pcurve deviates
+from its 3D edge beyond the face's STEP uncertainty. Otherwise it integrates the
+projected 3D boundary in caller coordinates, including under an integration budget.
+
+A pcurve is evaluated in the units and parameter interval of its named carrier.
+If that carrier differs from the face being measured, the point and tangent
+are transferred through 3D onto the receiving surface. Endpoint agreement,
+finite carrier domains, intersection and integration checks govern acceptance.
+If the assembled loop fails, measurement retries the whole face using the 3D
+edges. Mass and moments share the accepted choice across query orders.
+
+The selected boundary goes through the same integration as the projected one: the
+cheaper along-v form and its retry for a face with one very large net, the per-face
+integration budget (integrand, deviation sample and selected-boundary gap evaluations spend work),
+and the shared moment integration. A remembered refused along-v trial is keyed by the
+integrand's width, whether mass is observed and whether the loops are the selected trim,
+since the two boundaries are different loops. The choice is parameter-space data (each
+selection's pcurve and interval, accepted by distances in millimetres), so a rigid
+motion leaves it unchanged: carrying a face's integrals through a motion carries the
+boundary choice with its mass, and the moved part's refusals keep their boundary bit.
+Where the moment group cannot be integrated against world coordinates (a small selected
+trim far from the origin), it is integrated once more against the B-spline net
+translated to the face's moment origin, over the same boundary and error test.
+
+The mesher still triangulates the projected 3D edges; until it follows the selected
+boundary a face whose two boundaries differ meshes the other region (cgb243 face 543,
+13%; `tests/mesh.rs` lists it with an independent reference).
+
+## The native spline integration rule introduced in #281
+
+The original #281 fix tried this specialised integral after a refused projection.
+The current selector tries it first when a native, nonperiodic, noncollapsed
+B-spline or Bézier face has one complete, explicit master-pcurve loop. The
+general boundary integrator handles mixed representations and other face types.
+Near parallel surface tangents
 can make Gauss–Newton oscillate even with small position residuals; using the file's
 selected trim supplies positions and derivatives without that ill-conditioned solve.
 Recovered faces measure the region bounded by the **file's master pcurves**. This
@@ -188,6 +223,6 @@ floors and exhaustion of the depth budget. A rejected prefix is explicitly shown
 have an incomplete sum, so callers must check its excess before using that sum.
 The existing quadrature and kink-budget tests retain exhaustive mode.
 
-Independent face-area/moment references, placements, existing recognition snapshots,
-inventory floors and tolerances remain unchanged. Repeated-moment speedups measure
+The work-reuse tests retain their independent face-area and moment references,
+placement checks, inventory floors and tolerances. Repeated-moment speedups measure
 cache reuse; they are not claims about cold integrations or whole-part recognition.

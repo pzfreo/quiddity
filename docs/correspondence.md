@@ -1,7 +1,7 @@
 # Correspondence between revisions
 
 **Status:** design accepted with draftwright-rust's ADR R3 (2026-10-07); implemented in
-`src/correspondence/` (fingerprint version `quiddity-rust/fingerprint/4`). See
+`src/correspondence/` (fingerprint version `quiddity-rust/fingerprint/5`). See
 [Implementation](#implementation) for what was built, the thresholds and how they were tuned, and
 what is not done.
 
@@ -207,7 +207,13 @@ discovery and inventory are implementation details; tests exercise them internal
 snapshots own the regression record; see [development](development.md#regression-snapshots) for regeneration and review.
 
 
-### Fingerprints (`fingerprint.rs`, version `quiddity-rust/fingerprint/4`)
+### Fingerprints (`fingerprint.rs`, version `quiddity-rust/fingerprint/5`)
+
+Version 5 fingerprints use recognition's boundary policy: a face uses its STEP master trims
+when a selected pcurve deviates from the 3D edge beyond the face's STEP uncertainty, and uses
+projected 3D edges otherwise. Public mass properties use the declared masters; regenerate
+earlier fingerprints from their STEP geometry before matching.
+
 
 - **Features** are read from each family's serialised records through an explicit table,
   `FAMILIES` in `fingerprint.rs`, keyed by the family's field in `Features`. It lists every field

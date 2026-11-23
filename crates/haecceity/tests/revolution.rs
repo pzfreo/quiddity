@@ -6,8 +6,7 @@
 //! revolution_line_shaft has the same exact quadrant topology but unbounded LINE
 //! meridians: the first disk starts on the axis, and the annulus's LINE starts
 //! at (40,-20,0) toward +Y, on the far side of the axis from its +Y trimming edges.
-//! Exact pcurves specify that sheet for STEP readers; haecceity's freeform
-//! integrator still projects the 3D boundary curves.
+//! The STEP master pcurves specify which sheet bounds each quadrant.
 //!
 //! The master shaft's wholly inward boundary is repaired and reported. The master
 //! bore is mixed: its four bore faces already face outward. Proved inward normals
@@ -265,13 +264,14 @@ fn independent_inversion_repairs_but_first_outward_mixed_face_skips_repair() {
                 .join("\n");
             assert_eq!(face_count, original.faces.len());
             let imported = haecceity::read_step(inverted.as_bytes()).unwrap();
-            let mut faces = original.faces.clone();
-            for (i, face) in faces.iter_mut().enumerate() {
+            // Start with fresh caches and keep the same master pcurves in both
+            // comparisons, including trims defined on the adjacent revolution.
+            let mut raw = original.transformed(&IDENTITY).unwrap();
+            for (i, face) in raw.faces.iter_mut().enumerate() {
                 if !mixed || i != 0 {
                     face.reversed = !face.reversed;
                 }
             }
-            let raw = haecceity::Part::new(faces, original.edges.clone(), original.solids.clone());
             let before = raw.solid_mass(0).unwrap();
             assert!(before.0 < 0.0);
             let repaired = raw.repair_inverted_shells();

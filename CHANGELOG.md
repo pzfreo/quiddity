@@ -14,6 +14,19 @@ in [docs/alpha1.md](docs/alpha1.md).
   rather than to the last bit; CI checks Linux x86_64 and macOS arm64 against one corpus
   snapshot at that tolerance.
 
+- Public face and solid mass queries integrate STEP's declared master boundary on
+  demand, with projected 3D edges as the fallback for unusable trims (#317).
+  Recognition, evidence and fingerprints use separate caches and integrate the
+  master only on faces with a measured master edge beyond STEP's length uncertainty.
+  Recognition charges the deviation samples to the face's integration budget.
+  The OpenCascade area and moment inventories record these faces as "boundary source
+  differs"; those without an independent check of the master value stay undetermined.
+  The oracle ledger's agreed floors fall accordingly, approved by Paul on 2026-11-23:
+  face areas 8,822 to 8,711, face moments 6,114 to 5,969, recovery lengths 10,448 to 10,373.
+
+- Fingerprints use `quiddity-rust/fingerprint/5` because the STEP-selected boundary (#317)
+  changes face and solid measurements. Regenerate earlier fingerprints from STEP before matching.
+
 ### haecceity
 
 - For #341, add `Part::file_angle_uncertainty()` to read the smallest declared STEP plane

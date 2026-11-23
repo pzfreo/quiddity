@@ -15,7 +15,7 @@ use crate::kernel::py;
 /// Fingerprint format version: correspondence refuses different formats.
 /// Any change to a fingerprint value bumps this version; stored fingerprints of another
 /// version are re-fingerprinted from their geometry, never migrated (#254).
-pub const FINGERPRINT_VERSION: &str = "quiddity-rust/fingerprint/4";
+pub const FINGERPRINT_VERSION: &str = "quiddity-rust/fingerprint/5";
 
 /// The fingerprints of one recognition result.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1255,6 +1255,7 @@ pub fn classify(key: &str, path: &str) -> Option<(&'static str, Role)> {
 /// Panics on a family missing from [`FAMILIES`], or one with neither defining faces in
 /// `features.defining` nor members: a wiring defect, not an input.
 pub fn fingerprint(part: &Part, features: &Features) -> Fingerprints {
+    let part = part.recognition_part();
     fingerprint_with_axes(
         &crate::features::Context::new(part),
         part,

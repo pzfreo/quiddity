@@ -42,3 +42,10 @@ as the original Specify fixture, which remains unchanged. The full 16 goldens in
 each writer directory run both the ownership/forwarding check and the exact
 exemption check. A real §6.5.3 combined dimension has an independent semantic
 definition; an unrepresented typed shell still fails the checker.
+
+## Explicit master trim
+
+`master-trim-square.step` is an original analytic fixture under Apache-2.0.
+It defines a 1 mm square on a bilinear B-spline surface. The lower 3D edge
+is straight and its master pcurve is a quadratic Bézier with middle pole
+at (0.5, 0.0004). The other three edges agree exactly.

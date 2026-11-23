@@ -1,10 +1,8 @@
 //! Areas and volumes (`BRepGProp`): surface integrals over each face's trimmed parameter
-//! domain, reduced by Green's theorem to integrals along the exact edge curves'
-//! foot points on the surface. A refused projection may recover using the file's
-//! explicit master pcurves, measuring the region they bound. That region can differ
-//! from a 3D-edge answer by the file's own 2D/3D disagreement, bounded by a sampled
-//! interior check. Recovery uses bounded inner and outer numerical error checks;
-//! see `docs/face-integration-work.md`, "Recovery from an explicit master trim".
+//! domain, reduced by Green's theorem to boundary integrals. An evaluable explicit
+//! STEP master trim defines the region. If it cannot be integrated, use the
+//! foot points of the 3D edge curves on the surface. The two regions may differ
+//! by the file's own 2D/3D disagreement. See `docs/face-integration-work.md`.
 //! `tests/face_areas.rs` checks every corpus face against OpenCascade.
 //!
 //! ∬_D f du dv = −∮ H du with H(u, v) = ∫ f(u, s) ds from a fixed v, or ∮ G dv with
@@ -18,7 +16,11 @@
 //! surface's boundary or crosses a knot line. Each loop's direction is read from the geometry
 //! (which side of it the face lies on), not from the file's orientation flags.
 
+mod declared;
 mod preferred;
+pub(crate) use declared::{BoundaryPolicy, EdgeDeviations};
+pub(super) use declared::{DeclaredBoundary, TrimCrossings};
+pub(super) use preferred::PreferredPaths;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -133,6 +135,56 @@ pub(super) struct RawMoments {
     centre: Option<[f64; 26]>,
 }
 
+#[derive(Clone, Debug)]
+pub(super) struct IntegralOrigin {
+    placement: crate::step::Placement,
+    source: std::sync::Arc<Part>,
+}
+
+impl IntegralOrigin {
+    pub(super) fn new(source: Part, placement: crate::step::Placement) -> Self {
+        Self {
+            placement,
+            source: std::sync::Arc::new(source),
+        }
+    }
+
+    pub(super) fn for_recognition(&self) -> Self {
+        Self {
+            placement: self.placement,
+            source: self.source.recognition_source(),
+        }
+    }
+
+    pub(super) fn placed(&self, outer: &crate::step::Placement) -> Self {
+        Self {
+            placement: crate::step::compose(outer, &self.placement),
+            source: self.source.clone(),
+        }
+    }
+
+    fn for_recognition_budget(&self) -> Self {
+        // A part moved after budgeting can have a measured source in caller
+        // coordinates. Start a new budget with the original STEP source.
+        let mut origin = self.clone();
+        while let Some(parent) = &origin.source.integral_origin {
+            origin = parent.placed(&origin.placement);
+        }
+        let mut source = origin.source.fresh_copy();
+        source.integration_budget = None;
+        source.reset_recognition_boundaries();
+        origin.source = std::sync::Arc::new(source);
+        origin
+    }
+
+    pub(super) fn with_faces_in_order(&self, order: &[usize]) -> Option<Self> {
+        Some(Self::new(
+            self.source.with_faces_in_order(order)?,
+            self.placement,
+        ))
+    }
+}
+
 #[cfg(test)]
 thread_local! {
     /// Test hook: `Some(true)` makes the face-moment group's integrand non-finite,
@@ -146,6 +198,7 @@ thread_local! {
         const { std::cell::Cell::new(None) };
     /// Integrand evaluations of face integrals on this thread: a structural cost for tests.
     static INTEGRAND_EVALUATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static MASTER_INTEGRATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 thread_local! {
@@ -160,6 +213,13 @@ thread_local! {
 /// once on it, so the face's integration stops there. Outside metering this always succeeds.
 #[inline]
 pub(super) fn spend_work() -> Option<()> {
+    spend_work_units(1)
+}
+
+fn spend_work_units(work: u64) -> Option<()> {
+    if work == 0 {
+        return Some(());
+    }
     // Unmetered integration (every call without a budget) pays one relaxed load.
     if METERS.load(std::sync::atomic::Ordering::Relaxed) == 0 {
         return Some(());
@@ -172,10 +232,21 @@ pub(super) fn spend_work() -> Option<()> {
         }
         Some((spent, limit)) if spent > limit => None,
         Some((spent, limit)) => {
-            meter.set(Some((spent + 1, limit)));
-            (spent < limit).then_some(())
+            if work <= limit - spent {
+                meter.set(Some((spent + work, limit)));
+                Some(())
+            } else {
+                meter.set(Some((limit + 1, limit)));
+                None
+            }
         }
     })
+}
+
+#[inline]
+fn work_meter_active() -> bool {
+    METERS.load(std::sync::atomic::Ordering::Relaxed) != 0
+        && METER.with(|meter| meter.get().is_some())
 }
 
 /// How many threads are metering a face now.
@@ -300,6 +371,42 @@ fn cuts(a: f64, b: f64, panels: usize, breaks: &[f64]) -> Option<Vec<f64>> {
     Some(out)
 }
 
+/// Knot boundaries on the branch traversed by this edge or surface integral.
+fn knots_on_interval(knots: Vec<f64>, period: Option<f64>, a: f64, b: f64) -> Option<Vec<f64>> {
+    let Some(span) = period else {
+        return Some(knots);
+    };
+    let Some(&lo) = knots.first() else {
+        return Some(knots);
+    };
+    let turns = |t: f64| ((t - lo) / span).floor();
+    let first = turns(a.min(b));
+    let last = turns(a.max(b));
+    if !(span > 0.
+        && first.is_finite()
+        && last.is_finite()
+        && first >= i64::MIN as f64
+        && last < i64::MAX as f64)
+    {
+        return None;
+    }
+    let (first, last) = (first as i64, last as i64);
+    if first == 0 && last == 0 {
+        return Some(knots);
+    }
+    let count = usize::try_from(last.checked_sub(first)?)
+        .ok()?
+        .checked_add(1)?;
+    if count.checked_mul(knots.len())? > MAX_PANELS {
+        return None;
+    }
+    Some(
+        (first..=last)
+            .flat_map(|turn| knots.iter().map(move |k| k + turn as f64 * span))
+            .collect(),
+    )
+}
+
 /// `cuts` with each panel divided into `parts` equal ones.
 fn split_panels(cuts: &[f64], parts: usize) -> Vec<f64> {
     let mut out = vec![cuts[0]];
@@ -320,23 +427,12 @@ fn surface_cuts(surface: &Surface, span: f64, along_v: bool, a: f64, b: f64) -> 
         Surface::Plane { .. } => Some(vec![a, b]),
         Surface::Cylinder { .. } | Surface::Cone { .. } if along_v => Some(vec![a, b]),
         Surface::Freeform { surface, .. } => {
-            let mut knots = if along_v {
+            let knots = if along_v {
                 breaks(&surface.knots_v, surface.degree_v)
             } else {
                 breaks(&surface.knots_u, surface.degree_u)
             };
-            if span.is_finite() && !knots.is_empty() {
-                let lo = knots[0];
-                let turns = |x: f64| ((x - lo) / span).floor() as i64;
-                let (first, last) = (turns(a.min(b)), turns(a.max(b)));
-                if last.saturating_sub(first) > MAX_PANELS as i64 {
-                    return None;
-                }
-                let one = knots.clone();
-                knots = (first..=last)
-                    .flat_map(|n| one.iter().map(move |k| k + n as f64 * span))
-                    .collect();
-            }
+            let knots = knots_on_interval(knots, span.is_finite().then_some(span), a, b)?;
             cuts(a, b, 1, &knots)
         }
         _ => cuts(a, b, (b - a).abs().ceil() as usize, &[]),
@@ -367,12 +463,7 @@ fn curve_cuts(surface: &Surface, curve: &Curve, t0: f64, t1: f64) -> Option<Vec<
         Curve::Nurbs(n) => {
             // Includes the reader's exact quadratic parabola and hyperbola spans.
             // A closed curve's edge may run past its domain's end.
-            let period = curve.period().unwrap_or(0.0);
-            breaks.extend(
-                n.breaks()
-                    .into_iter()
-                    .flat_map(|k| [k - period, k, k + period]),
-            );
+            breaks.extend(knots_on_interval(n.breaks(), curve.period(), t0, t1)?);
             cuts(t0, t1, 4, &breaks)
         }
     }
@@ -584,7 +675,6 @@ fn estimate<const N: usize>(
     }
 }
 
-#[cfg(test)]
 fn kronrod<S, const N: usize>(
     state: S,
     a: f64,
@@ -714,8 +804,13 @@ const MAX_KINKS: usize = 64;
 /// it settles at is not the side's nearest point, and the boundary integrals need the point
 /// whose motion [`uv_velocity`] gives. A side where the surface closes (`spans`) is its seam,
 /// not a boundary: an inversion stopped there from one side is tried again from the other.
-fn foot(surface: &Surface, spans: (f64, f64), p: V3, seed: (f64, f64)) -> Option<(f64, f64)> {
-    let (mut u, mut v) = surface.parameters(p, Some(seed))?;
+pub(super) fn foot(
+    surface: &Surface,
+    spans: (f64, f64),
+    p: V3,
+    hint: Option<(f64, f64)>,
+) -> Option<(f64, f64)> {
+    let (mut u, mut v) = surface.parameters(p, hint)?;
     let Surface::Freeform { surface: s, .. } = surface else {
         return Some((u, v));
     };
@@ -888,26 +983,26 @@ fn valid_mass(m: [f64; 5]) -> Option<[f64; 5]> {
     (m[0] > 0. && m.iter().all(|x| x.is_finite())).then_some(m)
 }
 
-/// A completed but invalid mass sum must retain standalone mass's refusal;
-/// only failure to resolve the legacy quadrature permits a master-trim retry.
-enum MassPass {
-    Refused,
-    Evaluated(Option<[f64; 5]>),
-}
-
 /// Canonical mass and its boundary authority are published together. A concurrent
 /// first moment query cannot publish a legacy region after mass selected the master trim.
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub(super) struct FaceMass {
     terms: Option<[f64; 5]>,
-    preferred: bool,
+    method: BoundaryMethod,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BoundaryMethod {
+    Projected,
+    CertifiedPatch,
+    Declared,
 }
 
 impl FaceMass {
     fn legacy(terms: Option<[f64; 5]>) -> Self {
         Self {
             terms,
-            preferred: false,
+            method: BoundaryMethod::Projected,
         }
     }
 }
@@ -924,7 +1019,19 @@ impl Part {
     /// threads or the clock. Every other face's integration is kept (cached) on the copy.
     pub fn with_integration_budget(&self, limit: u64) -> Part {
         let mut part = self.fresh_copy();
+        if let Some(origin) = &mut part.integral_origin {
+            if part.boundary_policy != BoundaryPolicy::Recognition {
+                let source = origin.source.with_integration_budget(limit);
+                part.integration_budget = source.integration_budget.clone();
+                origin.source = std::sync::Arc::new(source);
+                return part;
+            }
+            *origin = origin.for_recognition_budget();
+        }
         part.integration_budget = None;
+        if part.boundary_policy == BoundaryPolicy::Recognition {
+            part.reset_recognition_boundaries();
+        }
         let mut work = Vec::with_capacity(part.faces.len());
         let mut refused = Vec::new();
         let guard = MeterGuard::new();
@@ -952,6 +1059,14 @@ impl Part {
             refused,
         }));
         part
+    }
+
+    fn reset_recognition_boundaries(&mut self) {
+        // A cached boundary includes the recognition decision. Re-enter it
+        // under this budget so that already sampled edges still cost work.
+        for cache in &mut self.cache {
+            cache.declared = std::sync::OnceLock::new();
+        }
     }
 
     /// The integration budget this part was measured against, if any
@@ -1022,13 +1137,97 @@ impl Part {
         if self.integration_refused(face) {
             return None;
         }
+        self.ensure_file_integrals(face);
         self.cache[face]
             .mass
-            .get_or_init(|| self.compute_face_mass(face))
+            .get_or_init(|| {
+                self.preferred_face_mass(face)
+                    .unwrap_or_else(|| self.projected_face_mass(face))
+            })
             .terms
     }
 
-    fn compute_face_mass(&self, face: usize) -> FaceMass {
+    fn face_mass_origin(&self, face: usize) -> Option<V3> {
+        self.faces[face].loops.iter().find_map(|lp| {
+            lp.vertex
+                .or_else(|| lp.edges.first().map(|&(e, _)| self.edges[e].start))
+        })
+    }
+
+    fn preferred_face_mass(&self, face: usize) -> Option<FaceMass> {
+        let boundary = self.declared_boundary(face)?;
+        #[cfg(test)]
+        MASTER_INTEGRATIONS.with(|calls| calls.set(calls.get() + 1));
+        if let Some(terms) = self
+            .integrate_preferred_face(face, mass_density, Components::Prefix(5), true)
+            .and_then(valid_mass)
+        {
+            return Some(FaceMass {
+                terms: Some(terms),
+                method: BoundaryMethod::CertifiedPatch,
+            });
+        }
+        // Translating the part adds a constant multiple of its area vector to
+        // the position flux. Integrate about a boundary vertex so a change of
+        // placement cannot dominate the error test for the selected trim.
+        let origin = self.face_mass_origin(face)?;
+        let mut terms = self.integrate_boundary(
+            face,
+            Some(boundary),
+            None,
+            |p, su, sv| mass_density(geom::sub(p, origin), su, sv),
+            IntegralRule {
+                components: Components::Prefix(5),
+                observe_mass: None,
+            },
+            &mut None,
+            true,
+        )?;
+        terms[1] += geom::dot(origin, [terms[2], terms[3], terms[4]]);
+        let terms = valid_mass(terms)?;
+        Some(FaceMass {
+            terms: Some(terms),
+            method: BoundaryMethod::Declared,
+        })
+    }
+
+    /// Use the accepted mass boundary for higher moments, regardless of query order.
+    pub(super) fn measured_boundary(&self, face: usize) -> Option<&DeclaredBoundary> {
+        self.face_terms(face)?;
+        (self.cache[face].mass.get()?.method != BoundaryMethod::Projected)
+            .then(|| self.declared_boundary(face))
+            .flatten()
+    }
+
+    /// Length of the boundary accepted for mass, excluding seams and poles.
+    /// `spatial_length` supplies the exact 3D edge path for unselected edges.
+    #[doc(hidden)]
+    pub fn measured_boundary_length(
+        &self,
+        face: usize,
+        spatial_length: impl Fn(usize) -> f64,
+    ) -> Option<f64> {
+        self.face_terms(face)?;
+        let boundary = self.measured_boundary(face);
+        let surface = &self.faces[face].surface;
+        let mut uses = std::collections::BTreeMap::<usize, usize>::new();
+        for &(edge, _) in self.faces[face].loops.iter().flat_map(|lp| &lp.edges) {
+            *uses.entry(edge).or_default() += 1;
+        }
+        let lengths = uses
+            .into_iter()
+            .filter(|&(_, count)| count == 1)
+            .map(
+                |(edge, _)| match boundary.and_then(|b| b.edges.get(&edge)) {
+                    Some(trim) => trim.length(surface),
+                    None => Some(spatial_length(edge)),
+                },
+            )
+            .collect::<Option<Vec<_>>>()?;
+        Some(crate::py::fsum(lengths))
+    }
+
+    fn projected_face_mass(&self, face: usize) -> FaceMass {
         let surface = &self.faces[face].surface;
         // A whole sphere has no boundary to integrate along; its area and flux (3V) are exact,
         // and its area vector vanishes.
@@ -1049,22 +1248,10 @@ impl Part {
             components: Components::Prefix(5),
             observe_mass: None,
         };
-        if let Some(value) = self.integrate_face_legacy(face, density, rule, &mut None, true) {
-            return FaceMass::legacy(valid_mass(value));
-        }
-        self.recover_face_mass(face)
-    }
-
-    /// Only a known legacy refusal reaches here. Ineligible trims do no further
-    /// integration; eligible trims certify canonical mass on their own boundary.
-    fn recover_face_mass(&self, face: usize) -> FaceMass {
-        let terms = self
-            .integrate_preferred_face(face, mass_density, Components::Prefix(5))
-            .and_then(valid_mass);
-        FaceMass {
-            preferred: terms.is_some(),
-            terms,
-        }
+        FaceMass::legacy(
+            self.integrate_face_legacy(face, density, rule, &mut None, true)
+                .and_then(valid_mass),
+        )
     }
 
     /// Share the cold coarse pass, but choose and publish canonical mass and its
@@ -1079,9 +1266,13 @@ impl Part {
         if self.integration_refused(face) {
             return None;
         }
+        self.ensure_file_integrals(face);
         let mut shared = None;
         let mut attempted = false;
         let choice = self.cache[face].mass.get_or_init(|| {
+            if let Some(master) = self.preferred_face_mass(face) {
+                return master;
+            }
             attempted = true;
             let mut observed = None;
             shared = self.integrate_face_legacy(
@@ -1094,30 +1285,35 @@ impl Part {
                 &mut observed,
                 remember,
             );
-            match observed {
-                Some(MassPass::Evaluated(terms)) => FaceMass::legacy(terms),
-                Some(MassPass::Refused) => self.recover_face_mass(face),
-                // An early failure in additional fields did not evaluate canonical
-                // mass. Determine it independently rather than poisoning its cache.
-                None => self.compute_face_mass(face),
-            }
+            // Extra fields can fail before the projected canonical mass is known.
+            observed.unwrap_or_else(|| self.projected_face_mass(face))
         });
         choice.terms?;
-        if choice.preferred {
-            return self.integrate_preferred_face(
+        if choice.method == BoundaryMethod::CertifiedPatch
+            && let Some(sum) = self.integrate_preferred_face(
                 face,
                 |p, su, sv| {
                     let y = f(p, su, sv);
                     std::array::from_fn(|k| y[k])
                 },
                 Components::Prefix(M),
-            );
+                false,
+            )
+        {
+            return Some(sum);
         }
         if attempted {
             return shared.map(|y| std::array::from_fn(|k| y[k]));
         }
-        self.integrate_face_legacy(
+        let boundary = if choice.method != BoundaryMethod::Projected {
+            Some(self.declared_boundary(face)?)
+        } else {
+            None
+        };
+        self.integrate_boundary(
             face,
+            boundary,
+            None,
             |p, su, sv| {
                 let y = f(p, su, sv);
                 std::array::from_fn(|k| y[k])
@@ -1131,7 +1327,7 @@ impl Part {
         )
     }
 
-    /// [`Self::integrate_face_legacy_in`], first by the form of Green's theorem whose inner
+    /// [`Self::integrate_boundary_in`] over the projected edges, first by the form of Green's theorem whose inner
     /// integral crosses fewer knot spans where that form is eligible (a face with one very
     /// large B-spline net in u and a few spans in v, #302), then, should it refuse or fail
     /// its own check, by the stock form. Only a completed, checked result of the cheaper form
@@ -1146,17 +1342,36 @@ impl Part {
         face: usize,
         f: impl Fn(V3, V3, V3) -> [f64; N],
         rule: IntegralRule,
-        observed: &mut Option<MassPass>,
+        observed: &mut Option<FaceMass>,
         remember: bool,
     ) -> Option<[f64; N]> {
-        let key = (N, rule.observe_mass.is_some());
+        self.integrate_boundary(face, None, None, f, rule, observed, remember)
+    }
+
+    /// [`Self::integrate_face_legacy`] over `boundary` (the file's selected trim, or the 3D
+    /// edges' foot points when `None`), evaluating `local_spline` in place of the face's own
+    /// B-spline net where given. A remembered refusal is keyed by the boundary choice too: the
+    /// selected trim and the projected edges are different loops, so one's refused trial says
+    /// nothing about the other's.
+    #[allow(clippy::too_many_arguments)]
+    fn integrate_boundary<const N: usize>(
+        &self,
+        face: usize,
+        boundary: Option<&DeclaredBoundary>,
+        local_spline: Option<&crate::nurbs::NurbsSurface>,
+        f: impl Fn(V3, V3, V3) -> [f64; N],
+        rule: IntegralRule,
+        observed: &mut Option<FaceMass>,
+        remember: bool,
+    ) -> Option<[f64; N]> {
+        let key = (N, rule.observe_mass.is_some(), boundary.is_some());
         let remembered = remember && self.cache[face].trial_refused(key);
         if self.cheaper_inner_form(face) && !remembered {
             for split in [1, REFINED_PANELS] {
                 let unresolved = std::cell::Cell::new(false);
                 let mut trial = None;
-                let swapped = self.integrate_face_legacy_in(
-                    face,
+                let swapped = self.integrate_boundary_in(
+                    (face, boundary, local_spline),
                     &f,
                     rule,
                     &mut trial,
@@ -1164,7 +1379,7 @@ impl Part {
                 );
                 if swapped.is_some()
                     && !unresolved.get()
-                    && matches!(trial, None | Some(MassPass::Evaluated(Some(_))))
+                    && matches!(trial, None | Some(FaceMass { terms: Some(_), .. }))
                 {
                     *observed = trial;
                     return swapped;
@@ -1178,7 +1393,7 @@ impl Part {
                 self.cache[face].refuse_trial(key);
             }
         }
-        self.integrate_face_legacy_in(face, f, rule, observed, None)
+        self.integrate_boundary_in((face, boundary, local_spline), f, rule, observed, None)
     }
 
     /// Whether the face's inner integral can run along v, where it crosses far fewer panels
@@ -1196,7 +1411,7 @@ impl Part {
                 }
                 // Closed in u is allowed (the integrand wraps the lifted parameters across the
                 // seam, as the stock form's does); a loop that winds round u never reaches the
-                // cheaper form in `integrate_face_legacy_in`, which runs its own along-v form.
+                // cheaper form in `integrate_boundary_in`, which runs its own along-v form.
                 let (_, sv) = closed_spans(surface);
                 if sv.is_finite() || collapsed_sides(surface) != (None, None) {
                     return false;
@@ -1224,12 +1439,16 @@ impl Part {
         }
     }
 
-    fn integrate_face_legacy_in<const N: usize>(
+    fn integrate_boundary_in<const N: usize>(
         &self,
-        face: usize,
+        (face, boundary, local_spline): (
+            usize,
+            Option<&DeclaredBoundary>,
+            Option<&crate::nurbs::NurbsSurface>,
+        ),
         f: impl Fn(V3, V3, V3) -> [f64; N],
         rule: IntegralRule,
-        observed: &mut Option<MassPass>,
+        observed: &mut Option<FaceMass>,
         cheaper: Option<(&std::cell::Cell<bool>, usize)>,
     ) -> Option<[f64; N]> {
         if work_exhausted() {
@@ -1238,34 +1457,46 @@ impl Part {
         let fc = &self.faces[face];
         let surface = &fc.surface;
         let (pu, pv) = surface.periodic();
-        let uv = self.uv_loops(face)?;
-        let domain = self.domain(face)?;
-        let (_, shifts) = self.loop_placement(face)?;
-        // A loop runs round u when its boundary does (on a closed B-spline surface, which the
-        // reader does not mark periodic, when it ends most of the parameter range from where
-        // it began).
-        let open = |lp: &UvLoop, pick: fn(&(f64, f64)) -> f64, far: f64| match (
-            lp.points.first(),
-            lp.points.last(),
-        ) {
-            (Some(a), Some(b)) => (pick(b) - pick(a)).abs() > far,
-            _ => false,
+        let uv = self.loops_on(face, boundary)?;
+        let domain = self.domain_on(face, boundary)?;
+        let (_, shifts) = self.place_loops(face, boundary)?;
+        let spans = closed_spans(surface);
+        // On a closed spline, inversion may give a seam vertex the very same
+        // parameter at both ends of a loop that goes all the way around.
+        // Add increments on the nearest branch, as the face domain does. A
+        // local trim that crosses the seam and comes back has zero net turns.
+        let winding = |lp: &UvLoop, pick: fn(&(f64, f64)) -> f64, span: f64, threshold: f64| {
+            if span.is_finite() {
+                let travel: f64 = lp
+                    .points
+                    .windows(2)
+                    .map(|pair| {
+                        let step = pick(&pair[1]) - pick(&pair[0]);
+                        step - span * (step / span).round()
+                    })
+                    .sum();
+                return travel.abs() > span / 2.;
+            }
+            lp.points
+                .first()
+                .zip(lp.points.last())
+                .is_some_and(|(a, b)| (pick(b) - pick(a)).abs() > threshold)
         };
         let half = |range: (f64, f64)| 0.5 * (range.1 - range.0);
-        let far_v = if pv { 1.0 } else { half(domain.v_range()) };
-        let along_v = if pu {
-            uv.iter().any(|lp| lp.winds_u)
-        } else {
-            uv.iter()
-                .any(|lp| open(lp, |p| p.0, half(domain.u_range())))
+        let along_v = uv.iter().any(|lp| {
+            if pu {
+                lp.winds_u
+            } else {
+                winding(lp, |p| p.0, spans.0, half(domain.u_range()))
+            }
+        });
+        let winds_v = |lp: &UvLoop| {
+            lp.winds_v || (spans.1.is_finite() && winding(lp, |p| p.1, spans.1, f64::INFINITY))
         };
-        if along_v && uv.iter().any(|lp| open(lp, |p| p.1, far_v)) {
+        let far_v = if pv { 1.0 } else { half(domain.v_range()) };
+        if along_v && uv.iter().any(|lp| winding(lp, |p| p.1, spans.1, far_v)) {
             return None;
         }
-        // On a closed B-spline surface the walk unwraps its parameters across the surface's
-        // seam (a face's own seam need not lie on it), so the integrands read the surface a
-        // whole span round.
-        let spans = closed_spans(surface);
         // The cheaper form reads no loop that winds round a surface closed in u (its parameters
         // wrap at the seam, so the loop's ends agree whatever it encircles): the stock form
         // decides such a face.
@@ -1274,7 +1505,7 @@ impl Part {
         }
         let evaluator = match surface {
             Surface::Freeform { surface, .. } => Some(std::cell::RefCell::new(
-                crate::nurbs::SurfaceEvaluation::new(surface),
+                crate::nurbs::SurfaceEvaluation::new(local_spline.unwrap_or(surface)),
             )),
             _ => None,
         };
@@ -1321,6 +1552,7 @@ impl Part {
         } else {
             reference
         };
+        let inner_budget = std::cell::Cell::<Option<f64>>::new(None);
         // A node moving along its inner integral's own parameter line (an edge that is a side
         // of the surface: dv = 0 to round-off for the stock form) weighs nothing; where that
         // integral crosses many knot spans, its terms are not evaluated.
@@ -1353,7 +1585,7 @@ impl Part {
                 && weight.abs() * other_extent <= NEGLIGIBLE_MOTION * other.abs() * weight_extent
         };
         let term = |u: f64, v: f64, du: f64, dv: f64| {
-            let (weight, y) = if let Some((unresolved, split)) = cheaper {
+            if let Some((unresolved, split)) = cheaper {
                 if negligible(du, dv, cheap_spans, true) {
                     return Some([0.0; N]);
                 }
@@ -1365,19 +1597,40 @@ impl Part {
                 if !resolved {
                     unresolved.set(true);
                 }
-                (-du, y)
-            } else if along_v {
+                return Some(y.map(|y| -du * y));
+            }
+            let (weight, span, end) = if along_v {
                 if negligible(du, dv, cheap_spans, true) {
                     return Some([0.0; N]);
                 }
-                let cuts = surface_cuts(surface, spans.1, true, reference, v)?;
-                (-du, integrate(&cuts, |s| f(u, s))?)
+                (-du, spans.1, v)
             } else {
                 if negligible(dv, du, stock_spans, false) {
                     return Some([0.0; N]);
                 }
-                let cuts = surface_cuts(surface, spans.0, false, reference, u)?;
-                (dv, integrate(&cuts, |s| f(s, v))?)
+                (dv, spans.0, u)
+            };
+            let primitive = |s| if along_v { f(u, s) } else { f(s, v) };
+            if boundary.is_some() && matches!(surface, Surface::Plane { .. }) {
+                // The position is affine and the normal constant on a plane.
+                // Every area, flux or moment density used here has degree at
+                // most two along a parameter line. Two Gauss nodes integrate
+                // it exactly, including when a short edge has high UV speed.
+                let half = 0.5 * (end - reference);
+                let middle = reference + half;
+                let delta = half / 3.0_f64.sqrt();
+                let from = primitive(middle - delta)?;
+                let to = primitive(middle + delta)?;
+                return Some(std::array::from_fn(|k| (weight * half) * (from[k] + to[k])));
+            }
+            let cuts = surface_cuts(surface, span, along_v, reference, end)?;
+            let y = if let Some(budget) = inner_budget.get() {
+                if weight == 0. {
+                    return Some([0.; N]);
+                }
+                preferred::integrate_inner(&cuts, budget / weight.abs(), primitive, rule)?.0
+            } else {
+                integrate(&cuts, primitive)?
             };
             Some(y.map(|y| weight * y))
         };
@@ -1399,7 +1652,7 @@ impl Part {
         let mut passes = Vec::with_capacity(loops.len());
         for &i in &loops {
             passes.push(self.boundary_integral(
-                face,
+                (face, boundary),
                 i,
                 shifts[i],
                 &term,
@@ -1415,7 +1668,7 @@ impl Part {
             for (&i, (panel, estimate)) in loops.iter().zip(&passes) {
                 let (sum, swept) = if estimate.0 > mass_floor {
                     let (refined, _) = self.boundary_integral(
-                        face,
+                        (face, boundary),
                         i,
                         shifts[i],
                         &term,
@@ -1430,29 +1683,49 @@ impl Part {
                         u_ref,
                     )?;
                     if refined.1 > mass_floor {
-                        *observed = Some(MassPass::Refused);
+                        *observed = Some(FaceMass::legacy(None));
                         return None;
                     }
                     (refined.0, refined.3)
                 } else {
                     (panel.0, panel.3)
                 };
-                let winding = along_v || uv[i].winds_v;
-                let direction = self.loop_direction(face, i, (!winding).then_some(swept))?;
+                let winding = along_v || winds_v(&uv[i]);
+                let direction =
+                    self.direction_on(face, boundary, i, (!winding).then_some(swept))?;
                 for k in 0..5 {
                     mass[k] += direction * sum[indices[k]];
                 }
             }
             let mass = (mass[0] > 0.0 && mass.iter().all(|x| x.is_finite())).then_some(mass);
-            *observed = Some(MassPass::Evaluated(mass));
+            *observed = Some(FaceMass::legacy(mass));
             mass?;
         }
-        let floor = 1e-11 * passes.iter().map(|p| p.0.2).sum::<f64>();
+        let mut floor = 1e-11 * passes.iter().map(|p| p.0.2).sum::<f64>();
+        if let Some(boundary) = boundary {
+            // The positive outer weights on an edge sum to its parameter span.
+            // Allow one unit-interval closing segment per edge. Half the face
+            // error budget covers all inner integrals together.
+            let mut span = 0.;
+            for &(e, _) in fc.loops.iter().flat_map(|lp| &lp.edges) {
+                let ed = &self.edges[e];
+                let (a, b) = boundary.edges.get(&e).map_or_else(
+                    || edge_interval(&ed.curve, ed.start, ed.end, ed.same_sense, ed.is_closed()),
+                    |c| c.interval,
+                );
+                span += 1. + (b - a).abs();
+            }
+            if !(span.is_finite() && span > 0. && floor.is_finite() && floor > 0.) {
+                return None;
+            }
+            floor *= 0.5;
+            inner_budget.set(Some(floor / span));
+        }
         let mut total = [0.0; N];
         for (&i, ((mut sum, excess, _, mut swept), _)) in loops.iter().zip(passes) {
-            if excess > floor {
+            if boundary.is_some() || excess > floor {
                 let (refined, _) = self.boundary_integral(
-                    face,
+                    (face, boundary),
                     i,
                     shifts[i],
                     &term,
@@ -1475,8 +1748,8 @@ impl Part {
                 swept = refined.3;
             }
             // A loop that winds round either parameter has no signed area to read.
-            let winding = along_v || uv[i].winds_v;
-            let direction = self.loop_direction(face, i, (!winding).then_some(swept))?;
+            let winding = along_v || winds_v(&uv[i]);
+            let direction = self.direction_on(face, boundary, i, (!winding).then_some(swept))?;
             for k in 0..N {
                 total[k] += direction * sum[k];
             }
@@ -1492,7 +1765,7 @@ impl Part {
     /// undetermined there), neither counts the jump.
     fn boundary_integral<const N: usize>(
         &self,
-        face: usize,
+        (face, boundary): (usize, Option<&DeclaredBoundary>),
         i: usize,
         shift: (f64, f64),
         term: &dyn Fn(f64, f64, f64, f64) -> Option<[f64; N]>,
@@ -1504,7 +1777,7 @@ impl Part {
         let fc = &self.faces[face];
         let surface = &fc.surface;
         let (pu, pv) = surface.periodic();
-        let lp = &self.uv_loops(face)?[i];
+        let lp = &self.loops_on(face, boundary)?[i];
         let spans = closed_spans(surface);
         let collapsed = collapsed_sides(surface);
         let has_pole = collapsed.0.is_some() || collapsed.1.is_some();
@@ -1566,13 +1839,32 @@ impl Part {
                 last = placed(p);
             }
             let ed = &self.edges[e];
-            let (mut t0, mut t1) =
-                edge_interval(&ed.curve, ed.start, ed.end, ed.same_sense, ed.is_closed());
+            let trim = boundary.and_then(|b| b.edges.get(&e));
+            let (mut t0, mut t1) = trim.map_or_else(
+                || edge_interval(&ed.curve, ed.start, ed.end, ed.same_sense, ed.is_closed()),
+                |c| c.interval,
+            );
             if !forward {
                 std::mem::swap(&mut t0, &mut t1);
             }
             // One node: its parameters, unwrapped against the walk's, and their velocity.
             let node = |walk: &mut Walk, t: f64| -> Option<((f64, f64), (f64, f64))> {
+                if let Some(trim) = trim {
+                    let (p, v) = trim.checked_uv_and_derivative(surface, t)?;
+                    if !(p[0].is_finite()
+                        && p[1].is_finite()
+                        && v[0].is_finite()
+                        && v[1].is_finite())
+                    {
+                        return None;
+                    }
+                    let q = unwrap((p[0], p[1]), walk.last);
+                    let velocity = (v[0], v[1]);
+                    walk.last = q;
+                    walk.first.get_or_insert((t, q, velocity));
+                    walk.latest = Some((t, q, velocity));
+                    return Some((q, velocity));
+                }
                 let point = ed.curve.value(t);
                 // On a collapsed B-spline side, where the other parameter is undetermined,
                 // Newton cannot leave the seed; it starts a little inside instead.
@@ -1595,7 +1887,7 @@ impl Part {
                     }
                     _ => walk.last,
                 };
-                let (mut u, mut v) = foot(surface, spans, point, seed)?;
+                let (mut u, mut v) = foot(surface, spans, point, Some(seed))?;
                 // Round a closed B-spline surface the point takes the parameters a whole span
                 // round that lie beside the walk (on the surface's seam it has both, and a
                 // boundary may cross that seam anywhere: a face's own seam need not lie on it).
@@ -1702,13 +1994,20 @@ impl Part {
                 }
                 _ => (false, false, 0, 0),
             };
+            let edge_uv = |t, near| {
+                if let Some(trim) = trim {
+                    let p = trim.curve.value(t);
+                    Some(unwrap((p[0], p[1]), near))
+                } else {
+                    foot(surface, spans, ed.curve.value(t), Some(wrap(near)))
+                        .map(|q| unwrap(q, near))
+                }
+            };
             let corner = |(ta, pa): (f64, (f64, f64)), tb: f64| {
                 let find = || {
-                    let seed = wrap(pa);
                     let side = held(pa);
                     bisect_cut(ta, tb, |mid| {
-                        foot(surface, spans, ed.curve.value(mid), seed)
-                            .is_some_and(|q| held(unwrap(q, pa)) == side)
+                        edge_uv(mid, pa).is_some_and(|q| held(q) == side)
                     })
                 };
                 if let Some(cache) = cut_cache {
@@ -1757,8 +2056,7 @@ impl Part {
                     [(first, a), (last, b)]
                         .into_iter()
                         .find_map(|((tn, pn), te)| {
-                            let q = foot(surface, spans, ed.curve.value(te), wrap(pn))
-                                .map(|q| unwrap(q, pn))?;
+                            let q = edge_uv(te, pn)?;
                             let t = (held(q) != held(pn)).then(|| corner((tn, pn), te))?;
                             ((t - te).abs() > 1e-9 * (b - a).abs()).then_some((t, true))
                         })
@@ -1780,17 +2078,22 @@ impl Part {
                 latest: None,
                 swept: 0.0,
             };
-            let mut cuts = curve_cuts(surface, &ed.curve, t0, t1)?;
+            let mut cuts = if let Some(trim) = trim {
+                let mut nodes = trim.nodes()?;
+                if !forward {
+                    nodes.reverse();
+                }
+                nodes
+            } else {
+                curve_cuts(surface, &ed.curve, t0, t1)?
+            };
             // A foot point that turns a corner between a cut and the node beside it (the rule's
             // nodes stop short of a panel's ends) leaves the turn inside that panel, unseen by
             // its error estimate (2.3e-4 of cgb203 face 3, whose edge leaves the surface's side
             // v = 1 within 1e-4 of its end): the edge is cut there too.
             if matches!(surface, Surface::Freeform { .. }) && cuts.len() >= 2 {
                 let x = 0.5 * (1.0 + kronrod_nodes()[0].0);
-                let at = |t: f64, near: (f64, f64)| {
-                    foot(surface, spans, ed.curve.value(t), wrap(near))
-                        .map(|q| (t, unwrap(q, near)))
-                };
+                let at = |t: f64, near: (f64, f64)| edge_uv(t, near).map(|q| (t, q));
                 let mut more = Vec::new();
                 let mut near = last;
                 for k in 0..cuts.len() {
@@ -1843,7 +2146,7 @@ impl Part {
             let end = |t: f64, from_t: f64, p: (f64, f64), vel: (f64, f64)| {
                 let guess = (p.0 + (t - from_t) * vel.0, p.1 + (t - from_t) * vel.1);
                 let step = (guess.0 - p.0).hypot(guess.1 - p.1);
-                let exact = foot(surface, spans, ed.curve.value(t), wrap(p)).map(|q| unwrap(q, p));
+                let exact = edge_uv(t, p);
                 match exact {
                     Some(q) if (q.0 - guess.0).hypot(q.1 - guess.1) <= 10.0 * step + 1e-9 => q,
                     _ => guess,
@@ -1869,6 +2172,21 @@ impl Part {
             let (gu, gv) = (to.0 - from.0, to.1 - from.1);
             if gu.hypot(gv) < 1e-12 {
                 continue;
+            }
+            if boundary.is_some() {
+                let length = integrate(&[0., 1.], |t| {
+                    let (u, v) = wrap((from.0 + gu * t, from.1 + gv * t));
+                    spend_work()?;
+                    let (su, sv) = surface.partials(u, v);
+                    Some([geom::norm(geom::add(
+                        geom::scale(su, gu),
+                        geom::scale(sv, gv),
+                    ))])
+                })?[0];
+                let precision = self.file_uncertainty().unwrap_or(0.) + geom::COORD_FLOOR;
+                if !length.is_finite() || length > precision {
+                    return None;
+                }
             }
             let mut gap_mass: Estimate = (0.0, 0.0);
             let mut eval = |(): (), a: f64, b: f64, _: bool| {
@@ -1905,8 +2223,18 @@ impl Part {
     /// loop running round a periodic direction (`None`) encloses nothing, so step either side
     /// of its longest edge used once by the face.
     pub(crate) fn loop_direction(&self, face: usize, i: usize, swept: Option<f64>) -> Option<f64> {
+        self.direction_on(face, None, i, swept)
+    }
+
+    fn direction_on(
+        &self,
+        face: usize,
+        boundary: Option<&DeclaredBoundary>,
+        i: usize,
+        swept: Option<f64>,
+    ) -> Option<f64> {
         if let Some(swept) = swept {
-            let (outer, _) = self.loop_placement(face)?;
+            let (outer, _) = self.place_loops(face, boundary)?;
             let anticlockwise = if swept > 0.0 { 1.0 } else { -1.0 };
             return Some(if i == outer {
                 anticlockwise
@@ -1917,7 +2245,7 @@ impl Part {
         let fc = &self.faces[face];
         let surface = &fc.surface;
         let spans = closed_spans(surface);
-        let domain = self.domain(face)?;
+        let domain = self.domain_on(face, boundary)?;
         let uses = |e: usize| {
             fc.loops
                 .iter()
@@ -1932,8 +2260,15 @@ impl Part {
             .filter(|&(e, _)| uses(e) == 1)
             .collect();
         let length = |e: usize| {
-            let s = &self.edges[e].samples;
-            s.windows(2).map(|w| geom::dist(w[0], w[1])).sum::<f64>()
+            let edge = &self.edges[e];
+            let points = boundary
+                .and_then(|b| b.edges.get(&e))
+                .and_then(|trim| trim.samples(surface, edge))
+                .map_or(&edge.samples, |samples| &samples.points);
+            points
+                .windows(2)
+                .map(|w| geom::dist(w[0], w[1]))
+                .sum::<f64>()
         };
         edges.sort_by(|a, b| length(b.0).total_cmp(&length(a.0)));
         let (du_range, dv_range) = (domain.u_range(), domain.v_range());
@@ -1942,21 +2277,24 @@ impl Part {
             .max(1e-9);
         for (e, forward) in edges {
             let ed = &self.edges[e];
-            let (t0, t1) =
-                edge_interval(&ed.curve, ed.start, ed.end, ed.same_sense, ed.is_closed());
-            let t = 0.5 * (t0 + t1);
-            let Some((u, v)) = surface.parameters(ed.curve.value(t), None) else {
-                continue;
-            };
-            let (mut du, mut dv) = uv_velocity(
-                surface,
-                spans,
-                u,
-                v,
-                ed.curve.value(t),
-                ed.curve.derivative(t),
-            );
-            if (t1 >= t0) != forward {
+            let (u, v, mut du, mut dv, rising) =
+                if let Some(trim) = boundary.and_then(|b| b.edges.get(&e)) {
+                    let (a, b) = trim.interval;
+                    let t = 0.5 * (a + b);
+                    let (q, d) = trim.curve.value_and_derivative(t);
+                    (q[0], q[1], d[0], d[1], b >= a)
+                } else {
+                    let (a, b) =
+                        edge_interval(&ed.curve, ed.start, ed.end, ed.same_sense, ed.is_closed());
+                    let t = 0.5 * (a + b);
+                    let p = ed.curve.value(t);
+                    let Some((u, v)) = surface.parameters(p, None) else {
+                        continue;
+                    };
+                    let (du, dv) = uv_velocity(surface, spans, u, v, p, ed.curve.derivative(t));
+                    (u, v, du, dv, b >= a)
+                };
+            if rising != forward {
                 (du, dv) = (-du, -dv);
             }
             let norm = du.hypot(dv);
@@ -1996,10 +2334,7 @@ impl Part {
     /// folded projection cancel. Used to measure a skin's adjoining edge-treatment strips.
     pub fn face_projected_moments(&self, face: usize, direction: V3) -> Option<(f64, V3)> {
         let fc = &self.faces[face];
-        let origin = fc.loops.iter().find_map(|lp| {
-            lp.vertex
-                .or_else(|| lp.edges.first().map(|&(e, _)| self.edges[e].start))
-        })?;
+        let origin = self.face_mass_origin(face)?;
         let [area, x, y, z] = self.moment_integral(face, [4, 5, 6, 7, 8], false, |p, su, sv| {
             let n = geom::cross(su, sv);
             let w = geom::dot(n, direction);
@@ -2092,6 +2427,7 @@ impl Part {
                 centre: None,
             };
         }
+        self.ensure_file_integrals(face);
         *self.cache[face]
             .raw_moments
             .get_or_init(|| self.compute_face_raw_moments(face))
@@ -2105,17 +2441,68 @@ impl Part {
             };
         }
         RawMoments {
-            local: self.raw_group_integral(face, true, false),
+            local: self
+                .raw_group_integral(face, true, false)
+                .or_else(|| self.local_spline_group(face)),
             centre: self.raw_group_integral(face, false, true),
         }
     }
 
+    /// The face-moment group (components 0..13 of [`Part::face_raw_moments`]) over the
+    /// selected trim mass accepted, evaluated against the B-spline net translated to the
+    /// group's own origin. A small trim far from the world origin can lose significant digits
+    /// when the evaluator forms a world point and the density subtracts the origin; the
+    /// translated net gives the offsets directly. The same UV boundary and error test apply.
+    fn local_spline_group(&self, face: usize) -> Option<[f64; 26]> {
+        let Surface::Freeform { surface, .. } = &self.faces[face].surface else {
+            return None;
+        };
+        let (origin, scale) = self.moment_frame(face)?;
+        let boundary = self.measured_boundary(face)?;
+        let local = surface.relative_to(origin)?;
+        let values = self.integrate_boundary(
+            face,
+            Some(boundary),
+            Some(&local),
+            |offset, su, sv| {
+                let n = geom::cross(su, sv);
+                let w = geom::norm(n);
+                let [x, y, z] = geom::scale(offset, 1.0 / scale);
+                [
+                    w,
+                    n[0],
+                    n[1],
+                    n[2],
+                    x * w,
+                    y * w,
+                    z * w,
+                    x * x * w,
+                    y * y * w,
+                    z * z * w,
+                    x * y * w,
+                    x * z * w,
+                    y * z * w,
+                ]
+            },
+            IntegralRule {
+                components: Components::Prefix(13),
+                observe_mass: None,
+            },
+            &mut None,
+            false,
+        )?;
+        let mut out = [0.0; 26];
+        out[..13].copy_from_slice(&values);
+        Some(out)
+    }
+
     fn raw_group_integral(&self, face: usize, local: bool, centre: bool) -> Option<[f64; 26]> {
         let frame = self.moment_frame(face).filter(|_| local);
-        let bounds = self.bounds();
-        let c0 = bounds.centre();
-        let length = geom::dist(bounds.min, bounds.max);
-        let length = (length.is_finite() && length > 0.0 && centre).then_some(length);
+        let reference = if centre {
+            self.integral_reference()
+        } else {
+            None
+        };
         // Only the joint integration records a refusal: the per-group fallbacks, run after
         // it is refused, are other integrands under the same key.
         self.moment_integral::<27, 26>(face, [0, 26, 1, 2, 3], local && centre, |p, su, sv| {
@@ -2139,7 +2526,7 @@ impl Part {
                     y * z * w,
                 ]);
             }
-            if let Some(length) = length {
+            if let Some((c0, length)) = reference {
                 let q = geom::scale(geom::sub(p, c0), 1.0 / length);
                 let qn = geom::dot(q, n);
                 out[13] = qn;
@@ -2153,7 +2540,7 @@ impl Part {
             #[cfg(test)]
             POISONED_GROUP.with(|g| match g.get() {
                 Some(true) if frame.is_some() => out[4] = f64::NAN,
-                Some(false) if length.is_some() => out[13] = f64::NAN,
+                Some(false) if reference.is_some() => out[13] = f64::NAN,
                 _ => {}
             });
             out
@@ -2227,12 +2614,7 @@ impl Part {
     pub fn volume_centroid(&self) -> Option<(f64, V3)> {
         // Integrated about c0 (the box centre, inside the part) for conditioning: with
         // q = p − c0, s = ∯ q·n, m = ∯ n, a[i][j] = ∯ qᵢ nⱼ, b = ∯ q (q·n).
-        let bounds = self.bounds();
-        let c0 = bounds.centre();
-        let length = geom::dist(bounds.min, bounds.max);
-        if !length.is_finite() || length <= 0.0 {
-            return None;
-        }
+        let (c0, length) = self.integral_reference()?;
         let (mut s, mut m, mut a, mut b) = (0.0, [0.0; 3], [[0.0; 3]; 3], [0.0; 3]);
         for solid in &self.solids {
             for &face in &solid.faces {
@@ -2283,6 +2665,83 @@ impl Part {
         Some((volume(d), geom::add(c0, d)))
     }
 
+    fn integral_reference(&self) -> Option<(V3, f64)> {
+        *self.integral_reference.get_or_init(|| {
+            let bounds = self.bounds();
+            let length = geom::dist(bounds.min, bounds.max);
+            (length.is_finite() && length > 0.0).then_some((bounds.centre(), length))
+        })
+    }
+
+    fn integral_can_carry(&self, face: usize) -> bool {
+        !(self.integration_refused(face)
+            || matches!(self.faces[face].surface, Surface::Sphere { .. })
+                && self.whole_sphere(face))
+    }
+
+    /// A borrowed transform keeps resolved source data and any completed integrations.
+    /// In-flight and unqueried faces start cold in the new source, with independent caches.
+    pub(super) fn copy_integral_source(&self) -> Part {
+        let source = self.fresh_copy();
+        let measured = self.boundary_policy == BoundaryPolicy::Recognition
+            && self.integration_budget.is_some();
+        for (from, to) in self.cache.iter().zip(&source.cache) {
+            let carried = measured && from.file_integrals_carried.get().is_some();
+            if let Some(raw) = from.raw_moments.get() {
+                let _ = to.raw_moments.set(*raw);
+            }
+            if let Some(mass) = from.mass.get() {
+                let _ = to.mass.set(*mass);
+            }
+            if carried {
+                let _ = to.file_integrals_carried.set(());
+            }
+            from.carry_refusals(to);
+        }
+        source
+    }
+
+    pub(super) fn placed_integral_origin(
+        &self,
+        placement: &crate::step::Placement,
+    ) -> IntegralOrigin {
+        // Once measured, later transforms keep the budget verdict and carry
+        // those cached integrals from the placement in which they were metered.
+        match &self.integral_origin {
+            Some(origin)
+                if self.boundary_policy != BoundaryPolicy::Recognition
+                    || self.integration_budget.is_none()
+                    || origin.source.integration_budget.is_some() =>
+            {
+                origin.placed(placement)
+            }
+            _ => IntegralOrigin::new(self.copy_integral_source(), *placement),
+        }
+    }
+
+    fn ensure_file_integrals(&self, face: usize) {
+        if let Some(origin) = &self.integral_origin {
+            self.cache[face].file_integrals_carried.get_or_init(|| {
+                let source = &origin.source;
+                if !source.integral_can_carry(face) {
+                    return;
+                }
+                // Select the STEP trim in file coordinates. When recognition
+                // selects projection, integrate in the caller's coordinates
+                // even while the work meter runs. A later transform can carry
+                // integrals that were already measured under a budget.
+                if self.boundary_policy == BoundaryPolicy::Recognition
+                    && source.integration_budget.is_none()
+                    && source.declared_boundary(face).is_none()
+                {
+                    let _ = self.cache[face].declared.set(None);
+                    return;
+                }
+                source.carry_face_integrals(self, face, &origin.placement, true);
+            });
+        }
+    }
+
     /// Carry this part's face integrals into `moved`, the same part after the proper rigid
     /// motion `at` (p ↦ Rp + t; [`Part::transformed_carrying_integrals`]), so they are not
     /// integrated again. Every
@@ -2309,6 +2768,20 @@ impl Part {
         if crate::step::validate_placement(at).is_err() || moved.faces.len() != self.faces.len() {
             return;
         }
+        for face in 0..self.faces.len() {
+            if self.integral_can_carry(face) {
+                self.carry_face_integrals(moved, face, at, false);
+            }
+        }
+    }
+
+    fn carry_face_integrals(
+        &self,
+        moved: &Part,
+        face: usize,
+        at: &crate::step::Placement,
+        from_file: bool,
+    ) {
         let turn = |v: V3| at.map(|r| r[0] * v[0] + r[1] * v[1] + r[2] * v[2]);
         let shift = at.map(|r| r[3]);
         let turn_matrix = |m: [[f64; 3]; 3]| -> [[f64; 3]; 3] {
@@ -2320,38 +2793,17 @@ impl Part {
                 std::array::from_fn(|j| (0..3).map(|k| rm[i][k] * at[j][k]).sum::<f64>())
             })
         };
-        let reference = |part: &Part| {
-            let bounds = part.bounds();
-            let length = geom::dist(bounds.min, bounds.max);
-            (length.is_finite() && length > 0.0).then_some((bounds.centre(), length))
+        let centres = self.integral_reference().zip(moved.integral_reference());
+        let (from, to) = (&self.cache[face], &moved.cache[face]);
+        let raw = self.face_raw_moments(face);
+        self.carry_declared_boundary(face, to, at);
+        let common = |raw: &[f64; 26]| {
+            let mut out = [0.0; 26];
+            out[0] = raw[0];
+            out[1..4].copy_from_slice(&turn([raw[1], raw[2], raw[3]]));
+            out
         };
-        let centres = reference(self).zip(reference(moved));
-        for face in 0..self.faces.len() {
-            // A face the integration budget refused may hold a partial integration: none of
-            // it is carried (the moved part keeps the verdict and refuses the face). A whole
-            // sphere's area and moments are closed forms, not integrals.
-            if self.integration_refused(face)
-                || matches!(self.faces[face].surface, Surface::Sphere { .. })
-                    && self.whole_sphere(face)
-            {
-                continue;
-            }
-            // Every other face's shared integration is carried, made here where it is still
-            // missing, so which faces carry does not depend on what was asked of `self` before.
-            let (from, to) = (&self.cache[face], &moved.cache[face]);
-            let Some(RawMoments {
-                local: Some(local),
-                centre: Some(centre),
-            }) = Some(self.face_raw_moments(face))
-            else {
-                continue;
-            };
-            let common = |raw: &[f64; 26]| {
-                let mut out = [0.0; 26];
-                out[0] = raw[0];
-                out[1..4].copy_from_slice(&turn([raw[1], raw[2], raw[3]]));
-                out
-            };
+        let local = raw.local.and_then(|local| {
             let mut new_local = common(&local);
             match (self.moment_frame(face), moved.moment_frame(face)) {
                 (Some((o, s)), Some((o2, s2))) => {
@@ -2377,45 +2829,52 @@ impl Part {
                 }
                 // No frame in either: the group is unused (`compute_face_moments` refuses).
                 (None, None) => {}
-                _ => continue,
+                _ => return None,
             }
-            let mut new_centre = common(&centre);
-            let Some(((c0, length), (c1, length1))) = centres else {
-                continue;
-            };
-            let m = [new_centre[1], new_centre[2], new_centre[3]];
-            let s = centre[13];
-            let a = turn_matrix(std::array::from_fn(|i| {
-                std::array::from_fn(|j| centre[14 + 3 * i + j])
-            }));
-            let b = turn([centre[23], centre[24], centre[25]]);
-            let d = geom::sub(geom::add(turn(c0), shift), c1);
-            let dm = geom::dot(d, m);
-            let ad = [0, 1, 2].map(|i| geom::dot(a[i], d));
-            new_centre[13] = (length * s + dm) / length1;
-            for i in 0..3 {
-                for j in 0..3 {
-                    new_centre[14 + 3 * i + j] = (length * a[i][j] + d[i] * m[j]) / length1;
+            Some(new_local)
+        });
+        let centre = raw
+            .centre
+            .zip(centres)
+            .map(|(centre, ((c0, length), (c1, length1)))| {
+                let mut new_centre = common(&centre);
+                let m = [new_centre[1], new_centre[2], new_centre[3]];
+                let s = centre[13];
+                let a = turn_matrix(std::array::from_fn(|i| {
+                    std::array::from_fn(|j| centre[14 + 3 * i + j])
+                }));
+                let b = turn([centre[23], centre[24], centre[25]]);
+                let d = geom::sub(geom::add(turn(c0), shift), c1);
+                let dm = geom::dot(d, m);
+                let ad = [0, 1, 2].map(|i| geom::dot(a[i], d));
+                new_centre[13] = (length * s + dm) / length1;
+                for i in 0..3 {
+                    for j in 0..3 {
+                        new_centre[14 + 3 * i + j] = (length * a[i][j] + d[i] * m[j]) / length1;
+                    }
+                    new_centre[23 + i] =
+                        (length * length * b[i] + length * ad[i] + length * s * d[i] + dm * d[i])
+                            / (length1 * length1);
                 }
-                new_centre[23 + i] =
-                    (length * length * b[i] + length * ad[i] + length * s * d[i] + dm * d[i])
-                        / (length1 * length1);
-            }
-            let _ = to.raw_moments.set(RawMoments {
-                local: Some(new_local),
-                centre: Some(new_centre),
+                new_centre
             });
-            // The mass the shared integration selected (and its boundary authority), and the
-            // along-v refusals, go only with the carried integration.
-            if let Some(mass) = from.mass.get()
-                && let Some([area, flux, nx, ny, nz]) = mass.terms
-            {
-                let n = turn([nx, ny, nz]);
+        let complete = local.is_some() && centre.is_some();
+        if complete || !self.measure_trims.is_empty() {
+            if from_file || local.is_some() || centre.is_some() {
+                let _ = to.raw_moments.set(RawMoments { local, centre });
+            }
+            if let Some(mass) = from.mass.get() {
+                let terms = mass.terms.map(|[area, flux, nx, ny, nz]| {
+                    let n = turn([nx, ny, nz]);
+                    [area, flux + geom::dot(shift, n), n[0], n[1], n[2]]
+                });
                 let _ = to.mass.set(FaceMass {
-                    terms: Some([area, flux + geom::dot(shift, n), n[0], n[1], n[2]]),
-                    preferred: mass.preferred,
+                    terms,
+                    method: mass.method,
                 });
             }
+        }
+        if complete {
             from.carry_refusals(to);
         }
     }
@@ -2972,6 +3431,48 @@ mod tests {
         crate::step::read_step_file(&path).unwrap()
     }
 
+    #[test]
+    fn placed_master_integrals_are_lazy_and_metered_in_file_coordinates() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/integration_budget_sheet.step.gz");
+        let mut at = crate::step::IDENTITY;
+        at[0][3] = 5.0;
+        let source = crate::step::read_step_file(&path).unwrap();
+        assert!(!source.measure_trims.is_empty());
+        let face = 2;
+        assert_eq!(source.face_source(face).unwrap().entity, 1315);
+
+        let (moved, work) = evaluations_of(|| source.transformed(&at).unwrap());
+        assert_eq!(work, 0, "a cold transform must not integrate");
+        let (placed, work) =
+            evaluations_of(|| crate::step::read_step_file_placed(&path, &at).unwrap());
+        assert_eq!(work, 0, "a placed read must not integrate");
+        assert!(placed.cache.iter().all(|cache| cache.mass.get().is_none()));
+
+        // The first query does real work on this spline. Queries on the same part reuse it.
+        let (moment, work) = evaluations_of(|| moved.face_moments(face).unwrap());
+        assert!(work > 0, "the requested spline must actually integrate");
+        assert_eq!(moment.area, source.face_moments(face).unwrap().area);
+        assert_eq!(evaluations_of(|| moved.face_mass(face)).1, 0);
+
+        // One evaluation permits entry into quadrature but cannot finish this face.
+        // Start the per-face budget after the placed read, as the serve path does.
+        let budget = 1;
+        let bounded = placed.with_integration_budget(budget);
+        let report = bounded.integration_budget().unwrap();
+        assert_eq!(report.work[face], budget + 1);
+        assert_eq!(
+            report.work,
+            source
+                .with_integration_budget(budget)
+                .integration_budget()
+                .unwrap()
+                .work
+        );
+        assert!(bounded.integration_refused(face));
+        assert_eq!(evaluations_of(|| bounded.face_mass(face)), (None, 0));
+    }
+
     /// A generic proper rigid motion: a turn of 0.7 rad about (1, 2, 3) and a shift.
     fn generic_motion() -> crate::step::Placement {
         let k = geom::unit([1.0, 2.0, 3.0]).unwrap();
@@ -3027,6 +3528,7 @@ mod tests {
     fn rigid_motion_carries_face_integrals_to_round_off() {
         let at = generic_motion();
         let mut kinds = [false; 4];
+        let mut selected = 0;
         for name in ["cast_bearing_unit.step.gz", "rotated_seam_band.step"] {
             let warm = fixture_part(name);
             for fc in &warm.faces {
@@ -3044,10 +3546,24 @@ mod tests {
             let moved = warm.transformed_carrying_integrals(&at).unwrap();
             let (carried, again) = evaluations_of(|| integrate_all(&moved));
             assert_eq!(again, 0, "{name}: a rigid motion integrates nothing again");
-            let fresh = fixture_part(name).transformed(&at).unwrap();
+            // A cold quadrature over the same geometry independently checks the carried
+            // moments. The public STEP transform now carries rather than reintegrating.
+            let fresh = fixture_part(name).transformed_geometry(&at).unwrap();
             let (expected, cost) = evaluations_of(|| integrate_all(&fresh));
             assert!(cost > 0);
             assert_eq!(carried.len(), expected.len());
+            // The boundary choice (the file's selected trim or the projected edges, #317) is
+            // carried with the mass and is the one a cold integration of the moved part makes.
+            let methods = |p: &Part| -> Vec<_> {
+                (0..p.faces.len())
+                    .map(|f| p.cache[f].mass.get().map(|m| m.method))
+                    .collect()
+            };
+            assert_eq!(methods(&moved), methods(&fresh), "{name}: boundary choice");
+            selected += methods(&moved)
+                .iter()
+                .filter(|m| matches!(m, Some(BoundaryMethod::Declared)))
+                .count();
             let mut worst = 0.0f64;
             let mut compared = 0;
             for (k, (got, want)) in carried.iter().zip(&expected).enumerate() {
@@ -3076,6 +3592,10 @@ mod tests {
         assert_eq!(
             kinds, [true; 4],
             "plane, cylinder, B-spline, closed-u B-spline"
+        );
+        assert!(
+            selected > 0,
+            "a face measured on its selected trim was carried"
         );
     }
 
@@ -3112,14 +3632,14 @@ mod tests {
             if let Some(mass) = full.cache[f].mass.get() {
                 let _ = cache.mass.set(FaceMass {
                     terms: mass.terms,
-                    preferred: mass.preferred,
+                    method: mass.method,
                 });
             }
             if let Some(raw) = full.cache[f].raw_moments.get() {
                 let _ = cache.raw_moments.set(*raw);
             }
             if refused.contains(&f) {
-                cache.refuse_trial((27, true));
+                cache.refuse_trial((27, true, false));
             }
         }
         assert!(refused.iter().all(|&f| {
@@ -3139,7 +3659,7 @@ mod tests {
                 cache.mass.get().is_none() && cache.raw_moments.get().is_none(),
                 "face {f}"
             );
-            assert!(!cache.trial_refused((27, true)), "face {f}");
+            assert!(!cache.trial_refused((27, true, false)), "face {f}");
         }
         let (moments, cost) = evaluations_of(|| {
             (0..moved.faces.len())
@@ -3165,7 +3685,7 @@ mod tests {
         let moved = warm.transformed(&at).unwrap();
         assert!(moved.cache.iter().all(|c| c.mass.get().is_none()
             && c.raw_moments.get().is_none()
-            && !c.trial_refused((27, true))));
+            && !c.trial_refused((27, true, false))));
         let (warmed, cost) = evaluations_of(|| integrate_all(&moved));
         assert!(cost > 0);
         let cold = integrate_all(&grooved_solid().transformed(&at).unwrap());
@@ -3236,19 +3756,19 @@ mod tests {
         let _ = part.face_raw_moments(0);
         POISONED_GROUP.with(|g| g.set(None));
         assert!(part.face_raw_moments(0).local.is_none());
-        part.cache[0].refuse_trial((9, true));
+        part.cache[0].refuse_trial((9, true, false));
         let moved = part
             .transformed_carrying_integrals(&generic_motion())
             .unwrap();
         assert!(moved.cache[0].raw_moments.get().is_none());
-        assert!(!moved.cache[0].trial_refused((9, true)));
+        assert!(!moved.cache[0].trial_refused((9, true, false)));
         // Another face, whose integration is carried, carries its refusals with it.
-        part.cache[1].refuse_trial((9, true));
+        part.cache[1].refuse_trial((9, true, false));
         let moved = part
             .transformed_carrying_integrals(&generic_motion())
             .unwrap();
         assert!(moved.cache[1].raw_moments.get().is_some());
-        assert!(moved.cache[1].trial_refused((9, true)));
+        assert!(moved.cache[1].trial_refused((9, true, false)));
     }
 
     /// The along-v refusals and the mass boundary choice survive a rigid motion as they are.
@@ -3256,14 +3776,14 @@ mod tests {
     fn rigid_motion_carries_trial_refusals() {
         let part = crate::step::read_step(steep_in_v_face(4, 160.0).as_bytes()).unwrap();
         let _ = steep_area(&part);
-        assert!(part.cache[0].trial_refused((1, false)));
+        assert!(part.cache[0].trial_refused((1, false, false)));
         let moved = part
             .transformed_carrying_integrals(&generic_motion())
             .unwrap();
-        assert!(moved.cache[0].trial_refused((1, false)));
+        assert!(moved.cache[0].trial_refused((1, false, false)));
         assert_eq!(
-            moved.cache[0].mass.get().map(|m| m.preferred),
-            part.cache[0].mass.get().map(|m| m.preferred)
+            moved.cache[0].mass.get().map(|m| m.method),
+            part.cache[0].mass.get().map(|m| m.method)
         );
     }
 
@@ -3294,7 +3814,7 @@ mod tests {
                     c.mass.get().is_none() && c.raw_moments.get().is_none(),
                     "{what}"
                 );
-                assert!(!c.trial_refused((27, true)), "{what}");
+                assert!(!c.trial_refused((27, true, false)), "{what}");
             }
             let (_, cost) = evaluations_of(|| integrate_all(&cold));
             assert!(cost > 0, "{what} recomputes");
@@ -3531,7 +4051,7 @@ mod tests {
         let unresolved = std::cell::Cell::new(false);
         let (value, n) = evaluations_of(|| {
             let trial = (split > 0).then_some((&unresolved, split));
-            part.integrate_face_legacy_in(0, area, rule, &mut None, trial)
+            part.integrate_boundary_in((0, None, None), area, rule, &mut None, trial)
         });
         (value.unwrap()[0], !unresolved.get(), n)
     }
@@ -3562,7 +4082,7 @@ mod tests {
         let (area, cost) = steep_area(&part);
         assert_eq!(area, fine, "the finer trial's result is the face's");
         assert_eq!(cost, coarse_cost + fine_cost, "both trials ran, no stock");
-        assert!(!part.cache[0].trial_refused((1, false)));
+        assert!(!part.cache[0].trial_refused((1, false, false)));
         // Once the finer trial has passed, a repeat runs the same two trials (nothing refused).
         assert_eq!(steep_area(&part).1, cost);
     }
@@ -3575,10 +4095,13 @@ mod tests {
         POISONED_GROUP.with(|g| g.set(Some(true)));
         let _ = part.face_moments(0);
         POISONED_GROUP.with(|g| g.set(None));
-        assert!(part.cache[0].trial_refused((27, true)), "the joint refusal");
+        assert!(
+            part.cache[0].trial_refused((27, true, false)),
+            "the joint refusal"
+        );
         // The fallbacks integrate at width 26 (the groups' own, unobserved).
         assert!(
-            !part.cache[0].trial_refused((26, false)),
+            !part.cache[0].trial_refused((26, false, false)),
             "no group refusal"
         );
     }
@@ -3591,7 +4114,7 @@ mod tests {
         let (first, second) = ([0.0, 0.0, 1.0], [0.0, 0.6, 0.8]);
         let warm = part();
         assert!(warm.face_projected_moments(0, first).is_some());
-        assert!(!warm.cache[0].trial_refused((9, true)));
+        assert!(!warm.cache[0].trial_refused((9, true, false)));
         let (warm_result, warm_cost) = evaluations_of(|| warm.face_projected_moments(0, second));
         // The same call on a part that only integrated the face's moments, so that mass is
         // cached as in `warm` and no projected refusal exists: its trials run.
@@ -3617,17 +4140,17 @@ mod tests {
         let (_, fine_ok, fine_cost) = steep_trial(&part, REFINED_PANELS);
         let (stock, _, stock_cost) = steep_trial(&part, 0);
         assert!(!coarse_ok && !fine_ok);
-        assert!(!part.cache[0].trial_refused((1, false)));
+        assert!(!part.cache[0].trial_refused((1, false, false)));
 
         let (area, first) = steep_area(&part);
         assert_eq!(area, stock);
         assert_eq!(first, coarse_cost + fine_cost + stock_cost);
-        assert!(part.cache[0].trial_refused((1, false)));
+        assert!(part.cache[0].trial_refused((1, false, false)));
         let (area, second) = steep_area(&part);
         assert_eq!(area, stock);
         assert_eq!(second, stock_cost, "no trial on the second integration");
         // Another consumer's integrand (another width) has not been refused yet.
-        assert!(!part.cache[0].trial_refused((5, false)));
+        assert!(!part.cache[0].trial_refused((5, false, false)));
         let exact = steep_exact(degree, height);
         assert!((stock - exact).abs() < 1e-9 * exact, "{stock} vs {exact}");
     }
@@ -3941,7 +4464,7 @@ mod tests {
         let part = crate::step::read_step(text.as_bytes()).unwrap();
         INTEGRAND_EVALUATIONS.with(|n| n.set(0));
         let stock = part
-            .integrate_face_legacy_in(0, area, rule, &mut None, None)
+            .integrate_boundary_in((0, None, None), area, rule, &mut None, None)
             .unwrap()[0];
 
         let stock = (stock, INTEGRAND_EVALUATIONS.with(|n| n.get()));
@@ -3988,7 +4511,9 @@ mod tests {
 
     /// A closed-in-u face whose loops wind round u is not read by the cheaper form (its
     /// parameters wrap at the seam, so such a loop looks closed): the form refuses it, and the
-    /// face takes the path it always took (which, for this synthetic face, integrates nothing).
+    /// face takes the stock form. That form counts a loop's turns by its summed steps on the
+    /// nearest branch (#317), so it now reads the two rings as winding round u and measures the
+    /// band exactly (before #317 it integrated nothing here).
     #[test]
     fn a_closed_in_u_face_winding_round_u_keeps_the_stock_form() {
         let n = 96;
@@ -4001,14 +4526,26 @@ mod tests {
         };
         let unresolved = std::cell::Cell::new(false);
         assert!(
-            part.integrate_face_legacy_in(0, area, rule, &mut None, Some((&unresolved, 1)))
-                .is_none(),
+            part.integrate_boundary_in(
+                (0, None, None),
+                area,
+                rule,
+                &mut None,
+                Some((&unresolved, 1))
+            )
+            .is_none(),
             "the cheaper form must refuse a winding loop"
         );
-        // As before the cheaper form existed, the stock form does not integrate this face
-        // (its loops close at the seam, and no area results).
-        let stock = part.integrate_face_legacy_in(0, area, rule, &mut None, None);
-        assert!(stock.is_none_or(|y| y[0] == 0.0), "{stock:?}");
-        assert!(part.face_moments(0).is_none());
+        let (exact, _) = prism_exact(n, 0..n, true);
+        let stock = part.integrate_boundary_in((0, None, None), area, rule, &mut None, None);
+        assert!(
+            stock.is_some_and(|y| (y[0] - exact).abs() < 1e-12 * exact),
+            "{stock:?} vs {exact}"
+        );
+        let moments = part.face_moments(0).map(|m| m.area);
+        assert!(
+            moments.is_some_and(|a| (a - exact).abs() < 1e-12 * exact),
+            "{moments:?} vs {exact}"
+        );
     }
 }

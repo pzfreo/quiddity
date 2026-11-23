@@ -130,6 +130,107 @@ pub(crate) enum RawCurve2d {
         knots: Vec<f64>,
         weights: Option<Vec<f64>>,
     },
+    Conic {
+        origin: [f64; 2],
+        reference: Option<[f64; 2]>,
+        major: f64,
+        minor: Option<f64>,
+    },
+}
+
+#[derive(Clone, Debug)]
+pub(super) enum TrimCarrier {
+    Faces(Vec<usize>),
+    Detached(Box<Surface>),
+}
+
+impl RawCurve2d {
+    /// Change units independently on the two parameter axes. Unequal scaling
+    /// of a rotated conic is represented by its exact rational quadrants.
+    pub(crate) fn scaled(&self, su: f64, sv: f64) -> Option<RawCurve2d> {
+        let scale = |[u, v]: [f64; 2]| [u * su, v * sv];
+        if !su.is_finite() || !sv.is_finite() || su <= 0. || sv <= 0. {
+            return None;
+        }
+        Some(match self {
+            Self::Line {
+                point,
+                direction,
+                magnitude,
+            } => {
+                let norm = direction[0].hypot(direction[1]);
+                if !norm.is_finite() || norm == 0. || !magnitude.is_finite() || *magnitude <= 0. {
+                    return None;
+                }
+                let d = scale([direction[0] / norm, direction[1] / norm]);
+                let factor = d[0].hypot(d[1]);
+                RawCurve2d::Line {
+                    point: scale(*point),
+                    direction: [d[0] / factor, d[1] / factor],
+                    magnitude: magnitude * factor,
+                }
+            }
+            Self::BSpline {
+                degree,
+                points,
+                multiplicities,
+                knots,
+                weights,
+            } => RawCurve2d::BSpline {
+                degree: *degree,
+                points: points.iter().copied().map(scale).collect(),
+                multiplicities: multiplicities.clone(),
+                knots: knots.clone(),
+                weights: weights.clone(),
+            },
+            Self::Conic {
+                origin,
+                reference,
+                major,
+                minor,
+            } => {
+                let [x, y] = reference.unwrap_or([1., 0.]);
+                let n = x.hypot(y);
+                let b = minor.unwrap_or(*major);
+                if !n.is_finite()
+                    || n == 0.
+                    || !major.is_finite()
+                    || *major <= 0.
+                    || !b.is_finite()
+                    || b <= 0.
+                {
+                    return None;
+                }
+                let controls = [
+                    (1., 0.),
+                    (1., 1.),
+                    (0., 1.),
+                    (-1., 1.),
+                    (-1., 0.),
+                    (-1., -1.),
+                    (0., -1.),
+                    (1., -1.),
+                    (1., 0.),
+                ];
+                let points = controls
+                    .map(|(a, c)| {
+                        scale([
+                            origin[0] + (a * *major * x - c * b * y) / n,
+                            origin[1] + (a * *major * y + c * b * x) / n,
+                        ])
+                    })
+                    .to_vec();
+                let w = std::f64::consts::FRAC_1_SQRT_2;
+                RawCurve2d::BSpline {
+                    degree: 2,
+                    points,
+                    multiplicities: vec![3, 2, 2, 2, 3],
+                    knots: vec![0., 1., 2., 3., 4.],
+                    weights: Some(vec![1., w, 1., w, 1., w, 1., w, 1.]),
+                }
+            }
+        })
+    }
 }
 
 /// A swept surface's profile curve as the file states it.
@@ -223,22 +324,27 @@ type Native<T> = (Option<std::sync::Arc<T>>, std::sync::Arc<GeometryPlacement>);
 /// Per-face values derived from the geometry, computed on first use.
 #[derive(Debug, Default)]
 pub(super) struct FaceCache {
+    pub(super) carrier: OnceLock<std::sync::Arc<Surface>>,
+    pub(super) declared: OnceLock<Option<Box<crate::mass::DeclaredBoundary>>>,
+    pub(super) preferred_paths: OnceLock<Option<Box<crate::mass::PreferredPaths>>>,
     pub(super) uv_loops: OnceLock<Option<Vec<UvLoop>>>,
     pub(super) domain: OnceLock<Option<FaceDomain>>,
     pub(super) bounds: OnceLock<Bounds>,
     pub(super) mass: OnceLock<super::mass::FaceMass>,
     pub(super) moments: OnceLock<Option<super::mass::FaceMoments>>,
     pub(super) raw_moments: OnceLock<super::mass::RawMoments>,
+    pub(super) file_integrals_carried: OnceLock<()>,
     pub(super) edge_deviation: OnceLock<Vec<(usize, f64)>>,
     pub(super) uv_bounds: OnceLock<Option<(f64, f64, f64, f64)>>,
     pub(super) recovered: OnceLock<Option<Surface>>,
-    /// (integrand width, whether mass was observed) of the integrations whose cheaper along-v
-    /// trials were both refused: only integrands the face and the pair identify.
-    refused_trials: std::sync::Mutex<Vec<(usize, bool)>>,
+    /// (integrand width, whether mass was observed, whether the loops are the file's selected
+    /// trim rather than the projected 3D edges) of the integrations whose cheaper along-v
+    /// trials were both refused: only integrands the face and the triple identify.
+    refused_trials: std::sync::Mutex<Vec<(usize, bool, bool)>>,
 }
 
 impl FaceCache {
-    pub(super) fn trial_refused(&self, key: (usize, bool)) -> bool {
+    pub(super) fn trial_refused(&self, key: (usize, bool, bool)) -> bool {
         self.refused_trials
             .lock()
             .is_ok_and(|refused| refused.contains(&key))
@@ -251,7 +357,7 @@ impl FaceCache {
         }
     }
 
-    pub(super) fn refuse_trial(&self, key: (usize, bool)) {
+    pub(super) fn refuse_trial(&self, key: (usize, bool, bool)) {
         if let Ok(mut refused) = self.refused_trials.lock()
             && !refused.contains(&key)
         {
@@ -382,6 +488,13 @@ pub struct Part {
     file_pcurves: std::collections::BTreeMap<usize, Vec<(usize, RawCurve2d)>>,
     // Slots in file_pcurves explicitly selected as the master representation by STEP.
     primary_pcurves: std::collections::BTreeMap<usize, Vec<usize>>,
+    // An entry with no operand records an unreadable S1/S2: the whole face falls back.
+    pub(super) measure_trims: std::collections::BTreeMap<usize, Option<(TrimCarrier, RawCurve2d)>>,
+    pub(super) measure_uncertainty: std::collections::BTreeMap<usize, f64>,
+    pub(super) boundary_policy: super::mass::BoundaryPolicy,
+    pub(super) master_deviations: OnceLock<super::mass::EdgeDeviations>,
+    recognition_view: OnceLock<std::sync::Arc<Part>>,
+    pub(super) outer_bounds: std::collections::BTreeMap<usize, usize>,
     // The file's length and plane angle units in millimetres and radians.
     file_units: Option<(f64, f64)>,
     declared_length_unit: Option<crate::pmi::LengthUnit>,
@@ -392,6 +505,9 @@ pub struct Part {
     native_edges: Vec<Native<Edge>>,
     // The per-face integration budget this part was measured against; carried by transforms.
     pub(super) integration_budget: Option<std::sync::Arc<super::mass::IntegrationBudget>>,
+    // Keep the file-frame inputs so successive rigid motions only round the integrals once.
+    pub(super) integral_origin: Option<super::mass::IntegralOrigin>,
+    pub(super) integral_reference: OnceLock<Option<(V3, f64)>>,
 }
 
 impl Part {
@@ -424,6 +540,12 @@ impl Part {
             swept: Default::default(),
             file_pcurves: Default::default(),
             primary_pcurves: Default::default(),
+            measure_trims: Default::default(),
+            measure_uncertainty: Default::default(),
+            boundary_policy: Default::default(),
+            master_deviations: OnceLock::new(),
+            recognition_view: OnceLock::new(),
+            outer_bounds: Default::default(),
             file_units: None,
             declared_length_unit: None,
             file_uncertainty: None,
@@ -431,11 +553,17 @@ impl Part {
             native_faces: Vec::new(),
             native_edges: Vec::new(),
             integration_budget: None,
+            integral_origin: None,
+            integral_reference: OnceLock::new(),
         }
     }
 
-    /// The same part with fresh query caches: every field copied, nothing derived carried.
+    /// The same part with fresh measurement caches and any resolved STEP master intervals.
     pub(super) fn fresh_copy(&self) -> Self {
+        self.copy_with_boundary(self.boundary_policy)
+    }
+
+    fn copy_with_boundary(&self, policy: super::mass::BoundaryPolicy) -> Self {
         let mut part = Self::new(self.faces.clone(), self.edges.clone(), self.solids.clone());
         part.unresolved_faces = self.unresolved_faces.clone();
         part.unresolved_edges = self.unresolved_edges.clone();
@@ -451,23 +579,181 @@ impl Part {
         part.swept = self.swept.clone();
         part.file_pcurves = self.file_pcurves.clone();
         part.primary_pcurves = self.primary_pcurves.clone();
+        part.measure_trims = self.measure_trims.clone();
+        part.measure_uncertainty = self.measure_uncertainty.clone();
+        part.outer_bounds = self.outer_bounds.clone();
         part.file_units = self.file_units;
         part.declared_length_unit = self.declared_length_unit.clone();
         part.file_uncertainty = self.file_uncertainty;
         part.angle_uncertainty = self.angle_uncertainty;
         part.native_faces = self.native_faces.clone();
         part.native_edges = self.native_edges.clone();
-        part.integration_budget = self.integration_budget.clone();
+        part.boundary_policy = policy;
+        if policy == self.boundary_policy {
+            part.integration_budget = self.integration_budget.clone();
+            part.integral_origin = self.integral_origin.clone();
+            part.master_deviations = self.master_deviations.clone();
+            for (face, to) in part.cache.iter().enumerate() {
+                self.carry_declared_boundary(face, to, &super::step::IDENTITY);
+            }
+        } else {
+            part.integral_origin = self
+                .integral_origin
+                .as_ref()
+                .map(super::mass::IntegralOrigin::for_recognition);
+        }
+        part
+    }
+
+    /// Geometry with its own recognition caches, for quiddity's inventory and frame.
+    /// Public mass queries on the original part keep their STEP boundary.
+    #[doc(hidden)]
+    pub fn recognition_part(&self) -> &Self {
+        if self.boundary_policy != super::mass::BoundaryPolicy::Master
+            || self.measure_trims.is_empty()
+        {
+            return self;
+        }
+        self.recognition_view.get_or_init(|| {
+            let part = self.copy_with_boundary(super::mass::BoundaryPolicy::Recognition);
+            std::sync::Arc::new(match &self.integration_budget {
+                Some(budget) => part.with_integration_budget(budget.limit),
+                None => part,
+            })
+        })
+    }
+
+    pub(super) fn recognition_source(&self) -> std::sync::Arc<Self> {
+        self.recognition_part();
+        self.recognition_view
+            .get()
+            .cloned()
+            .unwrap_or_else(|| std::sync::Arc::new(self.copy_integral_source()))
+    }
+
+    /// Use the recognition caches for a newly loaded STEP part without cloning its geometry.
+    #[doc(hidden)]
+    pub fn into_recognition_part(mut self) -> Self {
+        if self.boundary_policy != super::mass::BoundaryPolicy::Master
+            || self.measure_trims.is_empty()
+        {
+            return self;
+        }
+        self.cache = self.faces.iter().map(|_| FaceCache::default()).collect();
+        self.boundary_policy = super::mass::BoundaryPolicy::Recognition;
+        self.integral_origin = self
+            .integral_origin
+            .as_ref()
+            .map(super::mass::IntegralOrigin::for_recognition);
+        self.recognition_view = OnceLock::new();
+        match self.integration_budget.take() {
+            Some(budget) => self.with_integration_budget(budget.limit),
+            None => self,
+        }
+    }
+
+    /// Reindex this part's faces, carrying their STEP provenance and master boundaries.
+    /// `order[new]` is the old face index and must be a permutation of all faces.
+    pub fn with_faces_in_order(&self, order: &[usize]) -> Option<Self> {
+        if order.len() != self.faces.len() {
+            return None;
+        }
+        let mut index = vec![usize::MAX; order.len()];
+        for (new, &old) in order.iter().enumerate() {
+            if std::mem::replace(index.get_mut(old)?, new) != usize::MAX {
+                return None;
+            }
+        }
+        let mut part = self.fresh_copy();
+        let remap = |old: usize| index[old];
+        part.faces = reorder(&self.faces, order);
+        part.cache = order.iter().map(|_| FaceCache::default()).collect();
+        for (new, &old) in order.iter().enumerate() {
+            self.carry_declared_boundary(old, &part.cache[new], &super::step::IDENTITY);
+        }
+        for solid in &mut part.solids {
+            for face in &mut solid.faces {
+                *face = remap(*face);
+            }
+        }
+        part.face_sources = reorder(&self.face_sources, order);
+        part.native_faces = reorder(&self.native_faces, order);
+        part.pcurve_splines = reorder(&self.pcurve_splines, order);
+        if let Some(origin) = &self.integral_origin {
+            part.integral_origin = Some(origin.with_faces_in_order(order)?);
+        }
+        part.face_frames = remap_keys(part.face_frames, &index);
+        part.swept = remap_keys(part.swept, &index);
+        part.file_pcurves = remap_keys(part.file_pcurves, &index);
+        part.primary_pcurves = remap_keys(part.primary_pcurves, &index);
+        part.outer_bounds = remap_keys(part.outer_bounds, &index);
+        part.measure_uncertainty = remap_keys(part.measure_uncertainty, &index);
+        for (carrier, _) in part.measure_trims.values_mut().flatten() {
+            if let TrimCarrier::Faces(owners) = carrier {
+                for face in owners {
+                    *face = remap(*face);
+                }
+            }
+        }
+        let remap_sorted = |faces: &mut Vec<usize>| {
+            for face in faces.iter_mut() {
+                *face = remap(*face);
+            }
+            faces.sort_unstable();
+        };
+        remap_sorted(&mut part.unresolved_faces);
+        if let Some(budget) = &mut part.integration_budget {
+            let budget = std::sync::Arc::make_mut(budget);
+            budget.work = reorder(&budget.work, order);
+            remap_sorted(&mut budget.refused);
+        }
+        Some(part)
+    }
+
+    pub(super) fn repair_import_orientation(mut self) -> Self {
+        if self.measure_trims.is_empty() {
+            return self.repair_inverted_shells();
+        }
+        self.boundary_policy = super::mass::BoundaryPolicy::Projected;
+        let mut part = self.repair_inverted_shells();
+        part.boundary_policy = super::mass::BoundaryPolicy::Master;
+        for cache in &mut part.cache {
+            if cache.mass.get().is_some() || cache.declared.get().is_some() {
+                *cache = FaceCache::default();
+            }
+        }
         part
     }
 
     /// Copy this loaded part through a finite proper rigid motion, without reading STEP.
     /// Face, edge, solid, vertex and source indices and parameter-space curves are preserved.
-    /// Derived boxes, quadratures, inversion grids and classification caches are invalidated
-    /// and rebuilt lazily from the transformed geometry; no cached caller-space data survives.
-    /// Imported native primitives and their placement chains are retained so composition
-    /// precedes coordinate rounding, including on a part transformed more than once.
+    /// Caller-space geometry caches are rebuilt lazily. For parts with STEP master pcurves,
+    /// the resolved boundaries and integrals come from the source coordinates on demand.
+    /// Successive placements compose before applying the motion to native primitives or
+    /// source integrals, avoiding intermediate rounding in both.
     pub fn transformed(
+        &self,
+        placement: &super::step::Placement,
+    ) -> Result<Self, super::step::StepError> {
+        let mut part = self.transformed_geometry(placement)?;
+        if !self.measure_trims.is_empty() {
+            part.integral_origin = Some(self.placed_integral_origin(placement));
+        }
+        Ok(part)
+    }
+
+    pub(super) fn into_file_placement(
+        self,
+        placement: &super::step::Placement,
+    ) -> Result<Self, super::step::StepError> {
+        let mut part = self.transformed_geometry(placement)?;
+        if !self.measure_trims.is_empty() {
+            part.integral_origin = Some(super::mass::IntegralOrigin::new(self, *placement));
+        }
+        Ok(part)
+    }
+
+    pub(crate) fn transformed_geometry(
         &self,
         placement: &super::step::Placement,
     ) -> Result<Self, super::step::StepError> {
@@ -658,12 +944,17 @@ impl Part {
         part.swept = self.swept.clone();
         part.file_pcurves = self.file_pcurves.clone();
         part.primary_pcurves = self.primary_pcurves.clone();
+        part.measure_trims = self.measure_trims.clone();
+        part.measure_uncertainty = self.measure_uncertainty.clone();
+        part.outer_bounds = self.outer_bounds.clone();
         part.file_units = self.file_units;
         part.declared_length_unit = self.declared_length_unit.clone();
         part.file_uncertainty = self.file_uncertainty;
         part.angle_uncertainty = self.angle_uncertainty;
         part.native_faces = native_faces;
         part.native_edges = native_edges;
+        part.boundary_policy = self.boundary_policy;
+        part.master_deviations = self.master_deviations.clone();
         part.integration_budget = self.integration_budget.clone();
         Ok(part)
     }
@@ -685,7 +976,7 @@ impl Part {
         &self,
         placement: &super::step::Placement,
     ) -> Result<Self, super::step::StepError> {
-        let part = self.transformed(placement)?;
+        let part = self.transformed_geometry(placement)?;
         self.carry_integrals(&part, placement);
         Ok(part)
     }
@@ -1023,6 +1314,7 @@ impl Part {
     }
 
     pub(super) fn record_inverted_shell_repair(&mut self, solid: usize, reverse_wires: bool) {
+        self.integral_origin = None;
         self.input_repairs
             .push(format!("solid {solid}: inverted closed shell repaired"));
         // Domains can use the face sense to choose a periodic band; no derived answer from
@@ -1044,20 +1336,36 @@ impl Part {
         self.ray_edges = OnceLock::new();
     }
 
-    pub(super) fn record_mixed_normal_repair(&mut self, solid: usize, flips: &[usize]) {
-        self.input_repairs.push(format!(
-            "solid {solid}: mixed face senses repaired ({} faces)",
-            flips.len()
-        ));
-        for &f in &self.solids[solid].faces {
-            if flips.contains(&f) {
-                self.faces[f].reversed = !self.faces[f].reversed;
+    /// Test the proposed face senses with all STEP boundary declarations in place.
+    /// A rejected repair restores the original senses and invalidates its trial queries.
+    pub(super) fn try_mixed_normal_repair(
+        &mut self,
+        solid: usize,
+        flips: &[usize],
+        proved: impl FnOnce(&Self) -> bool,
+    ) {
+        let toggle = |part: &mut Self| {
+            for &f in flips {
+                part.faces[f].reversed = !part.faces[f].reversed;
             }
-            self.cache[f] = FaceCache::default();
+            for &f in &part.solids[solid].faces {
+                part.cache[f] = FaceCache::default();
+            }
+            part.bad_faces = OnceLock::new();
+            part.ray_face_boxes = OnceLock::new();
+            part.ray_edges = OnceLock::new();
+        };
+        let original_origin = self.integral_origin.take();
+        toggle(self);
+        if proved(self) {
+            self.input_repairs.push(format!(
+                "solid {solid}: mixed face senses repaired ({} faces)",
+                flips.len()
+            ));
+        } else {
+            toggle(self);
+            self.integral_origin = original_origin;
         }
-        self.bad_faces = OnceLock::new();
-        self.ray_face_boxes = OnceLock::new();
-        self.ray_edges = OnceLock::new();
     }
 
     /// The face's axis-aligned box: its boundary plus any interior axis extremes.
@@ -1530,6 +1838,23 @@ impl Part {
         let first = roots.next().map(|f| root(&mut set, f));
         roots.all(|f| Some(root(&mut set, f)) == first)
     }
+}
+
+fn reorder<T: Clone>(items: &[T], order: &[usize]) -> Vec<T> {
+    order
+        .iter()
+        .filter_map(|&old| items.get(old).cloned())
+        .collect()
+}
+
+fn remap_keys<T>(
+    values: std::collections::BTreeMap<usize, T>,
+    index: &[usize],
+) -> std::collections::BTreeMap<usize, T> {
+    values
+        .into_iter()
+        .map(|(old, value)| (index[old], value))
+        .collect()
 }
 
 /// Bit-equal defining geometry, for [`Part::same_brep`].

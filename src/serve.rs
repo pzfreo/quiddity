@@ -216,8 +216,9 @@ fn recognise_bytes_placed(
         decode_step_file_bytes(std::path::Path::new(path), bytes)
             .map_err(|e| read_failure(path, &e))?
     };
-    let mut part =
-        read_step_placed_owned(step_bytes, placement).map_err(|e| read_failure(path, &e))?;
+    let mut part = read_step_placed_owned(step_bytes, placement)
+        .map_err(|e| read_failure(path, &e))?
+        .into_recognition_part();
     if let Some(limit) = options.integration_budget {
         part = part.with_integration_budget(limit);
     }
@@ -592,6 +593,29 @@ pub fn serve(mut input: impl BufRead, mut output: impl Write) -> io::Result<()> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_placed_step_recognition_spends_only_its_source_frame_budget() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/integration_budget_sheet.step.gz");
+        let path = path.to_str().unwrap();
+        let mut translated = IDENTITY;
+        translated[0][3] = 5.0;
+        // Permit entry into quadrature while forcing the expensive face to stop.
+        let options = RecognitionOptions {
+            integration_budget: Some(1),
+        };
+        let (file, _, _, _) = recognise_step_document(path, &IDENTITY, &options).unwrap();
+        let (placed, _, doc, _) = recognise_step_document(path, &translated, &options).unwrap();
+        let work = placed.integration_budget().unwrap();
+        let face = 2;
+        assert_eq!(placed.face_source(face).unwrap().entity, 1315);
+        assert_eq!(work.work, file.integration_budget().unwrap().work);
+        assert!(work.work.iter().all(|&units| units <= work.limit + 1));
+        assert_eq!(work.work[face], work.limit + 1);
+        assert!(doc.budget.unwrap().refused_faces.contains(&face));
+        assert!(placed.face_moments(face).is_none());
+    }
 
     #[test]
     fn a_whole_projection_refusal_is_reported_without_a_feature_evidence_warning() {

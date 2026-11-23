@@ -5,7 +5,8 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use quiddity::kernel::brep::{Part, Solid};
+use quiddity::kernel::brep::Part;
+use quiddity::kernel::step::read_step_file_placed;
 use quiddity::recognition::{FaceAccounting, RecognitionDocument};
 use quiddity::{RecognitionOptions, read_step_file};
 use serde_json::Value;
@@ -60,7 +61,8 @@ fn document(path: &Path, budget: Option<u64>) -> RecognitionDocument {
 #[test]
 fn only_the_expensive_face_is_refused() {
     let path = fixture(EXPENSIVE);
-    let part = read_step_file(&path).unwrap();
+    let part = read_step_file(&path).unwrap().into_recognition_part();
+    // Pick the midpoint from the same boundary policy the recognition entry point uses.
     let (face, budget) = expensive_face(&part);
     let budgeted = part.with_integration_budget(budget);
     let report = budgeted.integration_budget().unwrap();
@@ -115,36 +117,26 @@ fn only_the_expensive_face_is_refused() {
     );
 }
 
-/// The faces of *part* in the order `order` (new face i is old face `order[i]`), one solid.
-fn reordered(part: &Part, order: &[usize]) -> Part {
-    let mut position = vec![0; order.len()];
-    for (new, &old) in order.iter().enumerate() {
-        position[old] = new;
-    }
-    let faces = order.iter().map(|&old| part.faces[old].clone()).collect();
-    let solids = part
-        .solids
-        .iter()
-        .map(|s| {
-            let mut solid: Solid = s.clone();
-            solid.faces = s.faces.iter().map(|&f| position[f]).collect();
-            solid
-        })
-        .collect();
-    Part::new(faces, part.edges.clone(), solids)
-}
-
 #[test]
 fn the_verdict_follows_the_face_not_its_order_or_placement() {
     let part = read_step_file(&fixture(EXPENSIVE)).unwrap();
-    let (face, budget) = expensive_face(&part);
+    for policy in [&part, part.recognition_part()] {
+        check_verdict_under_order_and_placement(policy);
+    }
+}
+
+fn check_verdict_under_order_and_placement(part: &Part) {
+    let (face, budget) = expensive_face(part);
     let n = part.faces.len();
 
     // Face order: each face's work is its own, wherever it is listed.
-    let forward = reordered(&part, &(0..n).collect::<Vec<_>>());
+    let forward = part
+        .with_faces_in_order(&(0..n).collect::<Vec<_>>())
+        .unwrap();
     let reverse_order: Vec<usize> = (0..n).rev().collect();
-    let reversed = reordered(&part, &reverse_order);
+    let reversed = part.with_faces_in_order(&reverse_order).unwrap();
     let (a, b) = (work(&forward), work(&reversed));
+    assert_eq!(a, work(part));
     for (new, &old) in reverse_order.iter().enumerate() {
         assert_eq!(b[new], a[old], "face {old}");
     }
@@ -226,12 +218,53 @@ fn a_budget_that_refuses_nothing_reports_an_empty_list() {
     let plain = document(&path, None);
     assert_eq!(doc.records, plain.records);
     assert_eq!(doc.frame, plain.frame);
+
+    // A source-frame centroid can move the placed rise of #890 below the
+    // exact structural ramp cutoff, dropping its riser despite no refusals.
+    let [x, y] = [0.6, 0.8];
+    let (s, c) = 2.5e-9_f64.sin_cos();
+    let t = 1.0 - c;
+    let placement = [
+        [t * x * x + c, t * x * y, s * y, 0.0],
+        [t * x * y, t * y * y + c, -s * x, 0.0],
+        [-s * y, s * x, c, 0.0],
+    ];
+    let placed = read_step_file_placed(
+        &fixture("golden_triangular_and_hex_pockets.step"),
+        &placement,
+    )
+    .unwrap();
+    let plain = quiddity::recognition::document(
+        &quiddity::recognise_with(&placed, &options(None)),
+        placed.faces.len(),
+    );
+    let mut budgeted = quiddity::recognition::document(
+        &quiddity::recognise_with(&placed, &options(Some(u64::MAX))),
+        placed.faces.len(),
+    );
+    assert!(budgeted.budget.take().unwrap().refused_faces.is_empty());
+    let risers = |doc: &RecognitionDocument| {
+        doc.records
+            .iter()
+            .filter(|r| r.family == "risers")
+            .flat_map(|r| r.faces.iter().copied())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        risers(&budgeted),
+        risers(&plain),
+        "placed risers with an ample budget"
+    );
+    assert!(
+        serde_json::to_value(&budgeted).unwrap() == serde_json::to_value(&plain).unwrap(),
+        "a budget that refuses nothing must preserve the placed document"
+    );
 }
 
 #[test]
 fn the_command_line_takes_a_budget() {
     let path = fixture(EXPENSIVE);
-    let part = read_step_file(&path).unwrap();
+    let part = read_step_file(&path).unwrap().into_recognition_part();
     let (face, budget) = expensive_face(&part);
     let run = |args: &[&str]| {
         let out = Command::new(env!("CARGO_BIN_EXE_quiddity"))
@@ -270,7 +303,7 @@ fn the_command_line_takes_a_budget() {
 #[test]
 fn serve_manifest_and_json_fingerprints_honour_the_budget() {
     let path = fixture(EXPENSIVE);
-    let part = read_step_file(&path).unwrap();
+    let part = read_step_file(&path).unwrap().into_recognition_part();
     let (face, budget) = expensive_face(&part);
     let dir = tempfile::tempdir().unwrap();
     // The manifest reads uncompressed sources by ranges.

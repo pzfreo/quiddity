@@ -839,6 +839,49 @@
     "reason": "Independent reference: known_face_areas.json now settles face 397 (Rust area 8.08412885145 mm\u00b2) as rust-correct using exact-surface integration over the 3D boundary (tools/kernel_evidence.py / tools/face_area_evidence.py), rather than the captured fixed Gauss rule. The old reason referred to their superseded undetermined area verdicts. The perimeter is not an unresolved component of this entry; the difference follows these areas. Thus the derived controlling length min(sqrt(area),2*area/perimeter) is rust-correct."
   },
   {
+    "faces": [
+      16,
+      17,
+      21,
+      25,
+      353,
+      354,
+      421,
+      574,
+      603,
+      930,
+      946,
+      957,
+      962,
+      994,
+      1005,
+      1021,
+      1038,
+      1046,
+      1057,
+      1230,
+      1231,
+      1232,
+      1233,
+      1234,
+      1236,
+      1238,
+      1239,
+      1333,
+      1516,
+      2024,
+      2049,
+      2074,
+      2091,
+      2094,
+      2099
+    ],
+    "field": "nominal",
+    "file": "cadgenbench_inputs/cgb202.step.gz",
+    "reason": "Boundary source differs: the nominal uses the STEP-selected boundary for area and perimeter, while OpenCascade's capture uses its measured face area and 3D edge lengths. A separate check of the selected-boundary length is pending.",
+    "verdict": "undetermined"
+  },
+  {
     "file": "cadgenbench_inputs/cgb203.step",
     "field": "nominal",
     "faces": [
@@ -1178,6 +1221,18 @@
     "reason": "Independent raw-STEP reference: tools/perimeter_evidence.py converts the original EDGE_CURVEs and VERTEX_POINTs with StepToGeom, without TransferRoots or healing, and integrates exact-curve speed between closest feet at 1e-9 and 1e-11. Face 154: perimeter 4.8970347824453 mm, absolute Rust residual <= 2.7e-15 mm. The ellipse on face 154 spans parameters 3.988586340605 to 4.171289454427, giving arc length 2.135088823587; the raw line is 0.765756390000 mm. known_face_areas.json independently establishes the areas (3D-boundary Green integration / direct slices). Both inputs to min(sqrt(area),2*area/perimeter) therefore support Rust; the former undetermined reason predated the ellipse-foot correction."
   },
   {
+    "faces": [
+      47,
+      80,
+      137,
+      172
+    ],
+    "field": "nominal",
+    "file": "cadgenbench_inputs/cgb207.step",
+    "reason": "Boundary source differs: the nominal uses the STEP-selected boundary for area and perimeter, while OpenCascade's capture uses its measured face area and 3D edge lengths. A separate check of the selected-boundary length is pending.",
+    "verdict": "undetermined"
+  },
+  {
     "file": "cadgenbench_inputs/cgb217.step.gz",
     "field": "nominal",
     "faces": [
@@ -1297,6 +1352,17 @@
     ],
     "verdict": "rust-wrong",
     "reason": "The nominal follows the face's area, which differs from OpenCascade's face.area: known_face_areas.json lists this face (rust-wrong)."
+  },
+  {
+    "faces": [
+      94,
+      104,
+      312
+    ],
+    "field": "nominal",
+    "file": "cadgenbench_inputs/cgb217.step.gz",
+    "reason": "Boundary source differs: the nominal uses the STEP-selected boundary for area and perimeter, while OpenCascade's capture uses its measured face area and 3D edge lengths. A separate check of the selected-boundary length is pending.",
+    "verdict": "undetermined"
   },
   {
     "file": "cadgenbench_inputs/cgb241.step",
@@ -1717,6 +1783,37 @@
     "reason": "Independent reference: known_face_areas.json now settles face 790 (Rust area 1.72886110671 mm\u00b2), face 822 (Rust area 1.72886110671 mm\u00b2) as rust-correct using exact-surface integration over the 3D boundary (tools/kernel_evidence.py / tools/face_area_evidence.py), rather than the captured fixed Gauss rule. The old reason referred to their superseded undetermined area verdicts. The perimeter is not an unresolved component of this entry; the difference follows these areas. Thus the derived controlling length min(sqrt(area),2*area/perimeter) is rust-correct."
   },
   {
+    "faces": [
+      65,
+      85,
+      124,
+      366,
+      368,
+      390,
+      440,
+      448,
+      457,
+      477,
+      514,
+      556,
+      724,
+      731,
+      740,
+      745,
+      754,
+      793,
+      798,
+      812,
+      817,
+      825,
+      868
+    ],
+    "field": "nominal",
+    "file": "cadgenbench_inputs/cgb242.step.gz",
+    "reason": "Boundary source differs: the nominal uses the STEP-selected boundary for area and perimeter, while OpenCascade's capture uses its measured face area and 3D edge lengths. A separate check of the selected-boundary length is pending.",
+    "verdict": "undetermined"
+  },
+  {
     "file": "cadgenbench_inputs/cgb243.step.gz",
     "field": "nominal",
     "faces": [
@@ -1902,6 +1999,22 @@
     "reason": "Independent reference: known_face_areas.json now settles face 225 (Rust area 1456.70259345 mm\u00b2), face 233 (Rust area 1194.06636922 mm\u00b2), face 234 (Rust area 1194.01257782 mm\u00b2), face 238 (Rust area 955.253162688 mm\u00b2), face 337 (Rust area 201.353812564 mm\u00b2) as rust-correct using exact-surface integration over the 3D boundary (tools/kernel_evidence.py / tools/face_area_evidence.py), rather than the captured fixed Gauss rule. The old reason referred to their superseded undetermined area verdicts. The perimeter is not an unresolved component of this entry; the difference follows these areas. Thus the derived controlling length min(sqrt(area),2*area/perimeter) is rust-correct."
   },
   {
+    "faces": [
+      0,
+      19,
+      339,
+      381,
+      490,
+      510,
+      532,
+      570
+    ],
+    "field": "nominal",
+    "file": "cadgenbench_inputs/cgb243.step.gz",
+    "reason": "Boundary source differs: the nominal uses the STEP-selected boundary for area and perimeter, while OpenCascade's capture uses its measured face area and 3D edge lengths. A separate check of the selected-boundary length is pending.",
+    "verdict": "undetermined"
+  },
+  {
     "file": "cadgenbench_inputs/cgb245.step",
     "field": "nominal",
     "faces": [
@@ -1931,6 +2044,16 @@
     ],
     "verdict": "rust-correct",
     "reason": "face.area's fixed Gauss rule is coarse here: OpenCascade's adaptive rule (relative error 1e-9) agrees with the port's area."
+  },
+  {
+    "faces": [
+      399,
+      415
+    ],
+    "field": "nominal",
+    "file": "cadgenbench_inputs/cgb245.step",
+    "reason": "Boundary source differs: the nominal uses the STEP-selected boundary for area and perimeter, while OpenCascade's capture uses its measured face area and 3D edge lengths. A separate check of the selected-boundary length is pending.",
+    "verdict": "undetermined"
   },
   {
     "file": "golden_interrupted_and_cross_bores.step",

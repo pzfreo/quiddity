@@ -210,10 +210,10 @@ fn packed_provenance_keeps_geometry_assemblies_and_refusals() {
                 raw.declared_units.faces, packed.declared_units.faces,
                 "{name}"
             );
-            let a = build(&raw, Scope::Placed(IDENTITY))
+            let a = build(&raw, Scope::Placed)
                 .map(|r| fingerprint(&r.part))
                 .map_err(|e| e.to_string());
-            let b = build(&packed, Scope::Placed(IDENTITY))
+            let b = build(&packed, Scope::Placed)
                 .map(|r| fingerprint(&r.part))
                 .map_err(|e| e.to_string());
             assert_eq!(a, b, "{name}");
@@ -239,7 +239,7 @@ fn real_import_memory_probe() {
             "STAGE checked elapsed={:.6}",
             started.elapsed().as_secs_f64()
         );
-        let part = build(parsed, Scope::Placed(IDENTITY)).unwrap().part;
+        let part = build(parsed, Scope::Placed).unwrap().part;
         eprintln!(
             "STAGE geometry elapsed={:.6} faces={} edges={} solids={}",
             started.elapsed().as_secs_f64(),

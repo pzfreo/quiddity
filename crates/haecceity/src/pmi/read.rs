@@ -117,6 +117,7 @@ fn read_impl(
 pub(crate) struct DeclaredUnits {
     pub(crate) definitions: HashMap<u64, Option<LengthUnit>>,
     pub(crate) faces: HashMap<u64, Option<LengthUnit>>,
+    pub(crate) face_uncertainty_mm: HashMap<u64, f64>,
 }
 
 /// Unit metadata is optional. Graph/record errors discard the entire metadata pass and
@@ -245,6 +246,7 @@ fn declared_units_impl(
     });
     let mut representations = HashMap::new();
     let mut faces = HashMap::new();
+    let mut face_uncertainty_mm = HashMap::<u64, f64>::new();
     let mut links: HashMap<u64, Vec<u64>> = HashMap::new();
     let mut roots: HashMap<u64, Vec<u64>> = HashMap::new();
     let mut memo = HashMap::new();
@@ -293,12 +295,31 @@ fn declared_units_impl(
             continue;
         }
         let unit = reader.declared_context_length_unit(id);
+        let uncertainty = reader
+            .get_ref(id, "representation", "context_of_items")
+            .and_then(|ctx| {
+                reader
+                    .get_refs(ctx, "global_uncertainty_assigned_context", "uncertainty")
+                    .into_iter()
+                    .filter_map(|id| match reader.measure(id) {
+                        Ok(Measured::Length(length)) => Some(length.mm()),
+                        _ => None,
+                    })
+                    .filter(|x| x.is_finite() && *x >= 0.)
+                    .reduce(f64::min)
+            });
         let mut has_faces = false;
         for item in reader.get_refs(id, "representation", "items") {
             reached_items(item, graph, &reader, &mut memo)?;
             let reached = memo.get(&item)?;
             for &face in &reached.faces {
                 has_faces = true;
+                if let Some(mm) = uncertainty {
+                    face_uncertainty_mm
+                        .entry(face)
+                        .and_modify(|known| *known = known.min(mm))
+                        .or_insert(mm);
+                }
                 faces
                     .entry(face)
                     .and_modify(|known| {
@@ -337,7 +358,11 @@ fn declared_units_impl(
         }
         definitions.insert(definition, agreed_length_unit(declarations));
     }
-    Some(DeclaredUnits { definitions, faces })
+    Some(DeclaredUnits {
+        definitions,
+        faces,
+        face_uncertainty_mm,
+    })
 }
 
 /// Missing and conflicting declarations cannot be replaced by a file-wide default.

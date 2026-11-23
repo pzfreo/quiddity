@@ -102,15 +102,21 @@ fn nist_ftc_11_torus_band_across_minor_seam() {
     );
 }
 
-#[test]
-fn moments_require_every_mass_integral() {
-    let mut part = read_step_file(&common::fixtures().join("rejected_cylinder.step")).unwrap();
-    // Collapse the side before any cached query. Its quadrature returns finite zero terms,
-    // which face_mass rejects; the other two faces still have nonzero flux and moments.
-    let geom::Surface::Cylinder { radius, .. } = &mut part.faces[0].surface else {
+fn collapsed_cylinder() -> haecceity::Part {
+    let source = read_step_file(&common::fixtures().join("rejected_cylinder.step")).unwrap();
+    let mut faces = source.faces;
+    let geom::Surface::Cylinder { radius, .. } = &mut faces[0].surface else {
         panic!("cylinder side")
     };
     *radius = 0.0;
+    // Import can already have queried the original side to prove shell orientation.
+    haecceity::Part::new(faces, source.edges, source.solids)
+}
+
+#[test]
+fn moments_require_every_mass_integral() {
+    // The collapsed side has zero mass; the other two faces have nonzero flux and moments.
+    let part = collapsed_cylinder();
     assert!(part.face_mass(0).is_none());
     assert!(part.solid_mass(0).is_none());
     assert!(part.volume_centroid().is_none());
@@ -171,11 +177,7 @@ fn mass_cache_is_independent_of_moment_query_order() {
 #[test]
 fn cold_moments_refuse_missing_mass_before_any_mass_query() {
     for first in 0..3 {
-        let mut part = read_step_file(&common::fixtures().join("rejected_cylinder.step")).unwrap();
-        let geom::Surface::Cylinder { radius, .. } = &mut part.faces[0].surface else {
-            panic!("cylinder side")
-        };
-        *radius = 0.0;
+        let part = collapsed_cylinder();
         match first {
             0 => assert!(part.volume_centroid().is_none()),
             1 => assert!(part.face_moments(0).is_none()),
@@ -462,17 +464,21 @@ fn varying_pitch_sweep_closes_open_uv_wires() {
     let (volume, area) = part.solid_mass(0).unwrap();
     // Whole-shape OCCT values retain the open-wire fluxes, so numerical
     // refinement cannot meet a 1e-6 comparison with that reference.
-    relative(volume - 2535.1985709713267, -105.6924497816597, 1e-6);
-    relative(area - 1531.3435624916838, -31.7042806581519, 1e-6);
+    // Independent UV strips on face 2 (#576), assembled from the trimmed
+    // STEP master pcurves, give area 152.81565409318 mm². Substituting its
+    // flux and first-moment tensors changes the master solid centroid by
+    // 7.1e-13 mm. The projected boundary gives 152.8157192874 mm² there.
+    relative(volume - 2535.1985709713267, -105.69257968032434, 1e-6);
+    relative(area - 1531.3435624916838, -31.704345650956384, 1e-6);
     let (v, c) = part.volume_centroid().unwrap();
-    relative(v, 2429.5088550056716, 1e-9);
+    relative(v, 2429.508722080353, 1e-9);
     assert!(
         geom::dist(
             c,
             [
-                2.1085896316760242e-5,
-                5.4552655362173995e-8,
-                3.999138497140011
+                2.1062804706439307e-5,
+                3.1714680413300244e-8,
+                3.9991386278060883
             ]
         ) < 1e-9
     );

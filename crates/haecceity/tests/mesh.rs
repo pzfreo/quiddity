@@ -524,16 +524,54 @@ fn corpus_faces_mesh_watertight_outward_and_within_deflection() {
     );
 }
 
-/// A corpus face meshed with the whole part, its area within 1% of its moments area.
+/// Faces whose mesh is known not to bound the region the face integral measures, by (file,
+/// face, `ADVANCED_FACE` entity): each with an independent reference for the face's area, the
+/// mesh check's 1% held for every other face.
+///
+/// cgb243 face 543 (#60132): the face integral uses the boundary STEP selects (#317: each edge's
+/// `PCURVE_S1`, three of them on neighbouring surfaces), while the mesher still triangulates the
+/// projected 3D edges until its own PR lands, so its 486 triangles measure 0.5441 mm², 13% over.
+/// The reference is an independent integration of the four selected pcurves (each lifted from its
+/// own carrier and inverted onto the face's rational B-spline #397, Green's theorem on a dense
+/// polyline, Richardson-extrapolated over 400/800 and 1600/3200 nodes per edge:
+/// 0.481554752985 and 0.481554754720); #317's own two integrals give 0.4815547641 and
+/// 0.4815547643. Remove the entry once the mesher uses the selected boundary (the test fails
+/// then, as the mesh comes within 1%).
+const KNOWN_MESH_BOUNDARY: [(&str, usize, u64, f64); 1] = [(
+    "cadgenbench_inputs/cgb243.step.gz",
+    543,
+    60132,
+    0.4815547547,
+)];
+
+/// A corpus face meshed with the whole part, its area within 1% of its moments area (or, for a
+/// [`KNOWN_MESH_BOUNDARY`] face, the moments area at its independent reference and the mesh
+/// still off it).
 fn meshed(part: &Part, face: usize, name: &str) -> FaceMesh {
     let mesh = part.mesh(deflection(part), ANGULAR).swap_remove(face);
     let mesh = mesh.unwrap_or_else(|e| panic!("{name} face {face}: {e}"));
     let exact = part.face_moments(face).unwrap().area;
-    assert!(
-        (mesh.area() - exact).abs() <= 0.01 * exact,
-        "{name} face {face}: {} against {exact}",
-        mesh.area()
-    );
+    let off = (mesh.area() - exact).abs() > 0.01 * exact;
+    if let Some(&(_, _, entity, reference)) = KNOWN_MESH_BOUNDARY
+        .iter()
+        .find(|k| name.ends_with(k.0) && k.1 == face)
+    {
+        assert_eq!(part.face_source(face).map(|s| s.entity), Some(entity));
+        // 1e-7: the independent integration agrees with itself to 4e-9 across node counts
+        // and with #317's integrals to 2e-8 relative.
+        assert!(
+            (exact - reference).abs() <= 1e-7 * reference,
+            "{name} face {face}: {exact} against the independent {reference}"
+        );
+        assert!(
+            off,
+            "{name} face {face}: the mesh now agrees ({} against {exact}): remove it from \
+             KNOWN_MESH_BOUNDARY",
+            mesh.area()
+        );
+        return mesh;
+    }
+    assert!(!off, "{name} face {face}: {} against {exact}", mesh.area());
     mesh
 }
 

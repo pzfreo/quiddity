@@ -7,6 +7,13 @@
 //! *Haecceity* is "thisness": the particular thing itself, as *quiddity* is "whatness".
 //! haecceity holds the exact geometry of this part; quiddity says what kind of features it has.
 //!
+//! Public mass queries on a loaded part use the STEP-declared master boundary when it is
+//! usable. Each requested face is integrated on demand. Quiddity's recognition, evidence
+//! and fingerprints use a separate cache: they take the master on a face only when a
+//! measured master edge exceeds that face's STEP length uncertainty. Other faces use
+//! the projected 3D edges, including faces without a usable comparison. Recognition
+//! charges the deviation samples to the face's integration budget.
+//!
 //! A malformed or unsupported file is refused with a typed error, never a panic: library code
 //! may not `unwrap`, `expect`, `panic!` or reach `unreachable!` except at a site with a targeted
 //! `allow` stating the invariant that makes it unreachable. Tests may.

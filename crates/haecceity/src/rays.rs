@@ -1249,7 +1249,7 @@ mod tests {
         assert_eq!(repaired.edge_runs, fresh.edge_runs);
         drop(repaired);
         let flipped = part.solids[0].faces[0];
-        part.record_mixed_normal_repair(0, &[flipped]);
+        part.try_mixed_normal_repair(0, &[flipped], |_| true);
         assert!(part.ray_face_boxes.get().is_none());
         assert!(part.ray_edges.get().is_none());
         let independent = Part::new(part.faces.clone(), part.edges.clone(), part.solids.clone());

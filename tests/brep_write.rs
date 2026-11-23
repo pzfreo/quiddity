@@ -332,6 +332,56 @@ fn corpus_sample_round_trips() {
 }
 
 #[test]
+fn losing_the_step_master_is_reported_even_when_a_pcurve_can_be_written() {
+    let square = include_str!("../crates/haecceity/tests/fixtures/master-trim-square.step");
+    let plane = square.replace(
+        square
+            .lines()
+            .find(|line| line.starts_with("#108="))
+            .unwrap(),
+        "#108=PLANE('',#11);",
+    );
+    let metres = plane.replace("SI_UNIT(.MILLI.,.METRE.)", "SI_UNIT($,.METRE.)");
+    let part = kernel::read_step(metres.as_bytes()).unwrap();
+    let (bytes, report) = write_step(&part, &WriteOptions::new("metre master")).unwrap();
+    assert!(
+        report.pcurves_written > 0,
+        "reduced pcurves are still written"
+    );
+    assert_eq!(
+        report
+            .pcurves_not_written
+            .iter()
+            .filter(|message| message.contains("STEP master replaced by CURVE_3D"))
+            .count(),
+        4
+    );
+    assert_ne!(
+        part.face_mass(0),
+        kernel::read_step(&bytes).unwrap().face_mass(0)
+    );
+
+    let detached = plane.replace(
+        "#117=PCURVE('',#108,#116);",
+        "#201=PLANE('',#11);\n#117=PCURVE('',#201,#116);",
+    );
+    let part = kernel::read_step(detached.as_bytes()).unwrap();
+    let (bytes, report) = write_step(&part, &WriteOptions::new("detached master")).unwrap();
+    assert_eq!(
+        report
+            .pcurves_not_written
+            .iter()
+            .filter(|message| message.contains("detached carrier"))
+            .count(),
+        1
+    );
+    assert_ne!(
+        part.face_mass(0),
+        kernel::read_step(&bytes).unwrap().face_mass(0)
+    );
+}
+
+#[test]
 #[ignore = "full sweep, about 1 minute of CPU: run with --ignored"]
 fn fixture_parts_round_trip() {
     let counts = check(&step_files(&fixtures(), &["captured"]));

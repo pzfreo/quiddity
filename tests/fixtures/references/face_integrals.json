@@ -68,7 +68,7 @@
     "face": 440,
     "check": "second_moments",
     "verdict": "rust-correct",
-    "reason": "Live OpenCascade GProp (eps 1e-9 and 1e-11, converged) differs in central second moments by 1.63688e-06 of the tensor trace, although area and centroid are within 1e-6. Independent integration with OpenCascade's surface evaluator over the 3D edge boundary (tools/check_face_integrals.py --independent, kernel_evidence's Lobatto path, no pcurves) at 16 and 32 panels per curve span changes the tensor by 1.97596e-15 of its trace and agrees with Rust to 1.34083e-14; its area and centroid also agree. The difference is the distribution of area bounded by OpenCascade's approximate pcurves, including after projection, rather than a defect in the 3D boundary integral.",
+    "reason": "Live OpenCascade GProp (eps 1e-9 and 1e-11, converged) differs in central second moments by 1.63688e-06 of the tensor trace, although area and centroid are within 1e-6. Independent integration with OpenCascade's surface evaluator over the 3D edge boundary (tools/check_face_integrals.py --independent, kernel_evidence's Lobatto path, no pcurves) at 16 and 32 panels per curve span changes the tensor by 1.97596e-15 of its trace and agrees with Rust to 1.34083e-14; its area and centroid also agree. The difference is the distribution of area bounded by OpenCascade's approximate pcurves, including after projection, rather than a defect in the 3D boundary integral. The original integral used the spatial edges. For the selected pcurves, integrate the Cartesian densities on the receiving sphere along the curves on their own carriers. Green primitives for area, first and second moments agree under increasing Gauss quadrature order. The spatial control changes only the listed master selectors.",
     "rust": {
       "area": 0.1673635376451265,
       "centroid": [
@@ -93,14 +93,44 @@
           0.0038007858535854754
         ]
       ]
-    }
+    },
+    "step_master": {
+      "area": 0.15548050033905045,
+      "centroid": [
+        41.42772542106913,
+        34.078965756300995,
+        2.9134173414533757
+      ],
+      "second_moments": [
+        [
+          0.00023041401673853934,
+          -9.077740992503164e-06,
+          -0.0006933953797144746
+        ],
+        [
+          -9.077740992503164e-06,
+          0.0018522672524036786,
+          -0.0012845723055714157
+        ],
+        [
+          -0.0006933953797144746,
+          -0.0012845723055714166,
+          0.0034849029898567814
+        ]
+      ]
+    },
+    "spatial_control_edges": [
+      72700,
+      72759,
+      72781
+    ]
   },
   {
     "file": "cadgenbench_inputs/cgb242.step.gz",
     "face": 468,
     "check": "second_moments",
     "verdict": "rust-correct",
-    "reason": "Live OpenCascade GProp (eps 1e-9 and 1e-11, converged) differs in central second moments by 1.04433e-06 of the tensor trace, although area and centroid are within 1e-6. Independent integration with OpenCascade's surface evaluator over the 3D edge boundary (tools/check_face_integrals.py --independent, kernel_evidence's Lobatto path, no pcurves) at 16 and 32 panels per curve span changes the tensor by 2.01656e-13 of its trace and agrees with Rust to 3.95813e-13; its area and centroid also agree. The difference is the distribution of area bounded by OpenCascade's approximate pcurves, including after projection, rather than a defect in the 3D boundary integral.",
+    "reason": "Live OpenCascade GProp (eps 1e-9 and 1e-11, converged) differs in central second moments by 1.04433e-06 of the tensor trace, although area and centroid are within 1e-6. Independent integration with OpenCascade's surface evaluator over the 3D edge boundary (tools/check_face_integrals.py --independent, kernel_evidence's Lobatto path, no pcurves) at 16 and 32 panels per curve span changes the tensor by 2.01656e-13 of its trace and agrees with Rust to 3.95813e-13; its area and centroid also agree. The difference is the distribution of area bounded by OpenCascade's approximate pcurves, including after projection, rather than a defect in the 3D boundary integral. The original integral used the spatial edges. For the selected pcurves, integrate the Cartesian densities on the receiving cylinder along the curves on their own carriers. Green primitives for area, first and second moments agree under increasing Gauss quadrature order. The spatial control changes only the listed master selectors.",
     "rust": {
       "area": 19.874535639034253,
       "centroid": [
@@ -125,7 +155,38 @@
           1.8944049895344288
         ]
       ]
-    }
+    },
+    "step_master": {
+      "area": 19.87451732922331,
+      "centroid": [
+        -43.54478418805221,
+        -44.41796704809308,
+        7.0708382426664445
+      ],
+      "second_moments": [
+        [
+          269.1356251872603,
+          -1.9046931780437149,
+          1.788548254318016
+        ],
+        [
+          -1.9046931780437149,
+          1.831386191780684,
+          -1.709968964149379
+        ],
+        [
+          1.788548254318016,
+          -1.709968964149379,
+          1.8944054536177486
+        ]
+      ]
+    },
+    "spatial_control_edges": [
+      31381,
+      33220,
+      46498,
+      74889
+    ]
   },
   {
     "file": "cadgenbench_inputs/cgb242.step.gz",
@@ -164,7 +225,7 @@
     "face": 381,
     "check": "second_moments",
     "verdict": "rust-correct",
-    "reason": "Live OpenCascade GProp (eps 1e-9 and 1e-11, converged) differs in central second moments by 1.12535e-06 of the tensor trace, although area and centroid are within 1e-6. Independent integration with OpenCascade's surface evaluator over the 3D edge boundary (tools/check_face_integrals.py --independent, kernel_evidence's Lobatto path, no pcurves) at 16 and 32 panels per curve span changes the tensor by 7.63517e-16 of its trace and agrees with Rust to 1.86734e-13; its area and centroid also agree. The difference is the distribution of area bounded by OpenCascade's approximate pcurves, including after projection, rather than a defect in the 3D boundary integral.",
+    "reason": "Live OpenCascade GProp (eps 1e-9 and 1e-11, converged) differs in central second moments by 1.12535e-06 of the tensor trace, although area and centroid are within 1e-6. Independent integration with OpenCascade's surface evaluator over the 3D edge boundary (tools/check_face_integrals.py --independent, kernel_evidence's Lobatto path, no pcurves) at 16 and 32 panels per curve span changes the tensor by 7.63517e-16 of its trace and agrees with Rust to 1.86734e-13; its area and centroid also agree. The difference is the distribution of area bounded by OpenCascade's approximate pcurves, including after projection, rather than a defect in the 3D boundary integral. The original integral used the spatial edges. For the selected pcurves, integrate the Cartesian densities on the receiving sphere along the curves on their own carriers. Green primitives for area, first and second moments agree under increasing Gauss quadrature order. The spatial control changes only the listed master selectors.",
     "rust": {
       "area": 6.399724166759774,
       "centroid": [
@@ -189,14 +250,44 @@
           3.2088868246038467
         ]
       ]
-    }
+    },
+    "step_master": {
+      "area": 6.283905180147392,
+      "centroid": [
+        -36.27170396922988,
+        -40.860375906351365,
+        -21.144418749642316
+      ],
+      "second_moments": [
+        [
+          2.9485075498971227,
+          -0.09094696050846984,
+          -2.6821683525366318
+        ],
+        [
+          -0.09094696050846984,
+          1.8778817503520804,
+          -0.5565898526365309
+        ],
+        [
+          -2.6821683525366318,
+          -0.5565898526365309,
+          3.0473661268620873
+        ]
+      ]
+    },
+    "spatial_control_edges": [
+      54181,
+      54213,
+      54417
+    ]
   },
   {
     "file": "cadgenbench_inputs/cgb243.step.gz",
     "face": 404,
     "check": "second_moments",
     "verdict": "rust-correct",
-    "reason": "Live OpenCascade GProp (eps 1e-9 and 1e-11, converged) differs in central second moments by 1.27641e-06 of the tensor trace, although area and centroid are within 1e-6. Independent integration with OpenCascade's surface evaluator over the 3D edge boundary (tools/check_face_integrals.py --independent, kernel_evidence's Lobatto path, no pcurves) at 16 and 32 panels per curve span changes the tensor by 1.39005e-15 of its trace and agrees with Rust to 2.82277e-13; its area and centroid also agree. The difference is the distribution of area bounded by OpenCascade's approximate pcurves, including after projection, rather than a defect in the 3D boundary integral.",
+    "reason": "Live OpenCascade GProp (eps 1e-9 and 1e-11, converged) differs in central second moments by 1.27641e-06 of the tensor trace, although area and centroid are within 1e-6. Independent integration with OpenCascade's surface evaluator over the 3D edge boundary (tools/check_face_integrals.py --independent, kernel_evidence's Lobatto path, no pcurves) at 16 and 32 panels per curve span changes the tensor by 1.39005e-15 of its trace and agrees with Rust to 2.82277e-13; its area and centroid also agree. The difference is the distribution of area bounded by OpenCascade's approximate pcurves, including after projection, rather than a defect in the 3D boundary integral. The STEP input selects PCURVE_S1 on its three boundary edges. Independent Gauss integration of those three parameter curves, evaluated on the sphere and the two rational spline carriers, gives the step_master tensor. The spatial control selects the same three 3D curves used by the original independent reference.",
     "rust": {
       "area": 3.541992339311742,
       "centroid": [
@@ -221,14 +312,44 @@
           0.8975923764776376
         ]
       ]
-    }
+    },
+    "step_master": {
+      "area": 3.541993373915626,
+      "centroid": [
+        23.131600150236483,
+        -28.969522993765345,
+        25.856787131432107
+      ],
+      "second_moments": [
+        [
+          0.7427073387166123,
+          0.10926395068869788,
+          -0.5210941172333863
+        ],
+        [
+          0.10926395068869788,
+          0.6759039883148574,
+          0.4645291133012286
+        ],
+        [
+          -0.5210941172333872,
+          0.4645291133012286,
+          0.897593109517997
+        ]
+      ]
+    },
+    "spatial_control_edges": [
+      55342,
+      55191,
+      55246
+    ]
   },
   {
     "file": "cadgenbench_inputs/cgb243.step.gz",
     "face": 441,
     "check": "second_moments",
     "verdict": "rust-correct",
-    "reason": "Live OpenCascade GProp (eps 1e-9 and 1e-11, converged) differs in central second moments by 2.01439e-06 of the tensor trace, although area and centroid are within 1e-6. Independent integration with OpenCascade's surface evaluator over the 3D edge boundary (tools/check_face_integrals.py --independent, kernel_evidence's Lobatto path, no pcurves) at 16 and 32 panels per curve span changes the tensor by 2.60645e-15 of its trace and agrees with Rust to 4.51785e-15; its area and centroid also agree. The difference is the distribution of area bounded by OpenCascade's approximate pcurves, including after projection, rather than a defect in the 3D boundary integral.",
+    "reason": "Live OpenCascade GProp (eps 1e-9 and 1e-11, converged) differs in central second moments by 2.01439e-06 of the tensor trace, although area and centroid are within 1e-6. Independent integration with OpenCascade's surface evaluator over the 3D edge boundary (tools/check_face_integrals.py --independent, kernel_evidence's Lobatto path, no pcurves) at 16 and 32 panels per curve span changes the tensor by 2.60645e-15 of its trace and agrees with Rust to 4.51785e-15; its area and centroid also agree. The difference is the distribution of area bounded by OpenCascade's approximate pcurves, including after projection, rather than a defect in the 3D boundary integral. The original integral used the spatial edges. For the selected pcurves, integrate the Cartesian densities on the receiving plane along the curves on their own carriers. Green primitives for area, first and second moments agree under increasing Gauss quadrature order. The spatial control changes only the listed master selectors.",
     "rust": {
       "area": 1.928207657922247,
       "centroid": [
@@ -253,7 +374,39 @@
           1.133052724331916
         ]
       ]
-    }
+    },
+    "step_master": {
+      "area": 1.9282078783611951,
+      "centroid": [
+        47.834437907784206,
+        1.1211965470851946,
+        -41.58453214730778
+      ],
+      "second_moments": [
+        [
+          0.1045914522061967,
+          -0.03729247253336421,
+          0.26534252465312
+        ],
+        [
+          -0.03729247253336421,
+          0.04021263510152903,
+          0.01664962309503515
+        ],
+        [
+          0.26534252465312,
+          0.01664962309503515,
+          1.1330530462561548
+        ]
+      ]
+    },
+    "spatial_control_edges": [
+      48963,
+      49284,
+      50945,
+      56775,
+      56802
+    ]
   },
   {
     "file": "nist/nist_ctc_02_asme1_rc.stp",
