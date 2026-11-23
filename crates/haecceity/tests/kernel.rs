@@ -145,7 +145,13 @@ fn a_jump_along_a_collapsed_side_leaves_the_area_unchanged() {
         part.face_mass(726).unwrap()[0]
     };
     let (unmoved, moved) = (area(&haecceity::step::IDENTITY), area(&moved));
-    assert!((unmoved - 18.22923018).abs() < 1e-7, "{unmoved}");
+    // A separate strip integral on the three selected master trims of #84456
+    // converges to 18.229224419 mm² at 65,536 panels. Keep the previous spatial
+    // control by explicitly selecting CURVE_3D on those same three curves.
+    assert!((unmoved - 18.229224419).abs() < 1e-7, "{unmoved}");
+    let projected = common::with_spatial_edges(&path, &[34682, 44942, 84461].into());
+    let projected = projected.face_mass(726).unwrap()[0];
+    assert!((projected - 18.22923018).abs() < 1e-7, "{projected}");
     assert!(
         (moved - unmoved).abs() < 1e-9 * unmoved,
         "{unmoved} moved {moved}"
