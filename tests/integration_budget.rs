@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use quiddity::kernel::brep::Part;
+use quiddity::kernel::step::read_step_file_placed;
 use quiddity::recognition::{FaceAccounting, RecognitionDocument};
 use quiddity::{RecognitionOptions, read_step_file};
 use serde_json::Value;
@@ -217,6 +218,47 @@ fn a_budget_that_refuses_nothing_reports_an_empty_list() {
     let plain = document(&path, None);
     assert_eq!(doc.records, plain.records);
     assert_eq!(doc.frame, plain.frame);
+
+    // A source-frame centroid can move the placed rise of #890 below the
+    // exact structural ramp cutoff, dropping its riser despite no refusals.
+    let [x, y] = [0.6, 0.8];
+    let (s, c) = 2.5e-9_f64.sin_cos();
+    let t = 1.0 - c;
+    let placement = [
+        [t * x * x + c, t * x * y, s * y, 0.0],
+        [t * x * y, t * y * y + c, -s * x, 0.0],
+        [-s * y, s * x, c, 0.0],
+    ];
+    let placed = read_step_file_placed(
+        &fixture("golden_triangular_and_hex_pockets.step"),
+        &placement,
+    )
+    .unwrap();
+    let plain = quiddity::recognition::document(
+        &quiddity::recognise_with(&placed, &options(None)),
+        placed.faces.len(),
+    );
+    let mut budgeted = quiddity::recognition::document(
+        &quiddity::recognise_with(&placed, &options(Some(u64::MAX))),
+        placed.faces.len(),
+    );
+    assert!(budgeted.budget.take().unwrap().refused_faces.is_empty());
+    let risers = |doc: &RecognitionDocument| {
+        doc.records
+            .iter()
+            .filter(|r| r.family == "risers")
+            .flat_map(|r| r.faces.iter().copied())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        risers(&budgeted),
+        risers(&plain),
+        "placed risers with an ample budget"
+    );
+    assert!(
+        serde_json::to_value(&budgeted).unwrap() == serde_json::to_value(&plain).unwrap(),
+        "a budget that refuses nothing must preserve the placed document"
+    );
 }
 
 #[test]

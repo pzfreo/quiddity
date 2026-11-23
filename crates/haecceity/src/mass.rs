@@ -163,6 +163,20 @@ impl IntegralOrigin {
         }
     }
 
+    fn for_recognition_budget(&self) -> Self {
+        // A part moved after budgeting can have a measured source in caller
+        // coordinates. Start a new budget with the original STEP source.
+        let mut origin = self.clone();
+        while let Some(parent) = &origin.source.integral_origin {
+            origin = parent.placed(&origin.placement);
+        }
+        let mut source = origin.source.fresh_copy();
+        source.integration_budget = None;
+        source.reset_recognition_boundaries();
+        origin.source = std::sync::Arc::new(source);
+        origin
+    }
+
     pub(super) fn with_faces_in_order(&self, order: &[usize]) -> Option<Self> {
         Some(Self::new(
             self.source.with_faces_in_order(order)?,
@@ -1007,18 +1021,17 @@ impl Part {
     pub fn with_integration_budget(&self, limit: u64) -> Part {
         let mut part = self.fresh_copy();
         if let Some(origin) = &mut part.integral_origin {
-            let source = origin.source.with_integration_budget(limit);
-            part.integration_budget = source.integration_budget.clone();
-            origin.source = std::sync::Arc::new(source);
-            return part;
+            if part.boundary_policy != BoundaryPolicy::Recognition {
+                let source = origin.source.with_integration_budget(limit);
+                part.integration_budget = source.integration_budget.clone();
+                origin.source = std::sync::Arc::new(source);
+                return part;
+            }
+            *origin = origin.for_recognition_budget();
         }
         part.integration_budget = None;
-        // A cached boundary includes the recognition decision. Re-enter it
-        // under this budget so that already sampled edges still cost work.
         if part.boundary_policy == BoundaryPolicy::Recognition {
-            for cache in &mut part.cache {
-                cache.declared = std::sync::OnceLock::new();
-            }
+            part.reset_recognition_boundaries();
         }
         let mut work = Vec::with_capacity(part.faces.len());
         let mut refused = Vec::new();
@@ -1047,6 +1060,14 @@ impl Part {
             refused,
         }));
         part
+    }
+
+    fn reset_recognition_boundaries(&mut self) {
+        // A cached boundary includes the recognition decision. Re-enter it
+        // under this budget so that already sampled edges still cost work.
+        for cache in &mut self.cache {
+            cache.declared = std::sync::OnceLock::new();
+        }
     }
 
     /// The integration budget this part was measured against, if any
@@ -2635,16 +2656,40 @@ impl Part {
     /// In-flight and unqueried faces start cold in the new source, with independent caches.
     pub(super) fn copy_integral_source(&self) -> Part {
         let source = self.fresh_copy();
+        let measured = self.boundary_policy == BoundaryPolicy::Recognition
+            && self.integration_budget.is_some();
         for (from, to) in self.cache.iter().zip(&source.cache) {
+            let carried = measured && from.file_integrals_carried.get().is_some();
             if let Some(raw) = from.raw_moments.get() {
                 let _ = to.raw_moments.set(*raw);
             }
             if let Some(mass) = from.mass.get() {
                 let _ = to.mass.set(*mass);
             }
+            if carried {
+                let _ = to.file_integrals_carried.set(());
+            }
             from.carry_refusals(to);
         }
         source
+    }
+
+    pub(super) fn placed_integral_origin(
+        &self,
+        placement: &crate::step::Placement,
+    ) -> IntegralOrigin {
+        // Once measured, later transforms keep the budget verdict and carry
+        // those cached integrals from the placement in which they were metered.
+        match &self.integral_origin {
+            Some(origin)
+                if self.boundary_policy != BoundaryPolicy::Recognition
+                    || self.integration_budget.is_none()
+                    || origin.source.integration_budget.is_some() =>
+            {
+                origin.placed(placement)
+            }
+            _ => IntegralOrigin::new(self.copy_integral_source(), *placement),
+        }
     }
 
     fn ensure_file_integrals(&self, face: usize) {
@@ -2656,10 +2701,10 @@ impl Part {
                 }
                 // Select the STEP trim in file coordinates. When recognition
                 // selects projection, integrate in the caller's coordinates
-                // as the projected path does. Budgeted parts retain the
-                // integrals from the measurement made under the budget.
+                // even while the work meter runs. A later transform can carry
+                // integrals that were already measured under a budget.
                 if self.boundary_policy == BoundaryPolicy::Recognition
-                    && self.integration_budget.is_none()
+                    && source.integration_budget.is_none()
                     && source.declared_boundary(face).is_none()
                 {
                     let _ = self.cache[face].declared.set(None);

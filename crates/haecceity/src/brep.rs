@@ -737,10 +737,7 @@ impl Part {
     ) -> Result<Self, super::step::StepError> {
         let mut part = self.transformed_geometry(placement)?;
         if !self.measure_trims.is_empty() {
-            part.integral_origin = Some(match &self.integral_origin {
-                Some(origin) => origin.placed(placement),
-                None => super::mass::IntegralOrigin::new(self.copy_integral_source(), *placement),
-            });
+            part.integral_origin = Some(self.placed_integral_origin(placement));
         }
         Ok(part)
     }
