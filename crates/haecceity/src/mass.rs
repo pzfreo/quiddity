@@ -19,6 +19,7 @@
 mod declared;
 mod preferred;
 pub(super) use declared::{DeclaredBoundary, TrimCrossings};
+pub(super) use preferred::PreferredPaths;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -2416,10 +2417,11 @@ impl Part {
 
     fn raw_group_integral(&self, face: usize, local: bool, centre: bool) -> Option<[f64; 26]> {
         let frame = self.moment_frame(face).filter(|_| local);
-        let bounds = self.bounds();
-        let c0 = bounds.centre();
-        let length = geom::dist(bounds.min, bounds.max);
-        let length = (length.is_finite() && length > 0.0 && centre).then_some(length);
+        let reference = if centre {
+            self.integral_reference()
+        } else {
+            None
+        };
         // Only the joint integration records a refusal: the per-group fallbacks, run after
         // it is refused, are other integrands under the same key.
         self.moment_integral::<27, 26>(face, [0, 26, 1, 2, 3], local && centre, |p, su, sv| {
@@ -2443,7 +2445,7 @@ impl Part {
                     y * z * w,
                 ]);
             }
-            if let Some(length) = length {
+            if let Some((c0, length)) = reference {
                 let q = geom::scale(geom::sub(p, c0), 1.0 / length);
                 let qn = geom::dot(q, n);
                 out[13] = qn;
@@ -2457,7 +2459,7 @@ impl Part {
             #[cfg(test)]
             POISONED_GROUP.with(|g| match g.get() {
                 Some(true) if frame.is_some() => out[4] = f64::NAN,
-                Some(false) if length.is_some() => out[13] = f64::NAN,
+                Some(false) if reference.is_some() => out[13] = f64::NAN,
                 _ => {}
             });
             out
@@ -2531,12 +2533,7 @@ impl Part {
     pub fn volume_centroid(&self) -> Option<(f64, V3)> {
         // Integrated about c0 (the box centre, inside the part) for conditioning: with
         // q = p − c0, s = ∯ q·n, m = ∯ n, a[i][j] = ∯ qᵢ nⱼ, b = ∯ q (q·n).
-        let bounds = self.bounds();
-        let c0 = bounds.centre();
-        let length = geom::dist(bounds.min, bounds.max);
-        if !length.is_finite() || length <= 0.0 {
-            return None;
-        }
+        let (c0, length) = self.integral_reference()?;
         let (mut s, mut m, mut a, mut b) = (0.0, [0.0; 3], [[0.0; 3]; 3], [0.0; 3]);
         for solid in &self.solids {
             for &face in &solid.faces {

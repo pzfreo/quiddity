@@ -326,6 +326,7 @@ type Native<T> = (Option<std::sync::Arc<T>>, std::sync::Arc<GeometryPlacement>);
 pub(super) struct FaceCache {
     pub(super) carrier: OnceLock<std::sync::Arc<Surface>>,
     pub(super) declared: OnceLock<Option<Box<crate::mass::DeclaredBoundary>>>,
+    pub(super) preferred_paths: OnceLock<Option<Box<crate::mass::PreferredPaths>>>,
     pub(super) uv_loops: OnceLock<Option<Vec<UvLoop>>>,
     pub(super) domain: OnceLock<Option<FaceDomain>>,
     pub(super) bounds: OnceLock<Bounds>,

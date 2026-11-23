@@ -183,6 +183,14 @@ struct MasterTrim {
     maximum_deviation: f64,
 }
 
+#[derive(Debug)]
+pub(crate) struct PreferredPaths {
+    edges: Vec<(Curve, f64, f64)>,
+    cuts: Vec<Vec<f64>>,
+    maximum_deviation: f64,
+    variation: f64,
+}
+
 /// Physical length of the same master boundary used by the area integral,
 /// including its short UV closing segments. Use bounded adaptive quadrature;
 /// retain the summed length error on the conservative side of the strip guard.
@@ -262,7 +270,7 @@ impl Part {
             return None;
         }
         let mut out = Vec::new();
-        let mut maximum_deviation: f64 = 0.;
+        let mut intervals = Vec::new();
         for &(e, _) in &fc.loops[0].edges {
             if out.iter().any(|(pe, _)| *pe == e) {
                 return None;
@@ -307,12 +315,19 @@ impl Part {
             if geom::dist(at(a), ed.start) > noise || geom::dist(at(b), ed.end) > noise {
                 return None;
             }
-            let deviation = master_deviation(&fc.surface, &pc, &ed.curve, a, b)?;
+            out.push((e, pc));
+            intervals.push((a, b));
+        }
+        // A missing or incompatible operand on any edge rules out the certified
+        // patch. Check every operand before sampling any of their interiors.
+        let mut maximum_deviation: f64 = 0.;
+        for ((e, pc), (a, b)) in out.iter().zip(intervals) {
+            let ed = &self.edges[*e];
+            let deviation = master_deviation(&fc.surface, pc, &ed.curve, a, b)?;
             maximum_deviation = maximum_deviation.max(deviation);
             if deviation / length > 0.001 {
                 return None;
             }
-            out.push((e, pc));
         }
         (!out.is_empty()).then_some(MasterTrim {
             curves: out,
@@ -320,22 +335,7 @@ impl Part {
         })
     }
 
-    /// Integrate the explicit STEP trim. The outer
-    /// criterion is unchanged. Half its fixed floor budgets all inner primitives;
-    /// their measured errors also enter each outer panel's error estimate.
-    /// On the initial mass query the first component is physical area. It
-    /// normalizes the strip check once. A later query may integrate a signed
-    /// projection, whose area changes sign with the viewing direction.
-    pub(super) fn integrate_preferred_face<const N: usize>(
-        &self,
-        face: usize,
-        density: impl Fn(V3, V3, V3) -> [f64; N],
-        components: Components,
-        check_strip: bool,
-    ) -> Option<[f64; N]> {
-        if super::work_exhausted() {
-            return None;
-        }
+    fn prepare_preferred_paths(&self, face: usize) -> Option<Box<PreferredPaths>> {
         let trim = self.integration_pcurves(face)?;
         let curves = &trim.curves;
         let fc = &self.faces[face];
@@ -397,6 +397,41 @@ impl Part {
         if !(variation.is_finite() && variation > 0.) {
             return None;
         }
+        let cuts = paths
+            .iter()
+            .map(|(curve, a, b)| curve_cuts(&fc.surface, curve, *a, *b))
+            .collect::<Option<_>>()?;
+        Some(Box::new(PreferredPaths {
+            edges: paths,
+            cuts,
+            maximum_deviation: trim.maximum_deviation,
+            variation,
+        }))
+    }
+
+    /// Integrate the explicit STEP trim. Half the outer error floor budgets all
+    /// inner primitives. Their measured errors enter the outer error estimate.
+    /// Canonical mass checks the strip on physical area. Later signed
+    /// projections and moment groups reuse the certified path geometry.
+    pub(super) fn integrate_preferred_face<const N: usize>(
+        &self,
+        face: usize,
+        density: impl Fn(V3, V3, V3) -> [f64; N],
+        components: Components,
+        check_strip: bool,
+    ) -> Option<[f64; N]> {
+        if super::work_exhausted() {
+            return None;
+        }
+        let trim = self.cache[face]
+            .preferred_paths
+            .get_or_init(|| self.prepare_preferred_paths(face))
+            .as_deref()?;
+        let paths = &trim.edges;
+        let fc = &self.faces[face];
+        let Surface::Freeform { surface, .. } = &fc.surface else {
+            return None;
+        };
         let reference = paths.first()?.0.value(paths[0].1)[0];
         // Rational derivatives in world coordinates can subtract large nearly
         // equal homogeneous terms. Translate controls before evaluating them;
@@ -437,7 +472,7 @@ impl Part {
         };
         let walk = |floor| {
             let (mut total, mut magnitude, mut swept) = ([0.; N], 0., 0.);
-            for (curve, a, b) in &paths {
+            for ((curve, _, _), cut) in paths.iter().zip(&trim.cuts) {
                 let mut eval = |state: f64, a: f64, b: f64, locate| {
                     let mut met = Vec::new();
                     let (half, centre) = (0.5 * (b - a), 0.5 * (b + a));
@@ -498,8 +533,7 @@ impl Part {
                     }
                     Some((panel, kink))
                 };
-                let cut = curve_cuts(&fc.surface, curve, *a, *b)?;
-                let (sum, error, size, area) = adaptive(&cut, 0., floor, true, &mut eval)?;
+                let (sum, error, size, area) = adaptive(cut, 0., floor, true, &mut eval)?;
                 if floor.is_some_and(|floor| error > floor) {
                     return None;
                 }
@@ -516,14 +550,14 @@ impl Part {
         if !(floor.is_finite() && floor > 0.) {
             return None;
         }
-        budget.set(Some(0.5 * floor / variation));
+        budget.set(Some(0.5 * floor / trim.variation));
         let (total, _, swept) = walk(Some(floor))?;
         if !swept.is_finite() || swept == 0. {
             return None;
         }
         let total = total.map(|y| y * swept.signum());
         if check_strip && trim.maximum_deviation > 0. {
-            let length = master_boundary_length(&fc.surface, &local, &paths)?;
+            let length = master_boundary_length(&fc.surface, &local, paths)?;
             let strip_ratio = trim.maximum_deviation * length / total[0];
             if total[0] <= 0. || !strip_ratio.is_finite() || strip_ratio > 0.001 {
                 return None;
