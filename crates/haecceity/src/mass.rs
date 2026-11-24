@@ -2450,7 +2450,24 @@ impl Part {
                 local: patch.map(|p| p.local_moments()),
                 centre: patch
                     .zip(self.integral_reference())
-                    .map(|(p, (origin, length))| p.volume_moments(origin, length)),
+                    .and_then(|(p, (origin, length))| {
+                        if p.needs_circular_centroid_check()
+                            && self.material_boundary(face)?.iter().all(|&(edge, _)| {
+                                matches!(self.edges[edge].curve, Curve::Circle { .. })
+                            })
+                        {
+                            // Outside the closed-form tolerance, the UV flux
+                            // integrates the local density directly, avoiding
+                            // cancellation between large spherical moments.
+                            // Its area must agree with the spatial patch so it
+                            // cannot silently choose the complementary region.
+                            self.face_terms(face)?;
+                            return self
+                                .raw_group_integral(face, false, true)
+                                .filter(|values| p.matches_area(values[0]));
+                        }
+                        Some(p.volume_moments(origin, length))
+                    }),
             };
         }
         if let joint @ Some(_) = self.raw_group_integral(face, true, true) {

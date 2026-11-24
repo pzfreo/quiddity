@@ -32,6 +32,18 @@ struct CircularCap {
 }
 
 impl SpherePatch {
+    pub(super) fn needs_circular_centroid_check(&self) -> bool {
+        // A small solid angle concentrates the boundary terms while the
+        // enclosed cap volume shrinks quadratically with area.
+        self.cap.is_none()
+            && self.method == BoundaryMethod::Projected
+            && self.area <= 1e-4 * self.radius * self.radius
+    }
+
+    pub(super) fn matches_area(&self, area: f64) -> bool {
+        (area - self.area).abs() <= 1e-8 * self.area
+    }
+
     pub(super) fn transformed(
         self,
         centre: V3,

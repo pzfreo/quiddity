@@ -739,13 +739,23 @@ fn spherical_solid_measurements() {
             haecceity::step::decode_step_file_bytes(&path, std::fs::read(&path).unwrap()).unwrap();
         let step = std::str::from_utf8(&bytes).unwrap();
         assert_eq!(step.matches(rim).count(), 1, "{name}");
-        let perturbed = haecceity::read_step(step.replace(rim, moved).as_bytes()).unwrap();
-        check(
-            "with perturbed rim",
-            &perturbed,
-            geom::add(centre, offset),
-            1e-12,
-        );
+        for (source, shift, centre_tolerance) in [
+            (moved.to_owned(), offset, 1e-12),
+            // Exceed the file's uncertainty and exercise the checked UV flux.
+            (
+                moved.replace("1.E-12", "1.E-6"),
+                geom::scale(offset, 1e6),
+                3e-12,
+            ),
+        ] {
+            let perturbed = haecceity::read_step(step.replace(rim, &source).as_bytes()).unwrap();
+            check(
+                "with perturbed rim",
+                &perturbed,
+                geom::add(centre, shift),
+                centre_tolerance,
+            );
+        }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
