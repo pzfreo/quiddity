@@ -87,7 +87,7 @@ use crate::features::section_recess::{
 };
 use crate::features::sheet_metal::{
     FlatOverlapWitness, FlatPatternPlan, FormedSheetFeature, SheetBend, SheetEdgeTreatment,
-    SheetFlange, SheetMetalBody, UnfoldedBendStrip, UnfoldedFlangeFace,
+    SheetFlange, SheetFlangeBounds, SheetMetalBody, UnfoldedBendStrip, UnfoldedFlangeFace,
 };
 use crate::features::thin_walls::{ShellHistoryHint, ThinWallBody, UnpairedWallFace, WallFacePair};
 use crate::features::through_steps::ThroughStep;
@@ -1870,6 +1870,7 @@ fn sheet_metal_body(out: &mut Out, r: SheetMetalBody) -> SheetMetalBody {
                 origin,
                 normal,
                 area,
+                bounds,
             } = f;
             SheetFlange {
                 index,
@@ -1878,6 +1879,12 @@ fn sheet_metal_body(out: &mut Out, r: SheetMetalBody) -> SheetMetalBody {
                 origin: out.point(origin),
                 normal: out.direction(normal),
                 area,
+                bounds: bounds.map(|b| SheetFlangeBounds {
+                    corner: out.point(b.corner),
+                    length_axis: out.direction(b.length_axis),
+                    width_axis: out.direction(b.width_axis),
+                    ..b
+                }),
             }
         })
         .collect();

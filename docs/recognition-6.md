@@ -249,6 +249,20 @@ edge-open notch at the end of a bend. `bend` indexes the body's `bends` array.
 on the flange skin, both in mm. `faces` contains the two notch walls and its root,
 which also appear in the body's `cut_edge_faces`. The field is omitted if empty.
 
+Each measured flange has a `bounds` record. Its `corner` is the low corner along
+`length_axis`, `width_axis`, and the parent flange's `normal`. Follow the first two
+unit vectors for `length` and `width` in mm to place the in-plane rectangle.
+`normal_span` is the measured range through both skins along the normal. The
+three spans recover all six box limits in the recognition frame. A slanted,
+rounded or notched flange uses bounding extents. The rectangle describes the
+envelope of the skins and their trims. Positions and directions are carried
+into file coordinates with the flange. The sheet fingerprint counts flanges
+and retains their defining faces, and face accounting keeps those face claims.
+
+A pad that describes exactly one developed flange yields to that flange's
+bounds. Its two skins and perimeter cuts must belong to that flange, and the
+flange box must reproduce all six pad limits at measurement precision.
+
 A computed development allows the sheet-metal record to replace duplicate
 prismatic readings whose faces all lie on its developable skins or proved
 reliefs. A slot reading between opposed flange skins or between a relief's

@@ -1,4 +1,4 @@
-`bendfm-0.stp.gz` is part 0 from the sample directory of
+`bendfm-0.stp.gz` and `bendfm-4.stp.gz` are parts 0 and 4 from the sample directory of
 [BenDFM](https://github.com/UGent-CVAMO/bendfm/tree/main/example_files), distributed under the MIT
 License. Copyright (c) 2025 Matteo Ballegeer.
 
@@ -20,7 +20,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-The other fixtures are original synthetic Apache-2.0 parts. They use
+The coaxial and overlapping fixtures are original synthetic Apache-2.0 parts. They use
 1 mm stock, quarter-turn bends, and 2 mm inner radii.
 
 - `overlapping-flanges.step.gz`: an L-shaped base with straight flanges on
@@ -32,3 +32,11 @@ The other fixtures are original synthetic Apache-2.0 parts. They use
 - `coaxial-overlap.step.gz`: the same coaxial returns with an additional
   downturned flange. Its development crosses one return branch, so the
   split interpretation alone cannot prove a flat blank.
+
+`hanger-raised-pad.step.gz` derives from the Too Tall Toby 23-02-02 SM
+Hanger reference implementation by Gumyr, copyright 2023, Apache License
+2.0. The starting STEP is `ttt_inputs/sm-hanger.step` from the quiddity
+corpus. The reference implementation is described in the
+[build123d tutorial](https://build123d.readthedocs.io/en/latest/tttt.html).
+This variant fuses a 2 × 8 × 10 mm pad onto the outside of the right tab
+at x=28 mm. It exercises a local rise on a recognised, developed sheet.

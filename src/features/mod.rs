@@ -1169,7 +1169,10 @@ fn inventory_in_with(
     if !boss_analysis.refusals.is_empty() {
         discovery_refusals.insert("polygonal_boss_refusals", boss_analysis.refusals);
     }
-    let pad_analysis = discover!("pads", pads::analyse(ctx, &Default::default()));
+    let mut pad_analysis = discover!("pads", pads::analyse(ctx, &Default::default()));
+    pad_analysis
+        .accepted
+        .retain(|o| !sheet_metal::replaces_pad(part, &sheet_metal_bodies, o));
     let mut radial_faces: BTreeSet<usize> = BTreeSet::new();
     let prismatic_analysis = discover!("prismatic_pockets", prismatic_pockets::analyse(ctx));
     if !pad_analysis.refusals.is_empty() {
@@ -1429,7 +1432,6 @@ fn inventory_in_with(
             pad_analysis
                 .accepted
                 .into_iter()
-                .filter(|o| !explained(&o.defining))
                 .filter(|o| !o.defining.iter().all(|f| radial_faces.contains(f)))
                 .collect(),
         ),
