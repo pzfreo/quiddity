@@ -659,25 +659,57 @@ fn spherical_solid_measurements() {
     ];
     let mut failures = Vec::new();
     for (name, volume, area, centre) in cases {
-        let part = read_step_file(&dir.join(format!("{name}.step.gz"))).unwrap();
-        assert_eq!(part.solids.len(), 1, "{name}");
-        let mass = part.solid_mass(0);
-        let centroid = part.volume_centroid();
+        let path = dir.join(format!("{name}.step.gz"));
+        let part = read_step_file(&path).unwrap();
         // Express volume, area, and centroid errors as lengths in mm.
         let tolerance = if name.starts_with("thin_") {
             1e-9
         } else {
             1e-7
         };
-        if !mass.is_some_and(|(v, a)| {
-            (v - volume).abs() <= tolerance * area && (a - area).abs() <= tolerance * area.sqrt()
-        }) || !centroid.is_some_and(|(v, c)| {
-            (v - volume).abs() <= tolerance * area && geom::dist(c, centre) <= tolerance
-        }) {
-            failures.push(format!(
-                "{name}: mass {mass:?}, volume/centroid {centroid:?}"
-            ));
-        }
+        let mut check = |label: &str, part: &haecceity::Part, centre, centre_tolerance| {
+            assert_eq!(part.solids.len(), 1, "{name} {label}");
+            let mass = part.solid_mass(0);
+            let centroid = part.volume_centroid();
+            if !mass.is_some_and(|(v, a)| {
+                (v - volume).abs() <= tolerance * area
+                    && (a - area).abs() <= tolerance * area.sqrt()
+            }) || !centroid.is_some_and(|(v, c)| {
+                (v - volume).abs() <= tolerance * area && geom::dist(c, centre) <= centre_tolerance
+            }) {
+                failures.push(format!(
+                    "{name} {label}: mass {mass:?}, volume/centroid {centroid:?}"
+                ));
+            }
+        };
+        check("as written", &part, centre, tolerance);
+
+        // Offset just the spatial rim circle by 1e-12 mm in its plane. Keep
+        // the height and radius of the original cap and translate its centre.
+        let (rim, moved, offset) = match name {
+            "thin_sphere_cap" => (
+                "#49=CARTESIAN_POINT('',(0.0,0.0,8.416576578619157));",
+                "#49=CARTESIAN_POINT('',(1.E-12,0.0,8.416576578619157));",
+                [1e-12, 0.0, 0.0],
+            ),
+            "thin_sphere_lens" => (
+                "#29=CARTESIAN_POINT('',(8.851865945671033,0.0,0.0));",
+                "#29=CARTESIAN_POINT('',(8.851865945671033,1.E-12,0.0));",
+                [0.0, 1e-12, 0.0],
+            ),
+            _ => continue,
+        };
+        let bytes =
+            haecceity::step::decode_step_file_bytes(&path, std::fs::read(&path).unwrap()).unwrap();
+        let step = std::str::from_utf8(&bytes).unwrap();
+        assert_eq!(step.matches(rim).count(), 1, "{name}");
+        let perturbed = haecceity::read_step(step.replace(rim, moved).as_bytes()).unwrap();
+        check(
+            "with perturbed rim",
+            &perturbed,
+            geom::add(centre, offset),
+            1e-12,
+        );
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
