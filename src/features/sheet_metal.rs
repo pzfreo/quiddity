@@ -1707,10 +1707,9 @@ fn body(part: &Part, wall: &ThinWallBody, k_factor: f64) -> Option<SheetMetalBod
         Some(grouped)
     };
     let full = build(&BTreeSet::new());
-    let accepted = full.as_ref().is_some_and(|(_, _, plan)| match plan {
-        Some(_) => true,
-        None => !edge_treatments.is_empty(),
-    });
+    let accepted = full
+        .as_ref()
+        .is_some_and(|(_, _, plan)| plan.is_some() || !edge_treatments.is_empty());
     let (formed, excluded, (flanges, bends, plan)) = if accepted {
         (Vec::new(), BTreeSet::new(), full?)
     } else {
@@ -1719,14 +1718,9 @@ fn body(part: &Part, wall: &ThinWallBody, k_factor: f64) -> Option<SheetMetalBod
             .flat_map(|f| f.faces.iter().copied())
             .collect();
         let fallback = build(&excluded)?;
-        if !fallback.2.as_ref().is_some_and(|p| p.valid_blank) {
-            return None;
-        }
+        fallback.2.as_ref()?;
         (formed_candidates, excluded, fallback)
     };
-    if plan.is_none() && edge_treatments.is_empty() {
-        return None;
-    }
     let status = match &plan {
         Some(p) if p.valid_blank => "checked",
         Some(_) => "overlap",
@@ -1841,6 +1835,7 @@ mod tests {
         assert!(features.pads.is_empty());
         assert!(features.pockets.is_empty());
         assert!(features.section_recesses.is_empty());
+        assert!(features.slots.is_empty());
         assert_eq!(features.chamfers.len(), 1, "clipped flange corner");
 
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

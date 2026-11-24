@@ -251,8 +251,9 @@ which also appear in the body's `cut_edge_faces`. The field is omitted if empty.
 
 The sheet-metal record accounts for skin and cut-edge faces that would otherwise
 generate duplicate pads, levels, risers, or recesses. A slot reading between
-opposed flange skins also yields to the sheet. Holes, through-slots cut in a
-flange, and chamfered flange ends can retain their own feature records.
+opposed flange skins or between a relief's walls also yields to the sheet.
+Holes, through-slots cut in a flange, and chamfered flange ends can retain their
+own feature records.
 
 ## Closed blind-recess floor claims (#205, #207)
 

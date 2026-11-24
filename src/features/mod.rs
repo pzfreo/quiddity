@@ -991,6 +991,10 @@ fn inventory_in_with(
         })
         .copied()
         .collect();
+    let reliefs: Vec<_> = sheet_metal_bodies
+        .iter()
+        .flat_map(|sheet| &sheet.bend_reliefs)
+        .collect();
     let gusset_ribs = kept(
         &mut defining,
         "gusset_ribs",
@@ -1001,9 +1005,14 @@ fn inventory_in_with(
         "slots",
         discover!("slots", skip_unproved(part, slots::discover(ctx)))
             .into_iter()
-            // Opposed flange skins may look like slot walls. Keep slots cut through a skin.
+            // Opposed skins and the two walls of a relief can both look like slot walls.
+            // A separate through-slot cut in the sheet still owns its cut walls.
             .filter(|o| {
-                !(o.defining.iter().any(|f| sheet_skins.contains(f)) && explained(&o.defining))
+                !explained(&o.defining)
+                    || (!o.defining.iter().any(|f| sheet_skins.contains(f))
+                        && !reliefs
+                            .iter()
+                            .any(|r| o.defining.iter().all(|f| r.faces.binary_search(f).is_ok())))
             })
             .collect(),
     );
