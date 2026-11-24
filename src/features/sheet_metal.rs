@@ -1829,21 +1829,34 @@ mod tests {
 
     #[test]
     fn sheet_claims_replace_prismatic_duplicates_without_claiming_holes() {
-        let features = super::super::recognise(&sheet_fixture("bendfm-0.stp.gz"));
+        let sample = sheet_fixture("bendfm-0.stp.gz");
+        let features = super::super::recognise(&sample);
         assert_eq!(features.sheet_metal_bodies.len(), 1);
         assert!(features.step_levels.is_empty());
         assert!(features.pads.is_empty());
         assert!(features.pockets.is_empty());
         assert!(features.section_recesses.is_empty());
         assert!(features.slots.is_empty());
-        assert_eq!(features.chamfers.len(), 1, "clipped flange corner");
+        let reading = crate::correspondence::recognise(&sample);
+        let chamfers = reading
+            .features
+            .families()
+            .into_iter()
+            .find(|(family, _)| family == "chamfers")
+            .unwrap()
+            .1;
+        assert_eq!(chamfers.len(), 1, "clipped flange corner");
 
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/captured/876837d9cf19ff05.step.gz");
         let part = crate::kernel::step::read_step_file(&path).unwrap();
-        let features = super::super::recognise(&part);
-        assert_eq!(features.sheet_metal_bodies.len(), 1);
-        assert_eq!(features.holes.len(), 2, "holes through the hanger skin");
+        let reading = crate::correspondence::recognise(&part);
+        assert_eq!(reading.features.sheet_metal_bodies.len(), 1);
+        assert_eq!(
+            reading.features.holes.len(),
+            2,
+            "holes through the hanger skin"
+        );
     }
 
     #[test]
