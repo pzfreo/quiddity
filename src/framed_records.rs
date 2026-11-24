@@ -1851,6 +1851,7 @@ fn sheet_metal_body(out: &mut Out, r: SheetMetalBody) -> SheetMetalBody {
         paired_area_fraction,
         flat_pattern_status,
         edge_treatments,
+        bend_reliefs,
     } = r;
     let flat_pattern = flat_pattern.map(|plan| {
         let base = flanges
@@ -1925,6 +1926,7 @@ fn sheet_metal_body(out: &mut Out, r: SheetMetalBody) -> SheetMetalBody {
         paired_area_fraction,
         flat_pattern_status,
         edge_treatments: edge_treatments.into_iter().map(edge_treatment).collect(),
+        bend_reliefs,
     }
 }
 

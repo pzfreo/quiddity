@@ -237,6 +237,23 @@ These structs are `#[non_exhaustive]`: external Rust code cannot build them with
 literals and only reads the new field; in-crate literals supply `faces`
 (normally `Vec::new()`).
 
+## Sheet-metal developments and bend reliefs (for #353)
+
+A proved sheet with an overlapping development has `flat_pattern_status: "overlap"`.
+Its `flat_pattern` includes the overlapping flange or bend-strip regions and their
+common areas in `overlap_witnesses`. The development's `valid_blank` is false.
+
+The optional `bend_reliefs` array provides one record for each proved rectangular
+edge-open notch at the end of a bend. `bend` indexes the body's `bends` array.
+`width` measures along the bend axis and `depth` measures inward from the mouth
+on the flange skin, both in mm. `faces` contains the two notch walls and its root,
+which also appear in the body's `cut_edge_faces`. The field is omitted if empty.
+
+The sheet-metal record accounts for skin and cut-edge faces that would otherwise
+generate duplicate pads, levels, risers, or recesses. A slot reading between
+opposed flange skins also yields to the sheet. Holes, through-slots cut in a
+flange, and chamfered flange ends can retain their own feature records.
+
 ## Closed blind-recess floor claims (#205, #207)
 
 Accepted flat-bottomed blind holes and blind `pockets`/`prismatic_pockets` also

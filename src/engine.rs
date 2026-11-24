@@ -93,7 +93,7 @@ pub use features::rectangular_blind_slots::RectangularBlindSlot;
 pub use features::repeating_profiles::{RepeatingRadialProfile, RepeatingRadialProfileOptions};
 pub use features::round_bottom_slots::RoundBottomBlindSlot;
 pub use features::section_recess_family::SectionRecessFamilyError;
-pub use features::sheet_metal::{SheetMetalBody, SheetMetalOptions};
+pub use features::sheet_metal::{SheetBendRelief, SheetMetalBody, SheetMetalOptions};
 pub use features::slots::Slot;
 pub use features::thin_walls::ThinWallBody;
 pub use features::through_steps::ThroughStep;

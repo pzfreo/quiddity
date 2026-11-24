@@ -969,6 +969,28 @@ fn inventory_in_with(
     };
     let holes = kept(&mut defining, "holes", found_holes);
     let countersinks = kept(&mut defining, "countersinks", seats);
+    let walls = discover!("thin_wall_bodies", thin_walls::discover(ctx));
+    let sheets = discover!(
+        "sheet_metal_bodies",
+        sheet_metal::discover_from_walls(
+            part,
+            walls.iter().map(|wall| &wall.record),
+            sheet_metal::SheetMetalOptions::default().k_factor,
+        )
+    );
+    let sheet_metal_bodies = kept_shared(&mut defining, "sheet_metal_bodies", sheets);
+    let sheet_faces = defining.defining["sheet_metal_bodies"].clone();
+    let explained = |faces: &[usize]| sheet_metal::explains(&sheet_faces, faces);
+    let sheet_skins: BTreeSet<_> = sheet_metal_bodies
+        .iter()
+        .flat_map(|sheet| {
+            sheet
+                .first_side_faces
+                .iter()
+                .chain(&sheet.second_side_faces)
+        })
+        .copied()
+        .collect();
     let gusset_ribs = kept(
         &mut defining,
         "gusset_ribs",
@@ -977,14 +999,20 @@ fn inventory_in_with(
     let slots = kept(
         &mut defining,
         "slots",
-        discover!("slots", skip_unproved(part, slots::discover(ctx))),
+        discover!("slots", skip_unproved(part, slots::discover(ctx)))
+            .into_iter()
+            // Opposed flange skins may look like slot walls. Keep slots cut through a skin.
+            .filter(|o| {
+                !(o.defining.iter().any(|f| sheet_skins.contains(f)) && explained(&o.defining))
+            })
+            .collect(),
     );
-    let pocket_occurrences = discover!("pockets", skip_unproved(part, pockets::discover(ctx)));
-    let thin_wall_bodies = kept_shared(
-        &mut defining,
-        "thin_wall_bodies",
-        discover!("thin_wall_bodies", thin_walls::discover(ctx)),
-    );
+    let pocket_occurrences: Vec<_> =
+        discover!("pockets", skip_unproved(part, pockets::discover(ctx)))
+            .into_iter()
+            .filter(|o| !explained(&o.defining))
+            .collect();
+    let thin_wall_bodies = kept_shared(&mut defining, "thin_wall_bodies", walls);
     let mut discovery_refusals = BTreeMap::new();
     // A face the caller's integration budget refused is left out as an unmeasured face is,
     // and published under its own reason.
@@ -1098,19 +1126,29 @@ fn inventory_in_with(
     );
     // A degraded run's risers carry the step levels it kept, as Python's carry that run's
     // completed levels (`levels::proved` skips only in a degraded run).
-    let step_level_occurrences = discover!(
+    let step_level_occurrences: Vec<_> = discover!(
         "step_levels",
         degraded_skip(levels::discover_step_levels(ctx), |o| {
             evidence::locally_valid_solid(part, &o.defining).is_some()
         })
-    );
+    )
+    .into_iter()
+    .filter(|o| !explained(&o.defining))
+    .collect();
     let found_risers = discover!(
         "risers",
         degraded_skip(levels::discover_risers(ctx, &step_level_occurrences), |o| {
             evidence::locally_valid_solid(part, &o.defining).is_some()
         })
     );
-    let risers = kept(&mut defining, "risers", found_risers);
+    let risers = kept(
+        &mut defining,
+        "risers",
+        found_risers
+            .into_iter()
+            .filter(|o| !explained(&o.defining))
+            .collect(),
+    );
     let step_levels = kept(&mut defining, "step_levels", step_level_occurrences);
     let void_analysis = discover!("interior_voids", interior_voids::analyse(ctx));
     let plate_occurrences = discover!("plates", plates::discover(ctx, &Default::default()));
@@ -1330,11 +1368,7 @@ fn inventory_in_with(
             "blends",
             discover!("blends", blends::discover(ctx)),
         ),
-        sheet_metal_bodies: kept_shared(
-            &mut defining,
-            "sheet_metal_bodies",
-            discover!("sheet_metal_bodies", sheet_metal::discover(ctx)),
-        ),
+        sheet_metal_bodies,
         slot_patterns: Vec::new(),
         slots,
         pocket_patterns: Vec::new(),
@@ -1390,6 +1424,7 @@ fn inventory_in_with(
             pad_analysis
                 .accepted
                 .into_iter()
+                .filter(|o| !explained(&o.defining))
                 .filter(|o| !o.defining.iter().all(|f| radial_faces.contains(f)))
                 .collect(),
         ),

@@ -40,6 +40,30 @@ fn counts(part: &quiddity::Part, f: &features::Features) -> BTreeMap<String, usi
     if let Some(defining) = f.defining.get("fillets") {
         counts.insert("fillets".into(), fillet_patch_count(part, defining));
     }
+    // #353: the historical level and riser floor still counts the same readings
+    // when the public record carrying all their faces is a sheet-metal body.
+    if let Some(sheets) = f.defining.get("sheet_metal_bodies")
+        && !sheets.is_empty()
+    {
+        let ctx = features::Context::new(part.recognition_part());
+        let levels = features::levels::discover_step_levels(&ctx);
+        let risers = features::levels::discover_risers(&ctx, &levels);
+        let replacements = |family: &str, faces: Vec<Vec<usize>>| {
+            faces
+                .iter()
+                .filter(|faces| {
+                    !f.defining[family].contains(faces)
+                        && features::sheet_metal::explains(sheets, faces)
+                })
+                .count()
+        };
+        *counts.entry("step_levels".into()).or_default() += replacements(
+            "step_levels",
+            levels.into_iter().map(|o| o.defining).collect(),
+        );
+        *counts.entry("risers".into()).or_default() +=
+            replacements("risers", risers.into_iter().map(|o| o.defining).collect());
+    }
     counts
 }
 
@@ -97,7 +121,19 @@ fn census() -> BTreeMap<String, Value> {
             json!({"physical": counts(&part, &raw), "accepted": counts(&part, &accepted)});
         if key.starts_with("corpus/") || key.starts_with("fixture/") {
             let found = correspondence::recognise(&part);
-            let working_counts = counts(&part, &found.features);
+            let working_part;
+            let measured = if !found.features.sheet_metal_bodies.is_empty()
+                && let quiddity::frames::RecordFrame::Inferred(frame) = &found.frame
+            {
+                working_part = part
+                    .recognition_part()
+                    .transformed_carrying_integrals(&frame.normalisation())
+                    .unwrap();
+                &working_part
+            } else {
+                &part
+            };
+            let working_counts = counts(measured, &found.features);
             let published: BTreeMap<_, _> = found.features.families().into_iter().collect();
             for (old, plain) in [
                 ("oriented_slots", "slots"),
