@@ -265,10 +265,61 @@ pub(super) fn discover_from_walls<'a>(
         .collect()
 }
 
-/// Whether one published sheet accounts for all of the candidate's faces.
-pub(crate) fn explains(sheets: &[Vec<usize>], faces: &[usize]) -> bool {
+/// Faces for which the sheet publishes enough geometry to replace a prismatic reading.
+/// A computed development supplies the skins' geometry even when it has overlap witnesses.
+/// Other cut-edge faces carry indices alone, so their independent measurements stay published.
+pub(super) fn prismatic_face_sets(part: &Part, sheets: &[SheetMetalBody]) -> Vec<Vec<usize>> {
+    sheets
+        .iter()
+        .filter(|sheet| sheet.flat_pattern.is_some())
+        .map(|sheet| {
+            let mut faces: Vec<_> = sheet
+                .skin_faces(part)
+                .chain(
+                    sheet
+                        .bend_reliefs
+                        .iter()
+                        .flat_map(|relief| relief.faces.iter().copied()),
+                )
+                .collect();
+            faces.sort_unstable();
+            faces.dedup();
+            faces
+        })
+        .collect()
+}
+
+impl SheetMetalBody {
+    /// The flange and bend pairs also prove skin patches disconnected by a trim.
+    pub(super) fn skin_faces<'a>(&'a self, part: &'a Part) -> impl Iterator<Item = usize> + 'a {
+        self.first_side_faces
+            .iter()
+            .chain(&self.second_side_faces)
+            .chain(
+                self.flanges
+                    .iter()
+                    .flat_map(|flange| flange.reference_faces.iter().chain(&flange.mate_faces)),
+            )
+            .copied()
+            .chain(self.bends.iter().flat_map(|bend| {
+                bend.face_pairs
+                    .iter()
+                    .flat_map(|pair| [pair.first_face, pair.second_face])
+            }))
+            .filter(|&face| {
+                self.cut_edge_faces.binary_search(&face).is_err()
+                    && matches!(
+                        part.faces[face].surface,
+                        Surface::Plane { .. } | Surface::Cylinder { .. }
+                    )
+            })
+    }
+}
+
+/// Whether one body covers all of the candidate's faces.
+pub(super) fn covers(bodies: &[Vec<usize>], faces: &[usize]) -> bool {
     !faces.is_empty()
-        && sheets
+        && bodies
             .iter()
             .any(|sheet| faces.iter().all(|face| sheet.binary_search(face).is_ok()))
 }
@@ -1696,11 +1747,11 @@ fn body(part: &Part, wall: &ThinWallBody, k_factor: f64) -> Option<SheetMetalBod
         };
         let grouped = read(true)?;
         // Separate flange patches can lie on the same plane and have coaxial bends without
-        // being one flange. Undo the grouping only when the individual patches develop.
+        // being one flange. Require a valid blank to replace the grouped reading.
         if grouped.2.is_none()
             && grouped.0.iter().any(|f| f.reference_faces.len() > 1)
             && let Some(separate) = read(false)
-            && separate.2.is_some()
+            && separate.2.as_ref().is_some_and(|plan| plan.valid_blank)
         {
             return Some(separate);
         }
@@ -1793,6 +1844,13 @@ mod tests {
         assert!(sheet.bends.iter().all(|bend| {
             (bend.angle_degrees - 90.).abs() < 1e-7 && (bend.inner_radius - 2.).abs() < 1e-7
         }));
+
+        // Adding a third branch creates an overlap only in the split reading.
+        // The unproved split must not turn the grouped refusal into an overlap record.
+        let crossing = sheet_fixture("coaxial-overlap.step.gz");
+        let sheets =
+            recognise_sheet_metal_bodies(&crossing, &SheetMetalOptions::default()).unwrap();
+        assert!(sheets.is_empty(), "an overlapping split is not a proof");
     }
 
     #[test]
@@ -1828,35 +1886,81 @@ mod tests {
     }
 
     #[test]
-    fn sheet_claims_replace_prismatic_duplicates_without_claiming_holes() {
-        let sample = sheet_fixture("bendfm-0.stp.gz");
-        let features = super::super::recognise(&sample);
-        assert_eq!(features.sheet_metal_bodies.len(), 1);
-        assert!(features.step_levels.is_empty());
-        assert!(features.pads.is_empty());
-        assert!(features.pockets.is_empty());
-        assert!(features.section_recesses.is_empty());
-        assert!(features.slots.is_empty());
-        let reading = crate::correspondence::recognise(&sample);
-        let chamfers = reading
-            .features
-            .families()
-            .into_iter()
-            .find(|(family, _)| family == "chamfers")
-            .unwrap()
-            .1;
-        assert_eq!(chamfers.len(), 1, "clipped flange corner");
-
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/captured/876837d9cf19ff05.step.gz");
-        let part = crate::kernel::step::read_step_file(&path).unwrap();
-        let reading = crate::correspondence::recognise(&part);
-        assert_eq!(reading.features.sheet_metal_bodies.len(), 1);
+    fn sheet_claims_keep_cut_positions_and_replace_duplicate_readings() {
+        let check_levels = |file, status, count, expected: &[(&[usize], f64)]| {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/captured")
+                .join(file);
+            let part = crate::kernel::step::read_step_file(&path).unwrap();
+            let reading = crate::correspondence::recognise(&part);
+            assert_eq!(reading.features.sheet_metal_bodies.len(), 1);
+            let sheet = &reading.features.sheet_metal_bodies[0];
+            assert_eq!(sheet.flat_pattern_status, status);
+            let document = crate::recognition::document(&reading, part.faces.len());
+            let levels: Vec<_> = document
+                .records
+                .iter()
+                .filter(|record| record.family == "step_levels")
+                .collect();
+            for &(faces, x) in expected {
+                assert!(faces.iter().all(|f| sheet.cut_edge_faces.contains(f)));
+                let level = levels
+                    .iter()
+                    .find(|level| level.faces == faces)
+                    .unwrap_or_else(|| panic!("{file}: no level on {faces:?}"));
+                assert_eq!(level.parameters["height_axis"], "x");
+                let actual = level.parameters["z"].as_f64().unwrap()
+                    + level.parameters["origin"][0].as_f64().unwrap();
+                assert!((actual - x).abs() < 1e-5, "{file}: {faces:?} at {actual}");
+            }
+            assert_eq!(levels.len(), count);
+            reading.features.holes.len()
+        };
+        // A developed hanger retains the cut widths and loses its four skin readings.
         assert_eq!(
-            reading.features.holes.len(),
-            2,
-            "holes through the hanger skin"
+            check_levels(
+                "876837d9cf19ff05.step.gz",
+                "overlap",
+                4,
+                &[
+                    (&[56], -85.),
+                    (&[7, 99], -55.),
+                    (&[9, 97], 55.),
+                    (&[23], 85.)
+                ]
+            ),
+            2
         );
+        // On this cyclic sheet all positions must survive, including the cut-out ends.
+        check_levels(
+            "11ee4708f7675eb9.step.gz",
+            "non_tree",
+            18,
+            &[
+                (&[273, 275, 279], -144.),
+                (&[26, 27, 28, 29, 448], -143.443116496),
+            ],
+        );
+
+        let sample = sheet_fixture("bendfm-0.stp.gz");
+        let reading = crate::correspondence::recognise(&sample);
+        assert_eq!(reading.features.sheet_metal_bodies.len(), 1);
+        let document = crate::recognition::document(&reading, sample.faces.len());
+        let faces = |family| {
+            document
+                .records
+                .iter()
+                .filter(|r| r.family == family)
+                .map(|r| r.faces.as_slice())
+                .collect::<Vec<_>>()
+        };
+        // The pad and levels all carry perimeter edges; the former pockets are reliefs.
+        assert_eq!(faces("pads"), [&[38, 47, 54, 55, 56]]);
+        assert_eq!(faces("step_levels"), [&[14, 22, 39, 55], &[4, 12, 37, 54]]);
+        for family in ["pockets", "section_recesses", "slots"] {
+            assert!(faces(family).is_empty(), "{family}");
+        }
+        assert_eq!(faces("chamfers"), [&[77]], "clipped flange corner");
     }
 
     #[test]

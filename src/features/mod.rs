@@ -979,17 +979,12 @@ fn inventory_in_with(
         )
     );
     let sheet_metal_bodies = kept_shared(&mut defining, "sheet_metal_bodies", sheets);
-    let sheet_faces = defining.defining["sheet_metal_bodies"].clone();
-    let explained = |faces: &[usize]| sheet_metal::explains(&sheet_faces, faces);
+    let sheet_faces = sheet_metal::prismatic_face_sets(part, &sheet_metal_bodies);
+    let explained = |faces: &[usize]| sheet_metal::covers(&sheet_faces, faces);
     let sheet_skins: BTreeSet<_> = sheet_metal_bodies
         .iter()
-        .flat_map(|sheet| {
-            sheet
-                .first_side_faces
-                .iter()
-                .chain(&sheet.second_side_faces)
-        })
-        .copied()
+        .filter(|sheet| sheet.flat_pattern.is_some())
+        .flat_map(|sheet| sheet.skin_faces(part))
         .collect();
     let reliefs: Vec<_> = sheet_metal_bodies
         .iter()
@@ -1155,7 +1150,7 @@ fn inventory_in_with(
         .into_iter()
         .filter(|o| {
             // Keep the existing rejection evidence for readings on paired wall faces.
-            !explained(&o.defining) || sheet_metal::explains(walls, &o.defining)
+            !explained(&o.defining) || sheet_metal::covers(walls, &o.defining)
         })
         .collect();
     let risers = kept(&mut defining, "risers", found_risers);

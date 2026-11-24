@@ -160,8 +160,12 @@ pub(crate) fn section_recess_projection_in(
 ) -> Result<SectionRecessProjection, SectionRecessFamilyError> {
     let surfaces = EffectiveFaces::new(ctx);
     let mut native = ctx.native_section_recesses(&surfaces).clone()?;
-    if let Some(sheets) = inventory.physical.defining.get("sheet_metal_bodies") {
-        native.retain(|r| !super::sheet_metal::explains(sheets, r.evidence().constituent_faces()));
+    if !native.is_empty() {
+        let sheets = super::sheet_metal::prismatic_face_sets(
+            ctx.part,
+            &inventory.physical.sheet_metal_bodies,
+        );
+        native.retain(|r| !super::sheet_metal::covers(&sheets, r.evidence().constituent_faces()));
     }
     project(ctx, &surfaces, inventory, native)
 }

@@ -20,7 +20,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-The two other fixtures are original synthetic Apache-2.0 parts. Both use
+The other fixtures are original synthetic Apache-2.0 parts. They use
 1 mm stock, quarter-turn bends, and 2 mm inner radii.
 
 - `overlapping-flanges.step.gz`: an L-shaped base with straight flanges on
@@ -29,3 +29,6 @@ The two other fixtures are original synthetic Apache-2.0 parts. Both use
 - `coaxial-flanges.step.gz`: two chains of two bends, at different axial
   stations on opposite sides of one base. Their final faces lie in the same
   plane and the return bends are coaxial. The two branches remain separate.
+- `coaxial-overlap.step.gz`: the same coaxial returns with an additional
+  downturned flange. Its development crosses one return branch, so the
+  split interpretation alone cannot prove a flat blank.

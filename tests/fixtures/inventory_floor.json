@@ -18237,6 +18237,46 @@
   },
   "losses": [
     {
+      "file": "captured/876837d9cf19ff05.step.gz",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 3,
+      "reason": "For #353, the hanger's proved development and flange skin geometry carry these duplicate skin levels.",
+      "evidence": "The caller-space levels at z=4, 61 and 65 mm define faces [32,47], [4,5,93,94,95,96] and [64] respectively. Each group belongs to the sheet's two developable sides. The skin faces, sheet thickness and developed flange geometry carry the readings."
+    },
+    {
+      "file": "captured/876837d9cf19ff05.step.gz",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 3,
+      "reason": "For #353, the hanger's proved development and flange skin geometry carry these duplicate skin levels.",
+      "evidence": "The caller-space levels at z=4, 61 and 65 mm define faces [32,47], [4,5,93,94,95,96] and [64] respectively. Each group belongs to the sheet's two developable sides. The skin faces, sheet thickness and developed flange geometry carry the readings."
+    },
+    {
+      "file": "corpus/ttt_inputs/sm-hanger.step",
+      "mode": "accepted",
+      "family": "step_levels",
+      "max_lost": 3,
+      "reason": "For #353, the hanger's proved development and flange skin geometry carry these duplicate skin levels.",
+      "evidence": "The caller-space levels at z=4, 61 and 65 mm define faces [32,47], [4,5,93,94,95,96] and [64] respectively. Each group belongs to the sheet's two developable sides. The skin faces, sheet thickness and developed flange geometry carry the readings."
+    },
+    {
+      "file": "corpus/ttt_inputs/sm-hanger.step",
+      "mode": "physical",
+      "family": "step_levels",
+      "max_lost": 3,
+      "reason": "For #353, the hanger's proved development and flange skin geometry carry these duplicate skin levels.",
+      "evidence": "The caller-space levels at z=4, 61 and 65 mm define faces [32,47], [4,5,93,94,95,96] and [64] respectively. Each group belongs to the sheet's two developable sides. The skin faces, sheet thickness and developed flange geometry carry the readings."
+    },
+    {
+      "file": "corpus/ttt_inputs/sm-hanger.step",
+      "mode": "framed",
+      "family": "step_levels",
+      "max_lost": 4,
+      "reason": "For #353, the hanger's proved development and flange skin geometry carry these duplicate skin levels.",
+      "evidence": "The file-space x levels -28, -24, 24 and 28 mm define faces [77], [79], [66] and [72] respectively. These are the paired planar tab skins, 4 mm apart, on the two developed flanges. The flange planes and thickness carry the readings."
+    },
+    {
       "file": "corpus/nist/nist_ctc_04_asme1_rd.stp",
       "mode": "accepted",
       "family": "countersinks",

@@ -249,11 +249,12 @@ edge-open notch at the end of a bend. `bend` indexes the body's `bends` array.
 on the flange skin, both in mm. `faces` contains the two notch walls and its root,
 which also appear in the body's `cut_edge_faces`. The field is omitted if empty.
 
-The sheet-metal record accounts for skin and cut-edge faces that would otherwise
-generate duplicate pads, levels, risers, or recesses. A slot reading between
-opposed flange skins or between a relief's walls also yields to the sheet.
-Holes, through-slots cut in a flange, and chamfered flange ends can retain their
-own feature records.
+A computed development allows the sheet-metal record to replace duplicate
+prismatic readings whose faces all lie on its developable skins or proved
+reliefs. A slot reading between opposed flange skins or between a relief's
+walls also yields to the sheet. The recognisers retain positions of the other
+cut edges, including cut-out ends and flange outlines. Sheets without a computed
+development keep their independent prismatic measurements.
 
 ## Closed blind-recess floor claims (#205, #207)
 
