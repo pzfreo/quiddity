@@ -1357,11 +1357,9 @@ impl Part {
         remember: bool,
     ) -> Option<[f64; N]> {
         if let Some(surface) = self.closed_spline(face) {
-            return closed::integrate_spline(surface, f, rule.components);
+            return closed::integrate_spline(local_spline.unwrap_or(surface), f, rule.components);
         }
-        if boundary.is_none()
-            && let Some(range) = self.spindle_sweep(face)
-        {
+        if let Some(range) = self.spindle_sweep(face, boundary) {
             return closed::integrate_spindle(&self.faces[face].surface, range, f, rule.components);
         }
         let key = (N, rule.observe_mass.is_some(), boundary.is_some());

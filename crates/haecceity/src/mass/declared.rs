@@ -174,6 +174,19 @@ pub(crate) struct DeclaredBoundary {
 }
 
 impl EdgeTrim {
+    /// A direct line which traverses one full u period at constant v.
+    pub(super) fn full_u_latitude(&self, near: f64) -> Option<f64> {
+        if self.curve.transfer.is_some() || !matches!(self.curve.source, Curve::Line { .. }) {
+            return None;
+        }
+        let (a, b) = self.interval;
+        let [u0, v0, _] = self.curve.value(a);
+        let [u1, v1, _] = self.curve.value(b);
+        ((v1 - v0).abs() <= 128.0 * f64::EPSILON * v0.abs().max(1.0)
+            && ((u1 - u0).abs() - std::f64::consts::TAU).abs() <= 1e-9)
+            .then(|| geom::nearest_turn(v0, near))
+    }
+
     pub(super) fn length(&self, surface: &Surface) -> Option<f64> {
         *self.length.get_or_init(|| {
             let nodes = self.nodes()?;

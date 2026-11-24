@@ -684,6 +684,42 @@ fn spherical_solid_measurements() {
         };
         check("as written", &part, centre, tolerance);
 
+        if name == "spherical_box_with_spindle_caps" {
+            let bytes =
+                haecceity::step::decode_step_file_bytes(&path, std::fs::read(&path).unwrap())
+                    .unwrap();
+            let step = std::str::from_utf8(&bytes).unwrap();
+            let mut selected = step.to_owned();
+            for (from, to) in [
+                (
+                    "#348=SURFACE_CURVE('',#205,(#341,#347),.CURVE_3D.);",
+                    "#348=SURFACE_CURVE('',#205,(#341,#347),.PCURVE_S2.);",
+                ),
+                (
+                    "#342=CARTESIAN_POINT('',(0.0,1.5707963267948966));",
+                    "#342=CARTESIAN_POINT('',(0.0,1.5707963467948966));",
+                ),
+            ] {
+                assert_eq!(selected.matches(from).count(), 1);
+                selected = selected.replace(from, to);
+            }
+            let part = haecceity::read_step(selected.as_bytes()).unwrap();
+            let face = (0..part.faces.len())
+                .find(|&f| part.face_source(f).unwrap().entity == 2072)
+                .unwrap();
+            let geom::Surface::Torus { major, minor, .. } = part.faces[face].surface else {
+                panic!("expected spindle cap");
+            };
+            // Full u sweep from the selected latitude to the collapsed pole.
+            let rim: f64 = 1.5707963467948966;
+            let pole = (-major / minor).acos();
+            let expected = std::f64::consts::TAU
+                * minor
+                * (major * (pole - rim) + minor * (pole.sin() - rim.sin()));
+            relative(part.face_mass(face).unwrap()[0], expected, 1e-12);
+            relative(part.face_moments(face).unwrap().area, expected, 1e-12);
+        }
+
         // Offset just the spatial rim circle by 1e-12 mm in its plane. Keep
         // the height and radius of the original cap and translate its centre.
         let (rim, moved, offset) = match name {

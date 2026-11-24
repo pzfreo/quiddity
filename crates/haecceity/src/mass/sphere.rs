@@ -55,7 +55,8 @@ impl SpherePatch {
         let sense = if reversed { -self.sense } else { self.sense };
         let height = cap.height * self.radius;
         let volume = PI * height * height * (self.radius - height / 3.0);
-        // Integral of circular slices, measured up from the rim plane.
+        // Integral of circular slices, measured up from the observed rim.
+        // Its in-plane position preserves a small offset from the carrier axis.
         let offset = height * (4.0 * self.radius - height) / (4.0 * (3.0 * self.radius - height));
         (
             sense * volume,
@@ -222,11 +223,13 @@ impl Part {
             && let Some(terms) = self.spherical_boundary(face, &edges, orientation, Some(boundary))
         {
             (terms, BoundaryMethod::Declared)
-        } else if let Some(cap) = self.circular_cap(frame.origin, radius, &edges, orientation) {
+        } else if let Some((cap, axis)) =
+            self.circular_cap(frame.origin, radius, &edges, orientation)
+        {
             // A thin cap's transverse second moments are much smaller than its
             // area. Use the closed forms to avoid subtracting comparable
             // boundary terms and magnifying their round-off in the centroid.
-            let CircularCap { axis, height, .. } = cap;
+            let height = cap.height;
             let area = TAU * radius * radius * height;
             let axial = area * (1.0 - height + height * height / 3.0);
             let transverse = area * height * (3.0 - height) / 6.0;
@@ -279,22 +282,34 @@ impl Part {
         Some(patch)
     }
 
-    /// A single coaxial circle, possibly split into arcs, is a spherical cap.
+    /// A circular rim, possibly split into arcs, and the axis of its projection
+    /// on the sphere. Keep the original rim plane for measuring a closed solid.
     fn circular_cap(
         &self,
         centre: V3,
         sphere_radius: f64,
         edges: &[(usize, bool)],
         orientation: f64,
-    ) -> Option<CircularCap> {
+    ) -> Option<(CircularCap, V3)> {
         let Curve::Circle { frame, radius } = self.edges[edges.first()?.0].curve else {
             return None;
         };
         let tolerance = 128.0 * f64::EPSILON * sphere_radius;
         let d = geom::sub(frame.origin, centre);
-        if geom::norm(geom::cross(frame.z, d)) > tolerance
-            || (geom::norm(d).hypot(radius) - sphere_radius).abs() > tolerance
+        let skew = geom::norm(geom::cross(frame.z, d));
+        // The first-order correction assumes a small shift relative to the
+        // rim radius. Bound its quadratic remainder as well as the file gap.
+        let off_axis = skew > tolerance;
+        if off_axis
+            && skew
+                > self
+                    .file_uncertainty()
+                    .unwrap_or(geom::COORD_FLOOR)
+                    .min(1e-4 * radius)
         {
+            return None;
+        }
+        if (geom::norm(d).hypot(radius) - sphere_radius).abs() > tolerance {
             return None;
         }
         let mut sweep = 0.0;
@@ -334,11 +349,22 @@ impl Part {
         } else {
             1.0 - c
         };
-        Some(CircularCap {
-            axis,
-            height,
-            rim_centre: frame.origin,
-        })
+        let projected_axis = if off_axis {
+            // For polar angle θ, the first-order displacement in θ is cos θ
+            // times the transverse shift along that meridian, divided by R.
+            let transverse = geom::sub(d, geom::scale(axis, geom::dot(axis, d)));
+            geom::unit(geom::add(axis, geom::scale(transverse, c / sphere_radius)))?
+        } else {
+            axis
+        };
+        Some((
+            CircularCap {
+                axis,
+                height,
+                rim_centre: frame.origin,
+            },
+            projected_axis,
+        ))
     }
 
     /// The boundary as oriented coedges, with opposite uses of a seam removed.

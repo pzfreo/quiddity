@@ -1,7 +1,8 @@
 //! A face whose parameter rectangle closes in space can have only seam and pole
 //! uses. Those uses do not bound an ordinary Green integral in the lifted UV plane.
 use super::{
-    Components, Curve, Part, Surface, V3, estimate, gauss_nodes, geom, spend_work, split_panels,
+    Components, Curve, DeclaredBoundary, Part, Surface, V3, estimate, gauss_nodes, geom,
+    spend_work, split_panels,
 };
 use crate::nurbs::{NurbsSurface, SurfaceEvaluation, breaks};
 use std::f64::consts::{PI, TAU};
@@ -10,7 +11,11 @@ impl Part {
     /// The outer sheet of a spindle torus closes at two axial points. A seam
     /// on that sheet identifies either the whole sweep or a cap ending at
     /// a circular rim. In both cases the missing side in UV is an axial point.
-    pub(super) fn spindle_sweep(&self, face: usize) -> Option<(f64, f64)> {
+    pub(super) fn spindle_sweep(
+        &self,
+        face: usize,
+        boundary: Option<&DeclaredBoundary>,
+    ) -> Option<(f64, f64)> {
         let fc = &self.faces[face];
         let Surface::Torus {
             frame,
@@ -51,7 +56,7 @@ impl Part {
                 {
                     return None;
                 }
-                Some(z.atan2(radius - major))
+                Some((e, z.atan2(radius - major)))
             }
             _ => return None,
         };
@@ -72,10 +77,19 @@ impl Part {
             lo = lo.min(v);
             hi = hi.max(v);
         }
+        let latitude = |e, spatial| {
+            let Some(trim) = boundary.and_then(|b| b.edges.get(&e)) else {
+                return Some(spatial);
+            };
+            // Use the declared rim when it is itself a full latitude. An
+            // arbitrary pcurve can change the domain and needs UV integration.
+            let v = trim.full_u_latitude(spatial)?;
+            (-limit..limit).contains(&v).then_some(v)
+        };
         match (ends, rim_v) {
             ([true, true], None) => Some((-limit, limit)),
-            ([true, false], Some(v)) if lo >= v - 1e-8 => Some((v, limit)),
-            ([false, true], Some(v)) if hi <= v + 1e-8 => Some((-limit, v)),
+            ([true, false], Some((e, v))) if lo >= v - 1e-8 => Some((latitude(e, v)?, limit)),
+            ([false, true], Some((e, v))) if hi <= v + 1e-8 => Some((-limit, latitude(e, v)?)),
             _ => None,
         }
     }
