@@ -252,6 +252,10 @@ which also appear in the body's `cut_edge_faces`. The field is omitted if empty.
 Each measured flange has a `bounds` record. Its `corner` is the low corner along
 `length_axis`, `width_axis`, and the parent flange's `normal`. Follow the first two
 unit vectors for `length` and `width` in mm to place the in-plane rectangle.
+`length_axis` is the recognition-frame axis least aligned with the normal, projected
+into the flange plane (the first in x, y, z order on a tie), and `width_axis` is
+`normal × length_axis`; neither is chosen by size, so `length` can be shorter than
+`width`.
 `normal_span` is the measured range through both skins along the normal. The
 three spans recover all six box limits in the recognition frame. A slanted,
 rounded or notched flange uses bounding extents. The rectangle describes the
@@ -267,7 +271,10 @@ A computed development allows the sheet-metal record to replace duplicate
 prismatic readings whose faces all lie on its developable skins or proved
 reliefs. A slot reading between opposed flange skins or between a relief's
 walls also yields to the sheet. The recognisers retain positions of the other
-cut edges, including cut-out ends and flange outlines. Sheets without a computed
+cut edges, including cut-out ends and flange outlines, with one exception: cut-edge
+step levels along the axes a body's face claims occupy yield to the sheet-metal
+body (as on bodies recognised before #353), and in every case checked (127 in 2,000 BenDFM parts) their positions are published flange-bound
+limits. Sheets without a computed
 development keep their independent prismatic measurements.
 
 ## Closed blind-recess floor claims (#205, #207)

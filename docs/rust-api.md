@@ -88,7 +88,7 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `quiddity::features::section_recess_family`: `SectionRecessProjection`.
 - `quiddity::features::sections`: `LocalFrame`, `OccurrenceGeometry`, `SectionEnds`, `SectionValue`, `VertexValue`.
 - `quiddity::features::semicircular_blind_slots`: `SemicircularBlindSlot`.
-- `quiddity::features::sheet_metal`: `FlatOverlapWitness`, `FlatPatternPlan`, `FormedSheetFeature`, `SheetBend`, `SheetEdgeTreatment`, `SheetFlange`, `SheetMetalBody`, `SheetMetalOptions`, `UnfoldedBendStrip`, `UnfoldedFlangeFace`.
+- `quiddity::features::sheet_metal`: `FlatOverlapWitness`, `FlatPatternPlan`, `FormedSheetFeature`, `SheetBend`, `SheetBendRelief`, `SheetEdgeTreatment`, `SheetFlange`, `SheetFlangeBounds`, `SheetMetalBody`, `SheetMetalOptions`, `UnfoldedBendStrip`, `UnfoldedFlangeFace`.
 - `quiddity::features::thin_walls`: `ShellHistoryHint`, `ThinWallBody`, `UnpairedWallFace`, `WallFacePair`.
 - `quiddity::features::through_notches`: `RectangularThroughNotch`.
 - `quiddity::features::through_steps`: `ThroughStep`.
