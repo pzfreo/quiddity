@@ -602,7 +602,8 @@ fn face_moments_and_volume_centroid_share_one_integration() {
 #[test]
 fn spherical_solid_measurements() {
     let dir = common::fixtures().join("brep-conformance");
-    // Springrep 2.1.0 references, independently checked with OCP 7.8.
+    // Springrep 2.1.0 references. OCP 7.8 independently checked the whole
+    // sphere, lens, box, split sphere and box with spindle caps.
     // For the stretched sphere, the volume and centre also follow from the affine
     // image of the unit ball. Integrating the cofactor of the affine map on the
     // unit sphere independently gives 20.704519167 mm².
@@ -620,10 +621,28 @@ fn spherical_solid_measurements() {
             [2.099302740899602, 0.0, 0.0],
         ),
         (
+            "thin_sphere_lens",
+            1.1265494515087496e-9,
+            0.0005090673797033365,
+            [8.85186604602571, 0.0, 0.0],
+        ),
+        (
+            "thin_sphere_cap",
+            1.873084924608645e-9,
+            0.000890187686229883,
+            [0.0, 0.0, 8.416579384147722],
+        ),
+        (
             "spherical_box_face",
             553.5097156185955,
             432.0964256877111,
             [4.641539450109799; 3],
+        ),
+        (
+            "spherical_box_with_spindle_caps",
+            724.2581849459086,
+            434.60950816900345,
+            [3.285673925252643, 3.3354995618978527, 2.703472885135289],
         ),
         (
             "split_sphere",
@@ -645,7 +664,11 @@ fn spherical_solid_measurements() {
         let mass = part.solid_mass(0);
         let centroid = part.volume_centroid();
         // Express volume, area, and centroid errors as lengths in mm.
-        let tolerance = 1e-7;
+        let tolerance = if name.starts_with("thin_") {
+            1e-9
+        } else {
+            1e-7
+        };
         if !mass.is_some_and(|(v, a)| {
             (v - volume).abs() <= tolerance * area && (a - area).abs() <= tolerance * area.sqrt()
         }) || !centroid.is_some_and(|(v, c)| {
