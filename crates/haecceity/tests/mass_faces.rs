@@ -596,3 +596,65 @@ fn face_moments_and_volume_centroid_share_one_integration() {
     assert!(close(m.centroid[1], 15.946107488877757));
     assert!(close(m.second_moments[2][2], 392675.6831400961));
 }
+
+/// Whole spheres and closed splines with only seams have no material boundary.
+/// Trimmed spheres must measure the correct side of each wire, including pole crossings.
+#[test]
+fn spherical_solid_measurements() {
+    let dir = common::fixtures().join("brep-conformance");
+    // Springrep 2.1.0 references, independently checked with OCP 7.8.
+    // For the stretched sphere, the volume and centre also follow from the affine
+    // image of the unit ball. Integrating the cofactor of the affine map on the
+    // unit sphere independently gives 20.704519167 mm².
+    let cases = [
+        (
+            "whole_sphere",
+            13.351809032195062,
+            27.21724729010468,
+            [-0.8499371627996487, 0.8735405104041485, -0.5747470776814828],
+        ),
+        (
+            "sphere_lens",
+            168.69167170610382,
+            147.80770375090304,
+            [2.099302740899602, 0.0, 0.0],
+        ),
+        (
+            "spherical_box_face",
+            553.5097156185955,
+            432.0964256877111,
+            [4.641539450109799; 3],
+        ),
+        (
+            "split_sphere",
+            36.601431000072196,
+            54.3796195809381,
+            [-1.0872940416786603, 0.1700865678534731, 2.604665400579255],
+        ),
+        (
+            "stretched_sphere",
+            7.469846875521929,
+            20.70451916683961,
+            [-42.23533492325782, 47.10542502072179, 37.7400811722552],
+        ),
+    ];
+    let mut failures = Vec::new();
+    for (name, volume, area, centre) in cases {
+        let part = read_step_file(&dir.join(format!("{name}.step.gz"))).unwrap();
+        assert_eq!(part.solids.len(), 1, "{name}");
+        let mass = part.solid_mass(0);
+        let centroid = part.volume_centroid();
+        // Express volume, area, and centroid errors as lengths in mm.
+        let tolerance = 1e-7;
+        if !mass.is_some_and(|(v, a)| {
+            (v - volume).abs() <= tolerance * area && (a - area).abs() <= tolerance * area.sqrt()
+        }) || !centroid.is_some_and(|(v, c)| {
+            (v - volume).abs() <= tolerance * area && geom::dist(c, centre) <= tolerance
+        }) {
+            failures.push(format!(
+                "{name}: mass {mass:?}, volume/centroid {centroid:?}"
+            ));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
