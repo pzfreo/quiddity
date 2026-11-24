@@ -596,3 +596,166 @@ fn face_moments_and_volume_centroid_share_one_integration() {
     assert!(close(m.centroid[1], 15.946107488877757));
     assert!(close(m.second_moments[2][2], 392675.6831400961));
 }
+
+/// Whole spheres and closed splines with only seams have no material boundary.
+/// Trimmed spheres must measure the correct side of each wire, including pole crossings.
+#[test]
+fn spherical_solid_measurements() {
+    let dir = common::fixtures().join("brep-conformance");
+    // Springrep 2.1.0 references. OCP 7.8 independently checked the whole
+    // sphere, lens, box, split sphere and box with spindle caps.
+    // For the stretched sphere, the volume and centre also follow from the affine
+    // image of the unit ball. Integrating the cofactor of the affine map on the
+    // unit sphere independently gives 20.704519167 mm².
+    let cases = [
+        (
+            "whole_sphere",
+            13.351809032195062,
+            27.21724729010468,
+            [-0.8499371627996487, 0.8735405104041485, -0.5747470776814828],
+        ),
+        (
+            "sphere_lens",
+            168.69167170610382,
+            147.80770375090304,
+            [2.099302740899602, 0.0, 0.0],
+        ),
+        (
+            "thin_sphere_lens",
+            1.1265494515087496e-9,
+            0.0005090673797033365,
+            [8.85186604602571, 0.0, 0.0],
+        ),
+        (
+            "thin_sphere_cap",
+            1.873084924608645e-9,
+            0.000890187686229883,
+            [0.0, 0.0, 8.416579384147722],
+        ),
+        (
+            "spherical_box_face",
+            553.5097156185955,
+            432.0964256877111,
+            [4.641539450109799; 3],
+        ),
+        (
+            "spherical_box_with_spindle_caps",
+            724.2581849459086,
+            434.60950816900345,
+            [3.285673925252643, 3.3354995618978527, 2.703472885135289],
+        ),
+        (
+            "split_sphere",
+            36.601431000072196,
+            54.3796195809381,
+            [-1.0872940416786603, 0.1700865678534731, 2.604665400579255],
+        ),
+        (
+            "stretched_sphere",
+            7.469846875521929,
+            20.70451916683961,
+            [-42.23533492325782, 47.10542502072179, 37.7400811722552],
+        ),
+    ];
+    let mut failures = Vec::new();
+    for (name, volume, area, centre) in cases {
+        let path = dir.join(format!("{name}.step.gz"));
+        let part = read_step_file(&path).unwrap();
+        // Express volume, area, and centroid errors as lengths in mm.
+        let tolerance = if name.starts_with("thin_") {
+            1e-9
+        } else {
+            1e-7
+        };
+        let mut check = |label: &str, part: &haecceity::Part, centre, centre_tolerance| {
+            assert_eq!(part.solids.len(), 1, "{name} {label}");
+            let mass = part.solid_mass(0);
+            let centroid = part.volume_centroid();
+            if !mass.is_some_and(|(v, a)| {
+                (v - volume).abs() <= tolerance * area
+                    && (a - area).abs() <= tolerance * area.sqrt()
+            }) || !centroid.is_some_and(|(v, c)| {
+                (v - volume).abs() <= tolerance * area && geom::dist(c, centre) <= centre_tolerance
+            }) {
+                failures.push(format!(
+                    "{name} {label}: mass {mass:?}, volume/centroid {centroid:?}"
+                ));
+            }
+        };
+        check("as written", &part, centre, tolerance);
+
+        if name == "spherical_box_with_spindle_caps" {
+            let bytes =
+                haecceity::step::decode_step_file_bytes(&path, std::fs::read(&path).unwrap())
+                    .unwrap();
+            let step = std::str::from_utf8(&bytes).unwrap();
+            let mut selected = step.to_owned();
+            for (from, to) in [
+                (
+                    "#348=SURFACE_CURVE('',#205,(#341,#347),.CURVE_3D.);",
+                    "#348=SURFACE_CURVE('',#205,(#341,#347),.PCURVE_S2.);",
+                ),
+                (
+                    "#342=CARTESIAN_POINT('',(0.0,1.5707963267948966));",
+                    "#342=CARTESIAN_POINT('',(0.0,1.5707963467948966));",
+                ),
+            ] {
+                assert_eq!(selected.matches(from).count(), 1);
+                selected = selected.replace(from, to);
+            }
+            let part = haecceity::read_step(selected.as_bytes()).unwrap();
+            let face = (0..part.faces.len())
+                .find(|&f| part.face_source(f).unwrap().entity == 2072)
+                .unwrap();
+            let geom::Surface::Torus { major, minor, .. } = part.faces[face].surface else {
+                panic!("expected spindle cap");
+            };
+            // Full u sweep from the selected latitude to the collapsed pole.
+            let rim: f64 = 1.5707963467948966;
+            let pole = (-major / minor).acos();
+            let expected = std::f64::consts::TAU
+                * minor
+                * (major * (pole - rim) + minor * (pole.sin() - rim.sin()));
+            relative(part.face_mass(face).unwrap()[0], expected, 1e-12);
+            relative(part.face_moments(face).unwrap().area, expected, 1e-12);
+        }
+
+        // Offset just the spatial rim circle by 1e-12 mm in its plane. Keep
+        // the height and radius of the original cap and translate its centre.
+        let (rim, moved, offset) = match name {
+            "thin_sphere_cap" => (
+                "#49=CARTESIAN_POINT('',(0.0,0.0,8.416576578619157));",
+                "#49=CARTESIAN_POINT('',(1.E-12,0.0,8.416576578619157));",
+                [1e-12, 0.0, 0.0],
+            ),
+            "thin_sphere_lens" => (
+                "#29=CARTESIAN_POINT('',(8.851865945671033,0.0,0.0));",
+                "#29=CARTESIAN_POINT('',(8.851865945671033,1.E-12,0.0));",
+                [0.0, 1e-12, 0.0],
+            ),
+            _ => continue,
+        };
+        let bytes =
+            haecceity::step::decode_step_file_bytes(&path, std::fs::read(&path).unwrap()).unwrap();
+        let step = std::str::from_utf8(&bytes).unwrap();
+        assert_eq!(step.matches(rim).count(), 1, "{name}");
+        for (source, shift, centre_tolerance) in [
+            (moved.to_owned(), offset, 1e-12),
+            // Exceed the file's uncertainty and exercise the checked UV flux.
+            (
+                moved.replace("1.E-12", "1.E-6"),
+                geom::scale(offset, 1e6),
+                3e-12,
+            ),
+        ] {
+            let perturbed = haecceity::read_step(step.replace(rim, &source).as_bytes()).unwrap();
+            check(
+                "with perturbed rim",
+                &perturbed,
+                geom::add(centre, shift),
+                centre_tolerance,
+            );
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}

@@ -331,6 +331,7 @@ pub(super) struct FaceCache {
     pub(super) domain: OnceLock<Option<FaceDomain>>,
     pub(super) bounds: OnceLock<Bounds>,
     pub(super) mass: OnceLock<super::mass::FaceMass>,
+    pub(super) sphere_patch: OnceLock<Option<Box<super::mass::SpherePatch>>>,
     pub(super) moments: OnceLock<Option<super::mass::FaceMoments>>,
     pub(super) raw_moments: OnceLock<super::mass::RawMoments>,
     pub(super) file_integrals_carried: OnceLock<()>,

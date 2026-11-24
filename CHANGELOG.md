@@ -30,6 +30,10 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### haecceity
 
+- For #351, measure whole and trimmed spherical faces, closed spline faces, and spindle torus
+  faces that end at a pole, including their contributions to solid volume and centroid.
+  Preserve centroid precision on thin caps and lenses with slightly offset rims, and honour
+  declared full-latitude trims on spindle tori.
 - For #348, add `hlr::project_with_origin()` and `hlr::project_section_with_origin()` to return
   each projected stretch with its Part-local edge or face origin.
 - For #341, add `Part::file_angle_uncertainty()` to read the smallest declared STEP plane
