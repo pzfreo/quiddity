@@ -6,6 +6,10 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+- For #353, keep bent sheet-metal bodies with overlapping developments, report bend-relief
+  notches, and suppress duplicate prismatic claims on developed skins and reliefs while
+  retaining cut-edge positions. Publish measured flange bounds and use them in
+  place of pad records that describe exactly one developed flange.
 - Run fast and touched Rust tests on Linux for ready PRs, with full Linux and macOS CI on main and for `full-ci` PRs.
 - For #341, add defining faces and chain references to fillets. Publish tangent fillet chains
   through spherical and toroidal corners, with their spring edges and groups by radius

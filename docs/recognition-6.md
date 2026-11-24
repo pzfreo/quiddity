@@ -237,6 +237,46 @@ These structs are `#[non_exhaustive]`: external Rust code cannot build them with
 literals and only reads the new field; in-crate literals supply `faces`
 (normally `Vec::new()`).
 
+## Sheet-metal developments and bend reliefs (for #353)
+
+A proved sheet with an overlapping development has `flat_pattern_status: "overlap"`.
+Its `flat_pattern` includes the overlapping flange or bend-strip regions and their
+common areas in `overlap_witnesses`. The development's `valid_blank` is false.
+
+The optional `bend_reliefs` array provides one record for each proved rectangular
+edge-open notch at the end of a bend. `bend` indexes the body's `bends` array.
+`width` measures along the bend axis and `depth` measures inward from the mouth
+on the flange skin, both in mm. `faces` contains the two notch walls and its root,
+which also appear in the body's `cut_edge_faces`. The field is omitted if empty.
+
+Each measured flange has a `bounds` record. Its `corner` is the low corner along
+`length_axis`, `width_axis`, and the parent flange's `normal`. Follow the first two
+unit vectors for `length` and `width` in mm to place the in-plane rectangle.
+`length_axis` is the recognition-frame axis least aligned with the normal, projected
+into the flange plane (the first in x, y, z order on a tie), and `width_axis` is
+`normal × length_axis`; neither is chosen by size, so `length` can be shorter than
+`width`.
+`normal_span` is the measured range through both skins along the normal. The
+three spans recover all six box limits in the recognition frame. A slanted,
+rounded or notched flange uses bounding extents. The rectangle describes the
+envelope of the skins and their trims. Positions and directions are carried
+into file coordinates with the flange. The sheet fingerprint counts flanges
+and retains their defining faces, and face accounting keeps those face claims.
+
+A pad that describes exactly one developed flange yields to that flange's
+bounds. Its two skins and perimeter cuts must belong to that flange, and the
+flange box must reproduce all six pad limits at measurement precision.
+
+A computed development allows the sheet-metal record to replace duplicate
+prismatic readings whose faces all lie on its developable skins or proved
+reliefs. A slot reading between opposed flange skins or between a relief's
+walls also yields to the sheet. The recognisers retain positions of the other
+cut edges, including cut-out ends and flange outlines, with one exception: cut-edge
+step levels along the axes a body's face claims occupy yield to the sheet-metal
+body (as on bodies recognised before #353), and in every case checked (127 in 2,000 BenDFM parts) their positions are published flange-bound
+limits. Sheets without a computed
+development keep their independent prismatic measurements.
+
 ## Closed blind-recess floor claims (#205, #207)
 
 Accepted flat-bottomed blind holes and blind `pockets`/`prismatic_pockets` also
