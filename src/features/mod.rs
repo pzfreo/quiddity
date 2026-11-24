@@ -1150,14 +1150,15 @@ fn inventory_in_with(
             evidence::locally_valid_solid(part, &o.defining).is_some()
         })
     );
-    let risers = kept(
-        &mut defining,
-        "risers",
-        found_risers
-            .into_iter()
-            .filter(|o| !explained(&o.defining))
-            .collect(),
-    );
+    let walls = &defining.defining["thin_wall_bodies"];
+    let found_risers = found_risers
+        .into_iter()
+        .filter(|o| {
+            // Keep the existing rejection evidence for readings on paired wall faces.
+            !explained(&o.defining) || sheet_metal::explains(walls, &o.defining)
+        })
+        .collect();
+    let risers = kept(&mut defining, "risers", found_risers);
     let step_levels = kept(&mut defining, "step_levels", step_level_occurrences);
     let void_analysis = discover!("interior_voids", interior_voids::analyse(ctx));
     let plate_occurrences = discover!("plates", plates::discover(ctx, &Default::default()));
