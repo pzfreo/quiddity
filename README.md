@@ -31,7 +31,8 @@ draftwright-editor's `npm run showcase:render`.*
 **Contents:** [Results](#results) · [Install](#install) · [Command line](#command-line) ·
 [Output](#output) · [Read and write PMI](#read-and-write-pmi) · [Compare two revisions](#compare-two-revisions) ·
 [Python and Rust](#python-and-rust) · [Limits](#limits) · [Packages](#packages) ·
-[How it's built](#how-its-built) · [Contributing](#contributing) · [History](#history)
+[How it's built](#how-its-built) · [Who uses it](#who-uses-it) · [Contributing](#contributing) ·
+[History](#history)
 
 Status: **0.5.5** (2026-11-21). See [CHANGELOG.md](CHANGELOG.md).
 
@@ -249,6 +250,11 @@ the code:
 - the measurements above, against public datasets, with their commands and raw data committed;
 - one rule throughout: tests are never loosened to make a change pass, and recognition refuses a
   feature rather than guess it.
+
+## Who uses it
+
+[ADOPTERS.md](ADOPTERS.md) lists projects that use quiddity or haecceity. If you use either,
+please add yourself: a one-line pull request, or an issue if that's easier.
 
 ## Contributing
 
