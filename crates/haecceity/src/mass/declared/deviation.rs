@@ -128,6 +128,7 @@ impl Part {
                 spans: closed_spans(surface),
                 interval,
                 samples: OnceLock::new(),
+                mesh_samples: OnceLock::new(),
                 nodes: OnceLock::new(),
                 length: OnceLock::new(),
             };

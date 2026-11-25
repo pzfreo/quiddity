@@ -127,9 +127,104 @@ Where the moment group cannot be integrated against world coordinates (a small s
 trim far from the origin), it is integrated once more against the B-spline net
 translated to the face's moment origin, over the same boundary and error test.
 
-The mesher still triangulates the projected 3D edges; until it follows the selected
-boundary a face whose two boundaries differ meshes the other region (cgb243 face 543,
-13%; `tests/mesh.rs` lists it with an independent reference).
+## Following the selected boundary in the mesh
+
+The mesher samples each topological edge once for all its incident faces. It
+prefers a geometrically qualified selected trim on the carrier face,
+then checks the other incident faces for that same selection. Every receiving
+face must be able to resolve the selected trim on its own surface. An edge
+without compatible receiving trims or a sampleable selection uses
+its existing spatial samples. The faces map those common points to their own
+parameter charts. On a closed spline, an inverse stopped at the seam also
+tries the other end of the chart.
+If a selected loop still refuses triangulation after the usual thinning
+retries, the mesher retries with spatial edges for that loop's face. Every
+incident face uses the same replacement samples on those edges.
+This is one compatibility retry, not proof that the selected geometry was
+invalid: a qualified selected loop may also exceed the mesher's capabilities.
+Its replacement can differ from the boundary used by the face integral. The
+mesher does not recompute or change the accepted mass boundary. If the retry
+also fails, the existing `MeshRefusal` is returned.
+
+Ordinary boundary selection reads the existing geometric boundary cache without
+requesting a face integral or changing the accepted mass-boundary decision.
+Each mesh call constructs its own shared edge plans and parameter charts. A
+boundary fallback rebuilds all charts and plans; this version deliberately
+keeps the original retry and interior-refinement order. Further work reuse and
+specialised evaluators are separate performance changes.
+
+The mesh keeps the shared STEP vertices at the ends of an edge. An unresolved
+run of samples next to both the STEP vertex and the selected curve's true end
+does not add a second boundary key there.
+
+A selected spherical cap can also be triangulated in a central projection.
+All its boundary points must lie well inside one hemisphere and its measured
+area must fit in a hemisphere. In that chart, the signed planar area of a
+triangle has the same sign as the determinant of the three spatial directions
+from the sphere centre. Refinement places points back on the same sphere.
+The mesh still reports the surface's usual parameters and original shared
+boundary positions.
+
+This chart also explains most of cgb202's triangle-count reduction. With the
+same Windows build and tolerances, the original selected-boundary implementation
+has 259,936 triangles versus 272,196 at `6e56fd77`: spherical faces account for
+a reduction of 12,598, offset by 338 additional triangles elsewhere. Disabling
+only the central projection increases the selected-boundary result to 279,944;
+only 174 spherical faces change, adding 10,004 interior vertices while keeping
+their shared spatial boundary points identical. Non-spherical faces are
+unchanged in this ablation. A spherical pole can retain a different equivalent
+longitude in the reported UV coordinates. The scoped sampling rule below
+gives 260,290 triangles on Windows. Of the 354 added relative to the original
+PR, spherical faces account for 187, freeform faces for 150, cylinders for 16
+and tori for one. All versions retain the single refusal at face 399. Exact
+totals can differ slightly between Windows and ARM macOS.
+
+### Separate tessellation samples from integration panels
+
+Integration partitions a selected trim at spline knots and transferred carrier
+knots. Those panels are not uniform parameter stations, even when the spatial
+curve is smooth. Reusing their samples in the mesh planner can stagger the two
+sides of a narrow freeform ribbon and introduce folded triangles.
+
+The mesh planner uses 256 uniform parameter segments before chord refinement
+when every incident face is freeform, or when a non-freeform carrier supplies
+the selected trim to a freeform face. It uses the surface that owns the pcurve,
+including the source surface of a transferred trim. Each of the six reported
+ribbons shares a cylinder-owned edge with a cylindrical face. Freeform-owned
+edges with an analytic neighbour and edges with only analytic incident faces
+use the original knot-based stations. All incident faces use one shared
+spatial edge plan. Integration accesses its own knot partitions and samples.
+
+The focused whole-part regression checks the six narrow faces of
+`threaded_connector_109` independently of the corpus perimeter allowance: each
+must be within 1% of its integral area and drop no folded triangles. On two
+other faces of this part (16 and 138), the regression checks winding against
+the surface normals. They retain their known area errors. In a 192-segment
+trial these two faces gained more than 3,000 inward triangles. The cgb243
+test still checks both single-face and whole-part calls against its independent
+area reference. On Windows both calls give 475 triangles and 0.877668% area
+error. With 128 segments on every selected edge, #50870 and #60095 gained
+two and five inward triangles respectively. The scoped rule preserves outward
+orientation on both. On #60132 itself, eight retained triangles face inward
+under the corpus normal check and two folded triangles were dropped. With the
+original placement and boundary fixed, the first inversion appeared in the
+second refinement round when an interior midpoint was placed on the surface.
+The two 37-degree placement checks give 0.787233% and 0.760832% with recomputed
+default deflections and 0.877683% and 0.926941% at the original deflection.
+Across 72 additional placements the largest area error was 0.889194% at the
+recomputed deflection. A separate set of 128 rotations gave a maximum of 0.887017%.
+With 128 starting segments the corresponding maxima were 1.010172% and
+0.996699%. These figures apply to this fixture and these deflections.
+
+In eight paired Linux x86-64 rounds, one STEP read and one whole-part mesh
+used 3.906, 2.023 and 1.551 times the retired user-space instructions of the
+spatial-edge baseline (`6e56fd77`) on cgb243, cgb202 and string_post. The
+counter followed the worker thread from before the read through bounds, meshing
+and release. Increasing the uniform seed from 128 to 256 segments added 2.41%
+on cgb243 and 0.77% on cgb202 in that run. An earlier run of the original PR
+with the same inputs and counter gave baseline ratios of 5.152, 2.003 and
+1.519 respectively. The Windows resource tables below precede the sampling
+change.
 
 ## The native spline integration rule introduced in #281
 
@@ -226,3 +321,62 @@ The existing quadrature and kink-budget tests retain exhaustive mode.
 The work-reuse tests retain their independent face-area and moment references,
 placement checks, inventory floors and tolerances. Repeated-moment speedups measure
 cache reuse; they are not claims about cold integrations or whole-part recognition.
+
+
+## Selected-mesh resource measurements
+
+Inputs are from `pzfreo/quiddity-corpus` at `3ef06590a7a27ed65ca1f1a6e7f7ea4d5c328f1f`. Each Part is read with `haecceity::read_step_file`. Both timed calls use `part.mesh(deflection, 0.3)`, with `deflection = 0.001 * diagonal` for a finite positive `part.bounds().diagonal()` (otherwise `0.001`). Bounds and deflection setup occur before timing. The first mesh remains alive during the second timed call for exact output comparison; both are checked and released outside timing. The separate memory probe drops each mesh before the next call.
+
+| Input | Corpus-relative file | Paired timing rounds |
+| --- | --- | --- |
+| cgb245 | `cadgenbench_inputs/cgb245.step` | 30 |
+| string_post | `gramel/string_post.step` | 30 |
+| cgb243 | `cadgenbench_inputs/cgb243.step.gz` | 30 |
+| cgb202 | `cadgenbench_inputs/cgb202.step.gz` | 10 |
+| cgb203 | `cadgenbench_inputs/cgb203.step` | 10 |
+| cgb207 | `cadgenbench_inputs/cgb207.step` | 10 |
+| cgb217 | `cadgenbench_inputs/cgb217.step.gz` | 10 |
+| cgb242 | `cadgenbench_inputs/cgb242.step.gz` | 10 |
+
+### Resource comparison: Use STEP-selected boundaries for face meshing
+
+Windows/i7-11800H, Rust 1.99.1/MSVC release, x86-64-v3, one pinned CPU. A single balanced five-version comparison used 30 paired rounds for cgb245, string_post and cgb243, and ten for each other input. Every version used a fresh Part and two mesh calls; import and deflection setup were outside mesh timing, with no warm-up or discarded rounds. Ratios below 1 are faster; intervals are paired 95% bootstrap intervals (5,000 samples, seed 317). The comparison is against merged #317.
+
+| Input | First-call ratio [95% CI] | Repeated-call ratio [95% CI] |
+| --- | --- | --- |
+| cgb245 | 2.750 [2.684, 2.813] | 1.390 [1.358, 1.417] |
+| string_post | 2.167 [2.108, 2.218] | 1.296 [1.268, 1.328] |
+| cgb243 | 7.878 [7.793, 7.960] | 4.498 [4.452, 4.539] |
+| cgb202 | 2.818 [2.782, 2.853] | 1.071 [1.056, 1.083] |
+| cgb203 | 1.077 [1.055, 1.098] | 1.025 [1.009, 1.038] |
+| cgb207 | 1.839 [1.726, 1.924] | 1.119 [1.091, 1.144] |
+| cgb217 | 1.340 [1.296, 1.383] | 1.032 [0.995, 1.064] |
+| cgb242 | 1.929 [1.874, 1.978] | 1.033 [1.014, 1.056] |
+
+| Input | Import ratio [95% CI] | Import plus first mesh ratio [95% CI] |
+| --- | --- | --- |
+| cgb245 | 1.031 [1.012, 1.049] | 1.481 [1.456, 1.505] |
+| string_post | 1.007 [0.981, 1.031] | 1.563 [1.534, 1.592] |
+| cgb243 | 1.019 [1.002, 1.038] | 5.350 [5.300, 5.398] |
+| cgb202 | 1.019 [1.004, 1.033] | 2.026 [2.006, 2.046] |
+| cgb203 | 0.948 [0.840, 1.047] | 1.046 [1.019, 1.072] |
+| cgb207 | 0.879 [0.682, 1.024] | 1.493 [1.297, 1.626] |
+| cgb217 | 1.022 [0.976, 1.073] | 1.206 [1.167, 1.246] |
+| cgb242 | 1.001 [0.944, 1.054] | 1.583 [1.543, 1.622] |
+
+Import plus first mesh excludes bounds/deflection setup, validation and teardown. It checks for work moved into preparation without claiming end-to-end application latency.
+
+Eight-input memory measurements used five fresh processes per version/input and ten calls per process. Median peak private commit changed by +9.0% to +92.4%; cgb243 changed from 140.11 to 221.57 MiB. The correctness fix increases resource use; this is an observed implementation cost, not a lower bound on the cost of correct boundaries. Import plus first mesh is reported separately in the source documentation, including intervals crossing 1. These measurements are not application timings or corpus-wide resource bounds.
+
+| Input | Peak private commit: preceding / current (MiB) | Peak working set: preceding / current (MiB) | Retained Rust increase: preceding / current (MiB) |
+| --- | --- | --- | --- |
+| cgb245 | 31.5000 / 60.6133 | 36.9414 / 64.6094 | 0.0000 / 17.4228 |
+| string_post | 8.4766 / 12.8711 | 14.7578 / 18.9609 | 0.0000 / 2.2241 |
+| cgb243 | 140.1094 / 221.5703 | 140.7148 / 219.9688 | 0.0000 / 48.6644 |
+| cgb202 | 314.7812 / 427.1523 | 312.0820 / 421.0781 | 0.0000 / 80.3429 |
+| cgb203 | 74.1289 / 80.7773 | 78.2891 / 84.7109 | 0.0000 / 5.3766 |
+| cgb207 | 48.9102 / 67.7812 | 54.1133 / 72.4453 | 0.0000 / 12.9470 |
+| cgb217 | 71.1250 / 103.0117 | 75.1641 / 105.4336 | 0.0000 / 20.9102 |
+| cgb242 | 119.1289 / 179.7969 | 122.1211 / 181.6172 | 0.0000 / 43.0728 |
+
+Process peaks cover import and meshing. Private commit is not resident physical memory; working set is reported separately. Rust counts measure requested allocation bytes. Retained allocation is the increase over the post-import, post-deflection-setup state, with the mesh dropped and the Part alive. Every process releases each mesh before the next call and drops the Part at the end. Retained Rust bytes did not grow over ten calls. Valid triangulations need not be bit-identical between stages; geometric regression tests retain their reference bands and fallbacks.

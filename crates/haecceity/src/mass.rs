@@ -22,7 +22,7 @@ mod declared;
 mod preferred;
 mod sphere;
 pub(crate) use declared::{BoundaryPolicy, EdgeDeviations};
-pub(super) use declared::{DeclaredBoundary, TrimCrossings};
+pub(super) use declared::{DeclaredBoundary, EdgeTrim, TrimCrossings, TrimSamples};
 pub(super) use preferred::PreferredPaths;
 pub(super) use sphere::SpherePatch;
 

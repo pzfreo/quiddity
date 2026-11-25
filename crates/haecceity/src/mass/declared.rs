@@ -156,6 +156,7 @@ pub(crate) struct EdgeTrim {
     spans: (f64, f64),
     pub(crate) interval: (f64, f64),
     samples: OnceLock<Option<TrimSamples>>,
+    mesh_samples: OnceLock<Option<TrimSamples>>,
     nodes: OnceLock<Option<Vec<f64>>>,
     length: OnceLock<Option<f64>>,
 }
@@ -223,37 +224,72 @@ impl EdgeTrim {
 
     pub(crate) fn samples(&self, s: &Surface, edge: &crate::brep::Edge) -> Option<&TrimSamples> {
         self.samples
+            .get_or_init(|| self.sample(s, edge, &self.nodes()?))
+            .as_ref()
+    }
+
+    /// Uniform parameter stations keep opposite sides of a narrow freeform strip
+    /// aligned. On a mixed edge, use them when the selected curve comes from the
+    /// analytic carrier. A freeform trim transferred to an analytic face can
+    /// produce inward slivers there if its boundary stations change.
+    pub(crate) fn mesh_samples(
+        &self,
+        part: &Part,
+        face: usize,
+        edge: usize,
+    ) -> Option<&TrimSamples> {
+        let surface = &part.faces[face].surface;
+        let carrier = self
+            .curve
+            .transfer
+            .as_ref()
+            .map_or(surface, |tr| &tr.carrier);
+        let incident = &part.edge_faces()[edge];
+        let freeform = |&i: &usize| matches!(part.faces[i].surface, Surface::Freeform { .. });
+        let uniform = incident.iter().any(freeform)
+            && (!matches!(carrier, Surface::Freeform { .. }) || incident.iter().all(freeform));
+        let edge = &part.edges[edge];
+        if !uniform {
+            return self.samples(surface, edge);
+        }
+        self.mesh_samples
             .get_or_init(|| {
-                let ts = self.nodes()?;
-                let eval = |t| self.point(s, t);
-                let mut samples = TrimSamples {
-                    ts: vec![*ts.first()?],
-                    points: vec![edge.start],
-                };
-                for w in ts.windows(2) {
-                    let mut stack = vec![(w[0], eval(w[0]), w[1], eval(w[1]), 0)];
-                    while let Some((a, p, b, q, depth)) = stack.pop() {
-                        if samples.points.len() >= MAX_PANELS {
-                            return None;
-                        }
-                        let t = 0.5 * (a + b);
-                        let m = eval(t);
-                        if depth < 14
-                            && geom::dist(m, geom::scale(geom::add(p, q), 0.5))
-                                > crate::sampling::CHORD_TOLERANCE
-                        {
-                            stack.push((t, m, b, q, depth + 1));
-                            stack.push((a, p, t, m, depth + 1));
-                        } else {
-                            samples.ts.push(b);
-                            samples.points.push(q);
-                        }
-                    }
-                }
-                *samples.points.last_mut()? = edge.end;
-                Some(samples)
+                let (a, b) = self.interval;
+                let n = 256;
+                let ts: Vec<_> = (0..=n).map(|i| a + (b - a) * i as f64 / n as f64).collect();
+                self.sample(surface, edge, &ts)
             })
             .as_ref()
+    }
+
+    fn sample(&self, s: &Surface, edge: &crate::brep::Edge, ts: &[f64]) -> Option<TrimSamples> {
+        let eval = |t| self.point(s, t);
+        let mut samples = TrimSamples {
+            ts: vec![*ts.first()?],
+            points: vec![edge.start],
+        };
+        for w in ts.windows(2) {
+            let mut stack = vec![(w[0], eval(w[0]), w[1], eval(w[1]), 0)];
+            while let Some((a, p, b, q, depth)) = stack.pop() {
+                if samples.points.len() >= MAX_PANELS {
+                    return None;
+                }
+                let t = 0.5 * (a + b);
+                let m = eval(t);
+                if depth < 14
+                    && geom::dist(m, geom::scale(geom::add(p, q), 0.5))
+                        > crate::sampling::CHORD_TOLERANCE
+                {
+                    stack.push((t, m, b, q, depth + 1));
+                    stack.push((a, p, t, m, depth + 1));
+                } else {
+                    samples.ts.push(b);
+                    samples.points.push(q);
+                }
+            }
+        }
+        *samples.points.last_mut()? = edge.end;
+        Some(samples)
     }
     pub(crate) fn surface_uv(&self, s: &Surface, t: f64) -> (f64, f64) {
         let p = self.curve.value(t);
@@ -372,6 +408,7 @@ impl Part {
                                 spans: trim.spans,
                                 interval: trim.interval,
                                 samples: OnceLock::new(),
+                                mesh_samples: OnceLock::new(),
                                 nodes: trim.nodes.clone(),
                                 length: trim.length.clone(),
                             },
@@ -547,6 +584,7 @@ fn resolve(
         spans,
         interval,
         samples: OnceLock::new(),
+        mesh_samples: OnceLock::new(),
         nodes: OnceLock::new(),
         length: OnceLock::new(),
     };

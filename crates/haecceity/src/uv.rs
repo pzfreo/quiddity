@@ -643,19 +643,35 @@ impl Part {
     ) -> Option<&'a [UvLoop]> {
         let cache = boundary.map_or(&self.cache[face].uv_loops, |b| &b.loops);
         cache
-            .get_or_init(|| self.compute_uv_loops(face, boundary))
+            .get_or_init(|| self.compute_uv_loops(face, boundary, None))
             .as_deref()
     }
 
-    fn compute_uv_loops(
-        &self,
+    pub(super) fn mesh_uv_loops<'a>(
+        &'a self,
+        face: usize,
+        selected: &dyn Fn(usize) -> Option<crate::mesh::MeshEdge<'a>>,
+    ) -> Option<Vec<UvLoop>> {
+        self.compute_uv_loops(face, None, Some(selected))
+    }
+
+    fn compute_uv_loops<'a>(
+        &'a self,
         face: usize,
         boundary: Option<&DeclaredBoundary>,
+        mesh: Option<&dyn Fn(usize) -> Option<crate::mesh::MeshEdge<'a>>>,
     ) -> Option<Vec<UvLoop>> {
         let f = &self.faces[face];
         let (pu, pv) = f.surface.periodic();
         let mut loops = Vec::new();
         let mut crossings = boundary.and_then(|b| TrimCrossings::new(&f.surface, b));
+        let mesh_boundary = mesh.and_then(|_| self.declared_boundary(face));
+        // A seed beside a closed spline's seam can clamp at the wrong end of
+        // the chart. Check the opposite end when mapping shared mesh points.
+        let mesh_spans = mesh
+            .filter(|_| matches!(&f.surface, Surface::Freeform { .. }))
+            .map(|_| crate::mass::closed_spans(&f.surface))
+            .filter(|(u, v)| u.is_finite() || v.is_finite());
         for lp in &f.loops {
             let mut pts: Vec<(f64, f64)> = Vec::new();
             if let Some(apex) = lp.vertex {
@@ -693,19 +709,34 @@ impl Part {
             };
             let invert = |p: V3, hint: Option<(f64, f64)>| match hint {
                 Some(q) if on_collapsed(q) => beside_collapsed(&f.surface, p, collapsed),
+                _ if let Some(spans) = mesh_spans => crate::mass::foot(&f.surface, spans, p, hint),
                 _ => f.surface.parameters(p, hint),
+            };
+            let selected = |edge| mesh.and_then(|mesh| mesh(edge));
+            let in_chart = |e, edge: crate::mesh::MeshEdge<'a>| {
+                if edge.face == face {
+                    return Some(edge.trim);
+                }
+                let receiving = mesh_boundary?.edges.get(&e)?;
+                (receiving.interval == edge.trim.interval).then_some(receiving)
             };
             for (place, &(e, forward)) in lp.edges.iter().enumerate() {
                 firsts.push(raw.len());
-                let samples = &self.edges[e].samples;
+                let shared = selected(e);
+                let samples = shared.map_or(self.edges[e].samples.as_slice(), |edge| {
+                    edge.samples.points.as_slice()
+                });
                 let n = samples.len();
-                if let Some(trim) = boundary.and_then(|b| b.edges.get(&e)) {
-                    let own = trim.samples(&f.surface, &self.edges[e])?;
-                    let mut nodes = own.ts.clone();
-                    if !forward {
-                        nodes.reverse();
-                    }
-                    for t in nodes {
+                let local = shared.and_then(|edge| Some((in_chart(e, edge)?, edge.samples)));
+                let trim = match (local, boundary.and_then(|b| b.edges.get(&e))) {
+                    (Some(local), _) => Some(local),
+                    (_, Some(trim)) => Some((trim, trim.samples(&f.surface, &self.edges[e])?)),
+                    _ => None,
+                };
+                if let Some((trim, own)) = trim {
+                    for j in 0..own.ts.len() {
+                        let k = if forward { j } else { own.ts.len() - 1 - j };
+                        let t = own.ts[k];
                         let (u, v) = trim.surface_uv(&f.surface, t);
                         // Coedges meet at one STEP vertex. At a regular endpoint
                         // of a periodic face, independently rounded pcurves may
@@ -713,7 +744,7 @@ impl Part {
                         // vertex once per coedge, keeping its branch of the period.
                         // A singularity still needs the pcurve's own longitude.
                         let is_end = t == trim.interval.0 || t == trim.interval.1;
-                        let (uv, point) = if (pu || pv)
+                        let (uv, point) = if (mesh.is_some() || pu || pv)
                             && is_end
                             && !on_collapsed((u, v))
                             && f.surface.singular_v(v).is_none()
@@ -724,7 +755,11 @@ impl Part {
                             } else {
                                 edge.end
                             };
-                            let uv = f.surface.parameters(point, Some((u, v)))?;
+                            let uv = if mesh.is_some() {
+                                invert(point, Some((u, v)))
+                            } else {
+                                f.surface.parameters(point, Some((u, v)))
+                            }?;
                             (
                                 (
                                     if pu {
@@ -745,7 +780,9 @@ impl Part {
                         };
                         raw.push(uv);
                         points.push(point);
-                        let sample = if t == trim.interval.0 {
+                        let sample = if mesh.is_some() {
+                            Some(k)
+                        } else if t == trim.interval.0 {
                             Some(0)
                         } else if t == trim.interval.1 {
                             n.checked_sub(1)
@@ -779,6 +816,12 @@ impl Part {
             if boundary.is_none() && !pu && !pv && raw.len() > 2 {
                 let mut hint = raw[raw.len() - 1];
                 for k in 0..raw.len() - 1 {
+                    if origin[k].is_some_and(|(place, _)| {
+                        let edge = lp.edges[place].0;
+                        selected(edge).and_then(|s| in_chart(edge, s)).is_some()
+                    }) {
+                        break;
+                    }
                     let again = invert(points[k], Some(hint))?;
                     let same = (again.0 - raw[k].0).abs() + (again.1 - raw[k].1).abs() < 1e-9;
                     raw[k] = again;
