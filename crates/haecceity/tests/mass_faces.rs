@@ -994,7 +994,38 @@ fn tensor_relative_error(got: [[f64; 3]; 3], want: [[f64; 3]; 3]) -> f64 {
 }
 
 #[test]
-fn shallow_cylinder_dome_inertia() {
+fn shallow_domes_share_centroid_and_inertia() {
+    check_shallow_cylinder_dome();
+    check_shallow_plate_dome();
+}
+
+fn check_shallow_dome(
+    part: &haecceity::Part,
+    radius: f64,
+    expected_z: f64,
+    expected_tensor: [[f64; 3]; 3],
+) {
+    let measured = part.volume_centroid();
+    let inertia = part.solid_inertia(0);
+    if radius == 1e5 {
+        assert!(radius / part.bounds().diagonal() > 2048.0);
+        assert!(measured.is_none(), "R={radius}, unresolvable centroid");
+        assert!(inertia.is_none(), "R={radius}, unresolvable inertia");
+        return;
+    }
+    let (volume, centroid) = measured.unwrap();
+    let inertia = inertia.unwrap();
+    assert_eq!((volume, centroid), (inertia.volume, inertia.centroid));
+    let error = geom::dist(centroid, [0.0, 0.0, expected_z]);
+    assert!(
+        error <= 1e-9 * part.bounds().diagonal(),
+        "R={radius}, centroid error {error} mm"
+    );
+    let error = tensor_relative_error(inertia.tensor, expected_tensor);
+    assert!(error <= 1e-9, "R={radius}, relative inertia error {error}");
+}
+
+fn check_shallow_cylinder_dome() {
     for r in [1e2_f64, 1e3, 1e4, 1e5] {
         let part = shallow_dome(r, false);
         let h = 25.0 / (r + (r * r - 25.0).sqrt());
@@ -1010,21 +1041,16 @@ fn shallow_cylinder_dome_inertia() {
             + pi * h.powi(3) * (2.0 * r * r / 3.0 - r * h / 2.0 + h * h / 10.0);
         let across = axial / 2.0 + cylinder * (400.0 / 3.0) + cap_z2
             - (cylinder + cap) * centroid * centroid;
-        let result = part.solid_inertia(0);
-        if r == 1e5 {
-            assert!(r / part.bounds().diagonal() > 2048.0);
-            assert!(result.is_none(), "R={r}, unresolvable spherical trim");
-            continue;
-        }
-        let got = result.unwrap();
-        let error = tensor_relative_error(got.tensor, diagonal_inertia(across, across, axial));
-        eprintln!("cylinder R={r}: inertia {error:.3e}");
-        assert!(error <= 1e-9, "R={r}, relative error {error}");
+        check_shallow_dome(
+            &part,
+            r,
+            10.0 + centroid,
+            diagonal_inertia(across, across, axial),
+        );
     }
 }
 
-#[test]
-fn shallow_plate_dome_inertia() {
+fn check_shallow_plate_dome() {
     // Integrate the dome height exactly through its fourth binomial term in
     // (50 − x² − y²)/k². The first omitted height term is < 9e-12 mm for R >= 100.
     let choose = |n: i32, k: i32| (0..k).fold(1.0, |c, j| c * f64::from(n - j) / f64::from(j + 1));
@@ -1065,19 +1091,12 @@ fn shallow_plate_dome_inertia() {
             }
         }
         let across = horizontal + z2 - z * z / (1000.0 + cap_volume);
-        let result = part.solid_inertia(0);
-        if r == 1e5 {
-            assert!(r / part.bounds().diagonal() > 2048.0);
-            assert!(result.is_none(), "R={r}, unresolvable spherical trim");
-            continue;
-        }
-        let got = result.unwrap();
-        let error = tensor_relative_error(
-            got.tensor,
+        check_shallow_dome(
+            &part,
+            r,
+            5.0 + z / (1000.0 + cap_volume),
             diagonal_inertia(across, across, 2.0 * horizontal),
         );
-        eprintln!("plate R={r}: inertia {error:.3e}");
-        assert!(error <= 1e-9, "R={r}, relative error {error}");
     }
 }
 

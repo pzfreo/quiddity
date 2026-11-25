@@ -1,5 +1,5 @@
 //! Volume second moments from the signed boundary flux.
-use super::{BoundaryMethod, Components, IntegralRule, Part, Surface, V3, geom};
+use super::{IntegralOrigin, Part, Surface, V3, geom};
 use std::sync::OnceLock;
 
 pub(crate) const SYMMETRIC: [(usize, usize); 6] = [(0, 0), (1, 1), (2, 2), (0, 1), (0, 2), (1, 2)];
@@ -48,9 +48,10 @@ impl SolidInertia {
                 .all(|x| x.is_finite())
     }
 
-    fn placed(self, at: &crate::step::Placement) -> Self {
+    fn placed(self, origin: &IntegralOrigin) -> Self {
+        let at = &origin.placement;
         Self {
-            centroid: at.map(|r| geom::dot([r[0], r[1], r[2]], self.centroid) + r[3]),
+            centroid: origin.place_point(self.centroid),
             tensor: symmetric_tensor(|_, i, j| {
                 (0..3)
                     .flat_map(|k| (0..3).map(move |l| at[i][k] * self.tensor[k][l] * at[j][l]))
@@ -102,55 +103,15 @@ impl Part {
                     self.face_raw_moments(face).centre?;
                 }
             }
-            return Some(
-                origin
-                    .source
-                    .solid_inertia(solid)?
-                    .placed(&origin.placement),
-            );
+            return Some(origin.source.solid_inertia(solid)?.placed(origin));
         }
-        let only_solid = self.solids.len() == 1 && faces.len() == self.faces.len();
-        let (origin, length) = if only_solid {
-            self.integral_reference()?
-        } else {
-            // A small solid must not inherit the integration length and origin of an
-            // unrelated body in the file.
-            let mut bounds = geom::Bounds::empty();
-            for &face in faces {
-                let b = self.face_bounds(face);
-                if b.diagonal().is_finite() {
-                    bounds.merge(&b);
-                } else if let Surface::Sphere { frame, radius } = self.faces[face].surface {
-                    bounds.add(frame.origin.map(|x| x - radius));
-                    bounds.add(frame.origin.map(|x| x + radius));
-                } else if let Some(surface) = self.closed_spline(face) {
-                    let (min, max) = surface.control_bounds();
-                    bounds.add(min);
-                    bounds.add(max);
-                }
-            }
-            let length = bounds.diagonal();
-            if !(length.is_finite() && length > 0.0) {
-                return None;
-            }
-            (bounds.centre(), length)
-        };
+        let (origin, length) = self.solid_integral_reference(faces)?;
         if let Some(cap) = self.spherical_cap_inertia(faces) {
             return cap.is_measurable().then_some(cap);
         }
+        let (volume, offset) = self.solid_centroid_flux(faces, (origin, length))?;
         let remote = geom::norm(origin) > 32.0 * length;
         let local_origin = remote.then_some(origin);
-        let (volume, offset) =
-            self.centroid_flux(std::iter::once(faces), origin, length, |face| {
-                // The existing centroid pass must also accept this face. A shallow
-                // sphere or remote evaluator needs fresh flux in the solid frame.
-                let raw = self.face_raw_moments(face).centre?;
-                if only_solid && !remote && !self.shallow_sphere(face, length) {
-                    Some(raw)
-                } else {
-                    self.inertia_centroid_face(face, origin, length, local_origin)
-                }
-            })?;
         let centroid = geom::add(origin, offset);
         if !volume.is_finite() || volume == 0.0 || !centroid.iter().all(|x| x.is_finite()) {
             return None;
@@ -185,7 +146,7 @@ impl Part {
                 let local = local_origin.map(|o| self.local_face_surface(face, o));
                 let reference = if remote { offset } else { centroid };
                 let [_, xx, yy, zz, xy, xz, yz] =
-                    self.inertia_integral(face, local.as_ref(), |p, su, sv| {
+                    self.accepted_face_integral(face, local.as_ref(), |p, su, sv| {
                         moments(geom::sub(p, reference), geom::cross(su, sv))
                     })?;
                 [xx, yy, zz, xy, xz, yz]
@@ -202,72 +163,5 @@ impl Part {
             tensor,
         };
         inertia.is_measurable().then_some(inertia)
-    }
-
-    fn shallow_sphere(&self, face: usize, length: f64) -> bool {
-        matches!(self.faces[face].surface, Surface::Sphere { radius, .. } if radius > 4.0 * length)
-    }
-
-    fn inertia_centroid_face(
-        &self,
-        face: usize,
-        origin: V3,
-        length: f64,
-        local_origin: Option<V3>,
-    ) -> Option<[f64; 26]> {
-        let density = |p, n| {
-            let q = geom::scale(p, length.recip());
-            let qn = geom::dot(q, n);
-            let mut out = [0.0; 26];
-            out[0] = geom::norm(n);
-            out[1..4].copy_from_slice(&n);
-            out[13] = qn;
-            for i in 0..3 {
-                out[23 + i] = q[i] * qn;
-                for j in 0..3 {
-                    out[14 + 3 * i + j] = q[i] * n[j];
-                }
-            }
-            out
-        };
-        if self.shallow_sphere(face, length) {
-            self.spherical_local_flux(face, (origin, [0.0; 3]), length, density)
-        } else if matches!(self.faces[face].surface, Surface::Sphere { .. }) {
-            Some(self.spherical_patch(face)?.volume_moments(origin, length))
-        } else {
-            let local = local_origin.map(|o| self.local_face_surface(face, o));
-            let reference = if local.is_some() { [0.0; 3] } else { origin };
-            self.inertia_integral(face, local.as_ref(), |p, su, sv| {
-                density(geom::sub(p, reference), geom::cross(su, sv))
-            })
-        }
-    }
-
-    fn inertia_integral<const N: usize>(
-        &self,
-        face: usize,
-        local_surface: Option<&Surface>,
-        density: impl Fn(V3, V3, V3) -> [f64; N],
-    ) -> Option<[f64; N]> {
-        let components = Components::Prefix(N);
-        let method = self.cache[face].mass.get()?.method;
-        if method == BoundaryMethod::CertifiedPatch
-            && let Some(sum) =
-                self.integrate_preferred_face(face, &density, components, false, local_surface)
-        {
-            return Some(sum);
-        }
-        self.integrate_boundary(
-            face,
-            self.measured_boundary(face),
-            local_surface,
-            density,
-            IntegralRule {
-                components,
-                observe_mass: None,
-            },
-            &mut None,
-            false,
-        )
     }
 }

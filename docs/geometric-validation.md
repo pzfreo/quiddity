@@ -108,18 +108,11 @@ two volumes differ by 7.9% in `cd34a5e4c9ce13b2` and 1.2% in
 the boundary integral ⅕∯ dᵢ dⱼ (d·n) dA, with d measured from the centroid.
 
 When a spherical carrier's radius exceeds four times the solid bounding-box
-diagonal, inertia evaluates both moment orders in a local tangent-plane chart
-to avoid cancellation in sphere-centred moments. The chart returns unavailable
+diagonal, `volume_centroid` and solid inertia evaluate their moments in the
+same local tangent-plane chart to avoid cancellation in sphere-centred moments. The chart returns unavailable
 if the radius exceeds 2048 diagonals, its projection is outside the chart, or
 its integrated area disagrees with the accepted patch. Closed-form caps and
 lenses use their circular slices.
-
-The legacy `volume_centroid` still expands spherical patch moments about the
-carrier. Large radii amplify small STEP trim and quadrature errors. On tested
-10 mm square domed plates, centroid error reached about 0.004 mm at a radius
-of 10,000 mm in review and 3.23 mm at 100,000 mm on an OpenCascade STEP
-export. These are observed errors for those files and vary with the trim
-representation.
 
 Compare centroidal tensors against the springrep capture in
 `evidence/springrep_inertia.jsonl` using the relative Frobenius error
