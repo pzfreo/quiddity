@@ -498,12 +498,15 @@ impl Part {
     pub(super) fn spherical_second_flux(
         &self,
         face: usize,
-        origin: V3,
+        (origin, offset): (V3, V3),
         length: f64,
     ) -> Option<[f64; 6]> {
         let patch = self.spherical_patch(face)?;
         let third = self.spherical_third_moments(face, patch)?;
-        let d = geom::scale(geom::sub(patch.centre, origin), length.recip());
+        let d = geom::scale(
+            geom::sub(geom::sub(patch.centre, origin), offset),
+            length.recip(),
+        );
         let r = patch.radius / length;
         let flux = geom::dot(d, patch.first) + r * patch.area;
         let first: V3 = std::array::from_fn(|i| geom::dot(patch.second[i], d) + r * patch.first[i]);
@@ -580,7 +583,7 @@ impl Part {
         boundary: Option<&DeclaredBoundary>,
     ) -> Option<[f64; N]> {
         let surface = &self.faces[face].surface;
-        let Surface::Sphere { frame, radius } = *surface else {
+        let Surface::Sphere { frame, .. } = *surface else {
             return None;
         };
         // Place the area form's singularity at -axis, away from the boundary.
@@ -627,9 +630,106 @@ impl Part {
             }
             Some(out)
         };
+        let floor = 2e-13 / edges.len() as f64;
+        let mut result =
+            self.integrate_spherical_wire(face, edges, orientation, boundary, floor, density)?;
+        // The area form misses one point on the sphere. If that point lies inside
+        // the oriented patch the boundary integral is its area minus 4π.
+        if result[0] < 0.0 {
+            result[0] += WHOLE;
+        }
+        (result[0] > 0.0 && result[0] < WHOLE).then_some(result)
+    }
+
+    /// Integrate a shallow patch by orthographic projection onto its tangent plane.
+    /// The wire integral uses a radial primitive in that plane. Its points and
+    /// derivatives come from the same declared or projected edges as spherical mass.
+    pub(super) fn spherical_local_flux<const N: usize>(
+        &self,
+        face: usize,
+        (origin, offset): (V3, V3),
+        length: f64,
+        density: impl Fn(V3, V3) -> [f64; N],
+    ) -> Option<[f64; N]> {
+        let patch = self.spherical_patch(face)?;
+        let radius = patch.radius;
+        // At extreme ratios, STEP rim and carrier rounding can dominate even
+        // when local quadrature converges. Bound the ratio before using the chart.
+        if radius > 2048.0 * length || patch.area >= TAU * radius * radius {
+            return None;
+        }
+        let edges = self.material_boundary(face)?;
+        let anchor = self.edges[edges.first()?.0].start;
+        let radial = geom::sub(anchor, patch.centre);
+        let axis = geom::unit(radial)?;
+        let apex = geom::add(
+            geom::sub(geom::sub(anchor, origin), offset),
+            geom::scale(axis, radius - geom::norm(radial)),
+        );
+        let tangent = |d| geom::sub(d, geom::scale(axis, geom::dot(axis, d)));
+        let term = |p, dp| {
+            spend_work()?;
+            let norm = geom::norm(p);
+            let n = geom::scale(p, norm.recip());
+            if geom::dot(axis, n) <= 0.75 {
+                return None;
+            }
+            let projected = geom::scale(tangent(geom::sub(p, radial)), radius / norm);
+            let velocity = geom::sub(
+                geom::scale(tangent(dp), radius / norm),
+                geom::scale(projected, geom::dot(n, dp) / norm),
+            );
+            let sweep = geom::dot(axis, geom::cross(projected, velocity));
+            super::integrate(&[0.0, 1.0], |t| {
+                let radial = geom::scale(projected, t);
+                let rho2 = geom::dot(radial, radial);
+                let z = (radius * radius - rho2).sqrt();
+                // z − R written without subtracting nearly equal large values.
+                let q = geom::add(
+                    apex,
+                    geom::add(radial, geom::scale(axis, -rho2 / (radius + z))),
+                );
+                let n = geom::scale(
+                    geom::add(radial, geom::scale(axis, z)),
+                    patch.sense / radius,
+                );
+                Some(density(q, n).map(|v| v * t * sweep * radius / z))
+            })
+        };
+        let orientation = if self.faces[face].reversed {
+            -patch.sense
+        } else {
+            patch.sense
+        };
+        let floor = 2e-12 * patch.area / edges.len() as f64;
+        let values = self.integrate_spherical_wire(
+            face,
+            &edges,
+            orientation,
+            self.measured_boundary(face),
+            floor,
+            term,
+        )?;
+        // A positive, matching area proves the selected patch is covered by the
+        // chart, rather than its complement on the other side of the sphere.
+        patch.matches_area(values[0]).then_some(values)
+    }
+
+    fn integrate_spherical_wire<const N: usize>(
+        &self,
+        face: usize,
+        edges: &[(usize, bool)],
+        orientation: f64,
+        boundary: Option<&DeclaredBoundary>,
+        floor: f64,
+        density: impl Fn(V3, V3) -> Option<[f64; N]>,
+    ) -> Option<[f64; N]> {
+        let surface = &self.faces[face].surface;
+        let Surface::Sphere { frame, radius } = *surface else {
+            return None;
+        };
         let integral = |cuts: &[f64], term: &dyn Fn(f64) -> Option<[f64; N]>| {
             let mut panel = |(), a, b, _| Some((kronrod((), a, b, |(), t| term(t))?, None));
-            let floor = 2e-13 / edges.len() as f64;
             let (sum, excess, _, ()) = adaptive(cuts, (), Some(floor), true, &mut panel)?;
             (excess <= floor).then_some(sum)
         };
@@ -701,12 +801,7 @@ impl Part {
                 result[k] += sign * (first[k] + edge_sum[k] + last[k]);
             }
         }
-        // The area form misses one point on the sphere. If that point lies inside
-        // the oriented patch the boundary integral is its area minus 4π.
-        if result[0] < 0.0 {
-            result[0] += WHOLE;
-        }
-        (result[0] > 0.0 && result[0] < WHOLE).then_some(result)
+        Some(result)
     }
 }
 

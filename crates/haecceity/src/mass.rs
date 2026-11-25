@@ -1169,7 +1169,7 @@ impl Part {
         #[cfg(test)]
         MASTER_INTEGRATIONS.with(|calls| calls.set(calls.get() + 1));
         if let Some(terms) = self
-            .integrate_preferred_face(face, mass_density, Components::Prefix(5), true)
+            .integrate_preferred_face(face, mass_density, Components::Prefix(5), true, None)
             .and_then(valid_mass)
         {
             return Some(FaceMass {
@@ -1293,6 +1293,7 @@ impl Part {
                 },
                 Components::Prefix(M),
                 false,
+                None,
             )
         {
             return Some(sum);
@@ -1344,8 +1345,8 @@ impl Part {
     }
 
     /// [`Self::integrate_face_legacy`] over `boundary` (the file's selected trim, or the 3D
-    /// edges' foot points when `None`), evaluating `local_spline` in place of the face's own
-    /// B-spline net where given. A remembered refusal is keyed by the boundary choice too: the
+    /// edges' foot points when `None`), evaluating `local_surface` in place of the face's own
+    /// carrier where given. A remembered refusal is keyed by the boundary choice too: the
     /// selected trim and the projected edges are different loops, so one's refused trial says
     /// nothing about the other's.
     #[allow(clippy::too_many_arguments)]
@@ -1353,17 +1354,26 @@ impl Part {
         &self,
         face: usize,
         boundary: Option<&DeclaredBoundary>,
-        local_spline: Option<&crate::nurbs::NurbsSurface>,
+        local_surface: Option<&Surface>,
         f: impl Fn(V3, V3, V3) -> [f64; N],
         rule: IntegralRule,
         observed: &mut Option<FaceMass>,
         remember: bool,
     ) -> Option<[f64; N]> {
         if let Some(surface) = self.closed_spline(face) {
-            return closed::integrate_spline(local_spline.unwrap_or(surface), f, rule.components);
+            let surface = match local_surface {
+                Some(Surface::Freeform { surface, .. }) => surface,
+                _ => surface,
+            };
+            return closed::integrate_spline(surface, f, rule.components);
         }
         if let Some(range) = self.spindle_sweep(face, boundary) {
-            return closed::integrate_spindle(&self.faces[face].surface, range, f, rule.components);
+            return closed::integrate_spindle(
+                local_surface.unwrap_or(&self.faces[face].surface),
+                range,
+                f,
+                rule.components,
+            );
         }
         let key = (N, rule.observe_mass.is_some(), boundary.is_some());
         let remembered = remember && self.cache[face].trial_refused(key);
@@ -1372,7 +1382,7 @@ impl Part {
                 let unresolved = std::cell::Cell::new(false);
                 let mut trial = None;
                 let swapped = self.integrate_boundary_in(
-                    (face, boundary, local_spline),
+                    (face, boundary, local_surface),
                     &f,
                     rule,
                     &mut trial,
@@ -1394,7 +1404,7 @@ impl Part {
                 self.cache[face].refuse_trial(key);
             }
         }
-        self.integrate_boundary_in((face, boundary, local_spline), f, rule, observed, None)
+        self.integrate_boundary_in((face, boundary, local_surface), f, rule, observed, None)
     }
 
     /// Whether the face's inner integral can run along v, where it crosses far fewer panels
@@ -1442,11 +1452,7 @@ impl Part {
 
     fn integrate_boundary_in<const N: usize>(
         &self,
-        (face, boundary, local_spline): (
-            usize,
-            Option<&DeclaredBoundary>,
-            Option<&crate::nurbs::NurbsSurface>,
-        ),
+        (face, boundary, local_surface): (usize, Option<&DeclaredBoundary>, Option<&Surface>),
         f: impl Fn(V3, V3, V3) -> [f64; N],
         rule: IntegralRule,
         observed: &mut Option<FaceMass>,
@@ -1504,9 +1510,10 @@ impl Part {
         if cheaper.is_some() && uv.iter().any(|lp| winds_round(lp, spans.0)) {
             return None;
         }
-        let evaluator = match surface {
+        let evaluation_surface = local_surface.unwrap_or(surface);
+        let evaluator = match evaluation_surface {
             Surface::Freeform { surface, .. } => Some(std::cell::RefCell::new(
-                crate::nurbs::SurfaceEvaluation::new(local_spline.unwrap_or(surface)),
+                crate::nurbs::SurfaceEvaluation::new(surface),
             )),
             _ => None,
         };
@@ -1517,7 +1524,7 @@ impl Part {
             let (u, v) = wrap_closed(surface, spans, (u, v));
             let (p, su, sv) = match &evaluator {
                 Some(evaluator) => evaluator.borrow_mut().value_and_partials(u, v),
-                None => point_and_partials(surface, u, v),
+                None => point_and_partials(evaluation_surface, u, v),
             };
             Some(f(p, su, sv))
         };
@@ -2493,12 +2500,15 @@ impl Part {
     /// when the evaluator forms a world point and the density subtracts the origin; the
     /// translated net gives the offsets directly. The same UV boundary and error test apply.
     fn local_spline_group(&self, face: usize) -> Option<[f64; 26]> {
-        let Surface::Freeform { surface, .. } = &self.faces[face].surface else {
+        let Surface::Freeform { surface, kind } = &self.faces[face].surface else {
             return None;
         };
         let (origin, scale) = self.moment_frame(face)?;
         let boundary = self.measured_boundary(face)?;
-        let local = surface.relative_to(origin)?;
+        let local = Surface::Freeform {
+            surface: Box::new(surface.relative_to(origin)?),
+            kind: *kind,
+        };
         let values = self.integrate_boundary(
             face,
             Some(boundary),

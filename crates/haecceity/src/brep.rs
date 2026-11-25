@@ -649,10 +649,25 @@ impl Part {
             .as_ref()
             .map(super::mass::IntegralOrigin::for_recognition);
         self.recognition_view = OnceLock::new();
+        self.solid_inertias = OnceLock::new();
         match self.integration_budget.take() {
             Some(budget) => self.with_integration_budget(budget.limit),
             None => self,
         }
+    }
+
+    /// Rebase only the carrier evaluator. Parameter-space trims still refer to the
+    /// original face, and native positions keep assembly translations out of the evaluation.
+    pub(super) fn local_face_surface(&self, face: usize, origin: V3) -> Surface {
+        let (surface, mut placement) = self
+            .native_faces
+            .get(face)
+            .and_then(|(face, at)| Some((&face.as_ref()?.surface, at.placement())))
+            .unwrap_or((&self.faces[face].surface, super::step::IDENTITY));
+        for (row, shift) in placement.iter_mut().zip(origin) {
+            row[3] -= shift;
+        }
+        surface.placed(&placement)
     }
 
     /// Reindex this part's faces, carrying their STEP provenance and master boundaries.
