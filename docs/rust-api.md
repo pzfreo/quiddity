@@ -19,7 +19,7 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `haecceity::express`: `Violation`.
 - `haecceity::express_rules`: `RuleViolation`.
 - `haecceity::gvp`: `ValidationProperty`.
-- `haecceity::mass`: `IntegrationBudget`.
+- `haecceity::mass`: `IntegrationBudget`, `SolidInertia`.
 - `haecceity::json::presentation`: `Graphic`, `Presentation`, `TextPlacement`, `PolylineRole`.
 - `haecceity::presentation`: `Callout`.
 - `haecceity::mesh`: `FaceMesh`, `MeshRefusal`.
@@ -105,6 +105,42 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 Types re-exported at the crate root retain those names too: for example,
 `quiddity::Fingerprints` is `quiddity::correspondence::Fingerprints`.
 
+### Solid inertia
+
+`Part::solid_inertia(solid)` measures the zero-based solid at uniform density 1
+and caches its `SolidInertia`. The result gives signed `volume` (mm³), the
+`centroid` (mm) and a symmetric row-major `tensor` (mm⁵). The tensor is
+∭ (|d|² I − d dᵀ) dV, where d is the offset from the centroid. The diagonal
+gives the moments about axes through the centroid and the off-diagonal entries
+are negated products of inertia. The axes follow the part's coordinates.
+
+```rust
+if let Some(inertia) = part.solid_inertia(0) {
+    let centroidal = inertia.tensor;
+    let about_origin = inertia.about([0.0; 3]);
+}
+```
+
+The parallel-axis shift uses the result's signed volume. Void shells subtract,
+and reversing every face negates the volume and tensor while preserving the
+centroid. The boundary choice follows `Part::solid_mass`. Volume and centroid
+use the same flux convention as `Part::volume_centroid`, including its centroid
+reference for shells with small gaps. For such shells the volume can differ
+from the vertex-reference volume returned by `Part::solid_mass`. A missing
+solid, zero volume, or a refused integral returns `None`. A shallow spherical
+patch uses the same local chart for inertia and the solid centroid. If the
+radius exceeds 1,024 times the diameter of a disk with the same patch area,
+or the chart fails its projection, area or integration checks, inertia returns
+`None` and `Part::volume_centroid` uses the legacy, less accurate integration.
+
+Allow `1e-7` relative Frobenius error for accepted domes. A Ø10 mm × 0.1 mm
+cylinder with an R=10,100 mm roof measured `3.85e-8`. At Z=10⁷ mm, one dome
+was accepted upright and refused when tilted. The remote assembly check
+uses the overall length. Two 200 mm cylinders of radius 0.0048828125 mm at
+an offset of 5×10⁷ mm measured `4.08e-9`. When `SolidInertia::about` exceeds
+the `f64` range, its non-finite entries appear as `null` in JSON. This can
+happen at shifts of order 10¹⁵² mm, depending on volume.
+
 ## Construction and migration
 
 Use the reader/recogniser for output-only records. For authored values, use:
@@ -140,6 +176,32 @@ For example, an options literal becomes:
 let mut options = quiddity::HoleOptions::default();
 options.with_countersinks = true;
 ```
+
+### Sheet-metal K-factor
+
+Use `RecognitionOptions::default()` and call the fallible `set_k_factor` method
+before recognising a part.
+
+```rust
+let mut options = quiddity::RecognitionOptions::default();
+options.set_k_factor(0.45)?;
+let recognised = quiddity::recognise_with(&part, &options);
+```
+
+`k_factor()` reads the configured value, which defaults to 0.5.
+`set_k_factor` returns `InvalidKFactor` for a non-finite value or one outside
+(0, 1]. The same options are accepted by `evidence_with`,
+`correspondence::recognise_with_evidence_options` and the option-taking
+recognition entry points in `file_api` and `serve`. Each flat pattern
+reports the value it used in `flat_pattern.k_factor`.
+
+`fingerprints_with(&part, &options)` and the Rust `fingerprints_file_with`
+functions also use the K-factor in `RecognitionOptions` for STEP geometry.
+Rust's `correspond` compares supplied fingerprints. Prepare both revisions
+at one K, since a change between `checked` and `overlap` changes the
+`flat_pattern_status` fingerprint trait and can make the matched sheet
+`adapted`. Where a development's validity changes, K can also change flange
+adoption and the suppression of duplicate slots, pockets and pads.
 
 An exhaustive error match should preserve its existing arms and add a meaningful
 fallback (usually reporting the error's `Display` text). Applications that refuse

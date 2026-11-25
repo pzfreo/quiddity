@@ -6,6 +6,19 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+- For #359, expose signed solid inertia tensors in haecceity and Python, with a
+  parallel-axis shift and optional centroidal tensors and their reference volumes
+  in the `quiddity brep` JSON report. Use the local chart for shallow spherical
+  patches when it accepts them. When the radius exceeds 1,024 equal-area disk
+  diameters or the chart's projection or integration checks fail, inertia is
+  unavailable and `volume_centroid` keeps the legacy, less accurate result.
+  Rebase remote single-solid boundaries and scale large parallel-axis shifts
+  before squaring.
+- For #357, extend the checked along-v trial to spline faces with rational u, single-span
+  affine v only, including extruded G2 fillets. Other projected spline primitives can still
+  under-resolve their densities.
+- For #358, accept a caller-set sheet-metal K-factor in the CLI, serve, Rust and Python.
+  The default is 0.5 and each flat pattern reports the value used.
 - For #355, use the lifted midpoint's foot on the full spatial curve to detect a complementary
   arc, including for nearly closed edges and offset pcurves. Opposing endpoint tangents also reject
   reversed intervals on nonperiodic spatial splines. Two MFInstSeg face areas still differ

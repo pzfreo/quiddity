@@ -107,14 +107,14 @@ def test_iterator_parses_one_native_manifest_and_keeps_it(tmp_path, monkeypatch)
     calls = []
 
     class Counted:
-        def __new__(cls, text):
+        def __new__(cls, text, *, k_factor=None):
             calls.append(("json", text))
-            return native(text)
+            return native(text, k_factor=k_factor)
 
         @staticmethod
-        def from_path(path, parts=None):
+        def from_path(path, parts=None, *, k_factor=None):
             calls.append(("path", parts))
-            return native.from_path(path, parts)
+            return native.from_path(path, parts, k_factor=k_factor)
 
     monkeypatch.setattr(_native, "ManifestHandle", Counted)
     def no_python_file_read(*args, **kwargs):
