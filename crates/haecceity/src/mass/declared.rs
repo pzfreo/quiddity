@@ -643,14 +643,52 @@ fn resolve_interval(
             } else if (b > a) != edge.same_sense {
                 b += if edge.same_sense { period } else { -period };
             }
-        } else if natural.is_some() && edge.curve.period().is_some() && (b > a) != edge.same_sense {
-            // A bounded pcurve can run around a periodic carrier and put the
-            // same vertex at both ends of its knot domain. Endpoint inversion
-            // can then select the complementary arc in reverse. Reversing the
-            // sense of a periodic edge changes its trim even if both ends match.
-            return None;
         }
         Some((a, b))
+    };
+    let follows_spatial_branch = |(a, b): (f64, f64)| {
+        if edge.is_closed() {
+            return Some(true);
+        }
+        if let Some(turn) = edge.curve.period() {
+            // Both endpoints also fit the complementary arc. Reject a midpoint
+            // that lies on the omitted part of the spatial curve, clear of both
+            // vertices. A differently scaled or oriented pcurve can still
+            // follow the same arc, and the master can describe a different locus.
+            let p = lift(a.midpoint(b))?;
+            let t = edge.curve.parameter(p);
+            let t = t + turn * ((spatial.0.midpoint(spatial.1) - t) / turn).round();
+            let on_omitted_arc = (t < spatial.0.min(spatial.1) || t > spatial.0.max(spatial.1))
+                && geom::dist(p, edge.curve.value(t)) <= tolerance
+                && geom::dist(p, edge.start) > tolerance
+                && geom::dist(p, edge.end) > tolerance;
+            return Some(!on_omitted_arc);
+        }
+        if !matches!(edge.curve, Curve::Nurbs(_)) {
+            return Some(true);
+        }
+        // A spatial spline can contain just the finite arc and have no period.
+        // If both endpoint tangents point in opposite directions along the same
+        // tangent lines, the inferred path leaves and enters on the wrong sides.
+        let orientation = if (b > a) == (spatial.1 > spatial.0) {
+            1.
+        } else {
+            -1.
+        };
+        for (t, s) in [(a, spatial.0), (b, spatial.1)] {
+            spend()?;
+            let (uv, d) = curve.value_and_derivative(t);
+            let (u, v) = wrap_closed(surface, spans, (uv[0], uv[1]));
+            let (su, sv) = surface.partials(u, v);
+            let tangent = geom::add(geom::scale(su, d[0]), geom::scale(sv, d[1]));
+            let opposite = geom::unit(tangent)
+                .zip(geom::unit(edge.curve.derivative(s)))
+                .is_some_and(|(x, y)| orientation * geom::dot(x, y) < -1. + 1e-8);
+            if !opposite {
+                return Some(true);
+            }
+        }
+        Some(false)
     };
     [
         Some(spatial),
@@ -660,7 +698,10 @@ fn resolve_interval(
     .into_iter()
     .flatten()
     .find(|&ab| valid(ab))
-    .or_else(|| guessed().filter(|&ab| valid(ab)))
+    .or_else(|| {
+        let ab = guessed()?;
+        (valid(ab) && follows_spatial_branch(ab)?).then_some(ab)
+    })
 }
 
 #[cfg(test)]

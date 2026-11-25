@@ -172,15 +172,14 @@ fn selected_circle_on_a_plane_keeps_its_own_parameter_interval() {
 }
 
 #[test]
-fn a_bounded_pcurve_cannot_reverse_an_open_arc_at_its_seam() {
+fn inferred_pcurve_intervals_keep_the_spatial_arc_branch() {
     // A unit circle on a cylindrical carrier, from pi/2 to 2*pi in the positive sense.
     // The selected spline spans the whole circle at v=0, with a different knot origin.
     // Both ends of the spline lift to the endpoint at angle zero on the planar face.
-    let text = plane().replace(
+    let mut text = plane().replace(
         "#108=PLANE",
         "#201=CYLINDRICAL_SURFACE('',#11,1.);\n#108=PLANE",
     );
-    let mut text = text;
     for (id, body) in [
         (100, "CARTESIAN_POINT('',(0.,1.,0.))"),
         (101, "CARTESIAN_POINT('',(1.,0.,0.))"),
@@ -197,10 +196,64 @@ fn a_bounded_pcurve_cannot_reverse_an_open_arc_at_its_seam() {
     ] {
         text = entity(&text, id, body);
     }
-    let part = crate::step::read_step(text.as_bytes()).unwrap();
-    let area = part.face_moments(0).unwrap().area;
-    let expected = 3. * std::f64::consts::FRAC_PI_4 + 0.5;
-    assert!((area - expected).abs() < 1e-12, "{area} vs {expected}");
+    // A line parameter in degrees cannot reuse the circle's radian interval.
+    let degree_line = entity(&text, 115, "LINE('',#112,#203)").replace(
+        "#33=(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.));",
+        "#33=(CONVERSION_BASED_UNIT('degree',#204) NAMED_UNIT(#205) PLANE_ANGLE_UNIT());
+#202=DIRECTION('',(1.,0.));
+#203=VECTOR('',#202,1.);
+#204=PLANE_ANGLE_MEASURE_WITH_UNIT(PLANE_ANGLE_MEASURE(0.017453292519943295),#206);
+#205=DIMENSIONAL_EXPONENTS(0.,0.,0.,0.,0.,0.,0.);
+#206=(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.));",
+    );
+
+    // Three rational quadratic quadrants trace the same arc. This spatial
+    // spline has distinct endpoints and no periodic parameter.
+    let spline = entity(
+        &text,
+        111,
+        "(BOUNDED_CURVE() B_SPLINE_CURVE(2,(#100,#301,#302,#303,#304,#305,#101),.UNSPECIFIED.,.F.,.F.)
+B_SPLINE_CURVE_WITH_KNOTS((3,2,2,3),(0.,2.,4.,6.),.UNSPECIFIED.) CURVE()
+GEOMETRIC_REPRESENTATION_ITEM()
+RATIONAL_B_SPLINE_CURVE((1.,0.7071067811865476,1.,0.7071067811865476,1.,0.7071067811865476,1.))
+REPRESENTATION_ITEM(''))",
+    )
+    .replace(
+        "#111=(BOUNDED_CURVE",
+        "#301=CARTESIAN_POINT('',(-1.,1.,0.));
+#302=CARTESIAN_POINT('',(-1.,0.,0.));
+#303=CARTESIAN_POINT('',(-1.,-1.,0.));
+#304=CARTESIAN_POINT('',(0.,-1.,0.));
+#305=CARTESIAN_POINT('',(1.,-1.,0.));
+#111=(BOUNDED_CURVE",
+    );
+
+    // Opposite circle axes make increasing parameters select opposite arcs.
+    let opposite = entity(&text, 111, "CIRCLE('',#202,1.)").replace(
+        "#201=CYLINDRICAL_SURFACE('',#11,1.);",
+        "#201=PLANE('',#11);
+#202=AXIS2_PLACEMENT_3D('',#12,#203,#14);
+#203=DIRECTION('',(0.,0.,-1.));
+#204=AXIS2_PLACEMENT_2D('',#112,$);",
+    );
+    let opposite = entity(&opposite, 115, "CIRCLE('',#204,1.)");
+
+    let long = 3. * std::f64::consts::FRAC_PI_4 + 0.5;
+    let short = std::f64::consts::FRAC_PI_4 - 0.5;
+    let differences: Vec<_> = [
+        ("bounded spline", text, long),
+        ("line in degrees", degree_line, long),
+        ("nonperiodic spatial spline", spline, long),
+        ("opposite circle axes", opposite, short),
+    ]
+    .into_iter()
+    .filter_map(|(name, source, expected)| {
+        let part = crate::step::read_step(source.as_bytes()).unwrap();
+        let area = part.face_moments(0).unwrap().area;
+        ((area - expected).abs() >= 1e-12).then_some((name, area, expected))
+    })
+    .collect();
+    assert!(differences.is_empty(), "{differences:?}");
 }
 
 #[test]
