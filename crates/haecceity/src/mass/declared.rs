@@ -646,6 +646,45 @@ fn resolve_interval(
         }
         Some((a, b))
     };
+    let follows_spatial_branch = |(a, b): (f64, f64)| {
+        if edge.is_closed() {
+            return Some(true);
+        }
+        if let Some(turn) = edge.curve.period() {
+            // Both endpoints also fit the complementary arc. The midpoint's
+            // foot on the full spatial curve identifies the branch even if the
+            // pcurve is offset or uses a different parameter direction.
+            let p = lift(a.midpoint(b))?;
+            let t = edge.curve.parameter(p);
+            let t = t + turn * ((spatial.0.midpoint(spatial.1) - t) / turn).round();
+            return Some((spatial.0.min(spatial.1)..=spatial.0.max(spatial.1)).contains(&t));
+        }
+        if !matches!(edge.curve, Curve::Nurbs(_)) {
+            return Some(true);
+        }
+        // A spatial spline can contain just the finite arc and have no period.
+        // If both endpoint tangents point in opposite directions along the same
+        // tangent lines, the inferred path leaves and enters on the wrong sides.
+        let orientation = if (b > a) == (spatial.1 > spatial.0) {
+            1.
+        } else {
+            -1.
+        };
+        for (t, s) in [(a, spatial.0), (b, spatial.1)] {
+            spend()?;
+            let (uv, d) = curve.value_and_derivative(t);
+            let (u, v) = wrap_closed(surface, spans, (uv[0], uv[1]));
+            let (su, sv) = surface.partials(u, v);
+            let tangent = geom::add(geom::scale(su, d[0]), geom::scale(sv, d[1]));
+            let opposite = geom::unit(tangent)
+                .zip(geom::unit(edge.curve.derivative(s)))
+                .is_some_and(|(x, y)| orientation * geom::dot(x, y) < -1. + 1e-8);
+            if !opposite {
+                return Some(true);
+            }
+        }
+        Some(false)
+    };
     [
         Some(spatial),
         natural.filter(|_| edge.same_sense),
@@ -654,7 +693,10 @@ fn resolve_interval(
     .into_iter()
     .flatten()
     .find(|&ab| valid(ab))
-    .or_else(|| guessed().filter(|&ab| valid(ab)))
+    .or_else(|| {
+        let ab = guessed()?;
+        (valid(ab) && follows_spatial_branch(ab)?).then_some(ab)
+    })
 }
 
 #[cfg(test)]
