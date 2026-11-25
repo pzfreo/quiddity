@@ -29,6 +29,7 @@ with open("part.step", "rb") as stream:
 | `fingerprints(step)` | The existing fingerprints/3 document |
 | `correspond(old_step, new_step)` | The existing Rust revision correspondence document |
 | `parts(step)` | Exactly `quiddity parts`: each distinct part's index, name, face and edge counts and placements, and the binding, including stdout's trailing newline |
+| `solid_inertia(step, solid=0, point=None)` | Signed `volume` (mm³), `centroid` (mm), and symmetric `tensor` (mm⁵) for the zero-based solid, or JSON `null` if unavailable |
 | `step_entities(step)` | Every DATA instance in file order, as compact JSON `[{id, types, refs}]`: `id` is the `#N`, `types` the upper-case entity name (each leaf of a complex instance, in written order) and `refs` the referenced `#N`s in attribute order, repeats kept |
 | `capabilities()` | Versioned supported formats, inputs, operations and PMI import availability |
 | `__version__` | the package version, e.g. `"0.5.5"` (a Python string) |
@@ -42,6 +43,21 @@ types raise `TypeError`, and negative face indices raise `OverflowError`.
 Internal Rust panics become `quiddity.QuiddityError`, a `RuntimeError` subclass
 caught by `except Exception`, with the panic message. This boundary covers
 recognition, evidence, correspondence, manifests, PMI and the CLI.
+
+## Solid inertia
+
+```python
+centroidal = json.loads(quiddity.solid_inertia("part.step"))
+about_origin = json.loads(quiddity.solid_inertia("part.step", point=(0, 0, 0)))
+```
+
+The tensor uses uniform density 1 and the STEP coordinate axes. Its diagonal
+gives the moments about those axes, and off-diagonal entries are negated products
+of inertia. The axes pass through the centroid by default. Pass a finite
+three-coordinate point in mm to shift them by the parallel-axis theorem. The
+reported centroid is always the centre of mass. Inward-facing void shells
+subtract, and reversing all the shell orientations flips the sign of the tensor
+and volume.
 
 ## Assembly manifests
 

@@ -498,6 +498,9 @@ struct BrepArgs {
     /// read` or `pmi check`; the file must have one part)
     #[arg(long, value_name = "PMI.JSON", allow_hyphen_values = true)]
     pmi: Option<String>,
+    /// include centroidal inertia tensors in the write report
+    #[arg(long)]
+    inertia: bool,
 }
 
 /// Write the part's B-rep to *out* (gzipped when its name ends in `.gz`); the write's report.
@@ -623,6 +626,13 @@ fn brep(args: &BrepArgs) -> Result<String, String> {
             .map(|s| part.solid_mass(s).map(|(v, _)| v))
             .collect::<Vec<_>>(),
     });
+    if args.inertia {
+        json["solid_inertias"] = serde_json::json!(
+            (0..part.solids.len())
+                .map(|s| part.solid_inertia(s).map(|inertia| inertia.tensor))
+                .collect::<Vec<_>>()
+        );
+    }
     if !report.long_strings.is_empty() {
         json["long_strings"] = serde_json::json!(report.long_strings.iter().map(|w|
             serde_json::json!({"record": w.record, "encoded_bytes": w.encoded_bytes, "byte_offset": w.byte_offset, "message": w.to_string()})

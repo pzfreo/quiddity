@@ -95,3 +95,21 @@ including `NIST-PMI-STEP-Files.zip` in usnistgov/SFA (US-government works per th
 local notices), and CAx-IF public test-suite models at `cax-if.org` (check each
 contributor's redistribution terms before vendoring; public access alone is not a
 licence). Selection and any new redistribution are left to the maintainer.
+
+
+## Solid inertia comparisons
+
+Solid inertia uses the same accepted face regions and centroid convention as the
+mass queries. The second moments add one boundary integral of the form
+⅕∯ dᵢ dⱼ (d·n) dA, with d measured from the centroid. Circular caps and
+lenses can be integrated as circular slices to retain precision when the volume
+is thin. The remaining quadrature has the same trim and resolution limits as
+the lower moments.
+
+Compare centroidal tensors against the springrep capture in
+`evidence/springrep_inertia.jsonl` using the relative Frobenius error
+‖I_haecceity − I_springrep‖_F / ‖I_springrep‖_F. For a file with several
+solids, shift each tensor to the file's material centroid before summing.
+Report the known rational G2 fillet and height-field slab quadrature limits
+alongside the smooth loft `29f03f95a7c09147`, whose springrep STEP readback
+changes its volume and trim.

@@ -16,7 +16,7 @@ quiddity pmi read <file.step> [--part N]              the file's PMI as JSON
 quiddity pmi check <file.step> <pmi.json>             validate a PMI document against the part
 quiddity pmi write <file.step> <pmi.json> -o <out.step> [--mode add|replace|remove]
                    [--presentation refuse|remove]     write PMI into the file
-quiddity brep <file.step> -o <out.step> [--pmi <pmi.json>]   the B-rep and PMI as a new AP242 file
+quiddity brep <file.step> -o <out.step> [--pmi <pmi.json>] [--inertia]   the B-rep and PMI as a new AP242 file
 quiddity serve                                        JSON-lines requests on stdin
 quiddity completions <SHELL>                          a shell completion script
 quiddity --help

@@ -35,6 +35,11 @@ as JSON, with the kernel's volume of each solid and the PMI carried and refused.
 part carrying PMI is written in that part's own frame (`step::read_part`), with its PMI; the PMI
 of a file of several parts is listed under `pmi.parts_not_carried` (a write carries one part's).
 
+Use `--inertia` to add `solid_inertias` to the JSON report. Its entries follow
+`solid_volumes` order. Each is a signed, symmetric 3×3 centroidal tensor in mm⁵
+at unit density, or `null` if the kernel cannot measure it. The axes follow the
+part being written and the off-diagonal entries are negated products of inertia.
+
 `quiddity brep <file.step> -o <out.step> --pmi <pmi.json>` writes the part with the PMI in a
 `quiddity-pmi` document instead of the file's, so PMI can be edited as JSON and written with the
 B-rep to a new file: `quiddity pmi read` the file, edit the JSON, `quiddity pmi check` it, then

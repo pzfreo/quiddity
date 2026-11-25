@@ -19,7 +19,7 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 - `haecceity::express`: `Violation`.
 - `haecceity::express_rules`: `RuleViolation`.
 - `haecceity::gvp`: `ValidationProperty`.
-- `haecceity::mass`: `IntegrationBudget`.
+- `haecceity::mass`: `IntegrationBudget`, `SolidInertia`.
 - `haecceity::json::presentation`: `Graphic`, `Presentation`, `TextPlacement`, `PolylineRole`.
 - `haecceity::presentation`: `Callout`.
 - `haecceity::mesh`: `FaceMesh`, `MeshRefusal`.
@@ -104,6 +104,30 @@ minor release. A non-exhaustive annotation is not a general semver exemption.
 
 Types re-exported at the crate root retain those names too: for example,
 `quiddity::Fingerprints` is `quiddity::correspondence::Fingerprints`.
+
+### Solid inertia
+
+`Part::solid_inertia(solid)` measures the zero-based solid at uniform density 1
+and caches its `SolidInertia`. The result gives signed `volume` (mm³), the
+`centroid` (mm) and a symmetric row-major `tensor` (mm⁵). The tensor is
+∭ (|d|² I − d dᵀ) dV, where d is the offset from the centroid. The diagonal
+gives the moments about axes through the centroid and the off-diagonal entries
+are negated products of inertia. The axes follow the part's coordinates.
+
+```rust
+if let Some(inertia) = part.solid_inertia(0) {
+    let centroidal = inertia.tensor;
+    let about_origin = inertia.about([0.0; 3]);
+}
+```
+
+The parallel-axis shift uses the result's signed volume. Void shells subtract,
+and reversing every face negates the volume and tensor while preserving the
+centroid. The boundary choice follows `Part::solid_mass`. Volume and centroid
+use the same flux convention as `Part::volume_centroid`, including its centroid
+reference for shells with small gaps. For such shells the volume can differ
+from the vertex-reference volume returned by `Part::solid_mass`. A missing
+solid, zero volume, or a refused integral returns `None`.
 
 ## Construction and migration
 
