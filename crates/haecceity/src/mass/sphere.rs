@@ -459,6 +459,7 @@ impl Part {
             }
             let edge = &self.edges[e];
             let trim = boundary.and_then(|b| b.edges.get(&e));
+            let spatial_cuts;
             let cuts = if let Some(trim) = trim {
                 trim.nodes()?
             } else {
@@ -469,7 +470,8 @@ impl Part {
                     edge.same_sense,
                     edge.is_closed(),
                 );
-                curve_cuts(surface, &edge.curve, a, b)?
+                spatial_cuts = curve_cuts(surface, &edge.curve, a, b)?;
+                spatial_cuts.as_slice()
             };
             let at = |t| {
                 if let Some(trim) = trim {
@@ -494,7 +496,7 @@ impl Part {
                     ))
                 }
             };
-            let edge_sum = integral(&cuts, &|t| {
+            let edge_sum = integral(cuts, &|t| {
                 let (p, dp) = at(t)?;
                 density(p, dp)
             })?;

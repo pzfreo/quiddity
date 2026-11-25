@@ -583,3 +583,464 @@ fn recognition_keeps_agreeing_trims_out_of_the_master_integrator() {
     assert_eq!(moved.recognition_part().face_mass(0).unwrap()[0], projected);
     assert_eq!(moved.face_mass(0).unwrap()[0], master);
 }
+
+#[test]
+fn mesh_keeps_curvature_between_a_cylinders_matching_endpoints() {
+    let frame = geom::Frame {
+        origin: [0.; 3],
+        x: [1., 0., 0.],
+        y: [0., 1., 0.],
+        z: [0., 0., 1.],
+    };
+    let surface = Surface::Cylinder { frame, radius: 1. };
+    let edge = crate::brep::Edge {
+        curve: Curve::Line {
+            origin: [1., 0., 0.],
+            dir: [0., 0., 1.],
+        },
+        start: [1., 0., 0.],
+        end: [1., 0., 1.],
+        vertices: (0, 1),
+        same_sense: true,
+        samples: vec![[1., 0., 0.], [1., 0., 1.]],
+    };
+    for turns in [0., std::f64::consts::TAU] {
+        let curve = ParamCurve {
+            source: Arc::new(Curve::Line {
+                origin: [0.; 3],
+                dir: [turns, 1., 0.],
+            }),
+            axes: [Axis::ID; 2],
+            transfer: None,
+        };
+        let spatial = edge_interval(
+            &edge.curve,
+            edge.start,
+            edge.end,
+            edge.same_sense,
+            edge.is_closed(),
+        );
+        let trim = resolve(
+            (&surface, closed_spans(&surface)),
+            (&edge, spatial),
+            curve,
+            geom::COORD_FLOOR,
+            true,
+            [None; 2],
+            Vec::new(),
+        )
+        .unwrap();
+        let samples = trim.samples(&surface, &edge).unwrap();
+        assert_eq!(samples.points.first(), Some(&edge.start));
+        assert_eq!(samples.points.last(), Some(&edge.end));
+        if turns == 0. {
+            assert_eq!(samples.points, edge.samples);
+        } else {
+            // The helix has the same endpoints as the generator. Its interior
+            // must still wind around the cylinder rather than become a chord.
+            assert!(samples.points.iter().any(|p| p[0] < -0.99));
+        }
+    }
+}
+
+#[test]
+fn mesh_rejects_a_foreign_circle_touching_the_receiver_only_at_its_ends() {
+    let frame = geom::Frame {
+        origin: [0.; 3],
+        x: [1., 0., 0.],
+        y: [0., 1., 0.],
+        z: [0., 0., 1.],
+    };
+    let receiver = Surface::Plane {
+        frame: geom::Frame {
+            origin: [1., 0., 0.],
+            x: [0., 1., 0.],
+            y: [0., 0., 1.],
+            z: [1., 0., 0.],
+        },
+    };
+    let edge = crate::brep::Edge {
+        curve: Curve::Circle { frame, radius: 1. },
+        start: [1., 0., 0.],
+        end: [1., 0., 0.],
+        vertices: (0, 0),
+        same_sense: true,
+        samples: vec![[1., 0., 0.], [1., 0., 0.]],
+    };
+    let curve = ParamCurve {
+        source: Arc::new(Curve::Line {
+            origin: [0.; 3],
+            dir: [1., 0., 0.],
+        }),
+        axes: [Axis::ID; 2],
+        transfer: Some(Box::new(Transfer {
+            carrier: Arc::new(Surface::Cylinder { frame, radius: 1. }),
+            face: Arc::new(receiver.clone()),
+            carrier_spans: (f64::INFINITY, f64::INFINITY),
+            face_spans: (f64::INFINITY, f64::INFINITY),
+            face_collapsed: (None, None),
+            placement: crate::step::IDENTITY,
+        })),
+    };
+    let witness = ParamCurve {
+        source: Arc::new(Curve::Line {
+            origin: [0.; 3],
+            dir: [0.; 3],
+        }),
+        axes: [Axis::ID; 2],
+        transfer: None,
+    };
+    let spatial = edge_interval(
+        &edge.curve,
+        edge.start,
+        edge.end,
+        edge.same_sense,
+        edge.is_closed(),
+    );
+    assert!(
+        resolve(
+            (&receiver, closed_spans(&receiver)),
+            (&edge, spatial),
+            curve,
+            geom::COORD_FLOOR,
+            true,
+            [None; 2],
+            vec![witness]
+        )
+        .is_none()
+    );
+}
+
+#[test]
+fn analytic_midpoint_bounds_preserve_adaptive_samples() {
+    // Reproduce the original midpoint refinement independently, including its
+    // exact parameter arithmetic and endpoint pinning, on every analytic kind.
+    let reference = |trim: &EdgeTrim, surface: &Surface, edge: &crate::brep::Edge| {
+        let nodes = trim.nodes().unwrap();
+        let mut out = vec![(nodes[0], edge.start)];
+        for w in nodes.windows(2) {
+            let mut pending = vec![(
+                w[0],
+                trim.point(surface, w[0]),
+                w[1],
+                trim.point(surface, w[1]),
+                0,
+            )];
+            while let Some((a, p, b, q, depth)) = pending.pop() {
+                let t = 0.5 * (a + b);
+                let m = trim.point(surface, t);
+                if depth < 14
+                    && geom::dist(m, geom::scale(geom::add(p, q), 0.5))
+                        > crate::sampling::CHORD_TOLERANCE
+                {
+                    pending.push((t, m, b, q, depth + 1));
+                    pending.push((a, p, t, m, depth + 1));
+                } else {
+                    out.push((b, q));
+                }
+            }
+        }
+        out.last_mut().unwrap().1 = edge.end;
+        out
+    };
+    let mut compared = 0;
+    let mut settled = 0;
+    for placement in [0., 1000.] {
+        for distortion in [0., 0.2] {
+            let frame = geom::Frame {
+                origin: [placement, -0.5 * placement, 0.25 * placement],
+                x: [1. + distortion, 0.1, 0.],
+                y: [0.2, 1., distortion],
+                z: [0., -0.1, 1.],
+            };
+            let surfaces = [
+                Surface::Plane { frame },
+                Surface::Cylinder { frame, radius: 2. },
+                Surface::Cone {
+                    frame,
+                    radius: 2.,
+                    semi_angle: 0.3,
+                },
+                Surface::Sphere { frame, radius: 2. },
+                Surface::Torus {
+                    frame,
+                    major: 3.,
+                    minor: 0.7,
+                },
+            ];
+            let curve_frame = geom::Frame {
+                origin: [0.2, -0.3, 0.],
+                ..frame
+            };
+            let curves = [
+                Curve::Line {
+                    origin: [0.1, -0.2, 0.],
+                    dir: [1.3, -0.7, 0.],
+                },
+                Curve::Circle {
+                    frame: curve_frame,
+                    radius: 0.7,
+                },
+                Curve::Ellipse {
+                    frame: curve_frame,
+                    major: 1.2,
+                    minor: 0.4,
+                },
+            ];
+            for surface in &surfaces {
+                for source in &curves {
+                    for interval in [(-2.3, 1.7), (1.7, -2.3), (0., 0.025)] {
+                        for transferred in [false, true] {
+                            let curve = ParamCurve {
+                                source: Arc::new(source.clone()),
+                                axes: [
+                                    Axis::Linear {
+                                        scale: -0.7,
+                                        offset: 0.3,
+                                    },
+                                    Axis::Linear {
+                                        scale: 1.1,
+                                        offset: -0.2,
+                                    },
+                                ],
+                                transfer: transferred.then(|| {
+                                    Box::new(Transfer {
+                                        carrier: Arc::new(surface.clone()),
+                                        face: Arc::new(Surface::Plane { frame }),
+                                        carrier_spans: closed_spans(surface),
+                                        face_spans: (f64::INFINITY, f64::INFINITY),
+                                        face_collapsed: (None, None),
+                                        placement: crate::step::IDENTITY,
+                                    })
+                                }),
+                            };
+                            assert!(EdgeTrim::midpoint_bound(&curve, surface, interval).is_some());
+                            if EdgeTrim::affine_spatial_size(&curve, surface, interval).is_some() {
+                                continue;
+                            }
+                            let trim = EdgeTrim {
+                                curve,
+                                spans: closed_spans(surface),
+                                interval,
+                                mesh: true,
+                                uniform_mesh_stations: false,
+                                witnesses: Vec::new(),
+                                samples: OnceLock::new(),
+                                nodes: OnceLock::new(),
+                                length: OnceLock::new(),
+                            };
+                            let edge = crate::brep::Edge {
+                                curve: source.clone(),
+                                start: trim.point(surface, interval.0),
+                                end: trim.point(surface, interval.1),
+                                vertices: (0, 1),
+                                same_sense: interval.0 < interval.1,
+                                samples: Vec::new(),
+                            };
+                            let expected = reference(&trim, surface, &edge);
+                            let actual = trim.samples(surface, &edge).unwrap();
+                            assert_eq!(
+                                actual.ts.iter().map(|t| t.to_bits()).collect::<Vec<_>>(),
+                                expected.iter().map(|x| x.0.to_bits()).collect::<Vec<_>>()
+                            );
+                            assert_eq!(
+                                actual
+                                    .points
+                                    .iter()
+                                    .map(|p| p.map(f64::to_bits))
+                                    .collect::<Vec<_>>(),
+                                expected
+                                    .iter()
+                                    .map(|x| x.1.map(f64::to_bits))
+                                    .collect::<Vec<_>>()
+                            );
+                            let (curvature, rounding) =
+                                EdgeTrim::midpoint_bound(&trim.curve, surface, interval).unwrap();
+                            for w in actual.ts.windows(2) {
+                                if curvature * (w[1] - w[0]) * (w[1] - w[0]) / 8. + rounding
+                                    < 0.99 * crate::sampling::CHORD_TOLERANCE
+                                {
+                                    let m = trim.point(surface, 0.5 * (w[0] + w[1]));
+                                    let chord = geom::scale(
+                                        geom::add(
+                                            trim.point(surface, w[0]),
+                                            trim.point(surface, w[1]),
+                                        ),
+                                        0.5,
+                                    );
+                                    assert!(
+                                        geom::dist(m, chord) <= crate::sampling::CHORD_TOLERANCE
+                                    );
+                                    settled += 1;
+                                }
+                            }
+                            compared += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(compared > 300);
+    assert!(settled > 1000);
+}
+
+#[test]
+fn analytic_midpoint_bounds_decline_unresolved_or_unbounded_inputs() {
+    let frame = geom::Frame {
+        origin: [0.; 3],
+        x: [1., 0., 0.],
+        y: [0., 1., 0.],
+        z: [0., 0., 1.],
+    };
+    let surface = Surface::Cylinder { frame, radius: 1. };
+    let mut curve = ParamCurve {
+        source: Arc::new(Curve::Line {
+            origin: [0.; 3],
+            dir: [1., 1., 0.],
+        }),
+        axes: [Axis::ID; 2],
+        transfer: None,
+    };
+    for interval in [(f64::NAN, 1.), (0., f64::INFINITY), (0., 1e200)] {
+        assert!(EdgeTrim::midpoint_bound(&curve, &surface, interval).is_none());
+    }
+    assert!(
+        EdgeTrim::midpoint_bound(&curve, &Surface::Other { kind: "unresolved" }, (0., 1.))
+            .is_none()
+    );
+    curve.axes[0] = Axis::Angle { radians: 1. };
+    assert!(EdgeTrim::midpoint_bound(&curve, &surface, (0., 1.)).is_none());
+    curve.axes[0] = Axis::ID;
+    for bad in [f64::NAN, f64::INFINITY, 1e100] {
+        curve.source = Arc::new(Curve::Line {
+            origin: [bad, 0., 0.],
+            dir: [1., 1., 0.],
+        });
+        assert!(EdgeTrim::midpoint_bound(&curve, &surface, (0., 1.)).is_none());
+    }
+}
+
+#[test]
+fn selected_curve_pool_preserves_operand_units_and_part_identity() {
+    let make = |p: Vec<V3>, w, k, degree| {
+        Arc::new(Curve::Nurbs(
+            crate::nurbs::NurbsCurve::new(degree, p, w, k).unwrap(),
+        ))
+    };
+    let p = vec![[0., 0., 0.], [1., 0.5, 0.]];
+    let w = vec![1., 1.];
+    let k = vec![0., 0., 1., 1.];
+    let source = || make(p.clone(), w.clone(), k.clone(), 1);
+    let pool = SelectedCurvePool::default();
+    let scales = [1_f64.to_bits(); 2];
+    let shared = pool.intern(source(), scales);
+    assert!(Arc::ptr_eq(&shared, &pool.intern(source(), scales)));
+    assert!(!Arc::ptr_eq(
+        &shared,
+        &SelectedCurvePool::default().intern(source(), scales)
+    ));
+    for units in [
+        [2_f64.to_bits(), scales[1]],
+        [scales[0], 1_f64.next_up().to_bits()],
+    ] {
+        assert!(!Arc::ptr_eq(&shared, &pool.intern(source(), units)));
+    }
+    let mut moved = p.clone();
+    moved[0][0] = 0_f64.next_up();
+    let mut signed = p.clone();
+    signed[0][0] = -0.;
+    let mut weights = w.clone();
+    weights[0] = 1_f64.next_up();
+    let mut knots = k.clone();
+    knots[0] = -f64::EPSILON;
+    for different in [
+        make(moved, w.clone(), k.clone(), 1),
+        make(signed, w.clone(), k.clone(), 1),
+        make(p.clone(), weights, k.clone(), 1),
+        make(p.clone(), w.clone(), knots, 1),
+        make(
+            vec![p[0], [0.5, 0.25, 0.], p[1]],
+            vec![1.; 3],
+            vec![0., 0., 0., 1., 1., 1.],
+            2,
+        ),
+    ] {
+        assert!(!Arc::ptr_eq(&shared, &pool.intern(different, scales)));
+    }
+    for t in [-0.25, 0., 0.1, 0.5, 0.9, 1., 1.25] {
+        let independent = source();
+        let target = [t, 0.4 * t, 0.2];
+        assert_eq!(
+            shared.parameter(target).to_bits(),
+            independent.parameter(target).to_bits()
+        );
+        assert_eq!(
+            shared.value(t).map(f64::to_bits),
+            independent.value(t).map(f64::to_bits)
+        );
+        assert_eq!(
+            shared.derivative(t).map(f64::to_bits),
+            independent.derivative(t).map(f64::to_bits)
+        );
+    }
+}
+
+#[test]
+fn selected_curve_pool_keeps_concurrent_inverse_queries_independent() {
+    let pool = SelectedCurvePool::default();
+    let source = || {
+        Arc::new(Curve::Nurbs(
+            crate::nurbs::NurbsCurve::new(
+                2,
+                vec![[0., 0., 0.], [0.5, 0.75, 0.], [1., 0., 0.]],
+                vec![1., 0.8, 1.],
+                vec![0., 0., 0., 1., 1., 1.],
+            )
+            .unwrap(),
+        ))
+    };
+    let results = std::thread::scope(|scope| {
+        (0..8)
+            .map(|i| {
+                let source = &source;
+                let pool = &pool;
+                scope.spawn(move || {
+                    let curve = pool.intern(source(), [1_f64.to_bits(); 2]);
+                    let target = [i as f64 / 7., 0.1, 0.];
+                    assert_eq!(
+                        curve.parameter(target).to_bits(),
+                        source().parameter(target).to_bits()
+                    );
+                    curve
+                })
+            })
+            .collect::<Vec<_>>()
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .collect::<Vec<_>>()
+    });
+    assert!(results.iter().all(|curve| Arc::ptr_eq(curve, &results[0])));
+}
+
+#[test]
+fn selected_curve_pool_poisoning_only_disables_reuse() {
+    let pool = SelectedCurvePool::default();
+    let curve = Arc::new(Curve::Nurbs(
+        crate::nurbs::NurbsCurve::new(
+            1,
+            vec![[0.; 3], [1., 0., 0.]],
+            vec![1.; 2],
+            vec![0., 0., 1., 1.],
+        )
+        .unwrap(),
+    ));
+    let failure = std::panic::catch_unwind(|| {
+        let _guard = pool.0.lock().unwrap();
+        panic!("interrupt a cache insertion");
+    });
+    assert!(failure.is_err());
+    let reused = pool.intern(curve.clone(), [1_f64.to_bits(); 2]);
+    assert!(Arc::ptr_eq(&curve, &reused));
+    assert_eq!(reused.parameter([0.5, 0., 0.]), 0.5);
+}

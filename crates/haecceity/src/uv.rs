@@ -541,7 +541,7 @@ impl Part {
                     ));
                 }
                 let loops = self.loops_on(face, boundary)?;
-                let spans = crate::mass::closed_spans(&f.surface);
+                let spans = self.face_closed_spans(face);
                 let Surface::Freeform { surface, .. } = &f.surface else {
                     let (pu, pv) = f.surface.periodic();
                     if pu && pv && loops.iter().any(|lp| lp.winds_u || lp.winds_v) {
@@ -651,8 +651,23 @@ impl Part {
         &'a self,
         face: usize,
         selected: &dyn Fn(usize) -> Option<crate::mesh::MeshEdge<'a>>,
-    ) -> Option<Vec<UvLoop>> {
+    ) -> Option<std::borrow::Cow<'a, [UvLoop]>> {
+        let key: Vec<_> = self
+            .face_edges(face)
+            .into_iter()
+            .filter(|&e| selected(e).is_some())
+            .collect();
+        let (cached_key, loops) = self.cache[face].mesh_loops.get_or_init(|| {
+            (
+                key.clone(),
+                self.compute_uv_loops(face, None, Some(selected)),
+            )
+        });
+        if &key == cached_key {
+            return loops.as_deref().map(std::borrow::Cow::Borrowed);
+        }
         self.compute_uv_loops(face, None, Some(selected))
+            .map(std::borrow::Cow::Owned)
     }
 
     fn compute_uv_loops<'a>(
@@ -663,17 +678,38 @@ impl Part {
     ) -> Option<Vec<UvLoop>> {
         let f = &self.faces[face];
         let (pu, pv) = f.surface.periodic();
-        let mut loops = Vec::new();
-        let mut crossings = boundary.and_then(|b| TrimCrossings::new(&f.surface, b));
-        let mesh_boundary = mesh.and_then(|_| self.declared_boundary(face));
+        let mut loops = Vec::with_capacity(f.loops.len());
+        let mesh_boundary = mesh.and_then(|_| self.mesh_declared_boundary(face));
+        let checked_boundary = boundary.or(mesh_boundary);
+        let selected = |edge| mesh.and_then(|mesh| mesh(edge));
+        let sizes: Vec<usize> = if mesh.is_some() {
+            f.loops
+                .iter()
+                .map(|lp| {
+                    lp.edges
+                        .iter()
+                        .map(|&(edge, _)| {
+                            selected(edge)
+                                .map_or(self.edges[edge].samples.len(), |s| s.samples.points.len())
+                        })
+                        .sum()
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let mut crossings = checked_boundary
+            .and_then(|b| TrimCrossings::new(&f.surface, b, mesh.is_some(), sizes.iter().sum()));
+        let inverse = crate::mass::SurfaceInversion::new(&f.surface, mesh.is_some());
         // A seed beside a closed spline's seam can clamp at the wrong end of
         // the chart. Check the opposite end when mapping shared mesh points.
         let mesh_spans = mesh
+            .is_some()
+            .then_some(())
             .filter(|_| matches!(&f.surface, Surface::Freeform { .. }))
-            .map(|_| crate::mass::closed_spans(&f.surface))
+            .map(|_| self.face_closed_spans(face))
             .filter(|(u, v)| u.is_finite() || v.is_finite());
-        for lp in &f.loops {
-            let mut pts: Vec<(f64, f64)> = Vec::new();
+        for (li, lp) in f.loops.iter().enumerate() {
             if let Some(apex) = lp.vertex {
                 // A degenerate loop: the whole periodic u line at the apex's v (one entry per
                 // face loop either way, so loop indices agree with the face's).
@@ -692,33 +728,41 @@ impl Part {
                 });
                 continue;
             }
-            let mut raw: Vec<(f64, f64)> = Vec::new();
-            let mut points: Vec<V3> = Vec::new();
+            let capacity = sizes.get(li).copied().unwrap_or(0);
+            let mut raw: Vec<(f64, f64)> = Vec::with_capacity(capacity);
+            // Only freeform charts need spatial samples for seam retries or
+            // collapsed-side routing. Analytic inverses ignore their hints.
+            let mut points = matches!(&f.surface, Surface::Freeform { .. })
+                .then(|| Vec::with_capacity(capacity));
             let mut firsts = Vec::with_capacity(lp.edges.len());
-            let mut origin: Vec<Option<(usize, usize)>> = Vec::new();
+            let mut origin: Vec<Option<(usize, usize)>> = Vec::with_capacity(capacity);
             // A point on a B-spline side collapsed to a point has its parameter along the side
             // wherever its own seed left it: followed on from, it would start the next sample's
             // inversion anywhere along that side, where the surface's derivative along it
             // vanishes and the search can stall on the side, far from the sample (cgb202 face
             // 1034's samples beside its apex stopped there 0.05 mm off). The next sample is
             // inverted from seeds beside the side instead (`beside_collapsed`).
-            let collapsed = crate::mass::collapsed_sides(&f.surface);
+            let collapsed = self.face_collapsed_sides(face);
             let on_collapsed = |q: (f64, f64)| {
                 let on = |c: Option<f64>, x: f64| c.is_some_and(|c| (x - c).abs() <= 1e-9);
                 on(collapsed.0, q.0) || on(collapsed.1, q.1)
             };
             let invert = |p: V3, hint: Option<(f64, f64)>| match hint {
-                Some(q) if on_collapsed(q) => beside_collapsed(&f.surface, p, collapsed),
-                _ if let Some(spans) = mesh_spans => crate::mass::foot(&f.surface, spans, p, hint),
-                _ => f.surface.parameters(p, hint),
+                Some(q) if on_collapsed(q) => inverse.beside(p, collapsed),
+                _ if let Some(spans) = mesh_spans => inverse.foot(spans, p, hint),
+                _ => inverse.parameters(p, hint),
             };
-            let selected = |edge| mesh.and_then(|mesh| mesh(edge));
             let in_chart = |e, edge: crate::mesh::MeshEdge<'a>| {
-                if edge.face == face {
-                    return Some(edge.trim);
-                }
-                let receiving = mesh_boundary?.edges.get(&e)?;
-                (receiving.interval == edge.trim.interval).then_some(receiving)
+                let trim = if edge.face == face {
+                    edge.trim
+                } else {
+                    let receiving = mesh_boundary?.edges.get(&e)?;
+                    if receiving.interval != edge.trim.interval {
+                        return None;
+                    }
+                    receiving
+                };
+                (!trim.is_transferred()).then_some(trim)
             };
             for (place, &(e, forward)) in lp.edges.iter().enumerate() {
                 firsts.push(raw.len());
@@ -734,10 +778,31 @@ impl Part {
                     _ => None,
                 };
                 if let Some((trim, own)) = trim {
-                    for j in 0..own.ts.len() {
+                    let native_uv = shared
+                        .filter(|edge| edge.face == face)
+                        .and(own.native_uv.as_deref());
+                    let mut j = 0;
+                    while j < own.ts.len() {
+                        if j == 1
+                            && points.is_none()
+                            && let Some(uv) = native_uv
+                            && append_native_interior(
+                                uv,
+                                &own.ts,
+                                trim.interval,
+                                forward,
+                                place,
+                                &mut raw,
+                                &mut origin,
+                            )
+                        {
+                            j = own.ts.len() - 1;
+                            continue;
+                        }
                         let k = if forward { j } else { own.ts.len() - 1 - j };
                         let t = own.ts[k];
-                        let (u, v) = trim.surface_uv(&f.surface, t);
+                        let sampled_uv = native_uv.and_then(|uvs| uvs.get(k)).copied();
+                        let (u, v) = sampled_uv.unwrap_or_else(|| trim.surface_uv(&f.surface, t));
                         // Coedges meet at one STEP vertex. At a regular endpoint
                         // of a periodic face, independently rounded pcurves may
                         // straddle a winding ray through the seam. Map the shared
@@ -773,13 +838,24 @@ impl Part {
                                         uv.1
                                     },
                                 ),
-                                point,
+                                Some(point),
                             )
                         } else {
-                            ((u, v), f.surface.value(u, v))
+                            (
+                                (u, v),
+                                points.as_ref().map(|_| {
+                                    if sampled_uv.is_some() && !is_end {
+                                        own.points[k]
+                                    } else {
+                                        f.surface.value(u, v)
+                                    }
+                                }),
+                            )
                         };
                         raw.push(uv);
-                        points.push(point);
+                        if let (Some(points), Some(point)) = (&mut points, point) {
+                            points.push(point);
+                        }
                         let sample = if mesh.is_some() {
                             Some(k)
                         } else if t == trim.interval.0 {
@@ -790,10 +866,16 @@ impl Part {
                             None
                         };
                         origin.push(sample.map(|k| (place, k)));
+                        j += 1;
                     }
                     continue;
                 }
                 origin.extend((0..n).map(|k| Some((place, if forward { k } else { n - 1 - k }))));
+                if mesh.is_some()
+                    && append_analytic_parameters(&f.surface, samples, forward, &mut raw)
+                {
+                    continue;
+                }
                 let ordered: Box<dyn Iterator<Item = &V3>> = if forward {
                     Box::new(samples.iter())
                 } else {
@@ -801,7 +883,9 @@ impl Part {
                 };
                 for p in ordered {
                     raw.push(invert(*p, raw.last().copied())?);
-                    points.push(*p);
+                    if let Some(points) = &mut points {
+                        points.push(*p);
+                    }
                 }
             }
             if let Some(check) = &mut crossings {
@@ -813,7 +897,12 @@ impl Part {
             // The loop's first samples are inverted with nothing to follow; on a closed B-spline
             // surface (not marked periodic) a seam point has two parameter values. Walk the start
             // again following on from the loop's end, until it agrees with the first pass.
-            if boundary.is_none() && !pu && !pv && raw.len() > 2 {
+            if boundary.is_none()
+                && !pu
+                && !pv
+                && raw.len() > 2
+                && let Some(points) = &points
+            {
                 let mut hint = raw[raw.len() - 1];
                 for k in 0..raw.len() - 1 {
                     if origin[k].is_some_and(|(place, _)| {
@@ -831,18 +920,30 @@ impl Part {
                     }
                 }
             }
-            route_collapsed_sides(&f.surface, &points, &mut raw);
-            let (raw, placed) = route_singular_points(&f.surface, raw, f.reversed);
-            for (mut u, mut v) in raw {
-                if let Some(&(lu, lv)) = pts.last() {
+            if let Some(points) = &points {
+                route_collapsed_sides(&f.surface, collapsed, points, &mut raw);
+            }
+            let (raw, placed) =
+                if matches!(f.surface, Surface::Sphere { .. } | Surface::Cone { .. }) {
+                    let (raw, placed) = route_singular_points(&f.surface, raw, f.reversed);
+                    (raw, Some(placed))
+                } else {
+                    // These carriers have no singular-v routing. Their existing
+                    // sample origins already are the identity placement map.
+                    (raw, None)
+                };
+            let mut pts = raw;
+            let mut previous = None;
+            for point in &mut pts {
+                if let Some((lu, lv)) = previous {
                     if pu {
-                        u = geom::nearest_turn(u, lu);
+                        point.0 = geom::nearest_turn(point.0, lu);
                     }
                     if pv {
-                        v = geom::nearest_turn(v, lv);
+                        point.1 = geom::nearest_turn(point.1, lv);
                     }
                 }
-                pts.push((u, v));
+                previous = Some(*point);
             }
             let (winds_u, winds_v) = match (pts.first(), pts.last()) {
                 (Some(a), Some(b)) => {
@@ -862,7 +963,7 @@ impl Part {
                 let (c, d) = self.edges[end].vertices;
                 let first_vertex = if start_forward { a } else { b };
                 let last_vertex = if end_forward { d } else { c };
-                let (us, vs) = crate::mass::closed_spans(&f.surface);
+                let (us, vs) = self.face_closed_spans(face);
                 // An EDGE_LOOP joins its last coedge to the first at the same vertex.
                 // Retain both declared ends; an omitted final chord can invert the
                 // entire winding ray through a roundoff-sized gap. A closed spline
@@ -877,29 +978,47 @@ impl Part {
                 }
             }
             close_through_pole(&f.surface, &mut pts, f.reversed);
-            let ends: Vec<usize> = firsts
-                .iter()
-                .skip(1)
-                .copied()
-                .chain([placed.len()])
-                .collect();
-            let anchors = firsts
-                .iter()
-                .zip(&ends)
-                .map(|(&a, &b)| {
-                    (a..b)
-                        .filter(|&k| k == a || placed[k - 1].is_none())
-                        .filter_map(|k| placed[k])
-                        .map(|p| pts[p])
-                        .collect()
-                })
-                .collect();
-            let mut sources = vec![None; pts.len()];
-            for (k, at) in placed.iter().enumerate() {
-                if let Some(i) = *at {
-                    sources[i] = origin[k];
+            let (anchors, sources) = if let Some(placed) = placed {
+                let ends: Vec<usize> = firsts
+                    .iter()
+                    .skip(1)
+                    .copied()
+                    .chain([placed.len()])
+                    .collect();
+                let anchors = firsts
+                    .iter()
+                    .zip(&ends)
+                    .map(|(&a, &b)| {
+                        (a..b)
+                            .filter(|&k| k == a || placed[k - 1].is_none())
+                            .filter_map(|k| placed[k])
+                            .map(|p| pts[p])
+                            .collect()
+                    })
+                    .collect();
+                let mut sources = vec![None; pts.len()];
+                for (k, at) in placed.iter().enumerate() {
+                    if let Some(i) = *at {
+                        sources[i] = origin[k];
+                    }
                 }
-            }
+                (anchors, sources)
+            } else {
+                let anchors = firsts
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &start)| {
+                        let end = firsts.get(i + 1).copied().unwrap_or(origin.len());
+                        if start < end {
+                            vec![pts[start]]
+                        } else {
+                            Vec::new()
+                        }
+                    })
+                    .collect();
+                origin.resize(pts.len(), None);
+                (anchors, origin)
+            };
             loops.push(UvLoop {
                 points: pts,
                 anchors,
@@ -908,9 +1027,9 @@ impl Part {
                 sources,
             });
         }
-        if let (Some(check), Some(boundary)) = (crossings, boundary) {
+        if let (Some(check), Some(boundary)) = (crossings, checked_boundary) {
             let tolerance = self.file_uncertainty().unwrap_or(0.).max(0.) + geom::COORD_FLOOR;
-            if check.crosses(boundary, self, &f.surface, tolerance) {
+            if check.crosses(boundary, self, &f.surface, tolerance, mesh) {
                 return None;
             }
         }
@@ -1207,6 +1326,96 @@ const NO_RANGE: [f64; 4] = [
     f64::NEG_INFINITY,
 ];
 
+/// Copy native interior samples in walking order. Parameters equal to either
+/// endpoint still require the shared-vertex mapping, even in an interior slot.
+/// Refusal leaves both output vectors unchanged.
+fn append_native_interior(
+    uv: &[(f64, f64)],
+    ts: &[f64],
+    interval: (f64, f64),
+    forward: bool,
+    place: usize,
+    raw: &mut Vec<(f64, f64)>,
+    origin: &mut Vec<Option<(usize, usize)>>,
+) -> bool {
+    let n = ts.len();
+    if n < 3
+        || uv.len() != n
+        || !ts[1..n - 1]
+            .iter()
+            .all(|&t| t != interval.0 && t != interval.1)
+    {
+        return false;
+    }
+    if forward {
+        raw.extend_from_slice(&uv[1..n - 1]);
+        origin.extend((1..n - 1).map(|k| Some((place, k))));
+    } else {
+        raw.extend(uv[1..n - 1].iter().rev().copied());
+        origin.extend((1..n - 1).rev().map(|k| Some((place, k))));
+    }
+    true
+}
+
+/// Append regular analytic inverses in walking order, without an iterator
+/// object or per-sample surface dispatch. These two carriers ignore inverse
+/// hints and have no collapsed sides; exceptional arithmetic retains the
+/// existing inversion path.
+fn append_analytic_parameters(
+    surface: &Surface,
+    samples: &[V3],
+    forward: bool,
+    raw: &mut Vec<(f64, f64)>,
+) -> bool {
+    let frame = match surface {
+        Surface::Plane { frame } | Surface::Cylinder { frame, .. } => frame,
+        _ => return false,
+    };
+    // Keep nonfinite and overflow-prone arithmetic on the existing scalar path.
+    if !frame
+        .origin
+        .iter()
+        .chain(&frame.x)
+        .chain(&frame.y)
+        .chain(&frame.z)
+        .chain(samples.iter().flatten())
+        .all(|x| x.abs() < 1e100)
+    {
+        return false;
+    }
+    fn append(
+        samples: &[V3],
+        forward: bool,
+        raw: &mut Vec<(f64, f64)>,
+        parameter: impl Fn(&V3) -> (f64, f64),
+    ) {
+        if forward {
+            raw.extend(samples.iter().map(parameter));
+        } else {
+            raw.extend(samples.iter().rev().map(parameter));
+        }
+    }
+    match surface {
+        Surface::Plane { frame } => {
+            append(samples, forward, raw, |&p| {
+                let local = frame.to_local(p);
+                (local[0], local[1])
+            });
+        }
+        Surface::Cylinder { frame, .. } => {
+            append(samples, forward, raw, |&p| {
+                let local = frame.to_local(p);
+                (
+                    local[1].atan2(local[0]).rem_euclid(std::f64::consts::TAU),
+                    local[2],
+                )
+            });
+        }
+        _ => return false,
+    }
+    true
+}
+
 /// Widens a (u_min, u_max, v_min, v_max) range to take in (u, v).
 fn widen(range: &mut [f64; 4], (u, v): (f64, f64)) {
     *range = [
@@ -1473,8 +1682,12 @@ fn route_singular_points(
 /// shared vertex of two edges, at least) instead runs along the side from where the boundary
 /// arrives to where it leaves: its first sample takes the arriving sample's other parameter, the
 /// rest the leaving one's. *points* are the samples, *raw* their parameters, in loop order.
-fn route_collapsed_sides(surface: &Surface, points: &[V3], raw: &mut [(f64, f64)]) {
-    let collapsed = crate::mass::collapsed_sides(surface);
+fn route_collapsed_sides(
+    surface: &Surface,
+    collapsed: (Option<f64>, Option<f64>),
+    points: &[V3],
+    raw: &mut [(f64, f64)],
+) {
     let n = raw.len();
     for (side, c) in [(0, collapsed.0), (1, collapsed.1)] {
         let Some(c) = c else { continue };
@@ -1526,7 +1739,18 @@ pub(crate) fn beside_collapsed(
     p: V3,
     collapsed: (Option<f64>, Option<f64>),
 ) -> Option<(f64, f64)> {
-    let mut best = surface.parameters(p, None)?;
+    beside_collapsed_by(surface, p, collapsed, &|p, hint| {
+        surface.parameters(p, hint)
+    })
+}
+
+pub(crate) fn beside_collapsed_by(
+    surface: &Surface,
+    p: V3,
+    collapsed: (Option<f64>, Option<f64>),
+    parameters: &impl Fn(V3, Option<(f64, f64)>) -> Option<(f64, f64)>,
+) -> Option<(f64, f64)> {
+    let mut best = parameters(p, None)?;
     let Surface::Freeform { surface: nurbs, .. } = surface else {
         return Some(best);
     };
@@ -1541,7 +1765,7 @@ pub(crate) fn beside_collapsed(
             collapsed.1.map(|c| (u0 + t * (u1 - u0), inside(c, v0, v1))),
         ];
         for seed in seeds.into_iter().flatten() {
-            let q = surface.parameters(p, Some(seed))?;
+            let q = parameters(p, Some(seed))?;
             let d = off(q);
             if d < residual {
                 (best, residual) = (q, d);
@@ -1621,6 +1845,176 @@ fn into_period(c: f64, periodic: bool) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn analytic_mapping_preserves_order_and_all_coordinate_bits() {
+        use crate::geom::Frame;
+        fn reference(surface: &Surface, samples: &[V3], forward: bool, raw: &mut Vec<(f64, f64)>) {
+            let ordered: Box<dyn Iterator<Item = &V3>> = if forward {
+                Box::new(samples.iter())
+            } else {
+                Box::new(samples.iter().rev())
+            };
+            for p in ordered {
+                raw.push(surface.parameters(*p, raw.last().copied()).unwrap());
+            }
+        }
+
+        let frames = [
+            Frame {
+                origin: [0.; 3],
+                x: [1., 0., 0.],
+                y: [0., 1., 0.],
+                z: [0., 0., 1.],
+            },
+            Frame {
+                origin: [1e8, -0.001, 3.],
+                x: [0.6, 0.8, 0.],
+                y: [-0.8, 0.6, 0.],
+                z: [0., 0., 1.],
+            },
+            Frame {
+                origin: [-1e100, 1e-100, 0.],
+                x: [2., -1., 0.5],
+                y: [1., 0., -2.],
+                z: [1., 1., 1.],
+            },
+        ];
+        let mut points = Vec::new();
+        for x in [
+            0.,
+            -0.,
+            1e-300,
+            1e-100,
+            1.,
+            1e100,
+            f64::MAX,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NAN,
+            -f64::NAN,
+        ] {
+            for y in [0., -0., -1., 1e100, f64::NAN] {
+                points.push([x, y, -x]);
+            }
+        }
+        let bits = |p: &[(f64, f64)]| {
+            p.iter()
+                .map(|&(u, v)| (u.to_bits(), v.to_bits()))
+                .collect::<Vec<_>>()
+        };
+        for frame in frames {
+            for surface in [
+                Surface::Plane { frame },
+                Surface::Cylinder { frame, radius: 3. },
+            ] {
+                for forward in [false, true] {
+                    for n in 0..=points.len() {
+                        let mut a = vec![(1., -0.)];
+                        let mut b = a.clone();
+                        reference(&surface, &points[..n], forward, &mut a);
+                        if !append_analytic_parameters(&surface, &points[..n], forward, &mut b) {
+                            reference(&surface, &points[..n], forward, &mut b);
+                        }
+                        assert_eq!(bits(&a), bits(&b));
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn native_interior_preserves_bits_order_and_sources() {
+        let bits = |uv: &[(f64, f64)]| {
+            uv.iter()
+                .map(|q| (q.0.to_bits(), q.1.to_bits()))
+                .collect::<Vec<_>>()
+        };
+        for n in 0..=257 {
+            let ts: Vec<_> = (0..n).map(|k| k as f64).collect();
+            // Copying does not perform arithmetic, including on NaN payloads.
+            let uv: Vec<_> = (0..n)
+                .map(|k| {
+                    (
+                        f64::from_bits(0x7ff8_0000_0000_0000 + k as u64),
+                        if k % 2 == 0 { -0. } else { f64::NEG_INFINITY },
+                    )
+                })
+                .collect();
+            for forward in [false, true] {
+                let mut raw = vec![(3., -0.)];
+                let mut origin = vec![None];
+                let mut expected = raw.clone();
+                let mut sources = origin.clone();
+                if n >= 3 {
+                    let indices: Vec<_> = if forward {
+                        (1..n - 1).collect()
+                    } else {
+                        (1..n - 1).rev().collect()
+                    };
+                    for k in indices {
+                        expected.push(uv[k]);
+                        sources.push(Some((17, k)));
+                    }
+                }
+                assert_eq!(
+                    append_native_interior(
+                        &uv,
+                        &ts,
+                        (0., n.saturating_sub(1) as f64),
+                        forward,
+                        17,
+                        &mut raw,
+                        &mut origin,
+                    ),
+                    n >= 3
+                );
+                assert_eq!(bits(&raw), bits(&expected));
+                assert_eq!(origin, sources);
+            }
+        }
+    }
+
+    #[test]
+    fn native_interior_refuses_repeated_endpoints_without_appending() {
+        let uv = [(1., 2.); 5];
+        for ts in [
+            vec![0., 0., 0.5, 0.75, 1.],
+            vec![0., 0.25, 0.5, 1., 1.],
+            vec![0., 0.25, -0., 0.75, 1.],
+            vec![0., 0.25, 0.5, 1.],
+            vec![0., 0.25, 0.5, 0.75, 0.875, 1.],
+        ] {
+            for forward in [false, true] {
+                let mut raw = vec![(3., 4.)];
+                let mut origin = vec![None];
+                assert!(!append_native_interior(
+                    &uv,
+                    &ts,
+                    (0., 1.),
+                    forward,
+                    17,
+                    &mut raw,
+                    &mut origin,
+                ));
+                assert_eq!(raw, [(3., 4.)]);
+                assert_eq!(origin, [None]);
+            }
+        }
+        let mut raw = Vec::new();
+        let mut origin = Vec::new();
+        assert!(append_native_interior(
+            &uv,
+            &[0., f64::NAN, f64::INFINITY, f64::NEG_INFINITY, 1.],
+            (0., 1.),
+            true,
+            17,
+            &mut raw,
+            &mut origin,
+        ));
+        assert_eq!(raw, uv[1..4]);
+        assert_eq!(origin, [Some((17, 1)), Some((17, 2)), Some((17, 3))]);
+    }
+
     #[test]
     fn empty_face_has_no_loop_placement() {
         let mut part = crate::read_step_file(std::path::Path::new(concat!(

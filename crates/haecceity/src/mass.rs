@@ -22,7 +22,9 @@ mod declared;
 mod preferred;
 mod sphere;
 pub(crate) use declared::{BoundaryPolicy, EdgeDeviations};
-pub(super) use declared::{DeclaredBoundary, EdgeTrim, TrimCrossings, TrimSamples};
+pub(super) use declared::{
+    DeclaredBoundary, EdgeTrim, SelectedCurve, SelectedCurvePool, TrimCrossings, TrimSamples,
+};
 pub(super) use preferred::PreferredPaths;
 pub(super) use sphere::SpherePatch;
 
@@ -814,7 +816,25 @@ pub(super) fn foot(
     p: V3,
     hint: Option<(f64, f64)>,
 ) -> Option<(f64, f64)> {
-    let (mut u, mut v) = surface.parameters(p, hint)?;
+    foot_by(
+        surface,
+        spans,
+        p,
+        hint,
+        &|p, hint| surface.parameters(p, hint),
+        &|u, v| point_and_partials(surface, u, v),
+    )
+}
+
+fn foot_by(
+    surface: &Surface,
+    spans: (f64, f64),
+    p: V3,
+    hint: Option<(f64, f64)>,
+    parameters: &impl Fn(V3, Option<(f64, f64)>) -> Option<(f64, f64)>,
+    partials: &impl Fn(f64, f64) -> (V3, V3, V3),
+) -> Option<(f64, f64)> {
+    let (mut u, mut v) = parameters(p, hint)?;
     let Surface::Freeform { surface: s, .. } = surface else {
         return Some((u, v));
     };
@@ -827,7 +847,7 @@ pub(super) fn foot(
         (None, Some(v)) => Some((u, v)),
         (None, None) => None,
     };
-    if let Some(retry) = other.and_then(|q| surface.parameters(p, Some(q)))
+    if let Some(retry) = other.and_then(|q| parameters(p, Some(q)))
         && geom::dist(s.value(retry.0, retry.1), p) < geom::dist(s.value(u, v), p)
     {
         (u, v) = retry;
@@ -850,7 +870,7 @@ pub(super) fn foot(
         return Some((u, v));
     }
     for _ in 0..50 {
-        let (q, su, sv) = s.value_and_partials(u, v);
+        let (q, su, sv) = partials(u, v);
         let r = geom::sub(p, q);
         let (before, x) = if on_v { (u, &mut u) } else { (v, &mut v) };
         let (d, lo, hi) = if on_v { (su, u0, u1) } else { (sv, v0, v1) };
@@ -864,6 +884,83 @@ pub(super) fn foot(
         }
     }
     Some((u, v))
+}
+
+pub(crate) struct SurfaceInversion<'a> {
+    surface: &'a Surface,
+    evaluator: Option<Box<std::cell::RefCell<crate::nurbs::SurfaceEvaluation<'a>>>>,
+}
+
+pub(crate) struct SurfaceValue<'a> {
+    surface: &'a Surface,
+    evaluator: Option<Box<std::cell::RefCell<crate::nurbs::SurfacePointEvaluation<'a>>>>,
+}
+
+impl<'a> SurfaceValue<'a> {
+    pub(crate) fn new(surface: &'a Surface, reuse: bool) -> Self {
+        let evaluator = match surface {
+            Surface::Freeform { surface, .. } if reuse => Some(Box::new(std::cell::RefCell::new(
+                crate::nurbs::SurfacePointEvaluation::new(surface),
+            ))),
+            _ => None,
+        };
+        Self { surface, evaluator }
+    }
+
+    pub(crate) fn value(&self, u: f64, v: f64) -> V3 {
+        match &self.evaluator {
+            Some(evaluator) => evaluator.borrow_mut().value(u, v),
+            None => self.surface.value(u, v),
+        }
+    }
+}
+
+impl<'a> SurfaceInversion<'a> {
+    pub(crate) fn new(surface: &'a Surface, reuse: bool) -> Self {
+        let evaluator = match surface {
+            Surface::Freeform { surface, .. } if reuse => Some(Box::new(std::cell::RefCell::new(
+                crate::nurbs::SurfaceEvaluation::new(surface),
+            ))),
+            _ => None,
+        };
+        Self { surface, evaluator }
+    }
+
+    pub(crate) fn parameters(&self, p: V3, hint: Option<(f64, f64)>) -> Option<(f64, f64)> {
+        match &self.evaluator {
+            Some(evaluator) => Some(evaluator.borrow_mut().invert(p, hint)),
+            None => self.surface.parameters(p, hint),
+        }
+    }
+
+    pub(crate) fn foot(
+        &self,
+        spans: (f64, f64),
+        p: V3,
+        hint: Option<(f64, f64)>,
+    ) -> Option<(f64, f64)> {
+        let Some(evaluator) = self.evaluator.as_ref() else {
+            return foot(self.surface, spans, p, hint);
+        };
+        foot_by(
+            self.surface,
+            spans,
+            p,
+            hint,
+            &|p, hint| self.parameters(p, hint),
+            &|u, v| evaluator.borrow_mut().value_and_partials(u, v),
+        )
+    }
+
+    pub(crate) fn beside(
+        &self,
+        p: V3,
+        collapsed: (Option<f64>, Option<f64>),
+    ) -> Option<(f64, f64)> {
+        crate::uv::beside_collapsed_by(self.surface, p, collapsed, &|p, hint| {
+            self.parameters(p, hint)
+        })
+    }
 }
 
 /// The surface's point and first partials at (u, v).
@@ -1084,6 +1181,20 @@ impl Part {
         self.integration_budget
             .as_ref()
             .is_some_and(|budget| budget.refused.binary_search(&face).is_ok())
+    }
+
+    /// The finite chart's seam periods are independent of the trim or meshing tolerance.
+    pub(crate) fn face_closed_spans(&self, face: usize) -> (f64, f64) {
+        *self.cache[face]
+            .closed_spans
+            .get_or_init(|| closed_spans(&self.faces[face].surface))
+    }
+
+    /// Reuse singular-side detection for every edge received by the same surface.
+    pub(crate) fn face_collapsed_sides(&self, face: usize) -> (Option<f64>, Option<f64>) {
+        *self.cache[face]
+            .collapsed_sides
+            .get_or_init(|| collapsed_sides(&self.faces[face].surface))
     }
 
     /// The solid's volume and area (`solid.volume`, `solid.area`). The volume is a third of the
@@ -2077,7 +2188,7 @@ impl Part {
                 swept: 0.0,
             };
             let mut cuts = if let Some(trim) = trim {
-                let mut nodes = trim.nodes()?;
+                let mut nodes = trim.nodes()?.to_vec();
                 if !forward {
                     nodes.reverse();
                 }

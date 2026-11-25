@@ -39,6 +39,13 @@ in [docs/alpha1.md](docs/alpha1.md).
 - Fingerprints use `quiddity-rust/fingerprint/5` because the STEP-selected boundary (#317)
   changes face and solid measurements. Regenerate earlier fingerprints from STEP before matching.
 
+### Changed
+
+- Selected-boundary preparation reuses immutable curve operands, bounded curve
+  checks, inverse seeds and receiving-surface evaluations within one part.
+  Mesh parameter loops have a separate cache from integration decisions;
+  finite-domain, endpoint and nonfinite fallbacks remain in place.
+
 ### Fixed
 
 - Mesh edges incident only to freeform faces, and mixed edges with an analytic

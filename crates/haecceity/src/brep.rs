@@ -325,8 +325,12 @@ type Native<T> = (Option<std::sync::Arc<T>>, std::sync::Arc<GeometryPlacement>);
 #[derive(Debug, Default)]
 pub(super) struct FaceCache {
     pub(super) carrier: OnceLock<std::sync::Arc<Surface>>,
+    pub(super) closed_spans: OnceLock<(f64, f64)>,
+    pub(super) collapsed_sides: OnceLock<(Option<f64>, Option<f64>)>,
     pub(super) declared: OnceLock<Option<Box<crate::mass::DeclaredBoundary>>>,
     pub(super) preferred_paths: OnceLock<Option<Box<crate::mass::PreferredPaths>>>,
+    pub(super) mesh_declared: OnceLock<Option<Box<crate::mass::DeclaredBoundary>>>,
+    pub(super) mesh_loops: OnceLock<(Vec<usize>, Option<Vec<UvLoop>>)>,
     pub(super) uv_loops: OnceLock<Option<Vec<UvLoop>>>,
     pub(super) domain: OnceLock<Option<FaceDomain>>,
     pub(super) bounds: OnceLock<Bounds>,
@@ -466,6 +470,9 @@ pub struct Part {
     /// Edge boxes, polyline run boxes and lazy cracks, indexed by edge of this part.
     pub(super) ray_edges: OnceLock<super::rays::RayEdges>,
     edge_faces: OnceLock<Vec<Vec<usize>>>,
+    edge_intervals: OnceLock<Vec<OnceLock<(f64, f64)>>>,
+    pub(super) selected_curves: OnceLock<Vec<OnceLock<super::mass::SelectedCurve>>>,
+    pub(super) selected_curve_pool: super::mass::SelectedCurvePool,
     valid_solids: OnceLock<Vec<bool>>,
     bad_faces: OnceLock<Vec<Vec<usize>>>,
     unresolved_faces: Vec<usize>,
@@ -512,6 +519,24 @@ pub struct Part {
 }
 
 impl Part {
+    /// Resolve the spatial edge's interval once, even when several incident
+    /// faces compare it with their selected parameter curves.
+    pub(super) fn edge_interval(&self, edge: usize) -> (f64, f64) {
+        let intervals = self
+            .edge_intervals
+            .get_or_init(|| self.edges.iter().map(|_| OnceLock::new()).collect());
+        *intervals[edge].get_or_init(|| {
+            let edge = &self.edges[edge];
+            edge_interval(
+                &edge.curve,
+                edge.start,
+                edge.end,
+                edge.same_sense,
+                edge.is_closed(),
+            )
+        })
+    }
+
     /// Build caller-supplied topology with fresh query caches. Each face must have
     /// at least one loop and all indices must refer to members of this part.
     /// STEP import enforces the nonempty-bounds invariant before constructing faces.
@@ -525,6 +550,9 @@ impl Part {
             ray_face_boxes: OnceLock::new(),
             ray_edges: OnceLock::new(),
             edge_faces: OnceLock::new(),
+            edge_intervals: OnceLock::new(),
+            selected_curves: OnceLock::new(),
+            selected_curve_pool: Default::default(),
             valid_solids: OnceLock::new(),
             bad_faces: OnceLock::new(),
             unresolved_faces: Vec::new(),

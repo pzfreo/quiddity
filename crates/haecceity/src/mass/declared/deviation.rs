@@ -103,7 +103,7 @@ impl Part {
                 None => ((1., 1.), parameters::swept_axes(self, owner?)?),
             };
             let curve = ParamCurve {
-                source: scaled_pcurve(raw, scales.0, scales.1)?,
+                source: Arc::new(scaled_pcurve(raw, scales.0, scales.1)?),
                 axes,
                 transfer: None,
             };
@@ -116,19 +116,21 @@ impl Part {
                 edge.is_closed(),
             );
             let interval = resolve_interval(
-                surface,
-                edge,
+                (surface, closed_spans(surface)),
+                (edge, spatial),
                 &curve,
-                spatial,
                 limit + geom::COORD_FLOOR,
+                None,
                 spend,
             )?;
             let trim = EdgeTrim {
                 curve,
                 spans: closed_spans(surface),
                 interval,
+                mesh: false,
+                uniform_mesh_stations: false,
+                witnesses: Vec::new(),
                 samples: OnceLock::new(),
-                mesh_samples: OnceLock::new(),
                 nodes: OnceLock::new(),
                 length: OnceLock::new(),
             };
@@ -222,7 +224,7 @@ fn max_deviation(
 
 fn trim_spans(trim: &EdgeTrim) -> Option<Vec<f64>> {
     let (a, b) = trim.interval;
-    let knots = match &trim.curve.source {
+    let knots = match &*trim.curve.source {
         Curve::Nurbs(c) => knots_on_interval(c.breaks(), trim.curve.source.period(), a, b)?,
         _ => Vec::new(),
     };
