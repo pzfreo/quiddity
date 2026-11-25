@@ -19,10 +19,13 @@
 
 mod closed;
 mod declared;
+mod inertia;
 mod preferred;
 mod sphere;
 pub(crate) use declared::{BoundaryPolicy, EdgeDeviations};
 pub(super) use declared::{DeclaredBoundary, TrimCrossings};
+pub use inertia::SolidInertia;
+pub(super) use inertia::SolidInertiaCache;
 pub(super) use preferred::PreferredPaths;
 pub(super) use sphere::SpherePatch;
 
@@ -2629,12 +2632,28 @@ impl Part {
     /// of the part's size under a generic rotation (`tests/frames.rs`), where measured about a
     /// fixed point it moved by up to 0.08 mm on parts with such cracks.
     pub fn volume_centroid(&self) -> Option<(f64, V3)> {
-        // Integrated about c0 (the box centre, inside the part) for conditioning: with
-        // q = p − c0, s = ∯ q·n, m = ∯ n, a[i][j] = ∯ qᵢ nⱼ, b = ∯ q (q·n).
         let (c0, length) = self.integral_reference()?;
+        let (volume, offset) = self.centroid_flux(
+            self.solids.iter().map(|solid| solid.faces.as_slice()),
+            c0,
+            length,
+            |face| self.face_raw_moments(face).centre,
+        )?;
+        Some((volume, geom::add(c0, offset)))
+    }
+
+    // Integrated about c0 for conditioning: with q = p − c0,
+    // s = ∯ q·n, m = ∯ n, a[i][j] = ∯ qᵢ nⱼ, b = ∯ q (q·n).
+    fn centroid_flux<'a>(
+        &self,
+        shells: impl Iterator<Item = &'a [usize]>,
+        c0: V3,
+        length: f64,
+        raw: impl Fn(usize) -> Option<[f64; 26]>,
+    ) -> Option<(f64, V3)> {
         let (mut s, mut m, mut a, mut b) = (0.0, [0.0; 3], [[0.0; 3]; 3], [0.0; 3]);
-        for solid in &self.solids {
-            if let Some((volume, centre)) = self.spherical_cap_solid(&solid.faces) {
+        for faces in shells {
+            if let Some((volume, centre)) = self.spherical_cap_solid(faces) {
                 s += 3.0 * volume;
                 for i in 0..3 {
                     a[i][i] += volume;
@@ -2642,13 +2661,12 @@ impl Part {
                 }
                 continue;
             }
-            for &face in &solid.faces {
+            for &face in faces {
                 let fc = &self.faces[face];
                 let sense = if fc.reversed { -1.0 } else { 1.0 };
-                // The shared face integration (`face_raw_moments`) holds the flux and its
-                // moments on the area scale. Restore physical units after quadrature; the
-                // fixed point below uses mm.
-                let f = self.face_raw_moments(face).centre?;
+                // The flux and its moments are on the area scale. Restore physical units
+                // after quadrature; the fixed point below uses mm.
+                let f = raw(face)?;
                 s += sense * f[13] * length;
                 for i in 0..3 {
                     m[i] += sense * f[1 + i];
@@ -2673,7 +2691,7 @@ impl Part {
                 break;
             }
         }
-        Some((volume(d), geom::add(c0, d)))
+        Some((volume(d), d))
     }
 
     fn integral_reference(&self) -> Option<(V3, f64)> {

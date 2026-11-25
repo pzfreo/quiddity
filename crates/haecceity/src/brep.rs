@@ -509,6 +509,7 @@ pub struct Part {
     // Keep the file-frame inputs so successive rigid motions only round the integrals once.
     pub(super) integral_origin: Option<super::mass::IntegralOrigin>,
     pub(super) integral_reference: OnceLock<Option<(V3, f64)>>,
+    pub(super) solid_inertias: super::mass::SolidInertiaCache,
 }
 
 impl Part {
@@ -556,6 +557,7 @@ impl Part {
             integration_budget: None,
             integral_origin: None,
             integral_reference: OnceLock::new(),
+            solid_inertias: OnceLock::new(),
         }
     }
 

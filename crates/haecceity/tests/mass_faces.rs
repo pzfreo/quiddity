@@ -119,6 +119,7 @@ fn moments_require_every_mass_integral() {
     let part = collapsed_cylinder();
     assert!(part.face_mass(0).is_none());
     assert!(part.solid_mass(0).is_none());
+    assert!(part.solid_inertia(0).is_none());
     assert!(part.volume_centroid().is_none());
     assert!(part.face_moments(0).is_none());
     assert!(part.face_projected_moments(0, [1.0, 0.0, 0.0]).is_none());
@@ -758,4 +759,171 @@ fn spherical_solid_measurements() {
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+fn diagonal_inertia(x: f64, y: f64, z: f64) -> [[f64; 3]; 3] {
+    [[x, 0.0, 0.0], [0.0, y, 0.0], [0.0, 0.0, z]]
+}
+
+fn assert_inertia(got: [[f64; 3]; 3], want: [[f64; 3]; 3]) {
+    let error = got
+        .into_iter()
+        .flatten()
+        .zip(want.into_iter().flatten())
+        .map(|(a, b)| (a - b).powi(2))
+        .sum::<f64>();
+    let scale = want.into_iter().flatten().map(|x| x * x).sum::<f64>();
+    assert!((error / scale).sqrt() <= 1e-12, "{got:?} vs {want:?}");
+    assert_eq!(got[0][1], got[1][0]);
+    assert_eq!(got[0][2], got[2][0]);
+    assert_eq!(got[1][2], got[2][1]);
+}
+
+fn solid_fixture(name: &str) -> haecceity::Part {
+    read_step_file(&common::fixtures().join(name)).unwrap()
+}
+
+#[test]
+fn box_centroidal_inertia() {
+    let part = solid_fixture("captured/frames/box_rot_x30.step");
+    let volume = 10.0 * 20.0 * 30.0;
+    let (x, y, z) = (
+        volume * (20.0_f64.powi(2) + 30.0_f64.powi(2)) / 12.0,
+        volume * (10.0_f64.powi(2) + 30.0_f64.powi(2)) / 12.0,
+        volume * (10.0_f64.powi(2) + 20.0_f64.powi(2)) / 12.0,
+    );
+    let (s, c) = 30.0_f64.to_radians().sin_cos();
+    let yz = s * c * (y - z);
+    let got = part.solid_inertia(0).unwrap();
+    assert_inertia(
+        got.tensor,
+        [
+            [x, 0.0, 0.0],
+            [0.0, c * c * y + s * s * z, yz],
+            [0.0, yz, s * s * y + c * c * z],
+        ],
+    );
+    assert!(geom::norm(got.centroid) <= 1e-12);
+    relative(got.volume, volume, 1e-12);
+}
+
+#[test]
+fn cylinder_centroidal_inertia() {
+    let part = solid_fixture("ties/symmetric_cylinder.step");
+    let (r, h) = (5.0, 20.0);
+    let mass = std::f64::consts::PI * r * r * h;
+    let across = mass * (3.0 * r * r + h * h) / 12.0;
+    assert_inertia(
+        part.solid_inertia(0).unwrap().tensor,
+        diagonal_inertia(across, across, mass * r * r / 2.0),
+    );
+}
+
+#[test]
+fn sphere_centroidal_inertia() {
+    let part = solid_fixture("brep-conformance/whole_sphere.step.gz");
+    let r = 1.4716928082270857_f64;
+    let moment = 8.0 * std::f64::consts::PI * r.powi(5) / 15.0;
+    assert_inertia(
+        part.solid_inertia(0).unwrap().tensor,
+        diagonal_inertia(moment, moment, moment),
+    );
+
+    // This cap's height is about one millionth of the sphere radius. Recover it
+    // from the circular rim rather than subtracting nearly equal axial coordinates.
+    let cap = solid_fixture("brep-conformance/thin_sphere_cap.step.gz");
+    let r = 8.416584995204152_f64;
+    let rim = 0.011902845673350104_f64;
+    let height = rim.powi(2) / (r + (r * r - rim * rim).sqrt());
+    // Write the squared disk radius at depth height*t as height*t*(2*r-height*t).
+    // Its first three axial integrals, with the common π*height² factored out.
+    let radial = [
+        r - height / 3.0,
+        2.0 * r / 3.0 - height / 4.0,
+        r / 2.0 - height / 5.0,
+    ];
+    let pi = std::f64::consts::PI;
+    let axial =
+        pi * height.powi(3) * (2.0 * r * r / 3.0 - r * height / 2.0 + height * height / 10.0);
+    let across = axial / 2.0 + pi * height.powi(4) * (radial[2] - radial[1].powi(2) / radial[0]);
+    assert_inertia(
+        cap.solid_inertia(0).unwrap().tensor,
+        diagonal_inertia(across, across, axial),
+    );
+}
+
+#[test]
+fn cone_centroidal_inertia() {
+    let part = solid_fixture("revolution_cone.step.gz");
+    let (r, h) = (3.0, 4.0);
+    let mass = std::f64::consts::PI * r * r * h / 3.0;
+    let across = 3.0 * mass * (r * r / 20.0 + h * h / 80.0);
+    assert_inertia(
+        part.solid_inertia(0).unwrap().tensor,
+        diagonal_inertia(3.0 * mass * r * r / 10.0, across, across),
+    );
+}
+
+#[test]
+fn torus_centroidal_inertia() {
+    let part = solid_fixture("full_torus.step");
+    let (major, minor) = (10.0, 2.0);
+    let mass = 2.0 * std::f64::consts::PI.powi(2) * major * minor * minor;
+    let across = mass * (major * major / 2.0 + 5.0 * minor * minor / 8.0);
+    assert_inertia(
+        part.solid_inertia(0).unwrap().tensor,
+        diagonal_inertia(
+            across,
+            across,
+            mass * (major * major + 3.0 * minor * minor / 4.0),
+        ),
+    );
+}
+
+#[test]
+fn inertia_parallel_axis_at_large_offset() {
+    let part = solid_fixture("ties/cube.step");
+    let centre = [1e12, -2e12, 3e12];
+    let mut placement = haecceity::step::IDENTITY;
+    for i in 0..3 {
+        placement[i][3] = centre[i];
+    }
+    let moved = part.transformed(&placement).unwrap();
+    let got = moved.solid_inertia(0).unwrap();
+    let m = 1000.0;
+    let i = m * 200.0 / 12.0;
+    assert_eq!(got.centroid, centre);
+    assert_inertia(got.tensor, diagonal_inertia(i, i, i));
+    assert_inertia(
+        got.about(geom::add(centre, [2.0, 3.0, -4.0])),
+        [
+            [i + 25.0 * m, -6.0 * m, 8.0 * m],
+            [-6.0 * m, i + 20.0 * m, 12.0 * m],
+            [8.0 * m, 12.0 * m, i + 13.0 * m],
+        ],
+    );
+}
+
+#[test]
+fn inertia_subtracts_a_void_shell() {
+    let part = solid_fixture("multi_solid/brep_with_voids.step.gz");
+    let (outer, inner) = (2.613485151152_f64, 2.133143349978_f64);
+    let moment = 8.0 * std::f64::consts::PI * (outer.powi(5) - inner.powi(5)) / 15.0;
+    let got = part.solid_inertia(0).unwrap();
+    assert_inertia(got.tensor, diagonal_inertia(moment, moment, moment));
+    relative(got.volume, part.solid_mass(0).unwrap().0, 1e-12);
+}
+
+#[test]
+fn inside_out_shell_has_negative_inertia() {
+    let mut part = solid_fixture("ties/cube.step");
+    for face in &mut part.faces {
+        face.reversed = !face.reversed;
+    }
+    let part = haecceity::Part::new(part.faces, part.edges, part.solids);
+    let got = part.solid_inertia(0).unwrap();
+    relative(got.volume, -1000.0, 1e-12);
+    relative(got.volume, part.solid_mass(0).unwrap().0, 1e-12);
+    let moment = -1000.0 * 200.0 / 12.0;
+    assert_inertia(got.tensor, diagonal_inertia(moment, moment, moment));
 }

@@ -10,7 +10,20 @@ use std::{
 };
 
 const WHOLE: f64 = 4.0 * PI;
-const SYMMETRIC: [(usize, usize); 6] = [(0, 0), (1, 1), (2, 2), (0, 1), (0, 2), (1, 2)];
+use super::inertia::{SYMMETRIC, SolidInertia, symmetric_tensor};
+
+const CUBIC: [(usize, usize, usize); 10] = [
+    (0, 0, 0),
+    (0, 0, 1),
+    (0, 0, 2),
+    (0, 1, 1),
+    (0, 1, 2),
+    (0, 2, 2),
+    (1, 1, 1),
+    (1, 1, 2),
+    (1, 2, 2),
+    (2, 2, 2),
+];
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct SpherePatch {
@@ -76,6 +89,26 @@ impl SpherePatch {
         )
     }
 
+    fn cap_inertia(&self, cap: CircularCap, reversed: bool) -> SolidInertia {
+        let (volume, centroid) = self.signed_cap_volume(cap, reversed);
+        let r = self.radius;
+        let h = r * cap.height;
+        // Circular slices a distance z from the tip have squared radius z(2r − z).
+        // Integrate their axial inertia and the variance of z over [0, h].
+        let axial = volume * h * (4.0 * r * r / 3.0 - r * h + h * h / 5.0) / (2.0 * (r - h / 3.0));
+        let mean = h * (2.0 * r / 3.0 - h / 4.0) / (r - h / 3.0);
+        let mean_square = h * h * (r / 2.0 - h / 5.0) / (r - h / 3.0);
+        let transverse = 0.5 * axial + volume * (mean_square - mean * mean);
+        let tensor = symmetric_tensor(|_, i, j| {
+            transverse * delta(i, j) + (axial - transverse) * cap.axis[i] * cap.axis[j]
+        });
+        SolidInertia {
+            volume,
+            centroid,
+            tensor,
+        }
+    }
+
     fn mass(&self) -> Option<[f64; 5]> {
         let n = geom::scale(self.first, self.sense);
         valid_mass([
@@ -131,11 +164,60 @@ impl SpherePatch {
     }
 }
 
+#[derive(Clone, Copy)]
+struct OrientedCap<'a> {
+    patch: &'a SpherePatch,
+    cap: CircularCap,
+    reversed: bool,
+}
+
+impl OrientedCap<'_> {
+    fn volume_centroid(self) -> (f64, V3) {
+        self.patch.signed_cap_volume(self.cap, self.reversed)
+    }
+
+    fn inertia(self) -> SolidInertia {
+        self.patch.cap_inertia(self.cap, self.reversed)
+    }
+}
+
+fn combine_cap_centroids((a, ca): (f64, V3), (b, cb): (f64, V3)) -> (f64, V3) {
+    let volume = a + b;
+    let centroid = geom::add(ca, geom::scale(geom::sub(cb, ca), b / volume));
+    (volume, centroid)
+}
+
 impl Part {
-    /// Recognise a cap with its disk, or two caps with the same rim, from their
-    /// actual coedges. Compute the closed cap volumes before adding them: a very
-    /// thin cap's material volume and moments are differences of large fluxes.
     pub(super) fn spherical_cap_solid(&self, faces: &[usize]) -> Option<(f64, V3)> {
+        let (a, b) = self.closed_spherical_caps(faces)?;
+        let a = a.volume_centroid();
+        Some(b.map_or(a, |b| combine_cap_centroids(a, b.volume_centroid())))
+    }
+
+    pub(super) fn spherical_cap_inertia(&self, faces: &[usize]) -> Option<SolidInertia> {
+        let (a, b) = self.closed_spherical_caps(faces)?;
+        let a = a.inertia();
+        Some(b.map_or(a, |b| {
+            let b = b.inertia();
+            let (volume, centroid) =
+                combine_cap_centroids((a.volume, a.centroid), (b.volume, b.centroid));
+            let (ia, ib) = (a.about(centroid), b.about(centroid));
+            let tensor = symmetric_tensor(|_, i, j| ia[i][j] + ib[i][j]);
+            SolidInertia {
+                volume,
+                centroid,
+                tensor,
+            }
+        }))
+    }
+
+    /// Recognise a cap with its disk, or two caps with the same rim, from their
+    /// actual coedges. Sum their closed-form volumes and moments to keep the
+    /// tiny moments of thin caps even when the separate fluxes nearly cancel.
+    fn closed_spherical_caps(
+        &self,
+        faces: &[usize],
+    ) -> Option<(OrientedCap<'_>, Option<OrientedCap<'_>>)> {
         let &[mut a, mut b] = faces else {
             return None;
         };
@@ -157,7 +239,16 @@ impl Part {
         {
             return None;
         }
-        let (a_volume, a_centre) = patch.signed_cap_volume(cap, self.faces[a].reversed);
+        let a = OrientedCap {
+            patch,
+            cap,
+            reversed: self.faces[a].reversed,
+        };
+        let a_sense = if a.reversed {
+            -a.patch.sense
+        } else {
+            a.patch.sense
+        };
         let b_face = &self.faces[b];
         match b_face.surface {
             Surface::Plane { frame } => {
@@ -171,24 +262,28 @@ impl Part {
                 }
                 let off = geom::dot(geom::sub(frame.origin, cap.rim_centre), normal).abs();
                 (off <= 128.0 * f64::EPSILON * patch.radius
-                    && geom::dot(normal, cap.axis) * a_volume.signum() < -1.0 + 1e-12)
-                    .then_some((a_volume, a_centre))
+                    && geom::dot(normal, cap.axis) * a_sense < -1.0 + 1e-12)
+                    .then_some((a, None))
             }
             Surface::Sphere { .. } => {
                 let other = self.spherical_patch(b)?;
                 let other_cap = other.cap?;
-                let (b_volume, b_centre) = other.signed_cap_volume(other_cap, b_face.reversed);
-                if a_volume.signum() != b_volume.signum()
-                    || geom::dot(cap.axis, other_cap.axis) >= -1.0 + 1e-12
-                {
+                let b_sense = if b_face.reversed {
+                    -other.sense
+                } else {
+                    other.sense
+                };
+                if a_sense != b_sense || geom::dot(cap.axis, other_cap.axis) >= -1.0 + 1e-12 {
                     return None;
                 }
-                let volume = a_volume + b_volume;
-                let centre = geom::add(
-                    a_centre,
-                    geom::scale(geom::sub(b_centre, a_centre), b_volume / volume),
-                );
-                Some((volume, centre))
+                Some((
+                    a,
+                    Some(OrientedCap {
+                        patch: other,
+                        cap: other_cap,
+                        reversed: b_face.reversed,
+                    }),
+                ))
             }
             _ => None,
         }
@@ -232,7 +327,8 @@ impl Part {
                 BoundaryMethod::Projected,
             )
         } else if let Some(boundary) = self.declared_boundary(face)
-            && let Some(terms) = self.spherical_boundary(face, &edges, orientation, Some(boundary))
+            && let Some(terms) =
+                self.spherical_boundary::<10>(face, &edges, orientation, Some(boundary))
         {
             (terms, BoundaryMethod::Declared)
         } else if let Some((cap, axis)) =
@@ -265,7 +361,7 @@ impl Part {
             return Some(patch);
         } else {
             (
-                self.spherical_boundary(face, &edges, orientation, None)?,
+                self.spherical_boundary::<10>(face, &edges, orientation, None)?,
                 BoundaryMethod::Projected,
             )
         };
@@ -397,13 +493,92 @@ impl Part {
         )
     }
 
-    fn spherical_boundary(
+    /// ∯ qᵢ qⱼ (q·n) dA using the same spatial patch as mass. Write q = d + r u
+    /// with u the unit radial direction, then contract its first three area moments.
+    pub(super) fn spherical_second_flux(
+        &self,
+        face: usize,
+        origin: V3,
+        length: f64,
+    ) -> Option<[f64; 6]> {
+        let patch = self.spherical_patch(face)?;
+        let third = self.spherical_third_moments(face, patch)?;
+        let d = geom::scale(geom::sub(patch.centre, origin), length.recip());
+        let r = patch.radius / length;
+        let flux = geom::dot(d, patch.first) + r * patch.area;
+        let first: V3 = std::array::from_fn(|i| geom::dot(patch.second[i], d) + r * patch.first[i]);
+        Some(SYMMETRIC.map(|(i, j)| {
+            let second =
+                (0..3).map(|k| d[k] * third[i][j][k]).sum::<f64>() + r * patch.second[i][j];
+            patch.sense
+                * (d[i] * d[j] * flux + r * (d[i] * first[j] + d[j] * first[i]) + r * r * second)
+        }))
+    }
+
+    fn spherical_third_moments(
+        &self,
+        face: usize,
+        patch: &SpherePatch,
+    ) -> Option<[[[f64; 3]; 3]; 3]> {
+        let mut third = [[[0.0; 3]; 3]; 3];
+        let mut insert = |(i, j, k): (usize, usize, usize), value: f64| {
+            for (a, b, c) in [
+                (i, j, k),
+                (i, k, j),
+                (j, i, k),
+                (j, k, i),
+                (k, i, j),
+                (k, j, i),
+            ] {
+                third[a][b][c] = value;
+            }
+        };
+        if let Some(cap) = patch.cap {
+            let c = 1.0 - cap.height;
+            let axial = patch.area * (1.0 + c) * (1.0 + c * c) / 4.0;
+            let mixed = patch.area * cap.height * (1.0 + c).powi(2) / 8.0;
+            if let Some(axis) = geom::unit(patch.first) {
+                for (i, j, k) in CUBIC {
+                    let trace =
+                        delta(i, j) * axis[k] + delta(i, k) * axis[j] + delta(j, k) * axis[i];
+                    insert(
+                        (i, j, k),
+                        (axial - 3.0 * mixed) * axis[i] * axis[j] * axis[k] + mixed * trace,
+                    );
+                }
+            }
+        } else {
+            let edges = self.material_boundary(face)?;
+            if !edges.is_empty() {
+                let orientation = if self.faces[face].reversed {
+                    -patch.sense
+                } else {
+                    patch.sense
+                };
+                let boundary = self.measured_boundary(face);
+                let terms = self.spherical_boundary::<20>(face, &edges, orientation, boundary)?;
+                for (index, (i, j, k)) in CUBIC.into_iter().enumerate() {
+                    // Δ(uᵢuⱼuₖ) = 2(δᵢⱼuₖ + δᵢₖuⱼ + δⱼₖuᵢ) − 12uᵢuⱼuₖ.
+                    let trace = delta(i, j) * patch.first[k]
+                        + delta(i, k) * patch.first[j]
+                        + delta(j, k) * patch.first[i];
+                    insert(
+                        (i, j, k),
+                        (2.0 * trace + patch.radius.powi(2) * terms[10 + index]) / 12.0,
+                    );
+                }
+            }
+        }
+        Some(third)
+    }
+
+    fn spherical_boundary<const N: usize>(
         &self,
         face: usize,
         edges: &[(usize, bool)],
         orientation: f64,
         boundary: Option<&DeclaredBoundary>,
-    ) -> Option<[f64; 10]> {
+    ) -> Option<[f64; N]> {
         let surface = &self.faces[face].surface;
         let Surface::Sphere { frame, radius } = *surface else {
             return None;
@@ -438,21 +613,27 @@ impl Part {
             if den <= 1e-4 {
                 return None;
             }
-            let mut out = [0.0; 10];
+            let mut out = [0.0; N];
             out[0] = geom::dot(axis, turn) / den;
             out[1..4].copy_from_slice(&turn);
             for (k, (i, j)) in SYMMETRIC.into_iter().enumerate() {
                 out[4 + k] = turn[i] * n[j] + turn[j] * n[i];
             }
+            if N > 10 {
+                for (index, (i, j, k)) in CUBIC.into_iter().enumerate() {
+                    out[10 + index] =
+                        turn[i] * n[j] * n[k] + turn[j] * n[i] * n[k] + turn[k] * n[i] * n[j];
+                }
+            }
             Some(out)
         };
-        let integral = |cuts: &[f64], term: &dyn Fn(f64) -> Option<[f64; 10]>| {
+        let integral = |cuts: &[f64], term: &dyn Fn(f64) -> Option<[f64; N]>| {
             let mut panel = |(), a, b, _| Some((kronrod((), a, b, |(), t| term(t))?, None));
             let floor = 2e-13 / edges.len() as f64;
             let (sum, excess, _, ()) = adaptive(cuts, (), Some(floor), true, &mut panel)?;
             (excess <= floor).then_some(sum)
         };
-        let mut result = [0.0; 10];
+        let mut result = [0.0; N];
         for &(e, forward) in edges {
             if self.unresolved_edges().binary_search(&e).is_ok() {
                 return None;
@@ -507,7 +688,7 @@ impl Part {
             let gap = |from, to| {
                 let dp = geom::sub(to, from);
                 if geom::norm(dp) <= 1e-14 * radius {
-                    return Some([0.0; 10]);
+                    return Some([0.0; N]);
                 }
                 integral(&[0., 1.], &|t| {
                     density(geom::add(from, geom::scale(dp, t)), dp)
@@ -516,7 +697,7 @@ impl Part {
             let first = gap(start, p)?;
             let last = gap(q, end)?;
             let sign = if forward { orientation } else { -orientation };
-            for k in 0..10 {
+            for k in 0..N {
                 result[k] += sign * (first[k] + edge_sum[k] + last[k]);
             }
         }
@@ -527,4 +708,8 @@ impl Part {
         }
         (result[0] > 0.0 && result[0] < WHOLE).then_some(result)
     }
+}
+
+fn delta(i: usize, j: usize) -> f64 {
+    f64::from(i == j)
 }
