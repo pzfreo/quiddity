@@ -2507,7 +2507,7 @@ impl Part {
         let boundary = self.measured_boundary(face)?;
         let local = Surface::Freeform {
             surface: Box::new(surface.relative_to(origin)?),
-            kind: *kind,
+            kind,
         };
         let values = self.integrate_boundary(
             face,

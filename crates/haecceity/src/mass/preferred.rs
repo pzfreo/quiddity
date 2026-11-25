@@ -564,7 +564,7 @@ impl Part {
         }
         let total = total.map(|y| y * swept.signum());
         if check_strip && trim.maximum_deviation > 0. {
-            let length = master_boundary_length(&fc.surface, &local, paths)?;
+            let length = master_boundary_length(&fc.surface, local, paths)?;
             let strip_ratio = trim.maximum_deviation * length / total[0];
             if total[0] <= 0. || !strip_ratio.is_finite() || strip_ratio > 0.001 {
                 return None;

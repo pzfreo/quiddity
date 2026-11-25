@@ -35,10 +35,17 @@ as JSON, with the kernel's volume of each solid and the PMI carried and refused.
 part carrying PMI is written in that part's own frame (`step::read_part`), with its PMI; the PMI
 of a file of several parts is listed under `pmi.parts_not_carried` (a write carries one part's).
 
-Use `--inertia` to add `solid_inertias` to the JSON report. Its entries follow
-`solid_volumes` order. Each is a signed, symmetric 3×3 centroidal tensor in mm⁵
-at unit density, or `null` if the kernel cannot measure it. The axes follow the
-part being written and the off-diagonal entries are negated products of inertia.
+Use `--inertia` to add `solid_inertias` and `solid_inertia_volumes` in
+`solid_volumes` order. Each tensor is a signed, symmetric 3×3 centroidal
+tensor in mm⁵ at unit density. Its axes follow the part being written and the
+off-diagonal entries are negated products of inertia. The corresponding
+`solid_inertia_volumes` entry is its signed volume in mm³ for parallel-axis
+shifts. When inertia is unavailable, both entries are `null`.
+
+`solid_volumes` uses the flux reference at the mean of the solid's vertex uses.
+`solid_inertia_volumes` uses the centroid reference. They agree for exactly
+closed shells. Tolerated gaps can make the flux depend on the reference point,
+so these volumes can differ.
 
 `quiddity brep <file.step> -o <out.step> --pmi <pmi.json>` writes the part with the PMI in a
 `quiddity-pmi` document instead of the file's, so PMI can be edited as JSON and written with the

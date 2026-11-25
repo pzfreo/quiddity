@@ -480,6 +480,38 @@ fn brep_writes_the_part_and_reports() {
     assert_eq!(after.faces.len(), before.faces.len());
     assert_eq!(after.edges.len(), before.edges.len());
     assert_eq!(report["face_order_preserved"], true);
+    assert!(report.get("solid_inertias").is_none());
+    assert!(report.get("solid_inertia_volumes").is_none());
+
+    // This tolerated shell gap makes the two flux-reference volumes measurably different.
+    let gappy = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/captured/cd34a5e4c9ce13b2.step.gz");
+    let out = quiddity(&[
+        "brep",
+        gappy.to_str().unwrap(),
+        "--inertia",
+        "-o",
+        out_path.to_str().unwrap(),
+    ]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let gappy = quiddity::read_step_file(&gappy).unwrap();
+    let mass = gappy.solid_mass(0).unwrap().0;
+    let inertia = gappy.solid_inertia(0).unwrap();
+    assert!((mass - inertia.volume).abs() > 600.0);
+    assert_eq!(report["solid_volumes"], serde_json::json!([mass]));
+    assert_eq!(
+        report["solid_inertia_volumes"],
+        serde_json::json!([inertia.volume])
+    );
+    assert_eq!(
+        report["solid_inertias"],
+        serde_json::json!([inertia.tensor])
+    );
     std::fs::remove_dir_all(&dir).ok();
 }
 

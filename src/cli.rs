@@ -656,9 +656,19 @@ fn brep(args: &BrepArgs) -> Result<String, String> {
             .collect::<Vec<_>>(),
     });
     if args.inertia {
+        let inertia: Vec<_> = (0..part.solids.len())
+            .map(|s| part.solid_inertia(s))
+            .collect();
         json["solid_inertias"] = serde_json::json!(
-            (0..part.solids.len())
-                .map(|s| part.solid_inertia(s).map(|inertia| inertia.tensor))
+            inertia
+                .iter()
+                .map(|i| i.map(|i| i.tensor))
+                .collect::<Vec<_>>()
+        );
+        json["solid_inertia_volumes"] = serde_json::json!(
+            inertia
+                .iter()
+                .map(|i| i.map(|i| i.volume))
                 .collect::<Vec<_>>()
         );
     }

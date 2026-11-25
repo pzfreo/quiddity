@@ -95,6 +95,19 @@ def test_parts_matches_cli(fixture):
     assert quiddity.parts(gzip.decompress(raw) if fixture.suffix == ".gz" else raw) == text
 
 
+def test_solid_inertia_uses_the_signed_volume_and_parallel_axis():
+    cube = FIXTURES / "ties/cube.step"
+    centroidal = json.loads(quiddity.solid_inertia(str(cube)))
+    assert centroidal["volume"] == pytest.approx(1000.0, rel=1e-12)
+    assert centroidal["centroid"] == pytest.approx([0.0, 0.0, 0.0], abs=1e-12)
+    i = 1000.0 * 200.0 / 12.0
+    for row, expected in zip(centroidal["tensor"], [[i, 0, 0], [0, i, 0], [0, 0, i]], strict=True):
+        assert row == pytest.approx(expected, rel=1e-12, abs=1e-10)
+    shifted = json.loads(quiddity.solid_inertia(cube.read_bytes(), point=(2.0, 3.0, -4.0)))
+    assert shifted["tensor"][0] == pytest.approx([i + 25000.0, -6000.0, 8000.0], rel=1e-12)
+    assert json.loads(quiddity.solid_inertia(str(cube), solid=1)) is None
+
+
 def test_step_entities_in_file_order():
     text = PLATE.read_bytes()
     rows = json.loads(quiddity.step_entities(str(PLATE)))
