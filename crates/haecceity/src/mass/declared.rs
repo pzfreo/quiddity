@@ -657,10 +657,7 @@ fn resolve_interval(
             let p = lift(a.midpoint(b))?;
             let t = edge.curve.parameter(p);
             let t = t + turn * ((spatial.0.midpoint(spatial.1) - t) / turn).round();
-            let on_omitted_arc = (t < spatial.0.min(spatial.1) || t > spatial.0.max(spatial.1))
-                && geom::dist(p, edge.start) > tolerance
-                && geom::dist(p, edge.end) > tolerance;
-            return Some(!on_omitted_arc);
+            return Some((spatial.0.min(spatial.1)..=spatial.0.max(spatial.1)).contains(&t));
         }
         if !matches!(edge.curve, Curve::Nurbs(_)) {
             return Some(true);

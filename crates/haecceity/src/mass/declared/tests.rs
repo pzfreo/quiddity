@@ -238,6 +238,21 @@ REPRESENTATION_ITEM(''))",
     );
     let opposite = entity(&opposite, 115, "CIRCLE('',#204,1.)");
 
+    // On this nearly full unit disc, the midpoint of the omitted arc is
+    // within the file's 1e-3 mm uncertainty of both vertices.
+    let gap = 0.1_f64.to_radians();
+    let (y, x) = gap.sin_cos();
+    let near_closed = entity(
+        &text,
+        100,
+        &format!("CARTESIAN_POINT('',({x:.17},{y:.17},0.))"),
+    );
+    let near_closed = entity(
+        &near_closed,
+        121,
+        &format!("DIRECTION('',({:.17},{y:.17},0.))", x - 1.),
+    );
+    let near_area = std::f64::consts::PI - 0.5 * (gap - y);
     let long = 3. * std::f64::consts::FRAC_PI_4 + 0.5;
     let short = std::f64::consts::FRAC_PI_4 - 0.5;
     let differences: Vec<_> = [
@@ -245,6 +260,7 @@ REPRESENTATION_ITEM(''))",
         ("line in degrees", degree_line, long),
         ("nonperiodic spatial spline", spline, long),
         ("opposite circle axes", opposite, short),
+        ("near-closed arc", near_closed, near_area),
     ]
     .into_iter()
     .filter_map(|(name, source, expected)| {

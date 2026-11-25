@@ -7,7 +7,7 @@ in [docs/alpha1.md](docs/alpha1.md).
 ## Unreleased
 
 - For #355, use the lifted midpoint's foot on the full spatial curve to detect a complementary
-  arc, even when the pcurve departs from the 3D curve. Opposing endpoint tangents also reject
+  arc, including for nearly closed edges and offset pcurves. Opposing endpoint tangents also reject
   reversed intervals on nonperiodic spatial splines. Two MFInstSeg face areas still differ
   from 0.5.5 under their files' declared uncertainties. Part `20221123_142528_10473` face 16
   measures 27.436912 mm² (previously 27.368139 mm²) with 1.0 mm uncertainty. Part
