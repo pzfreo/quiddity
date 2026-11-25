@@ -81,21 +81,27 @@ impl Input {
 
 /// The options of one call: ``integration_budget`` is the most work units (integrand
 /// evaluations) one face's integration may take; a face that would take more is refused.
-fn options(integration_budget: Option<u64>) -> RecognitionOptions {
+fn options(integration_budget: Option<u64>, k_factor: Option<f64>) -> PyResult<RecognitionOptions> {
     let mut options = RecognitionOptions::default();
     options.integration_budget = integration_budget;
-    options
+    if let Some(k_factor) = k_factor {
+        options
+            .set_k_factor(k_factor)
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    }
+    Ok(options)
 }
 
 #[pyfunction]
-#[pyo3(signature = (step, integration_budget=None))]
+#[pyo3(signature = (step, integration_budget=None, *, k_factor=None))]
 fn recognise(
     py: Python<'_>,
     step: &Bound<'_, PyAny>,
     integration_budget: Option<u64>,
+    k_factor: Option<f64>,
 ) -> PyResult<String> {
     let input = Input::extract(step)?;
-    let options = options(integration_budget);
+    let options = options(integration_budget, k_factor)?;
     detached(py, || input.recognise(&options))?.map_err(PyValueError::new_err)
 }
 
@@ -108,25 +114,32 @@ fn recognise(
 /// Recognition document parameters remain in file coordinates. An evidence refusal
 /// preserves recognition and is reported in ``evidence_error`` with ``evidence: null``.
 #[pyfunction]
-fn recognise_with_evidence(py: Python<'_>, step: &Bound<'_, PyAny>) -> PyResult<String> {
+#[pyo3(signature = (step, *, k_factor=None))]
+fn recognise_with_evidence(
+    py: Python<'_>,
+    step: &Bound<'_, PyAny>,
+    k_factor: Option<f64>,
+) -> PyResult<String> {
     let input = Input::extract(step)?;
+    let options = options(None, k_factor)?;
     detached(py, || match input {
-        Input::Path(path) => file_api::recognise_with_evidence_file(&path),
-        Input::Bytes(bytes) => file_api::recognise_with_evidence_bytes(bytes),
+        Input::Path(path) => file_api::recognise_with_evidence_file_options(&path, &options),
+        Input::Bytes(bytes) => file_api::recognise_with_evidence_bytes_options(bytes, &options),
     })?
     .map_err(PyValueError::new_err)
 }
 
 #[pyfunction]
-#[pyo3(signature = (step, framed=false, integration_budget=None))]
+#[pyo3(signature = (step, framed=false, integration_budget=None, *, k_factor=None))]
 fn evidence(
     py: Python<'_>,
     step: &Bound<'_, PyAny>,
     framed: bool,
     integration_budget: Option<u64>,
+    k_factor: Option<f64>,
 ) -> PyResult<String> {
     let input = Input::extract(step)?;
-    let options = options(integration_budget);
+    let options = options(integration_budget, k_factor)?;
     detached(py, || {
         file_api::evidence_with(&input.load()?, framed, &options)
     })?
@@ -158,7 +171,7 @@ fn fingerprints(
     integration_budget: Option<u64>,
 ) -> PyResult<String> {
     let input = Input::extract(step)?;
-    let options = options(integration_budget);
+    let options = options(integration_budget, None)?;
     detached(py, || file_api::json(&input.fingerprints(&options)?))?.map_err(PyValueError::new_err)
 }
 
@@ -217,23 +230,32 @@ fn _manifest(py: Python<'_>, path: String, out: Option<String>) -> PyResult<Stri
 #[pyclass(frozen)]
 struct ManifestHandle {
     manifest: step::manifest::Manifest,
+    options: RecognitionOptions,
 }
 
 #[pymethods]
 impl ManifestHandle {
     #[new]
-    fn new(py: Python<'_>, manifest_json: String) -> PyResult<Self> {
+    #[pyo3(signature = (manifest_json, *, k_factor=None))]
+    fn new(py: Python<'_>, manifest_json: String, k_factor: Option<f64>) -> PyResult<Self> {
+        let options = options(None, k_factor)?;
         detached(py, || {
             serde_json::from_str(&manifest_json)
-                .map(|manifest| Self { manifest })
+                .map(|manifest| Self { manifest, options })
                 .map_err(|e| e.to_string())
         })?
         .map_err(PyValueError::new_err)
     }
 
     #[staticmethod]
-    #[pyo3(signature = (path, parts=None))]
-    fn from_path(py: Python<'_>, path: String, parts: Option<Vec<String>>) -> PyResult<Self> {
+    #[pyo3(signature = (path, parts=None, *, k_factor=None))]
+    fn from_path(
+        py: Python<'_>,
+        path: String,
+        parts: Option<Vec<String>>,
+        k_factor: Option<f64>,
+    ) -> PyResult<Self> {
+        let options = options(None, k_factor)?;
         detached(py, || -> Result<Self, String> {
             let input =
                 std::io::BufReader::new(std::fs::File::open(&path).map_err(|e| e.to_string())?);
@@ -243,7 +265,7 @@ impl ManifestHandle {
             } else {
                 serde_json::from_reader(input).map_err(|e| e.to_string())?
             };
-            Ok(Self { manifest })
+            Ok(Self { manifest, options })
         })?
         .map_err(PyValueError::new_err)
     }
@@ -258,7 +280,13 @@ impl ManifestHandle {
 
     fn recognise(&self, py: Python<'_>, path: String, product_id: String) -> PyResult<String> {
         detached(py, || {
-            file_api::recognise_product(&path, &self.manifest, &product_id)
+            file_api::recognise_product_with_options(
+                &path,
+                &self.manifest,
+                &product_id,
+                &self.options,
+            )
+            .map(|(json, _)| json)
         })?
         .map_err(PyValueError::new_err)
     }

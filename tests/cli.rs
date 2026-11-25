@@ -231,6 +231,16 @@ fn bad_arguments_print_usage_and_fail() {
             "{args:?}: {err}"
         );
     }
+    for k in ["0", "-0.1", "1.1", "NaN", "inf"] {
+        let out = quiddity(&[step, "--k-factor", k]);
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert_eq!(out.status.code(), Some(2), "{stderr}");
+        assert!(out.stdout.is_empty());
+        assert!(
+            stderr.contains("k_factor must be finite and in (0, 1]"),
+            "{stderr}"
+        );
+    }
 }
 
 #[test]
@@ -268,6 +278,44 @@ fn a_sound_file_is_recognised() {
     // Recognised in its own frame, reported in the file's coordinates.
     assert_eq!(document["coordinate_space"], "file");
     assert_eq!(document["frame"]["status"], "inferred");
+}
+
+#[test]
+fn custom_k_factor_sets_the_flat_patterns_bend_allowance() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/sheet-metal/coaxial-flanges.step.gz");
+    let path = path.to_str().unwrap();
+    for (k, args) in [(0.5, vec![path]), (0.45, vec![path, "--k-factor", "0.45"])] {
+        let out = quiddity(&args);
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+        let sheet = &json["sheet_metal_bodies"][0];
+        assert_eq!(sheet["flat_pattern"]["k_factor"], k);
+        let thickness = sheet["thickness"].as_f64().unwrap();
+        let bends = sheet["bends"].as_array().unwrap();
+        assert_eq!(bends.len(), 4);
+        for bend in bends {
+            let angle = bend["angle_degrees"].as_f64().unwrap().to_radians();
+            let radius = bend["inner_radius"].as_f64().unwrap();
+            let expected = angle * (radius + k * thickness);
+            let allowance = bend["bend_allowance"].as_f64().unwrap();
+            assert!(
+                (allowance - expected).abs() < 1e-9,
+                "{allowance} vs {expected}"
+            );
+        }
+        let record = json["document"]["records"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|record| record["family"] == "sheet_metal_bodies")
+            .unwrap();
+        assert_eq!(record["parameters"]["flat_pattern"]["k_factor"], k);
+    }
 }
 
 /// A part with no plane or cylinder has no frame: it is recognised as placed in the file, and
