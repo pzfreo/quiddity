@@ -1025,8 +1025,8 @@ fn tensor_relative_error(got: [[f64; 3]; 3], want: [[f64; 3]; 3]) -> f64 {
 
 #[test]
 fn shallow_domes_share_centroid_and_inertia() {
-    check_shallow_cylinder_dome();
     check_shallow_plate_dome();
+    check_shallow_cylinder_dome();
 }
 
 fn check_shallow_dome(
@@ -1042,11 +1042,13 @@ fn check_shallow_dome(
     for placed in [part, &part.transformed(&turn).unwrap()] {
         let measured = placed.volume_centroid();
         let inertia = placed.solid_inertia(0);
-        if radius >= 4e4 {
-            assert!(
-                measured.is_none(),
-                "R={radius}, unresolvable centroid: {measured:?}"
-            );
+        if radius >= 1.39e4 {
+            let (volume, centroid) = measured.expect("legacy centroid");
+            if radius == 1.39e4 {
+                // The square roof keeps the legacy result in both placements.
+                assert!((volume - 1_000.119_904_086_284_4).abs() <= 5e-9);
+                assert!(geom::dist(centroid, [0.0, 0.0, 0.000_599_527_619_312_880_1]) <= 5e-11);
+            }
             assert!(inertia.is_none(), "R={radius}, unresolvable inertia");
             continue;
         }
@@ -1105,7 +1107,7 @@ fn check_shallow_plate_dome() {
             })
             .sum::<f64>()
     };
-    for r in [1e2_f64, 1e3, 1e4, 1.154e4, 4e4, 1e5] {
+    for r in [1e2_f64, 1e3, 1e4, 1.154e4, 1.39e4, 4e4, 1e5] {
         let part = shallow_dome(r, true);
         let k = (r * r - 50.0).sqrt();
         let coefficients = [

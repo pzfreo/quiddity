@@ -128,8 +128,18 @@ use the same flux convention as `Part::volume_centroid`, including its centroid
 reference for shells with small gaps. For such shells the volume can differ
 from the vertex-reference volume returned by `Part::solid_mass`. A missing
 solid, zero volume, or a refused integral returns `None`. A shallow spherical
-patch that requires a local chart is also refused when its radius exceeds
-1024 times the diameter of a disk with the same patch area.
+patch uses the same local chart for inertia and the solid centroid. If the
+radius exceeds 1,024 times the diameter of a disk with the same patch area,
+or the chart fails its projection, area or integration checks, inertia returns
+`None` and `Part::volume_centroid` uses the legacy, less accurate integration.
+
+Allow `1e-7` relative Frobenius error for accepted domes. A Ø10 mm × 0.1 mm
+cylinder with an R=10,100 mm roof measured `3.85e-8`. At Z=10⁷ mm, one dome
+was accepted upright and refused when tilted. The remote assembly check
+uses the overall length. Two 200 mm cylinders of radius 0.0048828125 mm at
+an offset of 5×10⁷ mm measured `4.08e-9`. When `SolidInertia::about` exceeds
+the `f64` range, its non-finite entries appear as `null` in JSON. This can
+happen at shifts of order 10¹⁵² mm, depending on volume.
 
 ## Construction and migration
 

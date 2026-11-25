@@ -113,12 +113,22 @@ tangent-plane chart. The chart refuses radii above 1024 times the diameter
 of a disk with the accepted patch's area, a projection outside the chart, or
 an area that disagrees with the accepted patch. The solid's sampled span
 uses chords from a fixed boundary point. Both scales are rotation-invariant.
-Closed-form caps and lenses use their circular slices.
+On a chart refusal, `volume_centroid` falls back to the legacy integration
+and inertia is unavailable. Closed-form caps and lenses use their circular
+slices.
 
 Inertia rebases both carriers and boundaries for a single solid when the
 world-coordinate resolution is coarse relative to its size. It retains the
 accepted boundary authority. A remote solid in an assembly can be unavailable
 at that resolution.
+
+Allow `1e-7` relative Frobenius error for accepted domes. A Ø10 mm × 0.1 mm
+cylinder with an R=10,100 mm roof measured `3.85e-8`. At Z=10⁷ mm, one dome
+was accepted upright and refused when tilted. The remote assembly check
+uses the overall length. Two 200 mm cylinders of radius 0.0048828125 mm at
+an offset of 5×10⁷ mm measured `4.08e-9`. A parallel-axis result exceeding
+the `f64` range appears as `null` in JSON for affected entries, for example
+at shifts of order 10¹⁵² mm depending on volume.
 
 Compare centroidal tensors against the springrep capture in
 `evidence/springrep_inertia.jsonl` using the relative Frobenius error

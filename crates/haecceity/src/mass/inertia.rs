@@ -110,9 +110,7 @@ impl Part {
             && self.boundary_policy != super::BoundaryPolicy::Recognition
         {
             if self.spherical_cap_solid(faces).is_none() {
-                for &face in faces {
-                    self.face_raw_moments(face).centre?;
-                }
+                self.check_placed_centroid_faces(faces)?;
             }
             return Some(origin.source.solid_inertia(solid)?.placed(origin));
         }

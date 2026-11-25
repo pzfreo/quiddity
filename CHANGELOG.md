@@ -8,10 +8,12 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 - For #359, expose signed solid inertia tensors in haecceity and Python, with a
   parallel-axis shift and optional centroidal tensors and their reference volumes
-  in the `quiddity brep` JSON report. Measure shallow spherical patches in a
-  local chart for inertia and the solid centroid, with refusal beyond the
-  chart's rotation-invariant conditioning limit. Rebase remote single-solid
-  boundaries and scale large parallel-axis shifts before squaring.
+  in the `quiddity brep` JSON report. Use the local chart for shallow spherical
+  patches when it accepts them. When the radius exceeds 1,024 equal-area disk
+  diameters or the chart's projection or integration checks fail, inertia is
+  unavailable and `volume_centroid` keeps the legacy, less accurate result.
+  Rebase remote single-solid boundaries and scale large parallel-axis shifts
+  before squaring.
 - For #358, accept a caller-set sheet-metal K-factor in the CLI, serve, Rust and Python.
   The default is 0.5 and each flat pattern reports the value used.
 - For #355, use the lifted midpoint's foot on the full spatial curve to detect a complementary

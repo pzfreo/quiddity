@@ -2482,9 +2482,6 @@ impl Part {
                 centre: patch
                     .zip(self.integral_reference())
                     .and_then(|(p, (origin, length))| {
-                        if self.centroid_face_is_shallow(face) {
-                            return self.shallow_sphere_centroid(face, (origin, length));
-                        }
                         if p.needs_circular_centroid_check()
                             && self.material_boundary(face)?.iter().all(|&(edge, _)| {
                                 matches!(self.edges[edge].curve, Curve::Circle { .. })
@@ -2655,7 +2652,8 @@ impl Part {
     /// The volume and centre of mass of all the part's solids together (`BRepGProp::
     /// VolumeProperties` of the solids), or `None` where a face cannot be integrated; a void's
     /// faces subtract, as in [`Part::solid_mass`]. Shallow spherical patches use the
-    /// same local chart and radius limit as [`Part::solid_inertia`].
+    /// same local chart as [`Part::solid_inertia`] when accepted. If the chart declines,
+    /// the volume and centroid fall back to the legacy integration.
     ///
     /// About a point c, the volume is ⅓∯ (p − c)·n dA and ∭ (p − c) dV is ¼∯ (p − c)((p − c)·n) dA
     /// (the divergence of (p − c)((p − c)·e) is 4(p − c)·e). Both fields turn with the part, so
@@ -2667,38 +2665,50 @@ impl Part {
     /// of the part's size under a generic rotation (`tests/frames.rs`), where measured about a
     /// fixed point it moved by up to 0.08 mm on parts with such cracks.
     pub fn volume_centroid(&self) -> Option<(f64, V3)> {
+        // On refusal, recompute the whole result with the cached legacy moments.
+        self.chart_volume_centroid()
+            .or_else(|| self.part_volume_centroid(false))
+    }
+
+    fn chart_volume_centroid(&self) -> Option<(f64, V3)> {
         // A shallow single solid uses the same reference and file placement as
         // inertia. Aggregates use the part reference with per-solid chart limits.
         if let [solid] = &self.solids[..] {
             let faces = &solid.faces;
             if let Some(placement) = &self.integral_origin
                 && self.boundary_policy != BoundaryPolicy::Recognition
-                && let Some((origin, length)) = placement.source.shallow_solid_reference(faces)
+                && placement.source.shallow_solid_reference(faces).is_some()
             {
-                for &face in faces {
-                    self.face_raw_moments(face).centre?;
-                }
-                let (volume, offset) = placement
-                    .source
-                    .solid_centroid_flux(faces, (origin, length))?;
-                return Some((volume, placement.place_point(geom::add(origin, offset))));
+                self.check_placed_centroid_faces(faces)?;
+                let (volume, centre) = placement.source.chart_volume_centroid()?;
+                return Some((volume, placement.place_point(centre)));
             }
             if let Some((origin, length)) = self.shallow_solid_reference(faces) {
                 if Self::coarse_world_coordinates(origin, length) {
                     let local = self.rebase_solid_geometry(faces, origin)?;
-                    let (volume, centre) = local.volume_centroid()?;
+                    let (volume, centre) = local.chart_volume_centroid()?;
                     return Some((volume, geom::add(origin, centre)));
                 }
                 let (volume, offset) = self.solid_centroid_flux(faces, (origin, length))?;
                 return Some((volume, geom::add(origin, offset)));
             }
         }
+        self.part_volume_centroid(true)
+    }
+
+    fn part_volume_centroid(&self, use_chart: bool) -> Option<(f64, V3)> {
         let (c0, length) = self.integral_reference()?;
         let (volume, offset) = self.centroid_flux(
             self.solids.iter().map(|solid| solid.faces.as_slice()),
             c0,
             length,
-            |face| self.face_raw_moments(face).centre,
+            |face, faces| {
+                if use_chart && self.shallow_sphere(face, faces) {
+                    self.shallow_sphere_centroid(face, (c0, length))
+                } else {
+                    self.face_raw_moments(face).centre
+                }
+            },
         )?;
         Some((volume, geom::add(c0, offset)))
     }
@@ -2766,13 +2776,6 @@ impl Part {
         (length.is_finite() && length > 0.0).then_some((bounds.centre(), length))
     }
 
-    fn centroid_face_is_shallow(&self, face: usize) -> bool {
-        let sole = self.solids.first().filter(|_| self.solids.len() == 1);
-        sole.or_else(|| self.faces[face].solid.and_then(|s| self.solids.get(s)))
-            .or_else(|| self.solids.iter().find(|s| s.faces.contains(&face)))
-            .is_some_and(|solid| self.shallow_sphere(face, &solid.faces))
-    }
-
     fn shallow_sphere(&self, face: usize, faces: &[usize]) -> bool {
         let Surface::Sphere { radius, .. } = self.faces[face].surface else {
             return false;
@@ -2824,6 +2827,17 @@ impl Part {
         })
     }
 
+    fn check_placed_centroid_faces(&self, faces: &[usize]) -> Option<()> {
+        for &face in faces {
+            if self.shallow_sphere(face, faces) {
+                self.face_terms(face)?;
+            } else {
+                self.face_raw_moments(face).centre?;
+            }
+        }
+        Some(())
+    }
+
     fn solid_centroid_flux(
         &self,
         faces: &[usize],
@@ -2831,14 +2845,13 @@ impl Part {
     ) -> Option<(f64, V3)> {
         let only_solid = self.is_part_reference(faces);
         let remote = geom::norm(origin) > 32.0 * length;
-        self.centroid_flux(std::iter::once(faces), origin, length, |face| {
-            let raw = self.face_raw_moments(face).centre?;
-            let shallow = self.shallow_sphere(face, faces);
-            if only_solid && (!remote || shallow) {
-                return Some(raw);
-            }
-            if shallow {
+        self.centroid_flux(std::iter::once(faces), origin, length, |face, faces| {
+            if self.shallow_sphere(face, faces) {
                 return self.shallow_sphere_centroid(face, (origin, length));
+            }
+            let raw = self.face_raw_moments(face).centre?;
+            if only_solid && !remote {
+                return Some(raw);
             }
             if matches!(self.faces[face].surface, Surface::Sphere { .. }) {
                 return Some(self.spherical_patch(face)?.volume_moments(origin, length));
@@ -2886,7 +2899,7 @@ impl Part {
         shells: impl Iterator<Item = &'a [usize]>,
         c0: V3,
         length: f64,
-        raw: impl Fn(usize) -> Option<[f64; 26]>,
+        raw: impl Fn(usize, &[usize]) -> Option<[f64; 26]>,
     ) -> Option<(f64, V3)> {
         let (mut s, mut m, mut a, mut b) = (0.0, [0.0; 3], [[0.0; 3]; 3], [0.0; 3]);
         for faces in shells {
@@ -2903,7 +2916,7 @@ impl Part {
                 let sense = if fc.reversed { -1.0 } else { 1.0 };
                 // The flux and its moments are on the area scale. Restore physical units
                 // after quadrature; the fixed point below uses mm.
-                let f = raw(face)?;
+                let f = raw(face, faces)?;
                 s += sense * f[13] * length;
                 for i in 0..3 {
                     m[i] += sense * f[1 + i];
