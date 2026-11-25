@@ -165,6 +165,67 @@ from the sphere centre. Refinement places points back on the same sphere.
 The mesh still reports the surface's usual parameters and original shared
 boundary positions.
 
+This chart also explains most of cgb202's triangle-count reduction. With the
+same Windows build and tolerances, the original selected-boundary implementation
+has 259,936 triangles versus 272,196 at `6e56fd77`: spherical faces account for
+a reduction of 12,598, offset by 338 additional triangles elsewhere. Disabling
+only the central projection increases the selected-boundary result to 279,944;
+only 174 spherical faces change, adding 10,004 interior vertices while keeping
+their shared spatial boundary points identical. Non-spherical faces are
+unchanged in this ablation. A spherical pole can retain a different equivalent
+longitude in the reported UV coordinates. The scoped sampling rule below
+gives 260,290 triangles on Windows. Of the 354 added relative to the original
+PR, spherical faces account for 187, freeform faces for 150, cylinders for 16
+and tori for one. All versions retain the single refusal at face 399. Exact
+totals can differ slightly between Windows and ARM macOS.
+
+### Separate tessellation samples from integration panels
+
+Integration partitions a selected trim at spline knots and transferred carrier
+knots. Those panels are not uniform parameter stations, even when the spatial
+curve is smooth. Reusing their samples in the mesh planner can stagger the two
+sides of a narrow freeform ribbon and introduce folded triangles.
+
+The mesh planner uses 256 uniform parameter segments before chord refinement
+when every incident face is freeform, or when a non-freeform carrier supplies
+the selected trim to a freeform face. It uses the surface that owns the pcurve,
+including the source surface of a transferred trim. Each of the six reported
+ribbons shares a cylinder-owned edge with a cylindrical face. Freeform-owned
+edges with an analytic neighbour and edges with only analytic incident faces
+use the original knot-based stations. All incident faces use one shared
+spatial edge plan. Integration accesses its own knot partitions and samples.
+
+The focused whole-part regression checks the six narrow faces of
+`threaded_connector_109` independently of the corpus perimeter allowance: each
+must be within 1% of its integral area and drop no folded triangles. On two
+other faces of this part (16 and 138), the regression checks winding against
+the surface normals. They retain their known area errors. In a 192-segment
+trial these two faces gained more than 3,000 inward triangles. The cgb243
+test still checks both single-face and whole-part calls against its independent
+area reference. On Windows both calls give 475 triangles and 0.877668% area
+error. With 128 segments on every selected edge, #50870 and #60095 gained
+two and five inward triangles respectively. The scoped rule preserves outward
+orientation on both. On #60132 itself, eight retained triangles face inward
+under the corpus normal check and two folded triangles were dropped. With the
+original placement and boundary fixed, the first inversion appeared in the
+second refinement round when an interior midpoint was placed on the surface.
+The two 37-degree placement checks give 0.787233% and 0.760832% with recomputed
+default deflections and 0.877683% and 0.926941% at the original deflection.
+Across 72 additional placements the largest area error was 0.889194% at the
+recomputed deflection. A separate set of 128 rotations gave a maximum of 0.887017%.
+With 128 starting segments the corresponding maxima were 1.010172% and
+0.996699%. These figures apply to this fixture and these deflections.
+
+In eight paired Linux x86-64 rounds, one STEP read and one whole-part mesh
+used 3.906, 2.023 and 1.551 times the retired user-space instructions of the
+spatial-edge baseline (`6e56fd77`) on cgb243, cgb202 and string_post. The
+counter followed the worker thread from before the read through bounds, meshing
+and release. Increasing the uniform seed from 128 to 256 segments added 2.41%
+on cgb243 and 0.77% on cgb202 in that run. An earlier run of the original PR
+with the same inputs and counter gave baseline ratios of 5.152, 2.003 and
+1.519 respectively. The Windows resource tables below precede the sampling
+change.
+
 ## The native spline integration rule introduced in #281
 
 The original #281 fix tried this specialised integral after a refused projection.

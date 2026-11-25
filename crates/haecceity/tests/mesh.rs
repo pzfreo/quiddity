@@ -169,7 +169,8 @@ fn selected_trim_mesh_agrees_with_the_independent_cgb243_area() {
         assert!(std::env::var_os("QUIDDITY_CORPUS_REQUIRED").is_none());
         return;
     };
-    let part = read_step_file(&dir.join("cadgenbench_inputs/cgb243.step.gz")).unwrap();
+    let path = dir.join("cadgenbench_inputs/cgb243.step.gz");
+    let part = read_step_file(&path).unwrap();
     let face = 543;
     assert_eq!(part.face_source(face).unwrap().entity, 60_132);
     // Independent Green integration of the four carrier pcurves gives
@@ -178,9 +179,9 @@ fn selected_trim_mesh_agrees_with_the_independent_cgb243_area() {
     let reference = 0.481_554_764_2;
     let exact = part.face_moments(face).unwrap().area;
     assert!((exact - reference).abs() < 1e-9);
-    let deflection = deflection(&part);
-    let single = part.triangulate(face, deflection, ANGULAR).unwrap();
-    let all = part.mesh(deflection, ANGULAR);
+    let d = deflection(&part);
+    let single = part.triangulate(face, d, ANGULAR).unwrap();
+    let all = part.mesh(d, ANGULAR);
     for mesh in [&single, all[face].as_ref().unwrap()] {
         let area = mesh.area();
         eprintln!(
@@ -189,6 +190,96 @@ fn selected_trim_mesh_agrees_with_the_independent_cgb243_area() {
             100.0 * (area / exact - 1.0).abs()
         );
         assert!((area / exact - 1.0).abs() <= 0.01);
+    }
+    // A denser uniform seed can introduce inward slivers on neighbouring
+    // analytic faces even while #60132's area improves. Keep the original
+    // corpus winding criterion alongside the independent area check.
+    for (face, entity) in [(342, 50_870), (541, 60_095)] {
+        assert_eq!(part.face_source(face).unwrap().entity, entity);
+        let mesh = all[face].as_ref().unwrap();
+        assert!(mesh.converged);
+        assert_outward_mesh(&part, face, mesh, d);
+    }
+    // Rotating the part changes its axis-aligned bounds and hence the default
+    // deflection. The 64-segment grid missed 1% at 37 degrees and the scoped
+    // 128-segment grid missed it at 85 degrees around Z.
+    let (s, c) = 37_f64.to_radians().sin_cos();
+    let (s85, c85) = 85_f64.to_radians().sin_cos();
+    for placement in [
+        [[c, -s, 0., 0.], [s, c, 0., 0.], [0., 0., 1., 0.]],
+        [[1., 0., 0., 123.456], [0., c, -s, -78.9], [0., s, c, 41.3]],
+        [[c85, -s85, 0., 0.], [s85, c85, 0., 0.], [0., 0., 1., 0.]],
+    ] {
+        let placed = haecceity::step::read_step_file_placed(&path, &placement).unwrap();
+        assert_eq!(placed.face_source(face).unwrap().entity, 60_132);
+        let mesh = placed
+            .triangulate(face, deflection(&placed), ANGULAR)
+            .unwrap();
+        assert!((mesh.area() / reference - 1.0).abs() <= 0.01);
+    }
+}
+
+fn assert_outward_mesh(part: &Part, face: usize, mesh: &FaceMesh, d: f64) {
+    for tri in &mesh.triangles {
+        let points = tri.map(|i| mesh.points[i]);
+        let uv = tri.map(|i| mesh.uv[i]);
+        let hint = (
+            uv.iter().map(|p| p.0).sum::<f64>() / 3.0,
+            uv.iter().map(|p| p.1).sum::<f64>() / 3.0,
+        );
+        let cross = geom::cross(
+            geom::sub(points[1], points[0]),
+            geom::sub(points[2], points[0]),
+        );
+        let longest = (0..3)
+            .map(|i| geom::dist(points[i], points[(i + 1) % 3]))
+            .fold(0.0, f64::max);
+        if geom::norm(cross) > 1e-6 * d * longest {
+            let (_, (u, v)) = off_surface(part, face, mean(&points), hint).unwrap();
+            let normal = part.face_normal(face, u, v).unwrap();
+            assert!(
+                geom::dot(cross, normal) > 0.0,
+                "face {face}: inward triangle {tri:?}"
+            );
+        }
+    }
+}
+
+/// Integral knot panels must not stagger the opposite sides of a narrow ribbon
+/// when the part's incident faces share an edge sampling plan.
+#[test]
+fn whole_part_mesh_preserves_narrow_selected_ribbons() {
+    let Some(dir) = common::corpus_dir() else {
+        assert!(std::env::var_os("QUIDDITY_CORPUS_REQUIRED").is_none());
+        return;
+    };
+    let part = read_step_file(&dir.join("cadgenbench/threaded_connector_109.step")).unwrap();
+    let d = deflection(&part);
+    let meshes = part.mesh(d, ANGULAR);
+    for (face, entity) in [
+        (55, 9366),
+        (112, 16858),
+        (148, 20421),
+        (136, 20024),
+        (142, 20284),
+        (141, 20250),
+    ] {
+        assert_eq!(part.face_source(face).unwrap().entity, entity);
+        let mesh = meshes[face].as_ref().unwrap();
+        let area = part.face_moments(face).unwrap().area;
+        assert!(mesh.converged, "face {face} did not converge");
+        assert!(
+            (mesh.area() / area - 1.0).abs() <= 0.01,
+            "face {face}: {} against {area}",
+            mesh.area()
+        );
+        assert_eq!(mesh.folded_dropped.0, 0, "face {face} folded");
+    }
+    // These two distinct, already inaccurate faces gained inward triangles
+    // with 192 starting segments. Check orientation independently of area.
+    for (face, entity) in [(16, 4301), (138, 20128)] {
+        assert_eq!(part.face_source(face).unwrap().entity, entity);
+        assert_outward_mesh(&part, face, meshes[face].as_ref().unwrap(), d);
     }
 }
 

@@ -29,6 +29,12 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### Fixed
 
+- Mesh edges incident only to freeform faces, and mixed edges with an analytic
+  trim carrier, start from 256 uniform parameter segments before chord refinement.
+  The six reported narrow faces of `threaded_connector_109` mesh with zero
+  folded triangle drops. The adjacent analytic controls on cgb243 retain
+  outward winding.
+
 - Face triangulation follows geometrically qualified STEP-selected parametric
   edge curves, with one spatial sampling plan shared by incident faces.
   Compatible spherical caps use a central projection to preserve triangle
