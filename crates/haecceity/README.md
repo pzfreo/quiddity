@@ -14,6 +14,9 @@ recognises manufacturing features. Use haecceity directly when you need the geom
 - **PMI:** reads and writes semantic AP242 PMI (dimensions, geometric tolerances, datums and
   notes) and reports where a file departs from the recommended practices.
 - **Writing:** writes a B-rep and its PMI to a new AP242 file.
+- **Accuracy:** volume, area and centre of gravity are checked against independent references
+  on 86,410 parts; the method, results and limits are in
+  [the accuracy page](https://github.com/pzfreo/quiddity/blob/main/docs/accuracy.md).
 
 ```toml
 [dependencies]

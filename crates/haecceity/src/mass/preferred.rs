@@ -419,6 +419,7 @@ impl Part {
         density: impl Fn(V3, V3, V3) -> [f64; N],
         components: Components,
         check_strip: bool,
+        local_surface: Option<&Surface>,
     ) -> Option<[f64; N]> {
         if super::work_exhausted() {
             return None;
@@ -436,9 +437,15 @@ impl Part {
         // Rational derivatives in world coordinates can subtract large nearly
         // equal homogeneous terms. Translate controls before evaluating them;
         // add the origin only to the point passed to the physical density.
-        let origin = self.edges[fc.loops[0].edges[0].0].start;
-        let local = surface.relative_to(origin)?;
-        let evaluator = std::cell::RefCell::new(crate::nurbs::SurfaceEvaluation::new(&local));
+        let shifted;
+        let (local, origin) = if let Some(Surface::Freeform { surface, .. }) = local_surface {
+            (surface.as_ref(), [0.0; 3])
+        } else {
+            let origin = self.edges[fc.loops[0].edges[0].0].start;
+            shifted = surface.relative_to(origin)?;
+            (&shifted, origin)
+        };
+        let evaluator = std::cell::RefCell::new(crate::nurbs::SurfaceEvaluation::new(local));
         let f = |u, v| {
             super::spend_work()?;
             let (p, su, sv) = evaluator.borrow_mut().value_and_partials(u, v);
@@ -557,7 +564,7 @@ impl Part {
         }
         let total = total.map(|y| y * swept.signum());
         if check_strip && trim.maximum_deviation > 0. {
-            let length = master_boundary_length(&fc.surface, &local, paths)?;
+            let length = master_boundary_length(&fc.surface, local, paths)?;
             let strip_ratio = trim.maximum_deviation * length / total[0];
             if total[0] <= 0. || !strip_ratio.is_finite() || strip_ratio > 0.001 {
                 return None;

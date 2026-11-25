@@ -62,6 +62,8 @@ that match nothing labelled.
 - **Accurate geometry:** volume, area and centre of mass agree with the values stored in NIST STEP
   files (103 of 106 checks within 0.1%) and with OpenCascade (9,110 of 9,120 checks), using the
   [geometric validation tool](docs/geometric-validation.md).
+  Measured against springrep, OpenCascade and three datasets on 86,410 parts, 99.71% agree to
+  within 10⁻⁷ mm: see [docs/accuracy.md](docs/accuracy.md).
 - **Fast:** a median 13 ms to read a part and 73 ms to recognise it.
 - **From Python:** 10.7× faster than the last pure-Python quiddity (0.3.12), in 32 MB of memory
   instead of 418 MB, installed as one 25 MB package instead of 59 packages and 876 MB.
@@ -81,6 +83,7 @@ Every [release](https://github.com/pzfreo/quiddity/releases) is published to PyP
 
 ```sh
 quiddity part.step                      # the part's features, as JSON
+quiddity part.step --k-factor 0.45      # develop sheet-metal bends at K = 0.45 (default 0.5)
 quiddity correspond old.step new.step   # what changed between two revisions
 quiddity pmi read part.step             # the file's PMI, as JSON
 ```

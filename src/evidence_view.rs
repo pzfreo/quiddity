@@ -924,6 +924,14 @@ pub struct EvidenceRecord {
 /// Framed requests refuse explicitly when a frame cannot be inferred. Neither mode renumbers
 /// faces. This is additive to the recognition/6 publication contract.
 pub fn document(part: &Part, framed: bool) -> Result<EvidenceDocument, EvidenceViewError> {
+    document_with_k_factor(part, framed, Default::default())
+}
+
+pub(crate) fn document_with_k_factor(
+    part: &Part,
+    framed: bool,
+    k_factor: crate::features::sheet_metal::KFactor,
+) -> Result<EvidenceDocument, EvidenceViewError> {
     let part = part.recognition_part();
     let frame = if framed {
         Some(
@@ -938,23 +946,27 @@ pub fn document(part: &Part, framed: bool) -> Result<EvidenceDocument, EvidenceV
         .map(|f| part.transformed_carrying_integrals(&f.normalisation()))
         .transpose()
         .map_err(|e| EvidenceViewError(e.to_string()))?;
-    let view = build_recognition_evidence(working.as_ref().unwrap_or(part))?;
+    let view = features::take_inventory_with(
+        working.as_ref().unwrap_or(part),
+        k_factor,
+        project_inventory,
+    )??;
     Ok(document_from_view(part, frame, view))
 }
 
-/// [`document`] under *options*: with an integration budget, every face's integration is first
-/// measured against it, and a face that would exceed it is refused
-/// ([`crate::RecognitionOptions`]). The default options give [`document`]'s result.
+/// [`document`] under *options* ([`crate::RecognitionOptions`]).
+/// The default options give [`document`]'s result.
 pub fn evidence_with(
     part: &Part,
     framed: bool,
     options: &crate::RecognitionOptions,
 ) -> Result<EvidenceDocument, EvidenceViewError> {
-    let part = part.recognition_part();
-    match options.integration_budget {
-        Some(limit) => document(&part.with_integration_budget(limit), framed),
-        None => document(part, framed),
-    }
+    let mut budgeted = None;
+    document_with_k_factor(
+        options.budgeted(part, &mut budgeted),
+        framed,
+        options.k_factor,
+    )
 }
 
 /// Own an already projected view, retaining the original STEP face identities.

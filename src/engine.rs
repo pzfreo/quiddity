@@ -94,7 +94,8 @@ pub use features::repeating_profiles::{RepeatingRadialProfile, RepeatingRadialPr
 pub use features::round_bottom_slots::RoundBottomBlindSlot;
 pub use features::section_recess_family::SectionRecessFamilyError;
 pub use features::sheet_metal::{
-    SheetBendRelief, SheetFlange, SheetFlangeBounds, SheetMetalBody, SheetMetalOptions,
+    InvalidKFactor, SheetBendRelief, SheetFlange, SheetFlangeBounds, SheetMetalBody,
+    SheetMetalOptions,
 };
 pub use features::slots::Slot;
 pub use features::thin_walls::ThinWallBody;

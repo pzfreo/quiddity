@@ -13,6 +13,7 @@ use super::cylinders::{CylinderEvidence, analyse_cylinders};
 use super::modelled_threads::{ThreadAnalysis, analyse_modelled_threads};
 use super::passages::{Found, PassageError, find_section_passages};
 use super::section_recess::{SectionRecess, SectionRecessError};
+use super::sheet_metal::KFactor;
 use crate::kernel::brep::Part;
 use crate::kernel::classify::Classifier;
 use crate::kernel::geom::{Bounds, V3};
@@ -47,6 +48,7 @@ fn classify_shell_groups(solid: usize, groups: Vec<(Vec<usize>, f64)>) -> Vec<Se
 
 pub struct Context<'a> {
     pub part: &'a Part,
+    pub(super) k_factor: KFactor,
     pub(super) floor_blends: Vec<super::recess_core::FloorBlendAnalysisCache>,
     bounds: OnceLock<Bounds>,
     classifier: OnceLock<Classifier<'a>>,
@@ -69,8 +71,14 @@ pub struct Context<'a> {
 impl<'a> Context<'a> {
 internal_entry! {
     pub fn new(part: &'a Part) -> Self {
+        Self::with_k_factor(part, KFactor::default())
+    }
+}
+
+    pub(super) fn with_k_factor(part: &'a Part, k_factor: KFactor) -> Self {
         Context {
             part,
+            k_factor,
             floor_blends: part.solids.iter().map(|_| Default::default()).collect(),
             bounds: OnceLock::new(),
             classifier: OnceLock::new(),
@@ -90,7 +98,6 @@ internal_entry! {
             native_section_recesses: std::array::from_fn(|_| OnceLock::new()),
         }
     }
-}
 
     /// The whole part's box.
     pub fn bounds(&self) -> &Bounds {

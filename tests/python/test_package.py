@@ -3,6 +3,7 @@ import gzip
 import hashlib
 import importlib.metadata
 import json
+from math import radians
 import os
 from pathlib import Path
 import re
@@ -92,6 +93,19 @@ def test_parts_matches_cli(fixture):
     assert [p["part"] for p in data["parts"]] == list(range(len(data["parts"])))
     raw = fixture.read_bytes()
     assert quiddity.parts(gzip.decompress(raw) if fixture.suffix == ".gz" else raw) == text
+
+
+def test_solid_inertia_uses_the_signed_volume_and_parallel_axis():
+    cube = FIXTURES / "ties/cube.step"
+    centroidal = json.loads(quiddity.solid_inertia(str(cube)))
+    assert centroidal["volume"] == pytest.approx(1000.0, rel=1e-12)
+    assert centroidal["centroid"] == pytest.approx([0.0, 0.0, 0.0], abs=1e-12)
+    i = 1000.0 * 200.0 / 12.0
+    for row, expected in zip(centroidal["tensor"], [[i, 0, 0], [0, i, 0], [0, 0, i]], strict=True):
+        assert row == pytest.approx(expected, rel=1e-12, abs=1e-10)
+    shifted = json.loads(quiddity.solid_inertia(cube.read_bytes(), point=(2.0, 3.0, -4.0)))
+    assert shifted["tensor"][0] == pytest.approx([i + 25000.0, -6000.0, 8000.0], rel=1e-12)
+    assert json.loads(quiddity.solid_inertia(str(cube), solid=1)) is None
 
 
 def test_step_entities_in_file_order():
@@ -194,6 +208,17 @@ def test_integration_budget_round_trip():
     assert evidence["budget"]["refused_faces"] == [2]
     assert json.loads(quiddity.fingerprints(str(sheet), integration_budget=400_000)) == budgeted["fingerprints"]
     assert quiddity.fingerprints(str(sheet)) == quiddity.fingerprints(str(sheet), integration_budget=None)
+
+
+def test_k_factor_sets_bend_allowance():
+    path = FIXTURES / "sheet-metal/coaxial-flanges.step.gz"
+    result = json.loads(quiddity.recognise(str(path), k_factor=0.45))
+    (sheet,) = result["sheet_metal_bodies"]
+    assert sheet["flat_pattern"]["k_factor"] == 0.45
+    assert len(sheet["bends"]) == 4
+    for bend in sheet["bends"]:
+        expected = radians(bend["angle_degrees"]) * (bend["inner_radius"] + 0.45 * sheet["thickness"])
+        assert bend["bend_allowance"] == pytest.approx(expected, rel=0, abs=1e-9)
 
 
 def test_correspond():
