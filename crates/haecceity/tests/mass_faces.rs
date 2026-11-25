@@ -388,6 +388,63 @@ fn narrow_parameter_sheet_has_analytic_area() {
     relative(part.face_mass(0).unwrap()[1], 1e9, 1e-6);
 }
 
+#[test]
+fn rational_parameter_stretch_preserves_rectangle_integrals() {
+    use haecceity::brep::{Edge, Face, Loop};
+    use haecceity::geom::{Curve, Surface};
+    use haecceity::nurbs::NurbsSurface;
+
+    // S(u,v) = (4u/(10 - 9u), 2v, 3). Its edges and all physical
+    // integrals are those of a 4-by-2 rectangle despite the rational u rate.
+    let points = [[0., 0., 3.], [4., 0., 3.], [4., 2., 3.], [0., 2., 3.]];
+    let knots = vec![0., 0., 1., 1.];
+    let surface = NurbsSurface::new(
+        1,
+        1,
+        vec![vec![points[0], points[3]], vec![points[1], points[2]]],
+        vec![vec![10., 10.], vec![1., 1.]],
+        knots.clone(),
+        knots,
+    )
+    .unwrap();
+    let edges = (0..4)
+        .map(|i| {
+            let j = (i + 1) % 4;
+            let (start, end) = (points[i], points[j]);
+            Edge {
+                curve: Curve::Line {
+                    origin: start,
+                    dir: geom::sub(end, start),
+                },
+                start,
+                end,
+                vertices: (i, j),
+                same_sense: true,
+                samples: vec![start, end],
+            }
+        })
+        .collect();
+    let face = Face {
+        surface: Surface::Freeform {
+            kind: "BSPLINE",
+            surface: Box::new(surface),
+        },
+        reversed: false,
+        solid: None,
+        loops: vec![Loop {
+            edges: (0..4).map(|i| (i, true)).collect(),
+            vertex: None,
+        }],
+        pcurves: Vec::new(),
+    };
+    let part = haecceity::Part::new(vec![face], edges, vec![]);
+    let [area, flux] = part.face_mass(0).unwrap();
+    relative(area, 8., 1e-11);
+    relative(flux, 24., 1e-11);
+    let moments = part.face_moments(0).unwrap();
+    assert!(geom::dist(moments.centroid, [2., 1., 3.]) < 1e-11);
+}
+
 /// Independent polygonal Green integrals on a cylinder, with explicit gap closure.
 /// Refining these boundary samples converges independently of mass.rs's quadrature,
 /// corner/knot splitting, primitive reference and loop placement.

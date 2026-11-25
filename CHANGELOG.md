@@ -6,6 +6,9 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+- For #357, extend the checked along-v trial to spline faces with rational u, single-span
+  affine v only, including extruded G2 fillets. Other projected spline primitives can still
+  under-resolve their densities.
 - For #358, accept a caller-set sheet-metal K-factor in the CLI, serve, Rust and Python.
   The default is 0.5 and each flat pattern reports the value used.
 - For #355, use the lifted midpoint's foot on the full spatial curve to detect a complementary

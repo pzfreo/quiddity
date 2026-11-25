@@ -1394,9 +1394,9 @@ impl Part {
         self.integrate_boundary_in((face, boundary, local_spline), f, rule, observed, None)
     }
 
-    /// Whether the face's inner integral can run along v, where it crosses far fewer panels
-    /// than along u: an unpinched B-spline face, not closed in v, whose u has at least
-    /// [`LARGE_NET_SPANS`] spans and eight times those of v; or a cylinder or cone (one panel
+    /// Whether the face's inner integral should try running along v. An open, unpinched spline
+    /// can have a rational u and affine v or at least [`LARGE_NET_SPANS`] spans in u and eight
+    /// times those in v. A cylinder or cone (one panel
     /// along v) whose loops, closed in the lifted parameters, run through at least
     /// [`LARGE_NET_SPANS`] radians of u (a thread's helical edge, which along u costs a panel
     /// per radian at every boundary node).
@@ -1413,6 +1413,18 @@ impl Part {
                 let (_, sv) = closed_spans(surface);
                 if sv.is_finite() || collapsed_sides(surface) != (None, None) {
                     return false;
+                }
+                // A rational primitive in u can vary too quickly for one
+                // Gauss panel per knot span. If the surface is affine in v,
+                // take the checked primitive along v so the adaptive outer
+                // rule sees the rational variation in u instead.
+                if s.degree_v == 1
+                    && s.weights
+                        .iter()
+                        .all(|row| row.len() == 2 && row[0] == row[1])
+                    && s.weights.windows(2).any(|rows| rows[0][0] != rows[1][0])
+                {
+                    return true;
                 }
                 let nu = breaks(&s.knots_u, s.degree_u).len();
                 let nv = breaks(&s.knots_v, s.degree_v).len();
