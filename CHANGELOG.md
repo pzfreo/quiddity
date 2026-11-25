@@ -6,8 +6,9 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
-- For #357, resolve the rational profile in face and solid measurements of spline surfaces
-  that are affine in the other parameter, including extruded G2 fillets.
+- For #357, extend the checked along-v trial to spline faces with rational u, single-span
+  affine v only, including extruded G2 fillets. Other projected spline primitives can still
+  under-resolve their densities.
 - For #355, use the lifted midpoint's foot on the full spatial curve to detect a complementary
   arc, including for nearly closed edges and offset pcurves. Opposing endpoint tangents also reject
   reversed intervals on nonperiodic spatial splines. Two MFInstSeg face areas still differ
