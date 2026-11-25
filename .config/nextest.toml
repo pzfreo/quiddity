@@ -40,9 +40,8 @@ default-filter = '''
 fail-fast = false
 test-threads = 2
 
-# Maintainer, 2026-10-26: ordinary PRs use these macOS libm-sensitive pins.
-# Full Linux always runs; main, dispatch and release* PRs also run full macOS.
-# Measured/adjusted pin budget: ~14 test runner-minutes (limit ~60).
+# Focused profile for investigating the macOS libm-sensitive pins. Full CI runs all of
+# these on macOS. Ordinary PRs use the Linux fast tier.
 # The rigid-motion slices exercise references/correspondence.json faces_at_most;
 # correspondence/fingerprint tests pin matching and publication numeric thresholds.
 # Corpus and frames snapshots pin numeric records, fingerprints and inferred frame axes.

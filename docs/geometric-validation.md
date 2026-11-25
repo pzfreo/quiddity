@@ -95,3 +95,45 @@ including `NIST-PMI-STEP-Files.zip` in usnistgov/SFA (US-government works per th
 local notices), and CAx-IF public test-suite models at `cax-if.org` (check each
 contributor's redistribution terms before vendoring; public access alone is not a
 licence). Selection and any new redistribution are left to the maintainer.
+
+## Solid inertia comparisons
+
+Solid inertia requires the original mass and centroid integrations to succeed
+for the solid and uses their accepted face regions. The `brep --inertia` report
+labels centroid-reference volumes `solid_inertia_volumes`. These are the
+parallel-axis volumes. The vertex-use-reference `solid_volumes` can differ on
+shells with gaps because their net area vector is nonzero. For example, the
+two volumes differ by 7.9% in `cd34a5e4c9ce13b2` and 1.2% in
+`db61869547bced0b`, relative to `solid_volumes`. The second moments add
+the boundary integral ⅕∯ dᵢ dⱼ (d·n) dA, with d measured from the centroid.
+
+For a shallow spherical carrier whose radius exceeds four times the solid's
+sampled boundary span, `volume_centroid` and solid inertia use the same local
+tangent-plane chart. The chart refuses radii above 1024 times the diameter
+of a disk with the accepted patch's area, a projection outside the chart, or
+an area that disagrees with the accepted patch. The solid's sampled span
+uses chords from a fixed boundary point. Both scales are rotation-invariant.
+On a chart refusal, `volume_centroid` falls back to the legacy integration
+and inertia is unavailable. Closed-form caps and lenses use their circular
+slices.
+
+Inertia rebases both carriers and boundaries for a single solid when the
+world-coordinate resolution is coarse relative to its size. It retains the
+accepted boundary authority. A remote solid in an assembly can be unavailable
+at that resolution.
+
+Allow `1e-7` relative Frobenius error for accepted domes. A Ø10 mm × 0.1 mm
+cylinder with an R=10,100 mm roof measured `3.85e-8`. At Z=10⁷ mm, one dome
+was accepted upright and refused when tilted. The remote assembly check
+uses the overall length. Two 200 mm cylinders of radius 0.0048828125 mm at
+an offset of 5×10⁷ mm measured `4.08e-9`. A parallel-axis result exceeding
+the `f64` range appears as `null` in JSON for affected entries, for example
+at shifts of order 10¹⁵² mm depending on volume.
+
+Compare centroidal tensors against the springrep capture in
+`evidence/springrep_inertia.jsonl` using the relative Frobenius error
+‖I_haecceity − I_springrep‖_F / ‖I_springrep‖_F. For a file with several
+solids, shift each tensor to the file's material centroid before summing.
+Report the known rational G2 fillet and height-field slab quadrature limits
+alongside the smooth loft `29f03f95a7c09147`, whose springrep STEP readback
+changes its volume and trim.

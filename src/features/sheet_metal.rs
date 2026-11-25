@@ -20,50 +20,80 @@ use super::Context;
 use super::body::BodyKey;
 use super::evidence::{self, EvidenceError, Occurrence};
 use super::graph;
+use super::pads::RaisedPad;
 use super::planes::unit_plane_normal;
 use super::policy::length_tol;
 use super::regions::edge_length;
 use super::thin_walls::{self, ThinWallBody, WallFacePair};
 use crate::kernel::brep::{Arc, Part};
 use crate::kernel::cloud::thin;
-use crate::kernel::geom::{self, Curve, Surface, V3};
+use crate::kernel::geom::{self, Bounds, Curve, Surface, V3};
 use crate::kernel::py;
 use crate::kernel::sampling::edge_interval;
 
 const MIN_SKIN_COVERAGE: f64 = 0.98;
 const MIN_CUT_BRIDGE_AREA: f64 = 0.8;
 const TESSELLATION_TOLERANCE: f64 = 0.1;
+const DEFAULT_K_FACTOR: f64 = 0.5;
 
 /// Options named as `recognise_sheet_metal_bodies`' keyword arguments.
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 #[non_exhaustive]
 pub struct SheetMetalOptions {
-    /// Where the neutral axis sits through the thickness, from the inner skin (0..=1).
+    /// Where the neutral axis sits through the thickness, as a fraction in (0, 1].
     pub k_factor: f64,
 }
 
 impl Default for SheetMetalOptions {
     fn default() -> Self {
-        SheetMetalOptions { k_factor: 0.5 }
+        SheetMetalOptions {
+            k_factor: DEFAULT_K_FACTOR,
+        }
     }
 }
 
-/// A k-factor outside `0..=1` (or not finite), refused as Python raises `ValueError`.
+/// A non-finite K-factor or one outside (0, 1].
 #[derive(Debug, PartialEq)]
 pub struct InvalidKFactor(pub f64);
 
 impl std::fmt::Display for InvalidKFactor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "k_factor must be finite and between zero and one (got {})",
-            self.0
-        )
+        write!(f, "k_factor must be finite and in (0, 1] (got {})", self.0)
     }
 }
 
 impl std::error::Error for InvalidKFactor {}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct KFactor(f64);
+
+// Construction only permits finite values.
+impl Eq for KFactor {}
+
+impl Default for KFactor {
+    fn default() -> Self {
+        Self(DEFAULT_K_FACTOR)
+    }
+}
+
+impl TryFrom<f64> for KFactor {
+    type Error = InvalidKFactor;
+
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if value > 0.0 && value <= 1.0 {
+            Ok(Self(value))
+        } else {
+            Err(InvalidKFactor(value))
+        }
+    }
+}
+
+impl KFactor {
+    pub(crate) fn value(self) -> f64 {
+        self.0
+    }
+}
 
 /// One planar region on the reference side and its opposite skin patches.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -75,6 +105,21 @@ pub struct SheetFlange {
     pub origin: V3,
     pub normal: V3,
     pub area: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bounds: Option<SheetFlangeBounds>,
+}
+
+/// A bounding rectangle of both flange skins, with their normal range.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
+pub struct SheetFlangeBounds {
+    /// The corner at the low end along both in-plane axes and the flange's normal.
+    pub corner: V3,
+    pub length_axis: V3,
+    pub width_axis: V3,
+    pub length: f64,
+    pub width: f64,
+    pub normal_span: f64,
 }
 
 /// A cylindrical bend pair between two flanges.
@@ -157,6 +202,16 @@ pub struct SheetEdgeTreatment {
     pub radius: Option<f64>,
 }
 
+/// An edge-open notch through a flange at the axial end of a bend.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[non_exhaustive]
+pub struct SheetBendRelief {
+    pub bend: usize,
+    pub width: f64,
+    pub depth: f64,
+    pub faces: Vec<usize>,
+}
+
 /// A dominant developable sheet with its flange and bend geometry.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[non_exhaustive]
@@ -174,6 +229,8 @@ pub struct SheetMetalBody {
     pub paired_area_fraction: f64,
     pub flat_pattern_status: &'static str,
     pub edge_treatments: Vec<SheetEdgeTreatment>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub bend_reliefs: Vec<SheetBendRelief>,
 }
 
 internal_entry! {
@@ -209,13 +266,20 @@ pub fn discover_with(
     ctx: &Context<'_>,
     opts: &SheetMetalOptions,
 ) -> Result<Vec<Occurrence<SheetMetalBody>>, InvalidKFactor> {
-    let k = opts.k_factor;
-    if !k.is_finite() || !(0.0..=1.0).contains(&k) {
-        return Err(InvalidKFactor(k));
-    }
-    Ok(thin_walls::discover(ctx)
+    let k = KFactor::try_from(opts.k_factor)?;
+    let walls = thin_walls::discover(ctx);
+    Ok(discover_from_walls(ctx.part, walls.iter().map(|wall| &wall.record), k.value()))
+}
+}
+
+pub(super) fn discover_from_walls<'a>(
+    part: &Part,
+    walls: impl IntoIterator<Item = &'a ThinWallBody>,
+    k_factor: f64,
+) -> Vec<Occurrence<SheetMetalBody>> {
+    walls
         .into_iter()
-        .filter_map(|wall| body(ctx.part, &wall.record, k))
+        .filter_map(|wall| body(part, wall, k_factor))
         .map(|record| {
             let mut faces: BTreeSet<usize> = BTreeSet::new();
             faces.extend(&record.first_side_faces);
@@ -240,8 +304,199 @@ pub fn discover_with(
                 context: Vec::new(),
             }
         })
-        .collect())
+        .collect()
 }
+
+/// Faces for which the sheet publishes enough geometry to replace a prismatic reading.
+/// A computed development supplies the skins' geometry even when it has overlap witnesses.
+/// Other cut-edge faces carry indices alone, so their independent measurements stay published.
+pub(super) fn prismatic_face_sets(part: &Part, sheets: &[SheetMetalBody]) -> Vec<Vec<usize>> {
+    sheets
+        .iter()
+        .filter(|sheet| sheet.flat_pattern.is_some())
+        .map(|sheet| {
+            let mut faces: Vec<_> = sheet
+                .skin_faces(part)
+                .chain(
+                    sheet
+                        .bend_reliefs
+                        .iter()
+                        .flat_map(|relief| relief.faces.iter().copied()),
+                )
+                .collect();
+            faces.sort_unstable();
+            faces.dedup();
+            faces
+        })
+        .collect()
+}
+
+impl SheetMetalBody {
+    /// The flange and bend pairs also prove skin patches disconnected by a trim.
+    pub(super) fn skin_faces<'a>(&'a self, part: &'a Part) -> impl Iterator<Item = usize> + 'a {
+        self.first_side_faces
+            .iter()
+            .chain(&self.second_side_faces)
+            .chain(
+                self.flanges
+                    .iter()
+                    .flat_map(|flange| flange.reference_faces.iter().chain(&flange.mate_faces)),
+            )
+            .copied()
+            .chain(self.bends.iter().flat_map(|bend| {
+                bend.face_pairs
+                    .iter()
+                    .flat_map(|pair| [pair.first_face, pair.second_face])
+            }))
+            .filter(|&face| {
+                self.cut_edge_faces.binary_search(&face).is_err()
+                    && matches!(
+                        part.faces[face].surface,
+                        Surface::Plane { .. } | Surface::Cylinder { .. }
+                    )
+            })
+    }
+}
+
+/// Whether one body covers all of the candidate's faces.
+pub(super) fn covers(bodies: &[Vec<usize>], faces: &[usize]) -> bool {
+    !faces.is_empty()
+        && bodies
+            .iter()
+            .any(|sheet| faces.iter().all(|face| sheet.binary_search(face).is_ok()))
+}
+
+fn flange_bounds(part: &Part, flange: &SheetFlange) -> Option<SheetFlangeBounds> {
+    // Project the least-aligned coordinate axis into the flange plane. Break ties in
+    // axis order to keep principal flanges aligned with the recognition frame.
+    let normal = flange.normal;
+    let guide_axis = (0..3).min_by(|&i, &j| {
+        py::round_to(normal[i].abs(), 10).total_cmp(&py::round_to(normal[j].abs(), 10))
+    })?;
+    let mut guide = [0.; 3];
+    guide[guide_axis] = 1.;
+    let length_axis = geom::unit(geom::sub(guide, geom::scale(normal, normal[guide_axis])))?;
+    let width_axis = geom::cross(normal, length_axis);
+    let axes = [length_axis, width_axis, normal];
+    let mut corner = [0.; 3];
+    let mut spans = [0.; 3];
+    for (i, direction) in axes.into_iter().enumerate() {
+        let principal = geom::dominant_axis(direction);
+        let signed_axis = (0..3).all(|k| k == principal || direction[k] == 0.);
+        let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+        for &face in flange.reference_faces.iter().chain(&flange.mate_faces) {
+            let (a, b) = if signed_axis {
+                let b = part.face_bounds(face);
+                let a = b.min[principal] * direction[principal];
+                let b = b.max[principal] * direction[principal];
+                (a.min(b), a.max(b))
+            } else {
+                part.face_projection_bounds(face, direction)?
+            };
+            lo = lo.min(a);
+            hi = hi.max(b);
+        }
+        spans[i] = hi - lo;
+        if !spans[i].is_finite() || spans[i] < 0. {
+            return None;
+        }
+        corner = geom::add(corner, geom::scale(direction, lo));
+    }
+    Some(SheetFlangeBounds {
+        corner,
+        length_axis,
+        width_axis,
+        length: spans[0],
+        width: spans[1],
+        normal_span: spans[2],
+    })
+}
+
+impl SheetFlangeBounds {
+    fn box_in_frame(&self, normal: V3) -> Bounds {
+        let spans = [
+            geom::scale(self.length_axis, self.length),
+            geom::scale(self.width_axis, self.width),
+            geom::scale(normal, self.normal_span),
+        ];
+        Bounds {
+            min: [0, 1, 2]
+                .map(|i| self.corner[i] + spans.iter().map(|v| v[i].min(0.)).sum::<f64>()),
+            max: [0, 1, 2]
+                .map(|i| self.corner[i] + spans.iter().map(|v| v[i].max(0.)).sum::<f64>()),
+        }
+    }
+}
+
+/// A pad can be replaced when the sheet carries its two skins, its own perimeter
+/// cuts, and its full box. The skin trims supply the stations at the bend tangents.
+pub(super) fn replaces_pad(
+    part: &Part,
+    sheets: &[SheetMetalBody],
+    pad: &Occurrence<RaisedPad>,
+) -> bool {
+    let record = &pad.record;
+    let lo = [*record.x0.raw(), *record.y0.raw(), *record.z0.raw()];
+    let hi = [*record.x1.raw(), *record.y1.raw(), *record.z1.raw()];
+    let claimed = |f: &usize| pad.defining.binary_search(f).is_ok();
+    for sheet in sheets.iter().filter(|sheet| sheet.flat_pattern.is_some()) {
+        for flange in &sheet.flanges {
+            let skins = || flange.reference_faces.iter().chain(&flange.mate_faces);
+            if flange.reference_faces.is_empty()
+                || flange.mate_faces.is_empty()
+                || !skins().all(claimed)
+            {
+                continue;
+            }
+            let Some(bounds) = &flange.bounds else {
+                continue;
+            };
+            if (bounds.normal_span - sheet.thickness).abs() > length_tol(sheet.thickness, 1e-4) {
+                continue;
+            }
+            let measured = bounds.box_in_frame(flange.normal);
+            let tolerance = length_tol(measured.max_extent(), 1e-10);
+            if (0..3).any(|i| {
+                (measured.min[i] - lo[i]).abs() > tolerance
+                    || (measured.max[i] - hi[i]).abs() > tolerance
+            }) {
+                continue;
+            }
+            let own_cuts = pad
+                .defining
+                .iter()
+                .filter(|f| !skins().any(|s| s == *f))
+                .all(|f| {
+                    if sheet.cut_edge_faces.binary_search(f).is_err() {
+                        return false;
+                    }
+                    let neighbours = part.neighbours(*f);
+                    flange
+                        .reference_faces
+                        .iter()
+                        .any(|skin| neighbours.contains(skin))
+                        && flange
+                            .mate_faces
+                            .iter()
+                            .any(|skin| neighbours.contains(skin))
+                        && sheet
+                            .flanges
+                            .iter()
+                            .filter(|other| other.index != flange.index)
+                            .all(|other| {
+                                other
+                                    .reference_faces
+                                    .iter()
+                                    .chain(&other.mate_faces)
+                                    .all(|skin| !neighbours.contains(skin))
+                            })
+                });
+            if own_cuts {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 /// The surface classes the sheet reading distinguishes (`BRepAdaptor_Surface.GetType`).
@@ -616,6 +871,7 @@ fn flanges(
     first: &BTreeSet<usize>,
     second: &BTreeSet<usize>,
     excluded: &BTreeSet<usize>,
+    merge_coplanar: bool,
 ) -> Option<(Vec<SheetFlange>, BTreeMap<usize, usize>)> {
     let part = s.part;
     let thickness = s.wall.thickness;
@@ -643,6 +899,7 @@ fn flanges(
     }
     let axes: BTreeMap<usize, Vec<(V3, V3)>> = mates
         .keys()
+        .filter(|_| merge_coplanar)
         .map(|&r| {
             let found = part
                 .neighbours(r)
@@ -662,7 +919,8 @@ fn flanges(
         let origin = frame.origin;
         let normal = graph::normal(part, reference)?;
         let group = out.iter().position(|flange| {
-            py::dist(&normal, &flange.normal) < 1e-5
+            merge_coplanar
+                && py::dist(&normal, &flange.normal) < 1e-5
                 && py::sum((0..3).map(|i| normal[i] * (origin[i] - flange.origin[i]))).abs()
                     <= tolerance
                 && flange.reference_faces.iter().any(|existing| {
@@ -693,6 +951,7 @@ fn flanges(
                     origin,
                     normal,
                     area,
+                    bounds: None,
                 });
                 out.len() - 1
             }
@@ -786,6 +1045,99 @@ fn bends(
         });
     }
     (!result.is_empty()).then_some(result)
+}
+
+/// The two rectangular side walls and root of each cut at a bend end. The side
+/// walls run inward on the same planar skin, from the open edge to the root.
+fn bend_reliefs(
+    part: &Part,
+    thickness: f64,
+    cut: &[usize],
+    flanges: &[SheetFlange],
+    bends: &[SheetBend],
+) -> Vec<SheetBendRelief> {
+    let tolerance = length_tol(thickness, 0.001);
+    let cut_normal = |f| {
+        (cut.binary_search(&f).is_ok() && matches!(part.faces[f].surface, Surface::Plane { .. }))
+            .then(|| graph::normal(part, f))
+            .flatten()
+    };
+    let line_length = |a, b| {
+        let edges = part.shared_edges(a, b);
+        let &[edge] = edges.as_slice() else {
+            return None;
+        };
+        matches!(part.edges[edge].curve, Curve::Line { .. }).then(|| edge_length(part, edge))
+    };
+    let mut result = Vec::new();
+    let mut seen = BTreeSet::new();
+    for bend in bends {
+        let axis = bend.axis_direction;
+        for pair in &bend.face_pairs {
+            for cap in part.neighbours(pair.first_face) {
+                let Some(normal) = cut_normal(cap) else {
+                    continue;
+                };
+                if geom::dot(normal, axis).abs() < 1.0 - 1e-6
+                    || part.shared_edges(cap, pair.second_face).is_empty()
+                {
+                    continue;
+                }
+                for side in part.neighbours(cap) {
+                    let Some(side_normal) = cut_normal(side) else {
+                        continue;
+                    };
+                    if geom::dot(normal, side_normal) < 1.0 - 1e-6
+                        || part.arc(cap, side) != Some(Arc::Smooth)
+                    {
+                        continue;
+                    }
+                    let skins = [bend.first_flange, bend.second_flange]
+                        .into_iter()
+                        .flat_map(|i| &flanges[i].reference_faces)
+                        .copied()
+                        .filter_map(|skin| Some((skin, line_length(side, skin)?)));
+                    for (skin, depth) in skins {
+                        for root in part.neighbours(side) {
+                            let Some(root_normal) = cut_normal(root) else {
+                                continue;
+                            };
+                            if geom::dot(side_normal, root_normal).abs() > 1e-6
+                                || part.arc(side, root) != Some(Arc::Concave)
+                            {
+                                continue;
+                            }
+                            let Some(width) = line_length(root, skin) else {
+                                continue;
+                            };
+                            for other in part.neighbours(root) {
+                                if !cut_normal(other)
+                                    .is_some_and(|n| geom::dot(side_normal, n) < -1.0 + 1e-6)
+                                    || part.arc(root, other) != Some(Arc::Concave)
+                                    || !line_length(other, skin)
+                                        .is_some_and(|d| (d - depth).abs() <= tolerance)
+                                {
+                                    continue;
+                                }
+                                let mut faces = [side, root, other];
+                                faces.sort_unstable();
+                                if seen.insert(faces) {
+                                    result.push(SheetBendRelief {
+                                        bend: bend.index,
+                                        width,
+                                        depth,
+                                        faces: faces.into(),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    result.sort_by(|a, b| (a.bend, &a.faces).cmp(&(b.bend, &b.faces)));
+    result
 }
 
 type Matrix = [V3; 3];
@@ -1563,17 +1915,29 @@ fn body(part: &Part, wall: &ThinWallBody, k_factor: f64) -> Option<SheetMetalBod
 
     type Built = (Vec<SheetFlange>, Vec<SheetBend>, Option<FlatPatternPlan>);
     let build = |excluded: &BTreeSet<usize>| -> Option<Built> {
-        let (flanges, face_to_flange) = flanges(&s, &first, &second, excluded)?;
-        let bends = bends(&s, &first, &face_to_flange, k_factor, excluded)?;
-        let plan = flat_pattern_plan(&s, &flanges, &bends, k_factor, &first);
-        Some((flanges, bends, plan))
+        let read = |merge_coplanar| {
+            let (flanges, face_to_flange) = flanges(&s, &first, &second, excluded, merge_coplanar)?;
+            let bends = bends(&s, &first, &face_to_flange, k_factor, excluded)?;
+            let plan = flat_pattern_plan(&s, &flanges, &bends, k_factor, &first);
+            Some((flanges, bends, plan))
+        };
+        let grouped = read(true)?;
+        // Separate flange patches can lie on the same plane and have coaxial bends without
+        // being one flange. Require a valid blank to replace the grouped reading.
+        if grouped.2.is_none()
+            && grouped.0.iter().any(|f| f.reference_faces.len() > 1)
+            && let Some(separate) = read(false)
+            && separate.2.as_ref().is_some_and(|plan| plan.valid_blank)
+        {
+            return Some(separate);
+        }
+        Some(grouped)
     };
     let full = build(&BTreeSet::new());
-    let accepted = full.as_ref().is_some_and(|(_, _, plan)| match plan {
-        Some(plan) => plan.valid_blank || !formed_candidates.is_empty(),
-        None => !edge_treatments.is_empty(),
-    });
-    let (formed, excluded, (flanges, bends, plan)) = if accepted {
+    let accepted = full
+        .as_ref()
+        .is_some_and(|(_, _, plan)| plan.is_some() || !edge_treatments.is_empty());
+    let (formed, excluded, (mut flanges, bends, plan)) = if accepted {
         (Vec::new(), BTreeSet::new(), full?)
     } else {
         let excluded: BTreeSet<usize> = formed_candidates
@@ -1581,13 +1945,11 @@ fn body(part: &Part, wall: &ThinWallBody, k_factor: f64) -> Option<SheetMetalBod
             .flat_map(|f| f.faces.iter().copied())
             .collect();
         let fallback = build(&excluded)?;
-        if !fallback.2.as_ref().is_some_and(|p| p.valid_blank) {
-            return None;
-        }
+        fallback.2.as_ref()?;
         (formed_candidates, excluded, fallback)
     };
-    if plan.is_none() && edge_treatments.is_empty() {
-        return None;
+    for flange in &mut flanges {
+        flange.bounds = flange_bounds(part, flange);
     }
     let status = match &plan {
         Some(p) if p.valid_blank => "checked",
@@ -1602,6 +1964,7 @@ fn body(part: &Part, wall: &ThinWallBody, k_factor: f64) -> Option<SheetMetalBod
             .filter(|f| !excluded.contains(f))
             .collect()
     };
+    let bend_reliefs = bend_reliefs(part, wall.thickness, &cut, &flanges, &bends);
     Some(SheetMetalBody {
         body_index: wall.body_index,
         body_key: wall.body_key.clone(),
@@ -1616,12 +1979,230 @@ fn body(part: &Part, wall: &ThinWallBody, k_factor: f64) -> Option<SheetMetalBod
         paired_area_fraction: wall.paired_area_fraction,
         flat_pattern_status: status,
         edge_treatments,
+        bend_reliefs,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn sheet_fixture(file: &str) -> Part {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/sheet-metal")
+            .join(file);
+        crate::kernel::step::read_step_file(&path).unwrap()
+    }
+
+    #[test]
+    fn plain_overlapping_development_keeps_the_sheet_and_witness() {
+        let part = sheet_fixture("overlapping-flanges.step.gz");
+        let sheets = recognise_sheet_metal_bodies(&part, &SheetMetalOptions::default()).unwrap();
+        assert_eq!(sheets.len(), 1);
+        let sheet = &sheets[0];
+        assert!(sheet.formed_features.is_empty());
+        assert_eq!((sheet.flanges.len(), sheet.bends.len()), (3, 2));
+        assert_eq!(sheet.flat_pattern_status, "overlap");
+        let plan = sheet.flat_pattern.as_ref().unwrap();
+        assert!(!plan.valid_blank);
+        assert!(plan.overlap_witnesses.iter().any(|w| {
+            w.first_kind == "flange_face"
+                && w.second_kind == "flange_face"
+                && (w.area - 144.).abs() < 1e-6
+        }));
+    }
+
+    #[test]
+    fn coaxial_return_bends_keep_independent_flange_branches() {
+        let part = sheet_fixture("coaxial-flanges.step.gz");
+        let sheets = recognise_sheet_metal_bodies(&part, &SheetMetalOptions::default()).unwrap();
+        assert_eq!(sheets.len(), 1);
+        let sheet = &sheets[0];
+        assert_eq!((sheet.flanges.len(), sheet.bends.len()), (5, 4));
+        assert_eq!(sheet.flat_pattern_status, "checked");
+        assert!(sheet.bends.iter().all(|bend| {
+            (bend.angle_degrees - 90.).abs() < 1e-7 && (bend.inner_radius - 2.).abs() < 1e-7
+        }));
+
+        // Adding a third branch creates an overlap only in the split reading.
+        // The unproved split must not turn the grouped refusal into an overlap record.
+        let crossing = sheet_fixture("coaxial-overlap.step.gz");
+        let sheets =
+            recognise_sheet_metal_bodies(&crossing, &SheetMetalOptions::default()).unwrap();
+        assert!(sheets.is_empty(), "an overlapping split is not a proof");
+    }
+
+    #[test]
+    fn rectangular_bend_reliefs_name_the_bends_and_notch_walls() {
+        let part = sheet_fixture("bendfm-0.stp.gz");
+        let sheets = recognise_sheet_metal_bodies(&part, &SheetMetalOptions::default()).unwrap();
+        let sheet = &sheets[0];
+        let record = serde_json::to_value(sheet).unwrap();
+        // Three partial-width bends each have a rectangular notch at both axial ends.
+        let reliefs = record["bend_reliefs"].as_array().expect("bend reliefs");
+        let expected = [
+            (0, [5, 6, 7]),
+            (0, [9, 10, 11]),
+            (2, [15, 16, 17]),
+            (2, [19, 20, 21]),
+            (3, [24, 25, 26]),
+            (3, [2, 28, 29]),
+        ];
+        assert_eq!(reliefs.len(), expected.len());
+        for (bend, mut faces) in expected {
+            faces.sort_unstable();
+            let relief = reliefs
+                .iter()
+                .find(|r| r["bend"] == bend && r["faces"] == serde_json::json!(faces))
+                .unwrap_or_else(|| {
+                    panic!("missing bend {bend} relief with faces {faces:?}: {reliefs:?}")
+                });
+            let width = relief["width"].as_f64().unwrap();
+            let depth = relief["depth"].as_f64().unwrap();
+            assert!((width - sheet.thickness).abs() < 1e-6);
+            assert!((depth - (sheet.bends[bend].inner_radius + sheet.thickness)).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn sheet_claims_keep_cut_positions_and_replace_duplicate_readings() {
+        let check_levels = |file, status, count, expected: &[(&[usize], f64)]| {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/captured")
+                .join(file);
+            let part = crate::kernel::step::read_step_file(&path).unwrap();
+            let reading = crate::correspondence::recognise(&part);
+            assert_eq!(reading.features.sheet_metal_bodies.len(), 1);
+            let sheet = &reading.features.sheet_metal_bodies[0];
+            assert_eq!(sheet.flat_pattern_status, status);
+            let document = crate::recognition::document(&reading, part.faces.len());
+            let levels: Vec<_> = document
+                .records
+                .iter()
+                .filter(|record| record.family == "step_levels")
+                .collect();
+            for &(faces, x) in expected {
+                assert!(faces.iter().all(|f| sheet.cut_edge_faces.contains(f)));
+                let level = levels
+                    .iter()
+                    .find(|level| level.faces == faces)
+                    .unwrap_or_else(|| panic!("{file}: no level on {faces:?}"));
+                assert_eq!(level.parameters["height_axis"], "x");
+                let actual = level.parameters["z"].as_f64().unwrap()
+                    + level.parameters["origin"][0].as_f64().unwrap();
+                assert!((actual - x).abs() < 1e-5, "{file}: {faces:?} at {actual}");
+            }
+            assert_eq!(levels.len(), count);
+            reading.features.holes.len()
+        };
+        // A developed hanger retains the cut widths and loses its four skin readings.
+        assert_eq!(
+            check_levels(
+                "876837d9cf19ff05.step.gz",
+                "overlap",
+                4,
+                &[
+                    (&[56], -85.),
+                    (&[7, 99], -55.),
+                    (&[9, 97], 55.),
+                    (&[23], 85.)
+                ]
+            ),
+            2
+        );
+        // On this cyclic sheet all positions must survive, including the cut-out ends.
+        check_levels(
+            "11ee4708f7675eb9.step.gz",
+            "non_tree",
+            18,
+            &[
+                (&[273, 275, 279], -144.),
+                (&[26, 27, 28, 29, 448], -143.443116496),
+            ],
+        );
+
+        let sample = sheet_fixture("bendfm-0.stp.gz");
+        let reading = crate::correspondence::recognise(&sample);
+        assert_eq!(reading.features.sheet_metal_bodies.len(), 1);
+        let document = crate::recognition::document(&reading, sample.faces.len());
+        let faces = |family| {
+            document
+                .records
+                .iter()
+                .filter(|r| r.family == family)
+                .map(|r| r.faces.as_slice())
+                .collect::<Vec<_>>()
+        };
+        // The levels carry perimeter positions; the former pockets are reliefs.
+        assert_eq!(faces("step_levels"), [&[14, 22, 39, 55], &[4, 12, 37, 54]]);
+        for family in ["pockets", "section_recesses", "slots"] {
+            assert!(faces(family).is_empty(), "{family}");
+        }
+        assert_eq!(faces("chamfers"), [&[77]], "clipped flange corner");
+
+        let sample = sheet_fixture("bendfm-4.stp.gz");
+        let reading = crate::correspondence::recognise(&sample);
+        let document = crate::recognition::document(&reading, sample.faces.len());
+        let sheet = document
+            .records
+            .iter()
+            .find(|r| r.family == "sheet_metal_bodies")
+            .unwrap();
+        let flange = &sheet.parameters["flanges"][3];
+        assert_eq!(flange["reference_faces"], serde_json::json!([29]));
+        assert_eq!(flange["mate_faces"], serde_json::json!([27]));
+        let bounds = &flange["bounds"];
+        let length = bounds["length"].as_f64().expect("published flange length");
+        let width = bounds["width"].as_f64().expect("published flange width");
+        let mut sizes = [length, width];
+        sizes.sort_by(f64::total_cmp);
+        assert!((sizes[0] - 95.).abs() < 1e-6 && (sizes[1] - 111.).abs() < 1e-6);
+        let vector = |v: &serde_json::Value| serde_json::from_value::<V3>(v.clone()).unwrap();
+        let corner = vector(&bounds["corner"]);
+        let spans = [
+            geom::scale(vector(&bounds["length_axis"]), length),
+            geom::scale(vector(&bounds["width_axis"]), width),
+            geom::scale(
+                vector(&flange["normal"]),
+                bounds["normal_span"].as_f64().unwrap(),
+            ),
+        ];
+        for (axis, (low, high)) in [(1.18, 96.18), (-8.879, -5.05), (3.87, 114.87)]
+            .into_iter()
+            .enumerate()
+        {
+            let lo = corner[axis] + spans.iter().map(|v| v[axis].min(0.)).sum::<f64>();
+            let hi = corner[axis] + spans.iter().map(|v| v[axis].max(0.)).sum::<f64>();
+            // Compare against the original pad's three-decimal publication.
+            assert!((lo - low).abs() <= 0.000501 && (hi - high).abs() <= 0.000501);
+        }
+        assert!(reading.features.pads.is_empty());
+        assert!(faces("pads").is_empty(), "sample 0's full flange");
+
+        let part = sheet_fixture("hanger-raised-pad.step.gz");
+        let reading = crate::correspondence::recognise(&part);
+        assert_eq!(
+            reading.features.sheet_metal_bodies[0].flat_pattern_status,
+            "overlap"
+        );
+        let document = crate::recognition::document(&reading, part.faces.len());
+        let pad = document
+            .records
+            .iter()
+            .find(|r| r.family == "pads")
+            .expect("raised tab pad");
+        assert_eq!(pad.faces, [103, 104, 105, 107, 108]);
+        for (field, expected) in [
+            ("x0", 28.),
+            ("x1", 30.),
+            ("y0", -4.),
+            ("y1", 4.),
+            ("z0", 73.),
+            ("z1", 83.),
+        ] {
+            assert!((pad.parameters[field].as_f64().unwrap() - expected).abs() < 1e-6);
+        }
+    }
 
     #[test]
     fn hanger_windows_are_too_short_and_total_overlaps_are_symmetric() {
@@ -1892,6 +2473,7 @@ mod tests {
                     origin: frame.origin,
                     normal: frame.z,
                     area: if i == 0 { 4000. } else { 320. } * scale.powi(2),
+                    bounds: None,
                 }
             })
             .into();
@@ -2244,7 +2826,7 @@ mod tests {
     #[test]
     fn a_k_factor_outside_zero_to_one_is_refused() {
         let part = Part::new(Vec::new(), Vec::new(), Vec::new());
-        for k in [-0.1, 1.1, f64::NAN] {
+        for k in [0.0, -0.1, 1.1, f64::NAN, f64::INFINITY] {
             let opts = SheetMetalOptions { k_factor: k };
             assert!(recognise_sheet_metal_bodies(&part, &opts).is_err());
         }

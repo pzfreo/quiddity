@@ -60,6 +60,24 @@ These changes remove that, none touching the integrands, nodes or the boundary q
 Results agree with the stock form to round-off (about 1e-10 mm in a recognised location).
 `tests/face_moments.rs` and the face-area checks against OpenCascade are unchanged.
 
+## Rational u, single-span affine v only (#357)
+
+The checked along-v trial also applies to eligible spline faces with degree one in v, exactly
+two v control points per row, equal weights within each row, and varying weights across u.
+This lets the adaptive outer rule resolve variation along the rational profile. The half-panel
+comparison samples the same primitive in two ways and can detect disagreement at those nodes.
+Both rules can miss variation between their nodes. If the two along-v trials fail, the stock
+projected path still integrates each spline knot span with one fixed 16-point Gauss panel.
+The outer error estimate can miss a bias shared by all of those inner panels.
+
+Degree elevation, insertion of a v knot, and changes to the v weights can exclude even the
+same physical rectangle. The unchecked rule can also under-resolve non-rational surfaces.
+On the 40 brep-conformance height-field slabs, the largest face-area discrepancy against
+composite tensor quadrature was 1.27e-6 relative (6.68e-5 mm² absolute). Trials of a general
+embedded check resolved the slab areas but exceeded existing work budgets for already accurate
+faces, and refused previously measured corpus integrals. The along-v extension remains limited
+to the parameterization above.
+
 ## A certificate for an inevitable refusal
 
 This is a proof about the existing finite algorithm, not a proof that the geometric

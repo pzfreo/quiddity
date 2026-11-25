@@ -300,14 +300,18 @@ internal_entry! {
 /// covering the input faces without issuing feature claims. Section-recess projection
 /// refusals are carried in [`Features::section_recess_refusal`].
 pub fn recognise(part: &Part) -> Features {
-    recognise_with(part, |_, features| features)
+    recognise_with(part, Default::default(), |_, features| features)
 }
 }
 
 /// Keep the inventory's context alive for downstream geometry consumers and fingerprints.
-pub(crate) fn recognise_with<T>(part: &Part, then: impl FnOnce(&Context<'_>, Features) -> T) -> T {
+pub(crate) fn recognise_with<T>(
+    part: &Part,
+    k_factor: sheet_metal::KFactor,
+    then: impl FnOnce(&Context<'_>, Features) -> T,
+) -> T {
     let mut then = Some(then);
-    take_inventory(part, |ctx, inventory| {
+    take_inventory_with(part, k_factor, |ctx, inventory| {
         then.take().unwrap()(ctx, recognise_in(ctx, inventory))
     })
     .unwrap_or_else(|error| {
@@ -885,15 +889,24 @@ pub(crate) fn take_inventory<'p, T>(
     part: &'p Part,
     then: impl FnOnce(&Context<'p>, Inventory) -> T,
 ) -> Result<T, reconcile::ReconcileError> {
+    take_inventory_with(part, Default::default(), then)
+}
+
+/// Take an inventory with the selected K-factor, including any retries.
+pub(crate) fn take_inventory_with<'p, T>(
+    part: &'p Part,
+    k_factor: sheet_metal::KFactor,
+    then: impl FnOnce(&Context<'p>, Inventory) -> T,
+) -> Result<T, reconcile::ReconcileError> {
     let part = part.recognition_part();
     if !evidence::local_degradation() {
-        let ctx = Context::new(part);
+        let ctx = Context::with_k_factor(part, k_factor);
         if let Some(inventory) = inventory_in(&ctx)? {
             return Ok(then(&ctx, inventory));
         }
     }
     evidence::locally_degraded(|| {
-        let ctx = Context::new(part);
+        let ctx = Context::with_k_factor(part, k_factor);
         let inventory = inventory_in(&ctx)?.expect("a locally degraded run does not retry");
         Ok(then(&ctx, inventory))
     })
@@ -969,6 +982,27 @@ fn inventory_in_with(
     };
     let holes = kept(&mut defining, "holes", found_holes);
     let countersinks = kept(&mut defining, "countersinks", seats);
+    let walls = discover!("thin_wall_bodies", thin_walls::discover(ctx));
+    let sheets = discover!(
+        "sheet_metal_bodies",
+        sheet_metal::discover_from_walls(
+            part,
+            walls.iter().map(|wall| &wall.record),
+            ctx.k_factor.value(),
+        )
+    );
+    let sheet_metal_bodies = kept_shared(&mut defining, "sheet_metal_bodies", sheets);
+    let sheet_faces = sheet_metal::prismatic_face_sets(part, &sheet_metal_bodies);
+    let explained = |faces: &[usize]| sheet_metal::covers(&sheet_faces, faces);
+    let sheet_skins: BTreeSet<_> = sheet_metal_bodies
+        .iter()
+        .filter(|sheet| sheet.flat_pattern.is_some())
+        .flat_map(|sheet| sheet.skin_faces(part))
+        .collect();
+    let reliefs: Vec<_> = sheet_metal_bodies
+        .iter()
+        .flat_map(|sheet| &sheet.bend_reliefs)
+        .collect();
     let gusset_ribs = kept(
         &mut defining,
         "gusset_ribs",
@@ -977,14 +1011,25 @@ fn inventory_in_with(
     let slots = kept(
         &mut defining,
         "slots",
-        discover!("slots", skip_unproved(part, slots::discover(ctx))),
+        discover!("slots", skip_unproved(part, slots::discover(ctx)))
+            .into_iter()
+            // Opposed skins and the two walls of a relief can both look like slot walls.
+            // A separate through-slot cut in the sheet still owns its cut walls.
+            .filter(|o| {
+                !explained(&o.defining)
+                    || (!o.defining.iter().any(|f| sheet_skins.contains(f))
+                        && !reliefs
+                            .iter()
+                            .any(|r| o.defining.iter().all(|f| r.faces.binary_search(f).is_ok())))
+            })
+            .collect(),
     );
-    let pocket_occurrences = discover!("pockets", skip_unproved(part, pockets::discover(ctx)));
-    let thin_wall_bodies = kept_shared(
-        &mut defining,
-        "thin_wall_bodies",
-        discover!("thin_wall_bodies", thin_walls::discover(ctx)),
-    );
+    let pocket_occurrences: Vec<_> =
+        discover!("pockets", skip_unproved(part, pockets::discover(ctx)))
+            .into_iter()
+            .filter(|o| !explained(&o.defining))
+            .collect();
+    let thin_wall_bodies = kept_shared(&mut defining, "thin_wall_bodies", walls);
     let mut discovery_refusals = BTreeMap::new();
     // A face the caller's integration budget refused is left out as an unmeasured face is,
     // and published under its own reason.
@@ -1098,18 +1143,29 @@ fn inventory_in_with(
     );
     // A degraded run's risers carry the step levels it kept, as Python's carry that run's
     // completed levels (`levels::proved` skips only in a degraded run).
-    let step_level_occurrences = discover!(
+    let step_level_occurrences: Vec<_> = discover!(
         "step_levels",
         degraded_skip(levels::discover_step_levels(ctx), |o| {
             evidence::locally_valid_solid(part, &o.defining).is_some()
         })
-    );
+    )
+    .into_iter()
+    .filter(|o| !explained(&o.defining))
+    .collect();
     let found_risers = discover!(
         "risers",
         degraded_skip(levels::discover_risers(ctx, &step_level_occurrences), |o| {
             evidence::locally_valid_solid(part, &o.defining).is_some()
         })
     );
+    let walls = &defining.defining["thin_wall_bodies"];
+    let found_risers = found_risers
+        .into_iter()
+        .filter(|o| {
+            // Keep the existing rejection evidence for readings on paired wall faces.
+            !explained(&o.defining) || sheet_metal::covers(walls, &o.defining)
+        })
+        .collect();
     let risers = kept(&mut defining, "risers", found_risers);
     let step_levels = kept(&mut defining, "step_levels", step_level_occurrences);
     let void_analysis = discover!("interior_voids", interior_voids::analyse(ctx));
@@ -1126,7 +1182,10 @@ fn inventory_in_with(
     if !boss_analysis.refusals.is_empty() {
         discovery_refusals.insert("polygonal_boss_refusals", boss_analysis.refusals);
     }
-    let pad_analysis = discover!("pads", pads::analyse(ctx, &Default::default()));
+    let mut pad_analysis = discover!("pads", pads::analyse(ctx, &Default::default()));
+    pad_analysis
+        .accepted
+        .retain(|o| !sheet_metal::replaces_pad(part, &sheet_metal_bodies, o));
     let mut radial_faces: BTreeSet<usize> = BTreeSet::new();
     let prismatic_analysis = discover!("prismatic_pockets", prismatic_pockets::analyse(ctx));
     if !pad_analysis.refusals.is_empty() {
@@ -1330,11 +1389,7 @@ fn inventory_in_with(
             "blends",
             discover!("blends", blends::discover(ctx)),
         ),
-        sheet_metal_bodies: kept_shared(
-            &mut defining,
-            "sheet_metal_bodies",
-            discover!("sheet_metal_bodies", sheet_metal::discover(ctx)),
-        ),
+        sheet_metal_bodies,
         slot_patterns: Vec::new(),
         slots,
         pocket_patterns: Vec::new(),

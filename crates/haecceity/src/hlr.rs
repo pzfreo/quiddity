@@ -29,6 +29,22 @@ pub enum Class {
     Outline,
 }
 
+/// The Part-local B-rep element from which a projected curve originates.
+///
+/// Silhouettes and section contours traced on a face report `Face`; model edges and section
+/// boundaries that follow an existing edge report `Edge`. These are indices into the current
+/// `Part`, not STEP entity numbers; use [`Part::face_source`] or [`Part::edge_source`] to map them
+/// to STEP source records. They are valid only for the `Part` they came from: re-exporting or
+/// rereading the model may renumber them, so do not store them as lasting identifiers.
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ProjectionOrigin {
+    /// A model edge or section boundary that follows that edge.
+    Edge(usize),
+    /// A silhouette or a section contour traced over that face.
+    Face(usize),
+}
+
 /// One stretch of a curve as seen: in view coordinates, and visible or hidden.
 #[derive(Clone, Debug)]
 pub struct Projected {
@@ -286,6 +302,20 @@ impl std::error::Error for Unresolved {}
 
 /// The part's edges and silhouettes seen in *view*, split into visible and hidden stretches.
 pub fn project(part: &Part, view: &View) -> Result<Vec<Projected>, Unresolved> {
+    Ok(draw(part, view, None)?
+        .into_iter()
+        .map(|(projected, _)| projected)
+        .collect())
+}
+
+/// Project the part and return the origin of each visible or hidden stretch.
+///
+/// Each origin is a Part-local edge or face index; see [`ProjectionOrigin`]. Returns the same
+/// projected geometry and visibility as [`project`], paired with its origin.
+pub fn project_with_origin(
+    part: &Part,
+    view: &View,
+) -> Result<Vec<(Projected, ProjectionOrigin)>, Unresolved> {
     draw(part, view, None)
 }
 
@@ -296,6 +326,23 @@ pub fn project_section(
     view: &View,
     plane: &Plane,
 ) -> Result<Vec<Projected>, Unresolved> {
+    Ok(draw(part, view, Some(plane))?
+        .into_iter()
+        .map(|(projected, _)| projected)
+        .collect())
+}
+
+/// Project a section and return the origin of each visible or hidden stretch.
+///
+/// Surface-plane contours originate from their face; section boundaries following an existing
+/// edge originate from that edge. Origins are Part-local indices; see [`ProjectionOrigin`].
+/// Returns the same projected geometry and visibility as [`project_section`], paired with its
+/// origin.
+pub fn project_section_with_origin(
+    part: &Part,
+    view: &View,
+    plane: &Plane,
+) -> Result<Vec<(Projected, ProjectionOrigin)>, Unresolved> {
     draw(part, view, Some(plane))
 }
 
@@ -305,7 +352,10 @@ pub fn project_section(
 pub fn section(part: &Part, plane: &Plane) -> Result<Vec<Vec<V3>>, Unresolved> {
     let faces = drawn_faces(part);
     resolved(part, &faces)?;
-    cut(part, plane, &faces)
+    Ok(cut(part, plane, &faces)?
+        .into_iter()
+        .map(|(curve, _)| curve)
+        .collect())
 }
 
 /// Refuses *faces* when any of them, or any of their edges, did not resolve.
@@ -345,7 +395,11 @@ fn resolved(part: &Part, faces: &[usize]) -> Result<(), Unresolved> {
 /// contour running along the face's own edge, within the edge's stand-off from the face, is
 /// that edge. An edge in the plane whose sides cannot be classified, and that is not a seam or
 /// join of one surface crossing the plane, is refused.
-fn cut(part: &Part, plane: &Plane, faces: &[usize]) -> Result<Vec<Vec<V3>>, Unresolved> {
+fn cut(
+    part: &Part,
+    plane: &Plane,
+    faces: &[usize],
+) -> Result<Vec<(Vec<V3>, ProjectionOrigin)>, Unresolved> {
     let mut edges: Vec<usize> = faces.iter().flat_map(|&f| part.face_edges(f)).collect();
     edges.sort_unstable();
     edges.dedup();
@@ -370,7 +424,11 @@ fn cut(part: &Part, plane: &Plane, faces: &[usize]) -> Result<Vec<Vec<V3>>, Unre
     for &face in faces {
         let surface = &part.faces[face].surface;
         let g = |(u, v): (f64, f64)| plane.distance(surface.value(u, v));
-        out.extend(contour(part, face, &g, Some((ON_TOLERANCE, &in_plane))));
+        out.extend(
+            contour(part, face, &g, Some((ON_TOLERANCE, &in_plane)))
+                .into_iter()
+                .map(|curve| (curve, ProjectionOrigin::Face(face))),
+        );
     }
     let classifier = Classifier::for_faces(part, faces.to_vec());
     let step = 1e-4 * classifier.rays().bounds().diagonal().max(1.0);
@@ -403,13 +461,15 @@ fn cut(part: &Part, plane: &Plane, faces: &[usize]) -> Result<Vec<Vec<V3>>, Unre
         match (side(1.0), side(-1.0)) {
             (Some(a), Some(b)) => {
                 if a != b {
-                    out.push(s.clone());
+                    out.push((s.clone(), ProjectionOrigin::Edge(e)));
                 }
             }
             // Where the classifier cannot say, a seam or a join within one surface that crosses
             // the plane there (its normal off the plane's by more than the tolerance across the
             // probe's step) has material across it on one side only, by the surface alone.
-            _ if crosses_along(part, e, mid, plane, step) => out.push(s.clone()),
+            _ if crosses_along(part, e, mid, plane, step) => {
+                out.push((s.clone(), ProjectionOrigin::Edge(e)));
+            }
             _ => {
                 return Err(Unresolved {
                     faces: part.edge_faces()[e].clone(),
@@ -461,11 +521,15 @@ enum On<'p> {
     Edge(&'p Curve, usize),
     /// A face's silhouette.
     Silhouette(usize),
-    /// A section's outline, its chords in the cutting plane.
-    Section,
+    /// A section's outline, its chords in the cutting plane, and their model origin.
+    Section(ProjectionOrigin),
 }
 
-fn draw(part: &Part, view: &View, plane: Option<&Plane>) -> Result<Vec<Projected>, Unresolved> {
+fn draw(
+    part: &Part,
+    view: &View,
+    plane: Option<&Plane>,
+) -> Result<Vec<(Projected, ProjectionOrigin)>, Unresolved> {
     let faces = drawn_faces(part);
     resolved(part, &faces)?;
     let rays = RayCaster::for_faces(part, faces.clone());
@@ -525,7 +589,7 @@ fn draw(part: &Part, view: &View, plane: Option<&Plane>) -> Result<Vec<Projected
         curves.extend(
             cut(part, plane, &faces)?
                 .into_iter()
-                .map(|c| (Class::Sharp, c, On::Section)),
+                .map(|(c, origin)| (Class::Sharp, c, On::Section(origin))),
         );
     }
     // Curves seen end-on draw nothing.
@@ -633,7 +697,7 @@ fn draw(part: &Part, view: &View, plane: Option<&Plane>) -> Result<Vec<Projected
                 On::Edge(c, _) => c.value(c.parameter(p)),
                 // From a chord's middle (inside a curved face) the ray would strike the face.
                 On::Silhouette(face) => off_face(*face, p),
-                On::Section => p,
+                On::Section(_) => p,
             };
             let verdict = hidden(at, start).ok_or(at)?;
             match on {
@@ -709,12 +773,20 @@ fn draw(part: &Part, view: &View, plane: Option<&Plane>) -> Result<Vec<Projected
                 On::Edge(curve, _) => exact(curve, view, &run),
                 _ => None,
             };
-            out.push(Projected {
-                class: *class,
-                visible,
-                points: run.iter().map(|p| view.map(*p)).collect(),
-                exact,
-            });
+            let origin = match on {
+                On::Edge(_, edge) => ProjectionOrigin::Edge(*edge),
+                On::Silhouette(face) => ProjectionOrigin::Face(*face),
+                On::Section(origin) => *origin,
+            };
+            out.push((
+                Projected {
+                    class: *class,
+                    visible,
+                    points: run.iter().map(|p| view.map(*p)).collect(),
+                    exact,
+                },
+                origin,
+            ));
         }
     }
     Ok(out)
@@ -1494,7 +1566,72 @@ fn pieces(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::*;
+
+    /// The origin remains paired with each stretch when visibility splitting produces fragments.
+    #[test]
+    fn projection_origin_survives_visibility_splitting() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/golden_simple_through_hole.step");
+        let part = crate::read_step_file(&path).unwrap();
+        let view = View::new([1.0, -1.0, 1.0], [0.0, 0.0, 1.0]).unwrap();
+        let plain = project(&part, &view).unwrap();
+        let with_origin = project_with_origin(&part, &view).unwrap();
+
+        assert_eq!(plain.len(), with_origin.len());
+        let origins: HashSet<_> = with_origin.iter().map(|(_, origin)| *origin).collect();
+        assert!(
+            origins
+                .iter()
+                .any(|o| matches!(o, ProjectionOrigin::Edge(_)))
+        );
+        assert!(
+            origins
+                .iter()
+                .any(|o| matches!(o, ProjectionOrigin::Face(_)))
+        );
+        for (plain, (projected, origin)) in plain.iter().zip(&with_origin) {
+            assert_eq!(plain.class, projected.class);
+            assert_eq!(plain.visible, projected.visible);
+            assert_eq!(plain.points, projected.points);
+            assert_eq!(plain.exact, projected.exact);
+            match *origin {
+                ProjectionOrigin::Edge(edge) => assert!(edge < part.edges.len()),
+                ProjectionOrigin::Face(face) => assert!(face < part.faces.len()),
+            }
+        }
+    }
+
+    /// Surface-plane section contours retain their face origin without changing legacy geometry.
+    #[test]
+    fn section_origin_identifies_the_traced_face() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/golden_simple_through_hole.step");
+        let part = crate::read_step_file(&path).unwrap();
+        let plane = Plane::new(part.bounds().centre(), [0.0, 0.0, 1.0]).unwrap();
+        let view = View::new([0.0, 0.0, -1.0], [0.0, 1.0, 0.0]).unwrap();
+        let plain = project_section(&part, &view, &plane).unwrap();
+        let with_origin = project_section_with_origin(&part, &view, &plane).unwrap();
+
+        assert_eq!(plain.len(), with_origin.len());
+        assert!(
+            with_origin
+                .iter()
+                .any(|(_, origin)| matches!(origin, ProjectionOrigin::Face(_)))
+        );
+        for (plain, (projected, origin)) in plain.iter().zip(&with_origin) {
+            assert_eq!(plain.class, projected.class);
+            assert_eq!(plain.visible, projected.visible);
+            assert_eq!(plain.points, projected.points);
+            assert_eq!(plain.exact, projected.exact);
+            match *origin {
+                ProjectionOrigin::Edge(edge) => assert!(edge < part.edges.len()),
+                ProjectionOrigin::Face(face) => assert!(face < part.faces.len()),
+            }
+        }
+    }
 
     /// A 30 × 30 × 20 block about the origin, bored through along z, with the x = 15 side
     /// (that face's index) made one the kernel cannot intersect.

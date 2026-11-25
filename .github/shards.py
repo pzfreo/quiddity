@@ -18,31 +18,50 @@ import re
 import sys
 
 
-def shard(listing, times, platform, k, n):
-    with open(listing) as f:
-        suites = json.load(f)["rust-suites"]
-    with open(times) as f:
-        cost = json.load(f)[platform]
-    tests = sorted(
+def listed(listing):
+    return sorted(
         (suite["binary-id"], name)
-        for suite in suites.values()
+        for suite in listing["rust-suites"].values()
         for name, case in suite["testcases"].items()
-        if case.get("filter-match", {}).get("status", "matches") == "matches"
+        if not case.get("ignored")
+        and case.get("filter-match", {}).get("status", "matches") == "matches"
     )
+
+
+def assign(tests, cost, n):
     seconds = {t: cost.get(f"{t[0]} {t[1]}", 1.0) for t in tests}
     load = [0.0] * n
-    dealt = {}
+    dealt = [[] for _ in range(n)]
     for t in sorted(tests, key=lambda t: (-seconds[t], t)):
         i = min(range(n), key=lambda i: (load[i], i))
         load[i] += seconds[t]
-        dealt[t] = i
-    mine = [t for t in tests if dealt[t] == k - 1]
+        dealt[i].append(t)
+    return dealt, load
+
+
+def filterset(tests):
+    by_binary = {}
+    for binary, name in sorted(tests):
+        by_binary.setdefault(binary, []).append(f"test(={name})")
+    return " | ".join(
+        f"(binary_id(={binary}) & ({' | '.join(names)}))"
+        for binary, names in by_binary.items()
+    ) or "none()"
+
+
+def shard(listing, times, platform, k, n):
+    with open(listing) as f:
+        tests = listed(json.load(f))
+    with open(times) as f:
+        cost = json.load(f)[platform]
+    dealt, load = assign(tests, cost, n)
+    mine = dealt[k - 1]
     assert mine, f"shard {k} of {n} has no tests"
     print(
         f"shard {k} of {n}: {len(mine)} of {len(tests)} tests, about {load[k - 1]:.0f} s",
         file=sys.stderr,
     )
-    print(" | ".join(f"(binary_id(={b}) & test(={name}))" for b, name in mine))
+    print(filterset(mine))
 
 
 def times(log):
@@ -55,7 +74,7 @@ def times(log):
         # (A job's log lines start with its name, `linux / test (ubuntu-latest, 3)`.)
         m = passed.search(re.sub(r"(\x1b|\^\[)\[[0-9;]*m", "", line))
         if m:
-            out[platforms[m[1]]][f"{m[3]} {m[4]}"] = round(float(m[2]), 1)
+            out[platforms[m[1]]][f"{m[3]} {m[4]}"] = float(m[2])
     json.dump({p: dict(sorted(t.items())) for p, t in out.items()}, sys.stdout, indent=1)
     print()
 

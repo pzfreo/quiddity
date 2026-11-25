@@ -29,6 +29,7 @@ with open("part.step", "rb") as stream:
 | `fingerprints(step)` | The existing fingerprints/3 document |
 | `correspond(old_step, new_step)` | The existing Rust revision correspondence document |
 | `parts(step)` | Exactly `quiddity parts`: each distinct part's index, name, face and edge counts and placements, and the binding, including stdout's trailing newline |
+| `solid_inertia(step, solid=0, point=None)` | Signed `volume` (mm³), `centroid` (mm), and symmetric `tensor` (mm⁵) for the zero-based solid, or JSON `null` if unavailable |
 | `step_entities(step)` | Every DATA instance in file order, as compact JSON `[{id, types, refs}]`: `id` is the `#N`, `types` the upper-case entity name (each leaf of a complex instance, in written order) and `refs` the referenced `#N`s in attribute order, repeats kept |
 | `capabilities()` | Versioned supported formats, inputs, operations and PMI import availability |
 | `__version__` | the package version, e.g. `"0.5.5"` (a Python string) |
@@ -43,6 +44,35 @@ Internal Rust panics become `quiddity.QuiddityError`, a `RuntimeError` subclass
 caught by `except Exception`, with the panic message. This boundary covers
 recognition, evidence, correspondence, manifests, PMI and the CLI.
 
+Pass the keyword `k_factor=0.45` to `recognise`, `recognise_with_evidence` or
+`evidence` to set the neutral-axis fraction for sheet-metal flat patterns.
+The default (also used for `None`) is 0.5. Numeric values must be finite and in
+(0, 1]. An out-of-range or non-finite value raises `ValueError`. Each development
+reports the actual value in `flat_pattern.k_factor`.
+
+Python `fingerprints` and `correspond` always read STEP inputs at K = 0.5 and
+have no `k_factor` keyword. Compare revisions at one K. A change between
+`checked` and `overlap` changes the `flat_pattern_status` fingerprint trait,
+so correspondence can report the matched sheet as `adapted`. Where a development's
+validity changes, K can also change flange adoption and the suppression of duplicate
+slots, pockets and pads. For custom-K correspondence, recognise both revisions at
+the same K and pass the two saved JSON results to `quiddity correspond`.
+
+## Solid inertia
+
+```python
+centroidal = json.loads(quiddity.solid_inertia("part.step"))
+about_origin = json.loads(quiddity.solid_inertia("part.step", point=(0, 0, 0)))
+```
+
+The tensor uses uniform density 1 and the STEP coordinate axes. Its diagonal
+gives the moments about those axes, and off-diagonal entries are negated products
+of inertia. The axes pass through the centroid by default. Pass a finite
+three-coordinate point in mm to shift them by the parallel-axis theorem. The
+reported centroid is always the centre of mass. Inward-facing void shells
+subtract, and reversing all the shell orientations flips the sign of the tensor
+and volume.
+
 ## Assembly manifests
 
 `manifest(path, out=None)` returns a dict and writes only `out` when supplied.
@@ -53,6 +83,7 @@ the manifest argument accepts a dict or a JSON file path. These new functions
 return dicts; the existing `recognise` continues to return JSON text. Scanning,
 reading and recognition release the GIL. Unknown ids and refusals raise
 `ValueError`; compressed product reads and shared geometry are refused.
+Both product recognition functions also accept the `k_factor` keyword.
 
 See [assembly manifests](assemblies.md) for format, staleness checks, placements,
 limits and the CLI's opt-in whole-file fallback.

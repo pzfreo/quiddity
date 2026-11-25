@@ -4,48 +4,37 @@ on:
   push:
     branches: [main]
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# A new push to a pull request supersedes the run on its previous commit. Main pushes and
-# dispatches are never cancelled: each has its own group.
+# New PR commits and full-ci label changes supersede the previous PR run. Main pushes,
+# dispatches and unrelated label events each get their own group.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name == 'pull_request' && (github.event.action != 'labeled' && github.event.action != 'unlabeled' || github.event.label.name == 'full-ci') && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
 
-# Maintainer decision, 2026-10-26: ordinary PRs build and lint on both platforms, run
-# full Linux and only macOS float-sensitive pins (.config/nextest.toml macos-pr).
-# This supersedes 2026-10-08's full macOS on every PR (docs/review-2026-10-08.md H1):
-# macOS has five shared account runners; removing redundant work buys time, more shards
-# cannot. Main pushes, workflow_dispatch and PR head branches release* run full macOS.
-# Measured baseline: run 40297454015, ~170 Linux / ~165 macOS test runner-minutes,
-# plus 18.7 / 7.5 minutes of serial build-gating snapshot replay. That replay is gone:
-# Linux shards record passing comparisons; one small downstream job checks exact coverage
-# and provenance without running the producers again. Existing 15 shards and one-test
-# concurrency stay fixed, dealt by refreshed measured times and explicit cut estimates.
-# See .config/nextest.toml for each macOS pin category and .config/test-times.json for
-# post-cut estimates: ~128 / 123 test runner-minutes full, ~14 for macOS PR pins.
-# With unchanged build/setup costs and five available macOS runners, budget PRs at
-# ~16-20 minutes and full/release events at ~30-36 (external runner queues excluded).
-# Changed-test costs are estimates, not fresh CI measurements: generic-frame readings
-# halved; rigid-transform 45%, publication 50%, corpus replay 75%, determinism 25%;
-# merged tests reuse the measured motion/quality work plus their small extra assertions.
-# Maintainer decision, 2026-11-20: macOS PR pins run in 2 shards, not 15. Run 44713366290
-# (a PR): each of the 15 macOS shards ran 45-81 s and waited 18-62 minutes for one of the five
-# account runners, so the run took over an hour for ~15 runner-minutes of tests. The same
-# tests in two jobs fit the runner limit at once. shards.py deals by the job total, so
-# every test still runs. Full macOS (main, dispatch, release*) keeps 15 shards.
-# Lint (fmt, clippy, doc-tests) runs alongside each platform's build.
-# Maintainer decision, 2026-11-21: a draft pull request runs only lint (and the DCO check);
-# everything else runs when it is marked ready for review and on later pushes while ready.
+# Ready PRs run the Linux fast tier. Main pushes, manual runs, release* PRs and the
+# full-ci label select the full suite on both platforms. Drafts run lint and DCO.
 jobs:
+  setup:
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled' || github.event.label.name == 'full-ci'
+    runs-on: ubuntu-latest
+    outputs:
+      full: ${{ steps.tier.outputs.full }}
+    steps:
+      - id: tier
+        env:
+          FULL: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'release') || contains(github.event.pull_request.labels.*.name, 'full-ci') }}
+        run: echo "full=$FULL" >> "$GITHUB_OUTPUT"
+
   advisories:
+    needs: setup
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -59,6 +48,7 @@ jobs:
   # The library as browser builds use it: no command line, no assembly scan (no tempfile or mmap),
   # for wasm32-unknown-unknown. Draftwright's and Specify's WASM engines depend on this.
   wasm:
+    needs: setup
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -73,12 +63,11 @@ jobs:
       - run: cargo build -p quiddity --lib --release --locked --target wasm32-unknown-unknown --no-default-features --features presentation,json
 
   lint:
+    needs: setup
     strategy:
       fail-fast: false
       matrix:
-        # Pull requests lint on Linux only (the macOS pins below still build and test there);
-        # main pushes, dispatches and release* PR branches lint on macOS too.
-        os: ${{ fromJSON(github.event_name == 'pull_request' && !startsWith(github.head_ref, 'release') && '["ubuntu-latest"]' || '["ubuntu-latest","macos-latest"]') }}
+        os: ${{ fromJSON(needs.setup.outputs.full == 'true' && '["ubuntu-latest","macos-latest"]' || '["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -116,16 +105,16 @@ jobs:
         if: github.event.pull_request.draft != true
 
   linux:
+    needs: setup
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     uses: ./.github/workflows/suite.yml
     with:
       os: ubuntu-latest
-      shards: "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]"
+      tier: ${{ needs.setup.outputs.full == 'true' && 'ci' || 'pr' }}
 
   macos:
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    needs: setup
+    if: needs.setup.outputs.full == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     uses: ./.github/workflows/suite.yml
     with:
       os: macos-latest
-      tier: ${{ github.event_name == 'pull_request' && !startsWith(github.head_ref, 'release') && 'macos-pr' || 'ci' }}
-      shards: ${{ github.event_name == 'pull_request' && !startsWith(github.head_ref, 'release') && '[1, 2]' || '[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]' }}

@@ -237,6 +237,72 @@ These structs are `#[non_exhaustive]`: external Rust code cannot build them with
 literals and only reads the new field; in-crate literals supply `faces`
 (normally `Vec::new()`).
 
+## Sheet-metal developments and bend reliefs (for #353)
+
+A proved sheet with an overlapping development has `flat_pattern_status: "overlap"`.
+Its `flat_pattern` includes the overlapping flange or bend-strip regions and their
+common areas in `overlap_witnesses`. The development's `valid_blank` is false.
+
+The optional `bend_reliefs` array provides one record for each proved rectangular
+edge-open notch at the end of a bend. `bend` indexes the body's `bends` array.
+`width` measures along the bend axis and `depth` measures inward from the mouth
+on the flange skin, both in mm. `faces` contains the two notch walls and its root,
+which also appear in the body's `cut_edge_faces`. The field is omitted if empty.
+
+Each measured flange has a `bounds` record. Its `corner` is the low corner along
+`length_axis`, `width_axis`, and the parent flange's `normal`. Follow the first two
+unit vectors for `length` and `width` in mm to place the in-plane rectangle.
+`length_axis` is the recognition-frame axis least aligned with the normal, projected
+into the flange plane (the first in x, y, z order on a tie), and `width_axis` is
+`normal × length_axis`; neither is chosen by size, so `length` can be shorter than
+`width`.
+`normal_span` is the measured range through both skins along the normal. The
+three spans recover all six box limits in the recognition frame. A slanted,
+rounded or notched flange uses bounding extents. The rectangle describes the
+envelope of the skins and their trims. Positions and directions are carried
+into file coordinates with the flange. The sheet fingerprint counts flanges
+and retains their defining faces, and face accounting keeps those face claims.
+
+A pad that describes exactly one developed flange yields to that flange's
+bounds. Its two skins and perimeter cuts must belong to that flange, and the
+flange box must reproduce all six pad limits at measurement precision.
+
+A computed development allows the sheet-metal record to replace duplicate
+prismatic readings whose faces all lie on its developable skins or proved
+reliefs. A slot reading between opposed flange skins or between a relief's
+walls also yields to the sheet. The recognisers retain positions of the other
+cut edges, including cut-out ends and flange outlines, with one exception: cut-edge
+step levels along the axes a body's face claims occupy yield to the sheet-metal
+body (as on bodies recognised before #353), and in every case checked (127 in 2,000 BenDFM parts) their positions are published flange-bound
+limits. Sheets without a computed
+development keep their independent prismatic measurements.
+
+## Sheet-metal K-factor (For #358)
+
+The neutral axis is at `inner_radius + K × thickness`. Each bend's
+`bend_allowance` is that radius times the bend angle in radians. The development
+uses this allowance for the bend strips and flange placement, and reports K in
+`flat_pattern.k_factor` in both the sheet-metal records and the recognition
+document's sheet-metal parameters.
+
+K defaults to 0.5 and must be finite and in (0, 1]. Set it with `--k-factor K` on
+`quiddity <file>`, `quiddity recognise` or `quiddity evidence`, the numeric
+`k_factor` field of a serve `recognise` request, the Python `k_factor` keyword,
+or Rust's `RecognitionOptions::set_k_factor`.
+
+K can change `flat_pattern_status` between `checked` and `overlap`. Where a
+development's validity changes, a body can adopt a different split-flange layout,
+changing which duplicate slots, pockets and pads its skins and flanges suppress.
+`flat_pattern_status` is a fingerprint trait, so `correspond` can report the
+matched body as `adapted` when the revisions were read at different K values.
+Compare revisions at one K.
+
+For STEP inputs, CLI and Python `fingerprints` and CLI, serve and Python
+`correspond` use 0.5 and have no K-factor option. Rust's `fingerprints_with`
+and the Rust `fingerprints_file_with` functions take `RecognitionOptions`.
+For custom-K CLI or serve correspondence, supply the results of recognising
+both inputs at the same K.
+
 ## Closed blind-recess floor claims (#205, #207)
 
 Accepted flat-bottomed blind holes and blind `pockets`/`prismatic_pockets` also
@@ -1420,7 +1486,7 @@ does not introduce a correspondence heuristic or alter other feature ranks.
 ## Integration budget (For #307 item 3)
 
 A caller may bound the work any one face's integration takes: Rust
-`RecognitionOptions { integration_budget: Some(n) }` with `recognise_with`, `evidence_with`
+`RecognitionOptions::integration_budget = Some(n)` with `recognise_with`, `evidence_with`
 or `fingerprints_with`; `--integration-budget N` on `quiddity <file>`, `quiddity evidence`,
 `quiddity fingerprints` and the manifest `quiddity recognise`; an optional
 `"integration_budget": N` in `quiddity serve`'s `recognise` request; `integration_budget=N` on

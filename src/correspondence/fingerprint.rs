@@ -745,6 +745,8 @@ pub const FAMILIES: &[FamilyFingerprint] = &[
         variants: false,
         fields: &[
             ("thickness", Size),
+            // Flange geometry, including its placed bounds, belongs to the record.
+            // The body fingerprint summarises flanges by count and carries their faces.
             ("flanges", Count("flanges")),
             ("bends", Count("bends")),
             ("formed_features", Count("formed_features")),

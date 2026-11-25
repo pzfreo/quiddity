@@ -6,6 +6,31 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+- For #359, expose signed solid inertia tensors in haecceity and Python, with a
+  parallel-axis shift and optional centroidal tensors and their reference volumes
+  in the `quiddity brep` JSON report. Use the local chart for shallow spherical
+  patches when it accepts them. When the radius exceeds 1,024 equal-area disk
+  diameters or the chart's projection or integration checks fail, inertia is
+  unavailable and `volume_centroid` keeps the legacy, less accurate result.
+  Rebase remote single-solid boundaries and scale large parallel-axis shifts
+  before squaring.
+- For #357, extend the checked along-v trial to spline faces with rational u, single-span
+  affine v only, including extruded G2 fillets. Other projected spline primitives can still
+  under-resolve their densities.
+- For #358, accept a caller-set sheet-metal K-factor in the CLI, serve, Rust and Python.
+  The default is 0.5 and each flat pattern reports the value used.
+- For #355, use the lifted midpoint's foot on the full spatial curve to detect a complementary
+  arc, including for nearly closed edges and offset pcurves. Opposing endpoint tangents also reject
+  reversed intervals on nonperiodic spatial splines. Two MFInstSeg face areas still differ
+  from 0.5.5 under their files' declared uncertainties. Part `20221123_142528_10473` face 16
+  measures 27.436912 mm² (previously 27.368139 mm²) with 1.0 mm uncertainty. Part
+  `20221121_154648_8444` face 6 measures 14.994365 mm² (previously 14.959205 mm²) with 0.2 mm
+  uncertainty.
+- For #353, keep bent sheet-metal bodies with overlapping developments, report bend-relief
+  notches, and suppress duplicate prismatic claims on developed skins and reliefs while
+  retaining cut-edge positions. Publish measured flange bounds and use them in
+  place of pad records that describe exactly one developed flange.
+- Run fast and touched Rust tests on Linux for ready PRs, with full Linux and macOS CI on main and for `full-ci` PRs.
 - For #341, add defining faces and chain references to fillets. Publish tangent fillet chains
   through spherical and toroidal corners, with their spring edges and groups by radius
   and side that count blend faces and legacy fillet records.
@@ -46,6 +71,12 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ### haecceity
 
+- For #351, measure whole and trimmed spherical faces, closed spline faces, and spindle torus
+  faces that end at a pole, including their contributions to solid volume and centroid.
+  Preserve centroid precision on thin caps and lenses with slightly offset rims, and honour
+  declared full-latitude trims on spindle tori.
+- For #348, add `hlr::project_with_origin()` and `hlr::project_section_with_origin()` to return
+  each projected stretch with its Part-local edge or face origin.
 - For #341, add `Part::file_angle_uncertainty()` to read the smallest declared STEP plane
   angle uncertainty in radians, when present.
 
