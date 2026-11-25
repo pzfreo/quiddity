@@ -38,8 +38,21 @@ most one. An invalid value exits with code 2. Each development reports its value
 `quiddity serve` keeps one process open for applications: one JSON request per line on
 stdin, one response line per request on stdout, e.g. `{"id":1,"op":"recognise","step":"part.step"}`.
 The operations are `recognise` and `correspond`. A `recognise` request can include the
-numeric field `"k_factor": 0.45`. An invalid value returns a `bad_request` response
-for that line and the process continues serving.
+numeric field `"k_factor": 0.45`. Omit it or set it to `null` to use 0.5.
+An invalid value returns a `bad_request` response for that line and the process
+continues serving.
+
+## Correspondence
+
+Compare both revisions at the same K. A change in K can switch
+`flat_pattern_status` between `checked` and `overlap`. This trait is part of the
+fingerprint, so `correspond` can report a matched sheet as `adapted`.
+`quiddity fingerprints` uses K = 0.5 for STEP inputs, as does `correspond` in
+both the CLI and serve. For a custom K, generate both recognition results with the same
+`--k-factor` or serve `k_factor` and pass those results to `correspond`.
+Where a development's validity changes, K can also change flange adoption and
+the suppression of duplicate slots, pockets and pads. See
+[Sheet-metal K-factor](recognition-6.md#sheet-metal-k-factor-for-358).
 
 **Shell completion.** `quiddity completions SHELL` prints a completion script for `bash`,
 `zsh`, `fish`, `powershell` or `elvish`:

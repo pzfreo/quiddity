@@ -59,11 +59,7 @@ pub struct InvalidKFactor(pub f64);
 
 impl std::fmt::Display for InvalidKFactor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "k_factor must be finite and between zero and one (got {})",
-            self.0
-        )
+        write!(f, "k_factor must be finite and in (0, 1] (got {})", self.0)
     }
 }
 

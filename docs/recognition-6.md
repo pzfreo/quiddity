@@ -290,6 +290,19 @@ K defaults to 0.5 and must be finite and in (0, 1]. Set it with `--k-factor K` o
 `k_factor` field of a serve `recognise` request, the Python `k_factor` keyword,
 or Rust's `RecognitionOptions::set_k_factor`.
 
+K can change `flat_pattern_status` between `checked` and `overlap`. Where a
+development's validity changes, a body can adopt a different split-flange layout,
+changing which duplicate slots, pockets and pads its skins and flanges suppress.
+`flat_pattern_status` is a fingerprint trait, so `correspond` can report the
+matched body as `adapted` when the revisions were read at different K values.
+Compare revisions at one K.
+
+For STEP inputs, CLI and Python `fingerprints` and CLI, serve and Python
+`correspond` use 0.5 and have no K-factor option. Rust's `fingerprints_with`
+and the Rust `fingerprints_file_with` functions take `RecognitionOptions`.
+For custom-K CLI or serve correspondence, supply the results of recognising
+both inputs at the same K.
+
 ## Closed blind-recess floor claims (#205, #207)
 
 Accepted flat-bottomed blind holes and blind `pockets`/`prismatic_pockets` also

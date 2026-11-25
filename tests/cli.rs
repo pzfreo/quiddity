@@ -237,7 +237,7 @@ fn bad_arguments_print_usage_and_fail() {
         assert_eq!(out.status.code(), Some(2), "{stderr}");
         assert!(out.stdout.is_empty());
         assert!(
-            stderr.contains("k_factor must be finite and between zero and one"),
+            stderr.contains("k_factor must be finite and in (0, 1]"),
             "{stderr}"
         );
     }

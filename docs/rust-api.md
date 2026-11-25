@@ -159,6 +159,14 @@ let recognised = quiddity::recognise_with(&part, &options);
 recognition entry points in `file_api` and `serve`. Each flat pattern
 reports the value it used in `flat_pattern.k_factor`.
 
+`fingerprints_with(&part, &options)` and the Rust `fingerprints_file_with`
+functions also use the K-factor in `RecognitionOptions` for STEP geometry.
+Rust's `correspond` compares supplied fingerprints. Prepare both revisions
+at one K, since a change between `checked` and `overlap` changes the
+`flat_pattern_status` fingerprint trait and can make the matched sheet
+`adapted`. Where a development's validity changes, K can also change flange
+adoption and the suppression of duplicate slots, pockets and pads.
+
 An exhaustive error match should preserve its existing arms and add a meaningful
 fallback (usually reporting the error's `Display` text). Applications that refuse
 unknown evidence can return their normal refusal; tests that require a particular

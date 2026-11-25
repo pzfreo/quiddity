@@ -49,6 +49,14 @@ The default (also used for `None`) is 0.5. Numeric values must be finite and in
 (0, 1]. An out-of-range or non-finite value raises `ValueError`. Each development
 reports the actual value in `flat_pattern.k_factor`.
 
+Python `fingerprints` and `correspond` always read STEP inputs at K = 0.5 and
+have no `k_factor` keyword. Compare revisions at one K. A change between
+`checked` and `overlap` changes the `flat_pattern_status` fingerprint trait,
+so correspondence can report the matched sheet as `adapted`. Where a development's
+validity changes, K can also change flange adoption and the suppression of duplicate
+slots, pockets and pads. For custom-K correspondence, recognise both revisions at
+the same K and pass the two saved JSON results to `quiddity correspond`.
+
 ## Assembly manifests
 
 `manifest(path, out=None)` returns a dict and writes only `out` when supplied.

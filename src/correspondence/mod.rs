@@ -66,6 +66,7 @@ pub struct Recognition {
 
 /// Caller choices for one recognition ([`recognise_with`], [`fingerprints_with`],
 /// [`crate::evidence_view::evidence_with`]). The default gives the plain functions' results.
+/// Use the same K-factor for both revisions when preparing fingerprints for [`correspond`].
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct RecognitionOptions {
@@ -108,7 +109,8 @@ pub fn recognise_with(part: &Part, options: &RecognitionOptions) -> Recognition 
     recognise_with_k_factor(options.budgeted(part, &mut budgeted), options.k_factor)
 }
 
-/// The fingerprints of [`recognise_with`]'s recognition.
+/// The fingerprints of [`recognise_with`]'s recognition, using the K-factor in *options*.
+/// A change in K can change the `flat_pattern_status` trait and make a matched body `adapted`.
 pub fn fingerprints_with(part: &Part, options: &RecognitionOptions) -> Fingerprints {
     recognise_with(part, options).fingerprints
 }

@@ -84,6 +84,10 @@ fn recognise_returns_what_the_cli_writes() {
         );
     }
     let path = fixture("sheet-metal/coaxial-flanges.step.gz");
+    let response = ask(&json!({"id": 1, "op": "recognise", "step": path, "k_factor": null}));
+    assert!(response.get("result").is_some(), "{response}");
+    assert_eq!(response["result"], cli(&[&path]));
+
     let response = ask(&json!({"id": 1, "op": "recognise", "step": path, "k_factor": 0.45}));
     assert_eq!(response["result"], cli(&[&path, "--k-factor", "0.45"]));
 }
@@ -266,10 +270,15 @@ fn malformed_requests_are_refused_with_their_codes() {
         json!(6),
         "bad_request",
     );
-    assert!(
-        message.contains("k_factor must be finite and between zero and one"),
-        "{message}"
-    );
+    assert_eq!(message, "k_factor must be finite and in (0, 1] (got 0)");
+    for k in [json!("0.45"), json!(true), json!([]), json!({})] {
+        let message = failure(
+            &ask(&json!({"id": 6, "op": "recognise", "step": step, "k_factor": k})),
+            json!(6),
+            "bad_request",
+        );
+        assert_eq!(message, "`k_factor` must be a number");
+    }
 
     let message = failure(
         &ask(&json!({"id": 7, "op": "correspond", "old": step})),

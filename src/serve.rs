@@ -4,8 +4,8 @@
 //! Requests (every field required unless marked optional, no others):
 //!
 //! - `{"id": ID, "op": "recognise", "step": PATH, "integration_budget": N, "k_factor": K}`
-//!   → `{"id": ID, "result": R}`. The budget and K-factor are optional, as on the CLI.
-//!   K must be a finite number in (0, 1]. It defaults to 0.5 and is reported in each
+//!   → `{"id": ID, "result": R}`. Both options can be omitted or set to `null`.
+//!   A numeric K must be finite and in (0, 1]. The default is 0.5. The value is reported in each
 //!   `flat_pattern.k_factor`. An invalid K-factor returns `bad_request`. `R` is the JSON
 //!   `quiddity <file.step>` writes ([`RecognitionOutput`]): each family's records, their
 //!   `fingerprints` and the versioned recognition `document`. The part is recognised in its own
@@ -13,7 +13,7 @@
 //!   ([`correspondence::recognise`]); the document gives the frame as provenance only.
 //! - `{"id": ID, "op": "correspond", "old": REV, "new": REV}` → `{"id": ID, "result": C}`, `C`
 //!   the correspondence `quiddity correspond` writes. A revision is a path, to a STEP file
-//!   (recognised on the spot) or to a JSON file `quiddity <file.step>` wrote, or a recognise
+//!   (recognised at K = 0.5) or to a JSON file `quiddity <file.step>` wrote, or a recognise
 //!   `result` (or bare fingerprints) inline.
 //!
 //! `ID` is a string or an integer, echoed as given. Paths are relative to the server's working
@@ -446,7 +446,7 @@ fn execute(request: &Map<String, Value>) -> Result<(String, Vec<String>), Failur
                 integration_budget,
                 ..Default::default()
             };
-            if let Some(value) = request.get("k_factor") {
+            if let Some(value) = request.get("k_factor").filter(|value| !value.is_null()) {
                 let k = value
                     .as_f64()
                     .ok_or_else(|| Failure::new("bad_request", "`k_factor` must be a number"))?;
