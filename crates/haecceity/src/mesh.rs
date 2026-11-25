@@ -334,16 +334,74 @@ struct Setup<'a> {
     /// Per loop, its points unwrapped across a closed freeform surface's seam too.
     loops: Vec<Vec<(f64, f64)>>,
     /// (edge, sample index) → the sample's parameters in this face (its first use).
-    uv: BTreeMap<(usize, usize), (f64, f64)>,
+    uv: SampleUvs,
+    normals: std::cell::RefCell<BTreeMap<usize, NormalSamples>>,
     scale: (f64, f64),
+}
+
+#[derive(Default)]
+struct SampleUvs {
+    runs: BTreeMap<usize, Vec<Option<(f64, f64)>>>,
+}
+
+impl SampleUvs {
+    fn insert_loop(
+        &mut self,
+        edges: &[(usize, bool)],
+        sources: &[Option<(usize, usize)>],
+        points: &[(f64, f64)],
+    ) {
+        let mut first = 0;
+        let sources = &sources[..sources.len().min(points.len())];
+        for group in sources.chunk_by(|a, b| a.map(|p| p.0) == b.map(|p| p.0)) {
+            if let Some((place, _)) = group.first().copied().flatten() {
+                let run = self.runs.entry(edges[place].0).or_default();
+                let needed = group.iter().flatten().map(|p| p.1 + 1).max().unwrap_or(0);
+                if run.len() < needed {
+                    run.resize(needed, None);
+                }
+                for (source, &point) in group.iter().zip(&points[first..]) {
+                    if let Some((_, sample)) = source {
+                        run[*sample].get_or_insert(point);
+                    }
+                }
+            }
+            first += group.len();
+        }
+    }
+
+    fn remove(&mut self, edge: usize, sample: usize) {
+        if let Some(value) = self.runs.get_mut(&edge).and_then(|r| r.get_mut(sample)) {
+            *value = None;
+        }
+    }
+
+    fn edge(&self, edge: usize, n: usize) -> std::borrow::Cow<'_, [Option<(f64, f64)>]> {
+        let run = self.runs.get(&edge);
+        if let Some(run) = run
+            && run.len() >= n
+        {
+            return std::borrow::Cow::Borrowed(&run[..n]);
+        }
+        std::borrow::Cow::Owned(
+            (0..n)
+                .map(|k| run.and_then(|r| r.get(k)).copied().flatten())
+                .collect(),
+        )
+    }
 }
 
 /// A face's view of an edge's samples: its setup, and each sample's parameters and normal
 /// there (`None` where it routes the sample along a pole's line).
-type View<'s, 'a> = (&'s Setup<'a>, Vec<Option<(f64, f64)>>, Vec<Option<V3>>);
+type View<'s, 'a> = (
+    &'s Setup<'a>,
+    std::borrow::Cow<'s, [Option<(f64, f64)>]>,
+    std::cell::Ref<'s, NormalSamples>,
+    Option<&'a [(f64, f64)]>,
+);
 
 /// An edge's points, shared by the faces that use it, in order from the start.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct Plan {
     points: Vec<V3>,
     /// Per sample, its index in `points` if kept.
@@ -455,9 +513,10 @@ impl<'a> PartMesher<'a> {
                 .chain(incident.iter().filter(|f| !owners.contains(f)))
                 .copied()
                 .find_map(|face| {
-                    // Boundary selection needs geometric qualification, not the
-                    // successful completion of area and flux integration.
-                    let trim = part.mesh_declared_boundary(face)?.edges.get(&edge)?;
+                    let trim = {
+                        let boundary = part.mesh_declared_boundary(face)?;
+                        boundary.edges.get(&edge)?
+                    };
                     let samples = trim.samples(&part.faces[face].surface, &part.edges[edge])?;
                     samples
                         .points
@@ -515,33 +574,40 @@ impl<'a> PartMesher<'a> {
         }
         .ok_or("its boundary has no parameter-space loops")?;
         let mut loops = Vec::with_capacity(raw.len());
-        let mut uv = BTreeMap::new();
+        let mut uv = SampleUvs::default();
         let mut winding_u = 0;
-        let mut box_points: Vec<(f64, f64)> = Vec::new();
+        // Plane scaling is constant and never reads this point buffer.
+        let needs_scale_points = !matches!(sheet.surface, Surface::Plane { .. });
+        let mut box_points: Vec<(f64, f64)> = Vec::with_capacity(if needs_scale_points {
+            raw.iter().map(|lp| lp.points.len()).sum()
+        } else {
+            0
+        });
+        let unwrap = sheet.period.iter().any(Option::is_some);
         for (li, lp) in raw.iter().enumerate() {
             let mut points = lp.points.clone();
-            for k in 1..points.len() {
-                let (last, here) = (points[k - 1], points[k]);
-                points[k] = (
-                    sheet.nearest(here.0, last.0, 0),
-                    sheet.nearest(here.1, last.1, 1),
-                );
-            }
-            for (k, &p) in points.iter().enumerate() {
-                if let Some(Some((place, sample))) = lp.sources.get(k) {
-                    let e = f.loops[li].edges[*place].0;
-                    uv.entry((e, *sample)).or_insert(p);
+            // Both nearest calls return their input when neither axis is periodic.
+            if unwrap {
+                for k in 1..points.len() {
+                    let (last, here) = (points[k - 1], points[k]);
+                    points[k] = (
+                        sheet.nearest(here.0, last.0, 0),
+                        sheet.nearest(here.1, last.1, 1),
+                    );
                 }
             }
+            uv.insert_loop(&f.loops[li].edges, &lp.sources, &points);
             if let (Some(a), Some(b)) = (points.first(), points.last())
                 && sheet.period[0].is_some_and(|p| (b.0 - a.0).abs() > 0.5 * p)
             {
                 winding_u += 1;
             }
             for (e, sample) in straying(self, face, li, &sheet, lp, &points) {
-                uv.remove(&(e, sample));
+                uv.remove(e, sample);
             }
-            box_points.extend(&points);
+            if needs_scale_points {
+                box_points.extend(&points);
+            }
             loops.push(points);
         }
         // A cone face bounded by one circle runs to its apex, which may have no vertex loop.
@@ -559,6 +625,7 @@ impl<'a> PartMesher<'a> {
             selected: has_selected,
             loops,
             uv,
+            normals: std::cell::RefCell::new(BTreeMap::new()),
             scale,
         })
     }
@@ -579,6 +646,7 @@ impl<'a> PartMesher<'a> {
         let part = self.part;
         let geom = &part.edges[edge];
         let samples = self.edge_samples(edge);
+        let selected = self.selected_edge(edge);
         let n = samples.len();
         let boundary = BOUNDARY_LEVELS[level] * self.deflection;
         // The faces' views of the samples.
@@ -590,13 +658,57 @@ impl<'a> PartMesher<'a> {
             if views.iter().any(|v| std::ptr::eq(v.0, setup)) {
                 continue;
             }
-            let uv: Vec<Option<(f64, f64)>> =
-                (0..n).map(|k| setup.uv.get(&(edge, k)).copied()).collect();
-            let normals = uv
-                .iter()
-                .map(|p| p.and_then(|(u, v)| setup.sheet.normal(u, v)))
-                .collect();
-            views.push((setup, uv, normals));
+            let uv = setup.uv.edge(edge, n);
+            let evaluate = || {
+                let surface = setup.sheet.surface;
+                if matches!(surface, Surface::Plane { .. }) {
+                    return NormalSamples::Constant(surface.normal(0., 0.));
+                }
+                let mut evaluator = match surface {
+                    Surface::Freeform { surface, .. } => {
+                        Some(crate::nurbs::SurfaceEvaluation::new(surface))
+                    }
+                    _ => None,
+                };
+                let cylinder = matches!(surface, Surface::Cylinder { .. });
+                let mut last = None;
+                let values = uv
+                    .iter()
+                    .map(|p| {
+                        p.and_then(|(u, v)| {
+                            let (u, v) = setup.sheet.wrapped(u, v);
+                            if let Some(evaluator) = &mut evaluator {
+                                let (_, du, dv) = evaluator.value_and_partials(u, v);
+                                return geom::unit(geom::cross(du, dv));
+                            }
+                            if cylinder
+                                && let Some((previous, normal)) = last
+                                && previous == u.to_bits()
+                            {
+                                return normal;
+                            }
+                            let normal = surface.normal(u, v);
+                            if cylinder {
+                                last = Some((u.to_bits(), normal));
+                            }
+                            normal
+                        })
+                    })
+                    .collect();
+                NormalSamples::Sampled(values)
+            };
+            setup
+                .normals
+                .borrow_mut()
+                .entry(edge)
+                .or_insert_with(evaluate);
+            let normals = std::cell::Ref::map(setup.normals.borrow(), |cache| &cache[&edge]);
+            // Only this face generated the shared points at native_uv.
+            // Other incident charts keep their actual lift residuals.
+            let native_uv = selected
+                .filter(|chosen| chosen.face == f)
+                .and_then(|chosen| chosen.samples.native_uv.as_deref());
+            views.push((setup, uv, normals, native_uv));
         }
         // A sample some face has no parameters for lies within a degree of a pole there, where
         // that face routes its boundary along the pole's line instead: neither face keeps it.
@@ -605,7 +717,8 @@ impl<'a> PartMesher<'a> {
             .collect();
         let on: Vec<OnSurface<'_>> = views
             .iter()
-            .map(|(setup, uv, normals)| OnSurface {
+            .map(|(setup, uv, normals, native_uv)| OnSurface {
+                native_uv: *native_uv,
                 sheet: setup.sheet,
                 uv,
                 normals,
@@ -634,7 +747,7 @@ impl<'a> PartMesher<'a> {
             let pieces = views
                 .iter()
                 .filter(|v| !matches!(v.0.sheet.surface, Surface::Plane { .. }))
-                .filter_map(|(setup, uv, _)| {
+                .filter_map(|(setup, uv, _, _)| {
                     let (a, b) = (uv[i]?, uv[j]?);
                     let (su, sv) = setup.scale;
                     let length = ((b.0 - a.0) * su).hypot((b.1 - a.1) * sv);
@@ -815,12 +928,12 @@ fn straying(
                 });
             // The edge before the line, walked back from its end, and the edge after it,
             // walked on from its start.
-            let before: Vec<usize> = at[(line + n - 1) % n].iter().rev().copied().collect();
-            let after: Vec<usize> = at[(line + 1) % n].clone();
-            for walk in [before, after] {
+            for (neighbour, reverse) in [((line + n - 1) % n, true), ((line + 1) % n, false)] {
+                let walk = &at[neighbour];
                 let mut meeting: Vec<(usize, f64)> = Vec::new();
                 let mut inside = None;
-                for &k in &walk {
+                for step in 0..walk.len() {
+                    let k = walk[if reverse { walk.len() - 1 - step } else { step }];
                     let p = points[k];
                     let d = pick(p) - c;
                     let on = if axis == 0 { (c, p.1) } else { (p.0, c) };
@@ -1206,6 +1319,7 @@ fn loop_nodes(
     let mut out: Vec<BNode> = Vec::with_capacity(points.len());
     // The previous point's edge sample: (edge, sample, its parameters).
     let mut previous: Option<(usize, usize, (f64, f64))> = None;
+    let mut cached_plan = None;
     for (k, &uv) in points.iter().enumerate() {
         let Some(Some((place, sample))) = sources.get(k).copied() else {
             previous = None;
@@ -1218,7 +1332,15 @@ fn loop_nodes(
             continue;
         };
         let e = lp.edges[place].0;
-        let plan = plans[&e];
+        let plan = if let Some((edge, plan)) = cached_plan
+            && edge == e
+        {
+            plan
+        } else {
+            let plan = plans[&e];
+            cached_plan = Some((e, plan));
+            plan
+        };
         if let Some((pe, ps, puv)) = previous
             && pe == e
             && ps.abs_diff(sample) == 1
@@ -1227,11 +1349,14 @@ fn loop_nodes(
             // chord (inverting it instead could land anywhere on a collapsed side or a seam).
             let segment = ps.min(sample);
             let (from, to) = if sample > ps { (puv, uv) } else { (uv, puv) };
-            let mut inside = plan.between[segment].clone();
-            if sample < ps {
-                inside.reverse();
-            }
-            for (index, t) in inside {
+            let inside = &plan.between[segment];
+            for step in 0..inside.len() {
+                let position = if sample < ps {
+                    inside.len() - 1 - step
+                } else {
+                    step
+                };
+                let (index, t) = inside[position];
                 out.push(BNode {
                     uv: (from.0 + t * (to.0 - from.0), from.1 + t * (to.1 - from.1)),
                     point: plan.points[index],
@@ -1254,9 +1379,217 @@ fn loop_nodes(
 /// A boundary polyline's place on a surface, for [`thin`]: each point's parameters and normal
 /// (`None` where it has none, on a singular line).
 struct OnSurface<'a> {
+    /// Parameters used to generate these same points on this same carrier.
+    /// Set only for the selected sample owner's face; pinned endpoints never
+    /// qualify, nor do parameters subsequently changed by chart routing.
+    native_uv: Option<&'a [(f64, f64)]>,
     sheet: Sheet<'a>,
     uv: &'a [Option<(f64, f64)>],
-    normals: &'a [Option<V3>],
+    normals: &'a NormalSamples,
+}
+
+impl OnSurface<'_> {
+    fn native_sample(&self, index: usize, uv: (f64, f64), count: usize) -> bool {
+        // The producer pins both endpoints to STEP vertices. Only unchanged
+        // interior parameters on that same analytic carrier can reuse a point.
+        index > 0
+            && index + 1 < count
+            && self.native_uv.is_some_and(|native| {
+                native.len() == count
+                    && native[index].0.to_bits() == uv.0.to_bits()
+                    && native[index].1.to_bits() == uv.1.to_bits()
+            })
+    }
+}
+
+/// A plane has one normal, but a sample without parameters still has none.
+enum NormalSamples {
+    Constant(Option<V3>),
+    Sampled(Vec<Option<V3>>),
+}
+
+impl NormalSamples {
+    fn at(&self, index: usize, uv: &[Option<(f64, f64)>]) -> Option<V3> {
+        match self {
+            Self::Constant(normal) => uv[index].and(*normal),
+            Self::Sampled(normals) => normals[index],
+        }
+    }
+}
+
+/// Bound every parameter chord by a narrow, nearly monotone strip.
+/// For an ordered major coordinate with maximum backward excursion b and
+/// minor-coordinate range r, a point between two samples is within hypot(b,r)
+/// of their parameter segment. An analytic surface's derivative bounds lift
+/// that distance into space. Sample residuals and floating-point margins are separate.
+fn parameter_strip_bound(view: &OnSurface<'_>, points: &[V3], deflection: f64) -> bool {
+    if !(deflection > 0. && deflection.is_finite())
+        || view.sheet.wrap != [None, None]
+        || matches!(
+            view.sheet.surface,
+            Surface::Freeform { .. } | Surface::Other { .. }
+        )
+    {
+        return false;
+    }
+    let mut lo = [f64::INFINITY; 2];
+    let mut hi = [f64::NEG_INFINITY; 2];
+    let mut backward = [0_f64; 2];
+    let mut forward = [0_f64; 2];
+    for &(u, v) in view.uv.iter().flatten() {
+        for (k, x) in [u, v].into_iter().enumerate() {
+            if !x.is_finite() || x.abs() >= 1e100 {
+                return false;
+            }
+            backward[k] = backward[k].max(hi[k] - x);
+            forward[k] = forward[k].max(x - lo[k]);
+            lo[k] = lo[k].min(x);
+            hi[k] = hi[k].max(x);
+        }
+    }
+    let size = [lo[0].abs().max(hi[0].abs()), lo[1].abs().max(hi[1].abs())];
+    if !size.iter().all(|x| x.is_finite()) {
+        return false;
+    }
+    let width = backward[0]
+        .min(forward[0])
+        .hypot(hi[1] - lo[1])
+        .min(backward[1].min(forward[1]).hypot(hi[0] - lo[0]));
+    let (frame, local, derivative) = match view.sheet.surface {
+        Surface::Plane { frame } => (frame, [size[0], size[1], 0.], [1., 1., 0.]),
+        Surface::Cylinder { frame, radius } => {
+            let r = radius.abs();
+            (frame, [r, r, size[1]], [r, r, 1.])
+        }
+        Surface::Cone {
+            frame,
+            radius,
+            semi_angle,
+        } if semi_angle.is_finite() => {
+            let r = radius.abs() + size[1];
+            (frame, [r, r, size[1]], [r + 1., r + 1., 1.])
+        }
+        Surface::Sphere { frame, radius } => {
+            let r = radius.abs();
+            (frame, [r; 3], [2. * r, 2. * r, r])
+        }
+        Surface::Torus {
+            frame,
+            major,
+            minor,
+        } => {
+            let r = major.abs() + minor.abs();
+            (
+                frame,
+                [r, r, minor.abs()],
+                [r + minor.abs(), r + minor.abs(), minor.abs()],
+            )
+        }
+        _ => return false,
+    };
+    if !frame
+        .origin
+        .iter()
+        .chain(&frame.x)
+        .chain(&frame.y)
+        .chain(&frame.z)
+        .all(|x| x.is_finite() && x.abs() < 1e100)
+    {
+        return false;
+    }
+    // Sum of bounds for the two first partial derivatives; the frame need
+    // not be orthogonal. Both parameter components are bounded by width.
+    let lipschitz = geom::norm(frame.x) * derivative[0]
+        + geom::norm(frame.y) * derivative[1]
+        + geom::norm(frame.z) * derivative[2];
+    let world = geom::norm(frame.origin)
+        + geom::norm(frame.x) * local[0]
+        + geom::norm(frame.y) * local[1]
+        + geom::norm(frame.z) * local[2];
+    let arithmetic = 4096. * f64::EPSILON * (1. + world + lipschitz * (1. + size[0] + size[1]));
+    if !(lipschitz.is_finite()
+        && world.is_finite()
+        // Keep the original squared-distance evaluation below overflow too.
+        && world < 1e100
+        && lipschitz * width + arithmetic < 0.25 * deflection)
+    {
+        return false;
+    }
+    for (index, (&uv, &point)) in view.uv.iter().zip(points).enumerate() {
+        let Some((u, v)) = uv else { continue };
+        let residual = if view.native_sample(index, (u, v), points.len()) {
+            0.
+        } else {
+            geom::dist(view.sheet.value(u, v), point)
+        };
+        if !point.iter().all(|x| x.is_finite() && x.abs() < 1e100)
+            || !residual.is_finite()
+            || residual >= 0.25 * deflection
+        {
+            return false;
+        }
+    }
+    true
+}
+
+/// A plane's parameter projection can be bounded by the already tested
+/// spatial distance. For a near-isometry A and sample residuals at most e,
+/// its distance is at most k * off + (1 + 2k) * e, k = cond(A).
+/// Require ample margins for the frame, sample residuals and floating-point
+/// evaluation. Unproved charts retain the original lifted-point test.
+fn plane_projection_bound(view: &OnSurface<'_>, points: &[V3], deflection: f64) -> bool {
+    let Surface::Plane { frame } = view.sheet.surface else {
+        return false;
+    };
+    if !(deflection > 0. && deflection.is_finite()) || view.sheet.wrap != [None, None] {
+        return false;
+    }
+    if !frame
+        .origin
+        .iter()
+        .chain(&frame.x)
+        .chain(&frame.y)
+        .chain(&frame.z)
+        .all(|x| x.is_finite() && x.abs() < 1e100)
+    {
+        return false;
+    }
+    let cross = geom::dot(frame.x, frame.y).abs();
+    let distortion = (geom::dot(frame.x, frame.x) - 1.)
+        .abs()
+        .max((geom::dot(frame.y, frame.y) - 1.).abs())
+        + cross;
+    if !distortion.is_finite() || distortion >= 1e-6 {
+        return false;
+    }
+    let mut size = 1_f64;
+    for (index, (&uv, &point)) in view.uv.iter().zip(points).enumerate() {
+        let Some((u, v)) = uv else { continue };
+        if !u.is_finite()
+            || !v.is_finite()
+            || u.abs().max(v.abs()) >= 1e100
+            || !point.iter().all(|x| x.is_finite() && x.abs() < 1e100)
+        {
+            return false;
+        }
+        let residual = if view.native_sample(index, (u, v), points.len()) {
+            0.
+        } else {
+            geom::dist(frame.to_world([u, v, 0.]), point)
+        };
+        if !residual.is_finite() || residual >= 1e-4 * deflection {
+            return false;
+        }
+        for (k, &coordinate) in point.iter().enumerate() {
+            size = size.max(coordinate.abs()).max(
+                frame.origin[k].abs() + frame.x[k].abs() * u.abs() + frame.y[k].abs() * v.abs(),
+            );
+        }
+    }
+    // This also bounds subtraction, projection and distance rounding at
+    // large placements. Combined residual and rounding budget is less than
+    // 0.001 * deflection, while cond(A) is below 1.001.
+    4096. * f64::EPSILON * size < 1e-5 * deflection
 }
 
 /// A polyline thinned to the chordal `deflection` and, if given, the angular deflection: the
@@ -1281,6 +1614,12 @@ fn thin(
     deflection: f64,
     angular: Option<f64>,
 ) -> Vec<usize> {
+    let angles = angular.map(|limit| {
+        (
+            AngularTest::new(limit, true),
+            AngularTest::new(0.5 * limit, true),
+        )
+    });
     let n = points.len();
     if n <= 2 {
         return (0..n).collect();
@@ -1291,53 +1630,113 @@ fn thin(
     for (k, &forced) in keep.iter().enumerate().take(n) {
         kept[k] |= forced;
     }
+    let steps = angular.is_some().then(|| {
+        points
+            .windows(2)
+            .map(|p| {
+                if geom::dist(p[0], p[1]) < 1e-6 * deflection {
+                    None
+                } else {
+                    geom::unit(geom::sub(p[1], p[0]))
+                }
+            })
+            .collect::<Vec<_>>()
+    });
+    let direction = |index: usize| {
+        if let Some(steps) = &steps {
+            return steps[index];
+        }
+        let (p, q) = (points[index], points[index + 1]);
+        if geom::dist(p, q) < 1e-6 * deflection {
+            None
+        } else {
+            geom::unit(geom::sub(q, p))
+        }
+    };
+    let lifted: Vec<_> = on
+        .iter()
+        .filter(|view| !parameter_strip_bound(view, points, deflection))
+        .map(|view| (view, plane_projection_bound(view, points, deflection)))
+        .collect();
+    // A constant normal's self-comparison is the original test, including
+    // tiny angles and roundoff in its length. Missing parameters remain None.
+    let normal_views: Vec<_> = on
+        .iter()
+        .filter(|view| {
+            let Some((limit, _)) = &angles else {
+                return false;
+            };
+            match view.normals {
+                NormalSamples::Constant(normal) => normal.is_some_and(|n| limit.exceeded(n, n)),
+                NormalSamples::Sampled(_) => true,
+            }
+        })
+        .collect();
+    let lifted_off = |i: usize, j: usize, k: usize, mut off: f64| {
+        for &(on, bounded) in &lifted {
+            // 1.001 * off + 0.001 * deflection is below the threshold here.
+            if bounded && off < 0.998 * deflection {
+                continue;
+            }
+
+            let (Some(ua), Some(ub), Some(uk)) = (on.uv[i], on.uv[j], on.uv[k]) else {
+                continue;
+            };
+            let d = (ub.0 - ua.0, ub.1 - ua.1);
+            let len2 = d.0 * d.0 + d.1 * d.1;
+            let t = if len2 > 0.0 {
+                (((uk.0 - ua.0) * d.0 + (uk.1 - ua.1) * d.1) / len2).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            let image = on.sheet.value(ua.0 + t * d.0, ua.1 + t * d.1);
+            off = off.max(geom::dist(image, points[k]));
+            if off > deflection {
+                break;
+            }
+        }
+        off
+    };
     // Whether the chord from point i to point j stands for the points between.
     let stands = |i: usize, j: usize| -> bool {
         let (a, b) = (points[i], points[j]);
-        let chord = geom::unit(geom::sub(b, a));
-        for k in i + 1..j {
-            let mut off = segment_distance(points[k], a, b);
-            for on in on {
-                let (Some(ua), Some(ub), Some(uk)) = (on.uv[i], on.uv[j], on.uv[k]) else {
-                    continue;
-                };
-                let d = (ub.0 - ua.0, ub.1 - ua.1);
-                let len2 = d.0 * d.0 + d.1 * d.1;
-                let t = if len2 > 0.0 {
-                    (((uk.0 - ua.0) * d.0 + (uk.1 - ua.1) * d.1) / len2).clamp(0.0, 1.0)
-                } else {
-                    0.0
-                };
-                let image = on.sheet.value(ua.0 + t * d.0, ua.1 + t * d.1);
-                off = off.max(geom::dist(image, points[k]));
-            }
+        let ab = geom::sub(b, a);
+        let len2 = geom::dot(ab, ab);
+        let chord = geom::unit(ab);
+        let long = geom::dist(a, b) > deflection;
+        for (k, &point) in points.iter().enumerate().take(j).skip(i + 1) {
+            let off = distance_on_segment(point, a, ab, len2);
             if off > deflection {
                 return false;
             }
-            if let (Some(angular), Some(chord)) = (angular, chord) {
-                for (p, q) in [(points[k - 1], points[k]), (points[k], points[k + 1])] {
+            if let (Some((_, half)), Some(chord)) = (&angles, chord) {
+                // The preceding iteration already checked the shared segment
+                // against this same chord. Only the first point needs both.
+                let first = if k == i + 1 { k - 1 } else { k };
+                for segment in first..=k {
                     // A sub-segment far shorter than the deflection has no direction to speak
                     // of (sample noise at an edge's ends).
-                    if geom::dist(p, q) < 1e-6 * deflection {
-                        continue;
+                    if direction(segment).is_some_and(|d| half.exceeded(d, chord)) {
+                        return false;
                     }
-                    if geom::unit(geom::sub(q, p)).is_some_and(|d| angle(d, chord) > 0.5 * angular)
+                }
+            }
+            if let Some((limit, _)) = &angles
+                && long
+            {
+                for on in &normal_views {
+                    if let (Some(nk), Some(ni), Some(nj)) = (
+                        on.normals.at(k, on.uv),
+                        on.normals.at(i, on.uv),
+                        on.normals.at(j, on.uv),
+                    ) && (limit.exceeded(ni, nk) || limit.exceeded(nk, nj))
                     {
                         return false;
                     }
                 }
             }
-            if let Some(angular) = angular
-                && geom::dist(a, b) > deflection
-            {
-                for on in on {
-                    if let (Some(nk), Some(ni), Some(nj)) =
-                        (on.normals[k], on.normals[i], on.normals[j])
-                        && angle(ni, nk).max(angle(nk, nj)) > angular
-                    {
-                        return false;
-                    }
-                }
+            if lifted_off(i, j, k, off) > deflection {
+                return false;
             }
         }
         true
@@ -1391,14 +1790,52 @@ fn parameter_sliver(a: &Node, b: &Node, c: &Node) -> bool {
 }
 
 /// The angle between two unit vectors.
+#[cfg(test)]
 fn angle(a: V3, b: V3) -> f64 {
     geom::dot(a, b).clamp(-1.0, 1.0).acos()
 }
 
+struct AngularTest {
+    limit: f64,
+    easy: f64,
+    hard: f64,
+}
+
+impl AngularTest {
+    fn new(limit: f64, shortcut: bool) -> Self {
+        // acos is monotone on [-1, 1]. Keep the original comparison within
+        // an absolute rounding margin around cos(limit), including at the
+        // poorly conditioned ends of that interval.
+        let (easy, hard) = if shortcut && (1e-6..=std::f64::consts::PI).contains(&limit) {
+            let cosine = limit.cos();
+            (cosine + 16. * f64::EPSILON, cosine - 16. * f64::EPSILON)
+        } else {
+            (f64::INFINITY, f64::NEG_INFINITY)
+        };
+        Self { limit, easy, hard }
+    }
+
+    fn exceeded(&self, a: V3, b: V3) -> bool {
+        let dot = geom::dot(a, b).clamp(-1., 1.);
+        if dot > self.easy {
+            return false;
+        }
+        if dot < self.hard {
+            return true;
+        }
+        dot.acos() > self.limit
+    }
+}
+
 /// The distance from `p` to the segment `a`–`b`.
-fn segment_distance(p: V3, a: V3, b: V3) -> f64 {
+pub(crate) fn segment_distance(p: V3, a: V3, b: V3) -> f64 {
     let ab = geom::sub(b, a);
     let len2 = geom::dot(ab, ab);
+    distance_on_segment(p, a, ab, len2)
+}
+
+#[inline]
+fn distance_on_segment(p: V3, a: V3, ab: V3, len2: f64) -> f64 {
     let t = if len2 > 0.0 {
         (geom::dot(geom::sub(p, a), ab) / len2).clamp(0.0, 1.0)
     } else {
@@ -1724,12 +2161,14 @@ fn straight_side(
         .flatten()
         .map(|&(u, v)| sheet.value(u, v))
         .collect();
-    let normals: Vec<Option<V3>> = uv
-        .iter()
-        .flatten()
-        .map(|&(u, v)| sheet.normal(u, v))
-        .collect();
+    let normals = NormalSamples::Sampled(
+        uv.iter()
+            .flatten()
+            .map(|&(u, v)| sheet.normal(u, v))
+            .collect(),
+    );
     let on = [OnSurface {
+        native_uv: None,
         sheet: *sheet,
         uv: &uv,
         normals: &normals,
@@ -1792,19 +2231,52 @@ fn parameter_scale(
     let n = 5;
     let (mut speed, mut turn, mut bend) = ([0.0_f64; 2], [0.0_f64; 2], [0.0_f64; 2]);
     let mut samples = 0;
+    // Cylinder normals and radial coordinates depend only on the angle.
+    // Keep exceptional arithmetic and explicitly wrapped charts on the old path.
+    let cylinder = match sheet.surface {
+        Surface::Cylinder { frame, radius }
+            if sheet.wrap == [None, None]
+                && [u0, u1, v0, v1, *radius]
+                    .iter()
+                    .chain(&frame.origin)
+                    .chain(&frame.x)
+                    .chain(&frame.y)
+                    .chain(&frame.z)
+                    .all(|x| x.abs() < 1e25) =>
+        {
+            Some((frame, *radius))
+        }
+        _ => None,
+    };
     for i in 0..n {
+        let u = u0 + eu * (i as f64 + 0.5) / n as f64;
+        let h = 1e-4 * eu;
+        let us = [u + -h, u, u + h];
+        let row = cylinder.map(|(frame, radius)| {
+            let radial = us.map(|u| [radius * u.cos(), radius * u.sin()]);
+            let normals = us.map(|u| sheet.normal(u, 0.));
+            (frame, radial, normals)
+        });
+        let value = |slot: usize, v| match &row {
+            Some((frame, radial, _)) => frame.to_world([radial[slot][0], radial[slot][1], v]),
+            None => sheet.value(us[slot], v),
+        };
+        let normal = |slot: usize, v| match &row {
+            Some((_, _, normals)) => normals[slot],
+            None => sheet.normal(us[slot], v),
+        };
         for j in 0..n {
-            let u = u0 + eu * (i as f64 + 0.5) / n as f64;
             let v = v0 + ev * (j as f64 + 0.5) / n as f64;
-            let centre = sheet.value(u, v);
-            if sheet.normal(u, v).is_none() {
+            let centre = value(1, v);
+            if normal(1, v).is_none() {
                 continue;
             }
             samples += 1;
             for (axis, h) in [(0, 1e-4 * eu), (1, 1e-4 * ev)] {
                 let at = |t: f64| if axis == 0 { (u + t, v) } else { (u, v + t) };
                 let (a, b) = (at(-h), at(h));
-                let (pa, pb) = (sheet.value(a.0, a.1), sheet.value(b.0, b.1));
+                let (left, right) = if axis == 0 { (0, 2) } else { (1, 1) };
+                let (pa, pb) = (value(left, a.1), value(right, b.1));
                 let first = geom::dist(pa, pb) / (2.0 * h);
                 speed[axis] += first * first;
                 let second = geom::scale(
@@ -1812,7 +2284,7 @@ fn parameter_scale(
                     1.0 / (h * h),
                 );
                 bend[axis] += geom::dot(second, second);
-                if let (Some(na), Some(nb)) = (sheet.normal(a.0, a.1), sheet.normal(b.0, b.1)) {
+                if let (Some(na), Some(nb)) = (normal(left, a.1), normal(right, b.1)) {
                     let rate = geom::norm(geom::sub(nb, na)) / (2.0 * h);
                     turn[axis] += rate * rate;
                 }
@@ -1928,11 +2400,34 @@ impl SphereChart {
     }
 }
 
+type MeshSample = ((u64, u64), V3);
+
+fn mesh_sample(
+    cache: &mut [Option<MeshSample>],
+    index: usize,
+    sheet: Sheet<'_>,
+    uv: (f64, f64),
+) -> V3 {
+    let key = (uv.0.to_bits(), uv.1.to_bits());
+    let Some(slot) = cache.get_mut(index) else {
+        return sheet.value(uv.0, uv.1);
+    };
+    if let Some((previous, point)) = *slot
+        && previous == key
+    {
+        return point;
+    }
+    let point = sheet.value(uv.0, uv.1);
+    *slot = Some((key, point));
+    point
+}
+
 struct Mesher<'a> {
     surface: Sheet<'a>,
     scale: (f64, f64),
     sphere: Option<SphereChart>,
     cdt: ConstrainedDelaunayTriangulation<Node>,
+    node_evaluation: Option<Box<std::cell::RefCell<crate::nurbs::SurfaceEvaluation<'a>>>>,
 }
 
 impl<'a> Mesher<'a> {
@@ -1951,19 +2446,55 @@ impl<'a> Mesher<'a> {
             scale,
             sphere,
             cdt: ConstrainedDelaunayTriangulation::new(),
+            node_evaluation: match surface.surface {
+                Surface::Freeform { surface, .. } => Some(Box::new(std::cell::RefCell::new(
+                    crate::nurbs::SurfaceEvaluation::new(surface),
+                ))),
+                _ => None,
+            },
         };
+        // Constraint insertion does not create vertices here: crossings are
+        // refused, and all boundary vertices are inserted explicitly. Keep
+        // their exact positions to avoid a second triangulation walk before
+        // each insertion. Signed zeros denote the same triangulation point.
+        let mut inserted =
+            std::collections::HashMap::with_capacity(polygons.iter().map(Vec::len).sum());
+        // A plane's partials are the same frame axes for every parameter.
+        // Boundary points are pinned below; their discarded surface value is
+        // not needed to construct a planar triangulation position.
+        let plane_normal =
+            matches!(surface.surface, Surface::Plane { .. }).then(|| surface.normal(0.0, 0.0));
         for polygon in polygons {
             let mut handles = Vec::with_capacity(polygon.len());
             for b in polygon {
-                let mut node = Node {
-                    point: b.point,
-                    key: b.key,
-                    ..mesher.node(b.uv)
+                let mut node = if let Some(normal) = plane_normal {
+                    let flush = |x: f64| if x.abs() < 1e-30 { 0.0 } else { x };
+                    Node {
+                        position: Point2::new(flush(b.uv.0 * scale.0), flush(b.uv.1 * scale.1)),
+                        uv: b.uv,
+                        point: b.point,
+                        normal,
+                        key: b.key,
+                    }
+                } else {
+                    Node {
+                        point: b.point,
+                        key: b.key,
+                        ..mesher.node(b.uv)
+                    }
                 };
                 if let Some(sphere) = sphere {
                     node.position = sphere.project(b.point);
                 }
-                if let Some(existing) = mesher.cdt.locate_vertex(node.position) {
+                let position = [node.position.x, node.position.y];
+                let key = position.map(|x| if x == 0. { 0 } else { x.to_bits() });
+                let existing = if position.iter().all(|x| x.is_finite()) {
+                    inserted.get(&key).copied()
+                } else {
+                    mesher.cdt.locate_vertex(node.position).map(|v| v.fix())
+                };
+                if let Some(existing) = existing {
+                    let existing = mesher.cdt.vertex(existing);
                     let data = existing.data();
                     // Two loops touching at a point (each with its own vertex there) meet at
                     // one triangulation vertex; any other two points in one place cross.
@@ -1980,6 +2511,7 @@ impl<'a> Mesher<'a> {
                     .cdt
                     .insert(node)
                     .map_err(|e| format!("a boundary point cannot be triangulated ({e:?})"))?;
+                inserted.insert(key, handle);
                 handles.push(handle);
             }
             for i in 0..handles.len() {
@@ -1987,10 +2519,9 @@ impl<'a> Mesher<'a> {
                 if a == b {
                     continue;
                 }
-                if !mesher.cdt.can_add_constraint(a, b) {
+                if mesher.cdt.try_add_constraint(a, b).is_empty() {
                     return Err(CROSSES.into());
                 }
-                mesher.cdt.add_constraint(a, b);
             }
         }
         Ok(mesher)
@@ -1999,7 +2530,16 @@ impl<'a> Mesher<'a> {
     fn node(&self, uv: (f64, f64)) -> Node {
         // spade refuses coordinates nearer zero than about 1e-38 (but not zero itself).
         let flush = |x: f64| if x.abs() < 1e-30 { 0.0 } else { x };
-        let point = self.surface.value(uv.0, uv.1);
+        let (point, normal) = if let Some(evaluator) = &self.node_evaluation {
+            let (u, v) = self.surface.wrapped(uv.0, uv.1);
+            let (point, du, dv) = evaluator.borrow_mut().mesh_point_and_partials(u, v);
+            (point, geom::unit(geom::cross(du, dv)))
+        } else {
+            (
+                self.surface.value(uv.0, uv.1),
+                self.surface.normal(uv.0, uv.1),
+            )
+        };
         let position = self.sphere.map_or_else(
             || Point2::new(uv.0 * self.scale.0, uv.1 * self.scale.1),
             |s| s.project(point),
@@ -2008,7 +2548,7 @@ impl<'a> Mesher<'a> {
             position: Point2::new(flush(position.x), flush(position.y)),
             uv,
             point,
-            normal: self.surface.normal(uv.0, uv.1),
+            normal,
             key: None,
         }
     }
@@ -2079,8 +2619,15 @@ impl<'a> Mesher<'a> {
     /// longest inner edge, or at its centroid when every edge is the boundary. Boundary edges
     /// are never split.
     fn refine(&mut self, deflection: f64, angular: f64) -> bool {
+        let angle_test = AngularTest::new(angular, true);
+        let mut edge_values = Vec::new();
+        let mut face_values = Vec::new();
+        let mut settled = Vec::new();
         for _ in 0..MAX_ROUNDS {
             let inside = self.inside_faces();
+            edge_values.resize(self.cdt.num_undirected_edges(), None);
+            face_values.resize(inside.len(), None);
+            settled.resize(inside.len(), None);
             let mut seen = vec![false; self.cdt.num_undirected_edges()];
             let mut wanted: Vec<(f64, f64)> = Vec::new();
             let mut want_edge = |index: usize, a: &Node, b: &Node, wanted: &mut Vec<(f64, f64)>| {
@@ -2091,6 +2638,10 @@ impl<'a> Mesher<'a> {
             };
             for face in self.cdt.inner_faces() {
                 if !inside[face.fix().index()] {
+                    continue;
+                }
+                let identity = face.vertices().map(|v| v.fix().index());
+                if settled[face.fix().index()] == Some(identity) {
                     continue;
                 }
                 let mut split = false;
@@ -2109,12 +2660,17 @@ impl<'a> Mesher<'a> {
                     }
                     let mid = self.mean_uv(&[a, b]);
                     let bent = match (a.normal, b.normal) {
-                        (Some(na), Some(nb)) => angle(na, nb) > angular && length > deflection,
+                        (Some(na), Some(nb)) => angle_test.exceeded(na, nb) && length > deflection,
                         _ => false,
                     };
                     // The surface's distance from the edge (not from its midpoint: where the
                     // parameterisation is uneven the parameter midpoint lies well along it).
-                    let off = segment_distance(self.surface.value(mid.0, mid.1), a.point, b.point);
+                    let off = if bent {
+                        0.
+                    } else {
+                        let point = mesh_sample(&mut edge_values, index, self.surface, mid);
+                        segment_distance(point, a.point, b.point)
+                    };
                     if bent || off > deflection {
                         split = true;
                         want_edge(index, &a, &b, &mut wanted);
@@ -2125,11 +2681,10 @@ impl<'a> Mesher<'a> {
                 }
                 let [a, b, c] = face.vertices().map(|v| *v.data());
                 if parameter_sliver(&a, &b, &c) {
+                    settled[face.fix().index()] = Some(identity);
                     continue;
                 }
                 let uv = self.mean_uv(&[a, b, c]);
-                let off =
-                    triangle_distance(self.surface.value(uv.0, uv.1), a.point, b.point, c.point);
                 let size = geom::dist(a.point, b.point)
                     .max(geom::dist(b.point, c.point))
                     .max(geom::dist(c.point, a.point));
@@ -2143,13 +2698,21 @@ impl<'a> Mesher<'a> {
                         [a.normal, b.normal, c.normal]
                             .into_iter()
                             .flatten()
-                            .any(|m| angle(n, m) > angular)
+                            .any(|m| angle_test.exceeded(n, m))
                     });
+                let off = if askew {
+                    0.
+                } else {
+                    let point = mesh_sample(&mut face_values, face.fix().index(), self.surface, uv);
+                    triangle_distance(point, a.point, b.point, c.point)
+                };
                 if off > deflection || askew {
                     match longest {
                         Some((_, index, a, b)) => want_edge(index, &a, &b, &mut wanted),
                         None => wanted.push(uv),
                     }
+                } else {
+                    settled[face.fix().index()] = Some(identity);
                 }
             }
             if wanted.is_empty() {
@@ -2274,6 +2837,83 @@ impl<'a> Mesher<'a> {
 }
 
 #[cfg(test)]
+mod boundary_tests {
+    use super::*;
+
+    fn plane() -> Surface {
+        Surface::Plane {
+            frame: geom::Frame {
+                origin: [0.; 3],
+                x: [1., 0., 0.],
+                y: [0., 1., 0.],
+                z: [0., 0., 1.],
+            },
+        }
+    }
+
+    fn polygon(points: &[(f64, f64)], first_key: usize) -> Vec<BNode> {
+        points
+            .iter()
+            .enumerate()
+            .map(|(i, &(u, v))| BNode {
+                uv: (u, v),
+                point: [u, v, 0.],
+                key: Some(Key::Cut(first_key + i)),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn touching_boundaries_reuse_the_first_vertex_without_replacing_its_data() {
+        let surface = plane();
+        let first = polygon(&[(0., 0.), (2., 0.), (2., 2.), (0., 2.)], 0);
+        let second = polygon(&[(-0., -0.), (-1., 0.), (0., -1.)], 4);
+        let mesher = Mesher::new(
+            Sheet::new(&surface),
+            (1., 1.),
+            &[first.clone(), second.clone()],
+            0.01,
+            None,
+        )
+        .unwrap();
+        assert_eq!(mesher.cdt.num_vertices(), 6);
+        assert_eq!(mesher.cdt.num_constraints(), 7);
+        let vertex = mesher.cdt.locate_vertex(Point2::new(-0., 0.)).unwrap();
+        assert_eq!(vertex.data().key, Some(Key::Cut(0)));
+        assert_eq!(vertex.data().uv.0.to_bits(), 0_f64.to_bits());
+        assert_eq!(vertex.data().uv.1.to_bits(), 0_f64.to_bits());
+
+        let mut separated = second;
+        separated[0].point[2] = 1e-6;
+        assert!(
+            matches!(Mesher::new(Sheet::new(&surface), (1., 1.), &[first, separated], 0.01, None), Err(why) if why == CROSSES)
+        );
+    }
+
+    #[test]
+    fn boundary_constraints_split_at_existing_vertices_and_refuse_crossings() {
+        let surface = plane();
+        let triangle = polygon(&[(0., 0.), (2., 0.), (0., 2.)], 0);
+        let split = polygon(&[(0., 0.), (1., 0.), (2., 0.), (0., 2.)], 3);
+        let mesher = Mesher::new(
+            Sheet::new(&surface),
+            (1., 1.),
+            &[triangle, split],
+            0.01,
+            None,
+        )
+        .unwrap();
+        assert_eq!(mesher.cdt.num_vertices(), 4);
+        assert_eq!(mesher.cdt.num_constraints(), 4);
+
+        let crossing = polygon(&[(0., 0.), (2., 2.), (0., 2.), (2., 0.)], 0);
+        assert!(
+            matches!(Mesher::new(Sheet::new(&surface), (1., 1.), &[crossing], 0.01, None), Err(why) if why == CROSSES)
+        );
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -2290,6 +2930,402 @@ mod tests {
         let fresh = crate::read_step(input).unwrap();
         assert_eq!(part.face_mass(0), fresh.face_mass(0));
         assert_eq!(part.triangulate(0, 1e-5, 0.3).unwrap(), mesh);
+    }
+
+    #[test]
+    fn native_residuals_preserve_bounds_with_pinned_ends_and_changed_parameters() {
+        use geom::Frame;
+        let mut checked = 0usize;
+        for placement in [0., 1e6, 1e90] {
+            let (s, c) = 0.37_f64.sin_cos();
+            let frame = Frame {
+                origin: [placement + 2., -placement - 3., 1.],
+                x: [c, s, 0.],
+                y: [-s, c, 0.],
+                z: [0., 0., 1.],
+            };
+            let surfaces = [
+                Surface::Plane { frame },
+                Surface::Cylinder { frame, radius: 2. },
+                Surface::Cone {
+                    frame,
+                    radius: 2.,
+                    semi_angle: 0.4,
+                },
+                Surface::Sphere { frame, radius: 2. },
+                Surface::Torus {
+                    frame,
+                    major: 3.,
+                    minor: 0.5,
+                },
+            ];
+            for surface in &surfaces {
+                for curved in [false, true] {
+                    let native: Vec<_> = (0..17)
+                        .map(|i| {
+                            let u = -0.6 + 0.075 * i as f64;
+                            if curved { (u.cos(), u.sin()) } else { (u, 0.) }
+                        })
+                        .collect();
+                    for deflection in [1e-5, 0.01, 2.] {
+                        for pin in [0., 1e-5, 0.25, 2.] {
+                            let mut points: Vec<_> =
+                                native.iter().map(|&(u, v)| surface.value(u, v)).collect();
+                            points[0][0] += pin * deflection;
+                            points[16][2] -= pin * deflection;
+                            for changed in 0..6 {
+                                let mut uv: Vec<_> = native.iter().copied().map(Some).collect();
+                                match changed {
+                                    1 => {
+                                        uv[8] =
+                                            Some((native[8].0 + std::f64::consts::TAU, native[8].1))
+                                    }
+                                    2 => uv[8] = Some((native[8].0 + 100., native[8].1)),
+                                    3 => uv[8] = None,
+                                    4 => uv[8] = Some((native[8].0, -0.)),
+                                    5 => uv[8] = Some((f64::NAN, native[8].1)),
+                                    _ => {}
+                                }
+                                for availability in 0..3 {
+                                    let proof = match availability {
+                                        0 => None,
+                                        1 => Some(native.clone()),
+                                        _ => Some(native[..16].to_vec()),
+                                    };
+                                    let normals = NormalSamples::Constant(None);
+                                    let evaluate = |native_uv| {
+                                        let on = [OnSurface {
+                                            sheet: Sheet::new(surface),
+                                            uv: &uv,
+                                            normals: &normals,
+                                            native_uv,
+                                        }];
+                                        (
+                                            parameter_strip_bound(&on[0], &points, deflection),
+                                            plane_projection_bound(&on[0], &points, deflection),
+                                            thin(&points, &[], &[], &on, deflection, None),
+                                        )
+                                    };
+                                    assert_eq!(
+                                        evaluate(None),
+                                        evaluate(proof.as_deref()),
+                                        "surface={:?} placement={placement} curved={curved} d={deflection} pin={pin} changed={changed} availability={availability}",
+                                        surface.kind()
+                                    );
+                                    checked += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(checked, 6480);
+    }
+    #[test]
+    fn lifted_bounds_cover_perturbed_charts_and_every_subchord() {
+        use geom::Frame;
+        let mut proved = [0usize; 2];
+        let mut declined = 0usize;
+        for placement in [0., 1e4, 1e12] {
+            for distortion in [0., 4e-7, 0.2] {
+                let (s, c) = 0.37_f64.sin_cos();
+                let frame = Frame {
+                    origin: [placement + 2., -placement - 3., 1.],
+                    x: [c, s, 0.],
+                    y: [-s + distortion * c, c + distortion * s, 0.],
+                    z: [0., 0., 1.],
+                };
+                let surfaces = [
+                    Surface::Plane { frame },
+                    Surface::Cylinder { frame, radius: 2. },
+                    Surface::Cone {
+                        frame,
+                        radius: 2.,
+                        semi_angle: 0.4,
+                    },
+                    Surface::Sphere { frame, radius: 2. },
+                    Surface::Torus {
+                        frame,
+                        major: 3.,
+                        minor: 0.5,
+                    },
+                ];
+                for surface in &surfaces {
+                    for deflection in [1e-5, 0.01, 2.] {
+                        for noise in [0., 2.5e-5, 0.2, 0.3] {
+                            for curved in [false, true] {
+                                let uv: Vec<_> = (0..13)
+                                    .map(|i| {
+                                        let u = -0.6 + 0.1 * i as f64;
+                                        if curved {
+                                            Some((u.cos(), u.sin()))
+                                        } else {
+                                            Some((u, 0.4 + 1e-8 * deflection * (i as f64).sin()))
+                                        }
+                                    })
+                                    .collect();
+                                let points: Vec<_> = uv
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(i, q)| {
+                                        let (u, v) = q.unwrap();
+                                        let mut p = surface.value(u, v);
+                                        p[0] += noise * deflection * (i as f64).cos();
+                                        p
+                                    })
+                                    .collect();
+                                let normals = NormalSamples::Sampled(vec![None; uv.len()]);
+                                let view = OnSurface {
+                                    native_uv: None,
+                                    sheet: Sheet::new(surface),
+                                    uv: &uv,
+                                    normals: &normals,
+                                };
+                                let strip = parameter_strip_bound(&view, &points, deflection);
+                                let plane = plane_projection_bound(&view, &points, deflection);
+                                proved[0] += usize::from(strip);
+                                proved[1] += usize::from(plane);
+                                declined += usize::from(!strip && !plane);
+                                for i in 0..points.len() {
+                                    for j in i + 2..points.len() {
+                                        let (a, b) = (uv[i].unwrap(), uv[j].unwrap());
+                                        let d = (b.0 - a.0, b.1 - a.1);
+                                        let len2 = d.0 * d.0 + d.1 * d.1;
+                                        for k in i + 1..j {
+                                            let off =
+                                                segment_distance(points[k], points[i], points[j]);
+                                            if !(strip || plane && off < 0.998 * deflection) {
+                                                continue;
+                                            }
+                                            let q = uv[k].unwrap();
+                                            let t = if len2 > 0. {
+                                                (((q.0 - a.0) * d.0 + (q.1 - a.1) * d.1) / len2)
+                                                    .clamp(0., 1.)
+                                            } else {
+                                                0.
+                                            };
+                                            let image =
+                                                view.sheet.value(a.0 + t * d.0, a.1 + t * d.1);
+                                            let actual = geom::dist(image, points[k]);
+                                            assert!(
+                                                actual <= deflection,
+                                                "{:?} placement={placement} distortion={distortion} noise={noise} d={deflection} i={i} j={j} k={k} actual={actual}",
+                                                surface.kind()
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            proved[0] > 10 && proved[1] > 10 && declined > 100,
+            "{proved:?} {declined}"
+        );
+    }
+
+    #[test]
+    fn lifted_bounds_decline_nonfinite_or_unresolved_inputs() {
+        use geom::Frame;
+        let frame = Frame {
+            origin: [0.; 3],
+            x: [1., 0., 0.],
+            y: [0., 1., 0.],
+            z: [0., 0., 1.],
+        };
+        let plane = Surface::Plane { frame };
+        let mut uv = vec![Some((0., 0.)), Some((0.5, 0.)), Some((1., 0.))];
+        let points = vec![[0., 0., 0.], [0.5, 0., 0.], [1., 0., 0.]];
+        let normals = NormalSamples::Sampled(vec![None; 3]);
+        for limit in [0., -1., f64::NAN, f64::INFINITY, f64::MIN_POSITIVE] {
+            let view = OnSurface {
+                native_uv: None,
+                sheet: Sheet::new(&plane),
+                uv: &uv,
+                normals: &normals,
+            };
+            assert!(!parameter_strip_bound(&view, &points, limit));
+            assert!(!plane_projection_bound(&view, &points, limit));
+        }
+        uv[1] = Some((f64::NAN, 0.));
+        let view = OnSurface {
+            native_uv: None,
+            sheet: Sheet::new(&plane),
+            uv: &uv,
+            normals: &normals,
+        };
+        assert!(!parameter_strip_bound(&view, &points, 0.01));
+        assert!(!plane_projection_bound(&view, &points, 0.01));
+        // Exact cancellation at the samples must not hide intermediate
+        // magnitudes whose squared spatial distances could overflow.
+        let huge = Surface::Plane {
+            frame: Frame {
+                x: [1e90, 0., 0.],
+                y: [-1e90, 0., 0.],
+                ..frame
+            },
+        };
+        let huge_uv = vec![
+            Some((1e90, 1e90)),
+            Some((1.5e90, 1.5e90)),
+            Some((2e90, 2e90)),
+        ];
+        let zero = vec![[0.; 3]; 3];
+        let view = OnSurface {
+            native_uv: None,
+            sheet: Sheet::new(&huge),
+            uv: &huge_uv,
+            normals: &normals,
+        };
+        assert!(!parameter_strip_bound(&view, &zero, 1e300));
+        assert!(!plane_projection_bound(&view, &zero, 1e300));
+        let other = Surface::Other { kind: "unresolved" };
+        let view = OnSurface {
+            native_uv: None,
+            sheet: Sheet::new(&other),
+            uv: &uv,
+            normals: &normals,
+        };
+        assert!(!parameter_strip_bound(&view, &points, 0.01));
+        assert!(!plane_projection_bound(&view, &points, 0.01));
+    }
+
+    #[test]
+    fn angular_shortcut_retains_the_boundary_and_nonfinite_verdicts() {
+        for limit in [
+            -1.,
+            -0.,
+            0.,
+            1e-30,
+            1e-7,
+            1e-6,
+            0.075,
+            0.15,
+            0.3,
+            std::f64::consts::PI,
+            4.,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NAN,
+        ] {
+            let quick = AngularTest::new(limit, true);
+            let mut probes = vec![
+                -2.,
+                -1.,
+                -0.,
+                0.,
+                1.,
+                2.,
+                f64::NAN,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+            ];
+            for centre in [limit.cos(), (0.5 * limit).cos()] {
+                let (mut lo, mut hi) = (centre, centre);
+                for _ in 0..128 {
+                    probes.extend([lo, hi]);
+                    lo = lo.next_down();
+                    hi = hi.next_up();
+                }
+            }
+            probes.extend((0..=4096).map(|k| -1. + 2. * k as f64 / 4096.));
+            for dot in probes {
+                let a = [dot, 0., 0.];
+                let b = [1., 0., 0.];
+                assert_eq!(quick.exceeded(a, b), angle(a, b) > limit, "{dot}, {limit}");
+            }
+        }
+    }
+
+    #[test]
+    fn constant_normals_keep_missing_samples_and_the_original_angular_verdict() {
+        let plane = Surface::Plane {
+            frame: geom::Frame {
+                origin: [0.; 3],
+                x: [1., 0., 0.],
+                y: [0., 1., 0.],
+                z: [0., 0., 1.],
+            },
+        };
+        let mut cases = 0;
+        for normal in [
+            None,
+            Some([0., 0., 1.]),
+            Some([0., 0., 1_f64.next_down()]),
+            Some([0., 0., 0.5]),
+            Some([0., 0., 0.]),
+            Some([f64::NAN, 0., 1.]),
+            Some([f64::INFINITY, 0., 1.]),
+        ] {
+            for angular in [
+                None,
+                Some(0.),
+                Some(-0.1),
+                Some(1e-12),
+                Some(1e-8),
+                Some(0.3),
+                Some(std::f64::consts::PI),
+                Some(f64::NAN),
+                Some(f64::INFINITY),
+            ] {
+                for mask in 0..4 {
+                    for shape in 0..3 {
+                        let points: Vec<_> = (0..35)
+                            .map(|i| {
+                                let x = i as f64 * 0.125;
+                                [
+                                    x,
+                                    if shape == 0 {
+                                        0.
+                                    } else {
+                                        (x * shape as f64).sin()
+                                    },
+                                    0.,
+                                ]
+                            })
+                            .collect();
+                        let uv: Vec<_> = points
+                            .iter()
+                            .enumerate()
+                            .map(|(i, p)| {
+                                (!(mask == 1 && i % 4 == 0 || mask == 2 && i == 12 || mask == 3))
+                                    .then_some((p[0], p[1]))
+                            })
+                            .collect();
+                        let sampled =
+                            NormalSamples::Sampled(uv.iter().map(|p| p.and(normal)).collect());
+                        let constant = NormalSamples::Constant(normal);
+                        for i in 0..uv.len() {
+                            assert_eq!(
+                                sampled.at(i, &uv).map(|n| n.map(f64::to_bits)),
+                                constant.at(i, &uv).map(|n| n.map(f64::to_bits))
+                            );
+                        }
+                        let view = |normals| OnSurface {
+                            native_uv: None,
+                            sheet: Sheet::new(&plane),
+                            uv: &uv,
+                            normals,
+                        };
+                        let mut keep = vec![false; points.len()];
+                        keep[12] = true;
+                        let skip: Vec<_> =
+                            (0..points.len()).map(|i| mask == 2 && i % 5 == 0).collect();
+                        assert_eq!(
+                            thin(&points, &keep, &skip, &[view(&sampled)], 0.01, angular),
+                            thin(&points, &keep, &skip, &[view(&constant)], 0.01, angular),
+                            "normal {normal:?}, angle {angular:?}, mask {mask}, shape {shape}"
+                        );
+                        cases += 1;
+                    }
+                }
+            }
+        }
+        assert_eq!(cases, 756);
     }
 
     #[test]
