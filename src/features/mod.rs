@@ -300,14 +300,18 @@ internal_entry! {
 /// covering the input faces without issuing feature claims. Section-recess projection
 /// refusals are carried in [`Features::section_recess_refusal`].
 pub fn recognise(part: &Part) -> Features {
-    recognise_with(part, |_, features| features)
+    recognise_with(part, Default::default(), |_, features| features)
 }
 }
 
 /// Keep the inventory's context alive for downstream geometry consumers and fingerprints.
-pub(crate) fn recognise_with<T>(part: &Part, then: impl FnOnce(&Context<'_>, Features) -> T) -> T {
+pub(crate) fn recognise_with<T>(
+    part: &Part,
+    k_factor: sheet_metal::KFactor,
+    then: impl FnOnce(&Context<'_>, Features) -> T,
+) -> T {
     let mut then = Some(then);
-    take_inventory(part, |ctx, inventory| {
+    take_inventory_with(part, k_factor, |ctx, inventory| {
         then.take().unwrap()(ctx, recognise_in(ctx, inventory))
     })
     .unwrap_or_else(|error| {
@@ -885,15 +889,24 @@ pub(crate) fn take_inventory<'p, T>(
     part: &'p Part,
     then: impl FnOnce(&Context<'p>, Inventory) -> T,
 ) -> Result<T, reconcile::ReconcileError> {
+    take_inventory_with(part, Default::default(), then)
+}
+
+/// Take an inventory with the selected K-factor, including any retries.
+pub(crate) fn take_inventory_with<'p, T>(
+    part: &'p Part,
+    k_factor: sheet_metal::KFactor,
+    then: impl FnOnce(&Context<'p>, Inventory) -> T,
+) -> Result<T, reconcile::ReconcileError> {
     let part = part.recognition_part();
     if !evidence::local_degradation() {
-        let ctx = Context::new(part);
+        let ctx = Context::with_k_factor(part, k_factor);
         if let Some(inventory) = inventory_in(&ctx)? {
             return Ok(then(&ctx, inventory));
         }
     }
     evidence::locally_degraded(|| {
-        let ctx = Context::new(part);
+        let ctx = Context::with_k_factor(part, k_factor);
         let inventory = inventory_in(&ctx)?.expect("a locally degraded run does not retry");
         Ok(then(&ctx, inventory))
     })
@@ -975,7 +988,7 @@ fn inventory_in_with(
         sheet_metal::discover_from_walls(
             part,
             walls.iter().map(|wall| &wall.record),
-            sheet_metal::SheetMetalOptions::default().k_factor,
+            ctx.k_factor.value(),
         )
     );
     let sheet_metal_bodies = kept_shared(&mut defining, "sheet_metal_bodies", sheets);

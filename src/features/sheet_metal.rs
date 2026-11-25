@@ -34,37 +34,66 @@ use crate::kernel::sampling::edge_interval;
 const MIN_SKIN_COVERAGE: f64 = 0.98;
 const MIN_CUT_BRIDGE_AREA: f64 = 0.8;
 const TESSELLATION_TOLERANCE: f64 = 0.1;
+const DEFAULT_K_FACTOR: f64 = 0.5;
 
 /// Options named as `recognise_sheet_metal_bodies`' keyword arguments.
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 #[non_exhaustive]
 pub struct SheetMetalOptions {
-    /// Where the neutral axis sits through the thickness, from the inner skin (0..=1).
+    /// Where the neutral axis sits through the thickness, as a fraction in (0, 1].
     pub k_factor: f64,
 }
 
 impl Default for SheetMetalOptions {
     fn default() -> Self {
-        SheetMetalOptions { k_factor: 0.5 }
+        SheetMetalOptions {
+            k_factor: DEFAULT_K_FACTOR,
+        }
     }
 }
 
-/// A k-factor outside `0..=1` (or not finite), refused as Python raises `ValueError`.
+/// A non-finite K-factor or one outside (0, 1].
 #[derive(Debug, PartialEq)]
 pub struct InvalidKFactor(pub f64);
 
 impl std::fmt::Display for InvalidKFactor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "k_factor must be finite and between zero and one (got {})",
-            self.0
-        )
+        write!(f, "k_factor must be finite and in (0, 1] (got {})", self.0)
     }
 }
 
 impl std::error::Error for InvalidKFactor {}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct KFactor(f64);
+
+// Construction only permits finite values.
+impl Eq for KFactor {}
+
+impl Default for KFactor {
+    fn default() -> Self {
+        Self(DEFAULT_K_FACTOR)
+    }
+}
+
+impl TryFrom<f64> for KFactor {
+    type Error = InvalidKFactor;
+
+    fn try_from(value: f64) -> Result<Self, Self::Error> {
+        if value > 0.0 && value <= 1.0 {
+            Ok(Self(value))
+        } else {
+            Err(InvalidKFactor(value))
+        }
+    }
+}
+
+impl KFactor {
+    pub(crate) fn value(self) -> f64 {
+        self.0
+    }
+}
 
 /// One planar region on the reference side and its opposite skin patches.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -237,12 +266,9 @@ pub fn discover_with(
     ctx: &Context<'_>,
     opts: &SheetMetalOptions,
 ) -> Result<Vec<Occurrence<SheetMetalBody>>, InvalidKFactor> {
-    let k = opts.k_factor;
-    if !k.is_finite() || !(0.0..=1.0).contains(&k) {
-        return Err(InvalidKFactor(k));
-    }
+    let k = KFactor::try_from(opts.k_factor)?;
     let walls = thin_walls::discover(ctx);
-    Ok(discover_from_walls(ctx.part, walls.iter().map(|wall| &wall.record), k))
+    Ok(discover_from_walls(ctx.part, walls.iter().map(|wall| &wall.record), k.value()))
 }
 }
 
@@ -2800,7 +2826,7 @@ mod tests {
     #[test]
     fn a_k_factor_outside_zero_to_one_is_refused() {
         let part = Part::new(Vec::new(), Vec::new(), Vec::new());
-        for k in [-0.1, 1.1, f64::NAN] {
+        for k in [0.0, -0.1, 1.1, f64::NAN, f64::INFINITY] {
             let opts = SheetMetalOptions { k_factor: k };
             assert!(recognise_sheet_metal_bodies(&part, &opts).is_err());
         }
