@@ -53,7 +53,15 @@ pub fn recognise_file_with(path: &str, options: &RecognitionOptions) -> Result<S
 /// coordinates. A refused evidence view is retained as an explicit error beside the
 /// recognition; it must never be mistaken for an empty view.
 pub fn recognise_with_evidence_bytes(bytes: Vec<u8>) -> Result<String, String> {
-    recognise_with_evidence_snapshot("<bytes>", bytes)
+    recognise_with_evidence_bytes_options(bytes, &RecognitionOptions::default())
+}
+
+/// [`recognise_with_evidence_bytes`] under *options*.
+pub fn recognise_with_evidence_bytes_options(
+    bytes: Vec<u8>,
+    options: &RecognitionOptions,
+) -> Result<String, String> {
+    recognise_with_evidence_snapshot("<bytes>", bytes, options)
 }
 
 /// Read a STEP file once, including gzip inputs, before analysing both views.
@@ -63,11 +71,23 @@ pub fn recognise_with_evidence_bytes(bytes: Vec<u8>) -> Result<String, String> {
 /// this function has no independent `framed` argument; use [`evidence`] for an explicit
 /// coordinate mode. Recognition document parameters remain in file coordinates.
 pub fn recognise_with_evidence_file(path: &str) -> Result<String, String> {
-    let bytes = std::fs::read(path).map_err(|e| format!("{path}: {e}"))?;
-    recognise_with_evidence_snapshot(path, bytes)
+    recognise_with_evidence_file_options(path, &RecognitionOptions::default())
 }
 
-fn recognise_with_evidence_snapshot(path: &str, bytes: Vec<u8>) -> Result<String, String> {
+/// [`recognise_with_evidence_file`] under *options*.
+pub fn recognise_with_evidence_file_options(
+    path: &str,
+    options: &RecognitionOptions,
+) -> Result<String, String> {
+    let bytes = std::fs::read(path).map_err(|e| format!("{path}: {e}"))?;
+    recognise_with_evidence_snapshot(path, bytes, options)
+}
+
+fn recognise_with_evidence_snapshot(
+    path: &str,
+    bytes: Vec<u8>,
+    options: &RecognitionOptions,
+) -> Result<String, String> {
     let digest = Sha256::digest(&bytes)
         .iter()
         .map(|b| format!("{b:02x}"))
@@ -79,7 +99,7 @@ fn recognise_with_evidence_snapshot(path: &str, bytes: Vec<u8>) -> Result<String
         mut recognition,
         evidence,
         ..
-    } = crate::correspondence::recognise_with_evidence(&part);
+    } = crate::correspondence::recognise_with_evidence_options(&part, options);
     recognition.source_sha256 = Some(digest);
     let document = crate::recognition::document(&recognition, part.faces.len());
     let (evidence, evidence_error) = match evidence {

@@ -3,8 +3,10 @@
 //!
 //! Requests (every field required unless marked optional, no others):
 //!
-//! - `{"id": ID, "op": "recognise", "step": PATH, "integration_budget": N}` (the budget
-//!   optional, as `quiddity <file.step> --integration-budget N`) → `{"id": ID, "result": R}`, `R` the JSON
+//! - `{"id": ID, "op": "recognise", "step": PATH, "integration_budget": N, "k_factor": K}`
+//!   → `{"id": ID, "result": R}`. The budget and K-factor are optional, as on the CLI.
+//!   K must be a finite number in (0, 1]. It defaults to 0.5 and is reported in each
+//!   `flat_pattern.k_factor`. An invalid K-factor returns `bad_request`. `R` is the JSON
 //!   `quiddity <file.step>` writes ([`RecognitionOutput`]): each family's records, their
 //!   `fingerprints` and the versioned recognition `document`. The part is recognised in its own
 //!   frame and the records reported in the file's coordinates
@@ -222,7 +224,7 @@ fn recognise_bytes_placed(
     if let Some(limit) = options.integration_budget {
         part = part.with_integration_budget(limit);
     }
-    let mut recognition = correspondence::recognise(&part);
+    let mut recognition = correspondence::recognise_with_k_factor(&part, options.k_factor);
     recognition.source_sha256 = Some(source_sha256);
     let document = recognition::document(&recognition, part.faces.len());
     let mut warnings = recognition_warnings(path, &part, &recognition, &document);
@@ -430,7 +432,7 @@ fn execute(request: &Map<String, Value>) -> Result<(String, Vec<String>), Failur
     let mut warnings = Vec::new();
     let json = match op {
         "recognise" => {
-            closed(request, op, &["step", "integration_budget"])?;
+            closed(request, op, &["step", "integration_budget", "k_factor"])?;
             let integration_budget = match request.get("integration_budget") {
                 None | Some(Value::Null) => None,
                 Some(value) => Some(value.as_u64().ok_or_else(|| {
@@ -440,7 +442,18 @@ fn execute(request: &Map<String, Value>) -> Result<(String, Vec<String>), Failur
                     )
                 })?),
             };
-            let options = RecognitionOptions { integration_budget };
+            let mut options = RecognitionOptions {
+                integration_budget,
+                ..Default::default()
+            };
+            if let Some(value) = request.get("k_factor") {
+                let k = value
+                    .as_f64()
+                    .ok_or_else(|| Failure::new("bad_request", "`k_factor` must be a number"))?;
+                options
+                    .set_k_factor(k)
+                    .map_err(|e| Failure::new("bad_request", e.to_string()))?;
+            }
             let (output, warning) = recognise_file_with(path_field(request, "step")?, &options)?;
             warnings.extend(warning);
             serde_json::to_string(&output).expect("records serialise")
@@ -604,6 +617,7 @@ mod tests {
         // Permit entry into quadrature while forcing the expensive face to stop.
         let options = RecognitionOptions {
             integration_budget: Some(1),
+            ..Default::default()
         };
         let (file, _, _, _) = recognise_step_document(path, &IDENTITY, &options).unwrap();
         let (placed, _, doc, _) = recognise_step_document(path, &translated, &options).unwrap();

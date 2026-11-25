@@ -83,6 +83,9 @@ fn recognise_returns_what_the_cli_writes() {
             quiddity::recognition::SCHEMA_VERSION
         );
     }
+    let path = fixture("sheet-metal/coaxial-flanges.step.gz");
+    let response = ask(&json!({"id": 1, "op": "recognise", "step": path, "k_factor": 0.45}));
+    assert_eq!(response["result"], cli(&[&path, "--k-factor", "0.45"]));
 }
 
 #[test]
@@ -257,6 +260,16 @@ fn malformed_requests_are_refused_with_their_codes() {
         "bad_request",
     );
     assert!(message.contains("`frame`"), "{message}");
+
+    let message = failure(
+        &ask(&json!({"id": 6, "op": "recognise", "step": step, "k_factor": 0.0})),
+        json!(6),
+        "bad_request",
+    );
+    assert!(
+        message.contains("k_factor must be finite and between zero and one"),
+        "{message}"
+    );
 
     let message = failure(
         &ask(&json!({"id": 7, "op": "correspond", "old": step})),

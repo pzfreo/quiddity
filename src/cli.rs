@@ -61,6 +61,7 @@ use std::path::{Path, PathBuf};
 
 use clap::{Args, CommandFactory, Parser, Subcommand};
 
+use crate::features::sheet_metal::KFactor;
 use crate::kernel::p21;
 use crate::kernel::pmi::write::{Mode, PresentationPolicy};
 use crate::kernel::pmi::{self, PartId, PartPmi, Snapshot};
@@ -101,12 +102,35 @@ struct Cli {
     /// recognise the part's features and print them as JSON
     #[arg(value_name = "FILE.STEP", allow_hyphen_values = true)]
     file: Option<String>,
+    #[command(flatten)]
+    recognition: RecognitionArgs,
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Args)]
+struct RecognitionArgs {
     /// refuse any face whose area and moment integration would take more than N work units
     /// (integrand evaluations); see document.budget
     #[arg(long, value_name = "N")]
     integration_budget: Option<u64>,
-    #[command(subcommand)]
-    command: Option<Command>,
+    /// neutral-axis fraction of the sheet thickness, in (0, 1] (default 0.5)
+    #[arg(long, value_name = "K", value_parser = parse_k_factor, allow_hyphen_values = true)]
+    k_factor: Option<KFactor>,
+}
+
+impl RecognitionArgs {
+    fn options(self) -> crate::RecognitionOptions {
+        crate::RecognitionOptions {
+            integration_budget: self.integration_budget,
+            k_factor: self.k_factor.unwrap_or_default(),
+        }
+    }
+}
+
+fn parse_k_factor(text: &str) -> Result<KFactor, String> {
+    let value = text.parse::<f64>().map_err(|e| e.to_string())?;
+    KFactor::try_from(value).map_err(|e| e.to_string())
 }
 
 #[derive(Subcommand)]
@@ -140,9 +164,8 @@ enum Command {
         /// parse the whole source for shared geometry; memory grows with the entire file
         #[arg(long)]
         fallback_whole_file: bool,
-        /// refuse any face whose integration would take more than N work units
-        #[arg(long, value_name = "N")]
-        integration_budget: Option<u64>,
+        #[command(flatten)]
+        recognition: RecognitionArgs,
     },
     /// match two revisions' features and print the correspondence as JSON
     Correspond {
@@ -161,9 +184,8 @@ enum Command {
         /// in the part's own frame, with the frame given
         #[arg(long)]
         framed: bool,
-        /// refuse any face whose integration would take more than N work units
-        #[arg(long, value_name = "N")]
-        integration_budget: Option<u64>,
+        #[command(flatten)]
+        recognition: RecognitionArgs,
     },
     /// print the part's feature fingerprints as JSON
     Fingerprints {
@@ -251,16 +273,17 @@ pub fn main(args: &[String]) -> u8 {
             return u8::try_from(e.exit_code()).unwrap_or(2);
         }
     };
-    let budget = |integration_budget| crate::RecognitionOptions { integration_budget };
     let command = match (cli.file, cli.command) {
         (Some(path), _) => {
             return print(
-                recognise(&path, &budget(cli.integration_budget))
-                    .map_err(|failure| failure.to_string()),
+                recognise(&path, &cli.recognition.options()).map_err(|failure| failure.to_string()),
             );
         }
-        (None, None) if cli.integration_budget.is_some() => {
+        (None, None) if cli.recognition.integration_budget.is_some() => {
             return usage_error(&[], "--integration-budget needs a STEP file");
+        }
+        (None, None) if cli.recognition.k_factor.is_some() => {
+            return usage_error(&[], "--k-factor needs a STEP file");
         }
         (None, Some(command)) => command,
         (None, None) => return usage_error(&[], "a STEP file or a command is needed"),
@@ -281,7 +304,7 @@ pub fn main(args: &[String]) -> u8 {
             verify_source,
             no_product_hashes,
             fallback_whole_file,
-            integration_budget,
+            recognition,
         } => {
             return finish(manifest_recognise(
                 &file,
@@ -291,7 +314,7 @@ pub fn main(args: &[String]) -> u8 {
                 verify_source,
                 no_product_hashes,
                 fallback_whole_file,
-                &budget(integration_budget),
+                &recognition.options(),
             ));
         }
         Command::Serve => {
@@ -316,12 +339,18 @@ pub fn main(args: &[String]) -> u8 {
         Command::Fingerprints {
             file,
             integration_budget,
-        } => crate::file_api::fingerprints_file_with(&file, &budget(integration_budget)),
+        } => crate::file_api::fingerprints_file_with(
+            &file,
+            &crate::RecognitionOptions {
+                integration_budget,
+                ..Default::default()
+            },
+        ),
         Command::Evidence {
             file,
             framed,
-            integration_budget,
-        } => crate::file_api::evidence_file_with(&file, framed, &budget(integration_budget)),
+            recognition,
+        } => crate::file_api::evidence_file_with(&file, framed, &recognition.options()),
         Command::Correspond { old, new } => {
             correspond(&old, &new).map_err(|failure| failure.to_string())
         }

@@ -22,6 +22,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
+use crate::features::sheet_metal::{InvalidKFactor, KFactor};
 use crate::features::{self, Features};
 use crate::framed_records::{self, Mapped};
 use crate::frames::{self, PartFrame, RecordFrame};
@@ -75,12 +76,24 @@ pub struct RecognitionOptions {
     /// depends only on each face's own geometry, not on face order, threads or the clock, so
     /// the whole integration is bounded by the limit times the face count. `None`: no budget.
     pub integration_budget: Option<u64>,
+    pub(crate) k_factor: KFactor,
 }
 
 impl RecognitionOptions {
+    /// The K-factor used to develop sheet-metal bends. Defaults to 0.5.
+    pub fn k_factor(&self) -> f64 {
+        self.k_factor.value()
+    }
+
+    /// Set a finite K-factor in (0, 1]. A refused value leaves these options intact.
+    pub fn set_k_factor(&mut self, value: f64) -> Result<(), InvalidKFactor> {
+        self.k_factor = KFactor::try_from(value)?;
+        Ok(())
+    }
+
     /// *part* as recognition under these options reads it: measured against the integration
     /// budget, when there is one.
-    fn budgeted<'p>(&self, part: &'p Part, budgeted: &'p mut Option<Part>) -> &'p Part {
+    pub(crate) fn budgeted<'p>(&self, part: &'p Part, budgeted: &'p mut Option<Part>) -> &'p Part {
         let part = part.recognition_part();
         match self.integration_budget {
             Some(limit) => budgeted.insert(part.with_integration_budget(limit)),
@@ -92,7 +105,7 @@ impl RecognitionOptions {
 /// [`recognise`] under *options*. The default options give [`recognise`]'s result.
 pub fn recognise_with(part: &Part, options: &RecognitionOptions) -> Recognition {
     let mut budgeted = None;
-    recognise(options.budgeted(part, &mut budgeted))
+    recognise_with_k_factor(options.budgeted(part, &mut budgeted), options.k_factor)
 }
 
 /// The fingerprints of [`recognise_with`]'s recognition.
@@ -105,19 +118,23 @@ pub fn fingerprints_with(part: &Part, options: &RecognitionOptions) -> Fingerpri
 /// If frame inference is refused, records are caller-space and `frame` carries the reason.
 /// This performs no STEP reads and preserves face and edge indices.
 pub fn recognise(part: &Part) -> Recognition {
+    recognise_with_k_factor(part, KFactor::default())
+}
+
+pub(crate) fn recognise_with_k_factor(part: &Part, k_factor: KFactor) -> Recognition {
     let part = part.recognition_part();
     let frame = match frames::infer_part_frame(part) {
         Ok(frame) => frame,
         Err(reason) => {
-            return features::recognise_with(part, |ctx, features| {
+            return features::recognise_with(part, k_factor, |ctx, features| {
                 publish(part, ctx, features, RecordFrame::Refused { reason })
             });
         }
     };
-    recognise_in_frame(part, frame)
+    recognise_in_frame(part, frame, k_factor)
 }
 
-fn recognise_in_frame(part: &Part, frame: PartFrame) -> Recognition {
+fn recognise_in_frame(part: &Part, frame: PartFrame, k_factor: KFactor) -> Recognition {
     let working = match part.transformed_carrying_integrals(&frame.normalisation()) {
         Ok(working) => working,
         Err(_) => {
@@ -125,7 +142,7 @@ fn recognise_in_frame(part: &Part, frame: PartFrame) -> Recognition {
             return normalisation_refused(part);
         }
     };
-    features::recognise_with(&working, |ctx, features| {
+    features::recognise_with(&working, k_factor, |ctx, features| {
         publish(part, ctx, features, RecordFrame::Inferred(frame))
     })
 }
@@ -203,8 +220,17 @@ fn publish(
 /// Evidence failure does not erase recognition.
 /// Strict/local-degradation retries and publication post-pass retries remain intact.
 pub fn recognise_with_evidence(part: &Part) -> RecognitionWithEvidence {
-    let part = part.recognition_part();
-    let (recognition, evidence) = joint_analysis(part);
+    recognise_with_evidence_options(part, &RecognitionOptions::default())
+}
+
+/// [`recognise_with_evidence`] under *options*, shared by both projections.
+pub fn recognise_with_evidence_options(
+    part: &Part,
+    options: &RecognitionOptions,
+) -> RecognitionWithEvidence {
+    let mut budgeted = None;
+    let (recognition, evidence) =
+        joint_analysis(options.budgeted(part, &mut budgeted), options.k_factor);
     RecognitionWithEvidence {
         recognition,
         evidence,
@@ -222,6 +248,7 @@ pub struct RecognitionWithEvidence {
 
 fn joint_analysis(
     part: &Part,
+    k_factor: KFactor,
 ) -> (
     Recognition,
     Result<crate::evidence_view::EvidenceDocument, crate::evidence_view::EvidenceViewError>,
@@ -234,14 +261,14 @@ fn joint_analysis(
             Err(_) => {
                 return (
                     normalisation_refused(part),
-                    evidence_view::document(part, false),
+                    evidence_view::document_with_k_factor(part, false, k_factor),
                 );
             }
         },
         Err(reason) => (RecordFrame::Refused { reason }, None),
     };
     let geometry = working.as_ref().unwrap_or(part);
-    let result = features::take_inventory(geometry, |ctx, mut inventory| {
+    let result = features::take_inventory_with(geometry, k_factor, |ctx, mut inventory| {
         let projection = features::project_recesses(ctx, &mut inventory);
         // Clone before publication: post-passes expand face claims and can revoke families.
         // The evidence API has always projected the pre-publication physical inventory.
@@ -279,7 +306,7 @@ fn joint_analysis(
 #[cfg(test)]
 pub(crate) fn caller_space_recognise(part: &Part) -> Recognition {
     let part = part.recognition_part();
-    features::recognise_with(part, |ctx, features| {
+    features::recognise_with(part, KFactor::default(), |ctx, features| {
         let features: PublishedFeatures = features.into();
         let fingerprints = fingerprint::published_fingerprint_in(part, &features, ctx);
         Recognition {
@@ -1137,7 +1164,7 @@ mod normalisation_tests {
             z: [0., 0., 1.],
             gauge: frames::FrameGauge::Full,
         };
-        let result = recognise_in_frame(&part, frame);
+        let result = recognise_in_frame(&part, frame, KFactor::default());
         assert_eq!(
             result.frame,
             RecordFrame::Refused {
