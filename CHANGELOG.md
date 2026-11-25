@@ -6,6 +6,14 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+- For #359, expose signed solid inertia tensors in haecceity and Python, with a
+  parallel-axis shift and optional centroidal tensors and their reference volumes
+  in the `quiddity brep` JSON report. Use the local chart for shallow spherical
+  patches when it accepts them. When the radius exceeds 1,024 equal-area disk
+  diameters or the chart's projection or integration checks fail, inertia is
+  unavailable and `volume_centroid` keeps the legacy, less accurate result.
+  Rebase remote single-solid boundaries and scale large parallel-axis shifts
+  before squaring.
 - For #357, extend the checked along-v trial to spline faces with rational u, single-span
   affine v only, including extruded G2 fillets. Other projected spline primitives can still
   under-resolve their densities.

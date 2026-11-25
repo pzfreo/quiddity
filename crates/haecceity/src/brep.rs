@@ -509,6 +509,7 @@ pub struct Part {
     // Keep the file-frame inputs so successive rigid motions only round the integrals once.
     pub(super) integral_origin: Option<super::mass::IntegralOrigin>,
     pub(super) integral_reference: OnceLock<Option<(V3, f64)>>,
+    pub(super) solid_inertias: super::mass::SolidInertiaCache,
 }
 
 impl Part {
@@ -556,6 +557,7 @@ impl Part {
             integration_budget: None,
             integral_origin: None,
             integral_reference: OnceLock::new(),
+            solid_inertias: OnceLock::new(),
         }
     }
 
@@ -647,10 +649,25 @@ impl Part {
             .as_ref()
             .map(super::mass::IntegralOrigin::for_recognition);
         self.recognition_view = OnceLock::new();
+        self.solid_inertias = OnceLock::new();
         match self.integration_budget.take() {
             Some(budget) => self.with_integration_budget(budget.limit),
             None => self,
         }
+    }
+
+    /// Rebase only the carrier evaluator. Parameter-space trims still refer to the
+    /// original face, and native positions keep assembly translations out of the evaluation.
+    pub(super) fn local_face_surface(&self, face: usize, origin: V3) -> Surface {
+        let (surface, mut placement) = self
+            .native_faces
+            .get(face)
+            .and_then(|(face, at)| Some((&face.as_ref()?.surface, at.placement())))
+            .unwrap_or((&self.faces[face].surface, super::step::IDENTITY));
+        for (row, shift) in placement.iter_mut().zip(origin) {
+            row[3] -= shift;
+        }
+        surface.placed(&placement)
     }
 
     /// Reindex this part's faces, carrying their STEP provenance and master boundaries.
@@ -1316,6 +1333,7 @@ impl Part {
 
     pub(super) fn record_inverted_shell_repair(&mut self, solid: usize, reverse_wires: bool) {
         self.integral_origin = None;
+        self.solid_inertias = OnceLock::new();
         self.input_repairs
             .push(format!("solid {solid}: inverted closed shell repaired"));
         // Domains can use the face sense to choose a periodic band; no derived answer from
@@ -1352,6 +1370,7 @@ impl Part {
             for &f in &part.solids[solid].faces {
                 part.cache[f] = FaceCache::default();
             }
+            part.solid_inertias = OnceLock::new();
             part.bad_faces = OnceLock::new();
             part.ray_face_boxes = OnceLock::new();
             part.ray_edges = OnceLock::new();

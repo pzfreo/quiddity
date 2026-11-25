@@ -19,10 +19,13 @@
 
 mod closed;
 mod declared;
+mod inertia;
 mod preferred;
 mod sphere;
 pub(crate) use declared::{BoundaryPolicy, EdgeDeviations};
 pub(super) use declared::{DeclaredBoundary, TrimCrossings};
+pub use inertia::SolidInertia;
+pub(super) use inertia::SolidInertiaCache;
 pub(super) use preferred::PreferredPaths;
 pub(super) use sphere::SpherePatch;
 
@@ -165,6 +168,11 @@ impl IntegralOrigin {
             placement: crate::step::compose(outer, &self.placement),
             source: self.source.clone(),
         }
+    }
+
+    fn place_point(&self, point: V3) -> V3 {
+        self.placement
+            .map(|row| geom::dot([row[0], row[1], row[2]], point) + row[3])
     }
 
     fn for_recognition_budget(&self) -> Self {
@@ -1166,7 +1174,7 @@ impl Part {
         #[cfg(test)]
         MASTER_INTEGRATIONS.with(|calls| calls.set(calls.get() + 1));
         if let Some(terms) = self
-            .integrate_preferred_face(face, mass_density, Components::Prefix(5), true)
+            .integrate_preferred_face(face, mass_density, Components::Prefix(5), true, None)
             .and_then(valid_mass)
         {
             return Some(FaceMass {
@@ -1290,6 +1298,7 @@ impl Part {
                 },
                 Components::Prefix(M),
                 false,
+                None,
             )
         {
             return Some(sum);
@@ -1341,8 +1350,8 @@ impl Part {
     }
 
     /// [`Self::integrate_face_legacy`] over `boundary` (the file's selected trim, or the 3D
-    /// edges' foot points when `None`), evaluating `local_spline` in place of the face's own
-    /// B-spline net where given. A remembered refusal is keyed by the boundary choice too: the
+    /// edges' foot points when `None`), evaluating `local_surface` in place of the face's own
+    /// carrier where given. A remembered refusal is keyed by the boundary choice too: the
     /// selected trim and the projected edges are different loops, so one's refused trial says
     /// nothing about the other's.
     #[allow(clippy::too_many_arguments)]
@@ -1350,17 +1359,26 @@ impl Part {
         &self,
         face: usize,
         boundary: Option<&DeclaredBoundary>,
-        local_spline: Option<&crate::nurbs::NurbsSurface>,
+        local_surface: Option<&Surface>,
         f: impl Fn(V3, V3, V3) -> [f64; N],
         rule: IntegralRule,
         observed: &mut Option<FaceMass>,
         remember: bool,
     ) -> Option<[f64; N]> {
         if let Some(surface) = self.closed_spline(face) {
-            return closed::integrate_spline(local_spline.unwrap_or(surface), f, rule.components);
+            let surface = match local_surface {
+                Some(Surface::Freeform { surface, .. }) => surface,
+                _ => surface,
+            };
+            return closed::integrate_spline(surface, f, rule.components);
         }
         if let Some(range) = self.spindle_sweep(face, boundary) {
-            return closed::integrate_spindle(&self.faces[face].surface, range, f, rule.components);
+            return closed::integrate_spindle(
+                local_surface.unwrap_or(&self.faces[face].surface),
+                range,
+                f,
+                rule.components,
+            );
         }
         let key = (N, rule.observe_mass.is_some(), boundary.is_some());
         let remembered = remember && self.cache[face].trial_refused(key);
@@ -1369,7 +1387,7 @@ impl Part {
                 let unresolved = std::cell::Cell::new(false);
                 let mut trial = None;
                 let swapped = self.integrate_boundary_in(
-                    (face, boundary, local_spline),
+                    (face, boundary, local_surface),
                     &f,
                     rule,
                     &mut trial,
@@ -1391,7 +1409,7 @@ impl Part {
                 self.cache[face].refuse_trial(key);
             }
         }
-        self.integrate_boundary_in((face, boundary, local_spline), f, rule, observed, None)
+        self.integrate_boundary_in((face, boundary, local_surface), f, rule, observed, None)
     }
 
     /// Whether the face's inner integral should try running along v. An open, unpinched spline
@@ -1451,11 +1469,7 @@ impl Part {
 
     fn integrate_boundary_in<const N: usize>(
         &self,
-        (face, boundary, local_spline): (
-            usize,
-            Option<&DeclaredBoundary>,
-            Option<&crate::nurbs::NurbsSurface>,
-        ),
+        (face, boundary, local_surface): (usize, Option<&DeclaredBoundary>, Option<&Surface>),
         f: impl Fn(V3, V3, V3) -> [f64; N],
         rule: IntegralRule,
         observed: &mut Option<FaceMass>,
@@ -1513,9 +1527,10 @@ impl Part {
         if cheaper.is_some() && uv.iter().any(|lp| winds_round(lp, spans.0)) {
             return None;
         }
-        let evaluator = match surface {
+        let evaluation_surface = local_surface.unwrap_or(surface);
+        let evaluator = match evaluation_surface {
             Surface::Freeform { surface, .. } => Some(std::cell::RefCell::new(
-                crate::nurbs::SurfaceEvaluation::new(local_spline.unwrap_or(surface)),
+                crate::nurbs::SurfaceEvaluation::new(surface),
             )),
             _ => None,
         };
@@ -1526,7 +1541,7 @@ impl Part {
             let (u, v) = wrap_closed(surface, spans, (u, v));
             let (p, su, sv) = match &evaluator {
                 Some(evaluator) => evaluator.borrow_mut().value_and_partials(u, v),
-                None => point_and_partials(surface, u, v),
+                None => point_and_partials(evaluation_surface, u, v),
             };
             Some(f(p, su, sv))
         };
@@ -2324,6 +2339,22 @@ impl Part {
     }
 }
 
+fn centroid_density(p: V3, n: V3, length: f64) -> [f64; 26] {
+    let q = geom::scale(p, length.recip());
+    let qn = geom::dot(q, n);
+    let mut out = [0.0; 26];
+    out[0] = geom::norm(n);
+    out[1..4].copy_from_slice(&n);
+    out[13] = qn;
+    for i in 0..3 {
+        out[23 + i] = q[i] * qn;
+        for j in 0..3 {
+            out[14 + 3 * i + j] = q[i] * n[j];
+        }
+    }
+    out
+}
+
 /// A face's area, first and second moments.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FaceMoments {
@@ -2502,12 +2533,15 @@ impl Part {
     /// when the evaluator forms a world point and the density subtracts the origin; the
     /// translated net gives the offsets directly. The same UV boundary and error test apply.
     fn local_spline_group(&self, face: usize) -> Option<[f64; 26]> {
-        let Surface::Freeform { surface, .. } = &self.faces[face].surface else {
+        let Surface::Freeform { surface, kind } = &self.faces[face].surface else {
             return None;
         };
         let (origin, scale) = self.moment_frame(face)?;
         let boundary = self.measured_boundary(face)?;
-        let local = surface.relative_to(origin)?;
+        let local = Surface::Freeform {
+            surface: Box::new(surface.relative_to(origin)?),
+            kind,
+        };
         let values = self.integrate_boundary(
             face,
             Some(boundary),
@@ -2629,7 +2663,9 @@ impl Part {
 
     /// The volume and centre of mass of all the part's solids together (`BRepGProp::
     /// VolumeProperties` of the solids), or `None` where a face cannot be integrated; a void's
-    /// faces subtract, as in [`Part::solid_mass`].
+    /// faces subtract, as in [`Part::solid_mass`]. Shallow spherical patches use the
+    /// same local chart as [`Part::solid_inertia`] when accepted. If the chart declines,
+    /// the volume and centroid fall back to the legacy integration.
     ///
     /// About a point c, the volume is ⅓∯ (p − c)·n dA and ∭ (p − c) dV is ¼∯ (p − c)((p − c)·n) dA
     /// (the divergence of (p − c)((p − c)·e) is 4(p − c)·e). Both fields turn with the part, so
@@ -2641,12 +2677,245 @@ impl Part {
     /// of the part's size under a generic rotation (`tests/frames.rs`), where measured about a
     /// fixed point it moved by up to 0.08 mm on parts with such cracks.
     pub fn volume_centroid(&self) -> Option<(f64, V3)> {
-        // Integrated about c0 (the box centre, inside the part) for conditioning: with
-        // q = p − c0, s = ∯ q·n, m = ∯ n, a[i][j] = ∯ qᵢ nⱼ, b = ∯ q (q·n).
+        // On refusal, recompute the whole result with the cached legacy moments.
+        self.chart_volume_centroid()
+            .or_else(|| self.part_volume_centroid(false))
+    }
+
+    fn chart_volume_centroid(&self) -> Option<(f64, V3)> {
+        // A shallow single solid uses the same reference and file placement as
+        // inertia. Aggregates use the part reference with per-solid chart limits.
+        if let [solid] = &self.solids[..] {
+            let faces = &solid.faces;
+            if let Some(placement) = &self.integral_origin
+                && self.boundary_policy != BoundaryPolicy::Recognition
+                && placement.source.shallow_solid_reference(faces).is_some()
+            {
+                self.check_placed_centroid_faces(faces)?;
+                let (volume, centre) = placement.source.chart_volume_centroid()?;
+                return Some((volume, placement.place_point(centre)));
+            }
+            if let Some((origin, length)) = self.shallow_solid_reference(faces) {
+                if Self::coarse_world_coordinates(origin, length) {
+                    let local = self.rebase_solid_geometry(faces, origin)?;
+                    let (volume, centre) = local.chart_volume_centroid()?;
+                    return Some((volume, geom::add(origin, centre)));
+                }
+                let (volume, offset) = self.solid_centroid_flux(faces, (origin, length))?;
+                return Some((volume, geom::add(origin, offset)));
+            }
+        }
+        self.part_volume_centroid(true)
+    }
+
+    fn part_volume_centroid(&self, use_chart: bool) -> Option<(f64, V3)> {
         let (c0, length) = self.integral_reference()?;
+        let (volume, offset) = self.centroid_flux(
+            self.solids.iter().map(|solid| solid.faces.as_slice()),
+            c0,
+            length,
+            |face, faces| {
+                if use_chart && self.shallow_sphere(face, faces) {
+                    self.shallow_sphere_centroid(face, (c0, length))
+                } else {
+                    self.face_raw_moments(face).centre
+                }
+            },
+        )?;
+        Some((volume, geom::add(c0, offset)))
+    }
+
+    fn coarse_world_coordinates(origin: V3, length: f64) -> bool {
+        // Reserve a tenth of the 1e-9 integration tolerance for coordinate
+        // resolution when evaluating projected boundary points in world space.
+        origin.into_iter().map(f64::abs).fold(0.0, f64::max) * f64::EPSILON > 1e-10 * length
+    }
+
+    fn rebase_solid_geometry(&self, faces: &[usize], origin: V3) -> Option<Part> {
+        // A complete single solid can be rebased once. Avoid copying an assembly
+        // for each queried solid when its world coordinates are too coarse.
+        if !self.is_part_reference(faces) {
+            return None;
+        }
+        let mut placement = crate::step::IDENTITY;
+        for (row, shift) in placement.iter_mut().zip(origin) {
+            row[3] = -shift;
+        }
+        let local = self.transformed_geometry(&placement).ok()?;
+        for &face in faces {
+            self.face_terms(face)?;
+            let projected = self.cache[face].mass.get()?.method == BoundaryMethod::Projected;
+            if projected {
+                let _ = local.cache[face].declared.set(None);
+            }
+            // Re-resolve the same declarations in the local placement. Copying an
+            // already resolved transfer would still evaluate its foreign carrier at
+            // the original large coordinates before applying the translation.
+            local.face_terms(face)?;
+            match (self.measured_boundary(face), local.measured_boundary(face)) {
+                (None, None) => {}
+                (Some(a), Some(b)) if a.edges.keys().eq(b.edges.keys()) => {}
+                _ => return None,
+            }
+        }
+        Some(local)
+    }
+
+    fn is_part_reference(&self, faces: &[usize]) -> bool {
+        self.solids.len() == 1 && faces.len() == self.faces.len()
+    }
+
+    fn solid_integral_reference(&self, faces: &[usize]) -> Option<(V3, f64)> {
+        if self.is_part_reference(faces) {
+            return self.integral_reference();
+        }
+        // An unrelated body or sheet must not size a solid's chart.
+        let mut bounds = geom::Bounds::empty();
+        for &face in faces {
+            let b = self.face_bounds(face);
+            if b.diagonal().is_finite() {
+                bounds.merge(&b);
+            } else if let Surface::Sphere { frame, radius } = self.faces[face].surface {
+                bounds.add(frame.origin.map(|x| x - radius));
+                bounds.add(frame.origin.map(|x| x + radius));
+            } else if let Some(surface) = self.closed_spline(face) {
+                let (min, max) = surface.control_bounds();
+                bounds.add(min);
+                bounds.add(max);
+            }
+        }
+        let length = bounds.diagonal();
+        (length.is_finite() && length > 0.0).then_some((bounds.centre(), length))
+    }
+
+    fn shallow_sphere(&self, face: usize, faces: &[usize]) -> bool {
+        let Surface::Sphere { radius, .. } = self.faces[face].surface else {
+            return false;
+        };
+        // Test chords from a fixed boundary point instead of sizing the solid
+        // in world axes. A single long chord rules out a shallow carrier.
+        let mut points = faces.iter().flat_map(|&face| {
+            self.faces[face].loops.iter().flat_map(|lp| {
+                lp.edges
+                    .iter()
+                    .flat_map(|&(e, _)| {
+                        let edge = &self.edges[e];
+                        [edge.start, edge.end]
+                            .into_iter()
+                            .chain(edge.samples.iter().copied())
+                    })
+                    .chain(lp.vertex)
+            })
+        });
+        let Some(anchor) = points.next() else {
+            return false;
+        };
+        let limit = (radius * 0.25).powi(2);
+        points.all(|p| {
+            let d = geom::sub(p, anchor);
+            geom::dot(d, d) < limit
+        }) && self
+            .material_boundary(face)
+            .is_some_and(|rim| !rim.is_empty())
+    }
+
+    fn shallow_solid_reference(&self, faces: &[usize]) -> Option<(V3, f64)> {
+        if faces.iter().any(|&f| self.shallow_sphere(f, faces))
+            && self.spherical_cap_solid(faces).is_none()
+        {
+            return self.solid_integral_reference(faces);
+        }
+        None
+    }
+
+    fn shallow_sphere_centroid(
+        &self,
+        face: usize,
+        (origin, length): (V3, f64),
+    ) -> Option<[f64; 26]> {
+        self.face_terms(face)?;
+        self.spherical_local_flux(face, (origin, [0.0; 3]), |p, n| {
+            centroid_density(p, n, length)
+        })
+    }
+
+    fn check_placed_centroid_faces(&self, faces: &[usize]) -> Option<()> {
+        for &face in faces {
+            if self.shallow_sphere(face, faces) {
+                self.face_terms(face)?;
+            } else {
+                self.face_raw_moments(face).centre?;
+            }
+        }
+        Some(())
+    }
+
+    fn solid_centroid_flux(
+        &self,
+        faces: &[usize],
+        (origin, length): (V3, f64),
+    ) -> Option<(f64, V3)> {
+        let only_solid = self.is_part_reference(faces);
+        let remote = geom::norm(origin) > 32.0 * length;
+        self.centroid_flux(std::iter::once(faces), origin, length, |face, faces| {
+            if self.shallow_sphere(face, faces) {
+                return self.shallow_sphere_centroid(face, (origin, length));
+            }
+            let raw = self.face_raw_moments(face).centre?;
+            if only_solid && !remote {
+                return Some(raw);
+            }
+            if matches!(self.faces[face].surface, Surface::Sphere { .. }) {
+                return Some(self.spherical_patch(face)?.volume_moments(origin, length));
+            }
+            let local = remote.then(|| self.local_face_surface(face, origin));
+            let reference = if remote { [0.0; 3] } else { origin };
+            self.accepted_face_integral(face, local.as_ref(), |p, su, sv| {
+                centroid_density(geom::sub(p, reference), geom::cross(su, sv), length)
+            })
+        })
+    }
+
+    fn accepted_face_integral<const N: usize>(
+        &self,
+        face: usize,
+        local_surface: Option<&Surface>,
+        density: impl Fn(V3, V3, V3) -> [f64; N],
+    ) -> Option<[f64; N]> {
+        let components = Components::Prefix(N);
+        let method = self.cache[face].mass.get()?.method;
+        if method == BoundaryMethod::CertifiedPatch
+            && let Some(sum) =
+                self.integrate_preferred_face(face, &density, components, false, local_surface)
+        {
+            return Some(sum);
+        }
+        self.integrate_boundary(
+            face,
+            self.measured_boundary(face),
+            local_surface,
+            density,
+            IntegralRule {
+                components,
+                observe_mass: None,
+            },
+            &mut None,
+            false,
+        )
+    }
+
+    // Integrated about c0 for conditioning: with q = p − c0,
+    // s = ∯ q·n, m = ∯ n, a[i][j] = ∯ qᵢ nⱼ, b = ∯ q (q·n).
+    fn centroid_flux<'a>(
+        &self,
+        shells: impl Iterator<Item = &'a [usize]>,
+        c0: V3,
+        length: f64,
+        raw: impl Fn(usize, &[usize]) -> Option<[f64; 26]>,
+    ) -> Option<(f64, V3)> {
         let (mut s, mut m, mut a, mut b) = (0.0, [0.0; 3], [[0.0; 3]; 3], [0.0; 3]);
-        for solid in &self.solids {
-            if let Some((volume, centre)) = self.spherical_cap_solid(&solid.faces) {
+        for faces in shells {
+            if let Some((volume, centre)) = self.spherical_cap_solid(faces) {
                 s += 3.0 * volume;
                 for i in 0..3 {
                     a[i][i] += volume;
@@ -2654,13 +2923,12 @@ impl Part {
                 }
                 continue;
             }
-            for &face in &solid.faces {
+            for &face in faces {
                 let fc = &self.faces[face];
                 let sense = if fc.reversed { -1.0 } else { 1.0 };
-                // The shared face integration (`face_raw_moments`) holds the flux and its
-                // moments on the area scale. Restore physical units after quadrature; the
-                // fixed point below uses mm.
-                let f = self.face_raw_moments(face).centre?;
+                // The flux and its moments are on the area scale. Restore physical units
+                // after quadrature; the fixed point below uses mm.
+                let f = raw(face, faces)?;
                 s += sense * f[13] * length;
                 for i in 0..3 {
                     m[i] += sense * f[1 + i];
@@ -2685,7 +2953,7 @@ impl Part {
                 break;
             }
         }
-        Some((volume(d), geom::add(c0, d)))
+        Some((volume(d), d))
     }
 
     fn integral_reference(&self) -> Option<(V3, f64)> {

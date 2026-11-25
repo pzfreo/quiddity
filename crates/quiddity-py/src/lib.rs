@@ -205,6 +205,32 @@ fn parts(py: Python<'_>, step: &Bound<'_, PyAny>) -> PyResult<String> {
     .map_err(PyValueError::new_err)
 }
 
+/// Signed volume, centroid and inertia tensor of one solid, as JSON.
+#[pyfunction]
+#[pyo3(signature = (step, solid=0, point=None))]
+fn solid_inertia(
+    py: Python<'_>,
+    step: &Bound<'_, PyAny>,
+    solid: usize,
+    point: Option<[f64; 3]>,
+) -> PyResult<String> {
+    let input = Input::extract(step)?;
+    if point.is_some_and(|p| p.iter().any(|x| !x.is_finite())) {
+        return Err(PyValueError::new_err("point must have finite coordinates"));
+    }
+    detached(py, || {
+        let part = input.load()?;
+        file_api::json(&part.solid_inertia(solid).map(|inertia| {
+            serde_json::json!({
+                "volume": inertia.volume,
+                "centroid": inertia.centroid,
+                "tensor": point.map_or(inertia.tensor, |p| inertia.about(p)),
+            })
+        }))
+    })?
+    .map_err(PyValueError::new_err)
+}
+
 #[pyfunction]
 fn step_entities(py: Python<'_>, step: &Bound<'_, PyAny>) -> PyResult<String> {
     let input = Input::extract(step)?;
@@ -330,6 +356,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(correspond, m)?)?;
     m.add_function(wrap_pyfunction!(parts, m)?)?;
     m.add_function(wrap_pyfunction!(step_entities, m)?)?;
+    m.add_function(wrap_pyfunction!(solid_inertia, m)?)?;
     m.add_function(wrap_pyfunction!(capabilities, m)?)?;
     m.add_function(wrap_pyfunction!(cli, m)?)?;
     pmi::register(m)?;

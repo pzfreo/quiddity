@@ -119,6 +119,7 @@ fn moments_require_every_mass_integral() {
     let part = collapsed_cylinder();
     assert!(part.face_mass(0).is_none());
     assert!(part.solid_mass(0).is_none());
+    assert!(part.solid_inertia(0).is_none());
     assert!(part.volume_centroid().is_none());
     assert!(part.face_moments(0).is_none());
     assert!(part.face_projected_moments(0, [1.0, 0.0, 0.0]).is_none());
@@ -815,4 +816,410 @@ fn spherical_solid_measurements() {
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+fn diagonal_inertia(x: f64, y: f64, z: f64) -> [[f64; 3]; 3] {
+    [[x, 0.0, 0.0], [0.0, y, 0.0], [0.0, 0.0, z]]
+}
+
+fn assert_inertia(got: [[f64; 3]; 3], want: [[f64; 3]; 3]) {
+    assert!(
+        tensor_relative_error(got, want) <= 1e-12,
+        "{got:?} vs {want:?}"
+    );
+    assert_eq!(got[0][1], got[1][0]);
+    assert_eq!(got[0][2], got[2][0]);
+    assert_eq!(got[1][2], got[2][1]);
+}
+
+fn solid_fixture(name: &str) -> haecceity::Part {
+    read_step_file(&common::fixtures().join(name)).unwrap()
+}
+
+#[test]
+fn box_centroidal_inertia() {
+    let part = solid_fixture("captured/frames/box_rot_x30.step");
+    let volume = 10.0 * 20.0 * 30.0;
+    let (x, y, z) = (
+        volume * (20.0_f64.powi(2) + 30.0_f64.powi(2)) / 12.0,
+        volume * (10.0_f64.powi(2) + 30.0_f64.powi(2)) / 12.0,
+        volume * (10.0_f64.powi(2) + 20.0_f64.powi(2)) / 12.0,
+    );
+    let (s, c) = 30.0_f64.to_radians().sin_cos();
+    let yz = s * c * (y - z);
+    let got = part.solid_inertia(0).unwrap();
+    assert_inertia(
+        got.tensor,
+        [
+            [x, 0.0, 0.0],
+            [0.0, c * c * y + s * s * z, yz],
+            [0.0, yz, s * s * y + c * c * z],
+        ],
+    );
+    assert!(geom::norm(got.centroid) <= 1e-12);
+    relative(got.volume, volume, 1e-12);
+}
+
+#[test]
+fn cylinder_centroidal_inertia() {
+    let part = solid_fixture("ties/symmetric_cylinder.step");
+    let (r, h) = (5.0, 20.0);
+    let mass = std::f64::consts::PI * r * r * h;
+    let across = mass * (3.0 * r * r + h * h) / 12.0;
+    assert_inertia(
+        part.solid_inertia(0).unwrap().tensor,
+        diagonal_inertia(across, across, mass * r * r / 2.0),
+    );
+}
+
+#[test]
+fn sphere_centroidal_inertia() {
+    let part = solid_fixture("brep-conformance/whole_sphere.step.gz");
+    let r = 1.4716928082270857_f64;
+    let moment = 8.0 * std::f64::consts::PI * r.powi(5) / 15.0;
+    assert_inertia(
+        part.solid_inertia(0).unwrap().tensor,
+        diagonal_inertia(moment, moment, moment),
+    );
+
+    // This cap's height is about one millionth of the sphere radius. Recover it
+    // from the circular rim rather than subtracting nearly equal axial coordinates.
+    let cap = solid_fixture("brep-conformance/thin_sphere_cap.step.gz");
+    let r = 8.416584995204152_f64;
+    let rim = 0.011902845673350104_f64;
+    let height = rim.powi(2) / (r + (r * r - rim * rim).sqrt());
+    // Write the squared disk radius at depth height*t as height*t*(2*r-height*t).
+    // Its first three axial integrals, with the common π*height² factored out.
+    let radial = [
+        r - height / 3.0,
+        2.0 * r / 3.0 - height / 4.0,
+        r / 2.0 - height / 5.0,
+    ];
+    let pi = std::f64::consts::PI;
+    let axial =
+        pi * height.powi(3) * (2.0 * r * r / 3.0 - r * height / 2.0 + height * height / 10.0);
+    let across = axial / 2.0 + pi * height.powi(4) * (radial[2] - radial[1].powi(2) / radial[0]);
+    let inertia = cap.solid_inertia(0).unwrap();
+    assert_inertia(inertia.tensor, diagonal_inertia(across, across, axial));
+    let far = inertia.about([1e155, 0.0, 0.0]);
+    let volume = pi * height * height * radial[0];
+    let transverse = (volume * 1e155) * 1e155;
+    relative(far[1][1], transverse, 1e-12);
+    relative(far[2][2], transverse, 1e-12);
+}
+
+#[test]
+fn cone_centroidal_inertia() {
+    let part = solid_fixture("revolution_cone.step.gz");
+    let (r, h) = (3.0, 4.0);
+    let mass = std::f64::consts::PI * r * r * h / 3.0;
+    let across = 3.0 * mass * (r * r / 20.0 + h * h / 80.0);
+    assert_inertia(
+        part.solid_inertia(0).unwrap().tensor,
+        diagonal_inertia(3.0 * mass * r * r / 10.0, across, across),
+    );
+}
+
+#[test]
+fn torus_centroidal_inertia() {
+    let part = solid_fixture("full_torus.step");
+    let (major, minor) = (10.0, 2.0);
+    let mass = 2.0 * std::f64::consts::PI.powi(2) * major * minor * minor;
+    let across = mass * (major * major / 2.0 + 5.0 * minor * minor / 8.0);
+    assert_inertia(
+        part.solid_inertia(0).unwrap().tensor,
+        diagonal_inertia(
+            across,
+            across,
+            mass * (major * major + 3.0 * minor * minor / 4.0),
+        ),
+    );
+}
+
+#[test]
+fn inertia_parallel_axis_at_large_offset() {
+    let source = std::fs::read_to_string(common::fixtures().join("ties/cube.step")).unwrap();
+    let centre = [5e12; 3];
+    // Bake the translation into 3D STEP points, leaving the pcurves in UV.
+    // Importing this file has no unshifted geometry to reuse.
+    let text = source
+        .lines()
+        .map(|line| {
+            if let Some((prefix, coords)) = line.split_once("CARTESIAN_POINT('',(")
+                && let Some(coords) = coords.strip_suffix("));")
+            {
+                let point: Vec<_> = coords
+                    .split(',')
+                    .map(|x| x.parse::<f64>().unwrap())
+                    .collect();
+                if let [x, y, z] = point.as_slice() {
+                    let [x, y, z] = geom::add([*x, *y, *z], centre);
+                    return format!("{prefix}CARTESIAN_POINT('',({x:.1},{y:.1},{z:.1}));");
+                }
+            }
+            line.to_owned()
+        })
+        .collect::<Vec<_>>()
+        .join(
+            "
+",
+        );
+    let part = haecceity::read_step(text.as_bytes()).unwrap();
+    let got = part.solid_inertia(0).unwrap();
+    let m = 1000.0;
+    let i = m * 200.0 / 12.0;
+    assert_eq!(got.centroid, centre);
+    assert_inertia(got.tensor, diagonal_inertia(i, i, i));
+    assert_inertia(
+        got.about(geom::add(centre, [2.0, 3.0, -4.0])),
+        [
+            [i + 25.0 * m, -6.0 * m, 8.0 * m],
+            [-6.0 * m, i + 20.0 * m, 12.0 * m],
+            [8.0 * m, 12.0 * m, i + 13.0 * m],
+        ],
+    );
+}
+
+#[test]
+fn inertia_subtracts_a_void_shell() {
+    let part = solid_fixture("multi_solid/brep_with_voids.step.gz");
+    let (outer, inner) = (2.613485151152_f64, 2.133143349978_f64);
+    let moment = 8.0 * std::f64::consts::PI * (outer.powi(5) - inner.powi(5)) / 15.0;
+    let got = part.solid_inertia(0).unwrap();
+    assert_inertia(got.tensor, diagonal_inertia(moment, moment, moment));
+    relative(got.volume, part.solid_mass(0).unwrap().0, 1e-12);
+}
+
+#[test]
+fn inside_out_shell_has_negative_inertia() {
+    let mut part = solid_fixture("ties/cube.step");
+    for face in &mut part.faces {
+        face.reversed = !face.reversed;
+    }
+    let part = haecceity::Part::new(part.faces, part.edges, part.solids);
+    let got = part.solid_inertia(0).unwrap();
+    relative(got.volume, -1000.0, 1e-12);
+    relative(got.volume, part.solid_mass(0).unwrap().0, 1e-12);
+    let moment = -1000.0 * 200.0 / 12.0;
+    assert_inertia(got.tensor, diagonal_inertia(moment, moment, moment));
+    assert_inertia(
+        part.repair_inverted_shells()
+            .solid_inertia(0)
+            .unwrap()
+            .tensor,
+        diagonal_inertia(-moment, -moment, -moment),
+    );
+}
+
+fn shallow_dome(radius: f64, plate: bool) -> haecceity::Part {
+    let (fixture, top, rim2) = if plate {
+        ("ties/cube.step", 5.0, 50.0)
+    } else {
+        ("ties/symmetric_cylinder.step", 10.0, 25.0)
+    };
+    let mut part = solid_fixture(fixture);
+    let roof = part
+        .faces
+        .iter()
+        .position(|f| matches!(f.surface, geom::Surface::Plane { frame } if frame.origin[2] == top))
+        .unwrap();
+    let z = top - (radius * radius - rim2).sqrt();
+    let sign = if part.faces[roof].reversed { -1.0 } else { 1.0 };
+    part.faces[roof].surface = geom::Surface::Sphere {
+        frame: geom::Frame {
+            origin: [0.0, 0.0, z],
+            x: [1.0, 0.0, 0.0],
+            y: [0.0, sign, 0.0],
+            z: [0.0, 0.0, 1.0],
+        },
+        radius,
+    };
+    if plate {
+        for &(e, _) in part.faces[roof].loops.iter().flat_map(|lp| &lp.edges) {
+            let edge = &mut part.edges[e];
+            let fixed = usize::from(edge.start[0] != edge.end[0]);
+            let mut centre = [0.0, 0.0, z];
+            centre[fixed] = edge.start[fixed];
+            let x = geom::unit(geom::sub(edge.start, centre)).unwrap();
+            let mut normal = [0.0; 3];
+            normal[fixed] = 1.0;
+            let y = geom::cross(normal, x);
+            edge.curve = geom::Curve::Circle {
+                frame: geom::Frame {
+                    origin: centre,
+                    x,
+                    y,
+                    z: normal,
+                },
+                radius: (radius * radius - 25.0).sqrt(),
+            };
+            edge.same_sense = geom::dot(geom::sub(edge.end, centre), y) > 0.0;
+            edge.samples = haecceity::sampling::sample_edge(
+                &edge.curve,
+                edge.start,
+                edge.end,
+                edge.same_sense,
+                false,
+            );
+        }
+    }
+    for face in &mut part.faces {
+        face.pcurves.clear();
+    }
+    haecceity::Part::new(part.faces, part.edges, part.solids)
+}
+
+fn tensor_relative_error(got: [[f64; 3]; 3], want: [[f64; 3]; 3]) -> f64 {
+    let error = got
+        .into_iter()
+        .flatten()
+        .zip(want.into_iter().flatten())
+        .map(|(a, b)| (a - b).powi(2))
+        .sum::<f64>();
+    let scale = want.into_iter().flatten().map(|x| x * x).sum::<f64>();
+    (error / scale).sqrt()
+}
+
+#[test]
+fn shallow_domes_share_centroid_and_inertia() {
+    check_shallow_plate_dome();
+    check_shallow_cylinder_dome();
+}
+
+fn check_shallow_dome(
+    part: &haecceity::Part,
+    radius: f64,
+    expected_z: f64,
+    expected_tensor: [[f64; 3]; 3],
+) {
+    let c = std::f64::consts::FRAC_1_SQRT_2;
+    let turn = [[c, -c, 0.0, 0.0], [c, c, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]];
+    // Both closed forms are invariant under this rotation about their symmetry
+    // axis at second order. The plate's world bounding box grows under the turn.
+    for placed in [part, &part.transformed(&turn).unwrap()] {
+        let measured = placed.volume_centroid();
+        let inertia = placed.solid_inertia(0);
+        if radius >= 1.39e4 {
+            let (volume, centroid) = measured.expect("legacy centroid");
+            if radius == 1.39e4 {
+                // The square roof keeps the legacy result in both placements.
+                assert!((volume - 1_000.119_904_086_284_4).abs() <= 5e-9);
+                assert!(geom::dist(centroid, [0.0, 0.0, 0.000_599_527_619_312_880_1]) <= 5e-11);
+            }
+            assert!(inertia.is_none(), "R={radius}, unresolvable inertia");
+            continue;
+        }
+        let (volume, centroid) = measured.unwrap();
+        let inertia = inertia.unwrap();
+        assert_eq!((volume, centroid), (inertia.volume, inertia.centroid));
+        let error = geom::dist(centroid, [0.0, 0.0, expected_z]);
+        assert!(
+            error <= 1e-9 * part.bounds().diagonal(),
+            "R={radius}, centroid error {error} mm"
+        );
+        let error = tensor_relative_error(inertia.tensor, expected_tensor);
+        assert!(error <= 1e-9, "R={radius}, relative inertia error {error}");
+    }
+}
+
+fn check_shallow_cylinder_dome() {
+    for r in [1e2_f64, 1e3, 1e4, 1.023e4, 1e5] {
+        let part = shallow_dome(r, false);
+        let h = 25.0 / (r + (r * r - 25.0).sqrt());
+        let pi = std::f64::consts::PI;
+        let cylinder = pi * 25.0 * 20.0;
+        let cap = pi * h * h * (r - h / 3.0);
+        // Moments of slices of the cap at depth w from its tip. Each slice has
+        // squared radius 2rw − w². Heights below use the common rim as zero.
+        let cap_mean = h * (4.0 * r - h) / (4.0 * (3.0 * r - h));
+        let cap_z2 = pi * h.powi(4) * (r / 6.0 - h / 30.0);
+        let centroid = (-10.0 * cylinder + cap * cap_mean) / (cylinder + cap);
+        let axial = cylinder * 25.0 / 2.0
+            + pi * h.powi(3) * (2.0 * r * r / 3.0 - r * h / 2.0 + h * h / 10.0);
+        let across = axial / 2.0 + cylinder * (400.0 / 3.0) + cap_z2
+            - (cylinder + cap) * centroid * centroid;
+        check_shallow_dome(
+            &part,
+            r,
+            10.0 + centroid,
+            diagonal_inertia(across, across, axial),
+        );
+    }
+}
+
+fn check_shallow_plate_dome() {
+    // Integrate the dome height exactly through its fourth binomial term in
+    // (50 − x² − y²)/k². The first omitted height term is < 9e-12 mm for R >= 100.
+    let choose = |n: i32, k: i32| (0..k).fold(1.0, |c, j| c * f64::from(n - j) / f64::from(j + 1));
+    let square_moment = |n, extra| {
+        let line = |i| 2.0 * 5.0_f64.powi(2 * i + 1) / f64::from(2 * i + 1);
+        (0..=n)
+            .map(|i| choose(n, i) * line(i + extra) * line(n - i))
+            .sum::<f64>()
+    };
+    let power = |n, extra| {
+        (0..=n)
+            .map(|i| {
+                choose(n, i) * 50.0_f64.powi(n - i) * (-1.0_f64).powi(i) * square_moment(i, extra)
+            })
+            .sum::<f64>()
+    };
+    for r in [1e2_f64, 1e3, 1e4, 1.154e4, 1.39e4, 4e4, 1e5] {
+        let part = shallow_dome(r, true);
+        let k = (r * r - 50.0).sqrt();
+        let coefficients = [
+            0.5 / k,
+            -0.125 / k.powi(3),
+            0.0625 / k.powi(5),
+            -5.0 / (128.0 * k.powi(7)),
+        ];
+        let terms = (1..=4).zip(coefficients);
+        let cap_volume = terms.clone().map(|(n, c)| c * power(n, 0)).sum::<f64>();
+        let horizontal =
+            terms.clone().map(|(n, c)| c * power(n, 1)).sum::<f64>() + 10.0 * square_moment(0, 1);
+        let mut z = -5000.0;
+        let mut z2 = 100000.0 / 3.0;
+        for (i, a) in terms.clone() {
+            for (j, b) in terms.clone() {
+                z += a * b * power(i + j, 0) / 2.0;
+                for (l, c) in terms.clone() {
+                    z2 += a * b * c * power(i + j + l, 0) / 3.0;
+                }
+            }
+        }
+        let across = horizontal + z2 - z * z / (1000.0 + cap_volume);
+        check_shallow_dome(
+            &part,
+            r,
+            5.0 + z / (1000.0 + cap_volume),
+            diagonal_inertia(across, across, 2.0 * horizontal),
+        );
+    }
+}
+
+#[test]
+fn remote_inertia_respects_mass_refusal() {
+    let fixture = solid_fixture("golden_simple_through_hole.step");
+    let part = haecceity::Part::new(fixture.faces, fixture.edges, fixture.solids);
+    assert!(part.solid_inertia(0).is_some());
+    let mut at = haecceity::step::IDENTITY;
+    for (row, shift) in at.iter_mut().zip([1e12, 2e12, -3e12]) {
+        row[3] = shift;
+    }
+    let moved = part.transformed(&at).unwrap();
+    assert!(moved.solid_mass(0).is_none());
+    assert!(moved.volume_centroid().is_none());
+    assert!(moved.solid_inertia(0).is_none());
+}
+
+#[test]
+fn recognition_boundary_change_discards_queried_inertia() {
+    let part = solid_fixture("modelled_threads/varying_pitch_sweep.step.gz");
+    let master = part.solid_inertia(0).unwrap();
+    let recognition = part.recognition_part().solid_inertia(0).unwrap();
+    assert!((master.volume - recognition.volume).abs() > 1e-5);
+    assert_eq!(
+        part.into_recognition_part().solid_inertia(0),
+        Some(recognition)
+    );
 }
