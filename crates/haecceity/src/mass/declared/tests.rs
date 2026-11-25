@@ -172,6 +172,38 @@ fn selected_circle_on_a_plane_keeps_its_own_parameter_interval() {
 }
 
 #[test]
+fn a_bounded_pcurve_cannot_reverse_an_open_arc_at_its_seam() {
+    // A unit circle on a cylindrical carrier, from pi/2 to 2*pi in the positive sense.
+    // The selected spline spans the whole circle at v=0, with a different knot origin.
+    // Both ends of the spline lift to the endpoint at angle zero on the planar face.
+    let text = plane().replace(
+        "#108=PLANE",
+        "#201=CYLINDRICAL_SURFACE('',#11,1.);\n#108=PLANE",
+    );
+    let mut text = text;
+    for (id, body) in [
+        (100, "CARTESIAN_POINT('',(0.,1.,0.))"),
+        (101, "CARTESIAN_POINT('',(1.,0.,0.))"),
+        (111, "CIRCLE('',#11,1.)"),
+        (114, "CARTESIAN_POINT('',(6.283185307179586,0.))"),
+        (
+            115,
+            "B_SPLINE_CURVE_WITH_KNOTS('',1,(#112,#114),.UNSPECIFIED.,.F.,.F.,(2,2),(6.283185307179586,12.566370614359172),.PIECEWISE_BEZIER_KNOTS.)",
+        ),
+        (117, "PCURVE('',#201,#116)"),
+        (121, "DIRECTION('',(-1.,1.,0.))"),
+        (131, "EDGE_CURVE('',#105,#104,#123,.T.)"),
+        (157, "EDGE_LOOP('',(#120,#132))"),
+    ] {
+        text = entity(&text, id, body);
+    }
+    let part = crate::step::read_step(text.as_bytes()).unwrap();
+    let area = part.face_moments(0).unwrap().area;
+    let expected = 3. * std::f64::consts::FRAC_PI_4 + 0.5;
+    assert!((area - expected).abs() < 1e-12, "{area} vs {expected}");
+}
+
+#[test]
 fn extrusion_uses_vector_magnitude_and_native_profile_knots() {
     let mut text = entity(SQUARE, 108, "SURFACE_OF_LINEAR_EXTRUSION('',#201,#202)");
     let extra = "#201=B_SPLINE_CURVE_WITH_KNOTS('',1,(#100,#101),.UNSPECIFIED.,.F.,.F.,(2,2),(0.,1.),.PIECEWISE_BEZIER_KNOTS.);\n#202=VECTOR('',#121,2.);\n";

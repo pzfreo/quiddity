@@ -643,6 +643,12 @@ fn resolve_interval(
             } else if (b > a) != edge.same_sense {
                 b += if edge.same_sense { period } else { -period };
             }
+        } else if natural.is_some() && edge.curve.period().is_some() && (b > a) != edge.same_sense {
+            // A bounded pcurve can run around a periodic carrier and put the
+            // same vertex at both ends of its knot domain. Endpoint inversion
+            // can then select the complementary arc in reverse. Reversing the
+            // sense of a periodic edge changes its trim even if both ends match.
+            return None;
         }
         Some((a, b))
     };
