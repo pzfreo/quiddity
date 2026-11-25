@@ -648,18 +648,20 @@ impl Part {
         &self,
         face: usize,
         (origin, offset): (V3, V3),
-        length: f64,
         density: impl Fn(V3, V3) -> [f64; N],
     ) -> Option<[f64; N]> {
         let patch = self.spherical_patch(face)?;
         let radius = patch.radius;
-        // At extreme ratios, STEP rim and carrier rounding can dominate even
-        // when local quadrature converges. Bound the ratio before using the chart.
-        if radius > 2048.0 * length || patch.area >= TAU * radius * radius {
+        // Use the diameter of an equal-area disk. It is rotation-invariant
+        // and gives narrow patches less latitude than their longest chord.
+        // Keep margin for STEP rim/carrier rounding at the 1e-9 target.
+        let diameter = 2.0 * (patch.area / PI).sqrt();
+        if radius > 1024.0 * diameter || patch.area >= TAU * radius * radius {
             return None;
         }
         let edges = self.material_boundary(face)?;
         let anchor = self.edges[edges.first()?.0].start;
+        let boundary = self.measured_boundary(face);
         let radial = geom::sub(anchor, patch.centre);
         let axis = geom::unit(radial)?;
         let apex = geom::add(
@@ -702,14 +704,8 @@ impl Part {
             patch.sense
         };
         let floor = 2e-12 * patch.area / edges.len() as f64;
-        let values = self.integrate_spherical_wire(
-            face,
-            &edges,
-            orientation,
-            self.measured_boundary(face),
-            floor,
-            term,
-        )?;
+        let values =
+            self.integrate_spherical_wire(face, &edges, orientation, boundary, floor, term)?;
         // A positive, matching area proves the selected patch is covered by the
         // chart, rather than its complement on the other side of the sphere.
         patch.matches_area(values[0]).then_some(values)

@@ -26,7 +26,17 @@ impl SolidInertia {
     /// Inertia in mm⁵ about axes through `point` (in mm), parallel to the part's coordinate axes.
     /// The parallel-axis term uses the same signed volume as the centroidal tensor.
     pub fn about(&self, point: V3) -> [[f64; 3]; 3] {
-        let [x, y, z] = geom::sub(self.centroid, point);
+        // Put one square root of the mass in each factor so large distances
+        // need never be squared before a small volume can scale them down.
+        let root_mass = self.volume.abs().sqrt();
+        let [x, y, z] = std::array::from_fn(|i| {
+            let offset = self.centroid[i] - point[i];
+            if offset.is_finite() {
+                root_mass * offset
+            } else {
+                root_mass * self.centroid[i] - root_mass * point[i]
+            }
+        });
         let shift = [
             y * y + z * z,
             x * x + z * z,
@@ -35,7 +45,7 @@ impl SolidInertia {
             -x * z,
             -y * z,
         ];
-        symmetric_tensor(|k, i, j| self.tensor[i][j] + self.volume * shift[k])
+        symmetric_tensor(|k, i, j| self.tensor[i][j] + self.volume.signum() * shift[k])
     }
 
     fn is_measurable(&self) -> bool {
@@ -78,7 +88,8 @@ impl Part {
     /// and preserves the centroid. [`SolidInertia::about`] shifts to any other point.
     /// Returns `None` for an absent solid, zero volume, or a refused face integral.
     /// For shallow spherical faces the local chart also requires a radius of at
-    /// most 2048 times the solid's bounding-box diagonal.
+    /// most 1024 times the diameter of a disk with the same patch area. A remote
+    /// assembly solid may be refused when its world-coordinate resolution is too coarse.
     /// The result is cached for this immutable part.
     pub fn solid_inertia(&self, solid: usize) -> Option<SolidInertia> {
         self.solids.get(solid)?;
@@ -106,6 +117,19 @@ impl Part {
             return Some(origin.source.solid_inertia(solid)?.placed(origin));
         }
         let (origin, length) = self.solid_integral_reference(faces)?;
+        if Self::coarse_world_coordinates(origin, length) {
+            if self.shallow_solid_reference(faces).is_none()
+                && self.spherical_cap_solid(faces).is_none()
+            {
+                for &face in faces {
+                    self.face_raw_moments(face).centre?;
+                }
+            }
+            let local = self.rebase_solid_geometry(faces, origin)?;
+            let mut inertia = local.solid_inertia(0)?;
+            inertia.centroid = geom::add(origin, inertia.centroid);
+            return inertia.is_measurable().then_some(inertia);
+        }
         if let Some(cap) = self.spherical_cap_inertia(faces) {
             return cap.is_measurable().then_some(cap);
         }
@@ -136,9 +160,9 @@ impl Part {
                     y * z * weight,
                 ]
             };
-            let second = if self.shallow_sphere(face, length) {
+            let second = if self.shallow_sphere(face, faces) {
                 let [_, xx, yy, zz, xy, xz, yz] =
-                    self.spherical_local_flux(face, (origin, offset), length, moments)?;
+                    self.spherical_local_flux(face, (origin, offset), moments)?;
                 [xx, yy, zz, xy, xz, yz]
             } else if matches!(fc.surface, Surface::Sphere { .. }) {
                 self.spherical_second_flux(face, (origin, offset), length)?

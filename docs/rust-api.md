@@ -129,7 +129,7 @@ reference for shells with small gaps. For such shells the volume can differ
 from the vertex-reference volume returned by `Part::solid_mass`. A missing
 solid, zero volume, or a refused integral returns `None`. A shallow spherical
 patch that requires a local chart is also refused when its radius exceeds
-2048 times the solid's bounding-box diagonal.
+1024 times the diameter of a disk with the same patch area.
 
 ## Construction and migration
 

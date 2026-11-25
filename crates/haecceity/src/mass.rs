@@ -2482,13 +2482,8 @@ impl Part {
                 centre: patch
                     .zip(self.integral_reference())
                     .and_then(|(p, (origin, length))| {
-                        let solid_length = self.centroid_face_scale(face, length)?;
-                        if self.shallow_sphere(face, solid_length) {
-                            return self.shallow_sphere_centroid(
-                                face,
-                                (origin, length),
-                                solid_length,
-                            );
+                        if self.centroid_face_is_shallow(face) {
+                            return self.shallow_sphere_centroid(face, (origin, length));
                         }
                         if p.needs_circular_centroid_check()
                             && self.material_boundary(face)?.iter().all(|&(edge, _)| {
@@ -2689,6 +2684,11 @@ impl Part {
                 return Some((volume, placement.place_point(geom::add(origin, offset))));
             }
             if let Some((origin, length)) = self.shallow_solid_reference(faces) {
+                if Self::coarse_world_coordinates(origin, length) {
+                    let local = self.rebase_solid_geometry(faces, origin)?;
+                    let (volume, centre) = local.volume_centroid()?;
+                    return Some((volume, geom::add(origin, centre)));
+                }
                 let (volume, offset) = self.solid_centroid_flux(faces, (origin, length))?;
                 return Some((volume, geom::add(origin, offset)));
             }
@@ -2701,6 +2701,42 @@ impl Part {
             |face| self.face_raw_moments(face).centre,
         )?;
         Some((volume, geom::add(c0, offset)))
+    }
+
+    fn coarse_world_coordinates(origin: V3, length: f64) -> bool {
+        // Reserve a tenth of the 1e-9 integration tolerance for coordinate
+        // resolution when evaluating projected boundary points in world space.
+        origin.into_iter().map(f64::abs).fold(0.0, f64::max) * f64::EPSILON > 1e-10 * length
+    }
+
+    fn rebase_solid_geometry(&self, faces: &[usize], origin: V3) -> Option<Part> {
+        // A complete single solid can be rebased once. Avoid copying an assembly
+        // for each queried solid when its world coordinates are too coarse.
+        if !self.is_part_reference(faces) {
+            return None;
+        }
+        let mut placement = crate::step::IDENTITY;
+        for (row, shift) in placement.iter_mut().zip(origin) {
+            row[3] = -shift;
+        }
+        let local = self.transformed_geometry(&placement).ok()?;
+        for &face in faces {
+            self.face_terms(face)?;
+            let projected = self.cache[face].mass.get()?.method == BoundaryMethod::Projected;
+            if projected {
+                let _ = local.cache[face].declared.set(None);
+            }
+            // Re-resolve the same declarations in the local placement. Copying an
+            // already resolved transfer would still evaluate its foreign carrier at
+            // the original large coordinates before applying the translation.
+            local.face_terms(face)?;
+            match (self.measured_boundary(face), local.measured_boundary(face)) {
+                (None, None) => {}
+                (Some(a), Some(b)) if a.edges.keys().eq(b.edges.keys()) => {}
+                _ => return None,
+            }
+        }
+        Some(local)
     }
 
     fn is_part_reference(&self, faces: &[usize]) -> bool {
@@ -2730,44 +2766,60 @@ impl Part {
         (length.is_finite() && length > 0.0).then_some((bounds.centre(), length))
     }
 
-    fn centroid_face_scale(&self, face: usize, part_length: f64) -> Option<f64> {
+    fn centroid_face_is_shallow(&self, face: usize) -> bool {
         let sole = self.solids.first().filter(|_| self.solids.len() == 1);
-        let solid = sole
-            .or_else(|| self.faces[face].solid.and_then(|s| self.solids.get(s)))
-            .or_else(|| self.solids.iter().find(|s| s.faces.contains(&face)));
-        match solid {
-            Some(solid) if !self.is_part_reference(&solid.faces) => {
-                Some(self.solid_integral_reference(&solid.faces)?.1)
-            }
-            _ => Some(part_length),
-        }
+        sole.or_else(|| self.faces[face].solid.and_then(|s| self.solids.get(s)))
+            .or_else(|| self.solids.iter().find(|s| s.faces.contains(&face)))
+            .is_some_and(|solid| self.shallow_sphere(face, &solid.faces))
     }
 
-    fn shallow_sphere(&self, face: usize, length: f64) -> bool {
-        matches!(self.faces[face].surface, Surface::Sphere { radius, .. } if radius > 4.0 * length)
+    fn shallow_sphere(&self, face: usize, faces: &[usize]) -> bool {
+        let Surface::Sphere { radius, .. } = self.faces[face].surface else {
+            return false;
+        };
+        // Test chords from a fixed boundary point instead of sizing the solid
+        // in world axes. A single long chord rules out a shallow carrier.
+        let mut points = faces.iter().flat_map(|&face| {
+            self.faces[face].loops.iter().flat_map(|lp| {
+                lp.edges
+                    .iter()
+                    .flat_map(|&(e, _)| {
+                        let edge = &self.edges[e];
+                        [edge.start, edge.end]
+                            .into_iter()
+                            .chain(edge.samples.iter().copied())
+                    })
+                    .chain(lp.vertex)
+            })
+        });
+        let Some(anchor) = points.next() else {
+            return false;
+        };
+        let limit = (radius * 0.25).powi(2);
+        points.all(|p| {
+            let d = geom::sub(p, anchor);
+            geom::dot(d, d) < limit
+        }) && self
+            .material_boundary(face)
+            .is_some_and(|rim| !rim.is_empty())
     }
 
     fn shallow_solid_reference(&self, faces: &[usize]) -> Option<(V3, f64)> {
-        if !faces
-            .iter()
-            .any(|&f| matches!(self.faces[f].surface, Surface::Sphere { .. }))
+        if faces.iter().any(|&f| self.shallow_sphere(f, faces))
+            && self.spherical_cap_solid(faces).is_none()
         {
-            return None;
+            return self.solid_integral_reference(faces);
         }
-        let reference = self.solid_integral_reference(faces)?;
-        (faces.iter().any(|&f| self.shallow_sphere(f, reference.1))
-            && self.spherical_cap_solid(faces).is_none())
-        .then_some(reference)
+        None
     }
 
     fn shallow_sphere_centroid(
         &self,
         face: usize,
         (origin, length): (V3, f64),
-        solid_length: f64,
     ) -> Option<[f64; 26]> {
         self.face_terms(face)?;
-        self.spherical_local_flux(face, (origin, [0.0; 3]), solid_length, |p, n| {
+        self.spherical_local_flux(face, (origin, [0.0; 3]), |p, n| {
             centroid_density(p, n, length)
         })
     }
@@ -2781,11 +2833,12 @@ impl Part {
         let remote = geom::norm(origin) > 32.0 * length;
         self.centroid_flux(std::iter::once(faces), origin, length, |face| {
             let raw = self.face_raw_moments(face).centre?;
-            if only_solid && (!remote || self.shallow_sphere(face, length)) {
+            let shallow = self.shallow_sphere(face, faces);
+            if only_solid && (!remote || shallow) {
                 return Some(raw);
             }
-            if self.shallow_sphere(face, length) {
-                return self.shallow_sphere_centroid(face, (origin, length), length);
+            if shallow {
+                return self.shallow_sphere_centroid(face, (origin, length));
             }
             if matches!(self.faces[face].surface, Surface::Sphere { .. }) {
                 return Some(self.spherical_patch(face)?.volume_moments(origin, length));

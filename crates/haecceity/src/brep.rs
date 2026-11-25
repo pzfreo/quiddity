@@ -1333,6 +1333,7 @@ impl Part {
 
     pub(super) fn record_inverted_shell_repair(&mut self, solid: usize, reverse_wires: bool) {
         self.integral_origin = None;
+        self.solid_inertias = OnceLock::new();
         self.input_repairs
             .push(format!("solid {solid}: inverted closed shell repaired"));
         // Domains can use the face sense to choose a periodic band; no derived answer from
@@ -1369,6 +1370,7 @@ impl Part {
             for &f in &part.solids[solid].faces {
                 part.cache[f] = FaceCache::default();
             }
+            part.solid_inertias = OnceLock::new();
             part.bad_faces = OnceLock::new();
             part.ray_face_boxes = OnceLock::new();
             part.ray_edges = OnceLock::new();

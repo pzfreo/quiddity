@@ -107,12 +107,18 @@ two volumes differ by 7.9% in `cd34a5e4c9ce13b2` and 1.2% in
 `db61869547bced0b`, relative to `solid_volumes`. The second moments add
 the boundary integral ⅕∯ dᵢ dⱼ (d·n) dA, with d measured from the centroid.
 
-When a spherical carrier's radius exceeds four times the solid bounding-box
-diagonal, `volume_centroid` and solid inertia evaluate their moments in the
-same local tangent-plane chart to avoid cancellation in sphere-centred moments. The chart returns unavailable
-if the radius exceeds 2048 diagonals, its projection is outside the chart, or
-its integrated area disagrees with the accepted patch. Closed-form caps and
-lenses use their circular slices.
+For a shallow spherical carrier whose radius exceeds four times the solid's
+sampled boundary span, `volume_centroid` and solid inertia use the same local
+tangent-plane chart. The chart refuses radii above 1024 times the diameter
+of a disk with the accepted patch's area, a projection outside the chart, or
+an area that disagrees with the accepted patch. The solid's sampled span
+uses chords from a fixed boundary point. Both scales are rotation-invariant.
+Closed-form caps and lenses use their circular slices.
+
+Inertia rebases both carriers and boundaries for a single solid when the
+world-coordinate resolution is coarse relative to its size. It retains the
+accepted boundary authority. A remote solid in an assembly can be unavailable
+at that resolution.
 
 Compare centroidal tensors against the springrep capture in
 `evidence/springrep_inertia.jsonl` using the relative Frobenius error

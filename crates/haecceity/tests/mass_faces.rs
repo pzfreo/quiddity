@@ -842,10 +842,13 @@ fn sphere_centroidal_inertia() {
     let axial =
         pi * height.powi(3) * (2.0 * r * r / 3.0 - r * height / 2.0 + height * height / 10.0);
     let across = axial / 2.0 + pi * height.powi(4) * (radial[2] - radial[1].powi(2) / radial[0]);
-    assert_inertia(
-        cap.solid_inertia(0).unwrap().tensor,
-        diagonal_inertia(across, across, axial),
-    );
+    let inertia = cap.solid_inertia(0).unwrap();
+    assert_inertia(inertia.tensor, diagonal_inertia(across, across, axial));
+    let far = inertia.about([1e155, 0.0, 0.0]);
+    let volume = pi * height * height * radial[0];
+    let transverse = (volume * 1e155) * 1e155;
+    relative(far[1][1], transverse, 1e-12);
+    relative(far[2][2], transverse, 1e-12);
 }
 
 #[test]
@@ -878,14 +881,34 @@ fn torus_centroidal_inertia() {
 
 #[test]
 fn inertia_parallel_axis_at_large_offset() {
-    let part = solid_fixture("ties/cube.step");
-    let centre = [1e12, -2e12, 3e12];
-    let mut placement = haecceity::step::IDENTITY;
-    for i in 0..3 {
-        placement[i][3] = centre[i];
-    }
-    let moved = part.transformed(&placement).unwrap();
-    let got = moved.solid_inertia(0).unwrap();
+    let source = std::fs::read_to_string(common::fixtures().join("ties/cube.step")).unwrap();
+    let centre = [5e12; 3];
+    // Bake the translation into 3D STEP points, leaving the pcurves in UV.
+    // Importing this file has no unshifted geometry to reuse.
+    let text = source
+        .lines()
+        .map(|line| {
+            if let Some((prefix, coords)) = line.split_once("CARTESIAN_POINT('',(")
+                && let Some(coords) = coords.strip_suffix("));")
+            {
+                let point: Vec<_> = coords
+                    .split(',')
+                    .map(|x| x.parse::<f64>().unwrap())
+                    .collect();
+                if let [x, y, z] = point.as_slice() {
+                    let [x, y, z] = geom::add([*x, *y, *z], centre);
+                    return format!("{prefix}CARTESIAN_POINT('',({x:.1},{y:.1},{z:.1}));");
+                }
+            }
+            line.to_owned()
+        })
+        .collect::<Vec<_>>()
+        .join(
+            "
+",
+        );
+    let part = haecceity::read_step(text.as_bytes()).unwrap();
+    let got = part.solid_inertia(0).unwrap();
     let m = 1000.0;
     let i = m * 200.0 / 12.0;
     assert_eq!(got.centroid, centre);
@@ -922,6 +945,13 @@ fn inside_out_shell_has_negative_inertia() {
     relative(got.volume, part.solid_mass(0).unwrap().0, 1e-12);
     let moment = -1000.0 * 200.0 / 12.0;
     assert_inertia(got.tensor, diagonal_inertia(moment, moment, moment));
+    assert_inertia(
+        part.repair_inverted_shells()
+            .solid_inertia(0)
+            .unwrap()
+            .tensor,
+        diagonal_inertia(-moment, -moment, -moment),
+    );
 }
 
 fn shallow_dome(radius: f64, plate: bool) -> haecceity::Part {
@@ -1005,28 +1035,36 @@ fn check_shallow_dome(
     expected_z: f64,
     expected_tensor: [[f64; 3]; 3],
 ) {
-    let measured = part.volume_centroid();
-    let inertia = part.solid_inertia(0);
-    if radius == 1e5 {
-        assert!(radius / part.bounds().diagonal() > 2048.0);
-        assert!(measured.is_none(), "R={radius}, unresolvable centroid");
-        assert!(inertia.is_none(), "R={radius}, unresolvable inertia");
-        return;
+    let c = std::f64::consts::FRAC_1_SQRT_2;
+    let turn = [[c, -c, 0.0, 0.0], [c, c, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]];
+    // Both closed forms are invariant under this rotation about their symmetry
+    // axis at second order. The plate's world bounding box grows under the turn.
+    for placed in [part, &part.transformed(&turn).unwrap()] {
+        let measured = placed.volume_centroid();
+        let inertia = placed.solid_inertia(0);
+        if radius >= 4e4 {
+            assert!(
+                measured.is_none(),
+                "R={radius}, unresolvable centroid: {measured:?}"
+            );
+            assert!(inertia.is_none(), "R={radius}, unresolvable inertia");
+            continue;
+        }
+        let (volume, centroid) = measured.unwrap();
+        let inertia = inertia.unwrap();
+        assert_eq!((volume, centroid), (inertia.volume, inertia.centroid));
+        let error = geom::dist(centroid, [0.0, 0.0, expected_z]);
+        assert!(
+            error <= 1e-9 * part.bounds().diagonal(),
+            "R={radius}, centroid error {error} mm"
+        );
+        let error = tensor_relative_error(inertia.tensor, expected_tensor);
+        assert!(error <= 1e-9, "R={radius}, relative inertia error {error}");
     }
-    let (volume, centroid) = measured.unwrap();
-    let inertia = inertia.unwrap();
-    assert_eq!((volume, centroid), (inertia.volume, inertia.centroid));
-    let error = geom::dist(centroid, [0.0, 0.0, expected_z]);
-    assert!(
-        error <= 1e-9 * part.bounds().diagonal(),
-        "R={radius}, centroid error {error} mm"
-    );
-    let error = tensor_relative_error(inertia.tensor, expected_tensor);
-    assert!(error <= 1e-9, "R={radius}, relative inertia error {error}");
 }
 
 fn check_shallow_cylinder_dome() {
-    for r in [1e2_f64, 1e3, 1e4, 1e5] {
+    for r in [1e2_f64, 1e3, 1e4, 1.023e4, 1e5] {
         let part = shallow_dome(r, false);
         let h = 25.0 / (r + (r * r - 25.0).sqrt());
         let pi = std::f64::consts::PI;
@@ -1067,7 +1105,7 @@ fn check_shallow_plate_dome() {
             })
             .sum::<f64>()
     };
-    for r in [1e2_f64, 1e3, 1e4, 1e5] {
+    for r in [1e2_f64, 1e3, 1e4, 1.154e4, 4e4, 1e5] {
         let part = shallow_dome(r, true);
         let k = (r * r - 50.0).sqrt();
         let coefficients = [
