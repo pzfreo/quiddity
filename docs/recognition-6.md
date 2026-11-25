@@ -277,6 +277,19 @@ body (as on bodies recognised before #353), and in every case checked (127 in 2,
 limits. Sheets without a computed
 development keep their independent prismatic measurements.
 
+## Sheet-metal K-factor (For #358)
+
+The neutral axis is at `inner_radius + K × thickness`. Each bend's
+`bend_allowance` is that radius times the bend angle in radians. The development
+uses this allowance for the bend strips and flange placement, and reports K in
+`flat_pattern.k_factor` in both the sheet-metal records and the recognition
+document's sheet-metal parameters.
+
+K defaults to 0.5 and must be finite and in (0, 1]. Set it with `--k-factor K` on
+`quiddity <file>`, `quiddity recognise` or `quiddity evidence`, the numeric
+`k_factor` field of a serve `recognise` request, the Python `k_factor` keyword,
+or Rust's `RecognitionOptions::set_k_factor`.
+
 ## Closed blind-recess floor claims (#205, #207)
 
 Accepted flat-bottomed blind holes and blind `pockets`/`prismatic_pockets` also
@@ -1460,7 +1473,7 @@ does not introduce a correspondence heuristic or alter other feature ranks.
 ## Integration budget (For #307 item 3)
 
 A caller may bound the work any one face's integration takes: Rust
-`RecognitionOptions { integration_budget: Some(n) }` with `recognise_with`, `evidence_with`
+`RecognitionOptions::integration_budget = Some(n)` with `recognise_with`, `evidence_with`
 or `fingerprints_with`; `--integration-budget N` on `quiddity <file>`, `quiddity evidence`,
 `quiddity fingerprints` and the manifest `quiddity recognise`; an optional
 `"integration_budget": N` in `quiddity serve`'s `recognise` request; `integration_budget=N` on

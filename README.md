@@ -81,6 +81,7 @@ Every [release](https://github.com/pzfreo/quiddity/releases) is published to PyP
 
 ```sh
 quiddity part.step                      # the part's features, as JSON
+quiddity part.step --k-factor 0.45      # develop sheet-metal bends at K = 0.45 (default 0.5)
 quiddity correspond old.step new.step   # what changed between two revisions
 quiddity pmi read part.step             # the file's PMI, as JSON
 ```

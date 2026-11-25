@@ -141,6 +141,24 @@ let mut options = quiddity::HoleOptions::default();
 options.with_countersinks = true;
 ```
 
+### Sheet-metal K-factor
+
+Use `RecognitionOptions::default()` and call the fallible `set_k_factor` method
+before recognising a part.
+
+```rust
+let mut options = quiddity::RecognitionOptions::default();
+options.set_k_factor(0.45)?;
+let recognised = quiddity::recognise_with(&part, &options);
+```
+
+`k_factor()` reads the configured value, which defaults to 0.5.
+`set_k_factor` returns `InvalidKFactor` for a non-finite value or one outside
+(0, 1]. The same options are accepted by `evidence_with`,
+`correspondence::recognise_with_evidence_options` and the option-taking
+recognition entry points in `file_api` and `serve`. Each flat pattern
+reports the value it used in `flat_pattern.k_factor`.
+
 An exhaustive error match should preserve its existing arms and add a meaningful
 fallback (usually reporting the error's `Display` text). Applications that refuse
 unknown evidence can return their normal refusal; tests that require a particular
