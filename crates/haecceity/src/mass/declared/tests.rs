@@ -442,6 +442,45 @@ fn cylinder_crossing_the_seam_uses_its_declared_curve() {
     let part = crate::step::read_step(crossed.as_bytes()).unwrap();
     assert!(part.measured_boundary(0).is_none());
     assert!((part.face_mass(0).unwrap()[0] - 1.).abs() < 1e-11);
+
+    // This spline passes the end of the lower latitude, then doubles back.
+    let retraced = entity(&text, 113, "CARTESIAN_POINT('',(2.,0.))");
+    let part = crate::step::read_step(retraced.as_bytes()).unwrap();
+    assert!(part.measured_boundary(0).is_none());
+    assert!((part.face_mass(0).unwrap()[0] - 1.).abs() < 1e-11);
+
+    // Move the lower end of the right seam on a detached spline carrier.
+    // A loose file uncertainty permits the miss, but the spatial edges close
+    // the one-radian, unit-height patch with no added connecting chord.
+    let (y, x) = 0.5_f64.sin_cos();
+    let detached = entity(&text, 113, "CARTESIAN_POINT('',(0.,0.))").replace(
+        "#108=CYLINDRICAL",
+        &format!(
+            "#210=CARTESIAN_POINT('',({x:.17},{:.17},0.));
+#211=CARTESIAN_POINT('',({x:.17},{:.17},1.));
+#212=B_SPLINE_SURFACE_WITH_KNOTS('',1,1,((#101,#102),(#210,#211)),.UNSPECIFIED.,.F.,.F.,.F.,(2,2),(2,2),(0.,1.),(0.,1.),.UNSPECIFIED.);
+#213=CARTESIAN_POINT('',(0.,1.));
+#108=CYLINDRICAL",
+            y + 1.,
+            y + 1.,
+        ),
+    );
+    let detached = entity(
+        &detached,
+        35,
+        "UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.1),#32,'distance_accuracy_value','')",
+    );
+    let detached = entity(&detached, 124, "CARTESIAN_POINT('',(0.02,0.04))");
+    let detached = entity(
+        &detached,
+        127,
+        "B_SPLINE_CURVE_WITH_KNOTS('',1,(#124,#213),.UNSPECIFIED.,.F.,.F.,(2,2),(0.,1.),.PIECEWISE_BEZIER_KNOTS.)",
+    );
+    let detached = entity(&detached, 129, "PCURVE('',#212,#128)");
+    let part = crate::step::read_step(detached.as_bytes()).unwrap();
+    assert!(part.measured_boundary(0).is_none());
+    assert!((part.face_mass(0).unwrap()[0] - 1.).abs() < 1e-11);
+
     for source in [text, swept] {
         let p = crate::step::read_step(source.as_bytes()).unwrap();
         let area = p.face_mass(0).unwrap()[0];

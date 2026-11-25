@@ -541,7 +541,26 @@ fn resolve(
     );
     let spans = closed_spans(surface);
     let period = curve.source.period();
-    let interval = resolve_interval(surface, edge, &curve, spatial, tolerance, || Some(()))?;
+    let mut endpoint_tolerance = tolerance;
+    if surface.periodic().0
+        && curve
+            .transfer
+            .as_ref()
+            .is_some_and(|tr| matches!(&*tr.carrier, Surface::Freeform { .. }))
+        && matches!(curve.source, Curve::Nurbs(_))
+        && !edge.is_closed()
+    {
+        let chord = geom::dist(edge.start, edge.end);
+        if chord < 2. * tolerance {
+            // The file's endpoint tolerance balls overlap. A spline transfer
+            // onto a periodic chart then needs a tighter match to identify
+            // the junctions independently of the subsequent unwrapping.
+            endpoint_tolerance = tolerance.min(0.001 * chord + geom::COORD_FLOOR);
+        }
+    }
+    let interval = resolve_interval(surface, edge, &curve, spatial, endpoint_tolerance, || {
+        Some(())
+    })?;
     let trim = EdgeTrim {
         curve,
         spans,
@@ -558,10 +577,38 @@ fn resolve(
         Curve::Nurbs(c) => knots_on_interval(c.breaks(), period, a, b)?,
         _ => Vec::new(),
     };
+    // A spline confined to one latitude may overshoot and retrace the same
+    // path. The transverse intersection test cannot see that overlap.
+    let mut latitude = if trim.curve.transfer.is_none()
+        && matches!(surface, Surface::Cylinder { .. } | Surface::Cone { .. })
+        && let Curve::Nurbs(c) = &trim.curve.source
+    {
+        let v = c.control_points()[0][1];
+        let roundoff = 256. * f64::EPSILON * v.abs().max(1.);
+        c.control_points()
+            .iter()
+            .all(|p| (p[1] - v).abs() <= roundoff)
+            .then(|| {
+                let u = trim.curve.value(a)[0];
+                (u, (trim.curve.value(b)[0] - u).signum())
+            })
+    } else {
+        None
+    };
     for span in cuts(a, b, 1, &knots)?.windows(2) {
         for j in 0..=32 {
             let t = span[0] + (span[1] - span[0]) * (j as f64 / 32.);
             let (u, v) = on_carrier(surface, spans, trim.curve.value(t))?;
+            if let Some((furthest, direction)) = &mut latitude {
+                let roundoff = 128. * f64::EPSILON * u.abs().max(furthest.abs()).max(1.);
+                let progress = (u - *furthest) * *direction;
+                if progress < -roundoff {
+                    return None;
+                }
+                if progress > 0. {
+                    *furthest = u;
+                }
+            }
             let p = surface.value(u, v);
             if !p.iter().all(|x| x.is_finite()) {
                 return None;

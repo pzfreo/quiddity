@@ -7,7 +7,8 @@ in [docs/alpha1.md](docs/alpha1.md).
 ## Unreleased
 
 - For #355, fall back to 3D edges when an inferred STEP pcurve interval takes the complementary
-  arc or opposes both endpoint tangents of the spatial spline.
+  arc or opposes both endpoint tangents of the spatial spline. Reject retraced latitudes and
+  unreliable endpoint matches when transferring spline trims onto periodic faces.
 - For #353, keep bent sheet-metal bodies with overlapping developments, report bend-relief
   notches, and suppress duplicate prismatic claims on developed skins and reliefs while
   retaining cut-edge positions. Publish measured flange bounds and use them in
