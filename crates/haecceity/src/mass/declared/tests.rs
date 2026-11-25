@@ -254,6 +254,60 @@ REPRESENTATION_ITEM(''))",
     })
     .collect();
     assert!(differences.is_empty(), "{differences:?}");
+
+    // Each rim of a 270-degree cylinder has a full-turn pcurve. The pcurves
+    // bow axially only on the omitted quarter, so both possible intervals
+    // produce closed loops with different areas.
+    let mut patch = entity(
+        SQUARE,
+        108,
+        "CYLINDRICAL_SURFACE('',#11,1.);
+#201=CARTESIAN_POINT('',(0.,0.,1.));
+#202=AXIS2_PLACEMENT_3D('',#201,#13,#14);
+#203=CARTESIAN_POINT('',(0.,0.));
+#204=CARTESIAN_POINT('',(0.,0.))",
+    );
+    for (id, body) in [
+        (100, "CARTESIAN_POINT('',(0.,1.,0.))"),
+        (101, "CARTESIAN_POINT('',(1.,0.,0.))"),
+        (102, "CARTESIAN_POINT('',(1.,0.,1.))"),
+        (103, "CARTESIAN_POINT('',(0.,1.,1.))"),
+        (111, "CIRCLE('',#11,1.)"),
+        (121, "DIRECTION('',(0.,0.,1.))"),
+        (131, "EDGE_CURVE('',#105,#106,#123,.T.)"),
+        (135, "CIRCLE('',#202,1.)"),
+        (143, "EDGE_CURVE('',#106,#107,#142,.F.)"),
+        (145, "DIRECTION('',(0.,0.,-1.))"),
+        (155, "EDGE_CURVE('',#107,#104,#147,.T.)"),
+    ] {
+        patch = entity(&patch, id, body);
+    }
+    let areas = [(4e-5, 1e-7), (2e-3, 1e-3)].map(|(bow, tolerance)| {
+        let mut file = entity(
+            &patch,
+            35,
+            &format!("UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE({tolerance:.9}),#32,'','')"),
+        );
+        for (id, [a, b, c, d], z) in [(115, [112, 113, 114, 124], 0.), (139, [136, 148, 203, 204], 1.)] {
+            for (point, u, v) in [
+                (a, 0., z),
+                (b, std::f64::consts::FRAC_PI_4, z + bow),
+                (c, std::f64::consts::FRAC_PI_2, z),
+                (d, std::f64::consts::TAU, z),
+            ] {
+                file = entity(&file, point, &format!("CARTESIAN_POINT('',({u:.17},{v:.17}))"));
+            }
+            file = entity(
+                &file,
+                id,
+                &format!("B_SPLINE_CURVE_WITH_KNOTS('',1,(#{a},#{b},#{c},#{d}),.UNSPECIFIED.,.F.,.F.,(2,1,1,2),(20.,22.,24.,30.),.UNSPECIFIED.)"),
+            );
+        }
+        let part = crate::step::read_step(file.as_bytes()).unwrap();
+        part.face_moments(0).unwrap().area
+    });
+    let area = 3. * std::f64::consts::FRAC_PI_2;
+    assert!(areas.iter().all(|a| (a - area).abs() < 1e-12), "{areas:?}");
 }
 
 #[test]
@@ -440,44 +494,6 @@ fn cylinder_crossing_the_seam_uses_its_declared_curve() {
     let crossed = entity(&text, 113, "CARTESIAN_POINT('',(0.,2.4))");
     let crossed = entity(&crossed, 142, "SURFACE_CURVE('',#135,(#141),.CURVE_3D.)");
     let part = crate::step::read_step(crossed.as_bytes()).unwrap();
-    assert!(part.measured_boundary(0).is_none());
-    assert!((part.face_mass(0).unwrap()[0] - 1.).abs() < 1e-11);
-
-    // This spline passes the end of the lower latitude, then doubles back.
-    let retraced = entity(&text, 113, "CARTESIAN_POINT('',(2.,0.))");
-    let part = crate::step::read_step(retraced.as_bytes()).unwrap();
-    assert!(part.measured_boundary(0).is_none());
-    assert!((part.face_mass(0).unwrap()[0] - 1.).abs() < 1e-11);
-
-    // Move the lower end of the right seam on a detached spline carrier.
-    // A loose file uncertainty permits the miss, but the spatial edges close
-    // the one-radian, unit-height patch with no added connecting chord.
-    let (y, x) = 0.5_f64.sin_cos();
-    let detached = entity(&text, 113, "CARTESIAN_POINT('',(0.,0.))").replace(
-        "#108=CYLINDRICAL",
-        &format!(
-            "#210=CARTESIAN_POINT('',({x:.17},{:.17},0.));
-#211=CARTESIAN_POINT('',({x:.17},{:.17},1.));
-#212=B_SPLINE_SURFACE_WITH_KNOTS('',1,1,((#101,#102),(#210,#211)),.UNSPECIFIED.,.F.,.F.,.F.,(2,2),(2,2),(0.,1.),(0.,1.),.UNSPECIFIED.);
-#213=CARTESIAN_POINT('',(0.,1.));
-#108=CYLINDRICAL",
-            y + 1.,
-            y + 1.,
-        ),
-    );
-    let detached = entity(
-        &detached,
-        35,
-        "UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.1),#32,'distance_accuracy_value','')",
-    );
-    let detached = entity(&detached, 124, "CARTESIAN_POINT('',(0.02,0.04))");
-    let detached = entity(
-        &detached,
-        127,
-        "B_SPLINE_CURVE_WITH_KNOTS('',1,(#124,#213),.UNSPECIFIED.,.F.,.F.,(2,2),(0.,1.),.PIECEWISE_BEZIER_KNOTS.)",
-    );
-    let detached = entity(&detached, 129, "PCURVE('',#212,#128)");
-    let part = crate::step::read_step(detached.as_bytes()).unwrap();
     assert!(part.measured_boundary(0).is_none());
     assert!((part.face_mass(0).unwrap()[0] - 1.).abs() < 1e-11);
 

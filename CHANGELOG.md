@@ -6,9 +6,13 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
-- For #355, fall back to 3D edges when an inferred STEP pcurve interval takes the complementary
-  arc or opposes both endpoint tangents of the spatial spline. Reject retraced latitudes and
-  unreliable endpoint matches when transferring spline trims onto periodic faces.
+- For #355, use the lifted midpoint's foot on the full spatial curve to detect a complementary
+  arc, even when the pcurve departs from the 3D curve. Opposing endpoint tangents also reject
+  reversed intervals on nonperiodic spatial splines. Two MFInstSeg face areas still differ
+  from 0.5.5 under their files' declared uncertainties. Part `20221123_142528_10473` face 16
+  measures 27.436912 mm² (previously 27.368139 mm²) with 1.0 mm uncertainty. Part
+  `20221121_154648_8444` face 6 measures 14.994365 mm² (previously 14.959205 mm²) with 0.2 mm
+  uncertainty.
 - For #353, keep bent sheet-metal bodies with overlapping developments, report bend-relief
   notches, and suppress duplicate prismatic claims on developed skins and reliefs while
   retaining cut-edge positions. Publish measured flange bounds and use them in
