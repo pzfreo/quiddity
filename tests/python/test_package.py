@@ -3,6 +3,7 @@ import gzip
 import hashlib
 import importlib.metadata
 import json
+from math import radians
 import os
 from pathlib import Path
 import re
@@ -194,6 +195,17 @@ def test_integration_budget_round_trip():
     assert evidence["budget"]["refused_faces"] == [2]
     assert json.loads(quiddity.fingerprints(str(sheet), integration_budget=400_000)) == budgeted["fingerprints"]
     assert quiddity.fingerprints(str(sheet)) == quiddity.fingerprints(str(sheet), integration_budget=None)
+
+
+def test_k_factor_sets_bend_allowance():
+    path = FIXTURES / "sheet-metal/coaxial-flanges.step.gz"
+    result = json.loads(quiddity.recognise(str(path), k_factor=0.45))
+    (sheet,) = result["sheet_metal_bodies"]
+    assert sheet["flat_pattern"]["k_factor"] == 0.45
+    assert len(sheet["bends"]) == 4
+    for bend in sheet["bends"]:
+        expected = radians(bend["angle_degrees"]) * (bend["inner_radius"] + 0.45 * sheet["thickness"])
+        assert bend["bend_allowance"] == pytest.approx(expected, rel=0, abs=1e-9)
 
 
 def test_correspond():

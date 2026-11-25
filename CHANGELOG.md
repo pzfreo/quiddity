@@ -8,7 +8,8 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 - For #359, expose signed solid inertia tensors in haecceity and Python, with a
   parallel-axis shift and an optional centroidal tensor in the `quiddity brep` JSON report.
-
+- For #358, accept a caller-set sheet-metal K-factor in the CLI, serve, Rust and Python.
+  The default is 0.5 and each flat pattern reports the value used.
 - For #355, use the lifted midpoint's foot on the full spatial curve to detect a complementary
   arc, including for nearly closed edges and offset pcurves. Opposing endpoint tangents also reject
   reversed intervals on nonperiodic spatial splines. Two MFInstSeg face areas still differ

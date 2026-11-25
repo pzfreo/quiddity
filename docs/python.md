@@ -44,6 +44,20 @@ Internal Rust panics become `quiddity.QuiddityError`, a `RuntimeError` subclass
 caught by `except Exception`, with the panic message. This boundary covers
 recognition, evidence, correspondence, manifests, PMI and the CLI.
 
+Pass the keyword `k_factor=0.45` to `recognise`, `recognise_with_evidence` or
+`evidence` to set the neutral-axis fraction for sheet-metal flat patterns.
+The default (also used for `None`) is 0.5. Numeric values must be finite and in
+(0, 1]. An out-of-range or non-finite value raises `ValueError`. Each development
+reports the actual value in `flat_pattern.k_factor`.
+
+Python `fingerprints` and `correspond` always read STEP inputs at K = 0.5 and
+have no `k_factor` keyword. Compare revisions at one K. A change between
+`checked` and `overlap` changes the `flat_pattern_status` fingerprint trait,
+so correspondence can report the matched sheet as `adapted`. Where a development's
+validity changes, K can also change flange adoption and the suppression of duplicate
+slots, pockets and pads. For custom-K correspondence, recognise both revisions at
+the same K and pass the two saved JSON results to `quiddity correspond`.
+
 ## Solid inertia
 
 ```python
@@ -69,6 +83,7 @@ the manifest argument accepts a dict or a JSON file path. These new functions
 return dicts; the existing `recognise` continues to return JSON text. Scanning,
 reading and recognition release the GIL. Unknown ids and refusals raise
 `ValueError`; compressed product reads and shared geometry are refused.
+Both product recognition functions also accept the `k_factor` keyword.
 
 See [assembly manifests](assemblies.md) for format, staleness checks, placements,
 limits and the CLI's opt-in whole-file fallback.

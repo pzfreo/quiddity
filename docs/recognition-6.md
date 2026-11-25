@@ -277,6 +277,32 @@ body (as on bodies recognised before #353), and in every case checked (127 in 2,
 limits. Sheets without a computed
 development keep their independent prismatic measurements.
 
+## Sheet-metal K-factor (For #358)
+
+The neutral axis is at `inner_radius + K × thickness`. Each bend's
+`bend_allowance` is that radius times the bend angle in radians. The development
+uses this allowance for the bend strips and flange placement, and reports K in
+`flat_pattern.k_factor` in both the sheet-metal records and the recognition
+document's sheet-metal parameters.
+
+K defaults to 0.5 and must be finite and in (0, 1]. Set it with `--k-factor K` on
+`quiddity <file>`, `quiddity recognise` or `quiddity evidence`, the numeric
+`k_factor` field of a serve `recognise` request, the Python `k_factor` keyword,
+or Rust's `RecognitionOptions::set_k_factor`.
+
+K can change `flat_pattern_status` between `checked` and `overlap`. Where a
+development's validity changes, a body can adopt a different split-flange layout,
+changing which duplicate slots, pockets and pads its skins and flanges suppress.
+`flat_pattern_status` is a fingerprint trait, so `correspond` can report the
+matched body as `adapted` when the revisions were read at different K values.
+Compare revisions at one K.
+
+For STEP inputs, CLI and Python `fingerprints` and CLI, serve and Python
+`correspond` use 0.5 and have no K-factor option. Rust's `fingerprints_with`
+and the Rust `fingerprints_file_with` functions take `RecognitionOptions`.
+For custom-K CLI or serve correspondence, supply the results of recognising
+both inputs at the same K.
+
 ## Closed blind-recess floor claims (#205, #207)
 
 Accepted flat-bottomed blind holes and blind `pockets`/`prismatic_pockets` also
@@ -1460,7 +1486,7 @@ does not introduce a correspondence heuristic or alter other feature ranks.
 ## Integration budget (For #307 item 3)
 
 A caller may bound the work any one face's integration takes: Rust
-`RecognitionOptions { integration_budget: Some(n) }` with `recognise_with`, `evidence_with`
+`RecognitionOptions::integration_budget = Some(n)` with `recognise_with`, `evidence_with`
 or `fingerprints_with`; `--integration-budget N` on `quiddity <file>`, `quiddity evidence`,
 `quiddity fingerprints` and the manifest `quiddity recognise`; an optional
 `"integration_budget": N` in `quiddity serve`'s `recognise` request; `integration_budget=N` on
