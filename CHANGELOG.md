@@ -6,11 +6,71 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+Pending version: 0.6.0
+
+### Breaking (Rust API)
+
+- `haecceity`: Part 21 records are now wrapped in haecceity's own
+  `p21::{Attribute, RawEntity, RawEntityPart}` types, so `step-io` types are no longer part of
+  haecceity's public API:
+  - `p21::Document::graph()` is removed (use `Document::get()`, `Document::ids()`,
+    `Document::iter()`, `Document::header()`, and `Document::max_id()`).
+  - `express::validate_document()` and `Edition::validate_document()` now take `&p21::Document`
+    instead of `&step_io::parser::Graph`; `express::validate()` and `Edition::validate()` now
+    take `&p21::RawEntity`.
+  - The `span` field and `span()` method are removed from `p21::RawEntity` (use
+    `Document::span()`).
+  - `From<step_io::AuthorError>` is removed from `brep_write::WriteError`.
+
+### haecceity
+
+- For #367, upgrade `step-io` from `0.3.1` to `0.4.0`. Keep haecceity's
+  `express::complex_reference_drops()` workaround (and its `references_any` pre-check on
+  `RecordGraph` / `PackedGraph`) as a second line of defence in `refuse_dropped_shapes`, and
+  refuse complex `AXIS2_PLACEMENT_3D` / `AXIS1_PLACEMENT` instances with `StepError::Incomplete`
+  rather than returning `None`, because `step-io` `0.4.0` misses inherited complex type
+  restrictions when a parent part is omitted, accepts AP242 edition 4 narrowed-select
+  violations allowed by earlier editions, and admits complex placement references that
+  previously caused a drop. B-rep STEP output from `brep_write` is now AP242 edition 4
+  (`{ 1 0 10303 442 7 1 4 }`, application protocol year 2025). Enable
+  `serde_json/float_roundtrip` in `haecceity` so `Manifest` JSON round-trips bit-identically
+  with `step-io` 0.4's updated `AXIS2_PLACEMENT_3D` frame calculation.
+
+### Changed
+
+- Meshing reuses freeform surface operands, bounded projection witnesses and
+  ordered shared-edge samples. Unresolved bounds keep the original checks;
+  geometry tolerances and constraint-crossing rejection are unchanged.
+
+- Selected-boundary preparation reuses immutable curve operands, bounded curve
+  checks, inverse seeds and receiving-surface evaluations within one part.
+  Mesh parameter loops have a separate cache from integration decisions;
+  finite-domain, endpoint and nonfinite fallbacks remain in place.
+
+### Fixed
+
 - Keep interior samples on an affine STEP trim whose evaluated endpoints differ
   from the shared vertices, preserving the area of thin planar faces.
 - Resolve selected mesh boundaries in the file frame for placed parts. Respect
   spline knot spans and fine mesh requests when sampling selected edges, and
   propagate spatial-edge fallback to newly refused neighbours in whole-part meshes.
+
+- Mesh edges incident only to freeform faces, and mixed edges with an analytic
+  trim carrier, start from 256 uniform parameter segments before chord refinement.
+  The six reported narrow faces of `threaded_connector_109` mesh with zero
+  folded triangle drops. The adjacent analytic controls on cgb243 retain
+  outward winding.
+
+- Face triangulation follows geometrically qualified STEP-selected parametric
+  edge curves, with one spatial sampling plan shared by incident faces.
+  Compatible spherical caps use a central projection to preserve triangle
+  orientation along narrow selected trims. Ordinary boundary selection does not
+  require area or flux integration; the spherical-cap compatibility check still
+  consults that face's area. Unusable selections or selected loops that still
+  refuse triangulation use shared spatial edges instead. Preparing selected
+  boundaries can increase both first and repeated mesh-call times.
+
+## 0.5.6 (2026-11-26)
 
 - For #359, expose signed solid inertia tensors in haecceity and Python, with a
   parallel-axis shift and optional centroidal tensors and their reference volumes
@@ -57,34 +117,6 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 - Fingerprints use `quiddity-rust/fingerprint/5` because the STEP-selected boundary (#317)
   changes face and solid measurements. Regenerate earlier fingerprints from STEP before matching.
-
-### Changed
-
-- Meshing reuses freeform surface operands, bounded projection witnesses and
-  ordered shared-edge samples. Unresolved bounds keep the original checks;
-  geometry tolerances and constraint-crossing rejection are unchanged.
-
-- Selected-boundary preparation reuses immutable curve operands, bounded curve
-  checks, inverse seeds and receiving-surface evaluations within one part.
-  Mesh parameter loops have a separate cache from integration decisions;
-  finite-domain, endpoint and nonfinite fallbacks remain in place.
-
-### Fixed
-
-- Mesh edges incident only to freeform faces, and mixed edges with an analytic
-  trim carrier, start from 256 uniform parameter segments before chord refinement.
-  The six reported narrow faces of `threaded_connector_109` mesh with zero
-  folded triangle drops. The adjacent analytic controls on cgb243 retain
-  outward winding.
-
-- Face triangulation follows geometrically qualified STEP-selected parametric
-  edge curves, with one spatial sampling plan shared by incident faces.
-  Compatible spherical caps use a central projection to preserve triangle
-  orientation along narrow selected trims. Ordinary boundary selection does not
-  require area or flux integration; the spherical-cap compatibility check still
-  consults that face's area. Unusable selections or selected loops that still
-  refuse triangulation use shared spatial edges instead. Preparing selected
-  boundaries can increase both first and repeated mesh-call times.
 
 ### haecceity
 

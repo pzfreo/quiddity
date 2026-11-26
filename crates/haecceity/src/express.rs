@@ -34,7 +34,7 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use step_io::parser::{Attribute as Param, Graph, RawEntity};
+use crate::p21::{Attribute as Param, Document, RawEntity};
 
 #[rustfmt::skip]
 #[path = "express_table.rs"]
@@ -461,8 +461,8 @@ pub fn validate(
 }
 
 /// [`Edition::validate_document`] against the target edition.
-pub fn validate_document(graph: &Graph) -> Vec<Violation> {
-    TARGET.validate_document(graph)
+pub fn validate_document(doc: &Document) -> Vec<Violation> {
+    TARGET.validate_document(doc)
 }
 
 /// Fill step-io 0.3's slot-wide `complex_ok` gap without imposing full AP242
@@ -739,25 +739,18 @@ impl Edition {
         Checker::new(self, target_types).record(record)
     }
 
-    /// The violations of every DATA instance of a parsed file, in id order.
-    pub fn validate_document(&self, graph: &Graph) -> Vec<Violation> {
-        let types: HashMap<u64, Vec<String>> = graph
-            .entities
-            .iter()
-            .map(|(&id, e)| (id, record_names(e)))
-            .collect();
+    /// The violations of every DATA instance of a parsed document, in id order.
+    pub fn validate_document(&self, doc: &Document) -> Vec<Violation> {
+        let types: HashMap<u64, Vec<String>> =
+            doc.iter().map(|(id, e)| (id, record_names(e))).collect();
         let lookup = |id: u64| {
             types
                 .get(&id)
                 .cloned()
-                .or_else(|| graph.external_references.contains_key(&id).then(Vec::new))
+                .or_else(|| doc.is_external_reference(id).then(Vec::new))
         };
         let mut checker = Checker::new(self, &lookup);
-        graph
-            .entities
-            .values()
-            .flat_map(|e| checker.record(e))
-            .collect()
+        doc.iter().flat_map(|(_, e)| checker.record(e)).collect()
     }
 }
 
@@ -1525,6 +1518,9 @@ mod complex_reference_tests {
         fn attribute_at(&self, id: u64, part: Option<&str>, path: &[usize]) -> Option<Param> {
             self.0.attribute_at(id, part, path)
         }
+        fn span_start(&self, id: u64) -> Option<u64> {
+            self.0.span_start(id)
+        }
     }
 
     /// Independent oracle: walk the decoded record.
@@ -1625,5 +1621,133 @@ mod complex_reference_tests {
         }
         assert_eq!(drop_counts[0], 0);
         assert!(drop_counts[2] > 0 && drop_counts[3] > 0, "{drop_counts:?}");
+    }
+
+    #[test]
+    fn step_io_report_drops_complex_targets_use_slot_types_including_complex_sources() {
+        let base = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/golden_simple_through_hole.step"),
+        )
+        .unwrap();
+        let (_, valid) = step_io::read(base.as_bytes()).unwrap();
+        assert!(valid.dropped.is_empty(), "{:?}", valid.dropped);
+        for (before, after, owner, attribute) in [
+            (
+                "#19 = EDGE_LOOP('',(#20,#55,#83,#111));",
+                "#19 = EDGE_LOOP('',#42);",
+                "EDGE_LOOP",
+                "edge_list",
+            ),
+            (
+                "#19 = EDGE_LOOP('',(#20,#55,#83,#111));",
+                "#19 = EDGE_LOOP('',(#42));",
+                "EDGE_LOOP",
+                "edge_list",
+            ),
+            (
+                "#22 = VERTEX_POINT('',#23);",
+                "#22 = VERTEX_POINT('',#42);",
+                "VERTEX_POINT",
+                "vertex_geometry",
+            ),
+            (
+                "#32 = PLANE('',#33);",
+                "#32 = PLANE('',#42);",
+                "PLANE",
+                "position",
+            ),
+            (
+                "#17 = ADVANCED_FACE('',(#18),#32,.F.);",
+                "#17 = (ADVANCED_FACE() FACE((#18)) FACE_SURFACE(#42,.F.) REPRESENTATION_ITEM('') TOPOLOGICAL_REPRESENTATION_ITEM());",
+                "FACE_SURFACE",
+                "face_geometry",
+            ),
+        ] {
+            assert!(base.contains(before), "{before}");
+            let modified = base.replace(before, after);
+            let (_, report) = step_io::read(modified.as_bytes()).unwrap();
+            let drops: Vec<_> = report
+                .dropped
+                .iter()
+                .filter(|(_, r)| r.kind != step_io::DropKind::Cascade)
+                .collect();
+            assert_eq!(drops.len(), 1, "{drops:?}");
+            assert_eq!(drops[0].1.kind, step_io::DropKind::NonstandardReference);
+            assert!(
+                drops[0].1.to_string().starts_with(&format!(
+                    "nonstandard reference: {owner}: '{attribute}' references"
+                )),
+                "{drops:?}"
+            );
+            assert!(crate::read_step(modified.as_bytes()).is_err(), "{after}");
+        }
+    }
+
+    #[test]
+    fn inherited_complex_restriction_and_complex_placements_are_refused() {
+        let base = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/golden_simple_through_hole.step"),
+        )
+        .unwrap();
+
+        // (a) Complex DEFINITIONAL_REPRESENTATION #37 with PRESENTATION_VIEW part only
+        // (omitting PRESENTATION_REPRESENTATION) and a parametric, non-geometric context.
+        let def_rep = "#37 = DEFINITIONAL_REPRESENTATION('',(#38),#42);";
+        let ctx_42 = "#42 = ( GEOMETRIC_REPRESENTATION_CONTEXT(2) \nPARAMETRIC_REPRESENTATION_CONTEXT() REPRESENTATION_CONTEXT('2D SPACE',''\n  ) );";
+        assert!(base.contains(def_rep));
+        assert!(base.contains(ctx_42));
+        let case_a = base
+            .replace(
+                def_rep,
+                "#37 = ( DEFINITIONAL_REPRESENTATION() PRESENTATION_VIEW() REPRESENTATION('',(#38),#42) );",
+            )
+            .replace(
+                ctx_42,
+                "#42 = ( PARAMETRIC_REPRESENTATION_CONTEXT() REPRESENTATION_CONTEXT('2D SPACE','') );",
+            );
+        let res_a = crate::read_step(case_a.as_bytes());
+        assert!(
+            matches!(res_a, Err(crate::step::StepError::Incomplete(_))),
+            "a: {res_a:?}"
+        );
+
+        // (b) Placement #33 in complex form, preserving origin and directions.
+        let placement_33 = "#33 = AXIS2_PLACEMENT_3D('',#34,#35,#36);";
+        assert!(base.contains(placement_33));
+        let complex_33 = "#33 = ( AXIS2_PLACEMENT_3D(#35,#36) GEOMETRIC_REPRESENTATION_ITEM() PLACEMENT(#34) REPRESENTATION_ITEM('') );";
+        let case_b = base.replace(placement_33, complex_33);
+        let res_b = crate::read_step(case_b.as_bytes());
+        assert!(
+            matches!(res_b, Err(crate::step::StepError::Incomplete(_))),
+            "b: {res_b:?}"
+        );
+
+        // (c) Same complex placement used only by the selected pcurve's separate plane.
+        let pcurve_31 = "#31 = PCURVE('',#32,#37);";
+        assert!(base.contains(pcurve_31));
+        let case_c = base.replace(
+            pcurve_31,
+            "#31 = PCURVE('',#901,#37);\n#901 = PLANE('',#902);\n#902 = ( AXIS2_PLACEMENT_3D(#35,#36) GEOMETRIC_REPRESENTATION_ITEM() PLACEMENT(#34) REPRESENTATION_ITEM('') );",
+        );
+        let res_c = crate::read_step(case_c.as_bytes());
+        assert!(
+            matches!(res_c, Err(crate::step::StepError::Incomplete(_))),
+            "c: {res_c:?}"
+        );
+
+        // (d) Complex ADVANCED_FACE in #10 ADVANCED_BREP_SHAPE_REPRESENTATION.items.
+        let absr_10 = "#10 = ADVANCED_BREP_SHAPE_REPRESENTATION('',(#11,#15),#519);";
+        assert!(base.contains(absr_10));
+        let case_d = base.replace(
+            absr_10,
+            "#10 = ADVANCED_BREP_SHAPE_REPRESENTATION('',(#11,#15,#900),#519);\n#900 = ( ADVANCED_FACE() FACE((#18)) FACE_SURFACE(#32,.F.) REPRESENTATION_ITEM('') TOPOLOGICAL_REPRESENTATION_ITEM() );",
+        );
+        let res_d = crate::read_step(case_d.as_bytes());
+        assert!(
+            matches!(res_d, Err(crate::step::StepError::Incomplete(_))),
+            "d: {res_d:?}"
+        );
     }
 }

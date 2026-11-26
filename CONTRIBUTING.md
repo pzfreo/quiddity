@@ -72,6 +72,9 @@ This also applies while current = published. The release PR moves those entries 
 `## X.Y.Z (date)`; while X.Y.Z is the manifest version and is not yet published, that
 section's Breaking (Rust API) subsection is the override. CI also runs cargo-audit against Cargo.lock.
 
+A pull request that changes only documentation (`docs/`, Markdown files, `LICENSE`, `NOTICE`) skips the
+main CI workflow; the DCO check still runs, and a README or CHANGELOG edit still runs the crates.io packaging checks.
+
 A draft pull request runs fmt, clippy, feature-set checks and DCO. Ready pull requests also
 run the Linux nextest fast tier. It includes every test recorded at 10 seconds or less,
 every test without a timing record, and tests in touched Rust test binaries or source modules.

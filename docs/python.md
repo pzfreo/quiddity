@@ -88,6 +88,79 @@ Both product recognition functions also accept the `k_factor` keyword.
 See [assembly manifests](assemblies.md) for format, staleness checks, placements,
 limits and the CLI's opt-in whole-file fallback.
 
+## build123d → AP242 PMI
+
+A script that models a part in build123d can add semantic PMI to it directly: datums,
+dimensions with tolerances, geometric tolerances and general tolerances, written as AP242
+semantic PMI, which Draftwright's default `pmi first` mode reads as the authored intent. This plate
+gets datum A on its bottom face, a 10 ± 0.2 mm thickness, 0.05 mm flatness on its top face
+and ISO 2768-mK general tolerances (checked with quiddity 0.5.6 and build123d 0.13):
+
+```python
+from build123d import Axis, Box, export_step
+from quiddity import pmi
+
+# 1. Model the part and export plain STEP geometry.
+plate = Box(80, 60, 10)
+export_step(plate, "plate.step")
+
+# 2. Find the faces to annotate. A face is anchored by its index in the file's face
+#    order, which for a build123d export is plate.faces() order (check it; see below).
+faces = list(plate.faces())
+top = faces.index(plate.faces().sort_by(Axis.Z)[-1])
+bottom = faces.index(plate.faces().sort_by(Axis.Z)[0])
+
+def mm(value):
+    return {"decimal_places": None, "quantity": {"length": {"unit": "unit/mm", "value": value}}}
+
+# 3. Describe the PMI: datum A on the bottom, 10 ± 0.2 thickness, 0.05 flatness on top,
+#    ISO 2768-mK general tolerances.
+semantic = {
+    "schema": "haecceity.pmi/1",
+    "units": {"length": [{"id": "unit/mm", "value": "millimetre"}], "angle": [], "density": [], "other": []},
+    "pmi": {
+        "standards": [], "decimal_places": None,
+        "features": [
+            {"id": "bottom", "value": {"items": [{"face": bottom}]}},
+            {"id": "top", "value": {"items": [{"face": top}]}},
+        ],
+        "datum_targets": [],
+        "datums": [{"id": "datum/A", "value": {"feature": "bottom", "label": "A", "targets": []}}],
+        "dimensions": [{"id": "thickness", "value": {
+            "kind": {"location": {"kind": "linear distance", "from": "bottom", "to": "top",
+                                  "directed": False, "angle": None, "path": None}},
+            "modifiers": [], "principle": None, "qualifier": None,
+            "nominal": mm("10"),
+            "tolerance": {"deviations": {"lower": mm("-0.2"), "upper": mm("0.2")}}}}],
+        "tolerances": [{"id": "top-flatness", "value": {
+            "kind": "flatness_tolerance", "magnitude": mm("0.05"), "target": {"feature": "top"},
+            "datums": None, "auxiliary": [], "description": None, "maximum": None,
+            "modifiers": [], "unequal": None, "unit_basis": None, "zone": None}}],
+        "tolerance_relations": [],
+        "general": [{"id": "general", "value": {"class": {"text": "ISO 2768-mK",
+                                                          "standard": {"linear": "m", "geometric": "K"}}}}],
+        "threads": [], "knurls": [], "holes": [], "material": None, "notes": [],
+        "surface_textures": [], "attributes": [], "geometry": [], "derived_geometry": [],
+    },
+}
+
+# 4. Write AP242 with semantic PMI, and read it back.
+pmi.validate(semantic)
+step = pmi.write(open("plate.step", "rb").read(), semantic)
+open("plate-pmi.step", "wb").write(step)
+back = pmi.read(step)
+assert [d["id"] for d in back["pmi"]["datums"]] == ["datum/A"]
+```
+
+Faces are anchored by index in the file's face order. For a build123d export that is
+`plate.faces()` order, but quiddity does not control another exporter's order, so check the
+mapping on each export as [the face-order trial](python-face-order.md) describes: for
+example, confirm through `quiddity.evidence(...)["face_sources"][i]["entity"]` that each
+anchored face is the plane you meant. A face can also be anchored by `{"name": ...}` when
+the exporter writes face names into the STEP file; build123d 0.13 writes them empty.
+
+The API is described in full in the next section.
+
 ## XCAF/other producers → AP242 STEP
 
 `quiddity.pmi` calls haecceity's `json-import` API directly in process. Geometry

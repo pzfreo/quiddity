@@ -58,7 +58,7 @@ impl<'a> UnitReader<'a> {
 
     fn record(&self, id: u64) -> Option<Cow<'a, RawEntity>> {
         match self.source {
-            Source::Document(doc) => doc.graph().entities.get(&id).map(Cow::Borrowed),
+            Source::Document(doc) => doc.get(id).map(Cow::Borrowed),
             Source::Graph { graph, .. } => graph.record(id),
         }
     }
@@ -205,8 +205,8 @@ impl<'a> UnitReader<'a> {
         });
         let text = match self.source {
             Source::Document(doc) => &doc.bytes()[doc.span(id)?],
-            Source::Graph { bytes, .. } => {
-                bytes.get(usize::try_from(record.span().start).ok()?..)?
+            Source::Graph { graph, bytes, .. } => {
+                bytes.get(usize::try_from(graph.span_start(id)?).ok()?..)?
             }
         };
         // Graph spans locate #N; only this requested unit-factor record is tokenised.

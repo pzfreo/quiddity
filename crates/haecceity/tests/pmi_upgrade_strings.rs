@@ -182,7 +182,7 @@ fn record(doc: &Document, id: u64) -> &str {
 fn ap203_required_names_are_reported_and_pmi_reads_back() {
     let f = Fixture::new();
     let doc = f.doc();
-    let original = express::TARGET.validate_document(doc.graph());
+    let original = express::TARGET.validate_document(&doc);
     assert_eq!(original.len(), 3, "{original:?}");
     assert_eq!(original.iter().map(|v| v.id).collect::<Vec<_>>(), f.repairs);
     let (edit, report) = write(&doc, Mode::Replace).unwrap();
@@ -200,7 +200,7 @@ fn ap203_required_names_are_reported_and_pmi_reads_back() {
     for id in doc.ids().filter(|id| !f.repairs.contains(id)) {
         assert_eq!(record(&doc, id), record(&after, id), "#{id}");
     }
-    assert!(express::TARGET.validate_document(after.graph()).is_empty());
+    assert!(express::TARGET.validate_document(&after).is_empty());
     let parts = read_part_definitions(after.bytes()).unwrap();
     let read = pmi::read(&after, &parts).unwrap();
     assert_eq!(read.parts, vec![pmi()]);
@@ -266,7 +266,7 @@ fn optional_unset_slots_are_preserved() {
         record(&doc, f.optional).replacen('$', "''", 1)
     );
     assert_eq!(record(&after, f.product), record(&doc, f.product));
-    assert!(express::TARGET.validate_document(after.graph()).is_empty());
+    assert!(express::TARGET.validate_document(&after).is_empty());
 }
 
 #[test]
@@ -371,7 +371,7 @@ fn ap242_edition_upgrade_repairs_r4_alongside_r3() {
         record(&after, integer),
         format!("#{integer}=INTEGER_REPRESENTATION_ITEM('',43);")
     );
-    assert!(express::TARGET.validate_document(after.graph()).is_empty());
+    assert!(express::TARGET.validate_document(&after).is_empty());
     for repair in &report.repairs {
         assert_eq!(repair.original_record, record(&doc, repair.id));
         assert_eq!(repair.new_record, record(&after, repair.id));
@@ -447,7 +447,7 @@ fn required_text_defined_aliases_complex_slots_and_exact_decimals() {
         assert_eq!(repair.original_record, record(&doc, repair.id));
         assert_eq!(repair.new_record, record(&after, repair.id));
     }
-    assert!(express::TARGET.validate_document(after.graph()).is_empty());
+    assert!(express::TARGET.validate_document(&after).is_empty());
 }
 
 #[test]
@@ -471,7 +471,7 @@ fn ap214_keyword_rewrite_and_r4_share_one_record_edit() {
         )
     );
     assert_eq!(record(&after, category), repair.new_record);
-    assert!(express::TARGET.validate_document(after.graph()).is_empty());
+    assert!(express::TARGET.validate_document(&after).is_empty());
 }
 
 #[test]

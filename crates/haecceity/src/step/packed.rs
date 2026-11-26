@@ -6,8 +6,9 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::io::Read;
 
+use crate::p21::{Attribute, RawEntity, RawEntityPart, entity_from_step_io_ref};
 use step_io::Error;
-use step_io::parser::{Attribute, RawEntity, RawEntityPart, Span, Stream};
+use step_io::parser::{Span, Stream};
 
 use super::RecordGraph;
 
@@ -26,7 +27,11 @@ impl PackedGraph {
     /// order ahead of any subsequent syntax or I/O error, as ordinary parse does.
     pub(super) fn from_stream(stream: &mut Stream<impl Read>) -> Result<Self, Error> {
         let mut graph = Self {
-            header: stream.header().to_vec(),
+            header: stream
+                .header()
+                .iter()
+                .map(entity_from_step_io_ref)
+                .collect(),
             ..Self::default()
         };
         let mut symbol_ids = HashMap::new();
@@ -51,14 +56,14 @@ impl PackedGraph {
             };
             writer.span(entity.span());
             match entity {
-                RawEntity::Simple {
+                step_io::parser::RawEntity::Simple {
                     name, attributes, ..
                 } => {
                     writer.byte(0);
                     writer.symbol(&name);
                     writer.attributes(&attributes);
                 }
-                RawEntity::Complex { parts, .. } => {
+                step_io::parser::RawEntity::Complex { parts, .. } => {
                     writer.byte(1);
                     writer.length(parts.len());
                     for part in parts {
@@ -80,6 +85,11 @@ impl PackedGraph {
         Self::from_stream(&mut step_io::parser::stream(input)?)
     }
 
+    #[cfg(test)]
+    pub(crate) fn span(&self, id: u64) -> Option<Span> {
+        Some(self.reader(id)?.span())
+    }
+
     fn reader(&self, id: u64) -> Option<RecordReader<'_>> {
         Some(RecordReader {
             data: &self.data,
@@ -96,18 +106,16 @@ impl RecordGraph for PackedGraph {
 
     fn record(&self, id: u64) -> Option<Cow<'_, RawEntity>> {
         let mut reader = self.reader(id)?;
-        let span = reader.span();
+        reader.span();
         let record = if reader.byte() == 0 {
             RawEntity::Simple {
                 id,
-                span,
                 name: reader.symbol(),
                 attributes: reader.attributes(),
             }
         } else {
             RawEntity::Complex {
                 id,
-                span,
                 parts: (0..reader.length())
                     .map(|_| RawEntityPart {
                         name: reader.symbol(),
@@ -171,6 +179,11 @@ impl RecordGraph for PackedGraph {
             }
             _ => None,
         }
+    }
+
+    fn span_start(&self, id: u64) -> Option<u64> {
+        let mut reader = self.reader(id)?;
+        Some(reader.span().start)
     }
 }
 
@@ -260,46 +273,47 @@ impl RecordWriter<'_> {
         self.unsigned(u64::from(span.column));
     }
 
-    fn attributes(&mut self, values: &[Attribute]) {
+    fn attributes(&mut self, values: &[step_io::parser::Attribute]) {
         self.length(values.len());
         for value in values {
             self.attribute(value);
         }
     }
 
-    fn attribute(&mut self, value: &Attribute) {
+    fn attribute(&mut self, value: &step_io::parser::Attribute) {
+        use step_io::parser::Attribute as StepAttr;
         match value {
-            Attribute::Integer(value) => {
+            StepAttr::Integer(value) => {
                 self.byte(0);
                 self.data.write(&value.to_le_bytes());
             }
-            Attribute::Real(value) => {
+            StepAttr::Real(value) => {
                 self.byte(1);
                 self.data.write(&value.to_bits().to_le_bytes());
             }
-            Attribute::String(value) => {
+            StepAttr::String(value) => {
                 self.byte(2);
                 self.text(value);
             }
-            Attribute::Enum(value) => {
+            StepAttr::Enum(value) => {
                 self.byte(3);
                 self.symbol(value);
             }
-            Attribute::Binary(value) => {
+            StepAttr::Binary(value) => {
                 self.byte(4);
                 self.text(value);
             }
-            Attribute::EntityRef(value) => {
+            StepAttr::EntityRef(value) => {
                 self.byte(5);
                 self.unsigned(*value);
             }
-            Attribute::Unset => self.byte(6),
-            Attribute::Derived => self.byte(7),
-            Attribute::List(values) => {
+            StepAttr::Unset => self.byte(6),
+            StepAttr::Derived => self.byte(7),
+            StepAttr::List(values) => {
                 self.byte(8);
                 self.attributes(values);
             }
-            Attribute::Typed { type_name, value } => {
+            StepAttr::Typed { type_name, value } => {
                 self.byte(9);
                 self.symbol(type_name);
                 self.attribute(value);

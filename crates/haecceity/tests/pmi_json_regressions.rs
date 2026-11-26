@@ -39,7 +39,7 @@ fn identity(value: &Value) -> (Document, pmi::write::WriteReport) {
     let read = pmi::read(&after, &parts).unwrap();
     let actual = json::identify(read.parts[0].clone(), Some(&read.identifiers.parts[0])).unwrap();
     assert_eq!(json::to_value(&actual).unwrap(), *value);
-    assert!(haecceity::express::validate_document(after.graph()).is_empty());
+    assert!(haecceity::express::validate_document(&after).is_empty());
     for violation in haecceity::express_rules::check_all(&after) {
         assert!(
             report.practice_schema_conflicts.contains(&violation),
