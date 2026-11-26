@@ -5,6 +5,14 @@ on:
     branches: [main]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+    # A pull request that changes only documentation skips this workflow. Pushes to main and
+    # manual runs still run everything. The DCO check and the crates.io and Python workflows
+    # keep their own path filters (a README edit still runs the packaging checks).
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'LICENSE'
+      - 'NOTICE'
   workflow_dispatch:
 
 permissions:

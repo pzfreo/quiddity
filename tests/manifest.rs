@@ -596,7 +596,7 @@ fn a_few_thousand_products_use_indexed_definition_lookups() {
     }
     let b = torus();
     let doc = haecceity::p21::Document::parse(b.clone()).unwrap();
-    let stride = doc.graph().entities.keys().max().unwrap() + 1;
+    let stride = doc.max_id() + 1;
     // Contexts and the standard frame are deliberately shared, exercising cheap forward
     // references, boundary ownership and the absence of quadratic owner-prefix sets too.
     let shared = [1, 2, 8, 9, 11, 12, 13, 14, 73, 74, 75, 76, 77];
@@ -605,7 +605,7 @@ fn a_few_thousand_products_use_indexed_definition_lookups() {
     let end = text.rfind("ENDSEC;").unwrap();
     let mut extra = String::new();
     for product in 1..count {
-        for (&id, e) in &doc.graph().entities {
+        for (id, e) in doc.iter() {
             if shared.contains(&id) {
                 continue;
             }
@@ -729,12 +729,12 @@ fn local_and_shared_geometry_contexts_are_product_ranges() {
     }
     let b = torus();
     let doc = haecceity::p21::Document::parse(b.clone()).unwrap();
-    let offset = doc.graph().entities.keys().max().unwrap() + 1;
+    let offset = doc.max_id() + 1;
     let shared = 41;
     let mut text = String::from_utf8(b).unwrap();
     let at = text.rfind("ENDSEC;").unwrap();
     let mut extra = String::new();
-    for (&id, e) in &doc.graph().entities {
+    for (id, e) in doc.iter() {
         if id == shared {
             continue;
         }
@@ -792,7 +792,12 @@ fn occurrence_representation_contexts_are_reached_from_assembly_chains() {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ap242/assembly/assembly.step");
     let b = bytes(&path);
     let doc = haecceity::p21::Document::parse(b.clone()).unwrap();
-    let (&relationship,raw)=doc.graph().entities.iter().find(|(_,e)|matches!(e,RawEntity::Complex{parts,..} if parts.iter().any(|p|p.name=="REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION"))).unwrap();
+    let (relationship, raw) = doc
+        .iter()
+        .find(|(_, e)| {
+            matches!(e, RawEntity::Complex { parts, .. } if parts.iter().any(|p| p.name == "REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION"))
+        })
+        .unwrap();
     let mut relation = raw.clone();
     let RawEntity::Complex { parts, .. } = &mut relation else {
         unreachable!()
@@ -804,8 +809,8 @@ fn occurrence_representation_contexts_are_reached_from_assembly_chains() {
     let Attribute::EntityRef(rep) = &part.attributes[2] else {
         unreachable!()
     };
-    let mut representation = doc.graph().entities[rep].clone();
-    let next = doc.graph().entities.keys().max().unwrap() + 1;
+    let mut representation = doc.get(*rep).unwrap().clone();
+    let next = doc.max_id() + 1;
     part.attributes[2] = Attribute::EntityRef(next);
     let RawEntity::Simple { attributes, .. } = &mut representation else {
         unreachable!()
@@ -813,7 +818,7 @@ fn occurrence_representation_contexts_are_reached_from_assembly_chains() {
     let Attribute::EntityRef(context) = attributes[2] else {
         unreachable!()
     };
-    let context = doc.graph().entities[&context].clone();
+    let context = doc.get(context).unwrap().clone();
     attributes[2] = Attribute::EntityRef(next + 1);
     let rows = statements(&b, 4096).unwrap();
     let first = rows.first().unwrap().offset as usize;
@@ -1096,16 +1101,14 @@ fn assembly_product_contexts_stay_with_their_products() {
 fn edge_count_excludes_unused_edges_in_the_same_geometry_component() {
     let b = torus();
     let doc = haecceity::p21::Document::parse(b.clone()).unwrap();
-    let edge = doc
-        .graph()
-        .entities
-        .values()
+    let (_, edge) = doc
+        .iter()
         .find(
-            |e| matches!(e, haecceity::p21::RawEntity::Simple { name, .. } if name == "EDGE_CURVE"),
+            |(_, e)| matches!(e, haecceity::p21::RawEntity::Simple { name, .. } if name == "EDGE_CURVE"),
         )
         .unwrap();
     // This duplicate shares vertices and a curve with the product but no face loop uses it.
-    let id = doc.graph().entities.keys().max().unwrap() + 1;
+    let id = doc.max_id() + 1;
     let mut text = String::from_utf8(b).unwrap();
     let at = text.rfind("ENDSEC;").unwrap();
     text.insert_str(

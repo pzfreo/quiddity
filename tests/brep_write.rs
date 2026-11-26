@@ -207,10 +207,7 @@ fn round_trip(path: &Path) -> Result<Outcome, Vec<String>> {
         ));
     }
     let doc = kernel::p21::Document::parse(bytes).unwrap();
-    for v in kernel::express::validate_document(doc.graph())
-        .iter()
-        .take(3)
-    {
+    for v in kernel::express::validate_document(&doc).iter().take(3) {
         problems.push(format!("{name}: EXPRESS: {v}"));
     }
     for v in kernel::express_rules::check_all(&doc).iter().take(3) {

@@ -4,7 +4,9 @@
 //! the current traversal item; no cache retains a second owned graph.
 
 use std::borrow::Cow;
-use step_io::parser::{Attribute, Graph, RawEntity};
+
+use crate::p21::{Attribute, RawEntity, attribute_from_step_io_ref, entity_from_step_io_ref};
+use step_io::parser::Graph;
 
 pub(crate) trait RecordGraph {
     fn ids(&self) -> Box<dyn Iterator<Item = u64> + '_>;
@@ -38,23 +40,50 @@ pub(crate) trait RecordGraph {
         })
     }
     fn attribute_at(&self, id: u64, part: Option<&str>, path: &[usize]) -> Option<Attribute>;
+    fn span_start(&self, id: u64) -> Option<u64>;
 }
 
 impl RecordGraph for Graph {
     fn ids(&self) -> Box<dyn Iterator<Item = u64> + '_> {
-        self.entities.ids()
+        Box::new(self.entities.keys().copied())
     }
     fn record(&self, id: u64) -> Option<Cow<'_, RawEntity>> {
-        self.entities.record(id)
+        self.entities
+            .get(&id)
+            .map(|e| Cow::Owned(entity_from_step_io_ref(e)))
     }
     fn kind(&self, id: u64) -> Option<&str> {
-        self.entities.kind(id)
+        Some(match self.entities.get(&id)? {
+            step_io::parser::RawEntity::Simple { name, .. } => name,
+            step_io::parser::RawEntity::Complex { .. } => "COMPLEX",
+        })
     }
     fn is_complex(&self, id: u64) -> bool {
-        self.entities.is_complex(id)
+        matches!(
+            self.entities.get(&id),
+            Some(step_io::parser::RawEntity::Complex { .. })
+        )
     }
     fn attribute_at(&self, id: u64, part: Option<&str>, path: &[usize]) -> Option<Attribute> {
-        self.entities.attribute_at(id, part, path)
+        let attributes = match (self.entities.get(&id)?, part) {
+            (step_io::parser::RawEntity::Simple { attributes, .. }, None) => attributes,
+            (step_io::parser::RawEntity::Complex { parts, .. }, Some(name)) => {
+                &parts.iter().find(|p| p.name == name)?.attributes
+            }
+            _ => return None,
+        };
+        let (&index, rest) = path.split_first()?;
+        let mut value = attributes.get(index)?;
+        for &index in rest {
+            let step_io::parser::Attribute::List(items) = value else {
+                return None;
+            };
+            value = items.get(index)?;
+        }
+        Some(attribute_from_step_io_ref(value))
+    }
+    fn span_start(&self, id: u64) -> Option<u64> {
+        self.entities.get(&id).map(|e| e.span().start)
     }
 }
 
@@ -91,5 +120,8 @@ impl RecordGraph for std::collections::BTreeMap<u64, RawEntity> {
             value = items.get(index)?;
         }
         Some(value.clone())
+    }
+    fn span_start(&self, _id: u64) -> Option<u64> {
+        None
     }
 }

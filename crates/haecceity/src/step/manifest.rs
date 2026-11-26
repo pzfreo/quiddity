@@ -326,6 +326,7 @@ fn record(bytes: &[u8], id: u64) -> Result<RawEntity, StepError> {
         .map_err(|e| StepError::Parse(e.to_string()))?
         .entities
         .remove(&id)
+        .map(p21::entity_from_step_io)
         .ok_or_else(dangling)
 }
 fn attributes(e: &RawEntity) -> &[Attribute] {

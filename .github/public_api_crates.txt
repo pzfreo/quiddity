@@ -1,0 +1,5 @@
+# External crates allowed in haecceity's public API.
+# std, core and alloc are always allowed; every other entry requires a reason.
+# Format: <crate_name> # <reason>
+serde_core # Serialize/Deserialize derives via serde on json/manifest public types
+serde_json # haecceity::json exposes serde_json::Value and From<serde_json::Error>

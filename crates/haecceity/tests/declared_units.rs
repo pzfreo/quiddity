@@ -86,7 +86,7 @@ fn millimetres_and_si_prefixes() {
 fn missing_context_declaration_is_not_a_millimetre_default() {
     let doc = Document::parse(assembly().into_bytes()).unwrap();
     let mut edit = Edit::new();
-    for (&id, entity) in &doc.graph().entities {
+    for (id, entity) in doc.iter() {
         let mut changed = entity.clone();
         if let RawEntity::Complex { parts, .. } = &mut changed
             && parts

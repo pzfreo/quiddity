@@ -382,7 +382,7 @@ pub(crate) fn plan_with_rebindings(
         });
         rewritten.insert(k, record);
     }
-    for (name, id) in &doc.graph().anchors {
+    for (name, id) in doc.anchors() {
         if p.removed.contains(id) {
             refusal.anchored.push((*id, name.clone()));
         }
