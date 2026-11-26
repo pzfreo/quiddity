@@ -647,16 +647,24 @@ impl Part {
             .as_deref()
     }
 
-    pub(super) fn mesh_uv_loops<'a>(
-        &'a self,
+    pub(super) fn mesh_uv_loops<'part: 'm, 'm>(
+        &'part self,
         face: usize,
-        selected: &dyn Fn(usize) -> Option<crate::mesh::MeshEdge<'a>>,
-    ) -> Option<std::borrow::Cow<'a, [UvLoop]>> {
-        let key: Vec<_> = self
-            .face_edges(face)
-            .into_iter()
-            .filter(|&e| selected(e).is_some())
-            .collect();
+        selected: &dyn Fn(usize) -> Option<&'m crate::mesh::MeshEdge<'m>>,
+    ) -> Option<std::borrow::Cow<'part, [UvLoop]>> {
+        let mut key = Vec::new();
+        for edge in self.face_edges(face) {
+            if let Some(chosen) = selected(edge) {
+                // Fine samples belong to this request. Their indices and UVs may
+                // differ even when the set of selected topological edges is identical.
+                if matches!(chosen.samples, std::borrow::Cow::Owned(_)) {
+                    return self
+                        .compute_uv_loops(face, None, Some(selected))
+                        .map(std::borrow::Cow::Owned);
+                }
+                key.push(edge);
+            }
+        }
         let (cached_key, loops) = self.cache[face].mesh_loops.get_or_init(|| {
             (
                 key.clone(),
@@ -674,7 +682,7 @@ impl Part {
         &'a self,
         face: usize,
         boundary: Option<&DeclaredBoundary>,
-        mesh: Option<&dyn Fn(usize) -> Option<crate::mesh::MeshEdge<'a>>>,
+        mesh: Option<&dyn Fn(usize) -> Option<&'a crate::mesh::MeshEdge<'a>>>,
     ) -> Option<Vec<UvLoop>> {
         let f = &self.faces[face];
         let (pu, pv) = f.surface.periodic();
@@ -752,7 +760,7 @@ impl Part {
                 _ if let Some(spans) = mesh_spans => inverse.foot(spans, p, hint),
                 _ => inverse.parameters(p, hint),
             };
-            let in_chart = |e, edge: crate::mesh::MeshEdge<'a>| {
+            let in_chart = |e, edge: &'a crate::mesh::MeshEdge<'a>| {
                 let trim = if edge.face == face {
                     edge.trim
                 } else {
@@ -771,7 +779,8 @@ impl Part {
                     edge.samples.points.as_slice()
                 });
                 let n = samples.len();
-                let local = shared.and_then(|edge| Some((in_chart(e, edge)?, edge.samples)));
+                let local =
+                    shared.and_then(|edge| Some((in_chart(e, edge)?, edge.samples.as_ref())));
                 let trim = match (local, boundary.and_then(|b| b.edges.get(&e))) {
                     (Some(local), _) => Some(local),
                     (_, Some(trim)) => Some((trim, trim.samples(&f.surface, &self.edges[e])?)),

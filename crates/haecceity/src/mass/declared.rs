@@ -221,7 +221,7 @@ pub(crate) struct EdgeTrim {
     length: OnceLock<Option<f64>>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct TrimSamples {
     pub(crate) ts: Vec<f64>,
     pub(crate) points: Vec<V3>,
@@ -510,120 +510,144 @@ impl EdgeTrim {
 
     pub(crate) fn samples(&self, s: &Surface, edge: &crate::brep::Edge) -> Option<&TrimSamples> {
         self.samples
-            .get_or_init(|| {
-                if self.mesh
-                    && !self.uniform_mesh_stations
-                    && let Some(size) = Self::affine_spatial_size(&self.curve, s, self.interval)
-                {
-                    let (a, b) = self.interval;
-                    let ends = [self.point(s, a), self.point(s, b)];
-                    // The exact lifted line stays in the convex hull of its ends.
-                    // Leave ample room for floating-point evaluation and for the
-                    // existing pinning of those ends to shared STEP vertices.
-                    let margin = 0.25 * crate::sampling::CHORD_TOLERANCE;
-                    if 256. * f64::EPSILON * size < margin
-                        && geom::dist(ends[0], edge.start) <= margin
-                        && geom::dist(ends[1], edge.end) <= margin
-                    {
-                        return Some(TrimSamples {
-                            ts: vec![a, b],
-                            points: vec![edge.start, edge.end],
-                            native_uv: (!self.is_transferred())
-                                .then(|| vec![self.surface_uv(s, a), self.surface_uv(s, b)]),
-                        });
-                    }
-                }
-                let stations;
-                let ts = if self.uniform_mesh_stations {
-                    let (a, b) = self.interval;
-                    let n = 256;
-                    stations = (0..=n)
-                        .map(|i| a + (b - a) * i as f64 / n as f64)
-                        .collect::<Vec<_>>();
-                    stations.as_slice()
-                } else {
-                    self.nodes()?
-                };
-                let native = self.mesh && !self.is_transferred();
-                let surface_value = super::SurfaceValue::new(s, self.mesh);
-                let eval = |t| {
-                    if native {
-                        let uv = self.surface_uv(s, t);
-                        (surface_value.value(uv.0, uv.1), uv)
-                    } else {
-                        (self.point(s, t), (f64::NAN, f64::NAN))
-                    }
-                };
-                let mut samples = TrimSamples {
-                    ts: Vec::with_capacity(ts.len()),
-                    points: Vec::with_capacity(ts.len()),
-                    native_uv: native.then(|| Vec::with_capacity(ts.len())),
-                };
-                samples.ts.push(*ts.first()?);
-                samples.points.push(edge.start);
-                if let Some(uvs) = &mut samples.native_uv {
-                    uvs.push(self.surface_uv(s, ts[0]));
-                }
-                let mut stack = Vec::with_capacity(1);
-                let mut previous = eval(ts[0]);
-                let bound = self
-                    .mesh
-                    .then(|| Self::midpoint_bound(&self.curve, s, self.interval))
-                    .flatten();
-                for w in ts.windows(2) {
-                    // Each child interval is at most half its parent's width,
-                    // apart from midpoint rounding. Compute one safe depth
-                    // for this initial span instead of a bound at every node.
-                    let mut depth_limit = 14;
-                    if let Some((curvature, rounding)) = bound
-                        && rounding < 0.99 * crate::sampling::CHORD_TOLERANCE
-                    {
-                        depth_limit = 0;
-                        let mut width = (w[1] - w[0]).abs();
-                        let padding = 16. * f64::EPSILON * (w[0].abs() + w[1].abs());
-                        while depth_limit < 14 {
-                            let padded = width + padding;
-                            if curvature * padded * padded / 8. + rounding
-                                < 0.99 * crate::sampling::CHORD_TOLERANCE
-                            {
-                                break;
-                            }
-                            depth_limit += 1;
-                            width *= 0.5;
-                        }
-                    }
-                    let next = eval(w[1]);
-                    stack.push((w[0], previous, w[1], next, 0));
-                    previous = next;
-                    while let Some((a, p, b, q, depth)) = stack.pop() {
-                        if samples.points.len() >= MAX_PANELS {
-                            return None;
-                        }
-                        let t = 0.5 * (a + b);
-                        let midpoint = if depth < depth_limit {
-                            let m = eval(t);
-                            let deviation = geom::dist(m.0, geom::scale(geom::add(p.0, q.0), 0.5));
-                            (deviation > crate::sampling::CHORD_TOLERANCE).then_some(m)
-                        } else {
-                            None
-                        };
-                        if let Some(m) = midpoint {
-                            stack.push((t, m, b, q, depth + 1));
-                            stack.push((a, p, t, m, depth + 1));
-                        } else {
-                            samples.ts.push(b);
-                            samples.points.push(q.0);
-                            if let Some(uvs) = &mut samples.native_uv {
-                                uvs.push(q.1);
-                            }
-                        }
-                    }
-                }
-                *samples.points.last_mut()? = edge.end;
-                Some(samples)
-            })
+            .get_or_init(|| self.sample(s, edge, crate::sampling::CHORD_TOLERANCE))
             .as_ref()
     }
+
+    pub(crate) fn mesh_samples(
+        &self,
+        s: &Surface,
+        edge: &crate::brep::Edge,
+        deflection: f64,
+    ) -> Option<std::borrow::Cow<'_, TrimSamples>> {
+        use std::borrow::Cow;
+        let tolerance = (0.5 * deflection).min(crate::sampling::CHORD_TOLERANCE);
+        if tolerance < crate::sampling::CHORD_TOLERANCE {
+            self.sample(s, edge, tolerance).map(Cow::Owned)
+        } else {
+            self.samples(s, edge).map(Cow::Borrowed)
+        }
+    }
+
+    fn sample(&self, s: &Surface, edge: &crate::brep::Edge, tolerance: f64) -> Option<TrimSamples> {
+        if self.mesh
+            && !self.uniform_mesh_stations
+            && let Some(size) = Self::affine_spatial_size(&self.curve, s, self.interval)
+        {
+            let (a, b) = self.interval;
+            let ends = [self.point(s, a), self.point(s, b)];
+            // The exact lifted line stays in the convex hull of its ends.
+            // A small offset at the shared vertices can dominate a thin
+            // face's area. Keep interior samples when pinning moves an end.
+            let margin = 0.25 * tolerance;
+            if 256. * f64::EPSILON * size < margin && ends == [edge.start, edge.end] {
+                return Some(TrimSamples {
+                    ts: vec![a, b],
+                    points: vec![edge.start, edge.end],
+                    native_uv: (!self.is_transferred())
+                        .then(|| vec![self.surface_uv(s, a), self.surface_uv(s, b)]),
+                });
+            }
+        }
+        let native_nodes;
+        let nodes = if self.mesh && !self.is_transferred() && matches!(s, Surface::Freeform { .. })
+        {
+            native_nodes = self.compute_nodes(Some((s, self.spans)))?;
+            native_nodes.as_slice()
+        } else {
+            self.nodes()?
+        };
+        let stations;
+        let (ts, breaks): (&[f64], &[f64]) = if self.uniform_mesh_stations {
+            let (a, b) = self.interval;
+            stations = cuts(a, b, 256, &[])?;
+            (&stations, nodes)
+        } else {
+            (nodes, &[])
+        };
+        let native = self.mesh && !self.is_transferred();
+        let surface_value = super::SurfaceValue::new(s, self.mesh);
+        let eval = |t| {
+            if native {
+                let uv = self.surface_uv(s, t);
+                (surface_value.value(uv.0, uv.1), uv)
+            } else {
+                (self.point(s, t), (f64::NAN, f64::NAN))
+            }
+        };
+        let mut samples = TrimSamples {
+            ts: Vec::with_capacity(ts.len()),
+            points: Vec::with_capacity(ts.len()),
+            native_uv: native.then(|| Vec::with_capacity(ts.len())),
+        };
+        samples.ts.push(*ts.first()?);
+        samples.points.push(edge.start);
+        if let Some(uvs) = &mut samples.native_uv {
+            uvs.push(self.surface_uv(s, ts[0]));
+        }
+        let mut stack = Vec::with_capacity(1);
+        let mut previous = eval(ts[0]);
+        let bound = (self.mesh && breaks.is_empty())
+            .then(|| Self::midpoint_bound(&self.curve, s, self.interval))
+            .flatten();
+        for w in ts.windows(2) {
+            // Only midpoint splits halve the parameter width. When a knot
+            // witness can move the split, check the actual child spans.
+            let mut depth_limit = 14;
+            if let Some((curvature, rounding)) = bound
+                && rounding < 0.99 * tolerance
+            {
+                depth_limit = 0;
+                let mut width = (w[1] - w[0]).abs();
+                let padding = 16. * f64::EPSILON * (w[0].abs() + w[1].abs());
+                while depth_limit < 14 {
+                    let padded = width + padding;
+                    if curvature * padded * padded / 8. + rounding < 0.99 * tolerance {
+                        break;
+                    }
+                    depth_limit += 1;
+                    width *= 0.5;
+                }
+            }
+            let next = eval(w[1]);
+            stack.push((w[0], previous, w[1], next, 0));
+            previous = next;
+            while let Some((a, p, b, q, depth)) = stack.pop() {
+                if samples.points.len() >= MAX_PANELS {
+                    return None;
+                }
+                let t = 0.5 * (a + b);
+                let split = if depth < depth_limit {
+                    let m = eval(t);
+                    if geom::dist(m.0, geom::scale(geom::add(p.0, q.0), 0.5)) > tolerance {
+                        Some((t, m))
+                    } else {
+                        // A spline excursion can lie between a station and its midpoint.
+                        knot_witness(breaks, a, b, |u| {
+                            let v = eval(u);
+                            (crate::mesh::segment_distance(v.0, p.0, q.0) > tolerance)
+                                .then_some((u, v))
+                        })
+                    }
+                } else {
+                    None
+                };
+                if let Some((t, m)) = split {
+                    stack.push((t, m, b, q, depth + 1));
+                    stack.push((a, p, t, m, depth + 1));
+                } else {
+                    samples.ts.push(b);
+                    samples.points.push(q.0);
+                    if let Some(uvs) = &mut samples.native_uv {
+                        uvs.push(q.1);
+                    }
+                }
+            }
+        }
+        *samples.points.last_mut()? = edge.end;
+        Some(samples)
+    }
+
     pub(crate) fn surface_uv(&self, s: &Surface, t: f64) -> (f64, f64) {
         let p = self.curve.value(t);
         wrap_closed(s, self.spans, (p[0], p[1]))
@@ -634,10 +658,19 @@ impl EdgeTrim {
         Some((p, d))
     }
     pub(crate) fn nodes(&self) -> Option<&[f64]> {
-        self.nodes.get_or_init(|| self.compute_nodes()).as_deref()
+        self.nodes
+            .get_or_init(|| {
+                self.compute_nodes(
+                    self.curve
+                        .transfer
+                        .as_ref()
+                        .map(|tr| (&*tr.carrier, tr.carrier_spans)),
+                )
+            })
+            .as_deref()
     }
 
-    fn compute_nodes(&self) -> Option<Vec<f64>> {
+    fn compute_nodes(&self, carrier: Option<(&Surface, (f64, f64))>) -> Option<Vec<f64>> {
         let (a, b) = self.interval;
         let breaks = match &*self.curve.source {
             Curve::Nurbs(c) => knots_on_interval(c.breaks(), self.curve.source.period(), a, b)?,
@@ -647,10 +680,8 @@ impl EdgeTrim {
         // A foreign spline's partials can jump at a knot even when this
         // pcurve and the receiving face are smooth. Split the path there
         // before budgeting the higher-moment integrals on the receiving face.
-        if let Some(tr) = &self.curve.transfer
-            && let Surface::Freeform { surface, .. } = &*tr.carrier
-        {
-            let spans = [tr.carrier_spans.0, tr.carrier_spans.1];
+        if let Some((Surface::Freeform { surface, .. }, spans)) = carrier {
+            let spans = [spans.0, spans.1];
             let knots = [
                 crate::nurbs::breaks(&surface.knots_u, surface.degree_u),
                 crate::nurbs::breaks(&surface.knots_v, surface.degree_v),
@@ -714,9 +745,68 @@ impl EdgeTrim {
     }
 }
 
+/// Inspect each interior knot and the midpoint of each piece it separates, in parameter order.
+fn knot_witness<T>(
+    breaks: &[f64],
+    a: f64,
+    b: f64,
+    mut check: impl FnMut(f64) -> Option<T>,
+) -> Option<T> {
+    if breaks.is_empty() || a == b {
+        return None;
+    }
+    let start = breaks.partition_point(|&k| if a < b { k <= a } else { k >= a });
+    let end = breaks.partition_point(|&k| if a < b { k < b } else { k > b });
+    let inside = &breaks[start..end];
+    if inside.is_empty() {
+        return None;
+    }
+    let mut last = a;
+    for &k in inside {
+        if let Some(hit) = check(last.midpoint(k)).or_else(|| check(k)) {
+            return Some(hit);
+        }
+        last = k;
+    }
+    check(last.midpoint(b))
+}
+
+impl DeclaredBoundary {
+    /// Keep the source-frame intervals and UV transfer. Caller-space samples and loops
+    /// are rebuilt on demand.
+    fn placed(&self, placement: &crate::step::Placement) -> Self {
+        let edges = self
+            .edges
+            .iter()
+            .map(|(&id, trim)| {
+                let mut curve = trim.curve.clone();
+                if let Some(transfer) = &mut curve.transfer {
+                    transfer.placement = crate::step::compose(placement, &transfer.placement);
+                }
+                (
+                    id,
+                    EdgeTrim {
+                        curve,
+                        spans: trim.spans,
+                        interval: trim.interval,
+                        samples: OnceLock::new(),
+                        mesh: trim.mesh,
+                        uniform_mesh_stations: trim.uniform_mesh_stations,
+                        witnesses: Vec::new(),
+                        nodes: trim.nodes.clone(),
+                        length: trim.length.clone(),
+                    },
+                )
+            })
+            .collect();
+        Self {
+            edges,
+            ..DeclaredBoundary::default()
+        }
+    }
+}
+
 impl Part {
-    /// Keep the resolved master intervals and their source-frame UV transfer.
-    /// Samples in caller coordinates and mixed loops are rebuilt on demand.
     pub(crate) fn carry_declared_boundary(
         &self,
         face: usize,
@@ -724,37 +814,8 @@ impl Part {
         placement: &crate::step::Placement,
     ) {
         if let Some(boundary) = self.cache[face].declared.get() {
-            let _ = to.declared.set(boundary.as_ref().map(|boundary| {
-                let edges = boundary
-                    .edges
-                    .iter()
-                    .map(|(&id, trim)| {
-                        let mut curve = trim.curve.clone();
-                        if let Some(transfer) = &mut curve.transfer {
-                            transfer.placement =
-                                crate::step::compose(placement, &transfer.placement);
-                        }
-                        (
-                            id,
-                            EdgeTrim {
-                                curve,
-                                spans: trim.spans,
-                                interval: trim.interval,
-                                mesh: false,
-                                uniform_mesh_stations: false,
-                                witnesses: Vec::new(),
-                                samples: OnceLock::new(),
-                                nodes: trim.nodes.clone(),
-                                length: trim.length.clone(),
-                            },
-                        )
-                    })
-                    .collect();
-                Box::new(DeclaredBoundary {
-                    edges,
-                    ..DeclaredBoundary::default()
-                })
-            }));
+            to.declared
+                .get_or_init(|| boundary.as_ref().map(|b| Box::new(b.placed(placement))));
         }
     }
 
@@ -775,16 +836,33 @@ impl Part {
     }
 
     pub(crate) fn declared_boundary(&self, face: usize) -> Option<&DeclaredBoundary> {
-        self.cache[face]
-            .declared
-            .get_or_init(|| self.read_declared_boundary(face, false).map(Box::new))
-            .as_deref()
+        self.boundary_in_file_frame(face, false)
     }
 
     pub(crate) fn mesh_declared_boundary(&self, face: usize) -> Option<&DeclaredBoundary> {
-        self.cache[face]
-            .mesh_declared
-            .get_or_init(|| self.read_declared_boundary(face, true).map(Box::new))
+        self.boundary_in_file_frame(face, true)
+    }
+
+    fn boundary_in_file_frame(&self, face: usize, mesh: bool) -> Option<&DeclaredBoundary> {
+        let cache = &self.cache[face];
+        let selected = if mesh {
+            &cache.mesh_declared
+        } else {
+            &cache.declared
+        };
+        selected
+            .get_or_init(|| {
+                // Both modes qualify in file coordinates, including near the uncertainty limit.
+                let boundary = if let Some(origin) = &self.integral_origin {
+                    origin
+                        .source
+                        .boundary_in_file_frame(face, mesh)?
+                        .placed(&origin.placement)
+                } else {
+                    self.read_declared_boundary(face, mesh)?
+                };
+                Some(Box::new(boundary))
+            })
             .as_deref()
     }
 
@@ -844,25 +922,6 @@ impl Part {
                 .clone()
         };
         let spans = self.face_closed_spans(face);
-        let mut endpoints: BTreeMap<usize, [Option<(f64, f64)>; 2]> = BTreeMap::new();
-        if mesh && let Some(Some(loops)) = self.cache[face].uv_loops.get() {
-            for (lp, uv) in self.faces[face].loops.iter().zip(loops) {
-                for (source, &point) in uv.sources.iter().zip(&uv.points) {
-                    let Some((place, sample)) = *source else {
-                        continue;
-                    };
-                    let edge = lp.edges[place].0;
-                    let end = if sample == 0 {
-                        0
-                    } else if sample + 1 == self.edges[edge].samples.len() {
-                        1
-                    } else {
-                        continue;
-                    };
-                    endpoints.entry(edge).or_insert([None; 2])[end].get_or_insert(point);
-                }
-            }
-        }
         for &(e, _) in self.faces[face].loops.iter().flat_map(|lp| &lp.edges) {
             if result.edges.contains_key(&e) {
                 continue;
@@ -914,7 +973,6 @@ impl Part {
                 curve,
                 tolerance,
                 mesh,
-                endpoints.get(&e).copied().unwrap_or([None; 2]),
                 witnesses,
             )?;
             if mesh {
@@ -989,7 +1047,6 @@ fn resolve(
     curve: ParamCurve,
     tolerance: f64,
     mesh: bool,
-    hints: [Option<(f64, f64)>; 2],
     witnesses: Vec<ParamCurve>,
 ) -> Option<EdgeTrim> {
     let period = curve.source.period();
@@ -998,7 +1055,7 @@ fn resolve(
         (edge, spatial),
         &curve,
         tolerance,
-        mesh.then_some(hints),
+        mesh,
         || Some(()),
     )?;
     let trim = EdgeTrim {
@@ -1072,7 +1129,7 @@ fn resolve(
         _ => Vec::new(),
     };
     let validation_spans = cuts(a, b, 1, &knots)?;
-    let mut hint = if mesh { hints[0] } else { None };
+    let mut hint = None;
     let inverse = super::SurfaceInversion::new(surface, mesh);
     let surface_value = super::SurfaceValue::new(surface, mesh);
     let carrier_value = trim
@@ -1176,7 +1233,7 @@ fn resolve_interval(
     (edge, spatial): (&crate::brep::Edge, (f64, f64)),
     curve: &ParamCurve,
     tolerance: f64,
-    hints: Option<[Option<(f64, f64)>; 2]>,
+    mesh: bool,
     spend: impl Fn() -> Option<()>,
 ) -> Option<(f64, f64)> {
     let lift = |t| {
@@ -1205,20 +1262,16 @@ fn resolve_interval(
         // A bounded NURBS evaluator clamps outside parameters to its endpoint.
         // Such a match must not suppress inversion of the pcurve's own endpoints.
         let on_surface = |t| carrier_uv(surface, spans, curve.value(t), &spend).is_some();
-        if let Some(hints) = hints {
-            let endpoint = |t, expected, hint| {
-                let q = curve.value_near(t, hint);
+        if mesh {
+            let endpoint = |t, expected| {
+                let q = curve.value(t);
                 if carrier_uv(surface, spans, q, &spend).is_none() || spend().is_none() {
                     return false;
                 }
                 let uv = wrap_closed(surface, spans, (q[0], q[1]));
                 geom::dist(surface.value(uv.0, uv.1), expected) <= tolerance
             };
-            return in_domain
-                && (endpoint(a, edge.start, hints[0])
-                    || hints[0].is_some() && endpoint(a, edge.start, None))
-                && (endpoint(b, edge.end, hints[1])
-                    || hints[1].is_some() && endpoint(b, edge.end, None));
+            return in_domain && endpoint(a, edge.start) && endpoint(b, edge.end);
         }
         in_domain
             && on_surface(a)

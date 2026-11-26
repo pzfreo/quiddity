@@ -157,18 +157,18 @@ parameter charts. On a closed spline, an inverse stopped at the seam also
 tries the other end of the chart.
 If a selected loop still refuses triangulation after the usual thinning
 retries, the mesher retries with spatial edges for that loop's face. Every
-incident face uses the same replacement samples on those edges.
-This is one compatibility retry, not proof that the selected geometry was
-invalid: a qualified selected loop may also exceed the mesher's capabilities.
-Its replacement can differ from the boundary used by the face integral. The
-mesher does not recompute or change the accepted mass boundary. If the retry
-also fails, the existing `MeshRefusal` is returned.
+incident face uses the same replacement samples in a whole-part mesh. A switch
+can make a previously successful neighbour fail. Each retry switches at least
+one more edge, until the remaining refusals have no selected edge to replace.
+A single-face call makes its fallback decision locally. Two independent calls
+can therefore use different curves on their common edge. Call `Part::mesh`
+when the results must join. The replacement can differ from the integral boundary.
 
-Ordinary boundary selection reads the existing geometric boundary cache without
-requesting a face integral or changing the accepted mass-boundary decision.
+On a placed part the mesh and measurement resolve the selection in the source
+frame and carry it to caller coordinates. Either query may populate the cache
+first. Ordinary mesh selection only requires geometric qualification.
 Each mesh call constructs its own shared edge plans and parameter charts. A
-boundary fallback rebuilds all charts and plans; this version deliberately
-keeps the original retry and interior-refinement order. Further work reuse and
+boundary fallback rebuilds the charts and plans. Further work reuse and
 specialised evaluators are separate performance changes.
 
 The mesh keeps the shared STEP vertices at the ends of an edge. An unresolved
@@ -213,6 +213,14 @@ edges with an analytic neighbour and edges with only analytic incident faces
 use the original knot-based stations. All incident faces use one shared
 spatial edge plan. Integration accesses its own knot partitions and samples.
 
+Before accepting a uniform chord, the sampler checks interior spline breaks
+and the midpoints of the spans they delimit against the 3D segment. This can
+expose a short excursion missed by the uniform midpoint while preserving the
+stations on opposite sides of a narrow ribbon. Mesh sampling uses the smaller
+of 0.0002 mm and half the requested deflection. Finer samples belong to the
+current mesh call. These finite checks do not certify the maximum deviation
+of an arbitrary rational curve.
+
 The focused whole-part regression checks the six narrow faces of
 `threaded_connector_109` independently of the corpus perimeter allowance: each
 must be within 1% of its integral area and drop no folded triangles. On two
@@ -247,7 +255,8 @@ change.
 ## Reusing selected-boundary preparation
 
 Mesh qualification and UV loops have separate lazy caches from integration.
-Each face retains one selected-edge key and its UV loops. A different key
+Each face retains one selected-edge key and its UV loops at ordinary boundary tolerance.
+Finer samples and their UV loops stay within the mesh call. A different key
 computes a temporary result instead of growing a map. These caches and the
 immutable curve pool belong to the Part.
 Loop keys retain selected topological-edge identities. Identical immutable curve
@@ -261,7 +270,8 @@ with the existing residual and finite-domain checks. Analytic midpoint bounds
 and grouped crossing exclusions keep the original checks for unresolved cases.
 The existing recognition boundary policy, metered deviation checks, combined
 point/tangent evaluation and carried integral boundaries are preserved. Mesh
-and integration interval selection share one resolver, with mesh hints optional.
+and integration interval selection share one resolver. Both qualify in file coordinates;
+mesh qualification starts from the same endpoint seeds regardless of earlier UV queries.
 
 There is no cross-curve coefficient pool or separate native finite-value
 certificate. The integration rule and geometry tolerances are unchanged.

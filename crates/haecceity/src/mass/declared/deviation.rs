@@ -120,7 +120,7 @@ impl Part {
                 (edge, spatial),
                 &curve,
                 limit + geom::COORD_FLOOR,
-                None,
+                false,
                 spend,
             )?;
             let trim = EdgeTrim {
