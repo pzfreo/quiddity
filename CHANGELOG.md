@@ -6,6 +6,9 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+- Keep interior samples on an affine STEP trim whose evaluated endpoints differ
+  from the shared vertices, preserving the area of thin planar faces.
+
 - For #359, expose signed solid inertia tensors in haecceity and Python, with a
   parallel-axis shift and optional centroidal tensors and their reference volumes
   in the `quiddity brep` JSON report. Use the local chart for shallow spherical

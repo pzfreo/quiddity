@@ -518,13 +518,10 @@ impl EdgeTrim {
                     let (a, b) = self.interval;
                     let ends = [self.point(s, a), self.point(s, b)];
                     // The exact lifted line stays in the convex hull of its ends.
-                    // Leave ample room for floating-point evaluation and for the
-                    // existing pinning of those ends to shared STEP vertices.
+                    // A small offset at the shared vertices can dominate a thin
+                    // face's area. Keep interior samples when pinning moves an end.
                     let margin = 0.25 * crate::sampling::CHORD_TOLERANCE;
-                    if 256. * f64::EPSILON * size < margin
-                        && geom::dist(ends[0], edge.start) <= margin
-                        && geom::dist(ends[1], edge.end) <= margin
-                    {
+                    if 256. * f64::EPSILON * size < margin && ends == [edge.start, edge.end] {
                         return Some(TrimSamples {
                             ts: vec![a, b],
                             points: vec![edge.start, edge.end],

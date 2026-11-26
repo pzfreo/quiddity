@@ -49,3 +49,7 @@ definition; an unrepresented typed shell still fails the checker.
 It defines a 1 mm square on a bilinear B-spline surface. The lower 3D edge
 is straight and its master pcurve is a quadratic Bézier with middle pole
 at (0.5, 0.0004). The other three edges agree exactly.
+
+`selected-affine-strip.step` is an original 1 × 0.001 mm planar strip. Its lower
+master pcurve lies 0.00004 mm above the spatial edge. Pinning the two mesh
+endpoints to the STEP vertices leaves the interior of that pcurve offset.
