@@ -4,7 +4,7 @@ All notable changes to quiddity-rust and haecceity. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Alpha 1's gates and their evidence are
 in [docs/alpha1.md](docs/alpha1.md).
 
-## Unreleased
+## 0.5.6 (2026-11-26)
 
 - For #359, expose signed solid inertia tensors in haecceity and Python, with a
   parallel-axis shift and optional centroidal tensors and their reference volumes
