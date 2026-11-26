@@ -109,7 +109,7 @@ fn write_sfa_samples_from_json() {
         )
         .and_then(|(bytes, report)| {
             let candidate = Document::parse(bytes.clone()).unwrap();
-            if !haecceity::express::validate_document(candidate.graph()).is_empty()
+            if !haecceity::express::validate_document(&candidate).is_empty()
                 || !haecceity::express_rules::check_all(&candidate).is_empty()
             {
                 return Err(json::Error(
@@ -141,7 +141,7 @@ fn write_sfa_samples_from_json() {
         let defs = read_part_definitions(&written).unwrap();
         let reread = pmi::read(&after, &defs).unwrap();
         assert!(
-            haecceity::express::validate_document(after.graph()).is_empty(),
+            haecceity::express::validate_document(&after).is_empty(),
             "{name}: full EXPRESS validation"
         );
         assert!(

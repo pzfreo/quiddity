@@ -74,43 +74,63 @@ fn nist_file(name: &str) -> Option<PathBuf> {
     nist_dir().map(|d| d.join(name)).filter(|p| p.is_file())
 }
 
-/// A record without its span (step-io's spans are the `#N` token's position in the file).
-fn unspanned(e: &RawEntity) -> RawEntity {
-    let span = simple("X", vec![]).span();
-    match e.clone() {
-        RawEntity::Simple {
+/// Convert a `step_io` attribute to haecceity's `p21::Attribute` for independent comparison.
+fn from_step_io_attr(a: &step_io::parser::Attribute) -> Attribute {
+    match a {
+        step_io::parser::Attribute::Integer(v) => Attribute::Integer(*v),
+        step_io::parser::Attribute::Real(v) => Attribute::Real(*v),
+        step_io::parser::Attribute::String(v) => Attribute::String(v.clone()),
+        step_io::parser::Attribute::Enum(v) => Attribute::Enum(v.clone()),
+        step_io::parser::Attribute::Binary(v) => Attribute::Binary(v.clone()),
+        step_io::parser::Attribute::EntityRef(v) => Attribute::EntityRef(*v),
+        step_io::parser::Attribute::Unset => Attribute::Unset,
+        step_io::parser::Attribute::Derived => Attribute::Derived,
+        step_io::parser::Attribute::List(items) => {
+            Attribute::List(items.iter().map(from_step_io_attr).collect())
+        }
+        step_io::parser::Attribute::Typed { type_name, value } => Attribute::Typed {
+            type_name: type_name.clone(),
+            value: Box::new(from_step_io_attr(value)),
+        },
+    }
+}
+
+/// Convert a `step_io` record (ignoring its lexer span) to haecceity's `p21::RawEntity`.
+fn from_step_io_entity(e: &step_io::parser::RawEntity) -> RawEntity {
+    match e {
+        step_io::parser::RawEntity::Simple {
             id,
             name,
             attributes,
             ..
         } => RawEntity::Simple {
-            id,
-            name,
-            attributes,
-            span,
+            id: *id,
+            name: name.clone(),
+            attributes: attributes.iter().map(from_step_io_attr).collect(),
         },
-        RawEntity::Complex { id, parts, .. } => RawEntity::Complex { id, parts, span },
+        step_io::parser::RawEntity::Complex { id, parts, .. } => RawEntity::Complex {
+            id: *id,
+            parts: parts
+                .iter()
+                .map(|p| RawEntityPart {
+                    name: p.name.clone(),
+                    attributes: p.attributes.iter().map(from_step_io_attr).collect(),
+                })
+                .collect(),
+        },
     }
 }
 
 fn with_id(e: &RawEntity, new_id: u64) -> RawEntity {
-    match unspanned(e) {
+    match e.clone() {
         RawEntity::Simple {
-            name,
-            attributes,
-            span,
-            ..
+            name, attributes, ..
         } => RawEntity::Simple {
             id: new_id,
             name,
             attributes,
-            span,
         },
-        RawEntity::Complex { parts, span, .. } => RawEntity::Complex {
-            id: new_id,
-            parts,
-            span,
-        },
+        RawEntity::Complex { parts, .. } => RawEntity::Complex { id: new_id, parts },
     }
 }
 
@@ -178,11 +198,12 @@ fn check_file(path: &Path) -> Result<(String, f64), String> {
     match step_io::parser::parse(rebuilt.as_slice()) {
         Ok(g) => {
             for (id, e) in &graph.entities {
-                if g.entities.get(id).map(unspanned) != Some(unspanned(e)) {
+                let want = from_step_io_entity(e);
+                if g.entities.get(id).map(from_step_io_entity) != Some(want.clone()) {
                     problems.push(format!("#{id}: the span's record differs from step-io's"));
                     break;
                 }
-                if doc.get(*id).map(unspanned) != Some(unspanned(e)) {
+                if doc.get(*id) != Some(&want) {
                     problems.push(format!("#{id}: record differs from step-io's"));
                     break;
                 }
@@ -192,7 +213,7 @@ fn check_file(path: &Path) -> Result<(String, f64), String> {
     }
     // Every record, encoded and read back by step-io, is itself.
     let mut encoded = HEAD.to_string();
-    for (id, e) in &graph.entities {
+    for (id, e) in doc.iter() {
         match encode(e) {
             Ok(t) => encoded.push_str(&format!("#{id}={t};\n")),
             Err(err) => {
@@ -207,7 +228,9 @@ fn check_file(path: &Path) -> Result<(String, f64), String> {
             if let Some(id) = graph
                 .entities
                 .iter()
-                .find(|(id, e)| g.entities.get(id).map(unspanned) != Some(unspanned(e)))
+                .find(|(id, e)| {
+                    g.entities.get(id).map(from_step_io_entity) != Some(from_step_io_entity(e))
+                })
                 .map(|(id, _)| id)
             {
                 problems.push(format!("#{id} encodes to a different record"));
@@ -420,8 +443,8 @@ fn edits_touch_only_their_spans() {
     assert_eq!(doc.apply(&edit).unwrap(), out);
     let again = Document::parse(out.bytes).unwrap();
     assert_eq!(
-        again.get(12).map(unspanned),
-        Some(with_id(
+        again.get(12),
+        Some(&with_id(
             &simple(
                 "AXIS2_PLACEMENT_3D",
                 vec![
@@ -563,7 +586,6 @@ fn edits_that_would_leave_a_reference_dangling_are_refused() {
             leaf("NAMED_UNIT", vec![Attribute::Derived]),
             leaf("LENGTH_UNIT", vec![]),
         ],
-        span: simple("X", vec![]).span(),
     };
     assert!(matches!(
         refused(&|e| e.replace(8, unsorted.clone())),
@@ -613,12 +635,12 @@ fn edits_on_a_nist_file_keep_every_other_byte() {
             &bytes[doc.span(id).unwrap()],
             "#{id}"
         );
-        assert_eq!(after.get(id).map(unspanned), doc.get(id).map(unspanned));
+        assert_eq!(after.get(id), doc.get(id));
     }
     assert!(after.get(removed).is_none());
     assert_eq!(
-        after.get(replaced).map(unspanned),
-        Some(with_id(&point("moved", [1.0, 2.0, 3.0]), replaced))
+        after.get(replaced),
+        Some(&with_id(&point("moved", [1.0, 2.0, 3.0]), replaced))
     );
     // The bytes between instances (comments, line breaks) are the original's, except the
     // removed instance's line; the additions are one CRLF line each before the last ENDSEC.
@@ -679,8 +701,8 @@ fn edits_on_a_nist_file_keep_every_other_byte() {
 fn read_back(text: &str) -> Attribute {
     let g = step_io::parser::parse(file(&format!("#1=X({text});\n")).as_slice()).unwrap();
     match &g.entities[&1] {
-        RawEntity::Simple { attributes, .. } => attributes[0].clone(),
-        RawEntity::Complex { .. } => unreachable!(),
+        step_io::parser::RawEntity::Simple { attributes, .. } => from_step_io_attr(&attributes[0]),
+        step_io::parser::RawEntity::Complex { .. } => unreachable!(),
     }
 }
 
@@ -848,7 +870,7 @@ fn records_encode_and_read_back() {
     assert!(Complex::new([]).is_err());
     assert!(Complex::new([leaf("A", vec![]), leaf("A", vec![])]).is_err());
     let g = step_io::parser::parse(file(&format!("#1={want};\n")).as_slice()).unwrap();
-    let RawEntity::Complex { parts, .. } = &g.entities[&1] else {
+    let RawEntity::Complex { parts, .. } = from_step_io_entity(&g.entities[&1]) else {
         panic!()
     };
     let names: Vec<&str> = parts
@@ -860,7 +882,6 @@ fn records_encode_and_read_back() {
     let unsorted = RawEntity::Complex {
         id: 0,
         parts: leaves.to_vec(),
-        span: simple("X", vec![]).span(),
     };
     assert!(matches!(encode(&unsorted), Err(P21Error::Encode(_))));
 
@@ -896,7 +917,7 @@ fn records_encode_and_read_back() {
          DESCRIPTIVE_MEASURE('x'),$,*,.T.,\"0FF\",'')"
     );
     let g = step_io::parser::parse(file(&format!("#1={text};\n#7=Y();\n")).as_slice()).unwrap();
-    assert_eq!(unspanned(&g.entities[&1]), with_id(&record, 1));
+    assert_eq!(from_step_io_entity(&g.entities[&1]), with_id(&record, 1));
     // Names that are not Part 21 keywords, bad enumerations and binaries are refused.
     for bad in [
         simple("lower", vec![]),
@@ -1104,4 +1125,106 @@ fn real_occurrences_keep_distinct_stated_tokens_and_validate_bindings() {
     assert!(record.clone().state_reals(&["0.0"]).is_err());
     assert!(record.clone().state_reals(&["0.0", "2.0", "1.00"]).is_err());
     assert!(record.state_reals(&["0.0", "0.0", "1e0"]).is_err());
+}
+
+#[test]
+fn ap242_fixture_conversion_keeps_every_record_attribute_and_complex_part() {
+    let path = common::fixtures().join("ap242/nist/nist_stc_09_asme1_ap242-e4.stp.gz");
+    let bytes = read(&path);
+    let graph = step_io::parser::parse(bytes.as_slice()).unwrap();
+    let doc = Document::parse(bytes).unwrap();
+
+    let expected_header: Vec<RawEntity> = graph.header.iter().map(from_step_io_entity).collect();
+    assert_eq!(doc.header(), expected_header.as_slice());
+
+    let expected_ids: Vec<u64> = graph.entities.keys().copied().collect();
+    assert_eq!(doc.ids().collect::<Vec<_>>(), expected_ids);
+
+    let (mut simple_count, mut complex_count, mut complex_parts) = (0usize, 0usize, 0usize);
+    let (
+        mut has_real,
+        mut has_string,
+        mut has_enum,
+        mut has_ref,
+        mut has_unset,
+        mut has_derived,
+        mut has_list,
+        mut has_typed,
+    ) = (false, false, false, false, false, false, false, false);
+
+    for ((id, actual), (&expected_id, raw)) in doc.iter().zip(&graph.entities) {
+        assert_eq!(id, expected_id);
+        let expected = from_step_io_entity(raw);
+        assert_eq!(actual, &expected, "#{id}");
+        assert_eq!(doc.get(id), Some(&expected), "#{id}");
+        match actual {
+            RawEntity::Simple { .. } => simple_count += 1,
+            RawEntity::Complex { parts, .. } => {
+                complex_count += 1;
+                complex_parts += parts.len();
+            }
+        }
+        haecceity::p21::visit_attributes(actual, &mut |a| match a {
+            Attribute::Real(_) => has_real = true,
+            Attribute::String(_) => has_string = true,
+            Attribute::Enum(_) => has_enum = true,
+            Attribute::EntityRef(_) => has_ref = true,
+            Attribute::Unset => has_unset = true,
+            Attribute::Derived => has_derived = true,
+            Attribute::List(_) => has_list = true,
+            Attribute::Typed { .. } => has_typed = true,
+            Attribute::Integer(_) | Attribute::Binary(_) => {}
+        });
+    }
+    assert!(simple_count > 0 && complex_count > 0 && complex_parts > complex_count);
+    assert!(
+        has_real
+            && has_string
+            && has_enum
+            && has_ref
+            && has_unset
+            && has_derived
+            && has_list
+            && has_typed,
+        "fixture must exercise every common attribute kind"
+    );
+}
+
+#[test]
+fn ap242_fixture_byte_exact_write_round_trips() {
+    let path = common::fixtures().join("ap242/nist/nist_stc_09_asme1_ap242-e4.stp.gz");
+    let bytes = read(&path);
+    let doc = Document::parse(bytes.clone()).unwrap();
+
+    // Unedited write is byte-for-byte identical to the original file.
+    let noop = doc.apply(&Edit::new()).unwrap();
+    assert_eq!(noop.bytes, bytes);
+
+    // A targeted edit keeps every untouched instance's exact bytes and round-trips the edit.
+    let replaced = doc
+        .iter()
+        .find_map(|(id, e)| {
+            matches!(e, RawEntity::Simple { name, .. } if name == "CARTESIAN_POINT").then_some(id)
+        })
+        .unwrap();
+    let mut edit = Edit::new();
+    let replacement = point("roundtrip", [1.25, -2.5, 3.75]);
+    let added_rec = point("added", [4.0, 5.0, 6.0]);
+    edit.replace(replaced, replacement.clone());
+    let new_id = edit.add(added_rec.clone());
+    let written = doc.apply(&edit).unwrap();
+    let assigned = written.ids[&new_id];
+
+    let after = Document::parse(written.bytes.clone()).unwrap();
+    for id in doc.ids().filter(|&id| id != replaced) {
+        assert_eq!(
+            &after.bytes()[after.span(id).unwrap()],
+            &bytes[doc.span(id).unwrap()],
+            "untouched #{id}"
+        );
+        assert_eq!(after.get(id), doc.get(id), "untouched record #{id}");
+    }
+    assert_eq!(after.get(replaced), Some(&with_id(&replacement, replaced)));
+    assert_eq!(after.get(assigned), Some(&with_id(&added_rec, assigned)));
+    assert_eq!(after.apply(&Edit::new()).unwrap().bytes, written.bytes);
 }

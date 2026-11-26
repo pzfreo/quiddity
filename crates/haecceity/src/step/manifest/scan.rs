@@ -1064,11 +1064,9 @@ fn place_products(
     ids.by_type.insert(
         "NEXT_ASSEMBLY_USAGE_OCCURRENCE",
         graph
-            .entities
-            .iter()
-            .filter_map(|(&id, e)| {
-                (name(e) == "NEXT_ASSEMBLY_USAGE_OCCURRENCE" && !dropped.contains(&id))
-                    .then_some(id)
+            .ids()
+            .filter(|&id| {
+                graph.kind(id) == Some("NEXT_ASSEMBLY_USAGE_OCCURRENCE") && !dropped.contains(&id)
             })
             .collect(),
     );
@@ -1098,7 +1096,7 @@ fn place_products(
             products[missing].product_definition
         )));
     }
-    let assemblies = super::super::assemblies(&graph.entities);
+    let assemblies = super::super::assemblies(graph);
     let mut wrapper_names = HashMap::new();
     for a in assemblies {
         if let [c] = a.components.as_slice()

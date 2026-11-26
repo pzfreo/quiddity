@@ -169,9 +169,29 @@ impl std::fmt::Display for WriteError {
 
 impl std::error::Error for WriteError {}
 
-impl From<AuthorError> for WriteError {
+enum WriterError {
+    Write(WriteError),
+    Author(AuthorError),
+}
+
+impl From<WriteError> for WriterError {
+    fn from(e: WriteError) -> Self {
+        Self::Write(e)
+    }
+}
+
+impl From<AuthorError> for WriterError {
     fn from(e: AuthorError) -> Self {
-        WriteError::Author(e.to_string())
+        Self::Author(e)
+    }
+}
+
+impl WriterError {
+    fn into_write_error(self) -> WriteError {
+        match self {
+            Self::Write(e) => e,
+            Self::Author(e) => WriteError::Author(e.to_string()),
+        }
     }
 }
 
@@ -189,7 +209,9 @@ pub fn write_step(
         repairs_written: part.input_repairs().to_vec(),
         ..WriteReport::default()
     };
-    let bytes = Writer::new(part, options.name)?.write(&mut report)?;
+    let bytes = Writer::new(part, options.name)
+        .and_then(|w| w.write(&mut report))
+        .map_err(WriterError::into_write_error)?;
     let bytes = match options.pmi {
         Some(p) => {
             let (bytes, carried) = carry_pmi(bytes, p)?;
@@ -448,10 +470,10 @@ fn bspline_curve(
     knots: Vec<f64>,
     multiplicities: Vec<i64>,
     weights: Option<&[f64]>,
-) -> Result<m::CurveRef, AuthorError> {
+) -> Result<m::Ap242SurfaceCurveCurve3dRef, AuthorError> {
     let a = b.author();
     match weights.filter(|w| w.iter().any(|&w| w != 1.0)) {
-        None => Ok(m::CurveRef::BSplineCurveWithKnots(
+        None => Ok(m::Ap242SurfaceCurveCurve3dRef::BSplineCurveWithKnots(
             a.add_b_spline_curve_with_knots(
                 "",
                 degree(d),
@@ -466,27 +488,29 @@ fn bspline_curve(
         )),
         Some(weights) => {
             let no_name = a.text("");
-            Ok(m::CurveRef::Complex(a.add_complex(vec![
-                m::PartialEntity::BoundedCurve,
-                m::PartialEntity::BSplineCurve {
-                    degree: degree(d),
-                    control_points_list: points,
-                    curve_form: m::BSplineCurveForm::Unspecified,
-                    closed_curve: m::Logical::Unknown,
-                    self_intersect: m::Logical::Unknown,
-                },
-                m::PartialEntity::BSplineCurveWithKnots {
-                    knot_multiplicities: multiplicities,
-                    knots,
-                    knot_spec: m::KnotType::Unspecified,
-                },
-                m::PartialEntity::Curve,
-                m::PartialEntity::GeometricRepresentationItem,
-                m::PartialEntity::RationalBSplineCurve {
-                    weights_data: weights.to_vec(),
-                },
-                m::PartialEntity::RepresentationItem { name: no_name },
-            ])?))
+            Ok(m::Ap242SurfaceCurveCurve3dRef::Complex(a.add_complex(
+                vec![
+                    m::PartialEntity::BoundedCurve,
+                    m::PartialEntity::BSplineCurve {
+                        degree: degree(d),
+                        control_points_list: points,
+                        curve_form: m::BSplineCurveForm::Unspecified,
+                        closed_curve: m::Logical::Unknown,
+                        self_intersect: m::Logical::Unknown,
+                    },
+                    m::PartialEntity::BSplineCurveWithKnots {
+                        knot_multiplicities: multiplicities,
+                        knots,
+                        knot_spec: m::KnotType::Unspecified,
+                    },
+                    m::PartialEntity::Curve,
+                    m::PartialEntity::GeometricRepresentationItem,
+                    m::PartialEntity::RationalBSplineCurve {
+                        weights_data: weights.to_vec(),
+                    },
+                    m::PartialEntity::RepresentationItem { name: no_name },
+                ],
+            )?))
         }
     }
 }
@@ -501,13 +525,19 @@ fn points(b: &mut StepBuilder, ps: &[V3]) -> Result<Vec<m::CartesianPointRef>, A
         .collect()
 }
 
-fn nurbs_curve(b: &mut StepBuilder, c: &NurbsCurve) -> Result<m::CurveRef, AuthorError> {
+fn nurbs_curve(
+    b: &mut StepBuilder,
+    c: &NurbsCurve,
+) -> Result<m::Ap242SurfaceCurveCurve3dRef, AuthorError> {
     let cps = points(b, c.control_points())?;
     let (knots, multiplicities) = compress_knots(c.knots());
     bspline_curve(b, c.degree(), cps, knots, multiplicities, Some(c.weights()))
 }
 
-fn nurbs_surface(b: &mut StepBuilder, s: &NurbsSurface) -> Result<m::SurfaceRef, AuthorError> {
+fn nurbs_surface(
+    b: &mut StepBuilder,
+    s: &NurbsSurface,
+) -> Result<m::Ap242AdvancedFaceGeometrySelectRef, AuthorError> {
     let mut cps = Vec::with_capacity(s.control_points.len());
     for row in &s.control_points {
         cps.push(points(b, row)?);
@@ -516,50 +546,54 @@ fn nurbs_surface(b: &mut StepBuilder, s: &NurbsSurface) -> Result<m::SurfaceRef,
     let (v_knots, v_multiplicities) = compress_knots(&s.knots_v);
     let a = b.author();
     if s.weights.iter().flatten().all(|&w| w == 1.0) {
-        return Ok(m::SurfaceRef::BSplineSurfaceWithKnots(
-            a.add_b_spline_surface_with_knots(
-                "",
-                degree(s.degree_u),
-                degree(s.degree_v),
-                cps,
-                m::BSplineSurfaceForm::Unspecified,
-                m::Logical::Unknown,
-                m::Logical::Unknown,
-                m::Logical::Unknown,
+        return Ok(
+            m::Ap242AdvancedFaceGeometrySelectRef::BSplineSurfaceWithKnots(
+                a.add_b_spline_surface_with_knots(
+                    "",
+                    degree(s.degree_u),
+                    degree(s.degree_v),
+                    cps,
+                    m::BSplineSurfaceForm::Unspecified,
+                    m::Logical::Unknown,
+                    m::Logical::Unknown,
+                    m::Logical::Unknown,
+                    u_multiplicities,
+                    v_multiplicities,
+                    u_knots,
+                    v_knots,
+                    m::KnotType::Unspecified,
+                )?,
+            ),
+        );
+    }
+    let no_name = a.text("");
+    Ok(m::Ap242AdvancedFaceGeometrySelectRef::Complex(
+        a.add_complex(vec![
+            m::PartialEntity::BoundedSurface,
+            m::PartialEntity::BSplineSurface {
+                u_degree: degree(s.degree_u),
+                v_degree: degree(s.degree_v),
+                control_points_list: cps,
+                surface_form: m::BSplineSurfaceForm::Unspecified,
+                u_closed: m::Logical::Unknown,
+                v_closed: m::Logical::Unknown,
+                self_intersect: m::Logical::Unknown,
+            },
+            m::PartialEntity::BSplineSurfaceWithKnots {
                 u_multiplicities,
                 v_multiplicities,
                 u_knots,
                 v_knots,
-                m::KnotType::Unspecified,
-            )?,
-        ));
-    }
-    let no_name = a.text("");
-    Ok(m::SurfaceRef::Complex(a.add_complex(vec![
-        m::PartialEntity::BoundedSurface,
-        m::PartialEntity::BSplineSurface {
-            u_degree: degree(s.degree_u),
-            v_degree: degree(s.degree_v),
-            control_points_list: cps,
-            surface_form: m::BSplineSurfaceForm::Unspecified,
-            u_closed: m::Logical::Unknown,
-            v_closed: m::Logical::Unknown,
-            self_intersect: m::Logical::Unknown,
-        },
-        m::PartialEntity::BSplineSurfaceWithKnots {
-            u_multiplicities,
-            v_multiplicities,
-            u_knots,
-            v_knots,
-            knot_spec: m::KnotType::Unspecified,
-        },
-        m::PartialEntity::GeometricRepresentationItem,
-        m::PartialEntity::RationalBSplineSurface {
-            weights_data: s.weights.clone(),
-        },
-        m::PartialEntity::RepresentationItem { name: no_name },
-        m::PartialEntity::Surface,
-    ])?))
+                knot_spec: m::KnotType::Unspecified,
+            },
+            m::PartialEntity::GeometricRepresentationItem,
+            m::PartialEntity::RationalBSplineSurface {
+                weights_data: s.weights.clone(),
+            },
+            m::PartialEntity::RepresentationItem { name: no_name },
+            m::PartialEntity::Surface,
+        ])?,
+    ))
 }
 
 fn raw_axis2(
@@ -650,12 +684,16 @@ fn raw_profile(b: &mut StepBuilder, p: &RawProfile) -> Result<m::CurveRef, Autho
                 multiplicities.clone(),
                 weights.as_deref(),
             )?
+            .into()
         }
     })
 }
 
 /// A surface of revolution or linear extrusion, as the file stated it.
-fn swept_surface(b: &mut StepBuilder, s: &SweptSource) -> Result<m::SurfaceRef, AuthorError> {
+fn swept_surface(
+    b: &mut StepBuilder,
+    s: &SweptSource,
+) -> Result<m::Ap242AdvancedFaceGeometrySelectRef, AuthorError> {
     Ok(match s {
         SweptSource::Revolution {
             profile,
@@ -674,11 +712,13 @@ fn swept_surface(b: &mut StepBuilder, s: &SweptSource) -> Result<m::SurfaceRef, 
             };
             let position =
                 a.add_axis1_placement("", m::CartesianPointRef::CartesianPoint(location), axis)?;
-            m::SurfaceRef::SurfaceOfRevolution(a.add_surface_of_revolution(
-                "",
-                curve,
-                m::Axis1PlacementRef::Axis1Placement(position),
-            )?)
+            m::Ap242AdvancedFaceGeometrySelectRef::SurfaceOfRevolution(
+                a.add_surface_of_revolution(
+                    "",
+                    curve,
+                    m::Axis1PlacementRef::Axis1Placement(position),
+                )?,
+            )
         }
         SweptSource::Extrusion {
             profile,
@@ -688,11 +728,10 @@ fn swept_surface(b: &mut StepBuilder, s: &SweptSource) -> Result<m::SurfaceRef, 
         } => {
             let curve = raw_profile(b, profile)?;
             let v = raw_vector(b, *direction, *magnitude)?;
-            m::SurfaceRef::SurfaceOfLinearExtrusion(b.author().add_surface_of_linear_extrusion(
-                "",
-                curve,
-                m::VectorRef::Vector(v),
-            )?)
+            m::Ap242AdvancedFaceGeometrySelectRef::SurfaceOfLinearExtrusion(
+                b.author()
+                    .add_surface_of_linear_extrusion("", curve, m::VectorRef::Vector(v))?,
+            )
         }
     })
 }
@@ -803,7 +842,7 @@ fn place_frame(at: &crate::step::Placement, f: &Frame) -> Frame {
 }
 
 impl<'p> Writer<'p> {
-    fn new(part: &'p Part, name: &str) -> Result<Self, WriteError> {
+    fn new(part: &'p Part, name: &str) -> Result<Self, WriterError> {
         // The file's own uncertainty where the part keeps one: readers that heal to it
         // (OpenCascade) then build the same shape.
         let uncertainty = part
@@ -901,7 +940,7 @@ impl<'p> Writer<'p> {
         &mut self,
         face: usize,
         report: &mut WriteReport,
-    ) -> Result<m::SurfaceRef, WriteError> {
+    ) -> Result<m::Ap242AdvancedFaceGeometrySelectRef, WriterError> {
         let at = self.face_at(face);
         let raw = self.part.face_frame(face).map(|r| (r, at));
         let held = self.face(face);
@@ -909,18 +948,20 @@ impl<'p> Writer<'p> {
         Ok(match &held.surface {
             Surface::Plane { frame } => {
                 let p = frame_of(b, frame, raw)?;
-                m::SurfaceRef::Plane(
+                m::Ap242AdvancedFaceGeometrySelectRef::Plane(
                     b.author()
                         .add_plane("", m::Axis2Placement3dRef::Axis2Placement3d(p))?,
                 )
             }
             Surface::Cylinder { frame, radius } => {
                 let p = frame_of(b, frame, raw)?;
-                m::SurfaceRef::CylindricalSurface(b.author().add_cylindrical_surface(
-                    "",
-                    m::Axis2Placement3dRef::Axis2Placement3d(p),
-                    *radius,
-                )?)
+                m::Ap242AdvancedFaceGeometrySelectRef::CylindricalSurface(
+                    b.author().add_cylindrical_surface(
+                        "",
+                        m::Axis2Placement3dRef::Axis2Placement3d(p),
+                        *radius,
+                    )?,
+                )
             }
             Surface::Cone {
                 frame,
@@ -928,20 +969,24 @@ impl<'p> Writer<'p> {
                 semi_angle,
             } => {
                 let p = frame_of(b, frame, raw)?;
-                m::SurfaceRef::ConicalSurface(b.author().add_conical_surface(
-                    "",
-                    m::Axis2Placement3dRef::Axis2Placement3d(p),
-                    *radius,
-                    *semi_angle,
-                )?)
+                m::Ap242AdvancedFaceGeometrySelectRef::ConicalSurface(
+                    b.author().add_conical_surface(
+                        "",
+                        m::Axis2Placement3dRef::Axis2Placement3d(p),
+                        *radius,
+                        *semi_angle,
+                    )?,
+                )
             }
             Surface::Sphere { frame, radius } => {
                 let p = frame_of(b, frame, raw)?;
-                m::SurfaceRef::SphericalSurface(b.author().add_spherical_surface(
-                    "",
-                    m::Axis2Placement3dRef::Axis2Placement3d(p),
-                    *radius,
-                )?)
+                m::Ap242AdvancedFaceGeometrySelectRef::SphericalSurface(
+                    b.author().add_spherical_surface(
+                        "",
+                        m::Axis2Placement3dRef::Axis2Placement3d(p),
+                        *radius,
+                    )?,
+                )
             }
             Surface::Torus {
                 frame,
@@ -949,12 +994,14 @@ impl<'p> Writer<'p> {
                 minor,
             } => {
                 let p = frame_of(b, frame, raw)?;
-                m::SurfaceRef::ToroidalSurface(b.author().add_toroidal_surface(
-                    "",
-                    m::Axis2Placement3dRef::Axis2Placement3d(p),
-                    *major,
-                    *minor,
-                )?)
+                m::Ap242AdvancedFaceGeometrySelectRef::ToroidalSurface(
+                    b.author().add_toroidal_surface(
+                        "",
+                        m::Axis2Placement3dRef::Axis2Placement3d(p),
+                        *major,
+                        *minor,
+                    )?,
+                )
             }
             Surface::Freeform { kind, surface } => {
                 // A swept surface the file stated in millimetres is written as the file
@@ -995,13 +1042,14 @@ impl<'p> Writer<'p> {
             Surface::Other { kind } => {
                 return Err(WriteError::Unsupported(vec![format!(
                     "face {face}: no surface ({kind})"
-                )]));
+                )])
+                .into());
             }
         })
     }
 
     /// The edge's 3D curve.
-    fn curve(&mut self, edge: usize) -> Result<m::CurveRef, WriteError> {
+    fn curve(&mut self, edge: usize) -> Result<m::Ap242SurfaceCurveCurve3dRef, WriterError> {
         let part = self.part;
         let e = self.edge(edge);
         let at = self.edge_at(edge);
@@ -1018,7 +1066,7 @@ impl<'p> Writer<'p> {
             return Ok(match conic {
                 Conic::Hyperbola(h) => {
                     let p = frame_of(b, &placed(&h.frame), raw)?;
-                    m::CurveRef::Hyperbola(b.author().add_hyperbola(
+                    m::Ap242SurfaceCurveCurve3dRef::Hyperbola(b.author().add_hyperbola(
                         "",
                         m::Axis2PlacementRef::Axis2Placement3d(p),
                         h.major,
@@ -1027,7 +1075,7 @@ impl<'p> Writer<'p> {
                 }
                 Conic::Parabola { frame, focal_dist } => {
                     let p = frame_of(b, &placed(frame), raw)?;
-                    m::CurveRef::Parabola(b.author().add_parabola(
+                    m::Ap242SurfaceCurveCurve3dRef::Parabola(b.author().add_parabola(
                         "",
                         m::Axis2PlacementRef::Axis2Placement3d(p),
                         *focal_dist,
@@ -1053,7 +1101,7 @@ impl<'p> Writer<'p> {
                 let pnt = a.add_cartesian_point("", (*origin).into())?;
                 let d = a.add_direction("", ratios.into())?;
                 let v = a.add_vector("", m::DirectionRef::Direction(d), 1.0)?;
-                m::CurveRef::Line(a.add_line(
+                m::Ap242SurfaceCurveCurve3dRef::Line(a.add_line(
                     "",
                     m::CartesianPointRef::CartesianPoint(pnt),
                     m::VectorRef::Vector(v),
@@ -1061,7 +1109,7 @@ impl<'p> Writer<'p> {
             }
             Curve::Circle { frame, radius } => {
                 let p = frame_of(b, frame, raw)?;
-                m::CurveRef::Circle(b.author().add_circle(
+                m::Ap242SurfaceCurveCurve3dRef::Circle(b.author().add_circle(
                     "",
                     m::Axis2PlacementRef::Axis2Placement3d(p),
                     *radius,
@@ -1073,7 +1121,7 @@ impl<'p> Writer<'p> {
                 minor,
             } => {
                 let p = frame_of(b, frame, raw)?;
-                m::CurveRef::Ellipse(b.author().add_ellipse(
+                m::Ap242SurfaceCurveCurve3dRef::Ellipse(b.author().add_ellipse(
                     "",
                     m::Axis2PlacementRef::Axis2Placement3d(p),
                     *major,
@@ -1092,7 +1140,7 @@ impl<'p> Writer<'p> {
         face: usize,
         slot: usize,
         raw: bool,
-        surface: &m::SurfaceRef,
+        surface: &m::Ap242AdvancedFaceGeometrySelectRef,
     ) -> Result<Result<m::PcurveId, String>, AuthorError> {
         let part = self.part;
         if raw {
@@ -1160,10 +1208,12 @@ impl<'p> Writer<'p> {
                         multiplicities.clone(),
                         weights.as_deref(),
                     )? {
-                        m::CurveRef::BSplineCurveWithKnots(i) => {
+                        m::Ap242SurfaceCurveCurve3dRef::BSplineCurveWithKnots(i) => {
                             m::RepresentationItemRef::BSplineCurveWithKnots(i)
                         }
-                        m::CurveRef::Complex(i) => m::RepresentationItemRef::Complex(i),
+                        m::Ap242SurfaceCurveCurve3dRef::Complex(i) => {
+                            m::RepresentationItemRef::Complex(i)
+                        }
                         #[allow(
                             clippy::unreachable,
                             reason = "bspline_curve returns only a B-spline curve or its rational complex"
@@ -1219,10 +1269,12 @@ impl<'p> Writer<'p> {
                     multiplicities,
                     spline.weights.as_deref(),
                 )? {
-                    m::CurveRef::BSplineCurveWithKnots(i) => {
+                    m::Ap242SurfaceCurveCurve3dRef::BSplineCurveWithKnots(i) => {
                         m::RepresentationItemRef::BSplineCurveWithKnots(i)
                     }
-                    m::CurveRef::Complex(i) => m::RepresentationItemRef::Complex(i),
+                    m::Ap242SurfaceCurveCurve3dRef::Complex(i) => {
+                        m::RepresentationItemRef::Complex(i)
+                    }
                     #[allow(
                         clippy::unreachable,
                         reason = "bspline_curve returns only a B-spline curve or its rational complex"
@@ -1238,23 +1290,23 @@ impl<'p> Writer<'p> {
     fn pcurve_on(
         &mut self,
         item: m::RepresentationItemRef,
-        surface: &m::SurfaceRef,
+        surface: &m::Ap242AdvancedFaceGeometrySelectRef,
     ) -> Result<m::PcurveId, AuthorError> {
         let ctx = self.ctx2d()?;
         let a = self.b.author();
         let rep = a.add_definitional_representation(
             "",
             vec![item],
-            m::RepresentationContextRef::Complex(ctx),
+            m::Ap242ParametricRepresentationContextRef::Complex(ctx),
         )?;
         a.add_pcurve(
             "",
-            surface.clone(),
+            surface.clone().into(),
             m::DefinitionalRepresentationRef::DefinitionalRepresentation(rep),
         )
     }
 
-    fn write(mut self, report: &mut WriteReport) -> Result<Vec<u8>, WriteError> {
+    fn write(mut self, report: &mut WriteReport) -> Result<Vec<u8>, WriterError> {
         let part = self.part;
         let shells = Shells {
             solids: part
@@ -1578,7 +1630,7 @@ impl<'p> Writer<'p> {
             report.pcurves_written += pcurves.len();
             let a = self.b.author();
             let geometry = if pcurves.is_empty() {
-                curve
+                curve.into()
             } else if seam[i] && pcurves.len() == 2 {
                 m::CurveRef::SeamCurve(a.add_seam_curve("", curve, pcurves, master)?)
             } else {
@@ -1600,9 +1652,9 @@ impl<'p> Writer<'p> {
                 let reverse = reversed_bound.get(&(f, l)).copied().unwrap_or(false);
                 let bound = if lp.edges.is_empty() {
                     let p = self.face(f).loops[l].vertex.ok_or_else(|| {
-                        WriteError::Unsupported(vec![format!(
+                        WriterError::Write(WriteError::Unsupported(vec![format!(
                             "face {f} bound {l} has neither edges nor a vertex"
-                        )])
+                        )]))
                     })?;
                     let a = self.b.author();
                     let pt = a.add_cartesian_point("", p.into())?;
@@ -1620,7 +1672,7 @@ impl<'p> Writer<'p> {
                     for (e, forward) in edges {
                         list.push(m::OrientedEdgeRef::OrientedEdge(a.add_oriented_edge(
                             "",
-                            m::EdgeRef::EdgeCurve(edge_ids[e]),
+                            m::Ap242OrientedEdgeEdgeElementRef::EdgeCurve(edge_ids[e]),
                             forward != reverse,
                         )?));
                     }
@@ -1706,12 +1758,14 @@ impl<'p> Writer<'p> {
         let ctx = geometric_context(a, self.uncertainty)?;
         let rep = a.add_manifold_surface_shape_representation(
             "",
-            vec![m::RepresentationItemRef::ShellBasedSurfaceModel(model)],
+            vec![
+                m::Ap242ManifoldSurfaceShapeRepresentationSelectRef::ShellBasedSurfaceModel(model),
+            ],
             m::RepresentationContextRef::Complex(ctx),
         )?;
         a.add_shape_definition_representation(
-            m::RepresentedDefinitionRef::ProductDefinitionShape(shape),
-            m::RepresentationRef::ManifoldSurfaceShapeRepresentation(rep),
+            m::PropertyDefinitionRef::ProductDefinitionShape(shape),
+            m::ShapeRepresentationRef::ManifoldSurfaceShapeRepresentation(rep),
         )?;
         Ok(())
     }

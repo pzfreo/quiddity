@@ -669,7 +669,7 @@ pub fn write_with_presentation(
     report.long_strings = crate::pmi::text::long_strings(&bytes);
     report.added += added;
     let after = Document::parse(bytes.clone()).map_err(|e| Error(e.to_string()))?;
-    let added_schema: Vec<_> = crate::express::validate_document(after.graph())
+    let added_schema: Vec<_> = crate::express::validate_document(&after)
         .into_iter()
         .filter(|v| v.id > doc.max_id())
         .collect();

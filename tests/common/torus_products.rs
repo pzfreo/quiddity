@@ -21,13 +21,13 @@ pub fn torus_products(copies: u64) -> (Vec<u8>, u64) {
     )
     .unwrap();
     let doc = haecceity::p21::Document::parse(b.clone()).unwrap();
-    let stride = doc.graph().entities.keys().max().unwrap() + 1;
+    let stride = doc.max_id() + 1;
     let shared = [1, 2, 11, 12, 13, 14];
     let mut text = String::from_utf8(b).unwrap();
     let end = text.rfind("ENDSEC;").unwrap();
     let mut extra = String::new();
     for product in 1..copies {
-        for (&id, e) in &doc.graph().entities {
+        for (id, e) in doc.iter() {
             if shared.contains(&id) {
                 continue;
             }

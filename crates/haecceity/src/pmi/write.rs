@@ -1355,7 +1355,7 @@ fn write_attempt(
         .copied()
         .chain(report.rewritten.iter().copied())
         .collect();
-    let violations = edition.validate_document(after.graph());
+    let violations = edition.validate_document(&after);
     if upgrade && !violations.is_empty() {
         return Err(WriteError::Edition {
             file_schema: first,
@@ -1368,7 +1368,7 @@ fn write_attempt(
         BTreeSet::new()
     } else {
         edition
-            .validate_document(doc.graph())
+            .validate_document(doc)
             .into_iter()
             .filter(|v| rewritten.contains(&v.id))
             .map(|v| (v.id, violation_key(&v)))
