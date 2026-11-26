@@ -12,8 +12,8 @@ use haecceity::express::{
     self, AP242_ED1, AP242_ED4, Edition, Family, Kind, TARGET, TARGET_SCHEMA, Ty, TypeDef,
     Violation,
 };
+use haecceity::p21::{Document, RawEntity};
 use serde_json::{Value, json};
-use step_io::parser::{Graph, parse};
 
 const HEADER: &str = "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION((''),'2;1');\n\
     FILE_NAME('t','2026-10-08T00:00:00',(''),(''),'','','');\n\
@@ -42,9 +42,9 @@ const CONTEXT: &str = "\
 #17=PLANE('',#13);
 ";
 
-fn graph(data: &str) -> Graph {
+fn doc(data: &str) -> Document {
     let text = format!("{HEADER}{CONTEXT}{data}\nENDSEC;\nEND-ISO-10303-21;\n");
-    parse(text.as_bytes()).unwrap()
+    Document::parse(text.into_bytes()).unwrap()
 }
 
 fn fixtures() -> PathBuf {
@@ -262,7 +262,7 @@ fn subtypes_and_rule_labels() {
 /// and context: the practice's examples elide or reuse their referenced ids.
 #[test]
 fn practice_instances_validate_clean() {
-    let g = graph(
+    let d = doc(
         "\
 #20=SHAPE_ASPECT('',$,#7,.T.);
 #21=GEOMETRIC_ITEM_SPECIFIC_USAGE('','single feature',#20,#15,#14);
@@ -285,7 +285,7 @@ fn practice_instances_validate_clean() {
 #61=DATUM_REFERENCE_COMPARTMENT('',$,#7,.F.,#30,$);
 ",
     );
-    let v = express::validate_document(&g);
+    let v = express::validate_document(&d);
     assert!(
         v.is_empty(),
         "{}",
@@ -294,7 +294,7 @@ fn practice_instances_validate_clean() {
 }
 
 fn kinds(data: &str) -> Vec<(u64, Kind, Option<String>)> {
-    let v = express::validate_document(&graph(data));
+    let v = express::validate_document(&doc(data));
     v.iter()
         .map(|v| (v.id, v.kind, v.attribute.clone()))
         .collect()
@@ -474,13 +474,13 @@ fn nist_entity_types_have_their_pinned_family() {
     );
     let Some(files) = nist_files() else { return };
     let mut names = BTreeSet::new();
-    for (_, g) in &files {
-        for e in g.entities.values() {
+    for (_, d) in &files {
+        for (_, e) in d.iter() {
             match e {
-                step_io::parser::RawEntity::Simple { name, .. } => {
+                RawEntity::Simple { name, .. } => {
                     names.insert(name.to_ascii_lowercase());
                 }
-                step_io::parser::RawEntity::Complex { parts, .. } => {
+                RawEntity::Complex { parts, .. } => {
                     names.extend(parts.iter().map(|p| p.name.to_ascii_lowercase()));
                 }
             }
@@ -574,13 +574,13 @@ fn write_actual(name: &str, value: &Value) {
     }
 }
 
-fn file_schema(g: &Graph) -> String {
-    g.schema.raw.join(",")
+fn file_schema(d: &Document) -> String {
+    d.file_schema().unwrap_or_default().join(",")
 }
 
 /// The NIST AP242 test files (`HAECCEITY_NIST_PMI`: the `NIST-PMI-STEP-Files` directory),
 /// parsed; `None` when absent and not required.
-fn nist_files() -> Option<Vec<(String, Graph)>> {
+fn nist_files() -> Option<Vec<(String, Document)>> {
     let Some(dir) = std::env::var_os("HAECCEITY_NIST_PMI").map(PathBuf::from) else {
         assert!(
             std::env::var_os("HAECCEITY_NIST_PMI_REQUIRED").is_none(),
@@ -599,7 +599,7 @@ fn nist_files() -> Option<Vec<(String, Graph)>> {
     Some(common::parallel::map(&names, |n| {
         (
             n.clone(),
-            parse(std::fs::read(dir.join(n)).unwrap().as_slice()).unwrap(),
+            Document::parse(std::fs::read(dir.join(n)).unwrap()).unwrap(),
         )
     }))
 }
@@ -704,8 +704,8 @@ fn corpus_upgrades_are_pinned() {
                 .unwrap();
             bytes = out;
         }
-        let doc = haecceity::p21::Document::parse(bytes).unwrap();
-        let original = groups(&TARGET.validate_document(doc.graph()));
+        let doc = Document::parse(bytes).unwrap();
+        let original = groups(&TARGET.validate_document(&doc));
         // No repair is needed when the original already passes. Exercise the actual writer
         // for every original that fails; its all-instance and no-new-rule checks are the verdict.
         let (upgradable, repairs) = if original.is_empty() {
@@ -765,7 +765,7 @@ fn corpus_upgrades_are_pinned() {
                 Err(_) => (false, Vec::new()),
             }
         };
-        (file_schema(doc.graph()), original, upgradable, repairs)
+        (file_schema(&doc), original, upgradable, repairs)
     });
     let mut problems = Vec::new();
     let mut now = serde_json::Map::new();
@@ -819,12 +819,12 @@ fn corpus_upgrades_are_pinned() {
 #[test]
 fn every_edition_validates_its_own_hand_instances() {
     // The same instances are valid in edition 1: none of what they use changed.
-    let g = graph(
+    let d = doc(
         "#20=SHAPE_ASPECT('',$,#7,.T.);\n#21=LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.1),#8);\n#22=FLATNESS_TOLERANCE('',$,#21,#20);",
     );
     for ed in [&AP242_ED1, &AP242_ED4] {
         let ed: &Edition = ed;
-        let v = ed.validate_document(&g);
+        let v = ed.validate_document(&d);
         assert!(v.is_empty(), "{}: {v:?}", ed.file_schema);
     }
 }
@@ -832,8 +832,8 @@ fn every_edition_validates_its_own_hand_instances() {
 /// The kinds of the violations of the one DATA record of `data`, its references' types given.
 fn record_kinds(data: &str, targets: &[(u64, &str)]) -> Vec<(Kind, Option<String>)> {
     let text = format!("{HEADER}{data}\nENDSEC;\nEND-ISO-10303-21;\n");
-    let g = parse(text.as_bytes()).unwrap();
-    let record = g.entities.values().next().unwrap();
+    let d = Document::parse(text.into_bytes()).unwrap();
+    let (_, record) = d.iter().next().unwrap();
     let types = |id: u64| {
         targets
             .iter()

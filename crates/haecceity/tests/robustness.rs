@@ -110,7 +110,7 @@ fn read_everything(bytes: &[u8]) -> Outcome {
                     .map(|f| format!("pmi: {}", f.detail)),
             );
         }
-        let _ = haecceity::express::validate_document(doc.graph());
+        let _ = haecceity::express::validate_document(&doc);
     }
     out
 }

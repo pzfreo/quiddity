@@ -473,10 +473,8 @@ impl Truth {
                 use quiddity::kernel::p21::{Document, encode};
                 let doc = Document::parse(std::fs::read(path).map_err(|e| e.to_string())?)
                     .map_err(|e| e.to_string())?;
-                doc.graph()
-                    .entities
-                    .iter()
-                    .map(|(&id, e)| encode(e).map(|s| (id, s)).map_err(|e| e.to_string()))
+                doc.iter()
+                    .map(|(id, e)| encode(e).map(|s| (id, s)).map_err(|e| e.to_string()))
                     .collect()
             }
             let original_labels =

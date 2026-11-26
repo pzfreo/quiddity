@@ -3,7 +3,7 @@
 //! `FILE_SCHEMA` and append `FILE_DESCRIPTION` entries) written so untouched bytes are copied unchanged. With no edit, the
 //! output is the input. It knows nothing about any schema or about PMI.
 //!
-//! Records are step-io's [`RawEntity`]. [`Attribute::String`] contains decoded Unicode
+//! Records are [`RawEntity`]. [`Attribute::String`] contains decoded Unicode
 //! text; [`encode`] escapes backslashes and non-ASCII characters and doubles quotes.
 //! [`decode`] and [`escape`] operate on encoded Part 21 string bodies, not attributes.
 //!
@@ -23,13 +23,222 @@
 //! provisional reference in the upper half of the id space (`#2^63 + n`), which [`Document::apply`]
 //! replaces with the assigned `#N`. A file using ids that large is refused.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::ops::Range;
 
 pub mod streaming;
 
-pub use step_io::parser::{Attribute, RawEntity, RawEntityPart};
-use step_io::parser::{Graph, Span};
+/// One attribute value of a Part 21 record.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Attribute {
+    Integer(i64),
+    Real(f64),
+    /// Decoded Unicode text.
+    String(String),
+    Enum(String),
+    Binary(String),
+    EntityRef(u64),
+    Unset,
+    Derived,
+    List(Vec<Attribute>),
+    Typed {
+        type_name: String,
+        value: Box<Attribute>,
+    },
+}
+
+/// One leaf part of a complex Part 21 instance.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RawEntityPart {
+    pub name: String,
+    pub attributes: Vec<Attribute>,
+}
+
+/// One parsed Part 21 record (a header entity or a DATA instance).
+#[derive(Debug, Clone, PartialEq)]
+pub enum RawEntity {
+    Simple {
+        id: u64,
+        name: String,
+        attributes: Vec<Attribute>,
+    },
+    Complex {
+        id: u64,
+        parts: Vec<RawEntityPart>,
+    },
+}
+
+impl RawEntity {
+    /// The instance id (`0` for header entities and records built before numbering).
+    #[must_use]
+    pub fn id(&self) -> u64 {
+        match self {
+            RawEntity::Simple { id, .. } | RawEntity::Complex { id, .. } => *id,
+        }
+    }
+}
+
+pub(crate) fn attribute_from_step_io(a: step_io::parser::Attribute) -> Attribute {
+    match a {
+        step_io::parser::Attribute::Integer(v) => Attribute::Integer(v),
+        step_io::parser::Attribute::Real(v) => Attribute::Real(v),
+        step_io::parser::Attribute::String(v) => Attribute::String(v),
+        step_io::parser::Attribute::Enum(v) => Attribute::Enum(v),
+        step_io::parser::Attribute::Binary(v) => Attribute::Binary(v),
+        step_io::parser::Attribute::EntityRef(v) => Attribute::EntityRef(v),
+        step_io::parser::Attribute::Unset => Attribute::Unset,
+        step_io::parser::Attribute::Derived => Attribute::Derived,
+        step_io::parser::Attribute::List(items) => {
+            Attribute::List(items.into_iter().map(attribute_from_step_io).collect())
+        }
+        step_io::parser::Attribute::Typed { type_name, value } => Attribute::Typed {
+            type_name,
+            value: Box::new(attribute_from_step_io(*value)),
+        },
+    }
+}
+
+pub(crate) fn attribute_from_step_io_ref(a: &step_io::parser::Attribute) -> Attribute {
+    match a {
+        step_io::parser::Attribute::Integer(v) => Attribute::Integer(*v),
+        step_io::parser::Attribute::Real(v) => Attribute::Real(*v),
+        step_io::parser::Attribute::String(v) => Attribute::String(v.clone()),
+        step_io::parser::Attribute::Enum(v) => Attribute::Enum(v.clone()),
+        step_io::parser::Attribute::Binary(v) => Attribute::Binary(v.clone()),
+        step_io::parser::Attribute::EntityRef(v) => Attribute::EntityRef(*v),
+        step_io::parser::Attribute::Unset => Attribute::Unset,
+        step_io::parser::Attribute::Derived => Attribute::Derived,
+        step_io::parser::Attribute::List(items) => {
+            Attribute::List(items.iter().map(attribute_from_step_io_ref).collect())
+        }
+        step_io::parser::Attribute::Typed { type_name, value } => Attribute::Typed {
+            type_name: type_name.clone(),
+            value: Box::new(attribute_from_step_io_ref(value)),
+        },
+    }
+}
+
+pub(crate) fn entity_from_step_io(e: step_io::parser::RawEntity) -> RawEntity {
+    match e {
+        step_io::parser::RawEntity::Simple {
+            id,
+            name,
+            attributes,
+            ..
+        } => RawEntity::Simple {
+            id,
+            name,
+            attributes: attributes.into_iter().map(attribute_from_step_io).collect(),
+        },
+        step_io::parser::RawEntity::Complex { id, parts, .. } => RawEntity::Complex {
+            id,
+            parts: parts
+                .into_iter()
+                .map(|p| RawEntityPart {
+                    name: p.name,
+                    attributes: p
+                        .attributes
+                        .into_iter()
+                        .map(attribute_from_step_io)
+                        .collect(),
+                })
+                .collect(),
+        },
+    }
+}
+
+pub(crate) fn entity_from_step_io_ref(e: &step_io::parser::RawEntity) -> RawEntity {
+    match e {
+        step_io::parser::RawEntity::Simple {
+            id,
+            name,
+            attributes,
+            ..
+        } => RawEntity::Simple {
+            id: *id,
+            name: name.clone(),
+            attributes: attributes.iter().map(attribute_from_step_io_ref).collect(),
+        },
+        step_io::parser::RawEntity::Complex { id, parts, .. } => RawEntity::Complex {
+            id: *id,
+            parts: parts
+                .iter()
+                .map(|p| RawEntityPart {
+                    name: p.name.clone(),
+                    attributes: p
+                        .attributes
+                        .iter()
+                        .map(attribute_from_step_io_ref)
+                        .collect(),
+                })
+                .collect(),
+        },
+    }
+}
+
+fn convert_attribute_collecting_refs(
+    a: step_io::parser::Attribute,
+    targets: &mut Vec<u64>,
+) -> Attribute {
+    match a {
+        step_io::parser::Attribute::Integer(v) => Attribute::Integer(v),
+        step_io::parser::Attribute::Real(v) => Attribute::Real(v),
+        step_io::parser::Attribute::String(v) => Attribute::String(v),
+        step_io::parser::Attribute::Enum(v) => Attribute::Enum(v),
+        step_io::parser::Attribute::Binary(v) => Attribute::Binary(v),
+        step_io::parser::Attribute::EntityRef(v) => {
+            targets.push(v);
+            Attribute::EntityRef(v)
+        }
+        step_io::parser::Attribute::Unset => Attribute::Unset,
+        step_io::parser::Attribute::Derived => Attribute::Derived,
+        step_io::parser::Attribute::List(items) => Attribute::List(
+            items
+                .into_iter()
+                .map(|i| convert_attribute_collecting_refs(i, targets))
+                .collect(),
+        ),
+        step_io::parser::Attribute::Typed { type_name, value } => Attribute::Typed {
+            type_name,
+            value: Box::new(convert_attribute_collecting_refs(*value, targets)),
+        },
+    }
+}
+
+fn convert_entity_collecting_refs(
+    e: step_io::parser::RawEntity,
+    targets: &mut Vec<u64>,
+) -> RawEntity {
+    match e {
+        step_io::parser::RawEntity::Simple {
+            id,
+            name,
+            attributes,
+            ..
+        } => RawEntity::Simple {
+            id,
+            name,
+            attributes: attributes
+                .into_iter()
+                .map(|a| convert_attribute_collecting_refs(a, targets))
+                .collect(),
+        },
+        step_io::parser::RawEntity::Complex { id, parts, .. } => RawEntity::Complex {
+            id,
+            parts: parts
+                .into_iter()
+                .map(|p| RawEntityPart {
+                    name: p.name,
+                    attributes: p
+                        .attributes
+                        .into_iter()
+                        .map(|a| convert_attribute_collecting_refs(a, targets))
+                        .collect(),
+                })
+                .collect(),
+        },
+    }
+}
 
 /// Preserve the duplicate-id diagnostic's source column: step-io 0.3 reports only
 /// its line and the first definition's line. Recover the declaration from that line.
@@ -133,8 +342,8 @@ impl NewId {
     }
 }
 
-/// A record to write: step-io's [`RawEntity`] (its `id` and `span` are ignored; the edit gives
-/// the id) and, optionally, the decimal text to write for some of its REAL values in place of
+/// A record to write: a [`RawEntity`] (its `id` is ignored; the edit gives the id) and,
+/// optionally, the decimal text to write for some of its REAL values in place of
 /// the shortest round-trip form, so that a value stated as `0.0030` is written `0.0030`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Record {
@@ -227,21 +436,13 @@ impl From<Complex> for Record {
     }
 }
 
-const NO_SPAN: Span = Span {
-    start: 0,
-    end: 0,
-    line: 0,
-    column: 0,
-};
-
-/// A simple record `NAME(attributes)` to add or write (id 0, no span).
+/// A simple record `NAME(attributes)` to add or write (id 0).
 #[must_use]
 pub fn simple(name: &str, attributes: Vec<Attribute>) -> RawEntity {
     RawEntity::Simple {
         id: 0,
         name: name.to_string(),
         attributes,
-        span: NO_SPAN,
     }
 }
 
@@ -275,13 +476,12 @@ impl Complex {
         &self.leaves
     }
 
-    /// The record (id 0, no span).
+    /// The record (id 0).
     #[must_use]
     pub fn into_record(self) -> RawEntity {
         RawEntity::Complex {
             id: 0,
             parts: self.leaves,
-            span: NO_SPAN,
         }
     }
 }
@@ -373,7 +573,12 @@ pub struct Written {
 #[derive(Debug)]
 pub struct Document {
     bytes: Vec<u8>,
-    graph: Graph,
+    header: Vec<RawEntity>,
+    /// Ascending DATA instance ids, parallel with `entities`.
+    ids: Vec<u64>,
+    entities: Vec<RawEntity>,
+    external_references: HashSet<u64>,
+    anchors: Vec<(String, u64)>,
     /// `#N` → its text from `#` through `;`.
     spans: HashMap<u64, Range<usize>>,
     /// Header entities' extents (keyword through `;`), in file order, as step-io lists them.
@@ -401,7 +606,7 @@ impl Document {
             )));
         }
         for ((name, _), h) in scan.header.iter().zip(&graph.header) {
-            if let RawEntity::Simple { name: n, .. } = h
+            if let step_io::parser::RawEntity::Simple { name: n, .. } = h
                 && n != name
             {
                 return Err(P21Error::Mismatch(format!(
@@ -425,15 +630,38 @@ impl Document {
                 graph.entities.len()
             )));
         }
-        if let Some(id) = graph.entities.keys().find(|id| !spans.contains_key(id)) {
-            return Err(P21Error::Mismatch(format!("step-io's #{id} not scanned")));
+
+        let header: Vec<RawEntity> = graph.header.into_iter().map(entity_from_step_io).collect();
+        let external_references: HashSet<u64> = graph.external_references.into_keys().collect();
+        let anchors: Vec<(String, u64)> = graph.anchors.into_iter().collect();
+
+        let count = graph.entities.len();
+        let mut ids = Vec::with_capacity(count);
+        let mut entities = Vec::with_capacity(count);
+        let mut referrers: HashMap<u64, Vec<u64>> = HashMap::new();
+        let mut targets = Vec::new();
+        for (id, e) in graph.entities {
+            if !spans.contains_key(&id) {
+                return Err(P21Error::Mismatch(format!("step-io's #{id} not scanned")));
+            }
+            targets.clear();
+            let e = convert_entity_collecting_refs(e, &mut targets);
+            ids.push(id);
+            entities.push(e);
+            if targets.len() > 1 {
+                targets.sort_unstable();
+                targets.dedup();
+            }
+            for &t in &targets {
+                referrers.entry(t).or_default().push(id);
+            }
         }
 
-        let max_id = graph
-            .entities
-            .keys()
-            .chain(graph.external_references.keys())
+        let max_id = ids
+            .last()
             .copied()
+            .into_iter()
+            .chain(external_references.iter().copied())
             .max()
             .unwrap_or(0);
         if max_id >= PROVISIONAL {
@@ -442,26 +670,14 @@ impl Document {
             )));
         }
 
-        let mut referrers: HashMap<u64, Vec<u64>> = HashMap::new();
-        let mut targets = Vec::new();
-        for (&id, e) in &graph.entities {
-            targets.clear();
-            visit_attributes(e, &mut |a| {
-                if let Attribute::EntityRef(t) = a {
-                    targets.push(*t);
-                }
-            });
-            targets.sort_unstable();
-            targets.dedup();
-            for &t in &targets {
-                referrers.entry(t).or_default().push(id);
-            }
-        }
-
         let last_endsec = scan.data_sections.last().map(|s| s.1);
         let newline = line_ending(&bytes, last_endsec.unwrap_or(bytes.len()));
         Ok(Document {
-            graph,
+            header,
+            ids,
+            entities,
+            external_references,
+            anchors,
             spans,
             header_spans: scan.header.into_iter().map(|(_, r)| r).collect(),
             data_sections: scan.data_sections,
@@ -478,16 +694,14 @@ impl Document {
         &self.bytes
     }
 
-    /// step-io's graph of the file (header, instances, edition 3 references and anchors).
-    #[must_use]
-    pub fn graph(&self) -> &Graph {
-        &self.graph
-    }
-
     /// Instance `#id`'s record.
     #[must_use]
     pub fn get(&self, id: u64) -> Option<&RawEntity> {
-        self.graph.entities.get(&id)
+        self.ids.binary_search(&id).ok().map(|i| &self.entities[i])
+    }
+
+    fn contains_id(&self, id: u64) -> bool {
+        self.ids.binary_search(&id).is_ok()
     }
 
     /// Instance `#id`'s text, from `#` through its `;`.
@@ -498,7 +712,12 @@ impl Document {
 
     /// Every DATA instance's id, ascending.
     pub fn ids(&self) -> impl Iterator<Item = u64> + '_ {
-        self.graph.entities.keys().copied()
+        self.ids.iter().copied()
+    }
+
+    /// Every DATA instance's `(id, record)` pair, in ascending id order.
+    pub fn iter(&self) -> impl Iterator<Item = (u64, &RawEntity)> + '_ {
+        self.ids.iter().copied().zip(self.entities.iter())
     }
 
     /// The largest id in use (DATA instances and edition 3 references), 0 for none.
@@ -510,14 +729,22 @@ impl Document {
     /// The header entities (`FILE_DESCRIPTION`, `FILE_NAME`, `FILE_SCHEMA`, …), in file order.
     #[must_use]
     pub fn header(&self) -> &[RawEntity] {
-        &self.graph.header
+        &self.header
+    }
+
+    pub(crate) fn anchors(&self) -> &[(String, u64)] {
+        &self.anchors
+    }
+
+    pub(crate) fn is_external_reference(&self, id: u64) -> bool {
+        self.external_references.contains(&id)
     }
 
     /// The header's `FILE_SCHEMA` strings, in step-io's string convention. Refused when the
     /// header has no `FILE_SCHEMA`, or one that is not a single list of strings.
     pub fn file_schema(&self) -> Result<Vec<String>, P21Error> {
         let bad = |why: &str| Err(P21Error::Parse(format!("FILE_SCHEMA {why}")));
-        let mut schemas = self.graph.header.iter().filter_map(|h| match h {
+        let mut schemas = self.header.iter().filter_map(|h| match h {
             RawEntity::Simple {
                 name, attributes, ..
             } if name == "FILE_SCHEMA" => Some(attributes),
@@ -570,7 +797,7 @@ impl Document {
         for op in &edit.ops {
             match op {
                 Op::Replace(id, _) | Op::Rename(id, _) | Op::Remove(id) => {
-                    if !self.graph.entities.contains_key(id) {
+                    if !self.contains_id(*id) {
                         return Err(P21Error::Missing(*id));
                     }
                     if replaced.contains_key(id) || renamed.contains_key(id) || removed.contains(id)
@@ -640,8 +867,8 @@ impl Document {
                         by: vec![from],
                     });
                 } else if !provisional
-                    && !self.graph.entities.contains_key(&target)
-                    && !self.graph.external_references.contains_key(&target)
+                    && !self.contains_id(target)
+                    && !self.external_references.contains(&target)
                 {
                     // A literal number for an instance this edit adds is refused too: only
                     // provisional references (`NewId::to_ref`) name additions.
@@ -677,7 +904,7 @@ impl Document {
             if !by.is_empty() {
                 return Err(P21Error::StillReferenced { id, by });
             }
-            if let Some((name, _)) = self.graph.anchors.iter().find(|(_, a)| *a == id) {
+            if let Some((name, _)) = self.anchors.iter().find(|(_, a)| *a == id) {
                 return Err(P21Error::Anchored {
                     id,
                     name: name.clone(),
@@ -736,7 +963,6 @@ impl Document {
         }
         if let Some(schemas) = schema {
             let at = self
-                .graph
                 .header
                 .iter()
                 .position(|h| matches!(h, RawEntity::Simple { name, .. } if name == "FILE_SCHEMA"))
@@ -745,13 +971,11 @@ impl Document {
             let text = format!("FILE_SCHEMA({});", encode_attribute_text(&list)?);
             patches.push((self.header_spans[at].clone(), text));
         }
-        let description_at = self.graph.header.iter().position(
+        let description_at = self.header.iter().position(
             |h| matches!(h, RawEntity::Simple { name, .. } if name == "FILE_DESCRIPTION"),
         );
-        let updated = file_description_attributes(
-            description_at.map(|at| &self.graph.header[at]),
-            &descriptions,
-        );
+        let updated =
+            file_description_attributes(description_at.map(|at| &self.header[at]), &descriptions);
         if let (Some(at), Some(attributes)) = (description_at, updated) {
             let args = attributes
                 .iter()

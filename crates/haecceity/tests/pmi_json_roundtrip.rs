@@ -235,8 +235,8 @@ fn strict_roundtrip(include_corpus: bool) {
                 // documents as well, allowing only violations that predate the edit or the
                 // writer's explicitly reported existing practice/schema conflicts.
                 if output != input {
-                    let before_schema = haecceity::express::validate_document(doc.graph());
-                    let added_schema = haecceity::express::validate_document(after.graph())
+                    let before_schema = haecceity::express::validate_document(&doc);
+                    let added_schema = haecceity::express::validate_document(&after)
                         .into_iter()
                         .filter(|v| v.id > doc.max_id())
                         .collect::<Vec<_>>();

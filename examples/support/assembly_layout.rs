@@ -412,8 +412,6 @@ fn scale_contiguous(
         }
     };
     let mut rc = doc
-        .graph()
-        .entities
         .iter()
         .find_map(|(id, e)| match e {
             RawEntity::Complex { parts, .. }
@@ -421,7 +419,7 @@ fn scale_contiguous(
                     .iter()
                     .any(|p| p.name == "GEOMETRIC_REPRESENTATION_CONTEXT") =>
             {
-                Some(*id)
+                Some(id)
             }
             _ => None,
         })

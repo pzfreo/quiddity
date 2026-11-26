@@ -34,7 +34,7 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use step_io::parser::{Attribute as Param, Graph, RawEntity};
+use crate::p21::{Attribute as Param, Document, RawEntity};
 
 #[rustfmt::skip]
 #[path = "express_table.rs"]
@@ -461,8 +461,8 @@ pub fn validate(
 }
 
 /// [`Edition::validate_document`] against the target edition.
-pub fn validate_document(graph: &Graph) -> Vec<Violation> {
-    TARGET.validate_document(graph)
+pub fn validate_document(doc: &Document) -> Vec<Violation> {
+    TARGET.validate_document(doc)
 }
 
 /// Fill step-io 0.3's slot-wide `complex_ok` gap without imposing full AP242
@@ -739,25 +739,18 @@ impl Edition {
         Checker::new(self, target_types).record(record)
     }
 
-    /// The violations of every DATA instance of a parsed file, in id order.
-    pub fn validate_document(&self, graph: &Graph) -> Vec<Violation> {
-        let types: HashMap<u64, Vec<String>> = graph
-            .entities
-            .iter()
-            .map(|(&id, e)| (id, record_names(e)))
-            .collect();
+    /// The violations of every DATA instance of a parsed document, in id order.
+    pub fn validate_document(&self, doc: &Document) -> Vec<Violation> {
+        let types: HashMap<u64, Vec<String>> =
+            doc.iter().map(|(id, e)| (id, record_names(e))).collect();
         let lookup = |id: u64| {
             types
                 .get(&id)
                 .cloned()
-                .or_else(|| graph.external_references.contains_key(&id).then(Vec::new))
+                .or_else(|| doc.is_external_reference(id).then(Vec::new))
         };
         let mut checker = Checker::new(self, &lookup);
-        graph
-            .entities
-            .values()
-            .flat_map(|e| checker.record(e))
-            .collect()
+        doc.iter().flat_map(|(_, e)| checker.record(e)).collect()
     }
 }
 
@@ -1524,6 +1517,9 @@ mod complex_reference_tests {
         }
         fn attribute_at(&self, id: u64, part: Option<&str>, path: &[usize]) -> Option<Param> {
             self.0.attribute_at(id, part, path)
+        }
+        fn span_start(&self, id: u64) -> Option<u64> {
+            self.0.span_start(id)
         }
     }
 

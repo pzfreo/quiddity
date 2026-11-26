@@ -145,7 +145,7 @@ pub(super) fn repair(
                     && matches!(attr(doc, id, "named_unit", "dimensions"), Some(A::Derived)) =>
             {
                 let Some(d) = unit_dimensions(doc, id, &mut BTreeSet::new()) else {
-                    let mut violations = express::TARGET.validate_document(doc.graph());
+                    let mut violations = express::TARGET.validate_document(doc);
                     // Keep the schema refusal and its offending id, with the failed resolution
                     // named as well (even when the original has other upgrade violations).
                     for v in &mut violations {

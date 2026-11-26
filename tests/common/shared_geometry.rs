@@ -15,11 +15,11 @@ pub fn source(b: Vec<u8>, shared: u64) -> String {
     }
     let mut text = String::from_utf8(b.clone()).unwrap();
     let doc = haecceity::p21::Document::parse(b).unwrap();
-    let offset = doc.graph().entities.keys().max().unwrap() + 1;
+    let offset = doc.max_id() + 1;
     // Duplicate an otherwise independent part. Only the vertex's CARTESIAN_POINT #23 is
     // shared; every other geometry, placement, product and context gets a fresh number.
     let mut extra = String::new();
-    for (&id, e) in &doc.graph().entities {
+    for (id, e) in doc.iter() {
         if id == shared {
             continue;
         }
