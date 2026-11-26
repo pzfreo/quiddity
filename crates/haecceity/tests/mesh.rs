@@ -219,6 +219,103 @@ fn selected_trim_mesh_agrees_with_the_independent_cgb243_area() {
     }
 }
 
+fn boundary_edge(part: &Part, mesh: &FaceMesh, edge: usize) -> Vec<(BoundaryPoint, V3)> {
+    let (a, b) = part.edges[edge].vertices;
+    let mut points: Vec<_> = mesh
+        .boundary
+        .iter()
+        .zip(&mesh.points)
+        .filter_map(|(&key, &p)| {
+            let key = key?;
+            match key {
+                BoundaryPoint::Vertex(i) if i == a || i == b => Some((key, p)),
+                BoundaryPoint::Edge { edge: i, .. } if i == edge => Some((key, p)),
+                _ => None,
+            }
+        })
+        .collect();
+    points.sort_by(|a, b| a.1[0].total_cmp(&b.1[0]));
+    points
+}
+
+#[test]
+fn a_substation_spline_bump_survives_scaling_and_a_tighter_mesh_request() {
+    let fixture = include_str!("fixtures/selected-knot-bump.step");
+    for (unit, size) in [(".DECI.", 1.0), (".MILLI.", 0.01)] {
+        let text = fixture.replace(".MILLI.,.METRE.", &format!("{unit},.METRE."));
+        let load = || haecceity::read_step(text.as_bytes()).unwrap();
+        let part = load();
+        let edge = (0..part.edges.len())
+            .find(|&e| part.edge_source(e).unwrap().entity == 119)
+            .unwrap();
+        let fine = size * 0.000025;
+        let coarse = 0.001;
+        let other = load();
+        let first = other.triangulate(0, fine, ANGULAR).unwrap();
+        part.triangulate(0, coarse, ANGULAR).unwrap();
+        let mesh = part.triangulate(0, fine, ANGULAR).unwrap();
+        assert_eq!(mesh, first);
+        let rim = boundary_edge(&part, &mesh, edge);
+        assert!(rim.len() > 2);
+        // The central quadratic Bezier span is wholly between a uniform station
+        // and its midpoint. Its x coordinate is linear in the span parameter.
+        let maximum = (0..=1024)
+            .map(|i| {
+                let t = f64::from(i) / 1024.;
+                let p = [
+                    size * (0.5 + (1. + 4. * t) / 4096.),
+                    size * 0.024 * t * (1. - t),
+                    0.,
+                ];
+                rim.windows(2)
+                    .map(|w| {
+                        let a = w[0].1;
+                        let ab = geom::sub(w[1].1, a);
+                        let fraction =
+                            (geom::dot(geom::sub(p, a), ab) / geom::dot(ab, ab)).clamp(0., 1.);
+                        geom::dist(p, geom::add(a, geom::scale(ab, fraction)))
+                    })
+                    .fold(f64::INFINITY, f64::min)
+            })
+            .fold(0., f64::max);
+        assert!(
+            maximum <= fine,
+            "size {size}: boundary error {maximum} > {fine}"
+        );
+    }
+}
+
+#[test]
+fn spatial_fallback_propagates_to_a_newly_refused_neighbour() {
+    let part =
+        haecceity::read_step(include_bytes!("fixtures/selected-fallback-pair.step")).unwrap();
+    let edge = (0..part.edges.len())
+        .find(|&e| part.edge_source(e).unwrap().entity == 132)
+        .unwrap();
+    let d = 0.001;
+    // The standalone upper face accepts its straight selected edge. The lower
+    // face needs the bowed spatial edge to enclose its hole.
+    let lower = part.triangulate(0, d, ANGULAR).unwrap();
+    let upper = part.triangulate(1, d, ANGULAR).unwrap();
+    assert!(
+        boundary_edge(&part, &lower, edge)
+            .iter()
+            .any(|(_, p)| p[1] > 0.7)
+    );
+    assert!(
+        boundary_edge(&part, &upper, edge)
+            .iter()
+            .all(|(_, p)| p[1] < 0.41)
+    );
+    // Replacing only their shared edge makes the upper loop cross itself.
+    // Once its far edge also switches, both faces share the same curved rim.
+    let meshes = part.mesh(d, ANGULAR);
+    let on_face = |i: usize| boundary_edge(&part, meshes[i].as_ref().unwrap(), edge);
+    let shared = on_face(0);
+    assert!(shared.iter().any(|(_, p)| p[1] > 0.7));
+    assert_eq!(shared, on_face(1));
+}
+
 fn assert_outward_mesh(part: &Part, face: usize, mesh: &FaceMesh, d: f64) {
     for tri in &mesh.triangles {
         let points = tri.map(|i| mesh.points[i]);

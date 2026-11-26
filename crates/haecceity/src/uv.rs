@@ -650,7 +650,7 @@ impl Part {
     pub(super) fn mesh_uv_loops<'a>(
         &'a self,
         face: usize,
-        selected: &dyn Fn(usize) -> Option<crate::mesh::MeshEdge<'a>>,
+        selected: &dyn Fn(usize) -> Option<&'a crate::mesh::MeshEdge<'a>>,
     ) -> Option<Vec<UvLoop>> {
         self.compute_uv_loops(face, None, Some(selected))
     }
@@ -659,7 +659,7 @@ impl Part {
         &'a self,
         face: usize,
         boundary: Option<&DeclaredBoundary>,
-        mesh: Option<&dyn Fn(usize) -> Option<crate::mesh::MeshEdge<'a>>>,
+        mesh: Option<&dyn Fn(usize) -> Option<&'a crate::mesh::MeshEdge<'a>>>,
     ) -> Option<Vec<UvLoop>> {
         let f = &self.faces[face];
         let (pu, pv) = f.surface.periodic();
@@ -713,7 +713,7 @@ impl Part {
                 _ => f.surface.parameters(p, hint),
             };
             let selected = |edge| mesh.and_then(|mesh| mesh(edge));
-            let in_chart = |e, edge: crate::mesh::MeshEdge<'a>| {
+            let in_chart = |e, edge: &'a crate::mesh::MeshEdge<'a>| {
                 if edge.face == face {
                     return Some(edge.trim);
                 }
@@ -727,7 +727,8 @@ impl Part {
                     edge.samples.points.as_slice()
                 });
                 let n = samples.len();
-                let local = shared.and_then(|edge| Some((in_chart(e, edge)?, edge.samples)));
+                let local =
+                    shared.and_then(|edge| Some((in_chart(e, edge)?, edge.samples.as_ref())));
                 let trim = match (local, boundary.and_then(|b| b.edges.get(&e))) {
                     (Some(local), _) => Some(local),
                     (_, Some(trim)) => Some((trim, trim.samples(&f.surface, &self.edges[e])?)),

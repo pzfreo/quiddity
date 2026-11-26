@@ -6,6 +6,10 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+- Resolve selected mesh boundaries in the file frame for placed parts. Respect
+  spline knot spans and fine mesh requests when sampling selected edges, and
+  propagate spatial-edge fallback to newly refused neighbours in whole-part meshes.
+
 - For #359, expose signed solid inertia tensors in haecceity and Python, with a
   parallel-axis shift and optional centroidal tensors and their reference volumes
   in the `quiddity brep` JSON report. Use the local chart for shallow spherical
