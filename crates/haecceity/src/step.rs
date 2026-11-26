@@ -405,32 +405,53 @@ impl Reader<'_> {
     }
 
     /// A surface of revolution or linear extrusion as the file states it.
-    fn swept_source(&self, face: &StepFace<'_>) -> Option<SweptSource> {
+    fn swept_source(&self, face: &StepFace<'_>) -> Result<Option<SweptSource>, StepError> {
         match face.surface().kind() {
             SurfaceKind::Revolution(s) => {
-                let m::Axis1PlacementRef::Axis1Placement(i) = &s.axis_position;
-                let axis = self.model.get(m::Axis1PlacementId(i.0))?;
-                Some(SweptSource::Revolution {
-                    profile: self.raw_profile(&s.swept_curve)?,
-                    location: self.raw_point(&axis.location)?,
-                    axis: match &axis.axis {
-                        Some(d) => Some(self.raw_ratios(d)?),
-                        None => None,
+                let m::Axis1PlacementRef::Axis1Placement(i) = &s.axis_position else {
+                    return Err(StepError::Incomplete(
+                        "complex AXIS1_PLACEMENT is not supported".into(),
+                    ));
+                };
+                let Some(axis) = self.model.get(m::Axis1PlacementId(i.0)) else {
+                    return Ok(None);
+                };
+                let Some(profile) = self.raw_profile(&s.swept_curve) else {
+                    return Ok(None);
+                };
+                let Some(location) = self.raw_point(&axis.location) else {
+                    return Ok(None);
+                };
+                let axis = match &axis.axis {
+                    Some(d) => match self.raw_ratios(d) {
+                        Some(r) => Some(r),
+                        None => return Ok(None),
                     },
+                    None => None,
+                };
+                Ok(Some(SweptSource::Revolution {
+                    profile,
+                    location,
+                    axis,
                     to_mm: self.to_mm,
                     to_rad: self.to_rad,
-                })
+                }))
             }
             SurfaceKind::LinearExtrusion(s) => {
-                let (direction, magnitude) = self.raw_vector(&s.extrusion_axis)?;
-                Some(SweptSource::Extrusion {
-                    profile: self.raw_profile(&s.swept_curve)?,
+                let Some((direction, magnitude)) = self.raw_vector(&s.extrusion_axis) else {
+                    return Ok(None);
+                };
+                let Some(profile) = self.raw_profile(&s.swept_curve) else {
+                    return Ok(None);
+                };
+                Ok(Some(SweptSource::Extrusion {
+                    profile,
                     direction,
                     magnitude,
                     to_mm: self.to_mm,
-                })
+                }))
             }
-            _ => None,
+            _ => Ok(None),
         }
     }
 
@@ -551,43 +572,46 @@ impl Reader<'_> {
     }
 
     /// A carrier referenced by a pcurve without an incident topological face.
-    fn independent_carrier(&self, r: &m::SurfaceRef) -> Option<Surface> {
+    fn independent_carrier(&self, r: &m::SurfaceRef) -> Result<Option<Surface>, StepError> {
         let m = self.model;
-        Some(match r {
-            m::SurfaceRef::Plane(i) => Surface::Plane {
-                frame: self.placement(&m.get(m::PlaneId(i.0))?.position)?,
+        Ok(match r {
+            m::SurfaceRef::Plane(i) => match m.get(m::PlaneId(i.0)) {
+                Some(p) => self
+                    .placement(&p.position)?
+                    .map(|frame| Surface::Plane { frame }),
+                None => None,
             },
-            m::SurfaceRef::CylindricalSurface(i) => {
-                let s = m.get(m::CylindricalSurfaceId(i.0))?;
-                Surface::Cylinder {
-                    frame: self.placement(&s.position)?,
+            m::SurfaceRef::CylindricalSurface(i) => match m.get(m::CylindricalSurfaceId(i.0)) {
+                Some(s) => self.placement(&s.position)?.map(|frame| Surface::Cylinder {
+                    frame,
                     radius: self.to_mm * s.radius,
-                }
-            }
-            m::SurfaceRef::ConicalSurface(i) => {
-                let s = m.get(m::ConicalSurfaceId(i.0))?;
-                Surface::Cone {
-                    frame: self.placement(&s.position)?,
+                }),
+                None => None,
+            },
+            m::SurfaceRef::ConicalSurface(i) => match m.get(m::ConicalSurfaceId(i.0)) {
+                Some(s) => self.placement(&s.position)?.map(|frame| Surface::Cone {
+                    frame,
                     radius: self.to_mm * s.radius,
                     semi_angle: self.to_rad * s.semi_angle,
-                }
-            }
-            m::SurfaceRef::SphericalSurface(i) => {
-                let s = m.get(m::SphericalSurfaceId(i.0))?;
-                Surface::Sphere {
-                    frame: self.placement(&s.position)?,
+                }),
+                None => None,
+            },
+            m::SurfaceRef::SphericalSurface(i) => match m.get(m::SphericalSurfaceId(i.0)) {
+                Some(s) => self.placement(&s.position)?.map(|frame| Surface::Sphere {
+                    frame,
                     radius: self.to_mm * s.radius,
-                }
-            }
-            m::SurfaceRef::ToroidalSurface(i) => {
-                let s = m.get(m::ToroidalSurfaceId(i.0))?;
-                Surface::Torus {
-                    frame: self.placement(&s.position)?,
+                }),
+                None => None,
+            },
+            m::SurfaceRef::ToroidalSurface(i) => match m.get(m::ToroidalSurfaceId(i.0)) {
+                Some(s) => self.placement(&s.position)?.map(|frame| Surface::Torus {
+                    frame,
                     major: self.to_mm * s.major_radius,
                     minor: self.to_mm * s.minor_radius,
-                }
-            }
-            _ => return self.independent_spline(r),
+                }),
+                None => None,
+            },
+            _ => self.independent_spline(r),
         })
     }
 
@@ -688,16 +712,21 @@ impl Reader<'_> {
     }
 
     /// The file's frame ratios of an analytic surface.
-    fn surface_raw_frame(&self, face: &StepFace<'_>) -> Option<RawFrame> {
-        let m::Axis2Placement3dRef::Axis2Placement3d(id) = match face.surface().kind() {
+    fn surface_raw_frame(&self, face: &StepFace<'_>) -> Result<Option<RawFrame>, StepError> {
+        let position = match face.surface().kind() {
             SurfaceKind::Plane(p) => &p.position,
             SurfaceKind::Cylindrical(c) => &c.position,
             SurfaceKind::Conical(c) => &c.position,
             SurfaceKind::Spherical(s) => &s.position,
             SurfaceKind::Toroidal(t) => &t.position,
-            _ => return None,
+            _ => return Ok(None),
         };
-        Some(self.raw_frame(*id))
+        let m::Axis2Placement3dRef::Axis2Placement3d(id) = position else {
+            return Err(StepError::Incomplete(
+                "complex AXIS2_PLACEMENT_3D is not supported".into(),
+            ));
+        };
+        Ok(Some(self.raw_frame(*id)))
     }
 
     /// The file's frame ratios of a circle, ellipse, parabola or hyperbola, looking through
@@ -723,38 +752,48 @@ impl Reader<'_> {
         Some(self.raw_frame(*id))
     }
 
-    fn placement(&self, r: &m::Axis2Placement3dRef) -> Option<Frame> {
-        let m::Axis2Placement3dRef::Axis2Placement3d(id) = r;
-        self.frame3(*id)
+    fn placement(&self, r: &m::Axis2Placement3dRef) -> Result<Option<Frame>, StepError> {
+        let m::Axis2Placement3dRef::Axis2Placement3d(id) = r else {
+            return Err(StepError::Incomplete(
+                "complex AXIS2_PLACEMENT_3D is not supported".into(),
+            ));
+        };
+        Ok(self.frame3(*id))
     }
 
     /// The face's surface, or `None` when no form of it resolves.
-    fn surface(&self, face: &StepFace<'_>) -> Option<Surface> {
+    fn surface(&self, face: &StepFace<'_>) -> Result<Option<Surface>, StepError> {
         let mm = self.to_mm;
         match face.surface().kind() {
-            SurfaceKind::Plane(p) => self
-                .placement(&p.position)
-                .map(|frame| Surface::Plane { frame }),
+            SurfaceKind::Plane(p) => Ok(self
+                .placement(&p.position)?
+                .map(|frame| Surface::Plane { frame })),
             SurfaceKind::Cylindrical(c) => {
-                self.placement(&c.position).map(|frame| Surface::Cylinder {
+                Ok(self.placement(&c.position)?.map(|frame| Surface::Cylinder {
                     frame,
                     radius: c.radius * mm,
-                })
+                }))
             }
-            SurfaceKind::Conical(c) => self.placement(&c.position).map(|frame| Surface::Cone {
-                frame,
-                radius: c.radius * mm,
-                semi_angle: c.semi_angle * self.to_rad,
-            }),
-            SurfaceKind::Spherical(s) => self.placement(&s.position).map(|frame| Surface::Sphere {
-                frame,
-                radius: s.radius * mm,
-            }),
-            SurfaceKind::Toroidal(t) => self.placement(&t.position).map(|frame| Surface::Torus {
-                frame,
-                major: t.major_radius * mm,
-                minor: t.minor_radius * mm,
-            }),
+            SurfaceKind::Conical(c) => {
+                Ok(self.placement(&c.position)?.map(|frame| Surface::Cone {
+                    frame,
+                    radius: c.radius * mm,
+                    semi_angle: c.semi_angle * self.to_rad,
+                }))
+            }
+            SurfaceKind::Spherical(s) => {
+                Ok(self.placement(&s.position)?.map(|frame| Surface::Sphere {
+                    frame,
+                    radius: s.radius * mm,
+                }))
+            }
+            SurfaceKind::Toroidal(t) => {
+                Ok(self.placement(&t.position)?.map(|frame| Surface::Torus {
+                    frame,
+                    major: t.major_radius * mm,
+                    minor: t.minor_radius * mm,
+                }))
+            }
             // Every B-spline form, rational ones included (written as complex entities), is
             // one GeomAbs_BSplineSurface to OpenCascade.
             SurfaceKind::BSpline(_)
@@ -769,7 +808,7 @@ impl Reader<'_> {
             SurfaceKind::Revolution(_) => self.freeform(face, "REVOLUTION"),
             // step-io 0.3 adds these conversions independently of conic support.
             // Preserve haecceity's existing unresolved-surface behaviour for them.
-            SurfaceKind::Offset(_) | SurfaceKind::DegenerateToroidal(_) => None,
+            SurfaceKind::Offset(_) | SurfaceKind::DegenerateToroidal(_) => Ok(None),
             _ => self.freeform(face, "OTHER"),
         }
     }
@@ -1034,8 +1073,21 @@ impl Reader<'_> {
             .collect()
     }
 
-    fn freeform(&self, face: &StepFace<'_>, kind: &'static str) -> Option<Surface> {
-        let mut n = face.to_nurbs()?;
+    fn freeform(
+        &self,
+        face: &StepFace<'_>,
+        kind: &'static str,
+    ) -> Result<Option<Surface>, StepError> {
+        if let SurfaceKind::Revolution(s) = face.surface().kind()
+            && !matches!(s.axis_position, m::Axis1PlacementRef::Axis1Placement(_))
+        {
+            return Err(StepError::Incomplete(
+                "complex AXIS1_PLACEMENT is not supported".into(),
+            ));
+        }
+        let Some(mut n) = face.to_nurbs() else {
+            return Ok(None);
+        };
         // An unbounded radial LINE has two preimages for every radius. step-io's
         // conservative cover includes both, folding the disk over itself at the
         // axis. Inversion can then change sheets, preserving |Su × Sv| but reversing
@@ -1054,17 +1106,38 @@ impl Reader<'_> {
                 let p = &self.model.get(m::CartesianPointId(i.0))?.coordinates;
                 Some([0, 1, 2].map(|k| p.get(k).copied().unwrap_or(0.0)))
             };
-            let line = self.model.get(m::LineId(i.0))?;
-            let base = point(&line.pnt)?;
-            let m::VectorRef::Vector(i) = &line.dir else {
-                return None;
+            let Some(line) = self.model.get(m::LineId(i.0)) else {
+                return Ok(None);
             };
-            let dir = self.raw_direction(&self.model.get(m::VectorId(i.0))?.orientation)?;
-            let m::Axis1PlacementRef::Axis1Placement(i) = &s.axis_position;
-            let axis = self.model.get(m::Axis1PlacementId(i.0))?;
-            let origin = point(&axis.location)?;
+            let Some(base) = point(&line.pnt) else {
+                return Ok(None);
+            };
+            let m::VectorRef::Vector(i) = &line.dir else {
+                return Ok(None);
+            };
+            let Some(dir) = self
+                .model
+                .get(m::VectorId(i.0))
+                .and_then(|v| self.raw_direction(&v.orientation))
+            else {
+                return Ok(None);
+            };
+            let m::Axis1PlacementRef::Axis1Placement(i) = &s.axis_position else {
+                return Err(StepError::Incomplete(
+                    "complex AXIS1_PLACEMENT is not supported".into(),
+                ));
+            };
+            let Some(axis) = self.model.get(m::Axis1PlacementId(i.0)) else {
+                return Ok(None);
+            };
+            let Some(origin) = point(&axis.location) else {
+                return Ok(None);
+            };
             let z = match &axis.axis {
-                Some(a) => self.raw_direction(a)?,
+                Some(a) => match self.raw_direction(a) {
+                    Some(d) => d,
+                    None => return Ok(None),
+                },
                 None => [0.0, 0.0, 1.0],
             };
             let delta = geom::sub(base, origin);
@@ -1078,11 +1151,13 @@ impl Reader<'_> {
                 // unexpected dependency conversion instead of indexing or changing
                 // a higher-degree surface as though it were a line segment.
                 if n.degree_v != 1 || n.control_points.iter().any(|row| row.len() != 2) {
-                    return None;
+                    return Ok(None);
                 }
                 let centre = geom::add(origin, geom::scale(z, geom::dot(delta, z)));
                 // Every rotated row meets the axis at the same profile parameter.
-                let first = n.control_points.first()?;
+                let Some(first) = n.control_points.first() else {
+                    return Ok(None);
+                };
                 let (a, b) = (first[0], first[1]);
                 let ab = geom::sub(b, a);
                 let t = geom::dot(geom::sub(centre, a), ab) / geom::dot(ab, ab);
@@ -1101,18 +1176,20 @@ impl Reader<'_> {
                 .map(|p| self.place_point(geom::scale(*p, self.to_mm)))
                 .collect()
         };
-        let surface = NurbsSurface::new(
+        let Some(surface) = NurbsSurface::new(
             n.degree_u,
             n.degree_v,
             n.control_points.iter().map(place).collect(),
             n.weights,
             n.knots_u,
             n.knots_v,
-        )?;
-        Some(Surface::Freeform {
+        ) else {
+            return Ok(None);
+        };
+        Ok(Some(Surface::Freeform {
             kind,
             surface: Box::new(surface),
-        })
+        }))
     }
 
     // Retain a LINE's original direction ratios and placement: normalising before rotating
@@ -1638,12 +1715,14 @@ impl<'a, G: RecordGraph> FileIds<'a, G> {
             return Ok(id);
         }
         let id = self.id(key)?;
-        self.check_face(face, id).map_err(|why| {
-            StepError::Unsupported(format!(
-                "face {} read as #{id} does not match that instance: {why}",
-                step_name(key)
-            ))
-        })?;
+        let typed_location = self.typed_location(face)?;
+        self.check_face(face, id, typed_location.as_deref())
+            .map_err(|why| {
+                StepError::Unsupported(format!(
+                    "face {} read as #{id} does not match that instance: {why}",
+                    step_name(key)
+                ))
+            })?;
         self.checked.insert(key, id);
         Ok(id)
     }
@@ -1797,11 +1876,17 @@ impl<'a, G: RecordGraph> FileIds<'a, G> {
     }
 
     /// The location point of a face's surface as step-io read it.
-    fn typed_location(&self, face: &StepFace<'_>) -> Option<Vec<f64>> {
+    fn typed_location(&self, face: &StepFace<'_>) -> Result<Option<Vec<f64>>, StepError> {
         let model = self.model;
-        let placed = |r: &m::Axis2Placement3dRef| {
-            let m::Axis2Placement3dRef::Axis2Placement3d(i) = r;
-            self.typed_point(&model.get(m::Axis2Placement3dId(i.0))?.location)
+        let placed = |r: &m::Axis2Placement3dRef| -> Result<Option<Vec<f64>>, StepError> {
+            let m::Axis2Placement3dRef::Axis2Placement3d(i) = r else {
+                return Err(StepError::Incomplete(
+                    "complex AXIS2_PLACEMENT_3D is not supported".into(),
+                ));
+            };
+            Ok(model
+                .get(m::Axis2Placement3dId(i.0))
+                .and_then(|p| self.typed_point(&p.location)))
         };
         let first =
             |rows: &Vec<Vec<m::CartesianPointRef>>| self.typed_point(rows.first()?.first()?);
@@ -1812,35 +1897,49 @@ impl<'a, G: RecordGraph> FileIds<'a, G> {
             SurfaceKind::Spherical(s) => placed(&s.position),
             SurfaceKind::Toroidal(s) => placed(&s.position),
             SurfaceKind::Revolution(s) => {
-                let m::Axis1PlacementRef::Axis1Placement(i) = &s.axis_position;
-                self.typed_point(&model.get(m::Axis1PlacementId(i.0))?.location)
+                let m::Axis1PlacementRef::Axis1Placement(i) = &s.axis_position else {
+                    return Err(StepError::Incomplete(
+                        "complex AXIS1_PLACEMENT is not supported".into(),
+                    ));
+                };
+                Ok(model
+                    .get(m::Axis1PlacementId(i.0))
+                    .and_then(|a| self.typed_point(&a.location)))
             }
-            SurfaceKind::BSpline(s) => first(&s.control_points_list),
-            SurfaceKind::BSplineWithKnots(s) => first(&s.control_points_list),
-            SurfaceKind::QuasiUniform(s) => first(&s.control_points_list),
-            SurfaceKind::Uniform(s) => first(&s.control_points_list),
-            SurfaceKind::Bezier(s) => first(&s.control_points_list),
+            SurfaceKind::BSpline(s) => Ok(first(&s.control_points_list)),
+            SurfaceKind::BSplineWithKnots(s) => Ok(first(&s.control_points_list)),
+            SurfaceKind::QuasiUniform(s) => Ok(first(&s.control_points_list)),
+            SurfaceKind::Uniform(s) => Ok(first(&s.control_points_list)),
+            SurfaceKind::Bezier(s) => Ok(first(&s.control_points_list)),
             _ => match face.surface().key() {
                 m::EntityKey::DegenerateToroidalSurface(i) => {
-                    placed(&model.get(m::DegenerateToroidalSurfaceId(i.0))?.position)
+                    match model.get(m::DegenerateToroidalSurfaceId(i.0)) {
+                        Some(s) => placed(&s.position),
+                        None => Ok(None),
+                    }
                 }
-                m::EntityKey::ComplexEntity(i) => model
-                    .get(m::ComplexEntityId(i.0))?
-                    .parts
-                    .iter()
-                    .find_map(|p| match p {
-                        m::PartialEntity::BSplineSurface {
-                            control_points_list,
-                            ..
-                        } => first(control_points_list),
-                        _ => None,
-                    }),
-                _ => None,
+                m::EntityKey::ComplexEntity(i) => {
+                    Ok(model.get(m::ComplexEntityId(i.0)).and_then(|c| {
+                        c.parts.iter().find_map(|p| match p {
+                            m::PartialEntity::BSplineSurface {
+                                control_points_list,
+                                ..
+                            } => first(control_points_list),
+                            _ => None,
+                        })
+                    }))
+                }
+                _ => Ok(None),
             },
         }
     }
 
-    fn check_face(&self, face: &StepFace<'_>, id: u64) -> Result<(), String> {
+    fn check_face(
+        &self,
+        face: &StepFace<'_>,
+        id: u64,
+        typed_location: Option<&[f64]>,
+    ) -> Result<(), String> {
         let (bounds, surface, same_sense) = match face.key() {
             m::EntityKey::AdvancedFace(i) => {
                 let f = self
@@ -1880,10 +1979,7 @@ impl<'a, G: RecordGraph> FileIds<'a, G> {
         if logical(self.attribute(id, 3).as_ref()) != Some(same_sense) {
             return Err(format!("its same_sense is not {same_sense}"));
         }
-        if !same_point(
-            self.raw_location(surface_id).as_deref(),
-            self.typed_location(face).as_deref(),
-        ) {
+        if !same_point(self.raw_location(surface_id).as_deref(), typed_location) {
             return Err(format!(
                 "its surface #{surface_id} is not where it was read"
             ));
@@ -2501,18 +2597,18 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
             }
             members.push(out_faces.len());
             // A surface no form resolves stays in the part, unevaluable, and is recorded.
-            let surface = reader.surface(&face).unwrap_or_else(|| {
+            let surface = reader.surface(&face)?.unwrap_or_else(|| {
                 unresolved_faces.push(out_faces.len());
                 Surface::Other { kind: "UNRESOLVED" }
             });
             close_cone_at_apex(&surface, &mut loops, &edges_out);
             let (pcurves, splines) = reader.pcurves(&face, &surface, &edge_index, &edges_out);
             pcurve_splines.push(splines);
-            if let Some(frame) = reader.surface_raw_frame(&face) {
+            if let Some(frame) = reader.surface_raw_frame(&face)? {
                 face_frames.insert(out_faces.len(), frame);
             }
             if matches!(surface, Surface::Freeform { .. })
-                && let Some(source) = reader.swept_source(&face)
+                && let Some(source) = reader.swept_source(&face)?
             {
                 swept.insert(out_faces.len(), source);
             }
@@ -2541,7 +2637,7 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
                 };
                 let mut native = placed_face.clone();
                 native.surface = native_reader
-                    .surface(&face)
+                    .surface(&face)?
                     .unwrap_or(Surface::Other { kind: "UNRESOLVED" });
                 let bounds: Vec<_> = face.bounds().collect();
                 for (i, lp) in native.loops.iter_mut().enumerate() {
@@ -2629,20 +2725,24 @@ fn build(parsed: &Parsed<impl RecordGraph>, scope: Scope<'_>) -> Result<Read, St
         placement: IDENTITY,
         ..reader
     };
-    part.measure_trims = measure_trims
-        .into_iter()
-        .map(|(edge, selected)| {
-            let operand = selected.and_then(|trim| {
+    let mut resolved_trims = std::collections::BTreeMap::new();
+    for (edge, selected) in measure_trims {
+        let operand = match selected {
+            Some(trim) => {
                 let carrier = if trim.owners.is_empty() {
-                    TrimCarrier::Detached(Box::new(native.independent_carrier(&trim.surface)?))
+                    native
+                        .independent_carrier(&trim.surface)?
+                        .map(|surface| TrimCarrier::Detached(Box::new(surface)))
                 } else {
-                    TrimCarrier::Faces(trim.owners)
+                    Some(TrimCarrier::Faces(trim.owners))
                 };
-                Some((carrier, trim.curve))
-            });
-            (edge, operand)
-        })
-        .collect();
+                carrier.map(|carrier| (carrier, trim.curve))
+            }
+            None => None,
+        };
+        resolved_trims.insert(edge, operand);
+    }
+    part.measure_trims = resolved_trims;
     part.measure_uncertainty = (0..part.faces.len())
         .filter_map(|face| {
             let source = part.face_source(face)?;

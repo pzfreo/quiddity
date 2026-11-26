@@ -4,6 +4,29 @@ All notable changes to quiddity-rust and haecceity. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Alpha 1's gates and their evidence are
 in [docs/alpha1.md](docs/alpha1.md).
 
+## Unreleased
+
+### haecceity
+
+- For #367, upgrade `step-io` from `0.3.1` to `0.4.0`. Keep haecceity's
+  `express::complex_reference_drops()` workaround (and its `references_any` pre-check on
+  `RecordGraph` / `PackedGraph`) as a second line of defence in `refuse_dropped_shapes`, and
+  refuse complex `AXIS2_PLACEMENT_3D` / `AXIS1_PLACEMENT` instances with `StepError::Incomplete`
+  rather than returning `None`, because `step-io` `0.4.0` misses inherited complex type
+  restrictions when a parent part is omitted, accepts AP242 edition 4 narrowed-select
+  violations allowed by earlier editions, and admits complex placement references that
+  previously caused a drop. B-rep STEP output from `brep_write` is now AP242 edition 4
+  (`{ 1 0 10303 442 7 1 4 }`, application protocol year 2025). Enable
+  `serde_json/float_roundtrip` in `haecceity` so `Manifest` JSON round-trips bit-identically
+  with `step-io` 0.4's updated `AXIS2_PLACEMENT_3D` frame calculation. **Semver impact:**
+  breaking public-dependency change for `haecceity` — `p21` re-exports
+  `step_io::parser::{Attribute, RawEntity, RawEntityPart}`, `express::validate()` takes
+  `&RawEntity`, and `p21::Document::graph()` / `express::validate_document()` expose
+  `step_io::parser::Graph` from `step-io` 0.4 instead of 0.3 (the fields and variants of
+  `Attribute`, `RawEntity` and `RawEntityPart` are unchanged, while `ParseWarning` in
+  `Graph::warnings` gains `Ed3LinesSkipped`; callers passing types from a direct `step-io`
+  0.3 dependency must upgrade to 0.4, requiring a `0.x` minor bump on release).
+
 ## 0.5.6 (2026-11-26)
 
 - For #359, expose signed solid inertia tensors in haecceity and Python, with a
