@@ -626,7 +626,6 @@ fn mesh_keeps_curvature_between_a_cylinders_matching_endpoints() {
             curve,
             geom::COORD_FLOOR,
             true,
-            [None; 2],
             Vec::new(),
         )
         .unwrap();
@@ -704,7 +703,6 @@ fn mesh_rejects_a_foreign_circle_touching_the_receiver_only_at_its_ends() {
             curve,
             geom::COORD_FLOOR,
             true,
-            [None; 2],
             vec![witness]
         )
         .is_none()

@@ -140,7 +140,9 @@ impl Part {
     /// The face is meshed on its own: its edges are thinned as finely as it needs. In
     /// [`Part::mesh`] an edge is thinned as finely as either of its faces needs, so where a
     /// neighbour needed its shared edge thinned less (a narrow neck of that face) this face's
-    /// mesh differs from its mesh there.
+    /// mesh differs from its mesh there. If its selected boundary cannot be triangulated,
+    /// this call retries with spatial edges locally. Use [`Part::mesh`] to share that choice
+    /// across faces.
     pub fn triangulate(
         &self,
         face: usize,
@@ -164,17 +166,18 @@ impl Part {
             Ok(m) => m,
             Err(refusal) => return vec![Err(refusal); self.faces.len()],
         };
-        let mut meshes = mesher.mesh();
-        // Retry unresolved selected loops with spatial edges. The same edge
-        // switches for every face that uses it, including successful neighbours.
-        let refused = meshes
-            .iter()
-            .enumerate()
-            .filter_map(|(face, mesh)| mesh.is_err().then_some(face));
-        if mesher.use_spatial_edges(refused) {
-            meshes = mesher.mesh();
+        loop {
+            let meshes = mesher.mesh();
+            let refused = meshes
+                .iter()
+                .enumerate()
+                .filter_map(|(face, mesh)| mesh.is_err().then_some(face));
+            // Switching a shared edge can make a previously successful neighbour fail.
+            // Each retry permanently switches at least one more edge for this mesh.
+            if !mesher.use_spatial_edges(refused) {
+                return meshes;
+            }
         }
-        meshes
     }
 }
 
@@ -373,11 +376,10 @@ struct BNode {
 }
 
 /// The selected spatial discretisation of a topological edge, in STEP vertex order.
-#[derive(Clone, Copy)]
 pub(super) struct MeshEdge<'a> {
     pub(super) face: usize,
     pub(super) trim: &'a crate::mass::EdgeTrim,
-    pub(super) samples: &'a crate::mass::TrimSamples,
+    pub(super) samples: std::borrow::Cow<'a, crate::mass::TrimSamples>,
 }
 
 struct PartMesher<'a> {
@@ -428,49 +430,55 @@ impl<'a> PartMesher<'a> {
         }
     }
 
-    fn selected_edge(&self, edge: usize) -> Option<MeshEdge<'a>> {
-        *self.selected[edge].get_or_init(|| {
-            use crate::brep::TrimCarrier;
-            let part = self.part;
-            let (carrier, _) = part.measure_trims.get(&edge)?.as_ref()?;
-            let incident = &part.edge_faces()[edge];
-            // A shared trim must be valid in every receiving chart. A
-            // selected curve well off its neighbour would make a folded strip.
-            if incident.iter().any(|&f| {
-                !matches!(part.faces[f].surface, Surface::Other { .. })
-                    && part
-                        .mesh_declared_boundary(f)
-                        .is_none_or(|b| !b.edges.contains_key(&edge))
-            }) {
-                return None;
-            }
-            let owners = match carrier {
-                TrimCarrier::Faces(owners) => owners.as_slice(),
-                TrimCarrier::Detached(_) => &[],
-            };
-            // Prefer sampling on the carrier itself. If its face fell back, another
-            // incident face can still provide the same selected spatial curve.
-            owners
-                .iter()
-                .chain(incident.iter().filter(|f| !owners.contains(f)))
-                .copied()
-                .find_map(|face| {
-                    // Boundary selection needs geometric qualification, not the
-                    // successful completion of area and flux integration.
-                    let trim = part.mesh_declared_boundary(face)?.edges.get(&edge)?;
-                    let samples = trim.samples(&part.faces[face].surface, &part.edges[edge])?;
-                    samples
-                        .points
-                        .iter()
-                        .flatten()
-                        .all(|v| v.is_finite())
-                        .then_some(MeshEdge {
-                            face,
-                            trim,
-                            samples,
-                        })
-                })
-        })
+    fn selected_edge(&self, edge: usize) -> Option<&MeshEdge<'a>> {
+        self.selected[edge]
+            .get_or_init(|| {
+                use crate::brep::TrimCarrier;
+                let part = self.part;
+                let (carrier, _) = part.measure_trims.get(&edge)?.as_ref()?;
+                let incident = &part.edge_faces()[edge];
+                // A shared trim must be valid in every receiving chart. A
+                // selected curve well off its neighbour would make a folded strip.
+                if incident.iter().any(|&f| {
+                    !matches!(part.faces[f].surface, Surface::Other { .. })
+                        && part
+                            .mesh_declared_boundary(f)
+                            .is_none_or(|b| !b.edges.contains_key(&edge))
+                }) {
+                    return None;
+                }
+                let owners = match carrier {
+                    TrimCarrier::Faces(owners) => owners.as_slice(),
+                    TrimCarrier::Detached(_) => &[],
+                };
+                // Prefer sampling on the carrier itself. If its face fell back, another
+                // incident face can still provide the same selected spatial curve.
+                owners
+                    .iter()
+                    .chain(incident.iter().filter(|f| !owners.contains(f)))
+                    .copied()
+                    .find_map(|face| {
+                        // Boundary selection needs geometric qualification, not the
+                        // successful completion of area and flux integration.
+                        let trim = part.mesh_declared_boundary(face)?.edges.get(&edge)?;
+                        let samples = trim.mesh_samples(
+                            &part.faces[face].surface,
+                            &part.edges[edge],
+                            self.deflection,
+                        )?;
+                        samples
+                            .points
+                            .iter()
+                            .flatten()
+                            .all(|v| v.is_finite())
+                            .then_some(MeshEdge {
+                                face,
+                                trim,
+                                samples,
+                            })
+                    })
+            })
+            .as_ref()
     }
 
     fn use_spatial_edges(&mut self, faces: impl IntoIterator<Item = usize>) -> bool {
@@ -490,7 +498,7 @@ impl<'a> PartMesher<'a> {
         changed
     }
 
-    fn edge_samples(&self, edge: usize) -> &'a [V3] {
+    fn edge_samples(&self, edge: usize) -> &[V3] {
         self.selected_edge(edge)
             .map_or(&self.part.edges[edge].samples, |e| &e.samples.points)
     }
@@ -1396,7 +1404,7 @@ fn angle(a: V3, b: V3) -> f64 {
 }
 
 /// The distance from `p` to the segment `a`–`b`.
-fn segment_distance(p: V3, a: V3, b: V3) -> f64 {
+pub(super) fn segment_distance(p: V3, a: V3, b: V3) -> f64 {
     let ab = geom::sub(b, a);
     let len2 = geom::dot(ab, ab);
     let t = if len2 > 0.0 {

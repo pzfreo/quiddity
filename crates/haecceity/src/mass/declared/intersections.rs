@@ -282,7 +282,7 @@ impl TrimCrossings {
         part: &Part,
         surface: &Surface,
         tolerance: f64,
-        mesh: Option<&dyn Fn(usize) -> Option<crate::mesh::MeshEdge<'a>>>,
+        mesh: Option<&dyn Fn(usize) -> Option<&'a crate::mesh::MeshEdge<'a>>>,
     ) -> bool {
         if self.sweep_axes
             && grouped_clear(&self.spans, |span, fraction| span.vertex(part, fraction))

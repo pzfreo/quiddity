@@ -45,6 +45,12 @@ definition; an unrepresented typed shell still fails the checker.
 
 ## Explicit master trim
 
+`selected-knot-bump.step` and `selected-fallback-pair.step` are original synthetic
+STEP fixtures derived from the header of `master-trim-square.step`, under Apache-2.0.
+The first places a quadratic bump inside half of a uniform mesh parameter interval.
+In the second, a hole forces a shared straight trim to give way to a bowed spatial
+edge. The neighbouring strip then needs its other edge switched as well.
+
 `master-trim-square.step` is an original analytic fixture under Apache-2.0.
 It defines a 1 mm square on a bilinear B-spline surface. The lower 3D edge
 is straight and its master pcurve is a quadratic Bézier with middle pole
