@@ -82,7 +82,7 @@ fn shared_ctc01_derived_fixture_pins_text_and_filled_triangles() {
         2754
     );
     assert!(
-        haecceity::express::validate_document(doc.graph())
+        haecceity::express::validate_document(&doc)
             .iter()
             .all(|v| v.id <= 4376)
     );

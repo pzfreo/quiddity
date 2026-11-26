@@ -274,7 +274,7 @@ fn encoder_remaps_only_references_not_string_hashes() {
     )
     .unwrap();
     let doc = p21::Document::parse(out).unwrap();
-    assert!(doc.graph().entities.values().any(|e|matches!(e,p21::RawEntity::Simple {name,attributes,..} if name=="PRODUCT" && matches!(&attributes[0],p21::Attribute::String(s) if s.starts_with("plate #123 'name'-copy-")))));
+    assert!(doc.iter().any(|(_, e)| matches!(e, p21::RawEntity::Simple { name, attributes, .. } if name == "PRODUCT" && matches!(&attributes[0], p21::Attribute::String(s) if s.starts_with("plate #123 'name'-copy-")))));
 }
 
 #[test]
@@ -520,7 +520,7 @@ fn ap242_presentation_dependencies_scale_and_read_back() {
         assert_eq!(m.products.len(), e.products);
         assert_eq!(m.instances.len(), e.instances);
         let raw = p21::Document::parse(out.clone()).unwrap();
-        for entity in raw.graph().entities.values() {
+        for (_, entity) in raw.iter() {
             p21::visit_attributes(entity, &mut |a| {
                 if let p21::Attribute::EntityRef(id) = a {
                     assert!(raw.get(*id).is_some(), "dangling #{id}");

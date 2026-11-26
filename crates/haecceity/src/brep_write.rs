@@ -169,9 +169,29 @@ impl std::fmt::Display for WriteError {
 
 impl std::error::Error for WriteError {}
 
-impl From<AuthorError> for WriteError {
+enum WriterError {
+    Write(WriteError),
+    Author(AuthorError),
+}
+
+impl From<WriteError> for WriterError {
+    fn from(e: WriteError) -> Self {
+        Self::Write(e)
+    }
+}
+
+impl From<AuthorError> for WriterError {
     fn from(e: AuthorError) -> Self {
-        WriteError::Author(e.to_string())
+        Self::Author(e)
+    }
+}
+
+impl WriterError {
+    fn into_write_error(self) -> WriteError {
+        match self {
+            Self::Write(e) => e,
+            Self::Author(e) => WriteError::Author(e.to_string()),
+        }
     }
 }
 
@@ -189,7 +209,9 @@ pub fn write_step(
         repairs_written: part.input_repairs().to_vec(),
         ..WriteReport::default()
     };
-    let bytes = Writer::new(part, options.name)?.write(&mut report)?;
+    let bytes = Writer::new(part, options.name)
+        .and_then(|w| w.write(&mut report))
+        .map_err(WriterError::into_write_error)?;
     let bytes = match options.pmi {
         Some(p) => {
             let (bytes, carried) = carry_pmi(bytes, p)?;
@@ -820,7 +842,7 @@ fn place_frame(at: &crate::step::Placement, f: &Frame) -> Frame {
 }
 
 impl<'p> Writer<'p> {
-    fn new(part: &'p Part, name: &str) -> Result<Self, WriteError> {
+    fn new(part: &'p Part, name: &str) -> Result<Self, WriterError> {
         // The file's own uncertainty where the part keeps one: readers that heal to it
         // (OpenCascade) then build the same shape.
         let uncertainty = part
@@ -918,7 +940,7 @@ impl<'p> Writer<'p> {
         &mut self,
         face: usize,
         report: &mut WriteReport,
-    ) -> Result<m::Ap242AdvancedFaceGeometrySelectRef, WriteError> {
+    ) -> Result<m::Ap242AdvancedFaceGeometrySelectRef, WriterError> {
         let at = self.face_at(face);
         let raw = self.part.face_frame(face).map(|r| (r, at));
         let held = self.face(face);
@@ -1020,13 +1042,14 @@ impl<'p> Writer<'p> {
             Surface::Other { kind } => {
                 return Err(WriteError::Unsupported(vec![format!(
                     "face {face}: no surface ({kind})"
-                )]));
+                )])
+                .into());
             }
         })
     }
 
     /// The edge's 3D curve.
-    fn curve(&mut self, edge: usize) -> Result<m::Ap242SurfaceCurveCurve3dRef, WriteError> {
+    fn curve(&mut self, edge: usize) -> Result<m::Ap242SurfaceCurveCurve3dRef, WriterError> {
         let part = self.part;
         let e = self.edge(edge);
         let at = self.edge_at(edge);
@@ -1283,7 +1306,7 @@ impl<'p> Writer<'p> {
         )
     }
 
-    fn write(mut self, report: &mut WriteReport) -> Result<Vec<u8>, WriteError> {
+    fn write(mut self, report: &mut WriteReport) -> Result<Vec<u8>, WriterError> {
         let part = self.part;
         let shells = Shells {
             solids: part
@@ -1629,9 +1652,9 @@ impl<'p> Writer<'p> {
                 let reverse = reversed_bound.get(&(f, l)).copied().unwrap_or(false);
                 let bound = if lp.edges.is_empty() {
                     let p = self.face(f).loops[l].vertex.ok_or_else(|| {
-                        WriteError::Unsupported(vec![format!(
+                        WriterError::Write(WriteError::Unsupported(vec![format!(
                             "face {f} bound {l} has neither edges nor a vertex"
-                        )])
+                        )]))
                     })?;
                     let a = self.b.author();
                     let pt = a.add_cartesian_point("", p.into())?;

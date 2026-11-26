@@ -16,6 +16,9 @@ on:
       - '.github/workflows/crates.yml'
       - '.github/check_semver.py'
       - '.github/test_check_semver.py'
+      - '.github/check_public_deps.py'
+      - '.github/test_check_public_deps.py'
+      - '.github/public_api_crates.txt'
   # A published GitHub release publishes haecceity and quiddity to crates.io, as it publishes
   # the wheel to PyPI (python.yml): the maintainer's release is the approval. A pre-release is
   # not published (a crates.io version can be yanked but never removed); a manual run can.
@@ -62,6 +65,8 @@ jobs:
       # Explicit latest stable crates.io baseline, including once 0.5.0 is published.
       - run: python3 -m unittest discover -s .github -p test_check_semver.py
       - run: python3 .github/check_semver.py
+      - run: python3 -m unittest discover -s .github -p test_check_public_deps.py
+      - run: python3 .github/check_public_deps.py
 
   publish:
     if: >-

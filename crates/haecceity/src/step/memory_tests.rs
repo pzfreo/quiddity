@@ -9,8 +9,13 @@ use std::time::Instant;
 fn ordinary(bytes: &[u8]) -> Parsed<step_io::parser::Graph> {
     let (model, report) = step_io::read(bytes).unwrap();
     let graph = step_io::parser::parse(bytes).unwrap();
-    let declared_units = crate::pmi::declared_length_units(&graph, &graph.header, bytes);
-    let angle_uncertainty = angle_uncertainty(&model, &graph, &graph.header, bytes);
+    let header: Vec<RawEntity> = graph
+        .header
+        .iter()
+        .map(crate::p21::entity_from_step_io_ref)
+        .collect();
+    let declared_units = crate::pmi::declared_length_units(&graph, &header, bytes);
+    let angle_uncertainty = angle_uncertainty(&model, &graph, &header, bytes);
     Parsed {
         model,
         report,
@@ -65,7 +70,12 @@ fn streamed_records_and_selected_paths_match_the_raw_graph_across_blocks() {
     let packed = PackedGraph::parse(bytes.as_bytes()).unwrap();
     assert_eq!(packed.ids().collect::<Vec<_>>(), [7, u64::MAX]);
     for id in packed.ids() {
-        assert_eq!(packed.record(id).as_deref(), raw.get(id));
+        assert_eq!(packed.record(id), raw.record(id));
+        assert_eq!(
+            packed.span(id),
+            raw.get(id).map(step_io::parser::RawEntity::span)
+        );
+        assert_eq!(packed.span_start(id), raw.span_start(id));
         assert_eq!(packed.kind(id), raw.kind(id));
     }
     for (id, part, path) in [
@@ -139,10 +149,15 @@ FILE_NAME('','',(''),(''),'','','');FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));ENDSEC;DA
 #8=(EXTRA(0.0254000000000000000002)MEASURE_WITH_UNIT(LENGTH_MEASURE(0.0254000000000000000001),#10));\
 #10=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT($,.METRE.));ENDSEC;END-ISO-10303-21;";
     let raw = step_io::parser::parse(bytes.as_slice()).unwrap();
+    let raw_header: Vec<RawEntity> = raw
+        .header
+        .iter()
+        .map(crate::p21::entity_from_step_io_ref)
+        .collect();
     let mut stream = step_io::parser::stream(bytes.as_slice()).unwrap();
     let packed = PackedGraph::from_stream(&mut stream).unwrap();
-    let a = crate::pmi::declared_length_units(&raw, &raw.header, bytes);
-    let b = crate::pmi::declared_length_units(&packed, stream.header(), bytes);
+    let a = crate::pmi::declared_length_units(&raw, &raw_header, bytes);
+    let b = crate::pmi::declared_length_units(&packed, &packed.header, bytes);
     let expected = Some(LengthUnit::from_metres(
         "custom",
         Decimal::parse("0.0254000000000000000001").unwrap(),

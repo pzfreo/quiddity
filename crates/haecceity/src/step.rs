@@ -16,8 +16,8 @@ pub(crate) use raw_graph::RecordGraph;
 #[cfg(test)]
 mod memory_tests;
 
+use crate::p21::{Attribute, RawEntity};
 use step_io::model as m;
-use step_io::parser::{Attribute, RawEntity};
 use step_io::scene::{Edge as StepEdge, Face as StepFace, SurfaceKind};
 
 use super::brep::{
@@ -2217,9 +2217,9 @@ impl Parsed {
         let (model, report) = step_io::read(bytes).map_err(parse_error)?;
         let mut stream = step_io::parser::stream(bytes).map_err(parse_error)?;
         let graph = PackedGraph::from_stream(&mut stream).map_err(parse_error)?;
-        let declared_units = crate::pmi::declared_length_units(&graph, stream.header(), bytes);
-        let angle_uncertainty = angle_uncertainty(&model, &graph, stream.header(), bytes);
         drop(stream);
+        let declared_units = crate::pmi::declared_length_units(&graph, &graph.header, bytes);
+        let angle_uncertainty = angle_uncertainty(&model, &graph, &graph.header, bytes);
         let complex_drops = crate::express::complex_reference_drops(&graph);
         refuse_dropped_shapes(&graph, &report, &complex_drops)?;
         check_curve_wrappers(&model)?;
@@ -3381,8 +3381,8 @@ fn refuse_dropped_shapes(
     report: &step_io::Report,
     complex_drops: &[(u64, String)],
 ) -> Result<(), StepError> {
+    use crate::p21::{Attribute, RawEntity};
     use std::collections::{BTreeSet, HashSet};
-    use step_io::parser::{Attribute, RawEntity};
 
     fn refs(a: &Attribute, out: &mut Vec<u64>) {
         match a {

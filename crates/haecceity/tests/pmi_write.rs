@@ -2401,9 +2401,9 @@ fn thread_on(feature: usize, side: ThreadSide, runout: Option<usize>) -> Thread 
 /// The schema violations (`express::validate_document`) and rule violations
 /// (`express_rules::check_all`) of `after` that `before` does not have.
 fn new_violations(before: &Document, after: &Document) -> Vec<String> {
-    let schema = express::validate_document(before.graph());
+    let schema = express::validate_document(before);
     let rules = haecceity::express_rules::check_all(before);
-    let mut out: Vec<String> = express::validate_document(after.graph())
+    let mut out: Vec<String> = express::validate_document(after)
         .into_iter()
         .filter(|v| !schema.contains(v))
         .map(|v| v.to_string())
@@ -5144,7 +5144,7 @@ fn nist_ap203_upgrade_repairs() {
             "{name}"
         );
         assert_repair_bytes(&f.doc, &w.doc, &w.report);
-        assert!(express::TARGET.validate_document(w.doc.graph()).is_empty());
+        assert!(express::TARGET.validate_document(&w.doc).is_empty());
         assert!(new_violations(&f.doc, &w.doc).is_empty());
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
@@ -5415,7 +5415,7 @@ fn gaps_write_standard_entities_and_migrate_notes() {
     let made: BTreeSet<_> = w.added().into_iter().collect();
     assert!(
         express::TARGET
-            .validate_document(w.doc.graph())
+            .validate_document(&w.doc)
             .iter()
             .all(|v| !made.contains(&v.id))
     );
@@ -5860,7 +5860,7 @@ fn practice_targets_and_decimal_cells_have_only_reported_conflicts() {
     let made: BTreeSet<_> = w.added().into_iter().collect();
     assert!(conflicts.iter().all(|v| made.contains(&v.id)));
     assert!(
-        express::validate_document(w.doc.graph())
+        express::validate_document(&w.doc)
             .iter()
             .all(|v| !made.contains(&v.id))
     );
@@ -8525,7 +8525,7 @@ fn occt_density_plate_reads_with_findings_and_writes_practice_form() {
     }
     let w = written(&f, p);
     assert_verified(&f, &w, p);
-    assert!(express::TARGET.validate_document(w.doc.graph()).is_empty());
+    assert!(express::TARGET.validate_document(&w.doc).is_empty());
     assert!(haecceity::express_rules::check_all(&w.doc).is_empty());
     let text = String::from_utf8_lossy(w.doc.bytes());
     assert!(text.contains("'density measure',POSITIVE_RATIO_MEASURE(2.7)"));

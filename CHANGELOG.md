@@ -6,6 +6,22 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+Pending version: 0.6.0
+
+### Breaking (Rust API)
+
+- `haecceity`: Part 21 records are now wrapped in haecceity's own
+  `p21::{Attribute, RawEntity, RawEntityPart}` types, so `step-io` types are no longer part of
+  haecceity's public API:
+  - `p21::Document::graph()` is removed (use `Document::get()`, `Document::ids()`,
+    `Document::iter()`, `Document::header()`, and `Document::max_id()`).
+  - `express::validate_document()` and `Edition::validate_document()` now take `&p21::Document`
+    instead of `&step_io::parser::Graph`; `express::validate()` and `Edition::validate()` now
+    take `&p21::RawEntity`.
+  - The `span` field and `span()` method are removed from `p21::RawEntity` (use
+    `Document::span()`).
+  - `From<step_io::AuthorError>` is removed from `brep_write::WriteError`.
+
 ### haecceity
 
 - For #367, upgrade `step-io` from `0.3.1` to `0.4.0`. Keep haecceity's
@@ -18,14 +34,7 @@ in [docs/alpha1.md](docs/alpha1.md).
   previously caused a drop. B-rep STEP output from `brep_write` is now AP242 edition 4
   (`{ 1 0 10303 442 7 1 4 }`, application protocol year 2025). Enable
   `serde_json/float_roundtrip` in `haecceity` so `Manifest` JSON round-trips bit-identically
-  with `step-io` 0.4's updated `AXIS2_PLACEMENT_3D` frame calculation. **Semver impact:**
-  breaking public-dependency change for `haecceity` — `p21` re-exports
-  `step_io::parser::{Attribute, RawEntity, RawEntityPart}`, `express::validate()` takes
-  `&RawEntity`, and `p21::Document::graph()` / `express::validate_document()` expose
-  `step_io::parser::Graph` from `step-io` 0.4 instead of 0.3 (the fields and variants of
-  `Attribute`, `RawEntity` and `RawEntityPart` are unchanged, while `ParseWarning` in
-  `Graph::warnings` gains `Ed3LinesSkipped`; callers passing types from a direct `step-io`
-  0.3 dependency must upgrade to 0.4, requiring a `0.x` minor bump on release).
+  with `step-io` 0.4's updated `AXIS2_PLACEMENT_3D` frame calculation.
 
 ## 0.5.6 (2026-11-26)
 
