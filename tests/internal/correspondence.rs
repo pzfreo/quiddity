@@ -317,3 +317,37 @@ fn a_shaft_with_alike_chamfers_is_symmetric_with_an_end_swap_alternative() {
     assert!(swapped, "{:?}", c.alternatives);
     assert_eq!(c.face_map()[ends[0]], Some(ends[0]));
 }
+
+/// The cross-version tolerance covers measured face values only: a hole moved 0.3 mm is a
+/// change even when the old side is an earlier version.
+#[test]
+fn a_moved_hole_is_changed_across_versions() {
+    let part = quiddity::read_step_file(&common::fixtures().join("filleted_plate_with_holes.step"))
+        .unwrap();
+    let new = correspondence::recognise(&part).fingerprints;
+    let mut old = new.clone();
+    old.fingerprint_version = "quiddity-rust/fingerprint/4".into();
+    assert_ne!(
+        correspondence::correspond(&old, &new).unwrap().verdict,
+        correspondence::Verdict::Changed
+    );
+    let hole = old
+        .features
+        .iter_mut()
+        .find(|f| f.family == "holes")
+        .unwrap();
+    hole.position.as_mut().unwrap()[0] += 0.3;
+    let c = correspondence::correspond(&old, &new).unwrap();
+    assert_eq!(c.verdict, correspondence::Verdict::Changed);
+}
+
+/// A turned part with no symmetry beyond its free turn is unchanged, not symmetric.
+#[test]
+fn a_stepped_shaft_against_itself_is_unchanged() {
+    let part =
+        quiddity::read_step_file(&common::fixtures().join("filleted_stepped_shaft.step")).unwrap();
+    let f = correspondence::recognise(&part).fingerprints;
+    let c = correspondence::correspond(&f, &f).unwrap();
+    assert_eq!(c.verdict, correspondence::Verdict::Unchanged);
+    assert!(c.alternatives.is_empty());
+}

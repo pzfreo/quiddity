@@ -330,17 +330,31 @@ pub fn align_all(
             others.push(r);
         }
     };
+    // Only rivals distinct from the chosen motion and from each other (as `symmetric` always
+    // asked) are refined, and at most a bounded number are tried.
+    let mut tried = 0;
+    let mut raw: Vec<Motion> = Vec::new();
     for (r, n) in rivals.iter().filter(|(_, n)| *n >= count) {
-        if others.len() >= 4 * super::MAX_ALTERNATIVES {
-            break;
+        if same_motion(r, &m, tol, th.angle_tol, scale)
+            || raw
+                .iter()
+                .any(|o| same_motion(o, r, tol, th.angle_tol, scale))
+        {
+            continue;
         }
+        raw.push(*r);
+        if tried >= super::MAX_ALTERNATIVES * 4 {
+            continue;
+        }
+        tried += 1;
         // The rival as the best fit to its own inliers, like the chosen motion.
         let (_, _, kept) = c.inliers(r, tol, cos_tol);
         let (from, to) = c.points(kept, scale);
         let refined = horn(&from, &to).filter(|h| c.inliers(h, tol, cos_tol).0 >= *n);
         distinct(&mut others, refined.unwrap_or(*r));
     }
-    let symmetric = axisymmetric || !others.is_empty();
+    // Symmetric as before: another distinct motion fits as well, or the turn is free.
+    let symmetric = axisymmetric || !raw.is_empty();
     if let (true, Some([o, d])) = (axisymmetric, axis) {
         // The turn about the axis is free, and the flip end for end about its middle is another
         // alignment when the anchors agree with it as well.

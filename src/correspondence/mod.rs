@@ -397,10 +397,11 @@ pub struct Thresholds {
     /// test, estimated from the fingerprints.
     pub overlap: f64,
     /// When the two revisions' fingerprints are of different versions, measured fields may have
-    /// moved between the versions' measurements, so an area or a size agrees within this
-    /// relative difference, a mean normal within this angle (radians), and a centroid or
-    /// position within a tenth of it as a fraction of the scale. Surface type and parameters,
-    /// axis, support and adjacency keep their usual tolerances.
+    /// moved between the versions' measurements, so a face's area agrees within this relative
+    /// difference, its mean normal within this angle (radians), and its centroid within a tenth
+    /// of it as a fraction of the scale. Nothing else is loosened: surface type and parameters,
+    /// a face's axis, adjacency, and every feature's sizes, axes and positions keep their usual
+    /// tolerances.
     ///
     /// Chosen from data: `/4` fingerprints (quiddity 0.5.5) against `/5` of the same files
     /// (cgb217, cgb202, cgb203, cgb207, NIST CTC-01, two Gramel and two MFCAD++ parts). The
@@ -409,7 +410,7 @@ pub struct Thresholds {
     /// B-splines). Their largest movements were, per part (cgb217, cgb202, cgb203, cgb207):
     /// area 0.0092, 0.0192, 0.0060, 0.109 relative; mean normal 0.0017, 0.0053, 0.011, 0.044
     /// rad; centroid 1.2e-4, 1.9e-5, 2.0e-5, 8e-4 of the scale. Every other measured field
-    /// (surface parameters, axes, supports, derived sizes) agreed to 1e-6 or better. 0.03 covers
+    /// (surface parameters, axes, supports, sizes) agreed to 1e-6 or better. 0.03 covers
     /// everything but two faces of cgb207 (a B-spline face, area 0.109, normal 0.044 rad, and a
     /// sphere, area 0.061) with a margin of 1.6 on the next largest (0.0192); those two are
     /// reported adapted rather than hidden by a tolerance wide enough for them.
@@ -523,10 +524,11 @@ pub struct Entry<T> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Verdict {
-    /// Every old feature and face is carried, nothing is new, and no other alignment fits as well.
+    /// Every old feature and face is carried and nothing is new, and no other alignment gives a
+    /// different face map. A part only moved rigidly is unchanged.
     Unchanged,
-    /// As unchanged, but the part is symmetric: another alignment fits as well, so which old face
-    /// is which new one is a choice. `faces` holds the chosen one and
+    /// As unchanged, but the part is symmetric: another alignment fits as well and maps the
+    /// faces differently, so which old face is which new one is a choice. `faces` holds the chosen one and
     /// `Correspondence::alternatives` the face map under each other equally good alignment.
     Symmetric,
     /// Anything else: something was adapted, ambiguous, orphaned or added.
@@ -636,13 +638,8 @@ pub fn correspond_with(
         && new_faces.is_empty()
         && features.iter().all(|e| e.class == Class::Carried)
         && faces.iter().all(|e| e.class == Class::Carried);
-    let verdict = match (same, alignment.symmetric) {
-        (true, false) => Verdict::Unchanged,
-        (true, true) => Verdict::Symmetric,
-        _ => Verdict::Changed,
-    };
     let mut alternatives: Vec<Vec<Option<usize>>> = Vec::new();
-    if verdict == Verdict::Symmetric {
+    if same && alignment.symmetric {
         let first = face_map(&faces);
         for alt in rivals.into_iter().take(4 * MAX_ALTERNATIVES) {
             let other = ctx(alt);
@@ -659,6 +656,13 @@ pub fn correspond_with(
             }
         }
     }
+    // Symmetric only when another face map exists: a turned part whose only freedom is the turn
+    // about its axis (no face changes with it) is unchanged.
+    let verdict = match (same, alternatives.is_empty()) {
+        (true, true) => Verdict::Unchanged,
+        (true, false) => Verdict::Symmetric,
+        _ => Verdict::Changed,
+    };
     Ok(Correspondence {
         fingerprint_version: FINGERPRINT_VERSION.into(),
         verdict,
@@ -931,8 +935,7 @@ impl Ctx<'_> {
         let keys: BTreeSet<&String> = a.sizes.keys().chain(b.sizes.keys()).collect();
         for k in keys {
             let (x, y) = (a.sizes.get(k), b.sizes.get(k));
-            let rel = self.value_rel(self.th.same_rel);
-            let same = matches!((x, y), (Some(x), Some(y)) if same_value(*x, *y, rel));
+            let same = matches!((x, y), (Some(x), Some(y)) if same_value(*x, *y, self.th.same_rel));
             if !same {
                 out.insert(
                     format!("sizes.{k}"),
@@ -960,12 +963,16 @@ impl Ctx<'_> {
                 (b.axis, b.position),
                 true,
                 self.th.angle_tol,
+                false,
             );
         }
         out
     }
 
-    /// Axis (or normal) and position changes, the old ones carried into the new frame.
+    /// Axis (or normal) and position changes, the old ones carried into the new frame. For a
+    /// *face* across fingerprint versions, its mean normal and centroid compare at the looser
+    /// cross-version tolerance; a face's axis, and every feature's axis and position, never do.
+    #[allow(clippy::too_many_arguments)]
     fn placement_changes(
         &self,
         out: &mut BTreeMap<String, Change>,
@@ -973,9 +980,14 @@ impl Ctx<'_> {
         b: (Option<V3>, Option<V3>),
         line: bool,
         angle_tol: f64,
+        face: bool,
     ) {
-        let angle_tol = self.value_rel(angle_tol);
-        let tol = if self.cross_version {
+        let angle_tol = if face && !line {
+            self.value_rel(angle_tol)
+        } else {
+            angle_tol
+        };
+        let tol = if face && self.cross_version {
             self.tol().max(0.1 * self.th.cross_version_rel * self.scale)
         } else {
             self.tol()

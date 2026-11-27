@@ -103,9 +103,11 @@ Faces matter for datums and GD&T targets.
 The Correspondence holds:
 
 - the `verdict`, the plain answer to "is this the same part?":
-  - `unchanged`: every old feature and face is carried, nothing is new, and the alignment is
-    not symmetric;
-  - `symmetric`: as unchanged, but another alignment fits as well (the part's own symmetry). The
+  - `unchanged`: every old feature and face is carried and nothing is new, and no other
+    alignment gives a different face map. This includes a part that was only moved rigidly
+    (`whole_part_moved`), and a turned part whose only freedom is the turn about its axis;
+  - `symmetric`: as unchanged, but another alignment fits as well and maps the faces
+    differently (the part's own symmetry). The
     chosen alignment's face map is in `faces`; `alternatives` lists the old to new face map (by
     old face index, `null` where an old face has no partner) under each other equally good
     alignment, so a caller can ask which symmetric copy it meant. `Correspondence::face_map()`
@@ -313,11 +315,14 @@ derived from them) moved.
 another meaning. A change that only moves measured values does not bump it. `correspond` reads
 every format in `READABLE_VERSIONS` (now `/4`, besides the current `/5`), so fingerprints stored
 by an older quiddity compare without being made again. When the two revisions' versions differ,
-the measured fields (face area, centroid and normal, feature position, sizes derived from areas)
-compare at the looser `Thresholds::cross_version_rel` (0.03; chosen from `/4` and `/5` of the
-same files, see its documentation: only freeform, spherical and curved-edge faces moved, by up to
-2% in area on most parts, 11% on one). Surface type and parameters, axis, support and
-adjacency keep their usual tolerances. The result's `fingerprint_version` is always the
+three fields of a *face* compare at the looser `Thresholds::cross_version_rel` (0.03; chosen from
+`/4` and `/5` of the same files, see its documentation: only a few curved, trimmed faces moved,
+by up to 2% in area on most parts, 11% on one): its area (relative 0.03), its mean normal (0.03
+rad) and its centroid (0.003 of the scale). Nothing else is loosened: surface type and
+parameters, a face's axis and support, adjacency, and every feature's sizes, axes and positions
+keep their usual tolerances, so a hole moved by a fraction of a millimetre is a change whatever
+the versions. A face's support is not compared at all (a plane's or cylinder's is an arbitrary
+point on it). The result's `fingerprint_version` is always the
 current one. A format outside the list (`/3`, or one this build does not know) is refused with
 an error asking for the part to be re-fingerprinted from its geometry; there is no migration.
 A new feature family that an earlier version did not produce (fillet chains and groups) is not
