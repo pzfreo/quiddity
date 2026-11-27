@@ -6,6 +6,14 @@ in [docs/alpha1.md](docs/alpha1.md).
 
 ## Unreleased
 
+Pending version: 0.7.0
+
+### Breaking (Rust API)
+
+- `Correspondence` gains the `verdict` and `alternatives` fields and is now `#[non_exhaustive]`,
+  so later fields will not break code that reads it. Code that built a `Correspondence` literal
+  must now get one from `correspond`.
+
 ### Correspondence
 
 - `correspond` gives a `verdict`: `unchanged`, `symmetric` or `changed`. For a symmetric part

@@ -3024,6 +3024,8 @@
     "tests/fixtures/classify.json.gz": "57d25162c3277873781b6f0401f537623b5d6b4ff44cd08a197b30d093b98bc7",
     "tests/fixtures/collared_floor_variants.step.gz": "3aa2373e98c757bbc214aa57fc185b8699cc5f9c66c4eaf6605947d89ebf4dae",
     "tests/fixtures/corpus.json": "76bc5be9b689d9049dee9a3c4d9922293a441002b9293491b134b0752265fa67",
+    "tests/fixtures/correspondence/README.md": "eed650adf1199373ef98782c94084d6f69df828e80988c5391e0de4b6be45518",
+    "tests/fixtures/correspondence/cgb217.fingerprint4.json.gz": "34b7c2035ac2930339f6c1d569a07c7814366b75c474fe1b6faf41bffa592398",
     "tests/fixtures/countersink_split_by_slot.step": "7e29906d0a4c9ec3089790a3fe11f062ce3b75aa564a6d341258c2eb48056b12",
     "tests/fixtures/countersink_two_face.step.gz": "0e6528f6256e1e0f74a81fcaa1e603db3f9a6ba1189a20c6a61bd75023a78a91",
     "tests/fixtures/edge_breaks/README.md": "f19e8069b7ed414b937ec71feb8920aca66d016f437cc589ada7e4cc8eccc12c",

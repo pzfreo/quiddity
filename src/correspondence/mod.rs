@@ -538,6 +538,7 @@ pub enum Verdict {
 
 /// What `correspond` finds.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Correspondence {
     pub fingerprint_version: String,
     pub verdict: Verdict,
