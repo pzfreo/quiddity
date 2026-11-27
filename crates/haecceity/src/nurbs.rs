@@ -29,6 +29,15 @@ impl std::ops::Deref for Basis {
 
 /// The `degree + 1` non-zero basis functions at *t* in *span* (Piegl & Tiller A2.2).
 fn basis(knots: &[f64], degree: usize, span: usize, t: f64) -> Basis {
+    if t.is_finite() {
+        match degree {
+            0 => return basis_in::<1>(knots, 0, span, t),
+            1 => return basis_in::<2>(knots, 1, span, t),
+            2 => return basis_in::<3>(knots, 2, span, t),
+            3 => return basis_in::<4>(knots, 3, span, t),
+            _ => {}
+        }
+    }
     if degree < SMALL_DEGREE {
         return basis_in::<SMALL_DEGREE>(knots, degree, span, t);
     }
@@ -40,6 +49,7 @@ fn basis(knots: &[f64], degree: usize, span: usize, t: f64) -> Basis {
 const SMALL_DEGREE: usize = 8;
 
 /// [`basis`], working in arrays of `N > degree`.
+#[inline]
 fn basis_in<const N: usize>(knots: &[f64], degree: usize, span: usize, t: f64) -> Basis {
     let mut n = [0.0; N];
     let mut left = [0.0; N];
@@ -73,6 +83,15 @@ fn basis_in<const N: usize>(knots: &[f64], degree: usize, span: usize, t: f64) -
 /// below, so the lower one is its last step but one, the same numbers `basis` gives it, for
 /// one pass instead of two.
 fn basis_and_lower(knots: &[f64], degree: usize, span: usize, t: f64) -> (Basis, Basis) {
+    if t.is_finite() {
+        match degree {
+            0 => return basis_and_lower_in::<1>(knots, 0, span, t),
+            1 => return basis_and_lower_in::<2>(knots, 1, span, t),
+            2 => return basis_and_lower_in::<3>(knots, 2, span, t),
+            3 => return basis_and_lower_in::<4>(knots, 3, span, t),
+            _ => {}
+        }
+    }
     if degree < SMALL_DEGREE {
         return basis_and_lower_in::<SMALL_DEGREE>(knots, degree, span, t);
     }
@@ -80,6 +99,7 @@ fn basis_and_lower(knots: &[f64], degree: usize, span: usize, t: f64) -> (Basis,
 }
 
 /// [`basis_and_lower`], working in arrays of `N > degree`.
+#[inline]
 fn basis_and_lower_in<const N: usize>(
     knots: &[f64],
     degree: usize,
@@ -170,6 +190,7 @@ impl NurbsCurve {
             *p = point(*p);
         }
         self.table = std::sync::OnceLock::new();
+        self.closed = self.compute_closed();
     }
 
     /// `None` for malformed arrays, so a bad file degrades to an unresolved curve rather than
@@ -193,13 +214,7 @@ impl NurbsCurve {
             closed: false,
             table: std::sync::OnceLock::new(),
         };
-        let (lo, hi) = curve.domain();
-        let size = curve
-            .control_points
-            .iter()
-            .flatten()
-            .fold(1.0f64, |m, c| m.max(c.abs()));
-        curve.closed = geom::dist(curve.value(lo), curve.value(hi)) <= 1e-9 * size;
+        curve.closed = curve.compute_closed();
         Some(curve)
     }
 
@@ -287,6 +302,12 @@ impl NurbsCurve {
 
     /// Whether the curve ends where it starts, so that it can be run round as a periodic curve.
     pub fn is_closed(&self) -> bool {
+        self.closed
+    }
+
+    // Control points are private and transformed only by transform_points,
+    // which refreshes this scale-dependent endpoint test after every change.
+    fn compute_closed(&self) -> bool {
         let (lo, hi) = self.domain();
         let size = self
             .control_points
@@ -297,14 +318,7 @@ impl NurbsCurve {
     }
 
     fn inverse_table(&self) -> &[(f64, V3)] {
-        self.table.get_or_init(|| {
-            let (lo, hi) = self.domain();
-            let n = 512;
-            (0..=n)
-                .map(|i| lo + (hi - lo) * i as f64 / n as f64)
-                .map(|t| (t, self.value(t)))
-                .collect()
-        })
+        self.table.get_or_init(|| self.inversion_samples())
     }
 
     /// Closest sampled seed and its refined foot within a single native parameter interval.
@@ -344,6 +358,83 @@ impl NurbsCurve {
             t = next;
         }
         minimum.sqrt()
+    }
+
+    /// Four independent evaluations in one knot span. Every lane retains
+    /// basis_in's recurrence and value's homogeneous accumulation order.
+    fn values_four<const N: usize>(&self, span: usize, ts: [f64; 4]) -> [V3; 4] {
+        let mut basis = [[0.; 4]; N];
+        let mut left = [[0.; 4]; N];
+        let mut right = [[0.; 4]; N];
+        basis[0] = [1.; 4];
+        for j in 1..N {
+            for (lane, &t) in ts.iter().enumerate() {
+                left[j][lane] = t - self.knots[span + 1 - j];
+                right[j][lane] = self.knots[span + j] - t;
+            }
+            let mut saved = [0.; 4];
+            for k in 0..j {
+                for (lane, saved) in saved.iter_mut().enumerate() {
+                    let denominator = right[k + 1][lane] + left[j - k][lane];
+                    let temp = if denominator.abs() < 1e-300 {
+                        0.
+                    } else {
+                        basis[k][lane] / denominator
+                    };
+                    basis[k][lane] = *saved + right[k + 1][lane] * temp;
+                    *saved = left[j - k][lane] * temp;
+                }
+            }
+            basis[j] = saved;
+        }
+        let mut acc = [[0.; 4]; 4];
+        for (j, values) in basis.iter().enumerate() {
+            let i = span + 1 - N + j;
+            let point = self.control_points[i];
+            for (lane, &value) in values.iter().enumerate() {
+                let w = self.weights[i] * value;
+                acc[0][lane] += point[0] * w;
+                acc[1][lane] += point[1] * w;
+                acc[2][lane] += point[2] * w;
+                acc[3][lane] += w;
+            }
+        }
+        std::array::from_fn(|lane| {
+            [
+                acc[0][lane] / acc[3][lane],
+                acc[1][lane] / acc[3][lane],
+                acc[2][lane] / acc[3][lane],
+            ]
+        })
+    }
+
+    fn inversion_samples(&self) -> Vec<(f64, V3)> {
+        let (lo, hi) = self.domain();
+        let t = |i| lo + (hi - lo) * i as f64 / 512_f64;
+        if self.degree > 3 || !lo.is_finite() || !hi.is_finite() || !(hi - lo).is_finite() {
+            return (0..=512).map(|i| (t(i), self.value(t(i)))).collect();
+        }
+        let mut table = Vec::with_capacity(513);
+        for start in (0..512).step_by(4) {
+            let ts: [f64; 4] = std::array::from_fn(|lane| t(start + lane));
+            let clipped = ts.map(|t| t.clamp(lo, hi));
+            let spans =
+                clipped.map(|t| find_span(&self.knots, self.degree, self.control_points.len(), t));
+            let values = if spans.iter().all(|&s| s == spans[0]) {
+                match self.degree {
+                    0 => self.values_four::<1>(spans[0], clipped),
+                    1 => self.values_four::<2>(spans[0], clipped),
+                    2 => self.values_four::<3>(spans[0], clipped),
+                    _ => self.values_four::<4>(spans[0], clipped),
+                }
+            } else {
+                ts.map(|t| self.value(t))
+            };
+            table.extend(ts.into_iter().zip(values));
+        }
+        let last = t(512);
+        table.push((last, self.value(last)));
+        table
     }
 
     /// The parameter of the curve point nearest *p*: the closest of a dense sampling, refined
@@ -764,12 +855,21 @@ impl NurbsSurface {
     }
 
     pub fn invert(&self, p: V3, hint: Option<(f64, f64)>) -> (f64, f64) {
+        self.invert_with(p, hint, &mut |u, v| self.value_and_partials(u, v))
+    }
+
+    fn invert_with(
+        &self,
+        p: V3,
+        hint: Option<(f64, f64)>,
+        evaluate: &mut impl FnMut(f64, f64) -> (V3, V3, V3),
+    ) -> (f64, f64) {
         let (mut u, mut v) = hint.unwrap_or_else(|| self.nearest_grid(p));
         let (u0, u1, v0, v1) = self.domain();
         let settle = 1e-12 * (u1 - u0).abs().max((v1 - v0).abs()).max(1e-300);
         let mut residual = f64::INFINITY;
         for _ in 0..50 {
-            let (s, su, sv) = self.value_and_partials(u, v);
+            let (s, su, sv) = evaluate(u, v);
             let r = geom::sub(p, s);
             residual = geom::norm(r);
             let (a, b, c) = (geom::dot(su, su), geom::dot(su, sv), geom::dot(sv, sv));
@@ -791,7 +891,7 @@ impl NurbsSurface {
         // Boundary samples sit off their surface by up to the edge tolerance; only a hinted
         // start that lands clearly further away has found a wrong local minimum.
         if hint.is_some() && residual > HINT_RETRY_DISTANCE {
-            let fresh = self.invert(p, None);
+            let fresh = self.invert_with(p, None, evaluate);
             if geom::dist(self.value(fresh.0, fresh.1), p) < residual {
                 return fresh;
             }
@@ -1146,6 +1246,10 @@ pub(crate) struct SurfaceEvaluation<'a> {
 }
 
 impl<'a> SurfaceEvaluation<'a> {
+    pub(crate) fn invert(&mut self, p: V3, hint: Option<(f64, f64)>) -> (f64, f64) {
+        self.surface
+            .invert_with(p, hint, &mut |u, v| self.value_and_partials(u, v))
+    }
     pub(crate) fn new(surface: &'a NurbsSurface) -> Self {
         Self {
             surface,
@@ -1229,9 +1333,272 @@ impl<'a> SurfaceEvaluation<'a> {
     }
 }
 
+struct PreparedPointAxis {
+    parameter: u64,
+    span: usize,
+    basis: Basis,
+}
+
+/// Reuses exact operands while retaining `NurbsSurface::value`'s arithmetic.
+/// Point evaluation multiplies each weight by the two basis values before
+/// multiplying its control point, unlike the homogeneous derivative evaluator.
+pub(crate) struct SurfacePointEvaluation<'a> {
+    surface: &'a NurbsSurface,
+    u: Option<PreparedPointAxis>,
+    v: Option<PreparedPointAxis>,
+    spans: Option<(usize, usize)>,
+    controls: Vec<(V3, f64)>,
+}
+
+impl<'a> SurfacePointEvaluation<'a> {
+    pub(crate) fn new(surface: &'a NurbsSurface) -> Self {
+        Self {
+            surface,
+            u: None,
+            v: None,
+            spans: None,
+            controls: Vec::with_capacity((surface.degree_u + 1) * (surface.degree_v + 1)),
+        }
+    }
+
+    pub(crate) fn value(&mut self, u: f64, v: f64) -> V3 {
+        let surface = self.surface;
+        let (u0, u1, v0, v1) = surface.domain();
+        let (u, v) = (u.clamp(u0, u1), v.clamp(v0, v1));
+        if !(u.is_finite() && v.is_finite()) {
+            return surface.value(u, v);
+        }
+        let prepare =
+            |slot: &mut Option<PreparedPointAxis>, t: f64, knots: &[f64], degree, count| {
+                if slot
+                    .as_ref()
+                    .is_none_or(|entry| entry.parameter != t.to_bits())
+                {
+                    let span = find_span(knots, degree, count, t);
+                    *slot = Some(PreparedPointAxis {
+                        parameter: t.to_bits(),
+                        span,
+                        basis: basis(knots, degree, span, t),
+                    });
+                }
+            };
+        prepare(
+            &mut self.u,
+            u,
+            &surface.knots_u,
+            surface.degree_u,
+            surface.control_points.len(),
+        );
+        prepare(
+            &mut self.v,
+            v,
+            &surface.knots_v,
+            surface.degree_v,
+            surface.control_points[0].len(),
+        );
+        let (Some(pu), Some(pv)) = (self.u.as_ref(), self.v.as_ref()) else {
+            return surface.value(u, v);
+        };
+        if self.spans != Some((pu.span, pv.span)) {
+            self.controls.clear();
+            for i in pu.span - surface.degree_u..=pu.span {
+                for j in pv.span - surface.degree_v..=pv.span {
+                    self.controls
+                        .push((surface.control_points[i][j], surface.weights[i][j]));
+                }
+            }
+            self.spans = Some((pu.span, pv.span));
+        }
+        let (bu, bv) = (&pu.basis, &pv.basis);
+        let mut acc = [0.; 4];
+        for (&bua, row) in bu.iter().zip(self.controls.chunks_exact(bv.len())) {
+            for (&bvb, &(c, weight)) in bv.iter().zip(row) {
+                let w = weight * bua * bvb;
+                acc = [
+                    acc[0] + c[0] * w,
+                    acc[1] + c[1] * w,
+                    acc[2] + c[2] * w,
+                    acc[3] + w,
+                ];
+            }
+        }
+        [acc[0] / acc[3], acc[1] / acc[3], acc[2] / acc[3]]
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn curve_closure_cache_tracks_transformed_controls() {
+        let endpoint_test = |curve: &NurbsCurve| {
+            let (lo, hi) = curve.domain();
+            let size = curve
+                .control_points()
+                .iter()
+                .flatten()
+                .fold(1.0f64, |m, c| m.max(c.abs()));
+            geom::dist(curve.value(lo), curve.value(hi)) <= 1e-9 * size
+        };
+        for gap in [
+            0.,
+            1e-12,
+            1e-9_f64.next_down(),
+            1e-9,
+            1e-9_f64.next_up(),
+            2e-8,
+        ] {
+            let mut curve = NurbsCurve::new(
+                1,
+                vec![[0., 0., 0.], [1., 0., 0.], [gap, 0., 0.]],
+                vec![1.; 3],
+                vec![0., 0., 0.5, 1., 1.],
+            )
+            .expect("valid near-closed curve");
+            assert_eq!(curve.is_closed(), endpoint_test(&curve));
+            let initial = curve.clone();
+            curve.invert([0.25, 0., 0.]);
+            assert!(curve.table.get().is_some());
+
+            // The existing endpoint tolerance depends on absolute placement.
+            curve.transform_points(|p| [p[0] + 1e5, p[1], p[2]]);
+            assert!(curve.table.get().is_none());
+            assert!(curve.is_closed());
+            assert_eq!(curve.is_closed(), endpoint_test(&curve));
+            assert_eq!(initial.is_closed(), endpoint_test(&initial));
+
+            curve.transform_points(|p| [p[0] - 1e5, p[1], p[2]]);
+            assert_eq!(curve.is_closed(), endpoint_test(&curve));
+            if gap == 2e-8 {
+                assert!(!curve.is_closed());
+                curve.transform_points(|p| p.map(|x| x * 0.01));
+                assert!(curve.is_closed());
+                curve.transform_points(|p| p.map(|x| x * 100.));
+                assert!(!curve.is_closed());
+            }
+            curve.transform_points(|p| [p[0] * p[0], p[1], p[2]]);
+            assert_eq!(curve.is_closed(), endpoint_test(&curve));
+            assert!(curve.is_closed());
+            curve.transform_points(|_| [f64::NAN, 0., 0.]);
+            assert!(!curve.is_closed());
+            assert_eq!(curve.is_closed(), endpoint_test(&curve));
+        }
+    }
+
+    #[test]
+    fn curve_seed_table_preserves_scalar_samples() {
+        let mut count = 0;
+        for degree in [0, 1, 2, 3, 4, 7, 8, 25] {
+            for scale in [1e-301, 1e-300, 1e-299, 1e-100, 1., 1e100, 1e300] {
+                for offset in [0., -0.3 * scale] {
+                    let knots: Vec<_> = std::iter::repeat_n(0., degree + 1)
+                        .chain([0.2, 0.4, 0.4, 0.7])
+                        .chain(std::iter::repeat_n(1., degree + 1))
+                        .map(|x| offset + x * scale)
+                        .collect();
+                    let n = knots.len() - degree - 1;
+                    for magnitude in [1e-100, 1., 1e100] {
+                        let points: Vec<_> = (0..n)
+                            .map(|i| {
+                                [
+                                    i as f64 * magnitude,
+                                    (i % 3) as f64 * magnitude,
+                                    -(i as f64) * magnitude,
+                                ]
+                            })
+                            .collect();
+                        for special in [1., f64::INFINITY, f64::NAN] {
+                            let mut weights: Vec<_> =
+                                (0..n).map(|i| 0.5 + (i % 5) as f64 * 0.3).collect();
+                            weights[0] = special;
+                            let Some(curve) =
+                                NurbsCurve::new(degree, points.clone(), weights, knots.clone())
+                            else {
+                                continue;
+                            };
+                            let (lo, hi) = curve.domain();
+                            let actual = curve.inversion_samples();
+                            assert_eq!(actual.len(), 513);
+                            for (i, &(t, p)) in actual.iter().enumerate() {
+                                let expected_t = lo + (hi - lo) * i as f64 / 512_f64;
+                                assert_eq!(t.to_bits(), expected_t.to_bits());
+                                assert_eq!(
+                                    p.map(f64::to_bits),
+                                    curve.value(expected_t).map(f64::to_bits),
+                                    "degree {degree}, scale {scale}, weight {special}, index {i}"
+                                );
+                            }
+                            count += 1;
+                        }
+                    }
+                }
+            }
+        }
+        println!(
+            "{count} synthetic curves, {} table points bit-identical",
+            count * 513
+        );
+    }
+
+    #[test]
+    fn specialized_basis_preserves_bits_at_knots_and_degenerate_scales() {
+        let bits = |basis: Basis| basis.iter().copied().map(f64::to_bits).collect::<Vec<_>>();
+        for degree in 0..=MAX_DEGREE {
+            for scale in [1e-301, 1e-300, 1e-299, 1., 1e300] {
+                let knots: Vec<_> = std::iter::repeat_n(0., degree + 1)
+                    .chain([0.2, 0.4, 0.4, 0.7])
+                    .chain(std::iter::repeat_n(1., degree + 1))
+                    .map(|x| x * scale)
+                    .collect();
+                for x in [
+                    -0.,
+                    0.,
+                    0.19999999999999998,
+                    0.2,
+                    0.20000000000000004,
+                    0.39999999999999997,
+                    0.4,
+                    0.4000000000000001,
+                    0.7,
+                    1.,
+                    f64::NAN,
+                ] {
+                    let t = x * scale;
+                    let n = knots.len() - degree - 1;
+                    let span = find_span(&knots, degree, n, t);
+                    let dynamic_degree = std::hint::black_box(degree);
+                    let (expected, lower) = if degree < SMALL_DEGREE {
+                        (
+                            basis_in::<SMALL_DEGREE>(&knots, dynamic_degree, span, t),
+                            basis_and_lower_in::<SMALL_DEGREE>(&knots, dynamic_degree, span, t),
+                        )
+                    } else {
+                        (
+                            basis_in::<{ MAX_DEGREE + 1 }>(&knots, dynamic_degree, span, t),
+                            basis_and_lower_in::<{ MAX_DEGREE + 1 }>(
+                                &knots,
+                                dynamic_degree,
+                                span,
+                                t,
+                            ),
+                        )
+                    };
+                    assert_eq!(
+                        bits(basis(&knots, degree, span, t)),
+                        bits(expected),
+                        "degree {degree}, scale {scale}, t {t}"
+                    );
+                    let actual = basis_and_lower(&knots, degree, span, t);
+                    assert_eq!(
+                        (bits(actual.0), bits(actual.1)),
+                        (bits(lower.0), bits(lower.1)),
+                        "lower degree {degree}, scale {scale}, t {t}"
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn integral_evaluator_preserves_bits_across_spans_and_clamps() {
@@ -1268,6 +1635,7 @@ mod tests {
                 )
                 .expect("valid rational test surface");
                 let mut evaluator = SurfaceEvaluation::new(&surface);
+                let mut points = SurfacePointEvaluation::new(&surface);
                 let coordinates: Vec<f64> = [
                     -1.0,
                     -0.0,
@@ -1290,6 +1658,11 @@ mod tests {
                     for &u in &coordinates {
                         for &v in &coordinates {
                             let (u, v) = if reverse { (v, u) } else { (u, v) };
+                            assert_eq!(
+                                points.value(u, v).map(f64::to_bits),
+                                surface.value(u, v).map(f64::to_bits),
+                                "point degrees {degree_u}/{degree_v}, ({u}, {v})"
+                            );
                             assert_eq!(
                                 bits(evaluator.value_and_partials(u, v)),
                                 bits(surface.value_and_partials(u, v)),
@@ -1325,6 +1698,28 @@ mod tests {
             vec![0.0, 0.0, 1.0, 1.0],
         )
         .unwrap()
+    }
+
+    #[test]
+    fn batched_inversion_preserves_bits_across_points_and_seeds() {
+        let surface = quarter_cylinder();
+        let mut evaluator = SurfaceEvaluation::new(&surface);
+        for u in [0., 0.01, 0.3, 0.5, 0.9, 1.] {
+            for v in [0., 0.2, 0.8, 1.] {
+                for offset in [[0.; 3], [0.001, -0.002, 0.003], [1., -2., 3.]] {
+                    let point = geom::add(surface.value(u, v), offset);
+                    for hint in [None, Some((u, v)), Some((0., 0.)), Some((1., 1.))] {
+                        let cached = evaluator.invert(point, hint);
+                        let direct = surface.invert(point, hint);
+                        assert_eq!(
+                            (cached.0.to_bits(), cached.1.to_bits()),
+                            (direct.0.to_bits(), direct.1.to_bits()),
+                            "{point:?}, {hint:?}"
+                        );
+                    }
+                }
+            }
+        }
     }
 
     #[test]

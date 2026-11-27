@@ -252,9 +252,10 @@ fn a_substation_spline_bump_survives_scaling_and_a_tighter_mesh_request() {
         let coarse = 0.001;
         let other = load();
         let first = other.triangulate(0, fine, ANGULAR).unwrap();
-        part.triangulate(0, coarse, ANGULAR).unwrap();
+        let coarse_first = part.triangulate(0, coarse, ANGULAR).unwrap();
         let mesh = part.triangulate(0, fine, ANGULAR).unwrap();
         assert_eq!(mesh, first);
+        assert_eq!(other.triangulate(0, coarse, ANGULAR).unwrap(), coarse_first);
         let rim = boundary_edge(&part, &mesh, edge);
         assert!(rim.len() > 2);
         // The central quadratic Bezier span is wholly between a uniform station
@@ -898,5 +899,22 @@ fn samples_beside_a_collapsed_side_invert_onto_their_edge() {
         }
         println!("{file} face {face}: loop points at most {worst:.2e} mm off their samples");
         meshed(&part, face, file);
+    }
+}
+
+#[test]
+fn selected_affine_strip_keeps_its_interior_offset() {
+    let part = haecceity::read_step(include_bytes!("fixtures/selected-affine-strip.step")).unwrap();
+    let whole = part.mesh(0.00001, 0.3);
+    let single = part.triangulate(0, 0.00001, 0.3).unwrap();
+    let reference = part.face_moments(0).unwrap().area;
+    assert!((reference - 0.00096).abs() < 1e-12);
+    for mesh in [whole[0].as_ref().unwrap(), &single] {
+        assert!((mesh.area() - reference).abs() <= 0.01 * reference);
+        assert!(
+            mesh.points
+                .iter()
+                .any(|p| { p[0] > 0.0 && p[0] < 1.0 && (p[1] - 0.00004).abs() < 1e-12 })
+        );
     }
 }

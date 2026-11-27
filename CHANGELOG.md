@@ -36,8 +36,17 @@ Pending version: 0.6.0
   `serde_json/float_roundtrip` in `haecceity` so `Manifest` JSON round-trips bit-identically
   with `step-io` 0.4's updated `AXIS2_PLACEMENT_3D` frame calculation.
 
+### Changed
+
+- Selected-boundary preparation reuses immutable curve operands, bounded curve
+  checks, inverse seeds and receiving-surface evaluations within one part.
+  Mesh parameter loops have a separate cache from integration decisions;
+  finite-domain, endpoint and nonfinite fallbacks remain in place.
+
 ### Fixed
 
+- Keep interior samples on an affine STEP trim whose evaluated endpoints differ
+  from the shared vertices, preserving the area of thin planar faces.
 - Resolve selected mesh boundaries in the file frame for placed parts. Respect
   spline knot spans and fine mesh requests when sampling selected edges, and
   propagate spatial-edge fallback to newly refused neighbours in whole-part meshes.
