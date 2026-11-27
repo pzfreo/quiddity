@@ -227,6 +227,19 @@ def test_correspond():
     result = json.loads(quiddity.correspond(before, after))
     assert result == json.loads(cli("correspond", FIXTURES / "revisions/hole_moved.old.step.gz", FIXTURES / "revisions/hole_moved.new.step.gz").stdout)
     assert result["features"]
+    assert result["verdict"] == "changed"
+
+
+def test_correspond_takes_fingerprints_json_or_a_recognition_result():
+    old = FIXTURES / "revisions/hole_moved.old.step.gz"
+    new = FIXTURES / "revisions/hole_moved.new.step.gz"
+    expected = json.loads(quiddity.correspond(str(old), str(new)))
+    stored = quiddity.fingerprints(str(old))
+    recognition = quiddity.recognise(str(new))
+    assert json.loads(quiddity.correspond(stored, str(new))) == expected
+    assert json.loads(quiddity.correspond(stored.encode(), recognition)) == expected
+    same = json.loads(quiddity.correspond(stored, stored))
+    assert same["verdict"] == "unchanged"
 
 
 def test_capabilities_version_and_console_script():

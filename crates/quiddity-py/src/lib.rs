@@ -175,20 +175,59 @@ fn fingerprints(
     detached(py, || file_api::json(&input.fingerprints(&options)?))?.map_err(PyValueError::new_err)
 }
 
+/// One revision for ``correspond``: STEP (a path or bytes), or fingerprints already made, as the
+/// JSON text of ``fingerprints`` or of a recognition result that holds them (a str or bytes
+/// whose first non-blank character is ``{``). Stored fingerprints of an earlier version are read
+/// as far as ``correspond`` reads that version.
+enum Revision {
+    Step(Input),
+    Fingerprints(String),
+}
+
+impl Revision {
+    fn extract(value: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let json = |text: &str| text.trim_start().starts_with('{');
+        if let Ok(text) = value.cast::<PyString>() {
+            let text = text.to_str()?;
+            if json(text) {
+                return Ok(Self::Fingerprints(text.to_owned()));
+            }
+        } else if let Ok(bytes) = value.cast::<PyBytes>()
+            && let Ok(text) = std::str::from_utf8(bytes.as_bytes())
+            && json(text)
+        {
+            return Ok(Self::Fingerprints(text.to_owned()));
+        }
+        Input::extract(value).map(Self::Step)
+    }
+
+    fn fingerprints(self, which: &str) -> Result<quiddity::Fingerprints, String> {
+        match self {
+            Self::Step(input) => input.fingerprints(&RecognitionOptions::default()),
+            Self::Fingerprints(text) => {
+                let value = serde_json::from_str(&text)
+                    .map_err(|e| format!("the {which} revision is not JSON: {e}"))?;
+                serve::fingerprints_value(value, &format!("the {which} revision"))
+                    .map_err(|e| e.to_string())
+            }
+        }
+    }
+}
+
+/// Match the old revision's features and faces to the new one's, as JSON. Each revision is STEP
+/// (a path or bytes) or fingerprints JSON (``fingerprints``' output, or a recognition result
+/// holding them). The result's ``verdict`` is ``unchanged``, ``symmetric`` or ``changed``.
 #[pyfunction]
 fn correspond(
     py: Python<'_>,
     old_step: &Bound<'_, PyAny>,
     new_step: &Bound<'_, PyAny>,
 ) -> PyResult<String> {
-    let old = Input::extract(old_step)?;
-    let new = Input::extract(new_step)?;
+    let old = Revision::extract(old_step)?;
+    let new = Revision::extract(new_step)?;
     detached(py, || {
-        let result = serve::correspond(
-            &old.fingerprints(&RecognitionOptions::default())?,
-            &new.fingerprints(&RecognitionOptions::default())?,
-        )
-        .map_err(|e| e.to_string())?;
+        let result = serve::correspond(&old.fingerprints("old")?, &new.fingerprints("new")?)
+            .map_err(|e| e.to_string())?;
         file_api::json(&result)
     })?
     .map_err(PyValueError::new_err)

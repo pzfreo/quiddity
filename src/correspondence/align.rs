@@ -242,6 +242,19 @@ type Best = Option<(Motion, usize, f64)>;
 
 /// The alignment of *old* onto *new*.
 pub fn align(old: &Fingerprints, new: &Fingerprints, th: &Thresholds) -> (Motion, Alignment) {
+    let (motion, alignment, _) = align_all(old, new, th);
+    (motion, alignment)
+}
+
+/// [`align`], and where the alignment is symmetric, every other distinct motion that fits as
+/// well (`Alignment::symmetric`): another symmetric copy of the same anchors, another of the
+/// turns about the axis of a turned part, or, for an axisymmetric part whose turn is free, the
+/// end-for-end flip when the anchors agree with it as well.
+pub fn align_all(
+    old: &Fingerprints,
+    new: &Fingerprints,
+    th: &Thresholds,
+) -> (Motion, Alignment, Vec<Motion>) {
     let scale = old.scale.max(new.scale);
     let tol = th.position_tol * scale;
     let cos_tol = th.angle_tol.cos();
@@ -265,7 +278,8 @@ pub fn align(old: &Fingerprints, new: &Fingerprints, th: &Thresholds) -> (Motion
         (None, Some((m, c, _))) => (m, c, true),
         (None, None) => {
             let most = best.iter().flatten().map(|b| b.1).max().unwrap_or(0);
-            return unaligned(anchors, most);
+            let (m, alignment) = unaligned(anchors, most);
+            return (m, alignment, Vec::new());
         }
     };
     // Refine on every inlier, then recount.
@@ -286,7 +300,7 @@ pub fn align(old: &Fingerprints, new: &Fingerprints, th: &Thresholds) -> (Motion
     };
     // On a turned part, fix the turn about the axis from the off-axis repeats.
     if let Some([o, d]) = axis
-        && let Some((turned, support, fold)) = resolve_turn(old, new, th, &m, o, d, scale)
+        && let Some((turned, support, fold, others)) = resolve_turn(old, new, th, &m, o, d, scale)
     {
         return (
             turned,
@@ -302,13 +316,84 @@ pub fn align(old: &Fingerprints, new: &Fingerprints, th: &Thresholds) -> (Motion
                 fold: Some(fold),
                 rms,
             },
+            others,
         );
     }
     // Symmetric: another motion, distinctly different, that as many anchors agree with.
-    let symmetric = axisymmetric
-        || rivals
+    let mut others: Vec<Motion> = Vec::new();
+    let distinct = |others: &mut Vec<Motion>, r: Motion| {
+        if !same_motion(&r, &m, tol, th.angle_tol, scale)
+            && !others
+                .iter()
+                .any(|o| same_motion(o, &r, tol, th.angle_tol, scale))
+        {
+            others.push(r);
+        }
+    };
+    // Only rivals distinct from the chosen motion and from each other (as `symmetric` always
+    // asked) are refined, and at most a bounded number are tried.
+    let mut tried = 0;
+    let mut raw: Vec<Motion> = Vec::new();
+    for (r, n) in rivals.iter().filter(|(_, n)| *n >= count) {
+        if same_motion(r, &m, tol, th.angle_tol, scale)
+            || raw
+                .iter()
+                .any(|o| same_motion(o, r, tol, th.angle_tol, scale))
+        {
+            continue;
+        }
+        raw.push(*r);
+        if tried >= super::MAX_ALTERNATIVES * 4 {
+            continue;
+        }
+        tried += 1;
+        // The rival as the best fit to its own inliers, like the chosen motion.
+        let (_, _, kept) = c.inliers(r, tol, cos_tol);
+        let (from, to) = c.points(kept, scale);
+        let refined = horn(&from, &to).filter(|h| c.inliers(h, tol, cos_tol).0 >= *n);
+        distinct(&mut others, refined.unwrap_or(*r));
+    }
+    // Symmetric as before: another distinct motion fits as well, or the turn is free.
+    let symmetric = axisymmetric || !raw.is_empty();
+    if let (true, Some([o, d])) = (axisymmetric, axis) {
+        // The turn about the axis is free, and the flip end for end about its middle is another
+        // alignment when the anchors agree with it as well.
+        let along: Vec<f64> = to.iter().map(|p| geom::dot(geom::sub(*p, o), d)).collect();
+        let (lo, hi) = along
             .iter()
-            .any(|(r, c)| *c >= count && !same_motion(r, &m, tol, th.angle_tol, scale));
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(l, h), x| {
+                (l.min(*x), h.max(*x))
+            });
+        let middle = geom::add(o, geom::scale(d, 0.5 * (lo + hi)));
+        let side = geom::unit(geom::cross(
+            d,
+            if d[0].abs() < 0.9 {
+                [1.0, 0.0, 0.0]
+            } else {
+                [0.0, 1.0, 0.0]
+            },
+        ));
+        if let Some(side) = side {
+            let flip = rotation_about(side, std::f64::consts::PI);
+            let turn = Motion {
+                r: flip,
+                t: [0.0; 3],
+            };
+            let mut r = [[0.0; 3]; 3];
+            for i in 0..3 {
+                for j in 0..3 {
+                    r[i][j] = (0..3).map(|k| flip[i][k] * m.r[k][j]).sum();
+                }
+            }
+            let flipped = Motion {
+                r,
+                t: geom::add(middle, turn.dir(geom::sub(m.t, middle))),
+            };
+            if c.inliers(&flipped, tol, cos_tol).0 >= count {
+                distinct(&mut others, flipped);
+            }
+        }
+    }
     (
         m,
         Alignment {
@@ -323,6 +408,7 @@ pub fn align(old: &Fingerprints, new: &Fingerprints, th: &Thresholds) -> (Motion
             fold: None,
             rms,
         },
+        others,
     )
 }
 
@@ -497,7 +583,7 @@ fn resolve_turn(
     o: V3,
     d: V3,
     scale: f64,
-) -> Option<(Motion, usize, usize)> {
+) -> Option<(Motion, usize, usize, Vec<Motion>)> {
     let tol = th.position_tol * scale;
     let cos_tol = th.angle_tol.cos();
     // (old key, old anchor, new anchor); old keys: features, then faces offset past them.
@@ -616,7 +702,12 @@ fn resolve_turn(
     let chosen = tied.iter().min_by(|x, y| {
         distance_from_identity(&x.0, scale).total_cmp(&distance_from_identity(&y.0, scale))
     })?;
-    Some((chosen.0, most, tied.len()))
+    let others = tied
+        .iter()
+        .filter(|t| !std::ptr::eq(**t, *chosen))
+        .map(|t| t.0)
+        .collect();
+    Some((chosen.0, most, tied.len(), others))
 }
 
 fn distance_from_identity(m: &Motion, scale: f64) -> f64 {

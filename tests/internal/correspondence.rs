@@ -259,3 +259,95 @@ fn check_expectation(
     let changes_ok = changes.keys().all(|k| e.changes.contains_key(*k));
     (class_ok && partner_ok && changes_ok, got)
 }
+
+/// Specify #271: fingerprints stored by quiddity 0.5.5 (`fingerprint/4`, made as
+/// `tests/fixtures/correspondence/README.md` says) are read by this quiddity, and the unchanged
+/// part is reported unchanged.
+#[test]
+fn stored_earlier_fingerprints_of_an_unchanged_part_give_verdict_unchanged() {
+    let Some(dir) = common::corpus_dir() else {
+        assert!(std::env::var_os("QUIDDITY_CORPUS_REQUIRED").is_none());
+        return;
+    };
+    let mut stored = String::new();
+    std::io::Read::read_to_string(
+        &mut flate2::read::GzDecoder::new(
+            &include_bytes!("../fixtures/correspondence/cgb217.fingerprint4.json.gz")[..],
+        ),
+        &mut stored,
+    )
+    .unwrap();
+    let old: Fingerprints = serde_json::from_str(&stored).unwrap();
+    assert_eq!(old.fingerprint_version, "quiddity-rust/fingerprint/4");
+    let part = quiddity::read_step_file(&dir.join("cadgenbench_inputs/cgb217.step.gz")).unwrap();
+    let new = correspondence::recognise(&part).fingerprints;
+    let c = correspondence::correspond(&old, &new).unwrap();
+    assert_eq!(c.fingerprint_version, correspondence::FINGERPRINT_VERSION);
+    assert_eq!(
+        c.verdict,
+        correspondence::Verdict::Unchanged,
+        "{:?}",
+        c.alignment
+    );
+    assert_eq!(
+        c.face_map(),
+        (0..old.faces.len()).map(Some).collect::<Vec<_>>()
+    );
+}
+
+/// A shaft with a chamfer on each end is its own mirror: `correspond` says symmetric and gives
+/// the map with the two ends swapped, as well as the one it chose.
+#[test]
+fn a_shaft_with_alike_chamfers_is_symmetric_with_an_end_swap_alternative() {
+    let part = quiddity::read_step_file(&common::fixtures().join("bar_chamfered.step.gz")).unwrap();
+    let f = correspondence::recognise(&part).fingerprints;
+    let c = correspondence::correspond(&f, &f).unwrap();
+    assert_eq!(c.verdict, correspondence::Verdict::Symmetric);
+    let ends: Vec<usize> = f
+        .features
+        .iter()
+        .filter(|x| x.family == "chamfers")
+        .map(|x| x.faces[0])
+        .collect();
+    assert_eq!(ends.len(), 2);
+    let swapped = c
+        .alternatives
+        .iter()
+        .any(|map| map[ends[0]] == Some(ends[1]) && map[ends[1]] == Some(ends[0]));
+    assert!(swapped, "{:?}", c.alternatives);
+    assert_eq!(c.face_map()[ends[0]], Some(ends[0]));
+}
+
+/// The cross-version tolerance covers measured face values only: a hole moved 0.3 mm is a
+/// change even when the old side is an earlier version.
+#[test]
+fn a_moved_hole_is_changed_across_versions() {
+    let part = quiddity::read_step_file(&common::fixtures().join("filleted_plate_with_holes.step"))
+        .unwrap();
+    let new = correspondence::recognise(&part).fingerprints;
+    let mut old = new.clone();
+    old.fingerprint_version = "quiddity-rust/fingerprint/4".into();
+    assert_ne!(
+        correspondence::correspond(&old, &new).unwrap().verdict,
+        correspondence::Verdict::Changed
+    );
+    let hole = old
+        .features
+        .iter_mut()
+        .find(|f| f.family == "holes")
+        .unwrap();
+    hole.position.as_mut().unwrap()[0] += 0.3;
+    let c = correspondence::correspond(&old, &new).unwrap();
+    assert_eq!(c.verdict, correspondence::Verdict::Changed);
+}
+
+/// A turned part with no symmetry beyond its free turn is unchanged, not symmetric.
+#[test]
+fn a_stepped_shaft_against_itself_is_unchanged() {
+    let part =
+        quiddity::read_step_file(&common::fixtures().join("filleted_stepped_shaft.step")).unwrap();
+    let f = correspondence::recognise(&part).fingerprints;
+    let c = correspondence::correspond(&f, &f).unwrap();
+    assert_eq!(c.verdict, correspondence::Verdict::Unchanged);
+    assert!(c.alternatives.is_empty());
+}

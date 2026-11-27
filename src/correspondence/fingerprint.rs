@@ -12,10 +12,17 @@ use crate::kernel::brep::{Arc, Part};
 use crate::kernel::geom::{self, Surface, V3};
 use crate::kernel::py;
 
-/// Fingerprint format version: correspondence refuses different formats.
-/// Any change to a fingerprint value bumps this version; stored fingerprints of another
-/// version are re-fingerprinted from their geometry, never migrated (#254).
+/// Fingerprint format version. It changes only when the *format* changes (a field added,
+/// removed or given another meaning); a change that only moves measured values (a face's area,
+/// centroid or normal) does not bump it. `correspond` reads every format in
+/// [`READABLE_VERSIONS`] and compares measured fields across versions at the looser
+/// `Thresholds::cross_version_rel`; a version outside the list is refused, and its fingerprints
+/// are re-made from the geometry, never migrated (#254).
 pub const FINGERPRINT_VERSION: &str = "quiddity-rust/fingerprint/5";
+
+/// The earlier formats `correspond` still reads, besides [`FINGERPRINT_VERSION`]. `/4` differs
+/// from `/5` only in some measured values (0.5.6 measured faces on the STEP-selected boundary).
+pub const READABLE_VERSIONS: [&str; 1] = ["quiddity-rust/fingerprint/4"];
 
 /// The fingerprints of one recognition result.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
