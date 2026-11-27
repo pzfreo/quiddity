@@ -17,8 +17,10 @@ in [docs/alpha1.md](docs/alpha1.md).
   (Specify #271: fingerprints stored by 0.5.5 were refused although the part was unchanged).
   The fingerprint version now changes only when the format changes. Across versions, measured
   face values (area, centroid, mean normal) compare at the new
-  `Thresholds::cross_version_rel` (0.03); feature sizes, axes and positions stay strict; `/3` and unknown versions are still refused. Fillet
-  chains and groups, which `/4` fingerprints lack, are not counted as new features then.
+  `Thresholds::cross_version_rel` (0.03), and so does a freeform surface feature's position,
+  which is its face's centroid. Every other feature size, axis and position stays strict. `/3`
+  and unknown versions are still refused. Fillet chains and groups, which `/4` fingerprints
+  lack, are not counted as new features across versions.
 - Python `correspond(old, new)` also takes fingerprints JSON (or a recognition result holding
   them) for either revision.
 
