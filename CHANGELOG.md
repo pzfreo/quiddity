@@ -4,9 +4,7 @@ All notable changes to quiddity-rust and haecceity. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Alpha 1's gates and their evidence are
 in [docs/alpha1.md](docs/alpha1.md).
 
-## Unreleased
-
-Pending version: 0.6.0
+## 0.6.0 (2026-11-27)
 
 ### Breaking (Rust API)
 
@@ -36,18 +34,9 @@ Pending version: 0.6.0
   `serde_json/float_roundtrip` in `haecceity` so `Manifest` JSON round-trips bit-identically
   with `step-io` 0.4's updated `AXIS2_PLACEMENT_3D` frame calculation.
 
-### Changed
+### Meshing on the STEP-selected boundary: #349, #364 and #365, from @xu9299
 
-- Meshing reuses freeform surface operands, bounded projection witnesses and
-  ordered shared-edge samples. Unresolved bounds keep the original checks;
-  geometry tolerances and constraint-crossing rejection are unchanged.
-
-- Selected-boundary preparation reuses immutable curve operands, bounded curve
-  checks, inverse seeds and receiving-surface evaluations within one part.
-  Mesh parameter loops have a separate cache from integration decisions;
-  finite-domain, endpoint and nonfinite fallbacks remain in place.
-
-### Fixed
+Fixed:
 
 - Keep interior samples on an affine STEP trim whose evaluated endpoints differ
   from the shared vertices, preserving the area of thin planar faces.
@@ -69,6 +58,17 @@ Pending version: 0.6.0
   consults that face's area. Unusable selections or selected loops that still
   refuse triangulation use shared spatial edges instead. Preparing selected
   boundaries can increase both first and repeated mesh-call times.
+
+Changed:
+
+- Meshing reuses freeform surface operands, bounded projection witnesses and
+  ordered shared-edge samples. Unresolved bounds keep the original checks;
+  geometry tolerances and constraint-crossing rejection are unchanged.
+
+- Selected-boundary preparation reuses immutable curve operands, bounded curve
+  checks, inverse seeds and receiving-surface evaluations within one part.
+  Mesh parameter loops have a separate cache from integration decisions;
+  finite-domain, endpoint and nonfinite fallbacks remain in place.
 
 ## 0.5.6 (2026-11-26)
 
