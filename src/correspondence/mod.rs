@@ -400,8 +400,9 @@ pub struct Thresholds {
     /// moved between the versions' measurements, so a face's area agrees within this relative
     /// difference, its mean normal within this angle (radians), and its centroid within a tenth
     /// of it as a fraction of the scale. Nothing else is loosened: surface type and parameters,
-    /// a face's axis, adjacency, and every feature's sizes, axes and positions keep their usual
-    /// tolerances.
+    /// a face's axis, adjacency, and every feature's sizes and axes keep their usual tolerances,
+    /// as does every feature's position except a `freeform_surfaces` feature's, which is its
+    /// face's centroid and compares like one.
     ///
     /// Chosen from data: `/4` fingerprints (quiddity 0.5.5) against `/5` of the same files
     /// (cgb217, cgb202, cgb203, cgb207, NIST CTC-01, two Gramel and two MFCAD++ parts). The
@@ -963,7 +964,8 @@ impl Ctx<'_> {
                 (b.axis, b.position),
                 true,
                 self.th.angle_tol,
-                false,
+                // A freeform surface's position is its face's centroid.
+                a.family == "freeform_surfaces",
             );
         }
         out
@@ -971,7 +973,8 @@ impl Ctx<'_> {
 
     /// Axis (or normal) and position changes, the old ones carried into the new frame. For a
     /// *face* across fingerprint versions, its mean normal and centroid compare at the looser
-    /// cross-version tolerance; a face's axis, and every feature's axis and position, never do.
+    /// cross-version tolerance, as does a `freeform_surfaces` feature's position (its face's
+    /// centroid); a face's axis, and every other feature's axis and position, never do.
     #[allow(clippy::too_many_arguments)]
     fn placement_changes(
         &self,

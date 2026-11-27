@@ -321,7 +321,8 @@ by up to 2% in area on most parts, 11% on one): its area (relative 0.03), its me
 rad) and its centroid (0.003 of the scale). Nothing else is loosened: surface type and
 parameters, a face's axis and support, adjacency, and every feature's sizes, axes and positions
 keep their usual tolerances, so a hole moved by a fraction of a millimetre is a change whatever
-the versions. A face's support is not compared at all (a plane's or cylinder's is an arbitrary
+the versions. The one exception is the position of a `freeform_surfaces` feature, which is its
+face's centroid and takes the centroid tolerance. A face's support is not compared at all (a plane's or cylinder's is an arbitrary
 point on it). The result's `fingerprint_version` is always the
 current one. A format outside the list (`/3`, or one this build does not know) is refused with
 an error asking for the part to be re-fingerprinted from its geometry; there is no migration.
