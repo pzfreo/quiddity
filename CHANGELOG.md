@@ -36,6 +36,27 @@ Pending version: 0.6.0
   `serde_json/float_roundtrip` in `haecceity` so `Manifest` JSON round-trips bit-identically
   with `step-io` 0.4's updated `AXIS2_PLACEMENT_3D` frame calculation.
 
+### Fixed
+
+- Resolve selected mesh boundaries in the file frame for placed parts. Respect
+  spline knot spans and fine mesh requests when sampling selected edges, and
+  propagate spatial-edge fallback to newly refused neighbours in whole-part meshes.
+
+- Mesh edges incident only to freeform faces, and mixed edges with an analytic
+  trim carrier, start from 256 uniform parameter segments before chord refinement.
+  The six reported narrow faces of `threaded_connector_109` mesh with zero
+  folded triangle drops. The adjacent analytic controls on cgb243 retain
+  outward winding.
+
+- Face triangulation follows geometrically qualified STEP-selected parametric
+  edge curves, with one spatial sampling plan shared by incident faces.
+  Compatible spherical caps use a central projection to preserve triangle
+  orientation along narrow selected trims. Ordinary boundary selection does not
+  require area or flux integration; the spherical-cap compatibility check still
+  consults that face's area. Unusable selections or selected loops that still
+  refuse triangulation use shared spatial edges instead. Preparing selected
+  boundaries can increase both first and repeated mesh-call times.
+
 ## 0.5.6 (2026-11-26)
 
 - For #359, expose signed solid inertia tensors in haecceity and Python, with a

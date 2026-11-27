@@ -23,7 +23,7 @@ mod inertia;
 mod preferred;
 mod sphere;
 pub(crate) use declared::{BoundaryPolicy, EdgeDeviations};
-pub(super) use declared::{DeclaredBoundary, TrimCrossings};
+pub(super) use declared::{DeclaredBoundary, EdgeTrim, TrimCrossings, TrimSamples};
 pub use inertia::SolidInertia;
 pub(super) use inertia::SolidInertiaCache;
 pub(super) use preferred::PreferredPaths;

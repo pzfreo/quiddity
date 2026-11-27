@@ -156,11 +156,12 @@ pub(crate) struct EdgeTrim {
     spans: (f64, f64),
     pub(crate) interval: (f64, f64),
     samples: OnceLock<Option<TrimSamples>>,
+    mesh_samples: OnceLock<Option<TrimSamples>>,
     nodes: OnceLock<Option<Vec<f64>>>,
     length: OnceLock<Option<f64>>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct TrimSamples {
     pub(crate) ts: Vec<f64>,
     pub(crate) points: Vec<V3>,
@@ -224,36 +225,114 @@ impl EdgeTrim {
     pub(crate) fn samples(&self, s: &Surface, edge: &crate::brep::Edge) -> Option<&TrimSamples> {
         self.samples
             .get_or_init(|| {
-                let ts = self.nodes()?;
-                let eval = |t| self.point(s, t);
-                let mut samples = TrimSamples {
-                    ts: vec![*ts.first()?],
-                    points: vec![edge.start],
-                };
-                for w in ts.windows(2) {
-                    let mut stack = vec![(w[0], eval(w[0]), w[1], eval(w[1]), 0)];
-                    while let Some((a, p, b, q, depth)) = stack.pop() {
-                        if samples.points.len() >= MAX_PANELS {
-                            return None;
-                        }
-                        let t = 0.5 * (a + b);
-                        let m = eval(t);
-                        if depth < 14
-                            && geom::dist(m, geom::scale(geom::add(p, q), 0.5))
-                                > crate::sampling::CHORD_TOLERANCE
-                        {
-                            stack.push((t, m, b, q, depth + 1));
-                            stack.push((a, p, t, m, depth + 1));
-                        } else {
-                            samples.ts.push(b);
-                            samples.points.push(q);
-                        }
-                    }
-                }
-                *samples.points.last_mut()? = edge.end;
-                Some(samples)
+                self.sample(
+                    s,
+                    edge,
+                    &self.nodes()?,
+                    &[],
+                    crate::sampling::CHORD_TOLERANCE,
+                )
             })
             .as_ref()
+    }
+
+    /// Uniform parameter stations keep opposite sides of a narrow freeform strip
+    /// aligned. On a mixed edge, use them when the selected curve comes from the
+    /// analytic carrier. A freeform trim transferred to an analytic face can
+    /// produce inward slivers there if its boundary stations change.
+    pub(crate) fn mesh_samples<'a>(
+        &'a self,
+        part: &Part,
+        face: usize,
+        edge: usize,
+        deflection: f64,
+    ) -> Option<std::borrow::Cow<'a, TrimSamples>> {
+        use crate::sampling::CHORD_TOLERANCE;
+        use std::borrow::Cow;
+        let surface = &part.faces[face].surface;
+        let carrier = self
+            .curve
+            .transfer
+            .as_ref()
+            .map_or(surface, |tr| &tr.carrier);
+        let incident = &part.edge_faces()[edge];
+        let freeform = |&i: &usize| matches!(part.faces[i].surface, Surface::Freeform { .. });
+        let uniform = incident.iter().any(freeform)
+            && (!matches!(carrier, Surface::Freeform { .. }) || incident.iter().all(freeform));
+        let edge = &part.edges[edge];
+        let sample = |tolerance| {
+            let nodes =
+                if self.curve.transfer.is_none() && matches!(surface, Surface::Freeform { .. }) {
+                    self.compute_nodes(Some((surface, self.spans)))?
+                } else {
+                    self.nodes()?
+                };
+            if uniform {
+                let (a, b) = self.interval;
+                self.sample(surface, edge, &cuts(a, b, 256, &[])?, &nodes, tolerance)
+            } else {
+                self.sample(surface, edge, &nodes, &[], tolerance)
+            }
+        };
+        // Retain the ordinary discretisation across calls. Tighter samples belong to
+        // this mesh, so a coarse query cannot satisfy a later fine query from its cache.
+        let tolerance = (0.5 * deflection).min(CHORD_TOLERANCE);
+        if tolerance < CHORD_TOLERANCE {
+            return sample(tolerance).map(Cow::Owned);
+        }
+        if !uniform {
+            return self.samples(surface, edge).map(Cow::Borrowed);
+        }
+        self.mesh_samples
+            .get_or_init(|| sample(tolerance))
+            .as_ref()
+            .map(Cow::Borrowed)
+    }
+
+    fn sample(
+        &self,
+        s: &Surface,
+        edge: &crate::brep::Edge,
+        ts: &[f64],
+        breaks: &[f64],
+        tolerance: f64,
+    ) -> Option<TrimSamples> {
+        let eval = |t| self.point(s, t);
+        let mut samples = TrimSamples {
+            ts: vec![*ts.first()?],
+            points: vec![edge.start],
+        };
+        for w in ts.windows(2) {
+            let mut stack = vec![(w[0], eval(w[0]), w[1], eval(w[1]), 0)];
+            while let Some((a, p, b, q, depth)) = stack.pop() {
+                if samples.points.len() >= MAX_PANELS {
+                    return None;
+                }
+                let t = 0.5 * (a + b);
+                let m = eval(t);
+                let split = if geom::dist(m, geom::scale(geom::add(p, q), 0.5)) > tolerance {
+                    Some((t, m))
+                } else {
+                    // A short polynomial span can lie wholly to one side of the midpoint.
+                    // Keep the aligned stations on a ribbon when its knots lie on the chord.
+                    knot_witness(breaks, a, b, |u| {
+                        let v = eval(u);
+                        (crate::mesh::segment_distance(v, p, q) > tolerance).then_some((u, v))
+                    })
+                };
+                if let Some((t, m)) = split
+                    && depth < 14
+                {
+                    stack.push((t, m, b, q, depth + 1));
+                    stack.push((a, p, t, m, depth + 1));
+                } else {
+                    samples.ts.push(b);
+                    samples.points.push(q);
+                }
+            }
+        }
+        *samples.points.last_mut()? = edge.end;
+        Some(samples)
     }
     pub(crate) fn surface_uv(&self, s: &Surface, t: f64) -> (f64, f64) {
         let p = self.curve.value(t);
@@ -265,10 +344,19 @@ impl EdgeTrim {
         Some((p, d))
     }
     pub(crate) fn nodes(&self) -> Option<Vec<f64>> {
-        self.nodes.get_or_init(|| self.compute_nodes()).clone()
+        self.nodes
+            .get_or_init(|| {
+                self.compute_nodes(
+                    self.curve
+                        .transfer
+                        .as_ref()
+                        .map(|tr| (&*tr.carrier, tr.carrier_spans)),
+                )
+            })
+            .clone()
     }
 
-    fn compute_nodes(&self) -> Option<Vec<f64>> {
+    fn compute_nodes(&self, carrier: Option<(&Surface, (f64, f64))>) -> Option<Vec<f64>> {
         let (a, b) = self.interval;
         let breaks = match &self.curve.source {
             Curve::Nurbs(c) => knots_on_interval(c.breaks(), self.curve.source.period(), a, b)?,
@@ -278,10 +366,8 @@ impl EdgeTrim {
         // A foreign spline's partials can jump at a knot even when this
         // pcurve and the receiving face are smooth. Split the path there
         // before budgeting the higher-moment integrals on the receiving face.
-        if let Some(tr) = &self.curve.transfer
-            && let Surface::Freeform { surface, .. } = &*tr.carrier
-        {
-            let spans = [tr.carrier_spans.0, tr.carrier_spans.1];
+        if let Some((Surface::Freeform { surface, .. }, spans)) = carrier {
+            let spans = [spans.0, spans.1];
             let knots = [
                 crate::nurbs::breaks(&surface.knots_u, surface.degree_u),
                 crate::nurbs::breaks(&surface.knots_v, surface.degree_v),
@@ -345,9 +431,66 @@ impl EdgeTrim {
     }
 }
 
+/// Inspect each interior knot and the midpoint of each piece it separates, in parameter order.
+fn knot_witness<T>(
+    breaks: &[f64],
+    a: f64,
+    b: f64,
+    mut check: impl FnMut(f64) -> Option<T>,
+) -> Option<T> {
+    if breaks.is_empty() || a == b {
+        return None;
+    }
+    let start = breaks.partition_point(|&k| if a < b { k <= a } else { k >= a });
+    let end = breaks.partition_point(|&k| if a < b { k < b } else { k > b });
+    let inside = &breaks[start..end];
+    if inside.is_empty() {
+        return None;
+    }
+    let mut last = a;
+    for &k in inside {
+        if let Some(hit) = check(last.midpoint(k)).or_else(|| check(k)) {
+            return Some(hit);
+        }
+        last = k;
+    }
+    check(last.midpoint(b))
+}
+
+impl DeclaredBoundary {
+    /// Keep the source-frame intervals and UV transfer. Caller-space samples and loops
+    /// are rebuilt on demand.
+    fn placed(&self, placement: &crate::step::Placement) -> Self {
+        let edges = self
+            .edges
+            .iter()
+            .map(|(&id, trim)| {
+                let mut curve = trim.curve.clone();
+                if let Some(transfer) = &mut curve.transfer {
+                    transfer.placement = crate::step::compose(placement, &transfer.placement);
+                }
+                (
+                    id,
+                    EdgeTrim {
+                        curve,
+                        spans: trim.spans,
+                        interval: trim.interval,
+                        samples: OnceLock::new(),
+                        mesh_samples: OnceLock::new(),
+                        nodes: trim.nodes.clone(),
+                        length: trim.length.clone(),
+                    },
+                )
+            })
+            .collect();
+        Self {
+            edges,
+            ..DeclaredBoundary::default()
+        }
+    }
+}
+
 impl Part {
-    /// Keep the resolved master intervals and their source-frame UV transfer.
-    /// Samples in caller coordinates and mixed loops are rebuilt on demand.
     pub(crate) fn carry_declared_boundary(
         &self,
         face: usize,
@@ -355,34 +498,8 @@ impl Part {
         placement: &crate::step::Placement,
     ) {
         if let Some(boundary) = self.cache[face].declared.get() {
-            let _ = to.declared.set(boundary.as_ref().map(|boundary| {
-                let edges = boundary
-                    .edges
-                    .iter()
-                    .map(|(&id, trim)| {
-                        let mut curve = trim.curve.clone();
-                        if let Some(transfer) = &mut curve.transfer {
-                            transfer.placement =
-                                crate::step::compose(placement, &transfer.placement);
-                        }
-                        (
-                            id,
-                            EdgeTrim {
-                                curve,
-                                spans: trim.spans,
-                                interval: trim.interval,
-                                samples: OnceLock::new(),
-                                nodes: trim.nodes.clone(),
-                                length: trim.length.clone(),
-                            },
-                        )
-                    })
-                    .collect();
-                Box::new(DeclaredBoundary {
-                    edges,
-                    ..DeclaredBoundary::default()
-                })
-            }));
+            to.declared
+                .get_or_init(|| boundary.as_ref().map(|b| Box::new(b.placed(placement))));
         }
     }
 
@@ -405,7 +522,18 @@ impl Part {
     pub(crate) fn declared_boundary(&self, face: usize) -> Option<&DeclaredBoundary> {
         self.cache[face]
             .declared
-            .get_or_init(|| self.read_declared_boundary(face).map(Box::new))
+            .get_or_init(|| {
+                // Mesh and mass can ask first. Qualify in the same frame before either
+                // populates this cache, including a refusal near the file uncertainty.
+                if let Some(origin) = &self.integral_origin {
+                    origin
+                        .source
+                        .declared_boundary(face)
+                        .map(|boundary| Box::new(boundary.placed(&origin.placement)))
+                } else {
+                    self.read_declared_boundary(face).map(Box::new)
+                }
+            })
             .as_deref()
     }
 
@@ -547,6 +675,7 @@ fn resolve(
         spans,
         interval,
         samples: OnceLock::new(),
+        mesh_samples: OnceLock::new(),
         nodes: OnceLock::new(),
         length: OnceLock::new(),
     };
