@@ -4,6 +4,24 @@ All notable changes to quiddity-rust and haecceity. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Alpha 1's gates and their evidence are
 in [docs/alpha1.md](docs/alpha1.md).
 
+## Unreleased
+
+### Correspondence
+
+- `correspond` gives a `verdict`: `unchanged`, `symmetric` or `changed`. For a symmetric part
+  (another alignment fits as well) `alternatives` lists the old to new face map under each other
+  equally good alignment, for example the end-for-end flip of a shaft; `Correspondence::face_map()`
+  gives the chosen map. See `docs/correspondence.md`.
+- `correspond` reads fingerprints of `quiddity-rust/fingerprint/4` as well as `/5`
+  (Specify #271: fingerprints stored by 0.5.5 were refused although the part was unchanged).
+  The fingerprint version now changes only when the format changes. Across versions, measured
+  fields (areas, centroids, normals, positions, derived sizes) compare at the new
+  `Thresholds::cross_version_rel` (0.03); `/3` and unknown versions are still refused. Fillet
+  chains and groups, which `/4` fingerprints lack, are not counted as new features then.
+  The `/4` read test has to change: the old refusal of `/4` is now a refusal of an unknown `/6`.
+- Python `correspond(old, new)` also takes fingerprints JSON (or a recognition result holding
+  them) for either revision.
+
 ## 0.6.0 (2026-11-27)
 
 ### Breaking (Rust API)

@@ -33,7 +33,8 @@ use crate::published_records::PublishedFeatures;
 pub use align::Motion;
 pub use congruent::{congruent, congruent_with};
 pub use fingerprint::{
-    FINGERPRINT_VERSION, FaceFingerprint, FeatureFingerprint, Fingerprints, fingerprint,
+    FINGERPRINT_VERSION, FaceFingerprint, FeatureFingerprint, Fingerprints, READABLE_VERSIONS,
+    fingerprint,
 };
 
 /// A recognition result with its fingerprints: what `quiddity part.step` writes. The families'
@@ -395,6 +396,24 @@ pub struct Thresholds {
     /// ratio and their centroids within this fraction of the smaller face's size: the overlap
     /// test, estimated from the fingerprints.
     pub overlap: f64,
+    /// When the two revisions' fingerprints are of different versions, measured fields may have
+    /// moved between the versions' measurements, so an area or a size agrees within this
+    /// relative difference, a mean normal within this angle (radians), and a centroid or
+    /// position within a tenth of it as a fraction of the scale. Surface type and parameters,
+    /// axis, support and adjacency keep their usual tolerances.
+    ///
+    /// Chosen from data: `/4` fingerprints (quiddity 0.5.5) against `/5` of the same files
+    /// (cgb217, cgb202, cgb203, cgb207, NIST CTC-01, two Gramel and two MFCAD++ parts). The
+    /// Gramel, MFCAD++ and CTC-01 parts did not move (1e-10 or better); a few faces of the four
+    /// cadgenbench parts did, all on curved trimmed faces (spheres, tori, cones, cylinders,
+    /// B-splines). Their largest movements were, per part (cgb217, cgb202, cgb203, cgb207):
+    /// area 0.0092, 0.0192, 0.0060, 0.109 relative; mean normal 0.0017, 0.0053, 0.011, 0.044
+    /// rad; centroid 1.2e-4, 1.9e-5, 2.0e-5, 8e-4 of the scale. Every other measured field
+    /// (surface parameters, axes, supports, derived sizes) agreed to 1e-6 or better. 0.03 covers
+    /// everything but two faces of cgb207 (a B-spline face, area 0.109, normal 0.044 rad, and a
+    /// sphere, area 0.061) with a margin of 1.6 on the next largest (0.0192); those two are
+    /// reported adapted rather than hidden by a tolerance wide enough for them.
+    pub cross_version_rel: f64,
 }
 
 impl Default for Thresholds {
@@ -419,6 +438,7 @@ impl Default for Thresholds {
             margin: 0.05,
             resolves: 200,
             overlap: 0.8,
+            cross_version_rel: 0.03,
         }
     }
 }
@@ -499,10 +519,25 @@ pub struct Entry<T> {
     pub cost: Option<f64>,
 }
 
+/// The plain answer to "is this the same part?".
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Verdict {
+    /// Every old feature and face is carried, nothing is new, and no other alignment fits as well.
+    Unchanged,
+    /// As unchanged, but the part is symmetric: another alignment fits as well, so which old face
+    /// is which new one is a choice. `faces` holds the chosen one and
+    /// `Correspondence::alternatives` the face map under each other equally good alignment.
+    Symmetric,
+    /// Anything else: something was adapted, ambiguous, orphaned or added.
+    Changed,
+}
+
 /// What `correspond` finds.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Correspondence {
     pub fingerprint_version: String,
+    pub verdict: Verdict,
     pub alignment: Alignment,
     /// One entry per old feature, in the old result's order.
     pub features: Vec<Entry<String>>,
@@ -513,6 +548,31 @@ pub struct Correspondence {
     pub new_faces: Vec<usize>,
     /// One question per ambiguous entry, for whoever owns the decisions to answer.
     pub questions: Vec<String>,
+    /// For a symmetric part: the old face to new face map (by old face index) under each other
+    /// equally good alignment, besides the chosen one in `faces`. At most [`MAX_ALTERNATIVES`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub alternatives: Vec<Vec<Option<usize>>>,
+}
+
+/// The most alternative alignments `correspond` reports for a symmetric part.
+pub const MAX_ALTERNATIVES: usize = 24;
+
+impl Correspondence {
+    /// The old face to new face map (by old face index) of the chosen alignment: the match of
+    /// each carried or adapted face, `None` for any other.
+    pub fn face_map(&self) -> Vec<Option<usize>> {
+        face_map(&self.faces)
+    }
+}
+
+fn face_map(faces: &[Entry<usize>]) -> Vec<Option<usize>> {
+    faces
+        .iter()
+        .map(|e| match e.class {
+            Class::Carried | Class::Adapted => e.new,
+            _ => None,
+        })
+        .collect()
 }
 
 /// Matches the *old* revision's features and faces to the *new* one's.
@@ -547,8 +607,9 @@ pub fn correspond_with(
     for (which, f) in [("old", old), ("new", new)] {
         validate(f).map_err(|e| format!("the {which} fingerprints {e}"))?;
     }
-    let (motion, alignment) = align::align(old, new, th);
-    let ctx = Ctx {
+    let (motion, alignment, rivals) = align::align_all(old, new, th);
+    let cross_version = old.fingerprint_version != new.fingerprint_version;
+    let ctx = |motion: Motion| Ctx {
         old,
         new,
         th,
@@ -556,19 +617,58 @@ pub fn correspond_with(
         aligned: alignment.found,
         axis: alignment.axis.map(|[p, d]| (p, d)),
         scale: old.scale.max(new.scale),
+        cross_version,
     };
-    let coincident = ctx.coincident_faces();
+    let chosen = ctx(motion);
+    let coincident = chosen.coincident_faces();
     let mut questions = Vec::new();
-    let (features, new_features) = ctx.match_features(&coincident, &mut questions);
-    let (faces, new_faces) = ctx.match_faces(&features, &coincident, &mut questions);
+    let (features, new_features) = chosen.match_features(&coincident, &mut questions);
+    let (faces, new_faces) = chosen.match_faces(&features, &coincident, &mut questions);
+    // Aggregates (fillet chains and groups) were added to the recognition without a format
+    // change: an earlier format has none, so a new one beside an old part is not a change.
+    let derived = |id: &String| {
+        let family = id.split('/').next().unwrap_or("");
+        cross_version
+            && features::is_fillet_aggregate(family)
+            && !old.features.iter().any(|f| f.family == family)
+    };
+    let same = new_features.iter().all(derived)
+        && new_faces.is_empty()
+        && features.iter().all(|e| e.class == Class::Carried)
+        && faces.iter().all(|e| e.class == Class::Carried);
+    let verdict = match (same, alignment.symmetric) {
+        (true, false) => Verdict::Unchanged,
+        (true, true) => Verdict::Symmetric,
+        _ => Verdict::Changed,
+    };
+    let mut alternatives: Vec<Vec<Option<usize>>> = Vec::new();
+    if verdict == Verdict::Symmetric {
+        let first = face_map(&faces);
+        for alt in rivals.into_iter().take(4 * MAX_ALTERNATIVES) {
+            let other = ctx(alt);
+            let coincident = other.coincident_faces();
+            let mut ignored = Vec::new();
+            let (fs, _) = other.match_features(&coincident, &mut ignored);
+            let (fc, _) = other.match_faces(&fs, &coincident, &mut ignored);
+            let map = face_map(&fc);
+            if map != first && !alternatives.contains(&map) {
+                alternatives.push(map);
+                if alternatives.len() == MAX_ALTERNATIVES {
+                    break;
+                }
+            }
+        }
+    }
     Ok(Correspondence {
         fingerprint_version: FINGERPRINT_VERSION.into(),
+        verdict,
         alignment,
         features,
         new_features,
         faces,
         new_faces,
         questions,
+        alternatives,
     })
 }
 
@@ -576,11 +676,15 @@ pub fn correspond_with(
 /// positive scale, each face at its own index, and every face a feature or a face names among
 /// them. A hand-edited or truncated file is refused here rather than indexed out of range.
 fn validate(f: &Fingerprints) -> Result<(), String> {
-    if f.fingerprint_version != FINGERPRINT_VERSION {
+    if f.fingerprint_version != FINGERPRINT_VERSION
+        && !READABLE_VERSIONS.contains(&f.fingerprint_version.as_str())
+    {
         return Err(format!(
-            "are version {:?}, not {FINGERPRINT_VERSION:?}; fingerprints are not migrated \
-             between versions: re-fingerprint the part from its geometry with this quiddity",
-            f.fingerprint_version
+            "are version {:?}, not {FINGERPRINT_VERSION:?} or an earlier one this quiddity reads \
+             ({}); fingerprints are not migrated between versions: re-fingerprint the part from \
+             its geometry with this quiddity",
+            f.fingerprint_version,
+            READABLE_VERSIONS.join(", ")
         ));
     }
     if !(f.scale.is_finite() && f.scale > 0.0) {
@@ -696,11 +800,24 @@ struct Ctx<'a> {
     /// The line about which an axisymmetric alignment's turn is free.
     axis: Option<(V3, V3)>,
     scale: f64,
+    /// The revisions' fingerprints are of different versions: measured fields compare at
+    /// `Thresholds::cross_version_rel`.
+    cross_version: bool,
 }
 
 impl Ctx<'_> {
     fn tol(&self) -> f64 {
         self.th.position_tol * self.scale
+    }
+
+    /// The relative tolerance for a measured value (area, derived size) whose usual one is
+    /// *rel*: looser across fingerprint versions.
+    fn value_rel(&self, rel: f64) -> f64 {
+        if self.cross_version {
+            rel.max(self.th.cross_version_rel)
+        } else {
+            rel
+        }
     }
 
     /// How far old point *p*, moved, is from new point *q*: about an axisymmetric alignment's
@@ -814,7 +931,8 @@ impl Ctx<'_> {
         let keys: BTreeSet<&String> = a.sizes.keys().chain(b.sizes.keys()).collect();
         for k in keys {
             let (x, y) = (a.sizes.get(k), b.sizes.get(k));
-            let same = matches!((x, y), (Some(x), Some(y)) if same_value(*x, *y, self.th.same_rel));
+            let rel = self.value_rel(self.th.same_rel);
+            let same = matches!((x, y), (Some(x), Some(y)) if same_value(*x, *y, rel));
             if !same {
                 out.insert(
                     format!("sizes.{k}"),
@@ -856,6 +974,12 @@ impl Ctx<'_> {
         line: bool,
         angle_tol: f64,
     ) {
+        let angle_tol = self.value_rel(angle_tol);
+        let tol = if self.cross_version {
+            self.tol().max(0.1 * self.th.cross_version_rel * self.scale)
+        } else {
+            self.tol()
+        };
         if let (Some(x), Some(y)) = (a.0, b.0)
             && self.agreement(x, y, line) < angle_tol.cos()
         {
@@ -868,7 +992,7 @@ impl Ctx<'_> {
             );
         }
         if let (Some(p), Some(q)) = (a.1, b.1)
-            && self.gap(p, q) > self.tol()
+            && self.gap(p, q) > tol
         {
             out.insert(
                 "position".into(),
@@ -1132,8 +1256,9 @@ mod tests {
             ("re-fingerprint the part", |f| {
                 f.fingerprint_version = "quiddity-rust/fingerprint/3".into()
             }),
-            ("fingerprint/4", |f| {
-                f.fingerprint_version = "quiddity-rust/fingerprint/4".into()
+            // /4 is read (cross-version tolerances); a later, unknown one is not.
+            ("fingerprint/6", |f| {
+                f.fingerprint_version = "quiddity-rust/fingerprint/6".into()
             }),
         ];
         for (expected, mutate) in bad {

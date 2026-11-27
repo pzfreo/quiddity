@@ -47,6 +47,14 @@ rebind.
 - **Accept it** when enough fingerprints agree under it.
 - **Otherwise** use the identity and mark the result `unaligned`, which down-weights positions in
   the costs below.
+- **Symmetry.** Another distinct motion that as many anchors agree with makes the part
+  `symmetric`. Those motions are the alternatives: the rival hypotheses RANSAC tried that fit
+  as many anchors, each refined on its own inliers; on a turned part, each other turn the
+  off-axis repeats vote for equally; and on an axisymmetric part whose turn about the axis is
+  free, the end-for-end flip about the middle of the anchors when the anchors agree with it
+  too. The free turn itself changes no face map and is not enumerated. Each alternative is
+  matched like the chosen motion, and a map equal to the chosen one or to another is dropped
+  (at most 24).
 
 ### 2. Match the features
 
@@ -94,6 +102,15 @@ Faces matter for datums and GD&T targets.
 
 The Correspondence holds:
 
+- the `verdict`, the plain answer to "is this the same part?":
+  - `unchanged`: every old feature and face is carried, nothing is new, and the alignment is
+    not symmetric;
+  - `symmetric`: as unchanged, but another alignment fits as well (the part's own symmetry). The
+    chosen alignment's face map is in `faces`; `alternatives` lists the old to new face map (by
+    old face index, `null` where an old face has no partner) under each other equally good
+    alignment, so a caller can ask which symmetric copy it meant. `Correspondence::face_map()`
+    gives the chosen map as a vector;
+  - `changed`: anything else;
 - the alignment, and whether it was found;
 - per old feature and face: its class, its match or candidates, and what changed;
 - the new features and faces;
@@ -288,12 +305,24 @@ it was introduced: the measurement and claim changes of #71, #92 (merged familie
 fields. Stored version 3 fingerprints recorded those values at different times and do
 not say which, so they are not comparable with version 4 and are not migrated.
 
-**Rule.** Any change to a fingerprint value bumps the version. Correspondence refuses
-fingerprints of another version with an error asking for the part to be re-fingerprinted.
-A consumer that stores fingerprints (Specify) keeps the geometry they came from and
-re-fingerprints it with the current quiddity; there is no migration path. Earlier
-versions were handled the same way: version 2 files must be recognised again before
-correspondence. The Rust snapshot owns the regression record; independent geometry and motion references
+Version 5 (quiddity 0.5.6, #317) has the same fields as version 4. Face and solid measurements
+are taken on the STEP-selected boundary, so some faces' area, centroid and normal (and what is
+derived from them) moved.
+
+**Rule.** The version changes only when the *format* changes: a field added, removed or given
+another meaning. A change that only moves measured values does not bump it. `correspond` reads
+every format in `READABLE_VERSIONS` (now `/4`, besides the current `/5`), so fingerprints stored
+by an older quiddity compare without being made again. When the two revisions' versions differ,
+the measured fields (face area, centroid and normal, feature position, sizes derived from areas)
+compare at the looser `Thresholds::cross_version_rel` (0.03; chosen from `/4` and `/5` of the
+same files, see its documentation: only freeform, spherical and curved-edge faces moved, by up to
+2% in area on most parts, 11% on one). Surface type and parameters, axis, support and
+adjacency keep their usual tolerances. The result's `fingerprint_version` is always the
+current one. A format outside the list (`/3`, or one this build does not know) is refused with
+an error asking for the part to be re-fingerprinted from its geometry; there is no migration.
+A new feature family that an earlier version did not produce (fillet chains and groups) is not
+counted as a change when the old side has none of it.
+The Rust snapshot owns the regression record; independent geometry and motion references
 remain mandatory. Python-written fingerprints remain readable test inputs.
 
 ### Correspond

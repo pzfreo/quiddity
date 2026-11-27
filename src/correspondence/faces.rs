@@ -131,11 +131,11 @@ impl Ctx<'_> {
             }
         }
         let freeform = !ANALYTIC.contains(&fa.surface.as_str());
-        let rel = if freeform {
+        let rel = self.value_rel(if freeform {
             self.th.freeform_rel
         } else {
             self.th.same_rel
-        };
+        });
         let same_area = match (fa.area, fb.area) {
             (Some(x), Some(y)) => same_value(x, y, rel),
             (None, None) => true,
