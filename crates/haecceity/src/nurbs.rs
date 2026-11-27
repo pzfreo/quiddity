@@ -1246,6 +1246,38 @@ pub(crate) struct SurfaceEvaluation<'a> {
 }
 
 impl<'a> SurfaceEvaluation<'a> {
+    /// Mesh vertices need the point evaluator's arithmetic as well as the
+    /// derivative evaluator's partials. Reuse their identical basis values,
+    /// but retain the two accumulation orders for bit-identical geometry.
+    pub(crate) fn mesh_point_and_partials(&mut self, u: f64, v: f64) -> (V3, V3, V3) {
+        let (_, du, dv) = self.value_and_partials(u, v);
+        let surface = self.surface;
+        let (u0, u1, v0, v1) = surface.domain();
+        let (u, v) = (u.clamp(u0, u1), v.clamp(v0, v1));
+        if !(u.is_finite() && v.is_finite()) {
+            return (surface.value(u, v), du, dv);
+        }
+        let (Some(pu), Some(pv)) = (self.u.as_ref(), self.v.as_ref()) else {
+            return (surface.value(u, v), du, dv);
+        };
+        let mut acc = [0.; 4];
+        for (a, &bua) in pu.basis.iter().enumerate() {
+            let i = pu.span - surface.degree_u + a;
+            for (b, &bvb) in pv.basis.iter().enumerate() {
+                let j = pv.span - surface.degree_v + b;
+                let c = surface.control_points[i][j];
+                let w = surface.weights[i][j] * bua * bvb;
+                acc = [
+                    acc[0] + c[0] * w,
+                    acc[1] + c[1] * w,
+                    acc[2] + c[2] * w,
+                    acc[3] + w,
+                ];
+            }
+        }
+        ([acc[0] / acc[3], acc[1] / acc[3], acc[2] / acc[3]], du, dv)
+    }
+
     pub(crate) fn invert(&mut self, p: V3, hint: Option<(f64, f64)>) -> (f64, f64) {
         self.surface
             .invert_with(p, hint, &mut |u, v| self.value_and_partials(u, v))
@@ -1667,6 +1699,12 @@ mod tests {
                                 bits(evaluator.value_and_partials(u, v)),
                                 bits(surface.value_and_partials(u, v)),
                                 "degrees {degree_u}/{degree_v}, ({u}, {v})"
+                            );
+                            let (_, du, dv) = surface.value_and_partials(u, v);
+                            assert_eq!(
+                                bits(evaluator.mesh_point_and_partials(u, v)),
+                                bits((surface.value(u, v), du, dv)),
+                                "mesh degrees {degree_u}/{degree_v}, ({u}, {v})"
                             );
                         }
                     }

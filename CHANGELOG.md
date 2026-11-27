@@ -38,6 +38,10 @@ Pending version: 0.6.0
 
 ### Changed
 
+- Meshing reuses freeform surface operands, bounded projection witnesses and
+  ordered shared-edge samples. Unresolved bounds keep the original checks;
+  geometry tolerances and constraint-crossing rejection are unchanged.
+
 - Selected-boundary preparation reuses immutable curve operands, bounded curve
   checks, inverse seeds and receiving-surface evaluations within one part.
   Mesh parameter loops have a separate cache from integration decisions;
